@@ -86,6 +86,7 @@ open class TypedArray {
     open fun getInt(index: Int, defValue: Int): Int = defValue
     fun getColor(index: Int, defValue: Int): Int = defValue
     fun getResourceId(index: Int, defValue: Int): Int = defValue
+    fun length(): Int = 1
     open fun getString(index: Int): String? = null
     open fun recycle() {}
 }

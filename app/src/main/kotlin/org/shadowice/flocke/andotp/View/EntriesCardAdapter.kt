@@ -142,6 +142,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             reconciled[tag] = state
         }
         tagsFilterAdapter.setTags(reconciled)
+        // Tag counters (#994): show how many entries carry each tag.
+        tagsFilterAdapter.setTagCounts(entries.getTagCounts())
         presentation.selectTags(tagsFilterAdapter.getActiveTags())
     }
 
@@ -249,7 +251,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         if (settings.isHighlightTokenOptionEnabled())
             entryViewHolder.updateColor(entry.getColor())
 
-        entryViewHolder.updateValues(entry)
+        entryViewHolder.updateValues(entry, settings)
 
         entryViewHolder.setLabelSize(settings.getLabelSize())
         entryViewHolder.setLabelScroll(settings.getLabelDisplay(), settings.getCardLayout())

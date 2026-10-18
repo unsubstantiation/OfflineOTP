@@ -9,6 +9,8 @@ abstract class Drawable {
     open fun setBounds(left: Int, top: Int, right: Int, bottom: Int) {}
     open fun getMinimumWidth(): Int = 1
     open fun getMinimumHeight(): Int = 1
+    open fun getIntrinsicWidth(): Int = 1
+    open fun getIntrinsicHeight(): Int = 1
     open fun setAlpha(alpha: Int) {}
     open fun setColorFilter(filter: android.graphics.ColorFilter?) {}
 }

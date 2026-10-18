@@ -49,7 +49,14 @@ internal open class LetterBitmap(context: Context) {
     private val bounds = Rect()
     private val canvas = Canvas()
     private val firstChar = CharArray(1)
-    private val colors = context.resources.obtainTypedArray(R.array.letter_tile_colors)
+    private val colors: IntArray = run {
+        val typedArray = context.resources.obtainTypedArray(R.array.letter_tile_colors)
+        try {
+            IntArray(typedArray.length()) { i -> typedArray.getColor(i, Color.BLACK) }
+        } finally {
+            typedArray.recycle()
+        }
+    }
     private val tileLetterFontSizeScale: Float
 
     init {
@@ -80,11 +87,7 @@ internal open class LetterBitmap(context: Context) {
     private fun pickColor(key: String): Int {
         // Preserve the Java string hash mapping, including negative hashes.
         val color = Math.abs(key.hashCode()) % NUM_OF_TILE_COLORS
-        try {
-            return colors.getColor(color, Color.BLACK)
-        } finally {
-            colors.recycle()
-        }
+        return colors[color]
     }
 
     private companion object {

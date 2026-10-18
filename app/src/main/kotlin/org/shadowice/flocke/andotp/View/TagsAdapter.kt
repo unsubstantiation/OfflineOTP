@@ -40,6 +40,7 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
 
     private var tagsState = tags
     private var tagsOrder: MutableList<String> = ArrayList(tags.keys).apply { sort() }
+    private var tagCounts: Map<String, Int> = emptyMap()
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         val checkedTextView = if (convertView == null) {
@@ -48,7 +49,8 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
             convertView as CheckedTextView
         }
         val tag = tagsOrder[position]
-        checkedTextView.setText(tag)
+        val count = tagCounts[tag]
+        checkedTextView.setText(if (count != null) "$tag ($count)" else tag)
         // Match Java Boolean unboxing: a caller-supplied null is not silently treated as false.
         checkedTextView.isChecked = tagsState[tag]!!
         return checkedTextView
@@ -93,6 +95,14 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
         addAll(getTags())
         notifyDataSetChanged()
     }
+
+    /** Updates per-tag entry counts shown alongside the tag name (see #994). */
+    open fun setTagCounts(counts: Map<String, Int>) {
+        tagCounts = counts
+        notifyDataSetChanged()
+    }
+
+    open fun getTagCounts(): Map<String, Int> = tagCounts
 
     companion object {
         private const val LAYOUT_RESOURCE_ID = android.R.layout.simple_list_item_multiple_choice
