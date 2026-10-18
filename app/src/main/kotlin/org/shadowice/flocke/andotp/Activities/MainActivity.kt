@@ -436,6 +436,19 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         screenTimers?.startTicks()
     }
 
+    /**
+     * The activity is a singleInstance, so a link delivered while it is running arrives here. The
+     * cached intent must be replaced, or onResume would read the old, already-consumed intent and
+     * drop the new link. A locked vault is handled by onResume after authentication.
+     */
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        if (intent == null) return
+        setIntent(intent)
+        if (!isFinishing() && !authenticationPending && adapter?.encryptionKey != null)
+            checkIntent()
+    }
+
     public override fun onResume() {
         super.onResume()
 
