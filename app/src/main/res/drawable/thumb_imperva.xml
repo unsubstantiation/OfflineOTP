@@ -1,0 +1,13 @@
+<!-- Custom Imperva monogram; glyph outlines use DejaVu Sans Bold. Brand mark remains a trademark of its owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024"
+        android:viewportHeight="1024">
+    <path
+        android:fillColor="#E84A3C"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M167.0 257.0H273.48660349223144V767.0H167.0Z M397.5863677906585 257.0H533.1147722353168L627.1548896050796 529.9336905559277L721.748184135841 257.0H857.0V767.0H756.3217566982538V393.97923643670464L661.1752850064938 668.9624916275955H593.687671364664L498.54119967290393 393.97923643670464V767.0H397.5863677906585Z" />
+</vector>

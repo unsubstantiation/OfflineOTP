@@ -1,0 +1,13 @@
+<!-- Custom Atera monogram; glyph outlines use DejaVu Sans Bold. Brand mark remains a trademark of its owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024"
+        android:viewportHeight="1024">
+    <path
+        android:fillColor="#6D53DB"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M614.9906229068988 674.0864032150033H409.35097119892833L376.89953114534495 767.0H244.70261219022103L433.60415271265913 257.0H590.395847287341L779.297387809779 767.0H647.100468854655ZM442.1440053583389 579.4648359008708H581.855994641661L512.1707970529136 376.55793703951775Z" />
+</vector>

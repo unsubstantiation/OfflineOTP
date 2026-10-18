@@ -1,0 +1,10 @@
+<!-- Simple Icons wazirx (CC0 1.0), v16.35.0; brand mark remains a trademark of its owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="24.0"
+        android:viewportHeight="24.0">
+    <path
+        android:fillColor="#3067F0"
+        android:pathData="M.965 21.964h21.924v-2.485H.965v2.485Zm6.752-3.81h15.195L24 6.343 7.717 18.155Zm9.384-8.704L5.205 18.072H1.93l6.045-9.814 3.858-6.22 5.269 7.412Zm-11.693.223L0 6.067l.994 10.762 4.414-7.156Z" />
+</vector>

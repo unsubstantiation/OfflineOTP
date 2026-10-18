@@ -1,0 +1,13 @@
+<!-- Custom Wealthsimple monogram; glyph outlines use DejaVu Sans Bold. Brand mark remains a trademark of its owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024"
+        android:viewportHeight="1024">
+    <path
+        android:fillColor="#00A878"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#FFFFFF" android:fillType="evenOdd"
+        android:pathData="M167.00000000000003 257.0H286.311152764761L369.7319587628866 627.629604822505L452.50609184629803 257.0H572.4639175257732L655.2380506091847 627.629604822505L738.6588566073101 257.0H857.0L743.1855670103093 767.0H599.6241799437676L512.0 379.2906898861353L425.34582942830366 767.0H281.784442361762Z" />
+</vector>

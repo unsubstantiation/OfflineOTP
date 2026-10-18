@@ -1,0 +1,13 @@
+<!-- Adapted from Aegis Icons (Black Desert.svg); brand marks remain trademarks of their owners. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024.0"
+        android:viewportHeight="1024.0">
+    <path
+        android:fillColor="#785e43"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#fff"
+        android:pathData="m514.63 236.48-70.06 70.05 180.05 180.04 27.69 27.7.31.31-114.75 114.74-23.16 23.16-28-28-105.91-105.9 16.71-16.72 6.45-6.45 42.69-42.68 41.38 41.38-42.68 42.68 64.52 64.53 93.28-93.28L423.11 328 236.48 514.63l272.89 272.89 278.15-278.15-272.89-272.89z" />
+</vector>
