@@ -46,23 +46,20 @@ Besides the four APK workflows, [android-ci.yml](.github/workflows/android-ci.ym
 Report bugs and request features through the [GitHub issue tracker](https://github.com/unsubstantiation/OfflineOTP/issues). For bug reports, include the app version, Android version, reproduction steps, and relevant logs; remove secrets and account data before sharing logs.
 
 ## Credits and license
-# LICENSE
 
-Copyright (c) 2026 unsubstantiation (fairuniversal.com)
+Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com)
 
-This software is licensed under the PolyForm Noncommercial License 1.0.0. 
-You may use, copy, modify, and distribute this software for noncommercial purposes only.
+This project is licensed under the **OfflineOTP Custom Noncommercial License with Attribution and Artificial Intelligence Restrictions, Version 1.0**. The complete, binding terms are in [LICENSE.txt](LICENSE.txt). In summary:
 
-### Attribution Requirement
-Any copying, distribution, or modification of this code or its contents strictly requires 
-prominent attribution to the original author (unsubstantiation) by retaining the above 
-copyright notice in all copies or substantial portions of the software.
+- **Noncommercial use only.** You may use, copy, modify, and share this software for noncommercial purposes only.
+- **Attribution is mandatory.** Every copy, modification, and distribution must prominently credit "unsubstantiation" and carry the website link [http://fairuniversal.com](http://fairuniversal.com) — in source headers, in the license/notice files, and in a user-visible "About"-equivalent screen for binary distributions.
+- **No AI copying or modification.** Only natural persons may copy or modify this code. Copying or modifying it by, through, or with the assistance of any artificial intelligence system — including "SuperAI", AI agents, autonomous coding agents, AI coding assistants, copilots, and similar tools — is prohibited.
+- **No AI training.** This code may not be used, in whole or in part, as training, fine-tuning, or evaluation data for any AI system, including for embeddings, retrieval (RAG) corpora, synthetic-data generation, or model distillation.
+- **No stripping of notices.** The copyright notice, attribution, and website link may not be removed or obscured.
+- **Commercial use, AI use of any kind above, and any other prohibited use require a separate written license** — contact the author via [fairuniversal.com](http://fairuniversal.com).
+- The software is provided "as is", without warranty of any kind.
 
-To view the full terms, visit: https://polyformproject.org
-
---------------------------------------------------------------------------------
-
-# ATTRIBUTION
+### Attribution (prior work)
 
 This project is a complete update from android 5.1+ to android 9+ rewrite in Kotlin of andOTP, originally copyright 
 (C) 2017-2020 Jakob Nixdorf and (C) 2015 Bruno Bierbaumer.

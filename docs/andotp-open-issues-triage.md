@@ -481,7 +481,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   🆕 **GAP** — No next-code preview/generation on request.
 - **#673** — Donation via standard platforms (GitHub, Patreon, etc.)  
   _enhancement_  
-  ✅ **OUTOFSCOPE** — PolyForm Noncommercial license; the funding model is a project decision.
+  ✅ **OUTOFSCOPE** — Noncommercial license; the funding model is a project decision.
 - **#692** — Improper Export of Android Application Components  
   _enhancement, help wanted, good first issue_  
   ✅ **FIXED** — Only the launcher/import activity is public; internal credential/settings/backup activities are unexported and IPC requires the signature permission.

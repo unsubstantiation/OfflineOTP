@@ -1,20 +1,412 @@
-# LICENSE
+# OFFLINEOTP CUSTOM NONCOMMERCIAL LICENSE
+## With Attribution and Artificial Intelligence Restrictions
+### Version 1.0 — Effective October 18, 2026
 
-Copyright (c) 2026 unsubstantiation (fairuniversal.com)
+**Copyright (c) 2026 unsubstantiation. All rights reserved.**
+**Website: http://fairuniversal.com**
 
-This software is licensed under the PolyForm Noncommercial License 1.0.0. 
-You may use, copy, modify, and distribute this software for noncommercial purposes only.
+This is a custom license created by the copyright holder. It is **not** an
+OSI-approved open-source license.
 
-### Attribution Requirement
-Any copying, distribution, or modification of this code or its contents strictly requires 
-prominent attribution to the original author (unsubstantiation) by retaining the above 
-copyright notice in all copies or substantial portions of the software.
+--------------------------------------------------------------------------------
 
-To view the full terms, visit: https://polyformproject.org
+## PLAIN-LANGUAGE SUMMARY (informational only)
+
+Sections 1 through 13 below are the complete and binding license. If anything in
+this summary conflicts with those terms, the numbered terms control.
+
+- **Noncommercial use only.** You may use, copy, modify, and share this Software
+  for Noncommercial Purposes only.
+- **Attribution is mandatory.** Every copy, modification, and distribution must
+  prominently credit "unsubstantiation" and carry the Website link
+  **http://fairuniversal.com**.
+- **No AI copying or modification.** Only natural persons may copy or modify
+  this Software. You may not copy or modify it by, through, or with the
+  assistance of any Artificial Intelligence system, including "SuperAI", AI
+  agents, autonomous coding agents, coding assistants, copilots, or similar
+  tools.
+- **No AI training.** You may not use this Software, in whole or in part, as
+  training, fine-tuning, or evaluation data for any Artificial Intelligence
+  system, including for embeddings, retrieval corpora, or synthetic-data
+  generation.
+- **No stripping of notices.** You may not remove, obscure, or falsify the
+  copyright notice, the attribution, or the Website link.
+- **Commercial use requires a separate license.** Contact the Author via the
+  Website.
+- **Provided "as is".** No warranties. No liability.
+
+--------------------------------------------------------------------------------
+
+## 1. DEFINITIONS
+
+**1.1 "Author" or "Copyright Holder"** means unsubstantiation, reachable at the
+Website.
+
+**1.2 "Website"** means http://fairuniversal.com.
+
+**1.3 "Software"** means the entire contents of the OfflineOTP project and any
+copy of it, in whole or in substantial part, including:
+(a) all source code, object code, bytecode, and build scripts;
+(b) all documentation, images, icons, assets, data files, and configuration
+    files;
+(c) all tests, examples, and design materials; and
+(d) any portion, extract, or modified version of any of the above.
+
+**1.4 "Copy"** means to reproduce, duplicate, transcribe, clone, mirror,
+upload, download, transmit, or otherwise produce a copy of the Software by any
+means, in any form, in whole or in substantial part.
+
+**1.5 "Modify" or "Modification"** means to alter, adapt, translate, refactor,
+reformat, port, restructure, or create a derivative of the Software, in whole or
+in substantial part. A work that contains a Modification is a "Derivative Work."
+
+**1.6 "Artificial Intelligence System" or "AI System"** means any system,
+tool, or service that generates, predicts, or transforms code, text, or other
+content by machine learning or statistical modeling, in whole or in part.
+Without limiting the foregoing, this expressly includes: large language models
+(LLMs), generative models, neural networks, machine-learning models,
+so-called **"SuperAI"**, **AI agents**, autonomous or semi-autonomous coding
+agents, AI coding assistants, "copilots", chatbots, code generators, and
+AI-powered completion, refactoring, translation, or review tools.
+
+**1.7 "Natural Person"** means a human being. It does not include any AI
+System, and it does not include any system or process in which an AI System
+performs or substantially performs the copying or modification.
+
+**1.8 "AI Training"** means any use of the Software, in whole or in part, to
+train, pre-train, fine-tune, instruction-tune, align, distill, evaluate,
+benchmark, ground, embed, index, or otherwise create, improve, or produce any
+AI System or model, or any dataset, index, or corpus used for any of the
+foregoing.
+
+**1.9 "Noncommercial Purpose"** means a purpose that is not primarily intended
+for or directed toward commercial advantage, revenue generation, or monetary
+compensation of any kind. Personal use, classroom education, and
+not-for-profit research are examples. Use inside a for-profit business, sale,
+licensing for a fee, advertising-funded distribution, and paid services are
+not Noncommercial Purposes.
+
+**1.10 "You"** means the individual or legal entity exercising rights under
+this license.
+
+--------------------------------------------------------------------------------
+
+## 2. GRANT OF RIGHTS
+
+**2.1** Subject to your full and ongoing compliance with every term of this
+license (including Sections 3, 4, and 5), the Author grants You a worldwide,
+royalty-free, non-exclusive, non-transferable, revocable license to, for
+Noncommercial Purposes only:
+
+(a) **Use** the Software;
+(b) **Copy** the Software verbatim, in whole or in substantial part, solely by
+    Natural Persons and solely as permitted in Section 6;
+(c) **Modify** the Software and create Derivative Works, solely by Natural
+    Persons and solely as permitted in Section 6; and
+(d) **Distribute** verbatim copies and Derivative Works, solely as permitted in
+    Section 6.
+
+**2.2** Any use, copying, modification, or distribution outside the scope of
+this grant is prohibited and constitutes copyright infringement.
+
+**2.3** The Software is licensed, not sold. The Author retains all ownership of
+the Software and all rights not expressly granted.
+
+--------------------------------------------------------------------------------
+
+## 3. ATTRIBUTION REQUIREMENT
+
+**3.1** Every Copy of the Software, every Modification and Derivative Work, and
+every distribution of any of them — in source, object, binary, or any other
+form — must retain and prominently display the following attribution:
+
+> Copyright (c) 2026 unsubstantiation — http://fairuniversal.com
+> Based on OfflineOTP by unsubstantiation: http://fairuniversal.com
+
+**3.2** The attribution must include **both** the name "unsubstantiation"
+**and** the Website link **http://fairuniversal.com**. The Website link may not
+be omitted, shortened to a non-resolving reference, or replaced.
+
+**3.3** Placement requirements:
+(a) in source code distributions: in a comment header in each modified file and
+    in the accompanying license or notice file;
+(b) in binary or compiled distributions: in the documentation or notice file
+    **and** in a user-visible location such as an "About", "Licenses", or
+    equivalent screen;
+(c) in web pages, listings, or other digital media: as a reasonably visible
+    hyperlink to http://fairuniversal.com.
+
+**3.4** The attribution must be reasonably prominent and legible. It may not be
+obscured, hidden in a way that defeats its purpose, or accompanied by false or
+misleading claims about the Software's origin.
+
+**3.5** You may not state or imply that the Author endorses, sponsors, or
+approves Your use, copy, modification, or distribution of the Software without
+prior written permission.
+
+**3.6** Failure to satisfy this Section 3 is a material breach of this license
+and terminates all rights granted under Section 2 automatically, without
+notice.
+
+--------------------------------------------------------------------------------
+
+## 4. ARTIFICIAL INTELLIGENCE RESTRICTIONS
+
+**4.1 No copying or modification by or with AI.** You may not Copy or Modify
+the Software, in whole or in part:
+(a) by, through, or via any AI System;
+(b) with the assistance of any AI System, including "SuperAI", AI agents,
+    autonomous or semi-autonomous coding agents, AI coding assistants,
+    copilots, code generators, or AI-powered completion, refactoring,
+    translation, or review tools; or
+(c) by any process in which an AI System performs or substantially performs
+    the work, regardless of whether a Natural Person reviews, edits, or
+    approves the result.
+
+All Copying and Modification of the Software must be performed **solely by
+Natural Persons**, using their own human judgment, without AI assistance of any
+kind.
+
+**4.2 Providing the Software to AI is a prohibited Copy.** Uploading,
+submitting, pasting, attaching, or otherwise providing the Software (in whole
+or in part, including as prompts, context, attachments, or embedded content) to
+any AI System is prohibited. Output of an AI System that reproduces, translates,
+reformats, or closely paraphrases all or a substantial part of the Software is
+an unauthorized Copy and is prohibited, whether or not a Natural Person
+requested it.
+
+**4.3 No AI Training.** You may not use the Software, in whole or in part, for
+AI Training. Without limiting the foregoing, the following are expressly
+prohibited:
+(a) use as training, pre-training, validation, test, or evaluation data for
+    any AI System or model;
+(b) fine-tuning, instruction-tuning, alignment, reinforcement learning, or
+    human-feedback training of any AI System or model;
+(c) knowledge distillation, model extraction, model-stealing, or generation of
+    synthetic training data derived from the Software;
+(d) creation of embeddings, vector indices, semantic indices, or
+    retrieval-augmented generation (RAG) knowledge bases that include the
+    Software;
+(e) inclusion in any dataset, corpus, benchmark, or prompt library intended
+    for developing or improving any AI System or model; and
+(f) hosting or submitting the Software to any service whose purpose includes
+    any of the activities listed in (a)–(e).
+
+**4.4 No circumvention.** Routing, translating, or laundering output of an AI
+System through a Natural Person or another tool does not make a prohibited
+Copy, Modification, or AI Training permitted. The nature of the process, not
+the identity of the final reviewer, controls.
+
+**4.5** The restrictions in this Section 4 apply regardless of whether the AI
+System is operated by You, by a third party, or on Your behalf, and regardless
+of whether the use is commercial or noncommercial.
+
+--------------------------------------------------------------------------------
+
+## 5. OTHER PROHIBITED USES
+
+Except under a separate written license signed by the Author, You may not:
+
+**5.1 Commercial use.** Use, Copy, Modify, or Distribute the Software for any
+purpose other than a Noncommercial Purpose, including sale, licensing for a
+fee, SaaS or hosted-service offerings, advertising-funded distribution, use as
+part of a paid product or service, or use primarily for a for-profit entity's
+commercial advantage.
+
+**5.2 Remove or alter notices.** Remove, obscure, alter, or falsify any
+copyright notice, attribution, license text, or the Website link from any Copy
+of the Software.
+
+**5.3 Misrepresent origin.** Claim authorship of the Software, or use the
+names, marks, or identity of the Author (or the Website) to imply endorsement
+or affiliation without prior written permission.
+
+**5.4 Improper sublicensing.** Sublicense, sell, rent, or Distribute the
+Software under terms other than this license as a whole. When You Distribute
+the Software or any Derivative Work, You must pass these same terms on to every
+recipient, and You may not impose additional restrictions that conflict with
+this license.
+
+**5.5 Facilitate circumvention.** Assist, enable, or procure any third party
+to do anything prohibited by Sections 4 or 5.
+
+--------------------------------------------------------------------------------
+
+## 6. REDISTRIBUTION AND DERIVATIVE WORKS
+
+**6.1 Verbatim copies.** You may Distribute verbatim copies of the Software for
+Noncommercial Purposes provided that You:
+(a) retain the complete Software, including this license and all copyright and
+    attribution notices, intact and unmodified;
+(b) satisfy every requirement of Section 3; and
+(c) Distribute at no charge, except for reasonable cost recovery of physical
+    media.
+
+**6.2 Derivative Works.** You may Distribute a Derivative Work for
+Noncommercial Purposes provided that You:
+(a) ensure the Modification was performed solely by Natural Persons in
+    compliance with Section 4;
+(b) state prominently that You modified the Software, identify the modified
+    files or describe the nature of the changes, and state the date of the
+    changes;
+(c) satisfy every requirement of Section 3, including attribution of the
+    original Software;
+(d) license the Derivative Work as a whole under this license, with no
+    additional or conflicting terms; and
+(e) Distribute at no charge, except for reasonable cost recovery of physical
+    media.
+
+**6.3 Binary distributions.** Distribution of compiled, packaged, or installed
+forms (including application packages) is permitted only under Sections 6.1 or
+6.2 and must include the attribution in the locations required by Section 3.3.
+
+**6.4** Every recipient of a distribution from You receives their rights
+directly from the Author, subject to this license. Your distribution does not
+grant rights beyond this license.
+
+--------------------------------------------------------------------------------
+
+## 7. THIRD-PARTY SOFTWARE AND PRIOR WORK
+
+**7.1** This project is a complete update from Android 5.1+ to Android 9+ and
+a rewrite in Kotlin of andOTP, originally copyright (C) 2017-2020 Jakob Nixdorf
+and (C) 2015 Bruno Bierbaumer. Their copyright notices, where present in the
+Software, must be retained.
+
+**7.2** Third-party libraries, components, and assets incorporated in the
+Software remain governed by their own license terms (as shown in the
+application's "About" or "Licenses" screen where applicable). This license
+applies to the Software as contributed by the Author and does not relicense
+those third-party components.
+
+**7.3** If any portion of the Software is later determined to be governed by a
+third-party license, that determination controls as to that portion only.
+
+--------------------------------------------------------------------------------
+
+## 8. COMMERCIAL LICENSING AND PERMISSIONS
+
+**8.1** Any use otherwise prohibited by this license — including commercial
+use, AI copying or modification, and AI Training — requires a separate written
+license signed by the Author.
+
+**8.2** To request such a license, or to request any permission or waiver under
+this license, contact the Author through the Website: http://fairuniversal.com.
+
+--------------------------------------------------------------------------------
+
+## 9. TERM AND TERMINATION
+
+**9.1** This license continues in effect until the copyright in the Software
+expires, unless terminated earlier under this Section 9.
+
+**9.2** This license and all rights granted under it terminate automatically
+and immediately, without notice, if You fail to comply with any of its terms.
+
+**9.3** Upon termination You must immediately:
+(a) cease all use, Copying, Modification, and Distribution of the Software;
+(b) destroy all copies of the Software in Your possession or control, or, at
+    the Author's option, certify their destruction in writing; and
+(c) cease all distribution of Derivative Works.
+
+**9.4** Termination does not obligate the Author to recall or retrieve copies
+already lawfully distributed by You before You learned of the breach, but those
+copies remain subject to this license in the hands of their recipients, and
+Your liability for the breach is not extinguished.
+
+**9.5** Sections 3.5, 4, 7, 9.3, 10, 11, and 12 survive termination.
+
+--------------------------------------------------------------------------------
+
+## 10. DISCLAIMER OF WARRANTY
+
+**10.1** THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS, IMPLIED, STATUTORY, OR OTHERWISE, INCLUDING BUT NOT LIMITED TO
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, TITLE,
+NON-INFRINGEMENT, ACCURACY, QUIET ENJOYMENT, AND THE ABSENCE OF DEFECTS,
+ERRORS, OR SECURITY VULNERABILITIES, WHETHER OR NOT DISCOVERABLE.
+
+**10.2** THE AUTHOR DOES NOT WARRANT THAT THE SOFTWARE WILL OPERATE
+UNINTERRUPTED, MEET YOUR REQUIREMENTS, SECURELY STORE OR PROTECT ANY SECRETS,
+CREDENTIALS, OR TWO-FACTOR AUTHENTICATION DATA, OR INTEROPERATE WITH ANY THIRD-
+PARTY SERVICE. YOU ARE SOLELY RESPONSIBLE FOR MAINTAINING BACKUPS OF YOUR
+SECRETS AND FOR EVALUATING THE SOFTWARE'S SUITABILITY FOR YOUR PURPOSES.
+
+**10.3** THE ENTIRE RISK AS TO THE QUALITY, SECURITY, AND PERFORMANCE OF THE
+SOFTWARE IS WITH YOU.
+
+--------------------------------------------------------------------------------
+
+## 11. LIMITATION OF LIABILITY
+
+**11.1** TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL
+THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY OF ANY KIND —
+WHETHER IN CONTRACT, TORT (INCLUDING NEGLIGENCE), STRICT LIABILITY, OR
+OTHERWISE — ARISING FROM OR RELATING TO THIS LICENSE OR THE SOFTWARE,
+INCLUDING BUT NOT LIMITED TO DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+CONSEQUENTIAL, EXEMPLARY, OR PUNITIVE DAMAGES; LOSS OF USE, DATA, PROFITS, OR
+GOODWILL; BUSINESS INTERRUPTION; LOSS, THEFT, OR DISCLOSURE OF SECRETS,
+CREDENTIALS, OR AUTHENTICATION DATA; OR THE COST OF SUBSTITUTE GOODS OR
+SERVICES — EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+**11.2** IN NO EVENT SHALL THE AUTHOR'S TOTAL AGGREGATE LIABILITY UNDER THIS
+LICENSE EXCEED THE GREATER OF (a) THE AMOUNT YOU PAID THE AUTHOR FOR THE
+SOFTWARE, IF ANY (AND IF NONE, USD 0.00), OR (b) USD 50.00.
+
+**11.3** This Section 11 applies even if any remedy fails of its essential
+purpose.
+
+--------------------------------------------------------------------------------
+
+## 12. GENERAL PROVISIONS
+
+**12.1 Severability.** If any provision of this license is held invalid,
+illegal, or unenforceable, the remaining provisions continue in full force and
+effect. The invalid provision shall be modified to the minimum extent necessary
+to make it valid and enforceable while preserving the parties' intent, in
+particular the restrictions in Sections 3, 4, and 5.
+
+**12.2 No waiver.** Failure or delay by the Author to enforce any provision is
+not a waiver of that provision or any other. Any waiver must be in writing and
+signed by the Author to be effective.
+
+**12.3 Entire agreement.** This license is the entire agreement between You
+and the Author concerning the Software, except for any separate written
+commercial license signed by the Author.
+
+**12.4 Interpretation.** Section headings are for convenience only and do not
+affect interpretation. "Including" means "including without limitation." This
+license may not be construed against the Author as drafter.
+
+**12.5 Governing law.** This license is governed by the copyright and
+intellectual property laws applicable in the Author's jurisdiction, without
+regard to conflict-of-laws principles. Any dispute arising under this license
+shall be brought in the courts of competent jurisdiction in the Author's place
+of residence, and You consent to personal jurisdiction there.
+
+**12.6 Changes.** The Author may publish revised versions of this license for
+future distributions of the Software. Revised versions apply prospectively to
+copies distributed under them. Copies You received under a given version remain
+governed by that version, except that breaches occurring after notice of a
+revised version, continued under the old terms by the Author's public posting,
+shall be governed by the revised version as to conduct occurring after its
+effective date.
+
+--------------------------------------------------------------------------------
+
+## 13. CONTACT
+
+The Author of this Software is **unsubstantiation**.
+
+- Website: **http://fairuniversal.com**
+- Licensing, permissions, and commercial inquiries: via the Website above.
 
 --------------------------------------------------------------------------------
 
 # ATTRIBUTION
 
-This project is a complete update from android 5.1+ to android 9+ rewrite in Kotlin of andOTP, originally copyright 
-(C) 2017-2020 Jakob Nixdorf and (C) 2015 Bruno Bierbaumer.
+This project is a complete update from Android 5.1+ to Android 9+ and a
+rewrite in Kotlin of andOTP, originally copyright (C) 2017-2020 Jakob Nixdorf
+and (C) 2015 Bruno Bierbaumer.
+
+Copyright (c) 2026 unsubstantiation — http://fairuniversal.com
