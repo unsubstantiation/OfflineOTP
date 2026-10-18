@@ -157,9 +157,10 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         }
     }
 
-    /** Fills the card with the entry's token, labels, tags and counter. */
-    fun updateValues(entry: Entry) {
-        val settings = Settings(context)
+    /** Fills the card with the entry's token, labels, tags and counter.
+     *  The caller-owned [Settings] is supplied by the adapter to avoid creating a fresh
+     *  instance (and its migration check) on every bind. */
+    fun updateValues(entry: Entry, settings: Settings) {
 
         if (entry.getType() == Entry.OTPType.HOTP) {
             counterLayout.visibility = View.VISIBLE
@@ -277,6 +278,12 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
                 coverLayout.visibility = View.VISIBLE
             }
         }
+    }
+
+    /** Compatibility overload for callers that do not own a Settings instance. */
+    @Deprecated("Use updateValues(entry, settings) to avoid per-bind Settings allocation")
+    fun updateValues(entry: Entry) {
+        updateValues(entry, Settings(context))
     }
 
     /** Animates the progress bar to the remaining time of the current period. */

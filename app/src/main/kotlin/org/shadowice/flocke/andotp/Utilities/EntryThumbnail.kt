@@ -55,11 +55,23 @@ open class EntryThumbnail {
                     if (thumbnail.assetType == AssetType.Vector) {
                         // A missing drawable takes the same fallback path as a failed resource load.
                         val drawable = requireNotNull(AppCompatResources.getDrawable(context, thumbnail.resource))
-                        val bitmap = Bitmap.createBitmap(
-                            drawable.getMinimumWidth(), drawable.getMinimumHeight(), Bitmap.Config.ARGB_8888
-                        )
+                        // Vectors may report 0 for minimumWidth/Height; fall back to intrinsic dimensions
+                        // and finally to the requested tile size so Bitmap.createBitmap never receives 0.
+                        val drawableWidth = when {
+                            drawable.getIntrinsicWidth() > 0 -> drawable.getIntrinsicWidth()
+                            drawable.getMinimumWidth() > 0 -> drawable.getMinimumWidth()
+                            size > 0 -> size
+                            else -> 1
+                        }
+                        val drawableHeight = when {
+                            drawable.getIntrinsicHeight() > 0 -> drawable.getIntrinsicHeight()
+                            drawable.getMinimumHeight() > 0 -> drawable.getMinimumHeight()
+                            size > 0 -> size
+                            else -> 1
+                        }
+                        val bitmap = Bitmap.createBitmap(drawableWidth, drawableHeight, Bitmap.Config.ARGB_8888)
                         val canvas = Canvas(bitmap)
-                        drawable.setBounds(0, 0, drawable.getMinimumWidth(), drawable.getMinimumHeight())
+                        drawable.setBounds(0, 0, drawableWidth, drawableHeight)
                         drawable.draw(canvas)
                         return bitmap
                     } else {

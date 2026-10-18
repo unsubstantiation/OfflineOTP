@@ -102,6 +102,17 @@ class EntryList {
         return ArrayList(tags)
     }
 
+    /** Counts how many entries carry each tag (for tag-counter UI; see #994). */
+    @Synchronized fun getTagCounts(): HashMap<String, Int> {
+        val counts = HashMap<String, Int>()
+        for (entry in entries) {
+            for (tag in entry.getTags()) {
+                counts[tag] = (counts[tag] ?: 0) + 1
+            }
+        }
+        return counts
+    }
+
     @Synchronized fun getFilteredEntries(constraint: CharSequence?, filterValues: List<Constants.SearchIncludes>, sortMode: Constants.SortMode): ArrayList<Entry> {
         val filtered: ArrayList<Entry>
 

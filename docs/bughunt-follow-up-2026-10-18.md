@@ -234,3 +234,33 @@ views and asserts both branches, and the localized format string is no longer an
   the source changes; the entry-card check now also asserts the custom-period row).
 - `scripts/run-jvm-tests.sh` — **110 passed, 0 failed**.
 - `scripts/kotlin-sandbox/compile-android-tests.sh` — **COMPILE OK**.
+
+# Third pass (later 2026-10-18): TypedArray lifecycle, dimension parsing, thumbnail sizing and tag counters
+
+A further full-coverage re-audit (80+ Kotlin sources, all layouts, the manifest and the sandbox stubs) focused on API lifecycle, input validation and the remaining unfinished-feature candidates listed in `docs/andotp-open-issues-triage.md`. Three defects with user-visible impact were fixed, one latent performance defect was removed, the sandbox stubs were updated to match the real Android API, and one unfinished feature was completed.
+
+## Fixed: LetterBitmap recycled the colour TypedArray on every tile
+
+`Utilities/LetterBitmap.kt` stored a single `TypedArray` in a field (`obtainTypedArray(R.array.letter_tile_colors)`) and recycled it inside `pickColor()` in a `finally` block. On first `getLetterTile` the array was recycled; a second tile from the same `LetterBitmap` instance threw `IllegalStateException: Cannot make calls to a recycled instance` (crash on long lists with the same issuer). The per-request `new LetterBitmap(context)` in `EntryThumbnail.getThumbnailGraphic` hid the crash but left a leaked TypedArray on early throws and an incorrect lifecycle. The fix copies the eight colours into an `IntArray` once (under `try/finally { recycle }`) and `pickColor` now indexes the array.
+
+## Fixed: DimensionConverter accepted multi-dot numbers
+
+`Utilities/DimensionConverter.kt` used `^\\s*(\\d+(\\.\\d+)*)\\s*([a-zA-Z]+)\\s*$` which matches `1.2.3dp` (multiple fractional parts). `Float.valueOf("1.2.3")` then threw late with a generic message. The pattern is now `\\d+(\\.\\d+)?` so exactly one fractional part is accepted and malformed dimensions fail at the matcher with a clear `NumberFormatException`.
+
+## Fixed: EntryThumbnail could create a 0×0 bitmap for vector thumbnails
+
+`Utilities/EntryThumbnail.kt` built vector brand tiles with `Bitmap.createBitmap(drawable.getMinimumWidth(), drawable.getMinimumHeight(), …)` and `drawable.setBounds(0,0, getMinimumWidth(), getMinimumHeight())`. For vectors `minimumWidth/Height` may be 0, which throws `IllegalArgumentException` in `createBitmap`. The code now prefers `getIntrinsicWidth/Height`, falls back to `getMinimumWidth/Height`, and finally to the requested tile size (or 1) so `createBitmap` never receives 0. The sandbox stub gained `getIntrinsicWidth/Height` to match the real API.
+
+## Fixed: Entry card bound a fresh Settings on every bind
+
+`View/EntryViewHolder.updateValues(entry)` constructed a new `Settings(context)` on every `onBindViewHolder` (including its `migrateDeprecatedSettings` check) for every visible card on every token refresh. The holder now takes `updateValues(entry, settings)` supplied by `EntriesCardAdapter` (which already owns a `Settings` instance); a deprecated `updateValues(entry)` overload delegates to the new path for compatibility. The binding semantics (custom period, tap-to-reveal, colours) are unchanged.
+
+## Completed: tag counters in the drawer (#994)
+
+Upstream issue #994 requests per-tag entry counts in the tag drawer; the existing drawer was selection-only. `Database/EntryList` gained `getTagCounts(): HashMap<String,Int>`, `View/TagsAdapter` gained `setTagCounts`/`getTagCounts` and renders `tag (count)` when a count is available, and `View/EntriesCardAdapter.updateTagsFilter` now pushes `entries.getTagCounts()` into the adapter after reconciling tags. The empty-drawer and no-tags cases keep their existing behaviour.
+
+## Verification (host gates re-run)
+
+- `python3 -m unittest discover -s scripts/tests` — **82 passed, 9 skipped (PyYAML-absent checks)** — unchanged.
+- `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (stub regenerated for `length()`/`getIntrinsicWidth/Height`; `EntryViewHolder`/`EntryThumbnail` checks cover the new branches).
+- Sandbox compilation previously failed on `TypedArray.length()` and `Drawable.getIntrinsicWidth`; both stubs now match the platform API.

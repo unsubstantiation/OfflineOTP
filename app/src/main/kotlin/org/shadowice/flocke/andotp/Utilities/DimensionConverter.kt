@@ -51,8 +51,8 @@ object DimensionConverter {
         return Collections.unmodifiableMap(m)
     }
 
-    // Pattern for values like "12dp" or "1.5sp"
-    private val DIMENSION_PATTERN: Pattern = Pattern.compile("^\\s*(\\d+(\\.\\d+)*)\\s*([a-zA-Z]+)\\s*$")
+    // Pattern for values like "12dp" or "1.5sp" — at most one fractional part (e.g. "1.2.3dp" must not match).
+    private val DIMENSION_PATTERN: Pattern = Pattern.compile("^\\s*(\\d+(\\.\\d+)?)\\s*([a-zA-Z]+)\\s*$")
 
     /** Like [TypedValue.complexToDimensionPixelSize], but parses a string such as "12dp". */
     @JvmStatic
