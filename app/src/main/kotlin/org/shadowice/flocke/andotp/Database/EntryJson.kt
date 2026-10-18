@@ -54,7 +54,12 @@ object EntryJson {
             // Older backups did not store the issuer separately.
             val issuer = if (json.has(JSON_ISSUER)) text(json, JSON_ISSUER) else ""
             val kind = if (json.has(JSON_TYPE)) kind(json) else OtpKind.TOTP
-            val period = if (json.has(JSON_PERIOD)) int(json, JSON_PERIOD) else DEFAULT_PERIOD
+            // mOTP always rolls over on TokenCalculator.MOTP_STEP_SECONDS (see Entry.getTokenStepSeconds);
+            // the stored period never drives its timing, so a period field on an mOTP document (never
+            // written by serialize(), never produced by the otpauth:// parser) is ignored rather than
+            // surfaced as a misleading "custom period" value.
+            val period = if (kind == OtpKind.MOTP) DEFAULT_PERIOD
+                else if (json.has(JSON_PERIOD)) int(json, JSON_PERIOD) else DEFAULT_PERIOD
             if (kind == OtpKind.HOTP && !json.has(JSON_COUNTER)) reject(EntryJsonError.MISSING_COUNTER)
             val counter = if (json.has(JSON_COUNTER)) number(json, JSON_COUNTER) else 0L
             val digits = if (json.has(JSON_DIGITS)) int(json, JSON_DIGITS)
@@ -65,8 +70,9 @@ object EntryJson {
             val thumbnailName = thumbnailName(json)
             val lastUsed = usage(json, JSON_LAST_USED)
             val usedFrequency = usage(json, JSON_USED_FREQUENCY)
-            // Absent on non-mOTP documents and older mOTP documents; defaults to empty.
-            val pin = if (json.has(JSON_PIN)) text(json, JSON_PIN) else ""
+            // Absent on non-mOTP documents and older mOTP documents; defaults to empty. Also forced
+            // empty for every non-mOTP kind, matching the field serialize() only ever writes for mOTP.
+            val pin = if (kind == OtpKind.MOTP && json.has(JSON_PIN)) text(json, JSON_PIN) else ""
 
             if (seed.isEmpty() || seed.size > InputPolicy.MAX_SECRET_BYTES) reject(EntryJsonError.INVALID_SECRET)
             try {
