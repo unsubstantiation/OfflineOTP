@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">प्रयोक्ता इंटरफ़ेस</string>
     <string name="settings_category_title_backup">बैकअप</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">प्रकट करने के लिए टैप करें</string>
     <string name="settings_title_tap_to_reveal_timeout">प्रकट करने के लिए टैप के लिए समय समाप्त</string>
     <string name="settings_title_auth">प्रमाणीकरण</string>
-    <string name="settings_title_auth_password">पासवर्ड</string>
-    <string name="settings_title_auth_pin">पिन</string>
     <string name="settings_title_encryption">डेटाबेस एन्क्रिप्शन</string>
-    <string name="settings_title_panic">आतंक उत्प्रेरक</string>
     <string name="settings_title_relock_screen_off">स्क्रीन बंद पर पुनः लॉक करें</string>
     <string name="settings_title_relock_background">पृष्ठभूमि में जाने पर पुनः लॉक करें</string>
     <string name="settings_title_auth_inactivity">निष्क्रियता पर पुनः लॉक करें</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">फ़ाइल नाम के लिए पूछें</string>
     <string name="settings_title_backup_location">डिफॉल्ट सुरक्षा स्थल</string>
     <string name="settings_title_backup_password">बैकअप पासवर्ड</string>
-    <string name="settings_title_auto_backup_password_enc">नई प्रविष्टियों पर स्वचालित रूप से बैकअप</string>
     <string name="settings_title_backup_broadcasts">बैकअप प्रसारण</string>
     <string name="settings_title_openpgp_provider">ओपन-पीजीपी प्रदाता</string>
     <string name="settings_title_openpgp_key_encrypt">ओपन-पीजीपी कूटलेखन कुंजी</string>
@@ -55,9 +50,7 @@
     <string name="settings_title_enable_android_backup_service">एंड्रॉयड समन्वयन सक्षम करें</string>
     <string name="settings_title_clear_keystore">कुंजी स्टोर साफ़ करें</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">ओटीपी टोकन को डिफ़ॉल्ट रूप से छुपाएं, उन्हें मैन्युअल रूप से प्रकट करने की आवश्यकता होती है</string>
     <string name="settings_desc_tap_to_reveal_timeout">उस समय (सेकंड में) का चयन करें जिसके बाद फिर से प्रकट प्रविस्टियां छिप जाए</string>
-    <string name="settings_desc_panic">तय करें कि आतंक ट्रिगर मिलने पर क्या हो</string>
     <string name="settings_desc_relock_screen_off">यंत्र स्क्रीन बंद होने के बाद प्रमाणीकरण आवश्यक</string>
     <string name="settings_desc_relock_background">एप्लिकेशन को पृष्ठभूमि में भेजे जाने के बाद प्रमाणीकरण आवश्यक (उदाहरण के लिए होम बटन दबाकर)</string>
     <string name="settings_desc_auth_inactivity">यंत्र के निष्क्रिय होने के बाद प्रमाणीकरण आवश्यक</string>
@@ -75,22 +68,17 @@
     <string name="settings_desc_focus_search_on_start">ऐप खोलने के तुरंत बाद सर्च पर ध्यान दें।</string>
     <string name="settings_desc_hide_issuer">प्रत्येक कार्ड पर जारीकर्ता लेबल छुपाता है</string>
     <string name="settings_desc_backup_append_date">बैकअप फ़ाइल नाम में सुझाए गए वर्तमान दिनांक और समय को लागू करें</string>
-    <string name="settings_desc_backup_ask">हर बार एक बैकअप बनाने या पुनर्स्थापित करने के लिए फ़ाइल नाम के लिए पूछें</string>
     <string name="settings_desc_backup_location">एक डिफ़ॉल्ट बैकअप स्थान चुनें</string>
     <string name="settings_desc_backup_location_set">बैकअप स्थान चुना गया है</string>
     <string name="settings_desc_backup_password">पासवर्ड सेट करें जो बैकअप को कूटलेखन के लिए उपयोग होगा</string>
     <string name="settings_desc_auto_backup_password_enc">जब नई प्रविष्टियाँ जोड़ी जाती हैं या संपादित की जाती हैं, तो एक नया एन्क्रिप्टेड बैकअप बनाता है, अगर सेटिंग्स की शर्तों को पूरा किया जाता है</string>
     <string name="settings_desc_auto_backup_requirements">इस विकल्प को सक्षम करने के लिए एक डिफ़ॉल्ट बैकअप स्थान और एक बैकअप पासवर्ड सेट करें</string>
     <string name="settings_desc_backup_broadcasts">ब्रॉडकास्ट का उपयोग करके तीसरी पार्टी ऐप्स द्वारा ट्रिगर होने वाले बैकअप प्रकार  का चयन करें</string>
-    <string name="settings_desc_openpgp_key_encrypt">बैकअप को कूटलेख करने के लिए ओपन-पीजीपी कुंजी का मेल पता</string>
     <string name="settings_desc_openpgp_verify">कूटलेख बैकअप केवल तभी आयात किए जाते हैं जब उन्हें एक वैध कुंजी के साथ हस्ताक्षरित किया जाता है</string>
     <string name="settings_desc_special_features">विशेष सुविधाओं को फिर से अक्षम करने के लिए अनचेक करें</string>
-    <string name="settings_desc_enable_screenshot">मुख्य स्क्रीन के स्क्रीनशॉट लेने की अनुमति दें (सुरक्षा कारणों से डिफ़ॉल्ट रूप से अक्षम)</string>
-    <string name="settings_desc_enable_android_backup_service">बैकअप कुंजियों और वरीयताओं के लिए एंड्रॉयड की अंतर्निहित बैकअप सेवा का उपयोग करने में सक्षम करता है</string>
     <string name="settings_desc_clear_keystore">कुंजी स्टोर से एन्क्रिप्शन कुंजी को हटाएं</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">इस सुविधा को सेट करने के लिए एक सुरक्षित लॉक स्क्रीन की आवश्यकता होती है (सेटिंग्स-&gt; सुरक्षा-&gt; स्क्रीन लॉक)</string>
-    <string name="settings_toast_password_empty">एक खाली पासवर्ड की अनुमति नहीं है, इसे अक्षम करने के लिए प्रमाणीकरण को \"कोई नहीं\" पर सेट करें!</string>
     <string name="settings_toast_encryption_changing">डेटाबेस कूटलेखन को बदलने की कोशिश कर रहा है, कृपया प्रतीक्षा करें!</string>
     <string name="settings_toast_encryption_change_success">डेटाबेस कूटलेखन को सफलतापूर्वक बदल दिया है!</string>
     <string name="settings_toast_encryption_change_failed">डेटाबेस कूटलेखन को बदलने में विफल, मूल स्थिति में वापस आ रहा है!</string>
@@ -104,13 +92,12 @@
     <string name="settings_dialog_title_error">त्रुटि</string>
     <string name="settings_dialog_title_clear_keystore">कुंजी स्टोर साफ़ करें?</string>
     <string name="settings_dialog_title_android_sync">एंड्रॉयड समन्वयन</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP अब डेटाबेस कूटलेखन को बदलने की कोशिश करेगा। एक विफलता के मामले में एक आंतरिक बैकअप बहाल किया जाएगा और कूटलेखन अपरिवर्तित रहेगा।\n\n<b>हालाँकि, किसी अनपेक्षित स्थिति में बैकअप का होना हमेशा एक अच्छा विचार है!</b></string>
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP अब डेटाबेस कूटलेखन को बदलने की कोशिश करेगा। एक विफलता के मामले में एक आंतरिक बैकअप बहाल किया जाएगा और कूटलेखन अपरिवर्तित रहेगा।\n\n<b>हालाँकि, किसी अनपेक्षित स्थिति में बैकअप का होना हमेशा एक अच्छा विचार है!</b></string>
     <string name="settings_dialog_msg_auth_invalid_with_encryption">आप केवल तब तक पासवर्ड या पिन का उपयोग कर सकते हैं जब तक डेटाबेस एन्क्रिप्शन \"पासवर्ड / पिन\" पर सेट हो!</string>
     <string name="settings_dialog_msg_encryption_invalid_with_auth">आपको पहले \"पासवर्ड\" या \"पिन\" के लिए प्रमाणीकरण सेट करने की आवश्यकता है!</string>
     <string name="settings_dialog_msg_encryption_invalid_without_credentials">एन्क्रिप्शन बदलने से पहले आपको पासवर्ड या पिन सेट करना होगा!</string>
     <string name="settings_dialog_msg_clear_keystore_password">कुछ मामलों में कुंजी स्टोर को साफ़ करने से समस्याओं को हल करने में मदद मिल सकती है। आपको केवल तभी आगे बढ़ना चाहिए जब आप जानते हैं कि आप क्या कर रहे हैं! \n\n<b>डेटाबेस कूटलेखन</b> को <b>पासवर्ड / पिन </b> पर सेट किया गया है, आपको ऐसा करने में कोई डेटा नहीं खोना चाहिए (लेकिन एक बैकअप रखना फायदेमंद हो सकता है)।\n\n<b>क्या आप वाकई कुंजी स्टोर को खाली करना चाहते हैं? </b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">कुछ मामलों में कुंजी स्टोर को साफ़ करने से समस्याओं को हल करने में मदद मिल सकती है। आपको केवल तभी आगे बढ़ना चाहिए जब आप जानते हैं कि आप क्या कर रहे हैं! \n\n<b>चेतावनी</b>: <b>डेटाबेस कूटलेखन</b> <b>एंड्रॉयड कुंजी स्टोर</b> पर सेट किया गया है, इसलिए आप अपने सभी खाते खो देंगे। सुनिश्चित करें कि आपके पास एक बैकअप है! \n\n<b>क्या आप वाकई सुनिश्चित हैं कि आप बैकअप खाली करना चाहते हैं</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">एंड्रॉयड समन्वयन को कुंजी स्टोर कूटलेखन के साथ उपयोग नहीं किया जा सकता है,<b>आपको मैन्युअल बैकअप करना चाहिए!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>कोई नहीं</item>

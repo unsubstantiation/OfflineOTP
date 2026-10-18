@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">S\'ha realitzat la còpia de seguretat</string>
     <string name="backup_receiver_encrypted_disabled">Les còpies de seguretat xifrades no són permeses,
         podeu activar-les a Preferències</string>
-    <string name="backup_receiver_read_permission_failed">No s\'ha donat permís de lectura, per favor
-        feu-ho abans de fer la cópia de seguretat</string>
-    <string name="backup_receiver_write_permission_failed">No heu donat permís d\'escriptura, si us plau
-        feu-ho abans de fer la còpia de seguretat</string>
     <string name="backup_receiver_custom_encryption_failed">L\'encriptació basada en contrasenya/PIN
         no està suportada amb còpia amb difusió</string>
     <string name="backup_receiver_no_location_set">No ha s\'ha establert la localització de la còpia de seguretat,
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">L\'emmagatzematge extern no és accessible actualment</string>
     <string name="backup_toast_openpgp_error">Error OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">No s\'ha detectat cap signatura verificada</string>
-    <string name="backup_toast_crypt_password_not_set">No hi ha cap contrasenya establerta, comproveu les <b>Preferències</b></string>
     <string name="backup_toast_file_selection_failed">No ha estat possible obrir el diàleg de seleccio de fitxers!</string>
     <string name="backup_label_type">Tipus de còpia de seguretat: </string>
     <string name="backup_label_crypt">La còpia de seguretat s\'emmagatzemarà encriptada amb una contrasenya

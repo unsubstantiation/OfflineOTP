@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interfície d\'usuari</string>
     <string name="settings_category_title_backup">Còpia de seguretat</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Toqueu per a mostrar</string>
     <string name="settings_title_tap_to_reveal_timeout">Temps d\'espera per a \"toqueu per a mostrar\"</string>
     <string name="settings_title_auth">Autenticació</string>
-    <string name="settings_title_auth_password">Contrasenya</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Xifratge de la base de dades</string>
-    <string name="settings_title_panic">Botó del pànic</string>
     <string name="settings_title_relock_screen_off">Torna a blocar quan s\'apaga la pantalla</string>
     <string name="settings_title_relock_background">Torna a blocar quan l\'aplicació va a segon pla</string>
     <string name="settings_title_auth_inactivity">Torna a blocar després d\'un període d\'inactivitat</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Demana el nom de fitxer</string>
     <string name="settings_title_backup_location">Localització per defecte per a les còpies de seguretat</string>
     <string name="settings_title_backup_password">Contrasenya de la còpia de seguretat</string>
-    <string name="settings_title_auto_backup_password_enc">Fes una còpia de seguretat en crear una nova entrada</string>
     <string name="settings_title_backup_broadcasts">Copia de seguretat de difusió</string>
     <string name="settings_title_openpgp_provider">Proveïdor d’OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clau de xifrat d\'OpenPGP</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Activar la sincronització d\'Android</string>
     <string name="settings_title_clear_keystore">Neteja el magatzem de claus</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Amaga els testimonis OTP per defecte, caldrà
-        mostrar-los manualment</string>
     <string name="settings_desc_tap_to_reveal_timeout">Indiqueu durant quant de temps (en segons)
         es mostraran les entrades</string>
-    <string name="settings_desc_panic">Decidiu què fer quan es prem el botó del pànic</string>
     <string name="settings_desc_relock_screen_off">Demana autenticació després que la pantalla
         s\'hagi apagat</string>
     <string name="settings_desc_relock_background">Demana autenticació després que l\'aplicació 
@@ -86,7 +78,6 @@
     <string name="settings_desc_hide_issuer">Amaga l\'etiqueta de l\'emissor a cada tarjeta</string>
     <string name="settings_desc_backup_append_date">Afegeix la data i hora actuals al nom suggerit per
         al fitxer de còpia de seguretat</string>
-    <string name="settings_desc_backup_ask">Demana el nom del fitxer cada vegada que es crea o restaura una còpia de seguretat</string>
     <string name="settings_desc_backup_location">Tria una localització per defecte per a les còpies de seguretat</string>
     <string name="settings_desc_backup_location_set">S\'ha triat la localització per a les còpies de seguretat</string>
     <string name="settings_desc_backup_password">Contrasenya que s\'usarà per a xifrar les
@@ -97,21 +88,13 @@
         una contrasenya per a activar aquesta opció</string>
     <string name="settings_desc_backup_broadcasts">Escull quins tipus de copies de seguretat poden ser executades per
         aplicaciones de tercers fent servir difusió</string>
-    <string name="settings_desc_openpgp_key_encrypt">Adreça de correu de la clau OpenPGP usada per a
-        xifrar les còpies de seguretat</string>
     <string name="settings_desc_openpgp_verify">Només s\'importaran còpies xifrades si s\'han
         signat amb una clau vàlida</string>
     <string name="settings_desc_special_features">Desmarqueu per a deshabilitar les característiques especials</string>
-    <string name="settings_desc_enable_screenshot">Permet fer captures de la pantalla principal
-        (desactivat per defecte per motius de seguretat)</string>
-    <string name="settings_desc_enable_android_backup_service">Permet que andOTP faci servir el servei de còpies de seguretat
-        inclòs a Android per a desar les claus i les preferències</string>
     <string name="settings_desc_clear_keystore">Esborra la clau d\'encriptació del magatzem de claus</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Aquesta característica requereix un bloqueig de pantalla
         segur (Configuració -&gt; Seguretat -&gt; Bloqueig de pantalla)</string>
-    <string name="settings_toast_password_empty">Les contrasenyes buides no són permeses,
-        trieu autenticació nul·la per a desactivar-la!</string>
     <string name="settings_toast_encryption_changing">S\'està mirant de canviar el xifratge de la base de dades;
         per favor, espereu!</string>
     <string name="settings_toast_encryption_change_success">S\'ha canviat el xifratge de la base de
@@ -130,7 +113,7 @@
     <string name="settings_dialog_title_error">Error</string>
     <string name="settings_dialog_title_clear_keystore">Voleu neteja el magatzem de claus?</string>
     <string name="settings_dialog_title_android_sync">Sistema de còpies de seguretat d\'Android</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP ara intentarà canviar el xifrat
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP ara intentarà canviar el xifrat
         de la base de dades. En cas d\'error una copia de seguretat interna es restaurarà
         i el xifrat no cambiarà.\n\n<b>Sempre es bona idea tenir una copia de seguretat per si
         passés alguna cosa inesperada!</b></string>
@@ -147,8 +130,6 @@
         Atés que el xifratge de la <b>base de dades</b> està definit a <b>Android KeyStore</b> perdreu tots els
         comptes. Comproveu que n\'heu fet una còpia!\n\n<b>Segur que voleu netejar el magatzem de claus
         (KeyStore)?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Android sync can not be used with keystore
-        encryption, <b>you should perform a manual backup!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Cap</item>

@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interface</string>
     <string name="settings_category_title_backup">Sauvegarde</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Appuyer pour afficher</string>
     <string name="settings_title_tap_to_reveal_timeout">Durée d\'affichage des jetons</string>
     <string name="settings_title_auth">Identification</string>
-    <string name="settings_title_auth_password">Mot de passe</string>
-    <string name="settings_title_auth_pin">NIP</string>
     <string name="settings_title_encryption">Chiffrement de la base de données</string>
-    <string name="settings_title_panic">Bouton d\'urgence</string>
     <string name="settings_title_relock_screen_off">Re-verrouiller à l\'extinction de l\'écran</string>
     <string name="settings_title_relock_background">Re-verrouiller au passage en arrière-plan</string>
     <string name="settings_title_auth_inactivity">Re-verrouiller en cas d\'inactivité</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Demander le nom du fichier</string>
     <string name="settings_title_backup_location">Emplacement de sauvegarde par défaut</string>
     <string name="settings_title_backup_password">Mot de passe de sauvegarde</string>
-    <string name="settings_title_auto_backup_password_enc">Sauvegarde automatique à l\'ajout de nouvelles entrées</string>
     <string name="settings_title_backup_broadcasts">Sauvegardes par diffusion</string>
     <string name="settings_title_openpgp_provider">Fournisseur OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clé de chiffrement OpenPGP</string>
@@ -55,9 +50,7 @@
     <string name="settings_title_enable_android_backup_service">Activer la synchronisation Android</string>
     <string name="settings_title_clear_keystore">Effacer le KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Cacher les jetons OTP par défaut et les afficher manuellement</string>
     <string name="settings_desc_tap_to_reveal_timeout">Sélectionnez la durée (en secondes) après laquelle cacher à nouveau les entrées révélées</string>
-    <string name="settings_desc_panic">Choisir quoi faire lorsque que le bouton d\'urgence est déclenché</string>
     <string name="settings_desc_relock_screen_off">Exiger une authentification après l\'extinction de l\'écran</string>
     <string name="settings_desc_relock_background">Exiger l\'authentification lorsque l\'application a été passée en
     arrière-plan (p. ex. en appuyant sur le bouton d\'accueil)</string>
@@ -81,7 +74,6 @@
     <string name="settings_desc_focus_search_on_start">Focus sur la recherche immédiatement après l\'ouverture de l\'application.</string>
     <string name="settings_desc_hide_issuer">Masque le libellé de l\'émetteur de chaque carte</string>
     <string name="settings_desc_backup_append_date">Ajouter la date et l\'heure au nom de fichier de sauvegarde proposé</string>
-    <string name="settings_desc_backup_ask">Demander le nom du fichier à chaque fois qu\'une sauvegarde est créée ou restaurée</string>
     <string name="settings_desc_backup_location">Choisissez un emplacement de sauvegarde par défaut</string>
     <string name="settings_desc_backup_location_set">L\'emplacement de la sauvegarde a été choisi</string>
     <string name="settings_desc_backup_password">Configurer le mot de passe utilisé pour chiffrer les sauvegardes</string>
@@ -90,16 +82,11 @@
     <string name="settings_desc_auto_backup_requirements">Définir un emplacement de sauvegarde par défaut et un
         mot de passe de sauvegarde pour activer cette option</string>
     <string name="settings_desc_backup_broadcasts">Sélectionner quelles types de sauvegardes peuvent être appelés pas les applications tiers en utilisant la diffusion</string>
-    <string name="settings_desc_openpgp_key_encrypt">Adresse courriel de la clé OpenPGP utilisée pour chiffrer
-        les sauvegardes</string>
     <string name="settings_desc_openpgp_verify">Les sauvegardes chiffrées ne sont restaurées que lorsqu\'elles sont signées avec une clé valide</string>
     <string name="settings_desc_special_features">Décochez pour désactiver les fonctionnalités spéciales</string>
-    <string name="settings_desc_enable_screenshot">Permettre de prendre des copies d\'écran de la vue principale (désactivé par défaut pour des raisons de sécurité)</string>
-    <string name="settings_desc_enable_android_backup_service">Permet à AndOTP d\'utiliser le service de sauvegarde Android natif pour la sauvegarde des clés et préférences</string>
     <string name="settings_desc_clear_keystore">Supprimer la clé de chiffrement depuis le KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Cette fonctionnalité nécessite l\'activation du verrouillage de l’écran (Paramètres -&gt; Sécurité -&gt; Verrouillage de l\'écran)</string>
-    <string name="settings_toast_password_empty">Un mot de passe vide n\'est pas autorisé, définissez l\'Authentification sur \"Aucune\" pour la désactiver !</string>
     <string name="settings_toast_encryption_changing">Changement du chiffrement de la base de données, veuillez patienter !</string>
     <string name="settings_toast_encryption_change_success">Chiffrement de la base de données changé avec succès !</string>
     <string name="settings_toast_encryption_change_failed">Impossible de changer le chiffrement de la base de données, retour à l\'état original !</string>
@@ -114,7 +101,7 @@
     <string name="settings_dialog_title_error">Erreur</string>
     <string name="settings_dialog_title_clear_keystore">Vider le KeyStore ?</string>
     <string name="settings_dialog_title_android_sync">Synchronisation Android</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP va maintenant essayer de changer le chiffrement de la base de données. En cas d\'échec, une sauvegarde interne sera restaurée et le chiffrement restera inchangé.\n\n<b>Cependant, c’est toujours une bonne idée d’avoir une sauvegarde au cas où quelque chose d’inattendu arrive !</b></string>
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP va maintenant essayer de changer le chiffrement de la base de données. En cas d\'échec, une sauvegarde interne sera restaurée et le chiffrement restera inchangé.\n\n<b>Cependant, c’est toujours une bonne idée d’avoir une sauvegarde au cas où quelque chose d’inattendu arrive !</b></string>
     <string name="settings_dialog_msg_auth_invalid_with_encryption">Vous pouvez seulement utiliser un mot de passe ou un code PIN si
         le chiffrement de la base de données est défini sur \"Mot de passe / Code PIN\" !</string>
     <string name="settings_dialog_msg_encryption_invalid_with_auth">Vous devez d\'abord définir
@@ -131,7 +118,6 @@
         Vu que le <b>chiffrement de la base de données</b> est défini sur <b>KeyStore Android</b>, vous allez perdre tous
         vos comptes. Assurez-vous d\'avoir une sauvegarde !\n\n<b>Êtes-vous sûr(e) de vouloir effacer le
         KeyStore ?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">La synchronisation Android ne peut être utilisée avec le chiffrement de l\'armoire à clés, <b>vous devriez effectuer une sauvegarde manuelle !</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Aucune</item>

@@ -131,7 +131,7 @@
                             android:layout_height="wrap_content"
                             android:maxLines="1"
                             android:ellipsize="end"
-                            android:text="Label"
+                            android:text="@string/label_label"
                             android:textSize="18sp"
                             tools:ignore="HardcodedText" />
 
@@ -141,7 +141,7 @@
                             android:layout_height="wrap_content"
                             android:maxLines="1"
                             android:ellipsize="end"
-                            android:text="Tags"
+                            android:text="@string/label_tags"
                             android:textSize="13.5sp"
                             tools:ignore="HardcodedText" />
 

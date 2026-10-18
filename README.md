@@ -2,64 +2,94 @@
 
 # OfflineOTP
 
-OfflineOTP is an open-source Android authenticator that generates time-based (TOTP), counter-based (HOTP), and mOTP one-time passwords. It supports Android 9 (API 28) and later. It fixes many of the issues AndOTP had due to an android 5.1 target and java issues. The current app version is 2026-10-17; the Android application ID remains `org.shadowice.flocke.andotp`.
+OfflineOTP is a source-available Android authenticator for time-based (TOTP), counter-based
+(HOTP), Steam Guard, and mOTP one-time passwords. It supports Android 9 (API 28) and later. It
+is a Kotlin rewrite of andOTP with hardened vault, backup, and IPC handling. The current build
+is `versionName 0.9.0.1` (versionCode 39); the application ID remains
+`org.shadowice.flocke.andotp`.
 
 ## Features
 
-- Add accounts by scanning an authenticator QR code or entering details manually.
-- Store the vault encrypted using Android KeyStore-backed or password/PIN-based protection.
-- Create portable password-encrypted or OpenPGP-encrypted backups.
-- Use light, dark, or black themes; organize entries with tags.
-- Generate TOTP (RFC 6238), HOTP (RFC 4226), and mOTP codes.
+- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually.
+- Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
+- Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
+- Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
+- Search and tag entries, and choose light, dark, or black themes.
+- Stay offline: the app declares no `INTERNET` permission.
 
 ## Protecting and restoring your vault
 
-Use OfflineOTP's in-app backup and restore functions. Android cloud backup and device transfer are disabled, and copying app data with third-party backup tools does not preserve the separate KeyStore key. Export a portable backup and verify that it can be restored before changing devices, reinstalling, clearing app data, or switching to a build signed with a different key. A signing-key change requires uninstalling the old build and can erase its data.
+Use the in-app backup and restore functions. Android cloud backup and device transfer are
+disabled, and copying app data with third-party backup tools does not preserve the separate
+KeyStore key. Export a portable backup and verify that it restores before changing devices,
+reinstalling, clearing app data, or switching to a build signed with a different key. A signing
+key change requires uninstalling the old build and can erase its data.
 
-Automatic backup broadcasts are restricted to explicitly authorized companion apps signed with the same identity; ordinary shell commands and independently signed automation apps are not authorized. See [Vault security hardening](docs/vault-security-hardening.md) for the current behavior and compatibility details.
+Automatic backup broadcasts are restricted to explicitly authorized companion apps signed with
+the same identity; ordinary shell commands and independently signed automation apps are not
+authorized. See [Vault security hardening](docs/vault-security-hardening.md) for the current
+behavior and limits.
 
 ## Build
 
-The project uses Gradle, Android Gradle Plugin, Kotlin and the Android SDK. The GitHub Actions workflows build the fdroid and play APKs (debug and release):
+The project uses Gradle, the Android Gradle Plugin, Kotlin, and the Android SDK (JDK 17,
+compile SDK 36, build-tools 36.0.0). The GitHub Actions workflows build the fdroid and play
+APKs in debug and release:
 
 ```sh
-./gradlew --no-daemon :app:assembleFdroidDebug
-./gradlew --no-daemon :app:assembleFdroidRelease
-./gradlew --no-daemon :app:assemblePlayDebug
-./gradlew --no-daemon :app:assemblePlayRelease
+./gradlew --no-daemon :app:assembleFdroidDebug :app:assembleFdroidRelease \
+  :app:assemblePlayDebug :app:assemblePlayRelease
 ```
 
 ## Continuous integration
 
-Besides the four APK workflows, [android-ci.yml](.github/workflows/android-ci.yml) runs the quality gate on every push and pull request: the Python source guards and build-input provenance check, the host-side test batteries (`scripts/kotlin-sandbox/run.sh`, `scripts/run-jvm-tests.sh`, the instrumentation compile check), all-variant builds with Gradle host unit tests and lint plus the packaged-manifest policy, and the fdroid/play × API 28/36 emulator instrumentation matrix (`scripts/ci/start-emulator.sh`). A reproducibility job re-builds both flavors twice from independent source and Gradle homes and compares the unsigned APKs and dependency inventories byte for byte on master and on demand. [dependency-baseline.yml](.github/workflows/dependency-baseline.yml) is a manual workflow that uploads the resolved-dependency inventory for provenance review.
+[android-ci.yml](.github/workflows/android-ci.yml) is the quality gate on every push and pull
+request: Python source guards and build-input provenance, the Kotlin sandbox check, host JVM
+tests, the instrumentation compile check, all-variant builds with Gradle unit tests and lint,
+the packaged-manifest policy, and the fdroid/play × API 28/36 emulator matrix. A reproducibility
+job rebuilds both flavors twice from independent source and Gradle homes and compares the
+unsigned APKs and dependency inventories byte for byte on `master` and on demand.
+
+The four `build-*-apk.yml` workflows produce per-variant APK artifacts.
+[dependency-baseline.yml](.github/workflows/dependency-baseline.yml) is a manual workflow that
+uploads the resolved-dependency inventory for provenance review.
 
 ## Documentation
 
-- [Changelog](CHANGELOG.md) — published release history.
-- [Vault security hardening](docs/vault-security-hardening.md) — storage, session, backup and IPC security behavior.
+- [Changelog](CHANGELOG.md) — release history.
+- [Vault security hardening](docs/vault-security-hardening.md) — storage, session, backup, and IPC behavior.
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
-- [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — implementation details and contract boundaries.
-- [UI decomposition plan](docs/ui-decomposition-plan.md) — remaining architectural extraction work.
+- [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
+- [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
+- [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
+- [Latest bug-hunt follow-up](docs/bughunt-follow-up-2026-10-18.md) and [andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
 
 ## Contributing
 
-Report bugs and request features through the [GitHub issue tracker](https://github.com/unsubstantiation/OfflineOTP/issues). For bug reports, include the app version, Android version, reproduction steps, and relevant logs; remove secrets and account data before sharing logs.
+Report bugs and request features through the [GitHub issue tracker](https://github.com/unsubstantiation/OfflineOTP/issues).
+Search existing issues first. For bug reports, include the app version, Android version,
+reproduction steps, and relevant logs; remove secrets and account data before sharing logs.
 
 ## Credits and license
 
 Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com)
 
-This project is licensed under the **OfflineOTP Custom Noncommercial License with Attribution and Artificial Intelligence Restrictions, Version 1.0**. The complete, binding terms are in [LICENSE.txt](LICENSE.txt). In summary:
+This project is licensed under the **OfflineOTP Custom Noncommercial License with Attribution
+and Artificial Intelligence Restrictions, Version 1.0**. The complete, binding terms are in
+[LICENSE.txt](LICENSE.txt). It is **not** an OSI-approved open-source license. In summary:
 
-- **Noncommercial use only.** You may use, copy, modify, and share this software for noncommercial purposes only.
-- **Attribution is mandatory.** Every copy, modification, and distribution must prominently credit "unsubstantiation" and carry the website link [http://fairuniversal.com](http://fairuniversal.com) — in source headers, in the license/notice files, and in a user-visible "About"-equivalent screen for binary distributions.
-- **No AI copying or modification.** Only natural persons may copy or modify this code. Copying or modifying it by, through, or with the assistance of any artificial intelligence system — including "SuperAI", AI agents, autonomous coding agents, AI coding assistants, copilots, and similar tools — is prohibited.
-- **No AI training.** This code may not be used, in whole or in part, as training, fine-tuning, or evaluation data for any AI system, including for embeddings, retrieval (RAG) corpora, synthetic-data generation, or model distillation.
-- **No stripping of notices.** The copyright notice, attribution, and website link may not be removed or obscured.
-- **Commercial use, AI use of any kind above, and any other prohibited use require a separate written license** — contact the author via [fairuniversal.com](http://fairuniversal.com).
-- The software is provided "as is", without warranty of any kind.
+- **Noncommercial use only.** Commercial use requires a separate written license.
+- **Attribution is mandatory.** Every copy, modification, and distribution must credit
+  "unsubstantiation" and carry [http://fairuniversal.com](http://fairuniversal.com) in source
+  headers, license/notice files, and a user-visible About-equivalent screen for binaries.
+- **No AI copying or modification.** Only natural persons may copy or modify this code; doing so
+  by, through, or with the assistance of any artificial intelligence system is prohibited.
+- **No AI training.** The code may not be used as training, fine-tuning, or evaluation data, or
+  in embeddings, retrieval corpora, synthetic-data generation, or model distillation.
+- **Keep the notices.** The copyright notice, attribution, license text, and website link may
+  not be removed or obscured. The software is provided "as is", without warranty of any kind.
 
 ### Attribution (prior work)
 
-This project is a complete update from android 5.1+ to android 9+ rewrite in Kotlin of andOTP, originally copyright 
-(C) 2017-2020 Jakob Nixdorf and (C) 2015 Bruno Bierbaumer.
+This project is a Kotlin update of andOTP for Android 9+, originally copyright (C) 2017-2020
+Jakob Nixdorf and (C) 2015 Bruno Bierbaumer.

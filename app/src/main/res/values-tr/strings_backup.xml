@@ -15,10 +15,6 @@ kısmından OpenPGP anahtarı seçmelisiniz.    </string>
     <string name="backup_receiver_title_backup_success">Yedekleme başarılı</string>
     <string name="backup_receiver_encrypted_disabled">Şifrelenmiş biçimdeki yedeklemelere şimdilik izin verilmiyor.
 Lütfen ayarlar kısmından bu özelliği aktifleştirin</string>
-    <string name="backup_receiver_read_permission_failed">Dosya okuma izni alınamadı. Yedek oluşturmadan önce
-lütfen bu iznin tanımlanmış olduğundan emin olun</string>
-    <string name="backup_receiver_write_permission_failed">Dosya yazma izni alınamadı. Yedek oluşturmadan önce
-lütfen bu iznin tanımlanmış olduğundan emin olun</string>
     <string name="backup_receiver_custom_encryption_failed">Parola/PIN tabanlı şifreleme, broadcast yedekleme
         ile desteklenmemektedir</string>
     <string name="backup_receiver_no_location_set">Bir yedekleme konumu ayarlanmamış, lütfen
@@ -46,7 +42,6 @@ olursa gözükmekte</string>
     <string name="backup_toast_storage_not_accessible">Harici depolama şu anda erişilemez durumda</string>
     <string name="backup_toast_openpgp_error">OpenPGP Hatası: %s</string>
     <string name="backup_toast_openpgp_not_verified">Doğrulanmış imza tespit edilemedi</string>
-    <string name="backup_toast_crypt_password_not_set">Şifre tanımlanmamış, <b>Ayarlar</b>\'ı kontrol edin</string>
     <string name="backup_toast_file_selection_failed">Dosya seçimi iletişim kutusu açılamıyor!</string>
     <string name="backup_label_type">Yedekleme tipi: </string>
     <string name="backup_label_crypt">Yedek şifrelenmiş biçimde ve özel bir parola ile saklanacak.

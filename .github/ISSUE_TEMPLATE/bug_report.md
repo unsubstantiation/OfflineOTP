@@ -1,40 +1,33 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Report a reproducible problem
 title: ''
-labels: new issue
-assignees: flocke
-
+labels: bug
 ---
 
-Check if all requirements are fulfilled otherwise the issue will be closed without any comment
+**Before filing**
 
-  * Check the [FAQ](https://github.com/andOTP/andOTP/wiki/Frequently-Asked-Questions) and search the [already reported issues](https://github.com/andOTP/andOTP/issues) before opening a new one!
-  * Try again after clearing the apps data before posting (**don't forget to backup**)
-  * Fill in **all** the details below
-  * Record a logcat (see the [Android logcat guide](https://developer.android.com/tools/logcat))
-  * Bug reports without logcat will be closed (I can not reproduce every bug myself and I can not fix them without logs)
-  * Delete this entire info block
+- Search the [existing issues](https://github.com/unsubstantiation/OfflineOTP/issues) first.
+- Back up the vault before clearing app data or reinstalling.
+- Include a logcat, if possible: <https://developer.android.com/tools/logcat>.
 
------------------------------
+**General information**
 
-#### General information
+- App version:
+- App source (Google Play / F-Droid / GitHub / other):
+- Android version:
+- Custom ROM:
 
-* **App version:**
-* **App source:** Google Play / F-Droid / GitHub / ...
-* **Android Version:**
-* **Custom ROM:**
+**Expected result**
 
-#### Expected result
-**What is expected?**
+**What happens instead**
 
-**What does happen instead?**
+**Steps to reproduce**
 
-#### Logcat
+1.
+
+**Logcat**
+
 ```
-Paste your logcat here (or use something like Pastebin for long logs)
+Paste the relevant log here, or link to a paste. Remove secrets and account data.
 ```
-
-#### Steps to reproduce
-
- * ...

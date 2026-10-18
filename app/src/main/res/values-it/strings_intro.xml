@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="intro_slide1_title">Iniziamo</string>
-    <string name="intro_slide1_desc">Benvenuto in <b>andOTP</b>, questo tutorial ti guiderà attraverso
+    <string name="intro_slide1_desc">Benvenuto in <b>OfflineOTP</b>, questo tutorial ti guiderà attraverso
         la configurazione iniziale. Presta attenzione e leggi attentamente per evitare la perdita di dati!
         \n\nNon preoccuparti, potrai comunque modificare qualsiasi opzione nelle <b>Impostazioni</b>.</string>
-    <string name="intro_slide2_desc">Per garantire la sicurezza dei tuoi account, <b>andOTP</b> li
+    <string name="intro_slide2_desc">Per garantire la sicurezza dei tuoi account, <b>OfflineOTP</b> li
         memorizza solo in file crittografati. Qui puoi scegliere quale metodo di crittografia verrà
         utilizzato.</string>
     <string name="intro_slide2_desc_keystore">KeyStore è un componente di sistema di Android per
@@ -13,19 +13,19 @@
         hardware (se il dispositivo la supporta). Tuttavia, poiché le chiavi non vengono archiviate con
         i dati delle app, <b>questo metodo impedisce il funzionamento di soluzioni di backup esterne (come
         Titanium)</b>. Se si sceglie questo metodo sarà necessario affidarsi alle funzioni di backup interne
-        fornite da <b>andOTP</b>.
+        fornite da <b>OfflineOTP</b>.
         \n\n<b>Attenzione</b>: KeyStore è noto per causare molti problemi, si prega di usarlo solo se
         assolutamente necessario. Se non ti dispiace inserire una password / PIN ogni volta che avvii
-        <b>andOTP</b> è <b>altamente raccomandato utilizzare la crittografia basata su password</b>.</string>
+        <b>OfflineOTP</b> è <b>altamente raccomandato utilizzare la crittografia basata su password</b>.</string>
     <string name="intro_slide2_desc_password">Questo metodo crittograferà i tuoi dati con una chiave
         generata da una password o PIN. Il vantaggio principale è che funzionerà con
         soluzioni di backup esterne (come Titanium) e sarà meno incline al fallimento rispetto a KeyStore.
-        Tuttavia, dovrai inserire le tue credenziai ogni volta che avvierai <b>andOTP</b>.</string>
+        Tuttavia, dovrai inserire le tue credenziai ogni volta che avvierai <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Qui puoi configurare un\'autenticazione per bloccare
-        <b>andOTP</b>. Poiché hai scelto <b>Android KeyStore</b> come metodo di crittografia,
+        <b>OfflineOTP</b>. Poiché hai scelto <b>Android KeyStore</b> come metodo di crittografia,
         questa impostazione è facoltativa.</string>
     <string name="intro_slide3_desc_password">Qui puoi configurare un\'autenticazione per bloccare
-        <b>andOTP</b>. Poiché hai scelto <b>Password / PIN</b> come metodo di crittografia,
+        <b>OfflineOTP</b>. Poiché hai scelto <b>Password / PIN</b> come metodo di crittografia,
         è necessario impostare una password o PIN per procedere.</string>
     <string name="intro_slide3_warn_no_password">Imposta una password per continuare!</string>
     <string name="intro_slide3_warn_no_pin">Imposta un PIN per continuare!</string>
@@ -38,7 +38,6 @@
     <string name="intro_slide4_title_progress">Attendi, per favore</string>
     <string name="intro_slide4_desc_failed">Errore nell\'impostazione della password, questo messaggio verrà mostrato ancora la prossima volta!</string>
     <string name="intro_slide4_desc">Le tue impostazioni sono state salvate, adesso sei pronto
-        per utilizzare <b>andOTP</b>!</string>
+        per utilizzare <b>OfflineOTP</b>!</string>
     <string name="intro_slide4_desc_progress">Le impostazioni si stanno salvando e la chiave di criptazione si sta generando, per favore attendi…</string>
-    <string name="intro_slide_android_backup_desc">La sincronizzazione Android è una funzionalità integrata di Android usata per il backup dei dati delle app su un servizio di terze parti (di solito Google). I backup sono sempre crittografati e inaccessibili a terze parti senza la password principale. Richiede l\'uso del metodo di crittografia password.</string>
 </resources>

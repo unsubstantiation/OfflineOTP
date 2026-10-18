@@ -13,10 +13,6 @@
     <string name="backup_receiver_title_backup_success">Резервная копия создана</string>
     <string name="backup_receiver_encrypted_disabled">Зашифрованные резервные копии не разрешены,
 включите возможность их создания в «Настройках»</string>
-    <string name="backup_receiver_read_permission_failed">Нет разрешения на чтение,
-предоставьте его перед началом резервного копирования</string>
-    <string name="backup_receiver_write_permission_failed">Нет разрешения на запись,
-предоставьте его перед началом резервного копирования</string>
     <string name="backup_receiver_custom_encryption_failed">Шифрование на основе пароля/PIN-кода не поддерживается сторонними приложениями резервного копирования</string>
     <string name="backup_receiver_no_location_set">Путь для резервного копирования не указан, установите его в настройках приложения</string>
     <string name="backup_receiver_no_password_set">Пароль по умолчанию не указан, установите его в настройках приложения</string>
@@ -41,7 +37,6 @@
     <string name="backup_toast_storage_not_accessible">Внешний носитель в настоящее время недоступен</string>
     <string name="backup_toast_openpgp_error">Ошибка OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Обнаружена недействительная подпись</string>
-    <string name="backup_toast_crypt_password_not_set">Пароль не установлен, проверьте <b>Настройки</b></string>
     <string name="backup_toast_file_selection_failed">Не удаётся открыть диалог выбора файла!</string>
     <string name="backup_label_type">Тип резервной копии: </string>
     <string name="backup_label_crypt">Резервная копия будет храниться зашифрованной алгоритмом AES 256 бит с использованием указанного пользователем пароля. Вы можете установить пароль по умолчанию в настройках, если не хотите вводить его каждый раз при создании резервной копии.</string>

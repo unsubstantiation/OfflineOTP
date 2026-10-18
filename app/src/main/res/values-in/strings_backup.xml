@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Gagal mencadangkan</string>
     <string name="backup_receiver_title_backup_success">Pencadangan berhasil</string>
     <string name="backup_receiver_encrypted_disabled">Pencadangan terenkripsi tidak diperbolehkan, silakan ke Pengaturan untuk mengaktifkannya</string>
-    <string name="backup_receiver_read_permission_failed">Izin baca tidak diberikan, silakan lakukan ini sebelum pencadangan</string>
-    <string name="backup_receiver_write_permission_failed">Izin tulis tidak diberikan, silakan lakukan ini sebelum pencadangan</string>
     <string name="backup_receiver_custom_encryption_failed">Enkripsi berbasis kata sandi/PIN tidak didukung oleh pencadangan siar</string>
     <string name="backup_receiver_no_location_set">Lokasi pencadangan belum ditentukan, tentukan di Pengaturan aplikasi</string>
     <string name="backup_receiver_no_password_set">Kata sandi baku belum ditentukan, tentukan di Pengaturan aplikasi</string>
@@ -33,7 +31,6 @@
     <string name="backup_toast_storage_not_accessible">Penyimpanan eksternal saat ini tidak bisa diakses</string>
     <string name="backup_toast_openpgp_error">Error OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Tidak ada tanda tangan terverifikasi yang terdeteksi</string>
-    <string name="backup_toast_crypt_password_not_set">Kata sandi belum ditentukan, cek ke <b>Pengaturan</b></string>
     <string name="backup_toast_file_selection_failed">Tidak dapat membuka berkas yang dipilih!</string>
     <string name="backup_label_type">Tipe pencadangan: </string>
     <string name="backup_label_crypt">Cadangan akan disimpan terenkripsi dengan kata sandi menggunakan enkripsi AES 256-bit. Anda bisa menentukan kata sandi baku di Pengaturan jika Anda tidak ingin memasukkannya setiap kali Anda membuat cadangan.</string>

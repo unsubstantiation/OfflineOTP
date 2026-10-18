@@ -15,10 +15,6 @@
     <string name="backup_receiver_title_backup_success">Copia realizada correctamente</string>
     <string name="backup_receiver_encrypted_disabled">Actualmente non se permiten as copias cifradas,
         vai aos Axustes para activalos</string>
-    <string name="backup_receiver_read_permission_failed">Non tes permiso de lectura, por favor 
-        arranxa esto antes de intentar a copia</string>
-    <string name="backup_receiver_write_permission_failed">Non tes permiso de escritura, por favor
-        arranxa esto ante de intentar a copia</string>
     <string name="backup_receiver_custom_encryption_failed">O cifrado con Contrasinal/PIN non
         está soportado con respaldo remoto</string>
     <string name="backup_receiver_no_location_set">Non se estableceu a localización para a copia,
@@ -46,7 +42,6 @@
     <string name="backup_toast_storage_not_accessible">O almacenaxe externo non é accesible actualmente</string>
     <string name="backup_toast_openpgp_error">Error OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Non se detectou unha sinatura verificable</string>
-    <string name="backup_toast_crypt_password_not_set">No se estableceu un contrasinal, revisa os <b>axustes</b></string>
     <string name="backup_toast_file_selection_failed">Non se pode abrir o cadro de selección!</string>
     <string name="backup_label_type">Tipo de copia: </string>
     <string name="backup_label_crypt">A copia vaise gardar cifrada cun contrasinal personal

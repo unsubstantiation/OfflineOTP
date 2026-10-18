@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="intro_slide1_title">Začínáme</string>
-    <string name="intro_slide1_desc">Vítejte v <b>andOTP</b>! Tento průvodce Vám pomůže s úvodním nastavením.
+    <string name="intro_slide1_desc">Vítejte v <b>OfflineOTP</b>! Tento průvodce Vám pomůže s úvodním nastavením.
         Prosím dávejte pozor a čtěte pečlivě, jinak můžete přijít o data!
         \n\nŽádné obavy, kteroukoli volbu můžete následně změnit v <b>Nastavení</b>.</string>
-    <string name="intro_slide2_desc">K zajištění bezpečnosti Vašich účtů je <b>andOTP</b> ukládá
+    <string name="intro_slide2_desc">K zajištění bezpečnosti Vašich účtů je <b>OfflineOTP</b> ukládá
         výhradně do šifrovaných datových souborů.
         Zde můžete zvolit, která metoda šifrování se bude používat.</string>
     <string name="intro_slide2_desc_keystore">KeyStore je komponenta systému Android sloužící k
@@ -13,20 +13,20 @@
         (je-li v zařízení k dispozici). Nicméně tím, že klíče nejsou ukládány s daty, <b>zabraňuje tato metoda
         použití externích zálohovacích řešení (například Titanium)</b>.
         Pokud zvolíte tuto možnost, musíte se spolehnout na vlastní zálohovací funkce poskytované
-        <b>andOTP</b>. \n\n<b>Varování</b>: O KeyStore je známo,
+        <b>OfflineOTP</b>. \n\n<b>Varování</b>: O KeyStore je známo,
         že dělá dost problémů, prosím používejte jej jen v případě, že opravdu musíte.
         Pokud Vám nevadí zadávání hesla / PINu při každém spuštění
-         <b>andOTP</b>, doporučuje se raději <b>použít šifrování založené na hesle</b>.</string>
+         <b>OfflineOTP</b>, doporučuje se raději <b>použít šifrování založené na hesle</b>.</string>
     <string name="intro_slide2_desc_password">Tato metoda zašifruje data pomocí klíče
         generovaného z PINu nebo hesla. Hlavní výhodou je, že bude fungovat s externími zálohovacími
         nástroji (např. Titanium) a je méně náchylná k selhání než KeyStore.
         Budete ale muset zadat své přihlašovací údaje při každém spuštěn
-         <b>andOTP</b>.</string>
+         <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Zde si můžete nastavit bezpečnostní zámek
-        <b>andOTP</b>. Pokud jste zvolili šifrování pomocí <b>Android KeyStore</b>,
+        <b>OfflineOTP</b>. Pokud jste zvolili šifrování pomocí <b>Android KeyStore</b>,
         je tento krok volitelný.</string>
     <string name="intro_slide3_desc_password">Zde si můžete nastavit bezpečnostní zámek
-        <b>andOTP</b>. Vzhledem k volbě šifrování pomocí <b>Hesla/PINu</b> je třeba nastavit
+        <b>OfflineOTP</b>. Vzhledem k volbě šifrování pomocí <b>Hesla/PINu</b> je třeba nastavit
         heslo či PIN pro pokračování.</string>
     <string name="intro_slide3_warn_no_password">Prosím, nastavte heslo pro pokračování!</string>
     <string name="intro_slide3_warn_no_pin">Prosím, nastavte PIN pro pokračování!</string>
@@ -40,8 +40,7 @@
     <string name="intro_slide4_desc_failed">Failed to set a password, this intro will be shown again
         the next time!</string>
     <string name="intro_slide4_desc">Vaše nastavení bylo uloženo, od teď můžete začít používat
-        <b>andOTP</b>!</string>
+        <b>OfflineOTP</b>!</string>
     <string name="intro_slide4_desc_progress">Your settings are being saved and the encryption key is being
         generated, please wait…</string>
-    <string name="intro_slide_android_backup_desc">Android sync is a feature built in to android used to back up app data to a 3rd party service (usually Google). Backups are always encrypted and unaccessible to 3rd parties without your master password. Requires use of Password encryption method.</string>
 </resources>

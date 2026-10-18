@@ -5,7 +5,7 @@
     <string name="auth_hint_password">Пароль</string>
     <string name="auth_hint_pin">PIN-код</string>
     <!-- Messages -->
-    <string name="auth_msg_authenticate">Пройдите аутентификацию для запуска andOTP!</string>
+    <string name="auth_msg_authenticate">Пройдите аутентификацию для запуска OfflineOTP!</string>
     <string name="auth_msg_confirm_encryption">Подтвердите аутентификацию,
 чтобы сгенерировать ключ шифрования!</string>
     <!-- Buttons -->
@@ -13,6 +13,4 @@
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Установите пароль в <b>Настройках</b>!</string>
     <string name="auth_toast_pin_missing">Установите PIN-код в <b>Настройках</b>!</string>
-    <string name="auth_toast_password_again">Неверный пароль, попробуйте ещё раз!</string>
-    <string name="auth_toast_pin_again">Неверный PIN-код, попробуйте ещё раз!</string>
 </resources>

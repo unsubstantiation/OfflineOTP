@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">Säkerhetskopiering lyckades</string>
     <string name="backup_receiver_encrypted_disabled">Krypterade säkerhetskopior är för närvarande inte tillåtna,
         vänligen gå till inställningarna för att aktivera dem</string>
-    <string name="backup_receiver_read_permission_failed">Lästbehörighet inte beviljad, gör
-        detta innan du försöker säkerhetskopiera</string>
-    <string name="backup_receiver_write_permission_failed">Skrivbehörighet inte beviljad, gör
-        detta innan du försöker säkerhetskopiera</string>
     <string name="backup_receiver_custom_encryption_failed">Lösenord/PIN-baserad kryptering stöds
         inte med broadcast-säkerhetskopiering</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Extern lagring är för närvarande inte tillgänglig</string>
     <string name="backup_toast_openpgp_error">OpenPGP-fel: %s</string>
     <string name="backup_toast_openpgp_not_verified">Ingen verifierad signatur detekterad</string>
-    <string name="backup_toast_crypt_password_not_set">Lösenordet är inte inställt, kontrollera <b>Inställningar</b></string>
     <string name="backup_toast_file_selection_failed">Kan inte öppna fildialogrutan!</string>
     <string name="backup_label_type">Typ av säkethetskopia: </string>
     <string name="backup_label_crypt">The backup will be stored encrypted with a custom password

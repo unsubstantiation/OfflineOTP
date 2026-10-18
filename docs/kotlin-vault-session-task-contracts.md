@@ -2,7 +2,7 @@
 
 ## Scope and acceptance status
 
-This contract migration extended the OTP parser pilot with Kotlin contract envelopes and Android-free session/task controllers. At the time, UI/storage adapters and Android entry points were intentionally left Java while the runner and task subclasses moved to Kotlin. Later conversion batches moved all app main sources, including UI, storage, WorkManager, crypto and Android components, to Kotlin; the ordinary host/device suites and independent IPC client followed in the twenty-third test-source batch. All 15 `Kotlin*InteropTest` suites are now Kotlin and verify the same Java-callable APIs (see the [conversion record](kotlin-extracted-helpers.md)). There is no coroutine, Compose or serialization migration. Ciphertext, JSON, encrypted backup and staged UUID formats and cryptographic algorithms are unchanged.
+This contract migration extended the OTP parser pilot with Kotlin contract envelopes and Android-free session/task controllers. At the time, UI/storage adapters and Android entry points were intentionally left Java while the runner and task subclasses moved to Kotlin. Later conversion batches moved all app main sources, including UI, storage, WorkManager, crypto and Android components, to Kotlin; the ordinary host/device suites and independent IPC client followed in the twenty-third test-source batch. The `Kotlin*InteropTest` suites described in earlier revisions are not part of this checkout; the current instrumentation suite is the four Kotlin tests under `app/src/androidTest/kotlin`, and no Java test source remains. See the [conversion record](kotlin-extracted-helpers.md). There is no coroutine, Compose or serialization migration. Ciphertext, JSON, encrypted backup and staged UUID formats and cryptographic algorithms are unchanged.
 
 **Implementation and test sources are present.** The sandbox checks described in the conversion record are partial and non-authoritative; passing Gradle and Android gates remains necessary for release confidence. Local Python/source grammar checks are not Kotlin/Java compilation, JVM JUnit, Android instrumentation, or a security/reproducibility certification. Both flavors must pass the existing build/lint/packaged-manifest/independent-release gates and instrumentation matrix on API 28 and 36 before release. Network and IPC protections remain separate gates, not properties granted by sealed types.
 
@@ -70,7 +70,7 @@ Broadcast encrypted backup deliberately remains independent of an unlocked UI se
 
 ## Test coverage and remaining limits
 
-Added source tests:
+At the time of this migration, the added source tests were:
 
 - 14 Kotlin/JVM tests for session transitions, stale/failed activation, one-use owned secrets/handoffs, listener isolation, task state transitions, cancellation, redacted outcomes and authentication key ownership.
 - Five additional runner instrumentation tests for typed exception/null failure, detached completion/rebinding, key replacement disposing queued secrets, and pre-submission cleanup. Existing legacy cancellation/fallback tests remain.
@@ -83,4 +83,4 @@ Build the APKs with the Gradle commands in the README; do not substitute grammar
 
 Large activities and adapters were kept in Java until their responsibilities had been decomposed and tested. Follow the [UI decomposition plan](ui-decomposition-plan.md); contract implementation alone is not approval for a bulk UI conversion. The twenty-first batch later converted the remaining user interface (the six large activities, the credential preference, the manual-entry dialog and the two card adapters) after the five implemented decomposition slices, without extracting the roles the plan still lists under "Still to extract".
 
-The subsequent [extracted-helper conversion](kotlin-extracted-helpers.md) starts with the isolated timer controller and delayed-action identity. Its earlier batches kept Java UI/Android bridges and Java characterization tests; later batches converted the remaining production classes and ordinary test sources. This does not replace Gradle, lint or device acceptance. Java interop suites remain deliberately in Java.
+The subsequent [extracted-helper conversion](kotlin-extracted-helpers.md) starts with the isolated timer controller and delayed-action identity. Its earlier batches kept Java UI/Android bridges and Java characterization tests; later batches converted the remaining production classes and ordinary test sources. This does not replace Gradle, lint or device acceptance. The current instrumentation suite is Kotlin; no Java test source remains.

@@ -2,9 +2,13 @@
 
 ## Scope and status
 
-The pilot consists of `OtpUriParser.kt` and `OtpParseResult.kt`, their host tests, and a Java/Android interoperability test. It replaces only the URI parsing inside `Entry(String)`. At the time of the pilot, UI classes, JSON/backup formats, OTP calculation, JCA crypto, vault/session storage and WorkManager remained Java. Subsequent conversion work moved the app main sources to Kotlin; see the conversion record for current scope. The subsequent [vault/session/task contract migration](kotlin-vault-session-task-contracts.md) adds typed Kotlin contracts without moving their Android/storage adapters. No Compose, coroutine, serialization, JNI or native-runtime migration is included.
+The pilot consists of `OtpUriParser.kt`, `OtpParseResult.kt`, and their host tests. It replaces only the URI parsing inside `Entry(String)`. At the time of the pilot, UI classes, JSON/backup formats, OTP calculation, JCA crypto, vault/session storage and WorkManager remained Java. Subsequent conversion work moved the app main sources to Kotlin; see the conversion record for current scope. The subsequent [vault/session/task contract migration](kotlin-vault-session-task-contracts.md) adds typed Kotlin contracts without moving their Android/storage adapters. No Compose, coroutine, serialization, JNI or native-runtime migration is included.
 
-**Implementation is present; compilation/runtime acceptance is still pending.** The sandbox has no complete JDK/Android SDK/Gradle dependency resolution. Java/Kotlin syntax parsing and Python policy tests are not substitutes for Kotlin compilation, JVM JUnit or Android tests. Do not ship this pilot until the existing both-flavor CI and API 28/36 instrumentation gates pass.
+**Implementation and host tests are present; Gradle and device acceptance are still CI gates.**
+The host suite compiles and passes in the sandbox, and the instrumentation sources compile
+against stand-ins, but this environment has no Android SDK or Gradle dependency resolution.
+Python policy tests are not substitutes for a Gradle build or Android tests; do not treat this
+pilot as release-accepted until the both-flavor CI and API 28/36 instrumentation gates pass.
 
 ## Contracts
 
@@ -61,7 +65,7 @@ Backup framing, database schema, KDF settings and token algorithms are **not** c
 - Kotlin Gradle plugin **2.4.21** and a strictly aligned **2.4.21** stdlib declaration; Groovy build scripts are retained.
 - Kotlin JVM target **1.8**, matching Java 8 bytecode; minimum API **28** and target API **35** unchanged.
 - Compiler/build-tools/plugin classpaths are included in the existing dependency inventory, in addition to the root buildscript and app/runtime/test classpaths. Missing compiler configuration fails the inventory gate instead of silently omitting compiler inputs.
-- No Kotlin plugin is applied to the independent IPC test client.
+- No Kotlin plugin is applied outside the app module.
 
 Selection sources: [official Kotlin 2.4.21 release](https://github.com/JetBrains/kotlin/releases/tag/v2.4.21), and the [KGP compatibility table](https://github.com/JetBrains/kotlin-web-site/blob/master/docs/topics/gradle/gradle-configure-project.md). The 2.4.20–2.4.21 row covers Gradle 7.6.3–9.7.0 and AGP 8.5.2–9.3.1, including this repository's Gradle 8.13/AGP 8.13.2. Compiler configuration names were checked against the [tagged KGP source](https://github.com/JetBrains/kotlin/blob/v2.4.21/libraries/tools/kotlin-gradle-plugin/src/common/kotlin/org/jetbrains/kotlin/gradle/plugin/AbstractKotlinPlugin.kt). Compatibility declarations are not evidence that this project actually builds.
 
@@ -71,7 +75,12 @@ The new resolved Kotlin inputs need the same trusted lockfile/checksum baseline 
 
 `OtpUriParserTest` is a JVM JUnit suite using production parsing and Commons Codec, without Android mocks. It covers defaults/RFC seed bytes, all four variants, custom numeric boundaries, Unicode/plus/issuer semantics, decoded singleton collisions, malformed escapes/UTF-8, numeric overflow, canonical Base32, URI/text/tag/decoded-seed limits, redaction, owned bytes/tags, close behavior, builder invariants and a deterministic malformed-input corpus.
 
-`KotlinOtpInteropTest` remains Java instrumentation coverage for generated Kotlin APIs, Java Entry field/URI round trips, Android UTF-8 behavior, and an RFC 6238 leading-zero vector. The ordinary entry/input, RFC/AES-GCM/backup and security test suites were moved to Kotlin in the twenty-third batch; their assertions remain. Source-policy tests separately enforce the Kotlin pins, aligned JVM targets and Android-free scope; they do not execute Kotlin.
+The current instrumentation suite is the four Kotlin tests under `app/src/androidTest/kotlin`;
+it covers the platform-only URI/document paths, RFC TOTP/HOTP vectors, AES-GCM provider behavior,
+the database round trip, app context and first-run launch. The `KotlinOtpInteropTest` and larger
+interop suites described in earlier revisions are not part of this checkout. Source-policy tests
+separately enforce the Kotlin pins, aligned JVM targets and Android-free scope; they do not
+execute Kotlin.
 
 Run both flavors in the pinned JDK/SDK environment:
 
@@ -82,8 +91,7 @@ python3 -m unittest discover -s scripts/tests -v
   :app:assembleFdroidDebug :app:assemblePlayDebug
 bash scripts/verify_reproducible_build.sh
 
-# Disposable API 28/36 emulator only; the surrounding security suite wipes test data.
-./gradlew --no-daemon :security-test-client:installDebug
+# Disposable API 28/36 emulator only.
 ./gradlew --no-daemon :app:connectedFdroidDebugAndroidTest
 ./gradlew --no-daemon :app:connectedPlayDebugAndroidTest
 ```

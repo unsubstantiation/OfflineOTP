@@ -4728,15 +4728,15 @@ fun main() {
 
         // Every row opens its own link as a VIEW intent.
         val rows = listOf(
-                fixture.license to "https://github.com/andOTP/andOTP/blob/master/LICENSE.txt",
-                fixture.changelog to "https://github.com/andOTP/andOTP/blob/master/CHANGELOG.md",
-                fixture.source to "https://github.com/andOTP/andOTP",
-                fixture.faq to "https://github.com/andOTP/andOTP/wiki/Frequently-Asked-Questions",
+                fixture.license to "https://github.com/unsubstantiation/OfflineOTP/blob/master/LICENSE.txt",
+                fixture.changelog to "https://github.com/unsubstantiation/OfflineOTP/blob/master/CHANGELOG.md",
+                fixture.source to "https://github.com/unsubstantiation/OfflineOTP",
+                fixture.faq to "https://github.com/unsubstantiation/OfflineOTP/issues",
                 fixture.author1 to "https://github.com/flocke",
                 fixture.author2 to "https://github.com/richyhbm",
                 fixture.authorOriginal to "https://github.com/0xbb",
-                fixture.contributors to "https://github.com/andOTP/andOTP/graphs/contributors",
-                fixture.support to "https://github.com/andOTP/andOTP/blob/master/README.md#contribute",
+                fixture.contributors to "https://github.com/unsubstantiation/OfflineOTP/graphs/contributors",
+                fixture.support to "https://github.com/unsubstantiation/OfflineOTP/blob/master/README.md#contributing",
                 fixture.originalExtra to "https://github.com/0xbb/otp-authenticator")
         for ((row, uri) in rows) {
             row.performClick()
@@ -4752,7 +4752,7 @@ fun main() {
         fixture.license.performClick()
         expect(fixture.host.started.isEmpty(), { "a refused start still recorded an intent" })
         val clips = fixture.host.clipboard.clips
-        expect(clips.size == 1 && clips[0].text == "https://github.com/andOTP/andOTP/blob/master/LICENSE.txt",
+        expect(clips.size == 1 && clips[0].text == "https://github.com/unsubstantiation/OfflineOTP/blob/master/LICENSE.txt",
                 { "the URI was not copied: ${clips.map { it.text }}" })
         expect(Toast.shownTexts == listOf<CharSequence>("key:" + R.string.about_toast_copied_to_clipboard),
                 { "the fallback did not toast the copied message: ${Toast.shownTexts}" })

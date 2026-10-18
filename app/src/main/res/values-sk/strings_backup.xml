@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Zálohovanie zlyhalo</string>
     <string name="backup_receiver_title_backup_success">Zálohovanie prebehlo úspešne</string>
     <string name="backup_receiver_encrypted_disabled">Šifrované zálohy nie sú v tejto chvíli povolené, pre ich sprístupnenie prejdite prosím do Nastavení</string>
-    <string name="backup_receiver_read_permission_failed">Povolenie k čítaniu nebolo udelené, prosím udeľte ho pred pokusom o zálohovanie</string>
-    <string name="backup_receiver_write_permission_failed">Povolenie k zápisu nebolo udelené, prosím udeľte ho pred pokusom o zálohovanie</string>
     <string name="backup_receiver_custom_encryption_failed">Šifrovanie heslom/PINom nie je podporované v kombinácií s automatickým zálohovaním</string>
     <string name="backup_receiver_no_location_set">Nebola nastavená žiadna cesta pre zálohy. Prosím, nastavte ju v nastaveniach aplikácie</string>
     <string name="backup_receiver_no_password_set">Nebolo nastavené žiadne predvolené heslo. Prosím, nastavte ho v nastaveniach aplikácie</string>
@@ -33,7 +31,6 @@
     <string name="backup_toast_storage_not_accessible">Externé úložisko je momentálne neprístupné</string>
     <string name="backup_toast_openpgp_error">Chyba OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Nebol nájdený žiadny overený podpis</string>
-    <string name="backup_toast_crypt_password_not_set">Heslo nie je nastavené, skontrolujte <b>Nastavenia</b></string>
     <string name="backup_toast_file_selection_failed">Nepodarilo sa otvoriť dialóg pre výber súboru!</string>
     <string name="backup_label_type">Typ zálohy: </string>
     <string name="backup_label_crypt">Záloha bude uložená v súbore zašifrovanom heslom použitím algoritmu AES 256-bit. Môžete si nastaviť predvolené heslo v nastaveniach ak ho nechcete zadávať zakaždým, keď vytvárate zálohu.</string>

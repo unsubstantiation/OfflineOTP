@@ -13,6 +13,4 @@
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Por favor, defina uma senha nas <b>configurações</b>!</string>
     <string name="auth_toast_pin_missing">Por favor, defina um PIN nas <b>configurações</b>!</string>
-    <string name="auth_toast_password_again">Senha incorreta. Por favor, tente novamente.</string>
-    <string name="auth_toast_pin_again">PIN incorrecto. Por favor, tente novamente.</string>
 </resources>

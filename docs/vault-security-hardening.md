@@ -66,15 +66,25 @@ Automatic exports create new UUID-named documents, even if the old date/time nam
 
 ## Regression coverage and remaining verification
 
-The Python suite checks the signature-bound manifest policy, backup-disable policy, source exclusion rules, build-input provenance, fixtures and independent-build comparison logic. Kotlin host tests cover input/header limits and process-session handoffs; ordinary Android security tests are Kotlin too. All 15 `Kotlin*InteropTest` suites are now Kotlin and verify the same Java-callable APIs. Android tests additionally cover:
+The Python suite checks the signature-bound manifest policy, backup-disable policy, source
+exclusion rules, build-input provenance, and independent-build comparison logic. The host JVM
+suite covers input/header limits, parser/document rules, crypto derivation and wrapping, and
+process-session handoffs. The four instrumentation tests cover the platform-only paths: the app
+context and private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry
+URI/document round trips, the AES-GCM provider path and tamper rejection, and the database round
+trip.
 
-- A **different UID and certificate**, verified before an independent caller attempts panic and backup IPC; denial, unchanged vault/settings and absence of queued backup work are asserted even with backup/panic configured.
-- Wrong-key save/migration rejection, missing-versus-empty handling, missing-key non-regeneration, all-or-nothing JSON, journal recovery and failed metadata commits.
-- Credential-change failure preserving ciphertext/preferences, successful matching ciphertext/verifier/salt, and canceled encryption changes creating no replacement key.
-- URI/JSON numeric and size bounds; late-result cancellation/revocation and unexpected task exceptions.
+The independent-UID `security-test-client` module and the larger interop suites described in
+earlier revisions are not part of this checkout. IPC authorization is pinned by the
+signature-permission manifest policy checks; device execution of the remaining instrumentation
+suite is a CI gate.
 
-The caller is the test-only `security-test-client` module. It generates an independent local test signing key under its excluded build directory and is installed before connected tests. **Do not distribute it or run destructive tests on real account installations.**
-
-Local validation still cannot run the Gradle/JUnit/Android gates in this sandbox: no complete pinned JDK/SDK or dependency resolution is available. The Kotlin sandbox and a compile-only smoke check with hand-written Android/JUnit stand-ins are not validation against the Gradle plugin, real Android APIs or a device; the Java interoperability suites have not been compiled here. Both-flavor builds, lint, JVM unit tests, packaged manifest/resource inspection, API 28/36 emulator runs, and actual reproducibility comparisons still need a suitable environment/CI. OEM restore behavior, provider failure injection and UI/process-death/rotation flows need further device testing.
+Local validation still cannot run the Gradle/Android gates in this sandbox: no complete pinned
+Android SDK or Gradle dependency resolution is available. The host gates pass here (110 JVM
+tests and 100 sandbox checks), and the instrumentation sources compile against stand-ins, but
+that is not validation against the Gradle plugin, real Android APIs or a device. Both-flavor
+builds, lint, packaged manifest/resource inspection, API 28/36 emulator runs, and actual
+reproducibility comparisons remain CI requirements. OEM restore behavior, provider failure
+injection, and UI/process-death/rotation flows need device testing.
 
 This work does not defend against a rooted device, compromised signing key, malicious user-selected OpenPGP/storage provider, privileged accessibility tooling, clipboard/token sharing chosen by the user, or arbitrary same-signer code. The production app must continue to have no `INTERNET` permission; external providers can have their own network access. Reviewed dependency locks/checksums and an archived/digest-pinned release toolchain remain separate supply-chain follow-up work.

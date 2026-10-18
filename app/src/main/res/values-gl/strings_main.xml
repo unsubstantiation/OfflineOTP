@@ -6,7 +6,6 @@
     <string name="button_scan_qr">Escanear código QR</string>
     <string name="button_save">Gardar</string>
     <string name="button_new_tag">Nova etiqueta</string>
-    <string name="button_settings">Axustes</string>
     <string name="button_all_tags">Todas as etiquetas</string>
     <string name="button_no_tags">Sen etiquetas</string>
     <string name="button_qr_from_image">Código QR desde imaxe</string>
@@ -56,19 +55,16 @@
     <string name="button_add">Engadir nova conta</string>
     <string name="button_close_menu">Pechar menú</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">Fallou a autenticación, por favor inténtao de novo!</string>
-    <string name="toast_auth_failed_fatal">Fallou a autenticación, pechando andOTP!</string>
+    <string name="toast_auth_failed_fatal">Fallou a autenticación, pechando OfflineOTP!</string>
     <string name="toast_copied_to_clipboard">Copiado ao portapapeis</string>
     <string name="toast_entry_exists">Esta provedor xa existe</string>
     <string name="toast_invalid_qr_code">Código QR non válido</string>
-    <string name="toast_encryption_key_empty">Non se cargou a chave de cifrado</string>
     <string name="toast_intent_creation_failed">A información recibida non é válida</string>
-    <string name="toast_intent_creation_succeeded">Datos engadidos correctamente</string>
     <string name="toast_file_load_error">Non se puido abrir o ficheiro</string>
     <string name="toast_qr_error">Non se puido atopar/confirmar o código QR</string>
     <string name="toast_qr_checksum_exception">A verificación da suma fallou ao descodificar o código QR</string>
     <string name="toast_qr_format_error">Erro de formato no código QR</string>
-    <string name="toast_qr_unsuported">Código QR non soportado</string>
+    <string name="toast_qr_unsupported">Código QR non soportado</string>
     <string name="toast_qr_failed_to_generate">Fallou a creación do código QR</string>
     <!-- Errors -->
     <string name="error_invalid_secret">Chave segreda non válida</string>
@@ -76,24 +72,19 @@
     <string name="dialog_title_auth">Autenticar</string>
     <string name="dialog_title_manual_entry">Introducir datos</string>
     <string name="dialog_title_remove">Eliminar</string>
-    <string name="dialog_title_rename">Renomear</string>
     <string name="dialog_title_counter">Contador</string>
     <string name="dialog_title_used_tokens">Utilizacións dos tokens</string>
-    <string name="dialog_title_keystore_error">Fallo no KeyStore</string>
     <string name="dialog_title_qr_code">Código QR</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">Introducir contrasinal</string>
     <string name="dialog_title_auto_time">Hora automática</string>
     <string name="dialog_label_enter_password">Introducir contrasinal</string>
     <string name="dialog_label_confirm_password">Confirmar contrasinal</string>
-    <string name="dialog_msg_auth">Introduce as credenciais do dispositivo para iniciar andOTP.</string>
+    <string name="dialog_msg_auth">Introduce as credenciais do dispositivo para iniciar OfflineOTP.</string>
     <string name="dialog_msg_confirm_delete">Tes a certeza de querer quitar a conta \"%1$s\"?</string>
-    <string name="dialog_msg_used_tokens">andOTP irá seguindo a utilizacións dos token (usando a función
+    <string name="dialog_msg_used_tokens">OfflineOTP irá seguindo a utilizacións dos token (usando a función
         \"Toca para amosar\" ou da copia ao portapapeis) para poder ordenalos por
         \"Máis utilizados\" ou \"Último utilizado\".\n\nNon se amosará esta mensaxe outra vez.</string>
-    <string name="dialog_msg_keystore_error">Fallo ao cargar a chave de cifrado desde KeyStore.
-        <b>Calquera entrada que se engada perderase.</b>\n\nPara poder seguir usando andOTP podes ir a
-        <b>Axustes</b> e cambiar o <b>Cifrado da base da datos</b> a <b>Contrasinal / PIN</b>.</string>
     <string name="dialog_msg_auto_time">Activa a opción <b>hora e data automáticas</b> nos <b>Axustes</b>
         do teu móbil para asegurarte da correcta creación dos contrasinais
         dun só uso (TOTP) baseados na hora.</string>

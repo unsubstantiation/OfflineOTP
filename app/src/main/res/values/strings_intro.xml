@@ -4,51 +4,37 @@
     tools:ignore="MissingTranslation">
 
     <string name="intro_slide1_title">Let\'s get started</string>
-    <string name="intro_slide1_desc">Welcome to <b>OfflineOTP</b>! This wizard will guide you through
-        the initial setup process. Please pay attention and read carefully in order to avoid losing data.
-        \n\nDon\'t worry, you can still change any of these options later on in the <b>Settings</b>.</string>
+    <string name="intro_slide1_desc">Welcome to <b>OfflineOTP</b>! This wizard covers the initial setup.
+        Read each step to avoid losing data.\n\nYou can change these options later in <b>Settings</b>.</string>
 
-    <string name="intro_slide2_desc">To ensure the security of your accounts, <b>OfflineOTP</b> uses
-        encryption to store account data. Here you can choose which method of encryption will be
-        used.</string>
-    <string name="intro_slide2_desc_keystore">The KeyStore is a system component of Android used to
-        securely store cryptographic keys. The advantage of using the KeyStore is that the keys are
-        stored separately from <b>OfflineOTP</b>\'s data, and can be backed by hardware-based encryption
-        (if your device supports it). However, as the keys are not stored with <b>OfflineOTP</b>\'s data,
-        <b>this method prevents external backup solutions (like Titanium) from working</b>. If you
-        choose this method, you will have to rely on the internal backup functions provided by
-        <b>OfflineOTP</b>.\n\n<b>Warning</b>: The KeyStore is known to cause many problems, so
-        please only use it if you absolutely have to. If you don\'t mind entering a password / PIN
-        every time you start <b>OfflineOTP</b>, it is <b>highly recommended to use the password-based
-        encryption instead</b>.</string>
-    <string name="intro_slide2_desc_password">This method will encrypt your data with a key
-        generated from a password or PIN. The main advantage of using this method is that external
-        backup solutions (like Titanium) will work as expected, and it is much less failure-prone
-        than the KeyStore. However, you will have to enter your credentials every time you start
-        <b>OfflineOTP</b>.</string>
+    <string name="intro_slide2_desc"><b>OfflineOTP</b> encrypts your account data. Choose the encryption
+        method.</string>
+    <string name="intro_slide2_desc_keystore"><b>Android KeyStore</b> keeps the encryption key outside the app\'s data,
+        optionally backed by hardware encryption. Third-party backup tools cannot restore that
+        key; use OfflineOTP\'s backup instead. If the KeyStore key is lost, the vault cannot be
+        recovered without a backup.\n\n<b>Note:</b> Password / PIN encryption is usually more
+        reliable.</string>
+    <string name="intro_slide2_desc_password"><b>Password / PIN</b> encryption derives the key from
+        your password. You enter it each time OfflineOTP starts.</string>
 
-    <string name="intro_slide3_desc_keystore">Here you can setup an authentication method to lock
-        <b>OfflineOTP</b>. Since you have chosen <b>Android KeyStore</b> as your encryption method, this
-        step is optional.</string>
-    <string name="intro_slide3_desc_password">Here you can setup an authentication method to lock
-        <b>OfflineOTP</b>. Since you have chosen <b>Password / PIN</b> as your encryption method, a
-        password or a PIN must be set to proceed.</string>
-    <string name="intro_slide3_warn_no_password">Please set a password to continue!</string>
-    <string name="intro_slide3_warn_no_pin">Please set a PIN to continue!</string>
-    <string name="intro_slide3_warn_confirm_password">Please confirm your password to continue!</string>
-    <string name="intro_slide3_warn_password_mismatch">Passwords must match!</string>
-    <string name="intro_slide3_warn_confirm_pin">Please confirm your PIN to continue!</string>
-    <string name="intro_slide3_warn_pin_mismatch">Pins must match!</string>
+    <string name="intro_slide3_desc_keystore">Set up an authentication method to lock <b>OfflineOTP</b>. With
+        <b>Android KeyStore</b> encryption this step is optional.</string>
+    <string name="intro_slide3_desc_password">Set up an authentication method to lock <b>OfflineOTP</b>. With
+        <b>Password / PIN</b> encryption a password or PIN is required.</string>
+    <string name="intro_slide3_warn_no_password">Set a password to continue.</string>
+    <string name="intro_slide3_warn_no_pin">Set a PIN to continue.</string>
+    <string name="intro_slide3_warn_confirm_password">Confirm your password to continue.</string>
+    <string name="intro_slide3_warn_password_mismatch">Passwords must match.</string>
+    <string name="intro_slide3_warn_confirm_pin">Confirm your PIN to continue.</string>
+    <string name="intro_slide3_warn_pin_mismatch">PINs must match.</string>
 
     <string name="intro_slide4_title">Finished</string>
     <string name="intro_slide4_title_failed">Setup failed</string>
     <string name="intro_slide4_title_progress">Please wait</string>
-    <string name="intro_slide4_desc_failed">Failed to set a password, this intro will be shown again
-        the next time!</string>
-    <string name="intro_slide4_desc">Your settings have been saved, you are now all set to use
-        <b>OfflineOTP</b>!</string>
-    <string name="intro_slide4_desc_progress">Your settings are being saved and the encryption key is being
-        generated, please wait…</string>
+    <string name="intro_slide4_desc_failed">Setup failed. The wizard will open again next time.</string>
+    <string name="intro_slide4_desc">Settings saved. <b>OfflineOTP</b> is ready to use.</string>
+    <string name="intro_slide4_desc_progress">Saving settings and generating the encryption key…</string>
 
-    <string name="intro_slide_android_backup_desc">Android sync is a feature built in to android used to back up app data to a 3rd party service (usually Google). Backups are always encrypted and unaccessible to 3rd parties without your master password. Requires use of Password encryption method.</string>
+    <string name="intro_slide_android_backup_desc">Android cloud backup is disabled. Use portable backups from the
+        <b>Backup</b> screen instead.</string>
 </resources>

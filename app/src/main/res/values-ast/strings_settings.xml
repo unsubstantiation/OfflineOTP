@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interfaz d\'usuariu</string>
     <string name="settings_category_title_backup">Copies de seguranza</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Tocar pa descubrir</string>
     <string name="settings_title_tap_to_reveal_timeout">Escosa del tiempu d\'espera del toque pa descubrir</string>
     <string name="settings_title_auth">Autenticación</string>
-    <string name="settings_title_auth_password">Contraseña</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Cifráu de la base de datos</string>
-    <string name="settings_title_panic">Botón de pánicu</string>
     <string name="settings_title_relock_screen_off">Volver bloquiar al apagar la pantalla</string>
     <string name="settings_title_relock_background">Volver a bloquiar al tar en segundu planu</string>
     <string name="settings_title_auth_inactivity">Volver bloquiar na inactividá</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Pidir un nome de ficheru</string>
     <string name="settings_title_backup_location">Allugamientu predetermináu de les copies</string>
     <string name="settings_title_backup_password">Contraseña pa les copies de seguranza</string>
-    <string name="settings_title_auto_backup_password_enc">Facer copies de seguranza al amestar entraes</string>
     <string name="settings_title_backup_broadcasts">Espardimientu de copies de seguranza</string>
     <string name="settings_title_openpgp_provider">Fornidor OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clave de cifráu OpenPGP</string>
@@ -55,12 +50,9 @@
     <string name="settings_title_enable_android_backup_service">Activar la sincronización d\'Android</string>
     <string name="settings_title_clear_keystore">Llimpiar l\'almacén de claves</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Anubre por defeutu los pases OTP riquiendo que se
-        descubran a mano</string>
     <string name="settings_desc_tap_to_reveal_timeout">Esbilla\'l tiempu (en segundos) tres el que
         van volver anubrise les entraes
         revelaes</string>
-    <string name="settings_desc_panic">Decidi lo qu\'asocede cuando s\'activa\'l botón de pánicu</string>
     <string name="settings_desc_relock_screen_off">Rique l\'autenticación dempués de que la
         pantalla del preséu s\'apague</string>
     <string name="settings_desc_relock_background">Rique l\'autenticación dempués de que l\'aplicación se
@@ -91,8 +83,6 @@ d\'accesibilidá!</b></string>
     <string name="settings_desc_hide_issuer">Hides issuer label on each card</string>
     <string name="settings_desc_backup_append_date">Amiesta la data actual al nome suxeríu de la copia
         de seguranza</string>
-    <string name="settings_desc_backup_ask">Pide\'l nome de ficheru cada vegada que se crea o
-        restaura una copia de seguranza</string>
     <string name="settings_desc_backup_location">Escueyi un allugamientu predetermináu pa copies de seguranza</string>
     <string name="settings_desc_backup_location_set">Escoyóse l\'allugamientu de les copies de seguranza</string>
     <string name="settings_desc_backup_password">Afita la contraseña que s\'usa pa cifrar les
@@ -105,23 +95,13 @@ d\'accesibilidá!</b></string>
     <string name="settings_desc_backup_broadcasts">Esbilla les tribes de copies de seguranza que
         puen aicionase pente aplicaciones de
         terceros col usu d\'Espardimientu</string>
-    <string name="settings_desc_openpgp_key_encrypt">La direición de corréu de la clave OpenPGP usada
-        pa cifrar les copies de seguranza</string>
     <string name="settings_desc_openpgp_verify">Les copies de seguranza cifraes namás s\'importen
         si tán roblaes con una clave válida</string>
     <string name="settings_desc_special_features">Toca pa volver desactivar les carauterístiques especiales</string>
-    <string name="settings_desc_enable_screenshot">Permite la fechura de captures de pantalla de
-        la pantalla principal (desactívase por
-        defeutu por razones de seguranza)</string>
-    <string name="settings_desc_enable_android_backup_service">Permite qu\'andOTP use\'l serviciu
-        integráu de copies de seguranza d\'Android pa facer
-        copies de seguranza de claves y preferencies</string>
     <string name="settings_desc_clear_keystore">Desanicia la clave de cifráu del almacén de claves</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Esta carauterística rique una pantalla de
         desbloquéu configurada (Axustes -&gt; Seguranza -&gt; Pantalla de bloquéu)</string>
-    <string name="settings_toast_password_empty">Nun se permite una contraseña balera,
-        afita l\'autenticación a Nenguna pa desactivala.</string>
     <string name="settings_toast_encryption_changing">Tentando de camudar el cifráu de la base
         de datos, espera</string>
     <string name="settings_toast_encryption_change_success">¡El cifráu de la base de datos camudó
@@ -140,7 +120,7 @@ d\'accesibilidá!</b></string>
     <string name="settings_dialog_title_error">Fallu</string>
     <string name="settings_dialog_title_clear_keystore">¿Llimpiar l\'almacén de claves?</string>
     <string name="settings_dialog_title_android_sync">Sincronización d\'Android</string>
-    <string name="settings_dialog_msg_encryption_change">Agora andOTP va tentar de camudar el cifráu
+    <string name="settings_dialog_msg_encryption_change">Agora OfflineOTP va tentar de camudar el cifráu
         de la base de datos. En casu de fallu, una copia de seguranza va restaurase y
         el cifráu nun va camudar.\n\n<b>Por embargu, siempres ye una bona idea tener una
         copia en casu de qu\'asoceda daqué inesperao.</b></string>
@@ -161,9 +141,6 @@ d\'accesibilidá!</b></string>
         Darréu que\'l <b>cifráu de la base de datos</b> s\'afitó a <b>Almacén de claves d\'Android</b>,
         vas perder toles cuentes. ¡Asegúrate de que tienes una copia de seguranza!\n\n<b>¿De xuru que
         quies llimpiar l\'almacén de claves?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">La sincronización d\'Android nun pue usase col
-        cifráu del almacén de claves, <b>deberíes facer una
-        copia de seguranza manual!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Nenguna</item>

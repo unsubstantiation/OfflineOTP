@@ -9,10 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Tworzenie kopii zapasowej nie powiodło się</string>
     <string name="backup_receiver_title_backup_success">Kopia zapasowa wykonana pomyślnie</string>
     <string name="backup_receiver_encrypted_disabled">Zaszyfrowane kopie zapasowe nie są obecnie dozwolone, proszę przejść do ustawień, aby je włączyć</string>
-    <string name="backup_receiver_read_permission_failed">Uprawnienia odczytu nie przyznane, proszę
-        nadaj uprawnienia przed rozpoczęciem przywracania kopii</string>
-    <string name="backup_receiver_write_permission_failed">Uprawnienia zapisu nie przyznane, proszę
-        nadaj uprawnienia przed rozpoczęciem tworzenia kopii</string>
     <string name="backup_receiver_custom_encryption_failed">Szyfrowanie przy pomocy hasła / kodu PIN nie jest obsługiwane przy wywoływaniu kopii zapasowej przez broadcast</string>
     <string name="backup_receiver_no_location_set">Nie ustawiono lokalizacji kopii zapasowej, należy ją ustawić w
         ustawienia aplikacji</string>
@@ -37,7 +33,6 @@
     <string name="backup_toast_storage_not_accessible">Pamięć zewnętrzna jest aktualnie niedostępna</string>
     <string name="backup_toast_openpgp_error">Błąd OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Nie znaleziono zweryfikowanej sygnatury</string>
-    <string name="backup_toast_crypt_password_not_set">Nie ustawiono hasła, sprawdź <b>Ustawienia</b></string>
     <string name="backup_toast_file_selection_failed">Nie można otworzyć okna wyboru pliku!</string>
     <string name="backup_label_type">Typ kopii zapasowej: </string>
     <string name="backup_label_crypt">Kopia zapasowa będzie przechowywana zaszyfrowana hasłem niestandardowym

@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">बैकअप असफल रहा</string>
     <string name="backup_receiver_title_backup_success">बैकअप सफल</string>
     <string name="backup_receiver_encrypted_disabled">गोपित बैकअप वर्तमान में अनुमति नहीं है,         कृपया उन्हें सक्षम करने के लिए सेटिंग में जाएं</string>
-    <string name="backup_receiver_read_permission_failed">कृपया बैकअप का प्रयास करने से         पहले पढ़ने की अनुमति प्रदान करें</string>
-    <string name="backup_receiver_write_permission_failed">कृपया बैकअप का प्रयास करने से         पहले लेखन की अनुमति प्रदान करें</string>
     <string name="backup_receiver_custom_encryption_failed">पासवर्ड / पिन आधारित एन्क्रिप्शन प्रसारण बैकअप के साथ समर्थित नहीं है</string>
     <string name="backup_receiver_no_location_set">कोई बैकअप स्थान सेट नहीं है, कृपया एप्लिकेशन सेटिंग में एक सेट करें</string>
     <string name="backup_receiver_no_password_set">कोई डिफ़ॉल्ट पासवर्ड सेट नहीं है, कृपया ऐप्स सेटिंग में एक सेट करें</string>
@@ -33,7 +31,6 @@
     <string name="backup_toast_storage_not_accessible">बाहरी संग्रहण वर्तमान में सुलभ नहीं है</string>
     <string name="backup_toast_openpgp_error">ओपन-पीजीपी त्रुटि: %s</string>
     <string name="backup_toast_openpgp_not_verified">कोई सत्यापित हस्ताक्षर नहीं मिला</string>
-    <string name="backup_toast_crypt_password_not_set">पासवर्ड सेट नहीं है, <b>सेटिंग</b> जांचें</string>
     <string name="backup_toast_file_selection_failed">फ़ाइल चयन संवाद नहीं खोल सकते!</string>
     <string name="backup_label_type">बैकअप प्रकार: </string>
     <string name="backup_label_crypt">बैकअप को एईएस 256-बिट एन्क्रिप्शन का उपयोग करके कस्टम पासवर्ड के साथ एन्क्रिप्ट किया जाएगा। यदि आप बैकअप बनाते समय इसे हर बार दर्ज नहीं करना चाहते हैं तो आप सेटिंग्स में एक डिफ़ॉल्ट पासवर्ड सेट कर सकते हैं।</string>

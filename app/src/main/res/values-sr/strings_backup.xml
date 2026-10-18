@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">Успешна израда резервне копије</string>
     <string name="backup_receiver_encrypted_disabled">Шифроване резервне копије тренутно нису дозвољене,
         идите у Подешавања да бисте их омогућили</string>
-    <string name="backup_receiver_read_permission_failed">Дозвола за читање није дата, молим вас
-        да то урадите пре прављења резервне копије</string>
-    <string name="backup_receiver_write_permission_failed">Дозвола за писање није дата, молим вас
-        да то урадите пре прављења резервне копије</string>
     <string name="backup_receiver_custom_encryption_failed">Шифровање засновано на лозинци/ПИН-у није
         подржан преко емитовања резервне копије</string>
     <string name="backup_receiver_no_location_set">Нисте поставили локацију резервне копије, поставите је у
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Екстерна меморија тренутно није доступна</string>
     <string name="backup_toast_openpgp_error">OpenPGP грешка: %s</string>
     <string name="backup_toast_openpgp_not_verified">Није пронађен верификовани потпис</string>
-    <string name="backup_toast_crypt_password_not_set">Лозинка није постављена, проверите <b>Подешавања</b></string>
     <string name="backup_toast_file_selection_failed">Није могуће отворити дијалог за одабир датотеке!</string>
     <string name="backup_label_type">Врста резервне копије: </string>
     <string name="backup_label_crypt">Резервна копија ће се чувати шифрирана прилагођеном лозинком

@@ -13,8 +13,6 @@
     <string name="backup_receiver_title_backup_failed">Резервне копіювання завершилося невдало</string>
     <string name="backup_receiver_title_backup_success">Резервне копiювання завершлося вдало</string>
     <string name="backup_receiver_encrypted_disabled">Створення зашифрованих резервних копій наразі не дозволено,         будь ласка, перейдіть до Налаштувань, щоб дозволити їх створення</string>
-    <string name="backup_receiver_read_permission_failed">Дозволу на читання не надано, будь ласка,        надайте доступ на читання перед тим, як почнете створення резервної копії</string>
-    <string name="backup_receiver_write_permission_failed">Дозволу на запис не надано, будь ласка,        надайте доступ на запис перед тим, як почнете створення резервної копії</string>
     <string name="backup_receiver_custom_encryption_failed">Створення резервних копії на основі шифрування за допомогою паролю/PIN-коду        не підтримується сторонніми додатками</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
         apps settings</string>
@@ -39,7 +37,6 @@
     <string name="backup_toast_storage_not_accessible">Зовнішнє сховище наразі недоступне</string>
     <string name="backup_toast_openpgp_error">Помилка OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Знайдено недійсний підпис</string>
-    <string name="backup_toast_crypt_password_not_set">Пароль не встановлений, перевірте <b>Налаштування</b></string>
     <string name="backup_toast_file_selection_failed">Can\'t open file selection dialog!</string>
     <string name="backup_label_type">Backup type: </string>
     <string name="backup_label_crypt">The backup will be stored encrypted with a custom password

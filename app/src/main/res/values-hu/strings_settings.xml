@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Felhasználói felület</string>
     <string name="settings_category_title_backup">Biztonsági mentés</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Koppintás a felfedéshez</string>
     <string name="settings_title_tap_to_reveal_timeout">A koppintással történő felfedés időtúllépése</string>
     <string name="settings_title_auth">Hitelesítés</string>
-    <string name="settings_title_auth_password">Jelszó</string>
-    <string name="settings_title_auth_pin">PIN-kód</string>
     <string name="settings_title_encryption">Adatbázis-titkosítás</string>
-    <string name="settings_title_panic">Pánik kioldás</string>
     <string name="settings_title_relock_screen_off">Lezárás a kijelző kikapcsolásakor</string>
     <string name="settings_title_relock_background">Lezárás, ha háttérbe kerül</string>
     <string name="settings_title_auth_inactivity">Lezárás tétlenségkor</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Fájlnév bekérése</string>
     <string name="settings_title_backup_location">Biztonsági mentés alapértelmezett helye</string>
     <string name="settings_title_backup_password">Biztonsági mentés jelszava</string>
-    <string name="settings_title_auto_backup_password_enc">Új bejegyzések automatikus biztonsági mentése</string>
     <string name="settings_title_backup_broadcasts">Továbbított biztonsági mentés</string>
     <string name="settings_title_openpgp_provider">OpenPGP szolgáltató</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP titkosítási kulcs</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Android sync engedélyezése</string>
     <string name="settings_title_clear_keystore">KeyStore törlése</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Az OTP tokenek alapértelmezett elrejtése,
-        kézzel fedhetők fel</string>
     <string name="settings_desc_tap_to_reveal_timeout">Válassza ki az időt (másodpercben), miután
         a felfedett bejegyzések újra eltűnnek</string>
-    <string name="settings_desc_panic">Döntse el, hogy mit történjen a Pánik aktiválásakor</string>
     <string name="settings_desc_relock_screen_off">Hitelesítés megkövetelése, ha az eszköz
         kijelzője kikapcsol</string>
     <string name="settings_desc_relock_background">Hitelesítés megkövetelése, ha az alkalmazás
@@ -87,7 +79,6 @@
     <string name="settings_desc_hide_issuer">Elrejti a kiállítót az összes kártyán</string>
     <string name="settings_desc_backup_append_date">A jelenlegi dátum és idő hozzáfűzése a biztonsági
         mentés javasolt nevéhez</string>
-    <string name="settings_desc_backup_ask">Fájl nevének kérése minden alkalommal amikor biztonsági mentés jön létre vagy állítódik vissza</string>
     <string name="settings_desc_backup_location">Válassza ki a biztonsági mentés alapértelmezett helyét</string>
     <string name="settings_desc_backup_location_set">A biztonsági mentés helye kiválasztva</string>
     <string name="settings_desc_backup_password">Állítsa be a jelszót amit a biztonsági mentések titkosításához használ</string>
@@ -98,20 +89,12 @@
         biztonsági mentés alapértelmezett
         helyét és jelszavát</string>
     <string name="settings_desc_backup_broadcasts">Jelölje ki, hogy melyik biztonsági másolat típusokat indíthatja el a harmadik féltől származó alkalmazás a Broadcasts segítségével</string>
-    <string name="settings_desc_openpgp_key_encrypt">A biztonsági mentések titkosításához használt OpenPGP-kulcs e-mail címe</string>
     <string name="settings_desc_openpgp_verify">A titkosított biztonsági másolatokat csak akkor lehet importálni, ha érvényes kulccsal írnak alá</string>
     <string name="settings_desc_special_features">Törölje a jelölést, hogy ismét kikapcsolja a speciális funkciókat</string>
-    <string name="settings_desc_enable_screenshot">Engedélyi a képernyőkép készítését a
-        kezdőképernyőről (alapértelmezetten biztonsági okokból tiltott)</string>
-    <string name="settings_desc_enable_android_backup_service">Engedélyezi az andOTP számára az Android beépített
-        biztonsági mentési szolgáltatásának használatát
-        a kulcsok és beállítások mentéséhez</string>
     <string name="settings_desc_clear_keystore">Titkosítási kulcs törlése a KeyStore-ból</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Ezen funkció használatához biztonságos képernyőzár
         szükséges (Beállítások -&gt; Biztonság -&gt; Képernyőzár)</string>
-    <string name="settings_toast_password_empty">Az üres jelszó nem engedélyezett, a letiltáshoz
-        állítsa „Nincs” értékre a Hitelesítést!</string>
     <string name="settings_toast_encryption_changing">Adatbázis-titkosítás módosítása,
         kérjük várjon!</string>
     <string name="settings_toast_encryption_change_success">Sikeresen megváltoztatta az adatbázis
@@ -130,7 +113,7 @@
     <string name="settings_dialog_title_error">Hiba</string>
     <string name="settings_dialog_title_clear_keystore">Törli a KeyStore-t?</string>
     <string name="settings_dialog_title_android_sync">Android sync</string>
-    <string name="settings_dialog_msg_encryption_change">Az andOTP most megpróbálja megváltoztatni az adatbázis
+    <string name="settings_dialog_msg_encryption_change">Az OfflineOTP most megpróbálja megváltoztatni az adatbázis
         titkosítását. Hiba esetén esetén a belső biztonsági mentés lesz visszaállítva, és a titkosítás
         változatlan marad.\n\n<b>Mindig jó ötlet, ha van egy biztonsági mentése arra az esetre,
         ha valami váratlan történik!</b></string>
@@ -150,8 +133,6 @@
         Mivel az <b>Adatbázis-titkosítás</b> beállítása <b>Android KeyStore</b>, így elveszíti az
         összes fiókját. Győződjön meg róla, hogy van biztonsági mentése!\n\n<b>Biztos, hogy
         törölni szeretné a KeyStore-t?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Az Android sync nem használható KeyStore
-        titkosítással, <b>kézileg kell biztonsági mentést készítenie!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Nincs</item>

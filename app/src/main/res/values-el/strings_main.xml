@@ -6,7 +6,6 @@
     <string name="button_scan_qr">Σάρωση QR κωδικού</string>
     <string name="button_save">Αποθήκευση</string>
     <string name="button_new_tag">Νέα ετικέτα</string>
-    <string name="button_settings">Ρυθμίσεις</string>
     <string name="button_all_tags">Όλες οι ετικέτες</string>
     <string name="button_no_tags">Χωρίς ετικέτες</string>
     <string name="button_qr_from_image">Κώδικας QR από εικόνα</string>
@@ -56,19 +55,16 @@
     <string name="button_add">Προσθήκη νέου λογαριασμού</string>
     <string name="button_close_menu">Κλείσιμο μενού</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">Η ταυτοποίηση απέτυχε. Παρακαλώ προσπάθησε ξανά!</string>
-    <string name="toast_auth_failed_fatal">Απέτυχε ο έλεγχος ταυτότητας, κλείνει το andOTP!</string>
+    <string name="toast_auth_failed_fatal">Απέτυχε ο έλεγχος ταυτότητας, κλείνει το OfflineOTP!</string>
     <string name="toast_copied_to_clipboard">Αντιγράφηκε στο πρόχειρο</string>
     <string name="toast_entry_exists">Αυτό το στοιχείο υπάρχει ήδη</string>
     <string name="toast_invalid_qr_code">Μη έγκυρος κώδικας QR</string>
-    <string name="toast_encryption_key_empty">Το κλειδί κρυπτογράφησης δεν φορτώθηκε</string>
     <string name="toast_intent_creation_failed">Μη έγκυρος κώδικας πρόθεσης</string>
-    <string name="toast_intent_creation_succeeded">Ο κώδικας πρόθεσης προστέθηκε</string>
     <string name="toast_file_load_error">Αδυναμία ανοίγματος αρχείου</string>
     <string name="toast_qr_error">Δεν ήταν δυνατή η εύρεση/επιβεβαίωση του κώδικα QR</string>
     <string name="toast_qr_checksum_exception">Αποτυχία επαλήθευσης κατά την αποκωδικοποίηση του QR κώδικα</string>
     <string name="toast_qr_format_error">Σφάλμα μορφοποίησης κώδικα QR</string>
-    <string name="toast_qr_unsuported">Ο κώδικας QR δεν υποστηρίζεται</string>
+    <string name="toast_qr_unsupported">Ο κώδικας QR δεν υποστηρίζεται</string>
     <string name="toast_qr_failed_to_generate">Αποτυχία δημιουργίας κωδικού QR</string>
     <!-- Errors -->
     <string name="error_invalid_secret">Μη έγκυρο secret</string>
@@ -76,22 +72,19 @@
     <string name="dialog_title_auth">Ταυτοποίηση</string>
     <string name="dialog_title_manual_entry">Εισάγετε λεπτομέρειες</string>
     <string name="dialog_title_remove">Διαγραφή</string>
-    <string name="dialog_title_rename">Μετονομασία</string>
     <string name="dialog_title_counter">Μετρητής</string>
     <string name="dialog_title_used_tokens">Χρήση tokens</string>
-    <string name="dialog_title_keystore_error">Σφάλμα KeyStore</string>
     <string name="dialog_title_qr_code">Κώδικας QR</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">Εισάγετε κωδικό</string>
     <string name="dialog_title_auto_time">Αυτόματη ώρα</string>
     <string name="dialog_label_enter_password">Εισάγετε κωδικό</string>
     <string name="dialog_label_confirm_password">Επιβεβαίωση κωδικού</string>
-    <string name="dialog_msg_auth">Παρακαλούμε εισαγάγετε τα διαπιστευτήριά σας για να ανοίξετε το andOTP.</string>
+    <string name="dialog_msg_auth">Παρακαλούμε εισαγάγετε τα διαπιστευτήριά σας για να ανοίξετε το OfflineOTP.</string>
     <string name="dialog_msg_confirm_delete">Σίγουρα θέλετε να αφαιρέσετε το λογαριασμό \"%1$s\";</string>
-    <string name="dialog_msg_used_tokens">το andOTP θα παρακολουθεί όταν χρησιμοποιείτε τα διακριτικά σας (χρησιμοποιώντας το \"Πατήστε
+    <string name="dialog_msg_used_tokens">το OfflineOTP θα παρακολουθεί όταν χρησιμοποιείτε τα διακριτικά σας (χρησιμοποιώντας το \"Πατήστε
         για να εμφανίσετε τη λειτουργία \"ή να αντιγράψετε στο πρόχειρο\") για να μπορείτε να τα ταξινομήσετε με το \"Πιο χρησιμοποιημένο\" ή
         \"Τελευταία χρήση\". \n\nΑυτό το μήνυμα δεν θα εμφανιστεί ξανά.</string>
-    <string name="dialog_msg_keystore_error">Αποτυχία φόρτωσης του κλειδιού κρυπτογράφησης από το KeyStore. <b>Τυχόν εγγραφές που προστέθηκαν θα χαθούν.</b>\n\nΓια να είναι εφικτή η χρήση του andOTP μπορείτε να μεταβείτε στις <b>Ρυθμίσεις</b> και να αλλάξετε από <b>Κρυπτογράφηση Βάσης Δεδομένων</b> σε <b>Κωδικός πρόσβασης / PIN</b>.</string>
     <string name="dialog_msg_auto_time">Παρακαλούμε ενεργοποιήστε την επιλογή <b>Αυτόματη ημερομηνία &amp; ώρα</b> στο
         των τηλεφώνων σας <b>Ρυθμίσεις</b> για να διασφαλίσετε τη σωστή δημιουργία δεδομένων χρόνου
         κωδικούς πρόσβασης μιας ώρας (TOTP).</string>

@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Erro ao fazer backup</string>
     <string name="backup_receiver_title_backup_success">Backup realizado com sucesso</string>
     <string name="backup_receiver_encrypted_disabled">Backups criptografados não são permitidos,         vá até as Configurações para habilitá-los</string>
-    <string name="backup_receiver_read_permission_failed">A permissão de leitura não foi concedida. Por favor, conceda-a        antes de iniciar um backup</string>
-    <string name="backup_receiver_write_permission_failed">A permissão de escrita não foi concedida. Por favor, conceda-a        antes de iniciar um backup</string>
     <string name="backup_receiver_custom_encryption_failed">A criptografia de senha ou PIN não         pode ser usada com o backup de ativação remota</string>
     <string name="backup_receiver_no_location_set">Não foi definido um local para backup, indique um nas
         configurações dos aplicativos</string>
@@ -35,7 +33,6 @@
     <string name="backup_toast_storage_not_accessible">O armazenamento externo está inacessível no momento</string>
     <string name="backup_toast_openpgp_error">Erro do OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Nenhuma assinatura verificada foi detectada</string>
-    <string name="backup_toast_crypt_password_not_set">A senha não foi definida. Verifique as <b>Configurações</b></string>
     <string name="backup_toast_file_selection_failed">Erro ao abrir diálogo de seleção de arquivo!</string>
     <string name="backup_label_type">Tipo de backup: </string>
     <string name="backup_label_crypt">O backup será armazenado de forma criptografada com uma senha personalizada

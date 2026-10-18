@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Reservekopie mislukt</string>
     <string name="backup_receiver_title_backup_success">Reservekopie geslaagd</string>
     <string name="backup_receiver_encrypted_disabled">Versleutelde reservekopieën zijn op dit moment uitgeschakeld, ga naar de Instellingen om deze in te schakelen</string>
-    <string name="backup_receiver_read_permission_failed">Verleen eerst toestemming om te lezen voordat je een reservekopie gaat maken</string>
-    <string name="backup_receiver_write_permission_failed">Geen machtiging tot schrijven verleend, gelieve dit te doen voordat je een reservekopie maakt</string>
     <string name="backup_receiver_custom_encryption_failed">Versleuteling op basis van wachtwoord/pincode wordt niet ondersteund bij reservekopieën gemaakt op afstand</string>
     <string name="backup_receiver_no_location_set">Geen back-up locatie ingesteld, stel er een in in de instellingen van de app</string>
     <string name="backup_receiver_no_password_set">Geen standaard wachtwoord ingesteld, stel er een in in de instellingen van de app</string>
@@ -33,7 +31,6 @@
     <string name="backup_toast_storage_not_accessible">Externe opslag is momenteel niet toegankelijk</string>
     <string name="backup_toast_openpgp_error">OpenPGP fout: %s</string>
     <string name="backup_toast_openpgp_not_verified">Geen geverifieerde handtekening gevonden</string>
-    <string name="backup_toast_crypt_password_not_set">Wachtwoord niet ingesteld, controleer de <b>Instellingen</b></string>
     <string name="backup_toast_file_selection_failed">Kan bestand selectie niet openen!</string>
     <string name="backup_label_type">Back-up type: </string>
     <string name="backup_label_crypt">De back-up wordt versleuteld opgeslagen met een aangepast wachtwoord met behulp van AES 256-bit encryptie. U kunt een standaard wachtwoord instellen in de instellingen als u het niet elke keer in wil voeren als u een back-up maakt.</string>

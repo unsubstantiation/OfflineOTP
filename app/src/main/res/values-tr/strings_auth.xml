@@ -5,7 +5,7 @@
     <string name="auth_hint_password">Şifre</string>
     <string name="auth_hint_pin">PIN</string>
     <!-- Messages -->
-    <string name="auth_msg_authenticate">andOTP\'yi başlatmak için lütfen kimliğinizi doğrulayın!</string>
+    <string name="auth_msg_authenticate">OfflineOTP\'yi başlatmak için lütfen kimliğinizi doğrulayın!</string>
     <string name="auth_msg_confirm_encryption">Lütfen yeni şifreleme anahtarını oluşturmak için
         kimlik doğrulamasını onaylayın!</string>
     <!-- Buttons -->
@@ -13,6 +13,4 @@
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Lütfen <b>Ayarlar</b> kısmından bir şifre belirleyin!</string>
     <string name="auth_toast_pin_missing">Lütfen <b>Ayarlar</b> kısmından bir PIN belirleyin!</string>
-    <string name="auth_toast_password_again">Yanlış şifre, lütfen tekrar deneyin!</string>
-    <string name="auth_toast_pin_again">Yanlış PIN, lütfen tekrar deneyin!</string>
 </resources>

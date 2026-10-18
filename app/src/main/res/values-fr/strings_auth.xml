@@ -5,7 +5,7 @@
     <string name="auth_hint_password">Mot de passe</string>
     <string name="auth_hint_pin">NIP</string>
     <!-- Messages -->
-    <string name="auth_msg_authenticate">Veuillez vous authentifier pour lancer andOTP !</string>
+    <string name="auth_msg_authenticate">Veuillez vous authentifier pour lancer OfflineOTP !</string>
     <string name="auth_msg_confirm_encryption">Veuillez confirmer l\'authentification pour générer votre
         clé de chiffrement !</string>
     <!-- Buttons -->
@@ -13,6 +13,4 @@
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Veuillez définir un mot de passe dans les <b>paramètres</b> !</string>
     <string name="auth_toast_pin_missing">Veuillez définir un code PIN dans les <b>paramètres</b> !</string>
-    <string name="auth_toast_password_again">Mot de passe incorrect, veuillez réessayer !</string>
-    <string name="auth_toast_pin_again">Code PIN incorrect, veuillez réessayer !</string>
 </resources>

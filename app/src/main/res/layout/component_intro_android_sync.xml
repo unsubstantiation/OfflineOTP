@@ -31,8 +31,8 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/activity_margin"
-            android:checked="true"
-            android:text="@string/settings_toast_android_sync_enabled" />
+            android:checked="false"
+            android:text="@string/security_platform_backup_disabled" />
 
     </LinearLayout>
 
