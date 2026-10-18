@@ -6,10 +6,7 @@
 **Website: http://fairuniversal.com**
 
 This is a custom license created by the copyright holder. It is **not** an
-OSI-approved open-source license, and it is **not** the PolyForm Noncommercial
-License. It supersedes the project's earlier short-form notice referring to the
-PolyForm Noncommercial License 1.0.0 with respect to copies of the Software
-distributed from this repository on or after the effective date above.
+OSI-approved open-source license.
 
 --------------------------------------------------------------------------------
 
@@ -375,10 +372,7 @@ signed by the Author to be effective.
 
 **12.3 Entire agreement.** This license is the entire agreement between You
 and the Author concerning the Software, except for any separate written
-commercial license signed by the Author. It supersedes all prior or
-contemporaneous proposals, understandings, and communications concerning the
-Software's licensing, including the earlier short-form notice referring to the
-PolyForm Noncommercial License 1.0.0.
+commercial license signed by the Author.
 
 **12.4 Interpretation.** Section headings are for convenience only and do not
 affect interpretation. "Including" means "including without limitation." This
