@@ -382,7 +382,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         val epoch = VaultSession.generation()
                         AlertDialog.Builder(this)
                             .setTitle(R.string.security_import_title)
-                            .setMessage(entry.getIssuer() + "\n" + entry.getLabel())
+                            .setMessage(importPreviewText(entry))
                             .setPositiveButton(android.R.string.ok, DialogInterface.OnClickListener { _, _ ->
                                 if (!VaultSession.isCurrent(epoch) || VaultSession.getKey() == null) {
                                     entry.destroy()
@@ -407,6 +407,19 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 }
             }
         }
+    }
+
+    /**
+     * The confirmation text for an externally supplied entry: the account plus the parameters that
+     * change its codes, so the user can see what is about to be added before it is committed.
+     */
+    private fun importPreviewText(entry: Entry): String {
+        val details = getString(R.string.security_import_details, entry.getType().name,
+            entry.getDigits(), entry.getAlgorithm().name)
+        val lines = arrayListOf(entry.getIssuer() ?: "", entry.getLabel() ?: "", details)
+        if (entry.isTimeBased() && entry.hasNonDefaultPeriod())
+            lines.add(getString(R.string.security_import_period, entry.getPeriod()))
+        return lines.filter { it.isNotEmpty() }.joinToString("\n")
     }
 
     override fun onPostCreate(savedInstanceState: Bundle?) {
