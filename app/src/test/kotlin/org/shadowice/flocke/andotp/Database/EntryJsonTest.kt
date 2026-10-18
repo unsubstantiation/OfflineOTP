@@ -1,0 +1,182 @@
+/*
+ * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
+ *
+ * JVM vectors for the entry document format: parse outcomes, the serialized field set/order and
+ * byte-identical round trips.
+ */
+package org.shadowice.flocke.andotp.Database
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+import org.json.JSONArray
+import org.json.JSONObject
+
+import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
+import org.shadowice.flocke.andotp.Utilities.OtpKind
+
+class EntryJsonTest {
+    private fun parse(json: JSONObject): EntryJsonResult = EntryJson.parse(json)
+
+    private fun success(json: JSONObject, assertions: (ValidatedEntry) -> Unit) {
+        val result = parse(json)
+        assertTrue("expected success for $json, got $result", result is EntryJsonResult.Success)
+        (result as EntryJsonResult.Success).value.use { assertions(it) }
+    }
+
+    private fun failure(json: JSONObject): EntryJsonError {
+        val result = parse(json)
+        assertTrue("expected failure for $json, got $result", result is EntryJsonResult.Failure)
+        return (result as EntryJsonResult.Failure).error
+    }
+
+    private fun minimalDocument(): JSONObject =
+        JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","issuer":"Example","label":"alice",
+            "digits":6,"type":"TOTP","algorithm":"SHA1","thumbnail":"Default",
+            "last_used":0,"used_frequency":0,"tags":[]}""")
+
+    @Test
+    fun parsesAMinimalDocument() {
+        success(minimalDocument()) { value ->
+            assertEquals(OtpKind.TOTP, value.kind)
+            assertEquals("alice", value.label)
+            assertEquals("Example", value.issuer)
+            assertEquals(30, value.period)
+            assertEquals(6, value.digits)
+            assertEquals(OtpHashAlgorithm.SHA1, value.algorithm)
+            assertEquals("Default", value.thumbnailName)
+            assertEquals(10, value.copySecret().size)
+            assertEquals("", value.pin)
+        }
+    }
+
+    @Test
+    fun olderDocumentsDefaultTheMissingFields() {
+        success(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"alice"}""")) { value ->
+            assertEquals(OtpKind.TOTP, value.kind)
+            assertEquals("", value.issuer)
+            assertEquals(30, value.period)
+            assertEquals(6, value.digits)
+            assertEquals(OtpHashAlgorithm.SHA1, value.algorithm)
+            assertEquals(null, value.thumbnailName)
+        }
+        success(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"STEAM"}""")) { value ->
+            assertEquals(5, value.digits)
+            assertEquals(30, value.period)
+        }
+        success(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"HOTP","counter":9}""")) { value ->
+            assertEquals(9L, value.counter)
+            assertEquals(30, value.period)
+        }
+        success(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"MOTP","pin":"1234"}""")) { value ->
+            assertEquals("1234", value.pin)
+        }
+    }
+
+    @Test
+    fun tagsRoundTripInOrder() {
+        val json = minimalDocument()
+        json.put("tags", JSONArray(listOf("work", "personal")))
+        success(json) { value -> assertEquals(listOf("work", "personal"), value.tags) }
+    }
+
+    @Test
+    fun malformedDocumentsFailWithExplicitOutcomes() {
+        assertEquals(EntryJsonError.MISSING_SECRET, failure(JSONObject()))
+        assertEquals(EntryJsonError.MISSING_SECRET, failure(JSONObject("""{"label":"l"}""")))
+        assertEquals(EntryJsonError.INVALID_SECRET, failure(JSONObject("""{"secret":"","label":"l"}""")))
+        assertEquals(EntryJsonError.INVALID_SECRET, failure(JSONObject("""{"secret":"!!!","label":"l"}""")))
+        assertEquals(EntryJsonError.INVALID_TEXT, failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP"}""")))
+        assertEquals(EntryJsonError.INVALID_TEXT,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":5}""")))
+        assertEquals(EntryJsonError.INVALID_NUMBER,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","period":"x"}""")))
+        assertEquals(EntryJsonError.MISSING_COUNTER,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","type":"HOTP"}""")))
+        assertEquals(EntryJsonError.INVALID_PARAMETERS,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","period":0}""")))
+        assertEquals(EntryJsonError.INVALID_PARAMETERS,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","type":"STEAM","digits":6}""")))
+        assertEquals(EntryJsonError.UNSUPPORTED_TYPE,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","type":"YUBIKEY"}""")))
+        assertEquals(EntryJsonError.INVALID_ALGORITHM,
+            failure(JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","algorithm":"MD5"}""")))
+        assertEquals(EntryJsonError.TOO_MANY_TAGS, failure(JSONObject().put("secret", "JBSWY3DPEHPK3PXP")
+            .put("label", "l").put("tags", JSONArray((1..33).map { "t$it" }))))
+    }
+
+    @Test
+    fun textAndTagBoundsAreEnforced() {
+        assertEquals(EntryJsonError.TEXT_TOO_LONG, failure(JSONObject().put("secret", "JBSWY3DPEHPK3PXP")
+            .put("label", "l".repeat(1025))))
+        assertEquals(EntryJsonError.TEXT_TOO_LONG, failure(JSONObject().put("secret", "JBSWY3DPEHPK3PXP")
+            .put("label", "l").put("issuer", "i".repeat(1025))))
+        assertEquals(EntryJsonError.TOO_MANY_TAGS, failure(JSONObject().put("secret", "JBSWY3DPEHPK3PXP")
+            .put("label", "l").put("tags", JSONArray((1..33).map { "t" }))))
+    }
+
+    @Test
+    fun serializeWritesTheStoredFieldSet() {
+        val secret = ByteArray(10) { it.toByte() }
+        val encoded = String(org.apache.commons.codec.binary.Base32().encode(secret))
+        val json = EntryJson.serialize(
+            kind = OtpKind.TOTP, secret = secret, issuer = "Example",
+            label = "alice", digits = 6, period = 30, counter = 0, algorithm = OtpHashAlgorithm.SHA1,
+            thumbnailName = "Default", lastUsed = 5, usedFrequency = 7,
+            tags = listOf("work"), pin = "")
+        // The field order is part of the stored format.
+        assertEquals("""{"secret":"$encoded","issuer":"Example","label":"alice",""" +
+            """"digits":6,"type":"TOTP","algorithm":"SHA1","thumbnail":"Default",""" +
+            """"last_used":5,"used_frequency":7,"period":30,"tags":["work"]}""",
+            json.toString())
+    }
+
+    @Test
+    fun serializeOmitsOptionalFieldsForNonDefaultKinds() {
+        val hotp = EntryJson.serialize(OtpKind.HOTP, ByteArray(10), "i", "l", 6, 30, 42,
+            OtpHashAlgorithm.SHA1, "Default", 0, 0, emptyList(), "")
+        assertTrue(hotp.has("counter"))
+        assertFalse(hotp.has("period"))
+        assertFalse(hotp.has("pin"))
+
+        val steamDefault = EntryJson.serialize(OtpKind.STEAM, ByteArray(10), "i", "l", 5, 30, 0,
+            OtpHashAlgorithm.SHA1, "Default", 0, 0, emptyList(), "")
+        assertFalse(steamDefault.has("period"))
+
+        val steamCustom = EntryJson.serialize(OtpKind.STEAM, ByteArray(10), "i", "l", 5, 60, 0,
+            OtpHashAlgorithm.SHA1, "Default", 0, 0, emptyList(), "")
+        assertEquals(60, steamCustom.getInt("period"))
+
+        val motp = EntryJson.serialize(OtpKind.MOTP, ByteArray(10), "i", "l", 6, 30, 0,
+            OtpHashAlgorithm.SHA1, "Default", 0, 0, emptyList(), "1234")
+        assertEquals("1234", motp.getString("pin"))
+        assertFalse(motp.has("period"))
+        assertFalse(motp.has("counter"))
+    }
+
+    @Test
+    fun roundTripIsByteIdentical() {
+        // A document in the writer's canonical field order must come back byte-identical.
+        val original = JSONObject()
+            .put("secret", "JBSWY3DPEHPK3PXP")
+            .put("issuer", "Example")
+            .put("label", "alice")
+            .put("digits", 6)
+            .put("type", "TOTP")
+            .put("algorithm", "SHA1")
+            .put("thumbnail", "Default")
+            .put("last_used", 0)
+            .put("used_frequency", 0)
+            .put("period", 30)
+            .put("tags", JSONArray(listOf("work", "personal")))
+        val result = EntryJson.parse(original)
+        assertTrue(result is EntryJsonResult.Success)
+        (result as EntryJsonResult.Success).value.use { value ->
+            val reserialized = EntryJson.serialize(value.kind, value.copySecret(), value.issuer,
+                value.label, value.digits, value.period, value.counter, value.algorithm,
+                value.thumbnailName ?: "Default", value.lastUsed, value.usedFrequency, value.tags, value.pin)
+            assertEquals(original.toString(), reserialized.toString())
+        }
+    }
+}

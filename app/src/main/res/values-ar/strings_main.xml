@@ -87,7 +87,7 @@
     <string name="dialog_label_enter_password">أدخل كلمة المرور</string>
     <string name="dialog_label_confirm_password">تأكيد كلمة المرور</string>
     <string name="dialog_msg_auth">الرجاء إدخال بيانات الإعتماد الخاصة بجهازك لتشغيل التطبيق.</string>
-    <string name="dialog_msg_confirm_delete">هل أنت متأكد من أنك تريد إزالة الحساب ؟</string>
+    <string name="dialog_msg_confirm_delete">هل أنت متأكد من أنك تريد إزالة الحساب «%1$s»؟</string>
     <string name="dialog_msg_used_tokens">سوف يتتبع andOTP استخدام الرموز المميزة الخاصة بك (باستخدام خاصية \"اضغط
         للكشف\" أو نسخ إلى الحافظة) لتتمكن من فرزها بواسطة \"الأكثر استخداما\" أو
         \"آخر مستخدم\".\n\nلن تظهر هذه الرسالة مرة أخرى.</string>

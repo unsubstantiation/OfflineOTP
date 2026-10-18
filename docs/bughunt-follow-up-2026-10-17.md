@@ -52,10 +52,10 @@ The first sandbox rerun exposed a stand-in mismatch: the app correctly calls And
 
 ## Verification
 
-- `python3 -m unittest discover -s scripts/tests -v` — **not reproducible in this checkout**: `scripts/tests` and `app/src/test` are absent from the repository, so the earlier "180 passed, 2 skipped" result cannot be re-run here.
+- `python3 -m unittest discover -s scripts/tests -v` — **not reproducible at the time of this pass**: `scripts/tests` and `app/src/test` were absent from the repository, so the earlier "180 passed, 2 skipped" result could not be re-run here. Replacement suites were added on 2026-10-18 (see [bughunt-follow-up-2026-10-18.md](bughunt-follow-up-2026-10-18.md)).
 - `python3 scripts/check_build_inputs.py` — **passed** across every checked-in workflow; mutable action tags are rejected.
 - `scripts/kotlin-sandbox/run.sh` using the hash-verified toolchain from `scripts/kotlin-sandbox/bootstrap-toolchain.sh` — **all sandbox checks passed**, including backward-clock, secret/PIN invalidation, activity compilation and locale checks. This compiles a reviewed source subset against stand-ins; it is not an Android build. The About-page fixture prints a known `PackageManager.NameNotFoundException` to stderr while its sandbox check still passes.
-- The four APK workflows in `.github/workflows/` were checked by `check_build_inputs.py`. The `android-ci.yml` and `dependency-baseline.yml` workflows described above are **not present** in this checkout and have not been added.
+- The four APK workflows in `.github/workflows/` were checked by `check_build_inputs.py`. At the time of this pass the `android-ci.yml` and `dependency-baseline.yml` workflows described above were **not present** in this checkout; both were added on 2026-10-18 (see [bughunt-follow-up-2026-10-18.md](bughunt-follow-up-2026-10-18.md)).
 - Android Gradle build, JVM Gradle tests, lint, packaged-manifest inspection, APK reproducibility and instrumentation/device acceptance were not run because no Android SDK or Gradle distribution is available here. The new workflows define those gates; their presence is not evidence that they have passed.
 
 ## Remaining acceptance boundary

@@ -1,5 +1,14 @@
 # Changelog
 
+#### Unreleased
+
+ * Bugfix: Regenerate the sandbox `R` stand-in after the thumbnail batch (the local compile gate was broken) and add a freshness check
+ * Bugfix: Restore the missing `%1$s` format argument in the Arabic confirm-delete dialog
+ * Internal: Add the JVM unit-test suite (RFC vectors, parser/document matrices, timer policy, entry-list semantics) with a no-Gradle harness (`scripts/run-jvm-tests.sh`)
+ * Internal: Add the instrumentation suite (on-device crypto/database/URI vectors, environment and first-run smoke checks) and a compile check for no-SDK environments
+ * Internal: Add the Python guard battery in `scripts/tests` (72 tests) covering resources, conversion surfaces, secret-state and build-input mutations
+ * Internal: Add the `android-ci.yml` quality gate (source checks, host tests, build/lint/manifest policy, fdroid/play × API 28/36 emulator matrix, reproducibility) and the manual `dependency-baseline.yml` inventory workflow
+
 #### v0.9.0.1
 
  * Bugfix: Fix crash when using the tags drawer (Issue #856)

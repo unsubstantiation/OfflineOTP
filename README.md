@@ -29,6 +29,10 @@ The project uses Gradle, Android Gradle Plugin, Kotlin and the Android SDK. The 
 ./gradlew --no-daemon :app:assemblePlayRelease
 ```
 
+## Continuous integration
+
+Besides the four APK workflows, [android-ci.yml](.github/workflows/android-ci.yml) runs the quality gate on every push and pull request: the Python source guards and build-input provenance check, the host-side test batteries (`scripts/kotlin-sandbox/run.sh`, `scripts/run-jvm-tests.sh`, the instrumentation compile check), all-variant builds with Gradle host unit tests and lint plus the packaged-manifest policy, and the fdroid/play × API 28/36 emulator instrumentation matrix (`scripts/ci/start-emulator.sh`). A reproducibility job re-builds both flavors twice from independent source and Gradle homes and compares the unsigned APKs and dependency inventories byte for byte on master and on demand. [dependency-baseline.yml](.github/workflows/dependency-baseline.yml) is a manual workflow that uploads the resolved-dependency inventory for provenance review.
+
 ## Documentation
 
 - [Changelog](CHANGELOG.md) — published release history.
