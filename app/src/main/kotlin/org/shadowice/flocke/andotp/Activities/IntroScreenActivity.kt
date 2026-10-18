@@ -618,7 +618,7 @@ open class IntroScreenActivity : IntroActivity() {
             minLength = Constants.AUTH_MIN_PIN_LENGTH
             lengthWarning = getString(R.string.settings_label_short_pin, minLength)
             noPasswordWarning = getString(R.string.intro_slide3_warn_no_pin)
-            confirmPasswordWarning = getString(R.string.intro_slide3_warn_confirm_password)
+            confirmPasswordWarning = getString(R.string.intro_slide3_warn_confirm_pin)
             passwordMismatchWarning = getString(R.string.intro_slide3_warn_pin_mismatch)
 
             focusOnPasswordInput()

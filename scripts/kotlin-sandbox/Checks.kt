@@ -5055,7 +5055,7 @@ fun main() {
         expectMethod(taskFragment, "void cancelTask()")
     }
 
-    check("the entry card binds the token, the labels, the tags and the counter") {
+    check("the entry card binds the token, the labels, the tags, the counter and the custom period") {
         val fixture = SettingsFixture()
         // The thumbnail is switched off, so the check does not depend on the letter bitmap.
         fixture.seed(R.string.settings_key_thumbnail_size, "0dp")
@@ -5068,6 +5068,8 @@ fun main() {
         val valueLayout = LinearLayout(context)
         val coverLayout = LinearLayout(context)
         val counterLayout = LinearLayout(context)
+        val customPeriodLayout = LinearLayout(context)
+        val customPeriod = TextView()
         val thumbnailFrame = FrameLayout(context)
         val thumbnail = ImageView(context)
         val label = TextView()
@@ -5087,6 +5089,8 @@ fun main() {
         root.children[R.id.valueLayout] = valueLayout
         root.children[R.id.coverLayout] = coverLayout
         root.children[R.id.counterLayout] = counterLayout
+        root.children[R.id.customPeriodLayout] = customPeriodLayout
+        root.children[R.id.customPeriod] = customPeriod
         root.children[R.id.thumbnailFrame] = thumbnailFrame
         root.children[R.id.thumbnailImg] = thumbnail
         root.children[R.id.textViewLabel] = label
@@ -5114,6 +5118,8 @@ fun main() {
         // A time-based entry with the default period has no counter and no progress bar.
         expect(counterLayout.visibility == View.GONE, { "the counter must stay hidden" })
         expect(progress.visibility == View.GONE, { "the progress bar must stay hidden" })
+        expect(customPeriodLayout.visibility == View.GONE,
+                { "the custom period must stay hidden for the default period" })
         // Without tap-to-reveal the token is shown and the cover is not.
         expect(valueLayout.visibility == View.VISIBLE, { "the token layout must be visible" })
         expect(coverLayout.visibility == View.GONE, { "the cover layout must be hidden" })
@@ -5129,6 +5135,16 @@ fun main() {
         withPoisonedTransaction { holder.updateValues(hotp) }
         expect(counterLayout.visibility == View.VISIBLE, { "the counter must be visible for a HOTP entry" })
         expect(counter.text.toString() == "42", { "the counter is wrong: ${counter.text}" })
+
+        // The restored custom-period row: a non-default period shows it, formatted with the
+        // localized format_custom_period string (the fake context keeps the resource mapping).
+        val custom = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 45, 6, "", "label",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
+        withPoisonedTransaction { holder.updateValues(custom) }
+        expect(customPeriodLayout.visibility == View.VISIBLE,
+                { "the custom period must be visible for a non-default period" })
+        expect(customPeriod.text.toString() == "key:" + R.string.format_custom_period,
+                { "the custom period text is wrong: ${customPeriod.text}" })
     }
 
     check("the retained task fragment starts, hands over and cancels the task") {

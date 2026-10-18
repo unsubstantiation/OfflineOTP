@@ -209,7 +209,10 @@ object ManualEntryDialog {
                 val secret = secretInput.text?.toString()?.replace("\\s+".toRegex(), "") ?: ""
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
 
-                if (!Entry.validateSecret(secret, type)) {
+                // The secret field is display-only when editing (the existing secret stays in the
+                // entry and the typed value is empty), so only the new-entry path validates and
+                // decodes it. Validating the hidden empty field here rejected every edit save.
+                if (isNewEntry && !Entry.validateSecret(secret, type)) {
                     secretInput.setError(callingActivity.getString(R.string.error_invalid_secret))
                     return@setOnClickListener
                 }
@@ -224,9 +227,9 @@ object ManualEntryDialog {
                 if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
                     val period = java.lang.Integer.parseInt(periodInput.text?.toString() ?: "0")
 
-                    val validated = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                    validated.destroy()
                     if (isNewEntry) {
+                        val validated = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
+                        validated.destroy()
                         val e = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
                         e.updateOTP(false)
                         e.setLastUsed(System.currentTimeMillis())
@@ -248,9 +251,9 @@ object ManualEntryDialog {
                 } else if (type == Entry.OTPType.HOTP) {
                     val counter = java.lang.Long.parseLong(counterInput.text?.toString() ?: "0")
 
-                    val validated = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                    validated.destroy()
                     if (isNewEntry) {
+                        val validated = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
+                        validated.destroy()
                         val e = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
                         e.updateOTP(false)
                         e.setLastUsed(System.currentTimeMillis())
@@ -268,9 +271,9 @@ object ManualEntryDialog {
                         updateCallback?.onUpdate()
                     }
                 } else if (type == Entry.OTPType.MOTP) {
-                    val validated = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
-                    validated.destroy()
                     if (isNewEntry) {
+                        val validated = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
+                        validated.destroy()
                         val newEntry = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
                         newEntry.updateOTP(false)
                         newEntry.setLastUsed(System.currentTimeMillis())
