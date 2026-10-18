@@ -262,3 +262,79 @@ Upstream issue #994 requests per-tag entry counts in the tag drawer; the existin
 - `python3 -m unittest discover -s scripts/tests` — **82 tests, 9 skipped (PyYAML-absent checks)** — unchanged.
 - `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (stub regenerated for `length()`/`getIntrinsicWidth/Height`; `EntryViewHolder`/`EntryThumbnail` checks cover the new branches).
 - Sandbox compilation previously failed on `TypedArray.length()` and `Drawable.getIntrinsicWidth`; both stubs now match the platform API.
+
+# Fourth pass (2026-10-18): mOTP ignores a foreign period/PIN field on parse
+
+A further comprehensive bug hunt covered the crypto core (`EncryptionHelper`, `EncryptedBackupHeader`,
+`FileHelper`, `StorageAccessHelper`), the restore/backup task chain (`VaultRestoreOperation`,
+`EncryptedRestoreTask`, `GenericRestoreTask`, `BackupHelper`), every dialog/adapter under `Dialogs/` and
+`View/` (`EntryActionDialogs`, `TagsDialog`, `ThumbnailSelectionAdapter`, `PasswordEntryDialog`,
+`HideableDialog`, `CredentialsPreference`, `NumberPickerPreference`, `EntryViewHolder`,
+`EntryListPresentation`), `NotificationHelper`, `ScanQRCodeFromFile`, the manifest, every `res/values*`
+resource file (XML well-formedness, unescaped `'`/`&`, duplicate resource names, translated-string format
+argument parity — all clean), the `AndroidManifest.xml` permission/export surface, and a warnings-enabled
+recompile of the sandbox source set (`kotlinc` without `-nowarn`) to surface anything the normal gate's
+`-nowarn` flag hides. All settings-preference keys in `res/xml/preferences.xml` were cross-checked against
+`Settings.kt` getters and their external call sites to rule out dangling/unwired preferences (none found).
+One confirmed, user-visible defect was found and fixed.
+
+## Fixed: a foreign `period` or `pin` field on an entry document was not kind-gated on parse
+
+`Database/EntryJson.parsed()` read the JSON `period` field for *any* OTP kind and the `pin` field
+whenever it was present, with no check that they were meaningful for that kind:
+
+```kotlin
+val period = if (json.has(JSON_PERIOD)) int(json, JSON_PERIOD) else DEFAULT_PERIOD
+...
+val pin = if (json.has(JSON_PIN)) text(json, JSON_PIN) else ""
+```
+
+Every other layer in the codebase treats an mOTP entry's period as fixed and non-configurable:
+`Entry.getTokenStepSeconds()` always uses `TokenCalculator.MOTP_STEP_SECONDS` (10s) for an mOTP entry
+regardless of the stored `period` field (this is the backward-compatible fix from the 2026-10-18 third
+pass, "mOTP refreshes on its 10-second step even when the stored period is 30"); `EntryJson.serialize()`
+never writes a `period` for mOTP; and `Entry.toUri()` only emits `period` for `HOTP`/`TOTP`/`STEAM`,
+never `MOTP`. Similarly, `serialize()` only ever writes `pin` for mOTP, and `Entry.getPin()` is only
+read in the `MOTP` branch of `updateOTP()`.
+
+The parser was the one place that did not enforce either invariant. A backup/import document (hand-edited,
+from a future version, or simply malformed) carrying `{"type":"MOTP","period":60,...}` parsed successfully
+and produced an mOTP `Entry` with a non-default `period`. `Entry.hasNonDefaultPeriod()` would then report
+`true`, and `View/EntryViewHolder.updateValues` would show the card's "custom period" row with
+**"60 s"** — even though the entry's actual rollover is still every 10 seconds, because
+`getTokenStepSeconds()` ignores the `period` field for mOTP. The same gap let a `pin` field on a
+non-mOTP document survive into the parsed entry (harmless today, since `getPin()` is only read for mOTP,
+but it contradicted the field's own documented invariant and the asymmetric write-side gating).
+
+`EntryJson.parsed()` now forces `period = DEFAULT_PERIOD` for `OtpKind.MOTP` regardless of any supplied
+value, and only reads `pin` when `kind == OtpKind.MOTP`, matching what `serialize()` ever writes and what
+the `otpauth://` parser already enforces. Every other kind's parsing is unchanged (Steam's non-default
+period, TOTP's period, HOTP's counter and the existing malformed-field rejections all keep their exact
+prior behaviour — pinned by the existing `period 0`/`period -1`/numeric-string tests, which exercise the
+default `TOTP` kind and are untouched by this change).
+
+**Regression coverage:** `EntryJsonTest.motpIgnoresAStoredPeriodBecauseItNeverDrivesMotpTiming` and
+`.nonMotpDocumentsIgnoreAStoredPin` (JVM suite), plus two new assertions in the sandbox's existing
+`"the mOTP PIN is stored, round-trips and defaults to empty in older documents"` check. Mutation-verified:
+reverting the fix fails both the JVM test and the sandbox check with the exact values described above
+(`got 60`, PIN not empty).
+
+## Unfinished-feature sweep (no new gaps found)
+
+Every `android:key="@string/settings_key_*"` in `res/xml/preferences.xml` (44 keys) was traced to a
+`Settings.kt` getter/setter and from there to at least one call site outside `Settings.kt` — no preference
+is rendered in the UI without backing logic. No `TODO`/`FIXME`/`XXX`/`HACK` marker, stub, or
+not-yet-implemented branch remains in `app/src/main`. The remaining candidates in
+`docs/andotp-open-issues-triage.md` are unchanged: optional feature gaps that are product decisions, or
+items that need a device/emulator run this environment still does not have.
+
+## Verification (host gates re-run)
+
+- `python3 -m unittest discover -s scripts/tests` — **82 tests** (PyYAML available in this run; some
+  toolchain-gated tests skip without `kotlinc`/`java`, as before).
+- `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed**, including the two new mOTP
+  period/PIN assertions.
+- `scripts/run-jvm-tests.sh` — **112 passed, 0 failed** (110 prior + 2 new `EntryJsonTest` cases).
+- `scripts/kotlin-sandbox/compile-android-tests.sh` — **COMPILE OK**.
+- Mutation check: reverting the `EntryJson.kt` fix reproduces both new failures with the exact
+  mismatched values described above, then was re-applied.

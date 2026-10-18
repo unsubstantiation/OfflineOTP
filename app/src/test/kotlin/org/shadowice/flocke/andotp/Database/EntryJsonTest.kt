@@ -75,6 +75,32 @@ class EntryJsonTest {
     }
 
     @Test
+    fun motpIgnoresAStoredPeriodBecauseItNeverDrivesMotpTiming() {
+        // mOTP always rolls over on TokenCalculator.MOTP_STEP_SECONDS (Entry.getTokenStepSeconds), never
+        // on the stored period; serialize() never writes one and the otpauth:// parser forces 30, so a
+        // "period" on an mOTP document can only come from a foreign/crafted file. It must not surface as
+        // a misleading "custom period" (Entry.hasNonDefaultPeriod/EntryViewHolder's custom-period row).
+        success(JSONObject(
+            """{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"MOTP","pin":"1234","period":60}""")
+        ) { value ->
+            assertEquals(30, value.period)
+            assertEquals("1234", value.pin)
+        }
+    }
+
+    @Test
+    fun nonMotpDocumentsIgnoreAStoredPin() {
+        // serialize() only ever writes "pin" for mOTP; a pin on another kind is foreign/crafted data
+        // and must not be carried into the parsed entry (Entry.getPin() is otherwise only read for mOTP).
+        success(JSONObject(
+            """{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"TOTP","pin":"1234"}""")
+        ) { value -> assertEquals("", value.pin) }
+        success(JSONObject(
+            """{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"HOTP","counter":0,"pin":"1234"}""")
+        ) { value -> assertEquals("", value.pin) }
+    }
+
+    @Test
     fun tagsRoundTripInOrder() {
         val json = minimalDocument()
         json.put("tags", JSONArray(listOf("work", "personal")))

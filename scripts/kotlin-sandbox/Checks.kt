@@ -1579,6 +1579,26 @@ fun main() {
         } finally {
             entry.destroy()
         }
+
+        // mOTP always rolls over on TokenCalculator.MOTP_STEP_SECONDS, never on the stored period
+        // (serialize() never writes one, the otpauth:// parser forces 30); a period on a foreign/crafted
+        // mOTP document must not surface as a misleading "custom period" and is ignored on parse.
+        val motpWithForeignPeriod = entryValue(entryDocument().put("type", "MOTP").put("pin", "1234").put("period", 60))
+        try {
+            expect(motpWithForeignPeriod.period == 30,
+                    { "a foreign period on an mOTP document must be ignored, got ${motpWithForeignPeriod.period}" })
+        } finally {
+            motpWithForeignPeriod.close()
+        }
+
+        // serialize() only ever writes "pin" for mOTP; a pin on another kind is foreign/crafted data and
+        // must not reach the parsed entry (Entry.getPin() is otherwise only read for mOTP token calc).
+        val totpWithForeignPin = entryValue(entryDocument().put("type", "TOTP").put("pin", "1234"))
+        try {
+            expect(totpWithForeignPin.pin.isEmpty(), { "a foreign PIN on a non-mOTP document must be ignored" })
+        } finally {
+            totpWithForeignPin.close()
+        }
     }
 
     check("entry documents reject malformed fields with a closed error set") {
