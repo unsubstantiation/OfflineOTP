@@ -14,6 +14,7 @@ android {
         versionCode 39
         versionName "0.9.0.1"
         vectorDrawables.useSupportLibrary = true
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     buildTypes {
         release {
@@ -101,4 +102,15 @@ dependencies {
     implementation "com.mikepenz:aboutlibraries:14.2.1"
 
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
+
+    // Local JVM unit tests (app/src/test). The tests stay off the android.jar stubs: only
+    // org.json needs a real implementation on the host classpath because the platform's
+    // org.json is "not mocked" in unit tests.
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+
+    // Instrumentation tests (app/src/androidTest), for the on-device crypto/database vectors.
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+    androidTestImplementation 'androidx.test:core:1.6.1'
 }

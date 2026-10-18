@@ -1,0 +1,41 @@
+name: Dependency baseline
+
+# Manual refresh of the resolved-dependency inventory. The task records every external
+# artifact (with SHA-256) of the root buildscript and the fdroid/play compile/runtime
+# classpaths plus the Kotlin tooling configurations; the report is attached as an artifact
+# so a reviewer can diff it against the previous baseline. Reproducible-build runs compare
+# inventories byte-for-byte in android-ci.yml.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    name: writeDependencyInventory
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
+        with:
+          distribution: temurin
+          java-version: '17.0.14+7'
+
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platforms;android-36 build-tools;36.0.0'
+
+      - name: Resolve and inventory every external artifact
+        run: ./gradlew --no-daemon :app:writeDependencyInventory
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dependency-inventory
+          path: app/build/reports/dependency-inventory.txt
+          if-no-files-found: error
