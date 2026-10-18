@@ -1,0 +1,13 @@
+<!-- Adapted from Aegis Icons (STRATO.svg); brand marks remain trademarks of their owners. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024.0"
+        android:viewportHeight="1024.0">
+    <path
+        android:fillColor="#f80"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#fff"
+        android:pathData="M512 363a59.6 59.6 0 0 1-59.59-59.6H661a59.59 59.59 0 0 1 59.58 59.6v208.59A59.59 59.59 0 0 1 661 512V392.8a29.8 29.8 0 0 0-29.8-29.8H512m89.39 89.4a29.8 29.8 0 0 0-29.8-29.8H333.21a29.8 29.8 0 0 0-29.79 29.8v238.39a29.8 29.8 0 0 0 29.79 29.8h238.38a29.8 29.8 0 0 0 29.8-29.8V452.41" />
+</vector>

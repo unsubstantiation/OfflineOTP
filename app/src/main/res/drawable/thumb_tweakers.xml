@@ -1,0 +1,13 @@
+<!-- Adapted from Aegis Icons (Tweakers.svg); brand marks remain trademarks of their owners. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024.0"
+        android:viewportHeight="1024.0">
+    <path
+        android:fillColor="#dae64a"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:fillColor="#fff"
+        android:pathData="M768 512c0 141.38-114.62 256-256 256S256 653.38 256 512s114.62-256 256-256h1.19L374.34 437.14a37.17 37.17 0 0 0-2.94 35.57l41.48 133.76c7.66 19.16 15.35 24.23 33.59 24.22h137c14 .17 22.36-6.18 30.19-16.15l139.49-188.45-.17-.61A255.48 255.48 0 0 1 768 512zm-282.28 63.88h55.11V482h57v-55.07H428.1V482h57.62z" />
+</vector>

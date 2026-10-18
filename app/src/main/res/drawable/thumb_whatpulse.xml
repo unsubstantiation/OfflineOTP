@@ -1,0 +1,13 @@
+<!-- Custom WhatPulse waveform mark based on its activity-tracking identity; brand remains a trademark of its owner. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="1024"
+        android:viewportHeight="1024">
+    <path
+        android:fillColor="#1B76BC"
+        android:pathData="M512,0 C794.7698,0 1024,229.2302 1024,512 C1024,794.7698 794.7698,1024 512,1024 C229.2302,1024 0,794.7698 0,512 C0,229.2302 229.2302,0 512,0 Z" />
+    <path
+        android:strokeColor="#FFFFFF" android:strokeWidth="46" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M105 548 H286 L378 360 L484 692 L584 431 L666 548 H919" />
+</vector>
