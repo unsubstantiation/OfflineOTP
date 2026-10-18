@@ -594,9 +594,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         } else if (result.getIntExtra(OpenPgpApi.RESULT_CODE, OpenPgpApi.RESULT_CODE_ERROR) == OpenPgpApi.RESULT_CODE_USER_INTERACTION_REQUIRED) {
             val pi = result.getParcelableExtra<PendingIntent>(OpenPgpApi.RESULT_INTENT)
 
-            // Can't do anything without this intent
-            if (pi == null)
+            // Without the pending intent the user cannot be asked to act, so report the failure
+            if (pi == null) {
+                notifyOpenPgpFailure(requestCode)
                 return
+            }
 
             // Small hack to keep the target file even after user interaction
             if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP) {
@@ -615,7 +617,17 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
             if (error != null)
                 Toast.makeText(this, String.format(getString(R.string.backup_toast_openpgp_error), error.getMessage()), Toast.LENGTH_LONG).show()
+            else
+                notifyOpenPgpFailure(requestCode)
+        } else {
+            notifyOpenPgpFailure(requestCode)
         }
+    }
+
+    /** Shows the generic export or import failure for an OpenPGP request that could not proceed. */
+    private fun notifyOpenPgpFailure(requestCode: Int) {
+        notifyBackupState(if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP)
+            R.string.backup_toast_export_failed else R.string.backup_toast_import_failed)
     }
 
     override fun shouldDestroyOnScreenOff(): Boolean {

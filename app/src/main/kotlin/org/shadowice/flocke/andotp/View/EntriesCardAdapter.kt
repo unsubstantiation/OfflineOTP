@@ -96,15 +96,26 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     /** Adds the entry (with a toast if it is already present) and saves the database. */
+    /**
+     * Takes ownership of [e]. It is kept only when the list accepts it; a rejected or failed entry
+     * is destroyed so its secret does not outlive the attempt.
+     */
     fun addEntry(e: Entry) {
-        if (encryptionKey == null || VaultSession.getKey() !== encryptionKey)
-            throw IllegalStateException("Vault locked")
-        e.validate()
-        if (entries.getEntries().size >= InputPolicy.MAX_ENTRIES)
-            throw IllegalArgumentException("Too many entries")
-        if (entries.addEntry(e)) {
+        val added = try {
+            if (encryptionKey == null || VaultSession.getKey() !== encryptionKey)
+                throw IllegalStateException("Vault locked")
+            e.validate()
+            if (entries.getEntries().size >= InputPolicy.MAX_ENTRIES)
+                throw IllegalArgumentException("Too many entries")
+            entries.addEntry(e)
+        } catch (error: RuntimeException) {
+            e.destroy()
+            throw error
+        }
+        if (added) {
             saveAndRefresh(settings.getAutoBackupEncryptedPasswordsEnabled())
         } else {
+            e.destroy()
             Toast.makeText(context, R.string.toast_entry_exists, Toast.LENGTH_LONG).show()
         }
     }

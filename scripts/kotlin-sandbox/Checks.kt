@@ -5260,6 +5260,27 @@ fun main() {
             { "the mOTP was not recalculated with the replacement PIN" })
     }
 
+    check("mOTP refreshes on its 10-second step even when the stored period is 30") {
+        val pin = "1234"
+        val motpSeed = "motp seed"
+        val motp = Entry(Entry.OTPType.MOTP, motpSeed, "ACME", "motp", arrayListOf())
+        expect(motp.getPeriod() == 30, { "an mOTP entry keeps the stored period 30: ${motp.getPeriod()}" })
+        expect(motp.getTokenStepSeconds() == 10, { "mOTP must step every 10 seconds" })
+        motp.setPin(pin)
+        expect(motp.updateOTPAt(60L, false), { "the initial mOTP was not calculated" })
+        expect(motp.getCurrentOTP() == TokenCalculator.MOTP(pin, motpSeed, 60L, 0),
+            { "the mOTP at 60s is wrong: ${motp.getCurrentOTP()}" })
+        expect(!motp.updateOTPAt(65L, false), { "mOTP recalculated inside its 10-second step" })
+        expect(motp.updateOTPAt(70L, false), { "mOTP did not refresh at the 10-second boundary" })
+        expect(motp.getCurrentOTP() == TokenCalculator.MOTP(pin, motpSeed, 70L, 0),
+            { "the mOTP at 70s is wrong: ${motp.getCurrentOTP()}" })
+        expect(motp.getPrevOTP() == TokenCalculator.MOTP(pin, motpSeed, 60L, 0),
+            { "the previous mOTP at 70s should be the 60s token: ${motp.getPrevOTP()}" })
+        expect(motp.updateOTPAt(95L, false), { "mOTP did not refresh after a skipped step" })
+        expect(motp.getCurrentOTP() == TokenCalculator.MOTP(pin, motpSeed, 95L, 0),
+            { "the mOTP at 95s is wrong: ${motp.getCurrentOTP()}" })
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {

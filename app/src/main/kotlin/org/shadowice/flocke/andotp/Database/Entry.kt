@@ -328,6 +328,12 @@ open class Entry {
 
     fun getPeriod(): Int = period
 
+    /**
+     * Seconds per token step. mOTP always uses the protocol's 10-second step, so the stored
+     * period (which is 30 for mOTP entries) must not drive its refresh, expiry or progress.
+     */
+    fun getTokenStepSeconds(): Int = if (type == OTPType.MOTP) TokenCalculator.MOTP_STEP_SECONDS else period
+
     fun setPeriod(period: Int) {
         if (this.period != period) invalidateCachedToken()
         this.period = period
@@ -421,7 +427,7 @@ open class Entry {
         val seed = secret ?: return false
         validate()
         if (type == OTPType.TOTP || type == OTPType.STEAM || type == OTPType.MOTP) {
-            val counter = time / getPeriod()
+            val counter = time / getTokenStepSeconds()
 
             if (updateNow || !hasUpdatedTimeToken || counter != last_update) {
                 // Reuse the cached token only when the clock advanced by exactly one step. A
@@ -481,7 +487,8 @@ open class Entry {
     fun hasColorChanged(): Boolean {
         if (color == COLOR_DEFAULT) {
             val time = System.currentTimeMillis() / 1000
-            if ((time % getPeriod()) > (getPeriod() - EXPIRY_TIME)) {
+            val step = getTokenStepSeconds()
+            if ((time % step) > (step - EXPIRY_TIME)) {
                 setColor(COLOR_RED)
                 return true
             }

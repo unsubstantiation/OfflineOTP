@@ -3,5 +3,7 @@
     <string name="security_vault_error_title">Vault unavailable</string>
     <string name="security_vault_error">The vault could not be safely opened. No data was replaced. Check your password and recovery backup. Missing keys cannot be recreated to decrypt an existing vault.</string>
     <string name="security_import_title">Add this account?</string>
+    <string name="security_import_details">Type %1$s, %2$d digits, %3$s</string>
+    <string name="security_import_period">Period %d s</string>
     <string name="security_platform_backup_disabled">Disabled for security. Use portable password-encrypted or OpenPGP backups.</string>
 </resources>

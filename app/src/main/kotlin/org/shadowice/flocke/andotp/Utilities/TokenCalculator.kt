@@ -16,6 +16,8 @@ object TokenCalculator {
     const val TOTP_DEFAULT_DIGITS = 6
     const val HOTP_INITIAL_COUNTER = 1
     const val STEAM_DEFAULT_DIGITS = 5
+    /** mOTP rolls over every 10 seconds, independent of the period stored on the entry. */
+    const val MOTP_STEP_SECONDS = 10
 
     // Steam's token alphabet (excludes easily confused characters)
     private val steamChars = charArrayOf(
@@ -124,7 +126,7 @@ object TokenCalculator {
     /** Legacy mOTP: first 6 hex digits of MD5(epoch/10 + offset + secret + PIN). */
     @JvmStatic
     fun MOTP(PIN: String, secret: String, epoch: Long, offset: Int): String {
-        val epochText = ((epoch / 10) + offset).toString()
+        val epochText = ((epoch / MOTP_STEP_SECONDS) + offset).toString()
         val hashText = epochText + secret + PIN
         var otp = ""
 

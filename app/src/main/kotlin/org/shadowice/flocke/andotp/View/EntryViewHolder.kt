@@ -264,9 +264,10 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
 
     /** Animates the progress bar to the remaining time of the current period. */
     private fun updateProgress(entry: Entry) {
-        val progress = (entry.getPeriod() - (System.currentTimeMillis() / 1000) % entry.getPeriod()).toInt()
+        val step = entry.getTokenStepSeconds()
+        val progress = (step - (System.currentTimeMillis() / 1000) % step).toInt()
 
-        progressBar.max = entry.getPeriod() * 100
+        progressBar.max = step * 100
         progressBar.progress = progress * 100
 
         val animation = ObjectAnimator.ofInt(progressBar, "progress", (progress - 1) * 100)

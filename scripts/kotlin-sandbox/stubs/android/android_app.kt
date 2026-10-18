@@ -245,6 +245,12 @@ open class Activity : Context() {
     /** The intent the activity was started with; the platform returns the launch intent. */
     open fun getIntent(): Intent? = null
 
+    /** Replaces the cached launch intent, as the platform does when a running activity is re-targeted. */
+    open fun setIntent(newIntent: Intent?) {}
+
+    /** Called when a running singleInstance activity receives a new intent. */
+    open fun onNewIntent(intent: Intent?) {}
+
     /** The window the activity owns. */
     val activityWindow = Window()
 
