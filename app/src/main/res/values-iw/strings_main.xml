@@ -6,7 +6,6 @@
     <string name="button_scan_qr">סרוק קוד-QR</string>
     <string name="button_save">שמור</string>
     <string name="button_new_tag">תג חדש</string>
-    <string name="button_settings">הגדרות</string>
     <string name="button_all_tags">כל התוויות</string>
     <string name="button_no_tags">ללא תגיות</string>
     <string name="button_qr_from_image">קוד QR מתמונה</string>
@@ -56,19 +55,16 @@
     <string name="button_add">הוסף חשבון חדש</string>
     <string name="button_close_menu">סגור תפריט</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">אימות נכשל, אנא נסה שוב!</string>
-    <string name="toast_auth_failed_fatal">אימות נכשל, סוגר את andOTP!</string>
+    <string name="toast_auth_failed_fatal">אימות נכשל, סוגר את OfflineOTP!</string>
     <string name="toast_copied_to_clipboard">הועתק ללוח</string>
     <string name="toast_entry_exists">ערך זה כבר קיים</string>
     <string name="toast_invalid_qr_code">קוד QR לא תקין</string>
-    <string name="toast_encryption_key_empty">מפתח הצפנה לא נטען</string>
     <string name="toast_intent_creation_failed">הועבר קוד לא חוקי שנוסף על ידי הישום</string>
-    <string name="toast_intent_creation_succeeded">נוסף קוד שסופק על ידי הישום</string>
     <string name="toast_file_load_error">לא היה ניתן לפתוח את הקובץ</string>
     <string name="toast_qr_error">לא היה ניתן למצוא/לאמת קוד QR</string>
     <string name="toast_qr_checksum_exception">אימות סכום הבדיקה נכשל בעת פענוח קוד QR</string>
     <string name="toast_qr_format_error">שגיאת פורמט בקוד QR</string>
-    <string name="toast_qr_unsuported">קוד QR אינו נתמך</string>
+    <string name="toast_qr_unsupported">קוד QR אינו נתמך</string>
     <string name="toast_qr_failed_to_generate">יצירת קוד QR נכשלה</string>
     <!-- Errors -->
     <string name="error_invalid_secret">סוד לא חוקי</string>
@@ -76,24 +72,19 @@
     <string name="dialog_title_auth">אימות</string>
     <string name="dialog_title_manual_entry">הכנס פרטים</string>
     <string name="dialog_title_remove">הסר</string>
-    <string name="dialog_title_rename">שנה שם</string>
     <string name="dialog_title_counter">מונה</string>
     <string name="dialog_title_used_tokens">שימוש באסימונים</string>
-    <string name="dialog_title_keystore_error">שגיאת KeyStore</string>
     <string name="dialog_title_qr_code">קוד QR</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">הכנס סיסמה</string>
     <string name="dialog_title_auto_time">Automatic time</string>
     <string name="dialog_label_enter_password">הכנס סיסמה</string>
     <string name="dialog_label_confirm_password">אשר סיסמה</string>
-    <string name="dialog_msg_auth">אנא הכנס את האישורים המזהים של מכשירך כדי להפעיל את andOTP.</string>
+    <string name="dialog_msg_auth">אנא הכנס את האישורים המזהים של מכשירך כדי להפעיל את OfflineOTP.</string>
     <string name="dialog_msg_confirm_delete">האם אתה בטוח שברצונך להסיר את החשבון \"%1$s\"?</string>
-    <string name="dialog_msg_used_tokens">andOTP יעקוב אחר השימוש באסימונים שלך (באמצעות הפיטצ\'ר \"הקש
+    <string name="dialog_msg_used_tokens">OfflineOTP יעקוב אחר השימוש באסימונים שלך (באמצעות הפיטצ\'ר \"הקש
         כדי לחשוף\" או העתקה ללוח) כדי להיות מסוגל למיין אותם לפי \"הנפוץ ביותר\" או
         \"נעשה שימוש אחרון\".\n\nהודעה זו לא תוצג שוב.</string>
-    <string name="dialog_msg_keystore_error">טעינת מפתח ההצפנה מ- KeyStore נכשלה.
-        <b>כל חשבון שנוסף יאבד.</b>\n\nכדי שתוכל עדיין להשתמש ב- andOTP, אתה יכול לגשת
-        ל<b>הגדרות</b> ולהחליף את <b>הצפנת מסד הנתונים</b> ל<b>סיסמה / קוד PIN</b>.</string>
     <string name="dialog_msg_auto_time">Please enable the <b>Automatic date &amp; time</b> option in
         your phones <b>Settings</b> to ensure the correct generation of time-based
         one-time-passwords (TOTP).</string>

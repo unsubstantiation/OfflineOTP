@@ -11,10 +11,6 @@
     <string name="backup_receiver_title_backup_failed">Sicherung fehlgeschlagen</string>
     <string name="backup_receiver_title_backup_success">Sicherung erfolgreich</string>
     <string name="backup_receiver_encrypted_disabled">Verschlüsselte Sicherungen sind derzeit deaktiviert. Bitte öffne die Einstellungen, um diese zu aktivieren</string>
-    <string name="backup_receiver_read_permission_failed">Keine Lese-Berechtigung, wird aber
-        zum Sichern benötigt</string>
-    <string name="backup_receiver_write_permission_failed">Keine Schreib-Berechtigung, wird aber
-        zum Sichern benötigt</string>
     <string name="backup_receiver_custom_encryption_failed">Passwort/PIN Verschlüsselung ist nicht
         unterstützt mit Broadcast Datensicherung</string>
     <string name="backup_receiver_no_location_set">Kein Sicherungsort festgelegt, bitte in der App-Einstellung einen festlegen</string>
@@ -38,7 +34,6 @@
     <string name="backup_toast_storage_not_accessible">Externer Speicher derzeit nicht zugreifbar</string>
     <string name="backup_toast_openpgp_error">OpenPGP-Fehler: %s</string>
     <string name="backup_toast_openpgp_not_verified">Keine geprüfte Signatur erkannt</string>
-    <string name="backup_toast_crypt_password_not_set">Kein Passwort gesetzt, überprüfe die <b>Einstellungen</b></string>
     <string name="backup_toast_file_selection_failed">Dialog zur Dateiauswahl kann nicht geöffnet werden!</string>
     <string name="backup_label_type">Sicherungstyp: </string>
     <string name="backup_label_crypt">Die Sicherung wird verschlüsselt mit einem selbst erstellten Passwort mit AES 256-bit Verschlüsselung. Sie können einen Standard Passwort einstellen wenn sie nicht möchten, denn jedes mal einzugeben bei der Sicherung.</string>

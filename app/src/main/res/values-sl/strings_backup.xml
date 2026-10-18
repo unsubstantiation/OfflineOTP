@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">Varnostna kopija uspela</string>
     <string name="backup_receiver_encrypted_disabled">Kodirane varnostne kopije trenutno niso dovoljene,
         prosimo, pojdite v Nastavitve, da jih omogočite</string>
-    <string name="backup_receiver_read_permission_failed">Dovoljenja za branje niso odobrena, prosimo, da
-        jih odobrite pred varnostnim kopiranjem</string>
-    <string name="backup_receiver_write_permission_failed">Dovoljenja za zapis niso odobrena, prosimo, da
-        jih odobrite pred varnostnim kopiranjem</string>
     <string name="backup_receiver_custom_encryption_failed">Kodiranje s pomočjo gesla/PIN ni
         podprto pri varnostnem kopiranju preko zunanjih aplikacij</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Zunanja shramba trenutno ni dostopna</string>
     <string name="backup_toast_openpgp_error">OpenPGP napaka: %s</string>
     <string name="backup_toast_openpgp_not_verified">Overjenih podpisov ni bilo mogoče najti</string>
-    <string name="backup_toast_crypt_password_not_set">Geslo ni bilo nastavljeno, preverite <b>Nastavitve</b></string>
     <string name="backup_toast_file_selection_failed">Can\'t open file selection dialog!</string>
     <string name="backup_label_type">Backup type: </string>
     <string name="backup_label_crypt">The backup will be stored encrypted with a custom password

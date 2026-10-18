@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interface de usuario</string>
     <string name="settings_category_title_backup">Copia de seguranza</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Tocar para mostrar</string>
     <string name="settings_title_tap_to_reveal_timeout">Tempo de espera para que ao tocar mostre</string>
     <string name="settings_title_auth">Autenticación</string>
-    <string name="settings_title_auth_password">Contrasinal</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Cifrado de Base de datos</string>
-    <string name="settings_title_panic">Botón do Pánico</string>
     <string name="settings_title_relock_screen_off">Voltar a asegurar ao apagarse a pantalla</string>
     <string name="settings_title_relock_background">Bloquear cando pasa a segundo plano</string>
     <string name="settings_title_auth_inactivity">Bloquear ao quedar inactiva</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Preguntar polo nome do ficheiro</string>
     <string name="settings_title_backup_location">Localización por omisión</string>
     <string name="settings_title_backup_password">Contrasinal da copia de seguranza</string>
-    <string name="settings_title_auto_backup_password_enc">Copia de seguranza automática das novas entradas</string>
     <string name="settings_title_backup_broadcasts">Respaldo Broadcasts</string>
     <string name="settings_title_openpgp_provider">Provedor OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Chave de cifrado OpenPGP</string>
@@ -55,13 +50,11 @@
     <string name="settings_title_enable_android_backup_service">Activar Android sync</string>
     <string name="settings_title_clear_keystore">Limpar KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Agochar códigos OTP, require mostralos manualmente</string>
     <string name="settings_desc_tap_to_reveal_timeout">Selecciona o tempo (en segundos) tras o cal esconder
         as entradas reveladas</string>
-    <string name="settings_desc_panic">Escoller que facer cando se recibe unha ameaza de seguridade</string>
     <string name="settings_desc_relock_screen_off">Require autenticación depois de que a pantalla
         se apague</string>
-    <string name="settings_desc_relock_background">Solicitar autenticación após a app foi enviada ao 
+    <string name="settings_desc_relock_background">Solicitar autenticación após a app foi enviada ao
         segundo plano (ex. premendo botón inicio)</string>
     <string name="settings_desc_auth_inactivity">Solicitar autenticación após o dispositivo quedou
         inactivo</string>
@@ -85,8 +78,6 @@ a campos de contrasinal dentro da app</string>
     <string name="settings_desc_hide_issuer">Agocha a etiqueta do provedor en cada tarxeta</string>
     <string name="settings_desc_backup_append_date">Engadir a data actual e hora ao nome de
         ficheiro de respaldo suxerido</string>
-    <string name="settings_desc_backup_ask">Preguntar polo nome do ficheiro cada vez que unha copia de seguranza sexa creada ou
-        restaurada</string>
     <string name="settings_desc_backup_location">Escolle a localización por omisión</string>
     <string name="settings_desc_backup_location_set">Foi escollida a localización para a copia</string>
     <string name="settings_desc_backup_password">Establecer o contrasinal para cifrar as
@@ -97,21 +88,13 @@ a campos de contrasinal dentro da app</string>
 e un contrasinal para activar esta opción</string>
     <string name="settings_desc_backup_broadcasts">Escolle que tipos de copia se poden activar por
          aplicacións de terceiros utilizando Broadcasts</string>
-    <string name="settings_desc_openpgp_key_encrypt">Enderezo de correo para a chave OpenPGP utilizada para cifrar
-         as copias de apoio</string>
     <string name="settings_desc_openpgp_verify">As copias de apoio cifradas só se importan
         se están asinadas con unha chave válida</string>
     <string name="settings_desc_special_features">Desmarcar para desactivar as funcionalidades especiais</string>
-    <string name="settings_desc_enable_screenshot">Permitir capturas de pantalla da vista principal
-        (Desactivado por defecto por razóns de seguridade)</string>
-    <string name="settings_desc_enable_android_backup_service">Permite que andOTP utilice o servizo de copias de apoio
-        incluído en Android para gardar chaves e axustes</string>
     <string name="settings_desc_clear_keystore">Eliminar a chave de cifrado da KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Esta característica require bloqueo de pantalla
         seguro (Axustes -&gt; Seguranza -&gt; Bloqueo de pantalla)</string>
-    <string name="settings_toast_password_empty">Non se pode deixar baleiro o contrasinal, establece
-   Autenticación a \"Nada\" para desactivala!</string>
     <string name="settings_toast_encryption_changing">Intentando cambiar o cifrado da base de datos,
    agarda por favor!</string>
     <string name="settings_toast_encryption_change_success">Cambiouse correctamente o cifrado
@@ -130,7 +113,7 @@ e un contrasinal para activar esta opción</string>
     <string name="settings_dialog_title_error">Erro</string>
     <string name="settings_dialog_title_clear_keystore">Baleirar a KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Android sync</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP intentará agora cambiar o cifrado 
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP intentará agora cambiar o cifrado
         da base de datos. En caso de fallo restaurarase unha copia interna e o cifrado permanecerá
         sen cambios.\n\n<b>Porén, sempre é boa idea ter copias de apoio por se algo terrible acontece!</b></string>
     <string name="settings_dialog_msg_auth_invalid_with_encryption">Só podes utilizar Contrasinal ou PIN
@@ -147,8 +130,6 @@ e un contrasinal para activar esta opción</string>
    pode axudar a resolver problemas. Só deberías seguir se sabes o que fas!\n\n<b>Aviso</b>:
    Xa que o <b>cifrado da base de datos</b> está establecido a <b>Android KeyStore</b> perderás todas as túas contas.
    Asegúrate de ter unha copia!\n\n<b>Seguro que queres baleirar a KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Android sync non se pode usar co cifrado
-        do almacén de chaves, <b>debes facer unha copia manual!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Ningún</item>

@@ -127,7 +127,7 @@
                             android:maxLines="1"
                             android:ellipsize="end"
                             android:textSize="18sp"
-                            android:text="Label"
+                            android:text="@string/label_label"
                             tools:ignore="HardcodedText" />
 
                         <TextView
@@ -137,7 +137,7 @@
                             android:maxLines="1"
                             android:ellipsize="end"
                             android:textSize="13.5sp"
-                            android:text="Tags"
+                            android:text="@string/label_tags"
                             tools:ignore="HardcodedText" />
 
                     </LinearLayout>

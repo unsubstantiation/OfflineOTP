@@ -1,5 +1,11 @@
 # Language conversion assessment: security and Android compatibility
 
+> **Historical assessment.** This reviews the 2026-10-14 baseline
+> (`be039203c2baa104a559e3a62beff96b70819881`). The app main sources are now fully Kotlin and
+> CI/build gates are in place; see the root [README](../README.md) for current build and test
+> behavior. Statements below about Java sources, lint settings, and missing workflows describe
+> that baseline.
+
 Reviewed: 2026-10-14. Baseline: `be039203c2baa104a559e3a62beff96b70819881`.
 
 ## Recommendation
@@ -8,7 +14,9 @@ Reviewed: 2026-10-14. Baseline: `be039203c2baa104a559e3a62beff96b70819881`.
 
 Java is already a memory-safe managed language in this project. Kotlin's useful gains are nullability, validated domain types, exhaustive state handling, and better lifecycle/concurrency expression—not a stronger Android sandbox. Neither Kotlin nor Rust automatically prevents another app from invoking an exported component, receiving an implicit intent, or supplying malicious document data.
 
-Retaining and hardening Java is a sound alternative if the team cannot maintain Kotlin confidently. Maintenance capacity matters: the README describes the repository as unmaintained, and introducing another language without ownership can reduce security.
+Retaining and hardening Java was a sound alternative if the team could not maintain Kotlin
+confidently. Maintenance capacity matters: introducing another language without ownership can
+reduce security.
 
 This assessment interprets “language conversions” as programming-language migrations, not translation of UI strings. It makes no application behavior changes.
 
@@ -24,15 +32,15 @@ This is **static source analysis, not a penetration test or a security certifica
 
 | Area | Observed state | Implication |
 | --- | --- | --- |
-| Application language | No app main-source Java since the twenty-second batch (`Constants` and `FileHelper` converted; the 2026-10-14 baseline had 22 main-source Java files, about 6,430 lines). The app has 85 main Kotlin files plus two flavor-specific Kotlin files. After the completed test-source migration, all 15 `Kotlin*InteropTest` classes are Kotlin and retain checks for the Java-facing API; the host/device suites and independently signed security-test client are Kotlin | A Kotlin/Java mixed migration was feasible; there is no in-repository C/C++ memory-unsafe core to replace. The Kotlin interop suites are intentional coverage, not unfinished app conversion |
+| Application language | No app main-source Java since the twenty-second batch (`Constants` and `FileHelper` converted; the 2026-10-14 baseline had 22 main-source Java files, about 6,430 lines). The app has 86 main Kotlin files plus two flavor-specific Kotlin files. The host suite has 14 Kotlin test classes (110 tests in the sandbox); the instrumentation suite has four Kotlin tests (`AppContextTest`, `ApplicationTest`, `EntryDocumentDeviceTest`, `IntroScreenLaunchTest`) | A Kotlin/Java mixed migration was feasible; there is no in-repository C/C++ memory-unsafe core to replace. The current test suites are the maintained coverage, not an unfinished app conversion |
 | Native/other runtimes | Kotlin (JVM) sources are checked in under `app/src/main/kotlin`; no Rust, C, or C++ implementation | Rust would introduce JNI, native packaging and a second toolchain rather than remove existing native exposure |
 | Build | Three Groovy Gradle files; Gradle 8.13 wrapper; Android Gradle Plugin 8.13.2; Kotlin plugin 2.4.21 pinned with `jvmTarget` 1.8 | Kotlin is added; keep plugin/AGP/Gradle compatibility verified, and note that no Gradle build has been executed in this environment |
 | Android contract | `minSdkVersion 28`, `targetSdkVersion 35`, `compileSdk 36`; Java source/target 8 and core-library desugaring | Declared support begins at Android 9, not the older Android versions supported by historical upstream releases |
 | UI | Android activities, XML layouts, preferences, RecyclerView; data binding enabled | Kotlin works with the existing UI; no need to combine language migration with Compose |
 | Storage/crypto | Encrypted JSON in private files; JCA AES-GCM/PBKDF2/HMAC; RSA key wrapping through AndroidKeyStore | Preserve platform providers and existing file formats during language migration |
 | Integration | ZXing, OpenPGP service, Storage Access Framework, WorkManager, process lifecycle callbacks | Security depends heavily on Android trust boundaries and lifecycle policy |
-| Tests | RFC TOTP/HOTP, entry parsing/serialization, database round-trip and AES-GCM vectors in `ApplicationTest`; token formatting in `ToolsTest` | Useful starting vectors, but little adversarial-input, IPC, process-death or migration coverage |
-| Build assurance | Lint has `abortOnError false`; no checked-in GitHub Actions workflow found | Establish automated checks before a broad conversion |
+| Tests | RFC TOTP/HOTP, entry parsing/serialization, database round-trip and AES-GCM vectors in `ApplicationTest`; token formatting in `ToolsTest` | Baseline vectors were useful, but adversarial-input, process-death and migration coverage were thin; the current host suite adds those cases |
+| Build assurance | At baseline, lint had `abortOnError false` and no GitHub Actions workflow was checked in | This has since changed: lint fails on errors and `.github/workflows/android-ci.yml` runs the build, host-test and device gates |
 
 Sources: [app build](../app/build.gradle), [root build](../build.gradle), [wrapper](../gradle/wrapper/gradle-wrapper.properties), [manifest](../app/src/main/AndroidManifest.xml), [tests](../app/src/androidTest/kotlin/org/shadowice/flocke/andotp/ApplicationTest.kt).
 

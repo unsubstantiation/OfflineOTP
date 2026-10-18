@@ -16,12 +16,6 @@
     <string name="backup_receiver_title_backup_success">La copia de seguranza tuvo ésitu</string>
     <string name="backup_receiver_encrypted_disabled">Anguaño les copies de seguranza cifraes nun
         tán permitíes, vete a axustes p\'activales</string>
-    <string name="backup_receiver_read_permission_failed">Nun se concedió\'l permisu de llectura,
-        concédelu enantes de crear esta
-        copia de seguranza</string>
-    <string name="backup_receiver_write_permission_failed">Nun se concedió\'l permisu d\'escritura,
-        concédelu enantes de crear una
-        copia de seguranza</string>
     <string name="backup_receiver_custom_encryption_failed">El cifráu según contraseña/PIN nun
         sofita cola copia de seguranza remota</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
@@ -49,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Anguaño nun pue accedese al almacenamientu esternu</string>
     <string name="backup_toast_openpgp_error">Fallu d\'OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Nun se deteutó nenguna robla verificada</string>
-    <string name="backup_toast_crypt_password_not_set">Nun s\'afitó la contraseña, comprueba los axustes</string>
     <string name="backup_toast_file_selection_failed">¡Nun pue abrise\'l diálogu d\'esbilla de ficheros!</string>
     <string name="backup_label_type">Backup type: </string>
     <string name="backup_label_crypt">The backup will be stored encrypted with a custom password

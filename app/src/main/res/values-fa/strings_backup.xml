@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">شکست در پشتیبان‌گیری</string>
     <string name="backup_receiver_title_backup_success">پشتیبان‌گیری با موفقیت انجام شد</string>
     <string name="backup_receiver_encrypted_disabled">پشتیبان‌های رمزگذاری شده در حال حاضر مجاز نیستند، لطفا به تنظیمات بروید و آن‌ها را فعال کنید</string>
-    <string name="backup_receiver_read_permission_failed">اجازه خواندن داده نشده، لطفا قبل از تلاش برای پشتیبان‌گیری این اجازه را بدهید</string>
-    <string name="backup_receiver_write_permission_failed">اجازه نوشتن داده نشده، لطفا قبل از تلاش برای پشتیبان‌گیری این اجازه را بدهید</string>
     <string name="backup_receiver_custom_encryption_failed">رمزنگاری بر اساس گذرواژه/ پین، توسط
 Broadcast Backup پشتیبانی نمی‌شود</string>
     <string name="backup_receiver_no_location_set">هیچ مکانی برای ذخیره فایل پشتیبان تنظیم نشده، لطفا در تنظیمات برنامه آن را تنظیم کنید</string>
@@ -34,7 +32,6 @@ Broadcast Backup پشتیبانی نمی‌شود</string>
     <string name="backup_toast_storage_not_accessible">در حال حاضر حافظه جانبی در دسترس نیست</string>
     <string name="backup_toast_openpgp_error">خطای OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">هیچ امضای تایید شده‌ای شناسایی نشد</string>
-    <string name="backup_toast_crypt_password_not_set">گذرواژه تنظیم نشده، <b>تنظیمات</b> را بررسی کنید</string>
     <string name="backup_toast_file_selection_failed">ناتوانی در باز کردن پنجره انتخاب پرونده!</string>
     <string name="backup_label_type">نوع پشتیبان: </string>
     <string name="backup_label_crypt">پشتیبان به صورت رمزگذاری شده با یک رمز عبور شخصی با استفاده از رمزگذاری ۲۵۶-بیتی AES ذخیره می‌شود. اگر نمی‌خواهید که هر بار برای پشتیبان‌گیری رمزعبور را وارد کنید، می‌توانید یک رمز عبور پیشفرض در تنظیمات قرار دهید.</string>

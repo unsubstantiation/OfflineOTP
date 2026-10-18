@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interfaccia utente</string>
     <string name="settings_category_title_backup">Backup</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Tocca per mostrare</string>
     <string name="settings_title_tap_to_reveal_timeout">Timeout (in secondi) di visualizzazione codice OTP</string>
     <string name="settings_title_auth">Autenticazione</string>
-    <string name="settings_title_auth_password">Password</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Crittografia del database</string>
-    <string name="settings_title_panic">Panic Trigger</string>
     <string name="settings_title_relock_screen_off">Blocca quando lo schermo è spento</string>
     <string name="settings_title_relock_background">Blocca di nuovo quando messo in secondo piano</string>
     <string name="settings_title_auth_inactivity">Blocca nuovamente quando inattivo</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Chiedi un nome di file</string>
     <string name="settings_title_backup_location">Posizione di backup predefinita</string>
     <string name="settings_title_backup_password">Imposta password di backup</string>
-    <string name="settings_title_auto_backup_password_enc">Backup automatico delle nuove voci</string>
     <string name="settings_title_backup_broadcasts">Backup Broadcast</string>
     <string name="settings_title_openpgp_provider">Provider OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Chiave di crittografia OpenPGP</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Abilita la sincronizzazione di Android</string>
     <string name="settings_title_clear_keystore">Pulisci il KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Nascondi i codici OTP di default, richiedendo che
-        vengano rivelati manualmente</string>
     <string name="settings_desc_tap_to_reveal_timeout">Selezionare il tempo (in sec) dopo il quale
         le voci rivelate verranno nascoste</string>
-    <string name="settings_desc_panic">Decidi cosa succede quando viene ricevuto un Panic Trigger</string>
     <string name="settings_desc_relock_screen_off">Richiedi l\'autenticazione dopo lo spegnimento
         dello schermo del dispositivo</string>
     <string name="settings_desc_relock_background">Richiedi l\'autenticazione dopo che l\'applicazione
@@ -86,8 +78,6 @@ sarà richiesta nuovamente l\'autenticazione</string>
     <string name="settings_desc_hide_issuer">Nasconde l\'etichetta del fornitore su ogni carta</string>
     <string name="settings_desc_backup_append_date">Aggiungi la data e l\'ora correnti al nome del
         file di backup suggerito</string>
-    <string name="settings_desc_backup_ask">Chiedere il nome del file ogni volta che un backup
-        viene creato o ripristinato</string>
     <string name="settings_desc_backup_location">Scegli una posizione di backup predefinita</string>
     <string name="settings_desc_backup_location_set">La posizione di backup è stata scelta</string>
     <string name="settings_desc_backup_password">Impostare la password utilizzata per crittografare i
@@ -98,21 +88,13 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
         password di backup per attivare questa opzione</string>
     <string name="settings_desc_backup_broadcasts">Seleziona quali tipi di backup possono essere
         attivati da app di terze parti tramite Broadcast</string>
-    <string name="settings_desc_openpgp_key_encrypt">Indirizzo di posta della chiave OpenPGP utilizzata per
-        crittografare i backup</string>
     <string name="settings_desc_openpgp_verify">I backup crittografati verranno importati solo se
         firmati con una chiave valida</string>
     <string name="settings_desc_special_features">Deselezionare per disattivare nuovamente le funzionalità speciali</string>
-    <string name="settings_desc_enable_screenshot">Permetti di eseguire screenshots della schermata principale
-        (disabilitato di default per motivi di sicurezza)</string>
-    <string name="settings_desc_enable_android_backup_service">Consenti a andOTP di utilizzare il servizio
-        di backup integrato di Android per le chiavi di backup e le preferenze</string>
     <string name="settings_desc_clear_keystore">Eliminare la chiave di crittografia dal KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Questa funzionalità richiede la configurazione di una
         schermata di blocco sicuro (Impostazioni -&gt; Sicurezza -&gt; Blocco schermo)</string>
-    <string name="settings_toast_password_empty">Non è consentita una password vuota, imposta
-        l\'Autenticazione su \"Off\" per disattivarla!</string>
     <string name="settings_toast_encryption_changing">Provando a cambiare la crittografia del database,
         si prega di attendere!</string>
     <string name="settings_toast_encryption_change_success">Crittografia del database cambiata
@@ -131,7 +113,7 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
     <string name="settings_dialog_title_error">Errore</string>
     <string name="settings_dialog_title_clear_keystore">Pulire il KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Sincronizzazione Android</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP ora tenterà di modificare la crittografia
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP ora tenterà di modificare la crittografia
         del database. In caso di errore verrà ripristinato un backup interno e la crittografia
         rimarrà invariata.\n\n<b>Tuttavia, è sempre una buona idea avere un backup nel
         caso in cui accada qualcosa di inaspettato!</b></string>
@@ -151,8 +133,6 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
         Poiché la <b>crittografia del Database</b> è impostata su <b>Android KeyStore</b> perderai tutti i
         tuoi account. Assicurati di avere un backup!\n\n<b>Sei davvero sicuro di voler pulire
         il KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">La sincronizzazione di Android non può essere utilizzata
-        con la crittografia KeyStore, <b>devi eseguire un backup manuale!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Nessuno</item>

@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Кориснички интерфејс</string>
     <string name="settings_category_title_backup">Резервна копија</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Додирни за откривање</string>
     <string name="settings_title_tap_to_reveal_timeout">Тајмаут за додир за откривљавање</string>
     <string name="settings_title_auth">Аутентификација</string>
-    <string name="settings_title_auth_password">Лозинка</string>
-    <string name="settings_title_auth_pin">ПИН</string>
     <string name="settings_title_encryption">Шифровање базе</string>
-    <string name="settings_title_panic">Окидач панике</string>
     <string name="settings_title_relock_screen_off">Закључај на искључавање екрана</string>
     <string name="settings_title_relock_background">Закључај када програм иде у позадину</string>
     <string name="settings_title_auth_inactivity">Закључај на неактивност</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Тражи име датотеке</string>
     <string name="settings_title_backup_location">Подразумевана локација резервне копије</string>
     <string name="settings_title_backup_password">Лозинка резервне копије</string>
-    <string name="settings_title_auto_backup_password_enc">Аутоматски прави резервну копију на нових уноса</string>
     <string name="settings_title_backup_broadcasts">Резервна копија емитовања</string>
     <string name="settings_title_openpgp_provider">OpenPGP провајдер</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP кључ за шифровање</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Омогући Android синхронизацију</string>
     <string name="settings_title_clear_keystore">Испразни KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Подразумевано сакријте ОТП жетоне, захтевајући
-        да се ручно открију</string>
     <string name="settings_desc_tap_to_reveal_timeout">Изаберите време (у сек.) након којег ћете
         поново сакрити откривене уносе</string>
-    <string name="settings_desc_panic">Одлучите шта ће се догодити када се прими окидач панике</string>
     <string name="settings_desc_relock_screen_off">Захтевати аутентификацију након искључивања
         екрана уређаја</string>
     <string name="settings_desc_relock_background">Захтевати аутентификацију након што је апликација
@@ -84,8 +76,6 @@
     <string name="settings_desc_hide_issuer">Сакрива издаваоца на свакој картици</string>
     <string name="settings_desc_backup_append_date">Додаје тренутни датум и време предложеним
         називом датотеке</string>
-    <string name="settings_desc_backup_ask">Тражите име датотеке сваки пут када се сигурносна
-        копија креира или обнавља</string>
     <string name="settings_desc_backup_location">Изаберите подразумевану локацију резервне копије</string>
     <string name="settings_desc_backup_location_set">Локација за резервне копије је одабрана</string>
     <string name="settings_desc_backup_password">Поставља лозинку која се користи за шифровање
@@ -96,15 +86,11 @@
         за резервну копију</string>
     <string name="settings_desc_backup_broadcasts">Изаберите које врсте резервних копија могу да покрећу
         апликације независних произвођача помоћу емитовања</string>
-    <string name="settings_desc_openpgp_key_encrypt">Имејл OpenPGP кључа који се користи за шифровање резервних копија</string>
     <string name="settings_desc_openpgp_verify">Шифроване резервне копије се увозе само ако су потписане важећим кључем</string>
     <string name="settings_desc_special_features">Уклоните ознаку да бисте онемогућили специјалне функције</string>
-    <string name="settings_desc_enable_screenshot">Омогући снимање главног екрана (онемогућено по подразумеваним вредностима из безбедносних разлога)</string>
-    <string name="settings_desc_enable_android_backup_service">Омогућава andOTP да користи уграђену Android услугу израде резервних копија за резервне кључеве и преференције</string>
     <string name="settings_desc_clear_keystore">Брише кључ за шифровање из KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Ова функција захтева подешавање сигурног закључаног екрана (Подешавања -&gt; Безбедност -&gt; Закључавање екрана)</string>
-    <string name="settings_toast_password_empty">Празна лозинка није дозвољена, поставите аутентификацију на „Без“ да бисте је онемогућили!</string>
     <string name="settings_toast_encryption_changing">Покушавам да променим шифровање базе података, сачекајте!</string>
     <string name="settings_toast_encryption_change_success">Успешно промењено шифровање базе података!</string>
     <string name="settings_toast_encryption_change_failed">Није успела промена шифровања базе података, враћање у претходно стање!</string>
@@ -118,13 +104,12 @@
     <string name="settings_dialog_title_error">Грешка</string>
     <string name="settings_dialog_title_clear_keystore">Испразни KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Android синх.</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP ће сада покушати да промени шифровање базе података. У случају квара, интерна резервна копија ће бити враћена, а шифровање остаје непромењено.\n\n<b>Међутим, увек је добро имати резервну копију у случају да се догоди нешто неочекивано!</b></string>
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP ће сада покушати да промени шифровање базе података. У случају квара, интерна резервна копија ће бити враћена, а шифровање остаје непромењено.\n\n<b>Међутим, увек је добро имати резервну копију у случају да се догоди нешто неочекивано!</b></string>
     <string name="settings_dialog_msg_auth_invalid_with_encryption">Можете да користите лозинку или ПИН само ако је шифровање базе података постављено на „Лозинка/ПИН“!</string>
     <string name="settings_dialog_msg_encryption_invalid_with_auth">Прво треба да подесите аутентификацију на „Лозинка“ или „ПИН“!</string>
     <string name="settings_dialog_msg_encryption_invalid_without_credentials">Пре промене шифрирања морате поставити лозинку или ПИН!</string>
     <string name="settings_dialog_msg_clear_keystore_password">У неким случајевима брисање KeyStore-а може помоћи у решавању проблема. Требали бисте наставити само ако знате шта радите!\n\nПошто је <b>Шифровање базе</b> постављено на <b>Лозинка/ПИН</b>, не бисте смели да изгубите никакве податке радећи ово (али ионако никад не боли имати резервну копију).\n\n<b>Да ли сте стварно сигурни да желите да обришете КеиСторе?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">У неким случајевима брисање KeyStore-а може помоћи у решавању проблема. Требали бисте наставити само ако знате шта радите!\n\n<b>Warning</b>: Пошто је <b>Шифровање базе</b> постављено на <b>Android KeyStore</b> изгубићете све своје рачуне. Обавезно имајте резервну копију!\n\n<b>Да ли сте стварно сигурни да желите да очистите KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Android синхронизација се не може користити са keystore,<b>требало би да ручно извршите резервну копију!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Без</item>

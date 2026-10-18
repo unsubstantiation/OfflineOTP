@@ -26,10 +26,11 @@ import org.shadowice.flocke.andotp.Utilities.Tools
 /**
  * Shared logic of the About tab, which the fdroid/play flavors extend with their own extras.
  *
- * Converted from the Java class of the same name. The link rows, the clipboard fallback and the
- * seven-quick-taps easter egg are unchanged. The four package-private static fields are public
- * fields here (`@JvmField`), because Kotlin has no package-private visibility; they stay static
- * shared state, so the tap counter survives a fragment re-creation exactly as in Java.
+ * Converted from the Java class of the same name. The clipboard fallback and the seven-quick-taps
+ * easter egg are unchanged; the links point at this repository. The four package-private static
+ * fields are public fields here (`@JvmField`), because Kotlin has no package-private visibility;
+ * they stay static shared state, so the tap counter survives a fragment re-creation exactly as in
+ * Java.
  */
 open class BaseAboutFragment : Fragment() {
     private var settings: Settings? = null
@@ -93,10 +94,10 @@ open class BaseAboutFragment : Fragment() {
         val source = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_source))
         val faq = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_faq))
 
-        license.setOnClickListener { openURI(MIT_URI) }
+        license.setOnClickListener { openURI(LICENSE_URI) }
         changelog.setOnClickListener { openURI(CHANGELOG_URI) }
         source.setOnClickListener { openURI(GITHUB_URI) }
-        faq.setOnClickListener { openURI(FAQ_URI) }
+        faq.setOnClickListener { openURI(ISSUES_URI) }
 
         val author1Layout = requireNotNull(v.findViewById<LinearLayout>(R.id.aboutLayoutAuthor1))
         author1Layout.setOnClickListener { openURI(AUTHOR1_GITHUB) }
@@ -153,16 +154,16 @@ open class BaseAboutFragment : Fragment() {
     /** Copies the URI to the clipboard (fallback when no app can open it). */
     open fun copyToClipboard(uri: String) {
         val clipboard = getActivity()!!.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager?
-        val clip = ClipData.newPlainText("andOTP", uri)
+        val clip = ClipData.newPlainText(getString(R.string.app_name), uri)
         clipboard!!.setPrimaryClip(clip)
         Toast.makeText(getActivity()!!, getString(R.string.about_toast_copied_to_clipboard), Toast.LENGTH_SHORT).show()
     }
 
     companion object {
-        private const val GITHUB_URI = "https://github.com/andOTP/andOTP"
+        private const val GITHUB_URI = "https://github.com/unsubstantiation/OfflineOTP"
         private const val CHANGELOG_URI = "$GITHUB_URI/blob/master/CHANGELOG.md"
-        private const val MIT_URI = "$GITHUB_URI/blob/master/LICENSE.txt"
-        private const val FAQ_URI = "$GITHUB_URI/wiki/Frequently-Asked-Questions"
+        private const val LICENSE_URI = "$GITHUB_URI/blob/master/LICENSE.txt"
+        private const val ISSUES_URI = "$GITHUB_URI/issues"
 
         private const val AUTHOR1_GITHUB = "https://github.com/flocke"
         private const val AUTHOR2_GITHUB = "https://github.com/richyhbm"
@@ -172,7 +173,7 @@ open class BaseAboutFragment : Fragment() {
 
         private const val CONTRIBUTORS_URI = "$GITHUB_URI/graphs/contributors"
 
-        private const val SUPPORT_URI = "$GITHUB_URI/blob/master/README.md#contribute"
+        private const val SUPPORT_URI = "$GITHUB_URI/blob/master/README.md#contributing"
 
         /**
          * The Java fields were `static final int[]`/`static` and package-private; they are public

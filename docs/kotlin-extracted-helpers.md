@@ -1,5 +1,12 @@
 # Kotlin conversion: extracted helpers, bounded I/O and OTP generation
 
+> **Historical conversion record.** This documents the batches by which the app moved to Kotlin,
+> including names and counts at each batch. Some referenced files and suites (notably the
+> `Kotlin*InteropTest` classes and the `security-test-client` module) are not part of the current
+> checkout; batch-local statements that those suites provide device coverage are historical.
+> Current verification: 82 Python guards, 110 JVM host tests, 100 sandbox checks, and
+> four instrumentation sources that compile; Gradle and device acceptance remain CI gates.
+
 ## Scope and status
 
 Conversions replace Java implementations with Kotlin at the same package/class names. The original
@@ -452,8 +459,9 @@ Twenty-second batch (the last two Java sources of the app):
   stub globs, not the globs themselves. It now parses each array entry as a shell word, and the closing `)` of
   `STUBS` in `run.sh` sits on its own line. `compile-only.sh` compiles the app sources and stubs cleanly again.
 - At the end of the twenty-second batch, 34 Java files remained in the repository, none production sources.
-  The 15 `Kotlin*InteropTest` classes are now Kotlin instrumentation tests. They retain the
-  reflection and Java-visible ABI assertions while exercising the converted APIs directly from Kotlin. The 7 host tests, 11 non-interop instrumentation tests and independently signed
+  At that point the 15 `Kotlin*InteropTest` classes were Kotlin instrumentation tests. They retained
+  the reflection and Java-visible ABI assertions while exercising the converted APIs directly from
+  Kotlin. The 7 host tests, 11 non-interop instrumentation tests, and independently signed
   security-test-client were deferred to a separate test-source conversion.
 - Not executed in that batch: Gradle, lint, both flavors, instrumentation or the reproducible-build comparison.
   The sandbox run was non-authoritative and did not compile Java callers of `Constants`/`FileHelper`.
@@ -471,8 +479,8 @@ Twenty-third batch (Kotlin test sources and independently signed caller):
 - `EntryPersistence.save` now accepts a nullable entry list and returns `INVALID_INPUT` before backup scheduling
   when it is null. This preserves the intended fail-closed save test at the Kotlin boundary, rather than allowing
   Kotlin's generated parameter check to throw before the repository can return a typed rejection.
-- All 15 `Kotlin*InteropTest.kt` suites are now Kotlin instrumentation tests. The completed boundary is
-  explicit: all 15 `Kotlin*InteropTest` suites are Kotlin. They retain the reflection and Java-visible ABI
+- At that point all 15 `Kotlin*InteropTest.kt` suites were Kotlin instrumentation tests. The completed
+  boundary was explicit: every interop suite was Kotlin. They retained the reflection and Java-visible ABI
   assertions for
   the converted Android classes, but no Java test source remains in the repository. No ordinary app production
   source or independent test-client source remains Java.
@@ -1008,7 +1016,7 @@ that matter:
 The characterization assertions remain in place after the twenty-third test-source batch: the 7 host tests
 (`BoundedInputReaderTest`, `EncryptedBackupHeaderTest`, `InputPolicyTest`, `ScreenTimerControllerTest`,
 `VaultSessionTest`, `EntryActionTargetTest`, `EntryListPresentationTest`) now live in Kotlin beside
-`TaskContractsTest`, `SessionContractsTest`, `OtpUriParserTest` and `BackupTaskResultTest`. The 11 ordinary Android suites and all 15 `Kotlin*InteropTest.kt` interop suites also moved to Kotlin.
+`TaskContractsTest`, `SessionContractsTest`, `OtpUriParserTest` and `BackupTaskResultTest`. At that point the 11 ordinary Android suites and all 15 `Kotlin*InteropTest.kt` interop suites also moved to Kotlin; the current checkout has 14 host test classes and four instrumentation tests.
 Their reflection assertions continue to pin Java-visible production APIs while the tests themselves compile as Kotlin. New
 reflection/source guards were added where a conversion could silently change a Java-visible shape:
 `scripts/tests/test_ui_decomposition_policy.py` now requires the converted stems, the
@@ -1335,9 +1343,7 @@ explicitly recorded above; these leaf renderers still need Android acceptance de
 compile. The activity base classes are converted too (eighteenth batch) and so are the two small
 standalone activities (nineteenth batch), the about screens (twentieth batch — the about
 activity and the fragments) and the remaining user interface (twenty-first batch — the six large
-activities, the credential preference, the manual entry dialog and the two card adapters). Latest local checks
-include 158 Python source tests and 93 sandbox checks. A Kotlin 2.4.21 compile-only probe of the migrated
-interop tests was attempted against local Android/JUnit stand-ins, but it is not an authoritative Gradle result
-and the incomplete stand-ins did not produce a full test-source compile claim. The both-flavor
-Gradle host/lint/instrumentation-APK build remains blocked at the Gradle 8.13 distribution download
-(`SSLHandshakeException` from `services.gradle.org`); no Android acceptance result is claimed.
+activities, the credential preference, the manual entry dialog and the two card adapters). Current local
+checks pass: 82 Python guards, 110 JVM host tests, 100 sandbox checks, and four instrumentation
+sources that compile. The both-flavor Gradle build, lint, packaging and device instrumentation runs remain
+CI requirements; no Android acceptance result is claimed from this environment.

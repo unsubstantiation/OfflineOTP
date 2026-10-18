@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">Backup eseguito con successo</string>
     <string name="backup_receiver_encrypted_disabled">Attualmente i backup crittografati non sono permessi,
         vai nelle Impostazioni per abilitarli</string>
-    <string name="backup_receiver_read_permission_failed">Permessi di lettura non concessi, si prega
-        di autorizzarli prima di tentare il backup</string>
-    <string name="backup_receiver_write_permission_failed">Permessi di scrittura non concessi, si prega
-        di autorizzarli prima di tentare il backup</string>
     <string name="backup_receiver_custom_encryption_failed">Crittografia basata su password / PIN
         non supportata con backup broadcast</string>
     <string name="backup_receiver_no_location_set">Nessuna posizione di backup impostata, scegline una nelle
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Memoria esterna attualmente non accessibile</string>
     <string name="backup_toast_openpgp_error">Errore OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">Non è stata rilevata nessuna firma verificata</string>
-    <string name="backup_toast_crypt_password_not_set">Password non impostata, controlla le <b>Impostazioni</b></string>
     <string name="backup_toast_file_selection_failed">Impossibile aprire la finestra di selezione!</string>
     <string name="backup_label_type">Tipo di backup: </string>
     <string name="backup_label_crypt">Il backup verrà salvato crittografato con una password personalizzata

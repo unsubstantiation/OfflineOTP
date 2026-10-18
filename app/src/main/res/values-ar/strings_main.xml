@@ -6,7 +6,6 @@
     <string name="button_scan_qr">مسح رمز الكيو آر</string>
     <string name="button_save">حفظ</string>
     <string name="button_new_tag">علامة جديدة</string>
-    <string name="button_settings">الإعدادات</string>
     <string name="button_all_tags">كافة العلامات</string>
     <string name="button_no_tags">بدون علامات</string>
     <string name="button_qr_from_image">رمز كيو آر مِن صورة</string>
@@ -56,19 +55,16 @@
     <string name="button_add">Add new account</string>
     <string name="button_close_menu">Close menu</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">أخفقت المصادقة، الرجاء إعادة المحاولة !</string>
     <string name="toast_auth_failed_fatal">أخفقت عملية المصادقة، جارٍ إغلاق التطبيق!</string>
     <string name="toast_copied_to_clipboard">تم نسخه إلى الحافظة</string>
     <string name="toast_entry_exists">هذا العنصر موجود من قبل</string>
     <string name="toast_invalid_qr_code">رمز الكيو آر غير صالح</string>
-    <string name="toast_encryption_key_empty">تعذرت عملية تحميل مفتاح التشفير</string>
     <string name="toast_intent_creation_failed">الرمز المقدم غير صالح</string>
-    <string name="toast_intent_creation_succeeded">تم إضافة الرمز المقدم</string>
     <string name="toast_file_load_error">لا يمكن فتح الملف</string>
     <string name="toast_qr_error">تعذر العثور على/تأكيد رمز كيو آر</string>
     <string name="toast_qr_checksum_exception">فشل تدقيق المجموع أثناء فك ترميز رمز QR</string>
     <string name="toast_qr_format_error">نسق خاطئ في رمز الكيو آر</string>
-    <string name="toast_qr_unsuported">رمز QR غير مدعوم</string>
+    <string name="toast_qr_unsupported">رمز QR غير مدعوم</string>
     <string name="toast_qr_failed_to_generate">فشل في إنشاء رمز QR</string>
     <!-- Errors -->
     <string name="error_invalid_secret">سر غير صالح</string>
@@ -76,10 +72,8 @@
     <string name="dialog_title_auth">مصادقة</string>
     <string name="dialog_title_manual_entry">أدخل التفاصيل</string>
     <string name="dialog_title_remove">حذف</string>
-    <string name="dialog_title_rename">تعديل التسمية</string>
     <string name="dialog_title_counter">عداد</string>
     <string name="dialog_title_used_tokens">استخدام الرموز</string>
-    <string name="dialog_title_keystore_error">خطأ في مخزن المفاتيح</string>
     <string name="dialog_title_qr_code">رمز QR</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">أدخل كلمة المرور</string>
@@ -88,12 +82,9 @@
     <string name="dialog_label_confirm_password">تأكيد كلمة المرور</string>
     <string name="dialog_msg_auth">الرجاء إدخال بيانات الإعتماد الخاصة بجهازك لتشغيل التطبيق.</string>
     <string name="dialog_msg_confirm_delete">هل أنت متأكد من أنك تريد إزالة الحساب «%1$s»؟</string>
-    <string name="dialog_msg_used_tokens">سوف يتتبع andOTP استخدام الرموز المميزة الخاصة بك (باستخدام خاصية \"اضغط
+    <string name="dialog_msg_used_tokens">سوف يتتبع OfflineOTP استخدام الرموز المميزة الخاصة بك (باستخدام خاصية \"اضغط
         للكشف\" أو نسخ إلى الحافظة) لتتمكن من فرزها بواسطة \"الأكثر استخداما\" أو
         \"آخر مستخدم\".\n\nلن تظهر هذه الرسالة مرة أخرى.</string>
-    <string name="dialog_msg_keystore_error">فشل تحميل مفتاح التشفير من مخزن المفاتيح.
-الإدخالات المضافة سوف تحذف. لمزاولة التطبيق,
- أبدل تشفيرة قاعدة البيانات الى كلمة مرور أو PIN في الإعدادات.</string>
     <string name="dialog_msg_auto_time">Please enable the <b>Automatic date &amp; time</b> option in
         your phones <b>Settings</b> to ensure the correct generation of time-based
         one-time-passwords (TOTP).</string>

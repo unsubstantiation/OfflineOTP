@@ -852,7 +852,7 @@ object R {
         const val toast_qr_error = 0x7f0c00d7
         const val toast_qr_failed_to_generate = 0x7f0c00d8
         const val toast_qr_format_error = 0x7f0c00d9
-        const val toast_qr_unsuported = 0x7f0c00da
+        const val toast_qr_unsupported = 0x7f0c00da
         const val yes = 0x7f0c00db
     }
     object style {

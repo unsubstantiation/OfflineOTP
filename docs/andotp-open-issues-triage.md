@@ -1,5 +1,9 @@
 # andOTP open-issue triage for OfflineOTP
 
+> **Snapshot note:** verdicts and counts reflect the 2026-10-17 tree and upstream tracker. The
+> andOTP thumbnail carry-over (OfflineOTP issue #40) has since been completed, and upstream
+> issue counts have changed; treat this as a historical triage record.
+
 **Source:** <https://github.com/andOTP/andOTP/issues> — all **181 open issues** (16 open PRs excluded), fetched 2026-10-17.
 
 **Purpose:** andOTP is the upstream Java app this project was rewritten from (Kotlin, Android 9+/API 28+, vault-security hardening).

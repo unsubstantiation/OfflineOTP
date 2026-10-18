@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interfejs użytkownika</string>
     <string name="settings_category_title_backup">Kopia zapasowa</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Kliknij, aby odkryć</string>
     <string name="settings_title_tap_to_reveal_timeout">Czas wyświetlania</string>
     <string name="settings_title_auth">Uwierzytelnianie</string>
-    <string name="settings_title_auth_password">Hasło</string>
-    <string name="settings_title_auth_pin">Kod PIN</string>
     <string name="settings_title_encryption">Szyfrowanie bazy danych</string>
-    <string name="settings_title_panic">Panic Trigger</string>
     <string name="settings_title_relock_screen_off">Zablokuj po wyłączeniu ekranu</string>
     <string name="settings_title_relock_background">Zablokuj podczas umieszczania w tle</string>
     <string name="settings_title_auth_inactivity">Zablokuj przy braku aktywności</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Pytaj o nazwę pliku</string>
     <string name="settings_title_backup_location">Domyślna lokalizacja kopii zapasowej</string>
     <string name="settings_title_backup_password">Hasło kopii zapasowej</string>
-    <string name="settings_title_auto_backup_password_enc">Automatycznie twórz kopie zapasowe nowych wpisów</string>
     <string name="settings_title_backup_broadcasts">Nadawanie kopii zapasowej</string>
     <string name="settings_title_openpgp_provider">Dostawca OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Klucz szyfrujący OpenPGP</string>
@@ -55,9 +50,7 @@
     <string name="settings_title_enable_android_backup_service">Włącz synchronizację systemu Android</string>
     <string name="settings_title_clear_keystore">Wyczyść KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Domyślnie ukrywaj tokeny OTP; wymaga kliknięcia, aby odkryć token</string>
     <string name="settings_desc_tap_to_reveal_timeout">Wybierz czas (w sekundach), po którym wyświetlane tokeny zostaną ukryte</string>
-    <string name="settings_desc_panic">Zdecyduj, co ma się stać po otrzymaniu sygnału Panic Trigger</string>
     <string name="settings_desc_relock_screen_off">Wymagaj uwierzytelnienia po wyłączeniu ekranu urządzenia</string>
     <string name="settings_desc_relock_background">Wymagaj uwierzytelnienia po umieszczeniu aplikacji w
         tle (np. naciskając przycisk Home)</string>
@@ -82,7 +75,6 @@
     <string name="settings_desc_focus_search_on_start">Przejdź do wyszukiwania natychmiast po otwarciu aplikacji.</string>
     <string name="settings_desc_hide_issuer">Ukrywa wystawcę na każdej karcie</string>
     <string name="settings_desc_backup_append_date">Dodaj bieżącą datę i czas do proponowanej nazwy pliku kopii zapasowej</string>
-    <string name="settings_desc_backup_ask">Pytaj o nazwę pliku za każdym razem, gdy kopia zapasowa jest tworzona lub przywracana</string>
     <string name="settings_desc_backup_location">Wybierz domyślną lokalizację kopii zapasowej</string>
     <string name="settings_desc_backup_location_set">Wybrano lokalizację kopii zapasowej</string>
     <string name="settings_desc_backup_password">Ustaw hasło używane do szyfrowania kopii</string>
@@ -91,17 +83,11 @@
     <string name="settings_desc_auto_backup_requirements">Ustaw domyślną lokalizację kopii zapasowej
         i hasło kopii zapasowej, aby włączyć tę opcję</string>
     <string name="settings_desc_backup_broadcasts">Wybierz typy kopii zapasowych, które mogą być wywoływane przez aplikacje innych firm poprzez nadawanie</string>
-    <string name="settings_desc_openpgp_key_encrypt">Adres e-mail klucza OpenPGP używanego do szyfrowania kopii zapasowych</string>
     <string name="settings_desc_openpgp_verify">Szyfrowane kopie mogą zostać zaimportowane tylko wtedy, gdy zostały podpisane Twoim kluczem</string>
     <string name="settings_desc_special_features">Odznacz, aby ponownie wyłączyć funkcje specjalne</string>
-    <string name="settings_desc_enable_screenshot">Pozwól na wykonanie zrzutu ekranu głównego
-        (wyłączone domyślnie z powodów bezpieczeństwa)</string>
-    <string name="settings_desc_enable_android_backup_service">Pozwala andOTP używać usługi
-        Androida do tworzenia kopii kluczy i ustawień</string>
     <string name="settings_desc_clear_keystore">Usuń klucz kryptograficzny z KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Ta funkcja wymaga włączenia blokady ekranu. Sprawdź Ustawienia - &gt; Zabezpieczenia - &gt; Blokada ekranu</string>
-    <string name="settings_toast_password_empty">Puste hasło nie jest dozwolone. Zmień uwierzytelnianie na „Brak”, aby je wyłączyć!</string>
     <string name="settings_toast_encryption_changing">Próba zmiany szyfrowania bazy danych, proszę czekać!</string>
     <string name="settings_toast_encryption_change_success">Pomyślnie zmieniono szyfrowanie bazy danych!</string>
     <string name="settings_toast_encryption_change_failed">Nie udało się zmienić szyfrowania bazy danych,
@@ -117,7 +103,7 @@
     <string name="settings_dialog_title_error">Błąd</string>
     <string name="settings_dialog_title_clear_keystore">Wyczyść KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Synchronizacja systemu Android</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP spróbuje teraz zmienić szyfrowanie
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP spróbuje teraz zmienić szyfrowanie
         bazy danych. W razie wypadku wewnętrzna kopia zapasowa zostanie przywrócona i szyfrowanie 
         zostanie niezmienione.\n\n<b>W przypadku gdy wydarzy się coś nieprzewidzianego dobrze
         jest mieć kopię zapasową</b></string>
@@ -126,7 +112,6 @@
     <string name="settings_dialog_msg_encryption_invalid_without_credentials">Zanim zmienisz szyfrowanie, najpierw musisz skonfigurować hasło lub kod PIN!</string>
     <string name="settings_dialog_msg_clear_keystore_password">W niektórych przypadkach wyczyszczenie KeyStore może pomóc rozwiązać problemy. Powinieneś kontynuować tylko w przypadku, gdy wiesz co robisz!\n\nPonieważ <b>Szyfrowanie bazy danych</b> jest ustawione na <b>Hasło / kod PIN</b>, nie powinieneś utracić żadnych danych (ale i tak nie zaszkodzi posiadać kopię zapasową).\n\n<b>Czy na pewno chcesz wyczyścić KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">W niektórych przypadkach wyczyszczenie KeyStore może pomóc rozwiązać problemy. Powinieneś kontynuować tylko w przypadku, gdy wiesz co robisz!\n\n<b>Uwaga</b>: <b>Szyfrowanie bazy danych</b> ustawione jest na <b>Android KeyStore</b>, dlatego utracisz wszystkie konta. Upewnij się, że posiadasz aktualną kopię zapasową!\n\n<b>Czy na pewno chcesz wyczyścić KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Synchronizacja systemu Android nie może być używana wraz z szyfrowaniem KeyStore, <b>zaleca się ręczne tworzenie kopii zapasowej!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Brak</item>

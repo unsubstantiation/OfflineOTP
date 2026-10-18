@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Потребителски интерфейс</string>
     <string name="settings_category_title_backup">Резервно копие</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Докоснете, за да разкриете</string>
     <string name="settings_title_tap_to_reveal_timeout">Време за изчакване, за да се разкрие</string>
     <string name="settings_title_auth">Удостоверяване</string>
-    <string name="settings_title_auth_password">Парола</string>
-    <string name="settings_title_auth_pin">ПИН код</string>
     <string name="settings_title_encryption">Криптиране на база данни</string>
-    <string name="settings_title_panic">Тригер за спешен случай</string>
     <string name="settings_title_relock_screen_off">Повторно заключване при изключване на екрана</string>
     <string name="settings_title_relock_background">Повторно заключване при преминаване на заден план</string>
     <string name="settings_title_auth_inactivity">Повторно заключване при бездействие</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Попитай за името на файла</string>
     <string name="settings_title_backup_location">Default backup location</string>
     <string name="settings_title_backup_password">Парола за резервни копия</string>
-    <string name="settings_title_auto_backup_password_enc">Автоматично архивиране на нови записи</string>
     <string name="settings_title_backup_broadcasts">Резервная копия с помощта на външни приложения</string>
     <string name="settings_title_openpgp_provider">OpenPGP доставчик</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP криптиращ ключ</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Включване на Android синхронизация</string>
     <string name="settings_title_clear_keystore">Изчисване на Хранилището за ключове на Android</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Скриване на OTP токените по подразбиране, необходимо е да се 
-        показват ръчно</string>
     <string name="settings_desc_tap_to_reveal_timeout">Изберете времето (в секунди), след което показаните токените
        да се скрият автоматично отново</string>
-    <string name="settings_desc_panic">Изберете какво ще се случи, когато се натисне паник бутона</string>
     <string name="settings_desc_relock_screen_off">Изисквайте удостоверяване, след като екрана на устройството
          се изключи</string>
     <string name="settings_desc_relock_background">Изисквайте удостоверяване, след като приложението
@@ -86,9 +78,6 @@
     <string name="settings_desc_hide_issuer">Hides issuer label on each card</string>
     <string name="settings_desc_backup_append_date">Добавете текущата дата и час към предложеното
          име на архивното копие</string>
-    <string name="settings_desc_backup_ask">Попитайте за името на файла всеки път, когато се създаде или възстановява 
-       резервно копие
-       </string>
     <string name="settings_desc_backup_location">Choose a default backup location</string>
     <string name="settings_desc_backup_location_set">Backup location has been chosen</string>
     <string name="settings_desc_backup_password">Задайте паролата, която да се използва за криптиране на
@@ -99,22 +88,14 @@
         backup password to enable this option</string>
     <string name="settings_desc_backup_broadcasts">Изберете какви типове резервни копия могат да бъдат запазени от
          приложения на трети страни за създаване на резервно копие</string>
-    <string name="settings_desc_openpgp_key_encrypt">Пощенски адрес на OpenPGP ключа, използван за криптиране на
-         резервните копия</string>
     <string name="settings_desc_openpgp_verify">Криптираните архиви може да се импортират само тогава, когато са
          подписан с валиден ключ</string>
     <string name="settings_desc_special_features">Премахнете отметката, за да деактивирате отново специалните функции</string>
-    <string name="settings_desc_enable_screenshot">Позволяване създаването на екранни снимки на началния екран
-         (деактивирано по подразбиране от съображения за сигурност)</string>
-    <string name="settings_desc_enable_android_backup_service">Позволява на andOTP да използва
-         вградената услуга на Android, за архивиране на ключове и предпочитания</string>
     <string name="settings_desc_clear_keystore">Изтриване на ключа за шифроване от Хранилището за ключове на Android</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">За тази функция се изисква защитата
         за заключване на екрана да се настрои (Настройки -&gt; Сигурност -&gt; Заключване на екрана)
      </string>
-    <string name="settings_toast_password_empty">Използването на празна парола не е разрешено, за да
-      премахнете паролата, изключете Удостоверяването!</string>
     <string name="settings_toast_encryption_changing">Опит за промяна на криптирането на базата данни.
          Моля Изчакайте!</string>
     <string name="settings_toast_encryption_change_success">Успешно променихте криптирането на 
@@ -133,7 +114,7 @@
     <string name="settings_dialog_title_error">Грешка</string>
     <string name="settings_dialog_title_clear_keystore">Да се изчисти ли Хранилището за ключове на Android?</string>
     <string name="settings_dialog_title_android_sync">Android синхронизация</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP сега ще се опита да промени криптирането на базата данни
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP сега ще се опита да промени криптирането на базата данни
          В случай на неуспех,  ще се възстанови вътрешното резервно копие и криптирането
          ще остане непроменено.\n\n<b>Въпреки това, винаги е добра идея да имате резервно копие в случай, че се
          случи нещо неочаквано!</b></string>
@@ -154,8 +135,6 @@
         <b>Хранилище за ключове на Android</b>, ще загубите всички вашите акаунти. Уверете се, че
          имате резервно копие!\n\n<b>Наистина ли сте сигурни, че искате да изчистите
          Хранилището за ключове на Android?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Синхронизацията на Android не може да се използва с Хранилището за ключове на Android
-        <b>трябва да извършите ръчно архивиране!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Няма</item>

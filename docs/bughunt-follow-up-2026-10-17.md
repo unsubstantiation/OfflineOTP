@@ -1,5 +1,8 @@
 # Comprehensive bug and unfinished-work audit follow-up
 
+> **Snapshot:** written 2026-10-17. The CI workflows described here as planned were added on
+> 2026-10-18; see [the later follow-up](bughunt-follow-up-2026-10-18.md).
+
 **Date:** 2026-10-17
 
 **Scope:** current `OfflineOTP` branch contents; this is a follow-up to the historical audit in [`bughunt-findings.md`](bughunt-findings.md).

@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="intro_slide1_title">C\'est parti</string>
-    <string name="intro_slide1_desc">Bienvenue sur <b>andOTP</b>, cet assistant vous guidera lors
+    <string name="intro_slide1_desc">Bienvenue sur <b>OfflineOTP</b>, cet assistant vous guidera lors
         de la configuration initiale. Veuillez prêter attention et lire attentivement sous peine de perdre des données !
         \n\nNe vous inquiétez pas, vous pouvez toujours modifier ces options ultérieurement dans les <b>paramètres</b>.</string>
-    <string name="intro_slide2_desc">Pour assurer la sécurité de vos comptes, <b>andOTP</b> ne les
+    <string name="intro_slide2_desc">Pour assurer la sécurité de vos comptes, <b>OfflineOTP</b> ne les
         stocke uniquement dans des fichiers de données chiffrés. Ici, vous pouvez choisir quelle méthode de chiffrement sera
         utilisée.</string>
     <string name="intro_slide2_desc_keystore">Le KeyStore est un composant système d\'Android pour
@@ -12,18 +12,18 @@
         stockées séparément des fichiers de données et peuvent être sauvegardées par un matériel cryptographique (si votre
         appareil le supporte). Cependant, comme les clés ne sont pas stockée avec les données des applis, <b>cette méthode
         empêche le fonctionnement de solutions de sauvegarde externes (comme Titanium)</b>. Si vous choisissez cette
-        méthode, vous devrez vous reposer sur les fonctionnalités de sauvegarde internes fournies par <b>andOTP</b>.
-        \n\n<b>Avertissement</b> : le KeyStore est connu pour être problématique, ne l\'utilisez que si vous êtes obligé. Si saisir un mot de passe / code PIN à chaque démarrage de <b>andOTP</b> ne vous dérange pas,
+        méthode, vous devrez vous reposer sur les fonctionnalités de sauvegarde internes fournies par <b>OfflineOTP</b>.
+        \n\n<b>Avertissement</b> : le KeyStore est connu pour être problématique, ne l\'utilisez que si vous êtes obligé. Si saisir un mot de passe / code PIN à chaque démarrage de <b>OfflineOTP</b> ne vous dérange pas,
         il est <b>fortement recommandé d\'utiliser un chiffrement basé sur un mot de passe </b>.</string>
     <string name="intro_slide2_desc_password">Cette méthode va chiffrer vos données avec une clé
         générée à partir d\'un mot de passe ou code PIN. Le principal avantage ici est que cela fonctionnera avec
         des solutions de sauvegarde externes (comme Titanium) et est bien moins propice aux erreurs que le KeyStore.
-        Cependant, vous devrez saisir vos identifiants à chaque lancement de <b>andOTP</b>.</string>
+        Cependant, vous devrez saisir vos identifiants à chaque lancement de <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Ici vous pouvez définir une authentification pour verrouiller
-        <b>andOTP</b>. Puisque vous avez choisi le <b>KeyStore Android</b> comme méthode de chiffrement, ceci est 
+        <b>OfflineOTP</b>. Puisque vous avez choisi le <b>KeyStore Android</b> comme méthode de chiffrement, ceci est
         optionnel.</string>
     <string name="intro_slide3_desc_password">Ici vous pouvez définir une authentification pour verrouiller
-        <b>andOTP</b>. Puisque vous avez choisi un <b>mot de passe / code PIN</b> comme méthode de chiffrement, vous devez
+        <b>OfflineOTP</b>. Puisque vous avez choisi un <b>mot de passe / code PIN</b> comme méthode de chiffrement, vous devez
         définir un mot de passe ou un code PIN pour continuer.</string>
     <string name="intro_slide3_warn_no_password">Veuillez définir un mot de passe pour continuer !</string>
     <string name="intro_slide3_warn_no_pin">Veuillez définir un code PIN pour continuer !</string>
@@ -37,8 +37,7 @@
     <string name="intro_slide4_desc_failed">Impossible de définir un mot de passe, cette introduction sera affichée à nouveau
         la prochaine fois !</string>
     <string name="intro_slide4_desc">Vos paramètres ont été enregistrés, vous pouvez maintenant utiliser
-        <b>andOTP</b> !</string>
+        <b>OfflineOTP</b> !</string>
     <string name="intro_slide4_desc_progress">Vos paramètres sont en cours d\'enregistrement et la clé de chiffrement est
         en cours de génération, veuillez patienter…</string>
-    <string name="intro_slide_android_backup_desc">La synchronisation Android est une fonctionnalité intégrée à android utilisée pour sauvegarder les données de l\'application vers un service tiers (généralement Google). Les sauvegardes sont toujours chiffrées et inaccessibles à des tiers sans votre mot de passe principal. Nécessite l\'utilisation de la méthode de chiffrement du mot de passe.</string>
 </resources>

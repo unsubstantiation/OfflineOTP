@@ -10,8 +10,6 @@
     <string name="backup_receiver_title_backup_failed">備份失敗</string>
     <string name="backup_receiver_title_backup_success">備份成功</string>
     <string name="backup_receiver_encrypted_disabled">當前不允許加密備份，請前往設定啟用之</string>
-    <string name="backup_receiver_read_permission_failed">讀取被拒絕，請在備份前允許此權限</string>
-    <string name="backup_receiver_write_permission_failed">寫入被拒絕，請在備份前允許此權限</string>
     <string name="backup_receiver_custom_encryption_failed">透過外部程式執行自動備份時，不支援基於 密碼 / PIN 的加密方式</string>
     <string name="backup_receiver_no_location_set">未設置備份位置，請在設置中設定備份位置</string>
     <string name="backup_receiver_no_password_set">未設置預設密碼，請在設置中設定預設密碼</string>
@@ -34,7 +32,6 @@
     <string name="backup_toast_storage_not_accessible">當前無法訪問外部儲存裝置</string>
     <string name="backup_toast_openpgp_error">OpenPGP 出錯：%s</string>
     <string name="backup_toast_openpgp_not_verified">未檢測到有效的數位簽章</string>
-    <string name="backup_toast_crypt_password_not_set">無密碼，請檢查<b>設定</b></string>
     <string name="backup_toast_file_selection_failed">無法開啟檔案選取對話框！</string>
     <string name="backup_label_type">備份類型: </string>
     <string name="backup_label_crypt">備份將使用AES 256以及自定義密碼加密儲存。 如果您不想在每次創建備份時都輸入密碼，則可以在設置中設定預設密碼。</string>

@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Antarmuka pengguna</string>
     <string name="settings_category_title_backup">Cadangan</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Tekan untuk melihat</string>
     <string name="settings_title_tap_to_reveal_timeout">Batas waktu tekan untuk melihat</string>
     <string name="settings_title_auth">Autentikasi</string>
-    <string name="settings_title_auth_password">Kata sandi</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Enkripsi basis data</string>
-    <string name="settings_title_panic">Pemicu Panik</string>
     <string name="settings_title_relock_screen_off">Kunci saat layar mati</string>
     <string name="settings_title_relock_background">Kunci saat aplikasi di latar belakang</string>
     <string name="settings_title_auth_inactivity">Kunci saat perangkat tidak aktif</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Tanya nama berkas</string>
     <string name="settings_title_backup_location">Lokasi pencadangan baku</string>
     <string name="settings_title_backup_password">Kata sandi cadangan</string>
-    <string name="settings_title_auto_backup_password_enc">Cadangkan otomatis untuk entri baru</string>
     <string name="settings_title_backup_broadcasts">Pencadangan Siar</string>
     <string name="settings_title_openpgp_provider">Penyedia OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Kunci enkripsi OpenPGP</string>
@@ -55,9 +50,7 @@
     <string name="settings_title_enable_android_backup_service">Aktifkan sinkronisasi Android</string>
     <string name="settings_title_clear_keystore">Hapus KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Sembunyikan token OTP secara otomatis, membutuhkan untuk diungkapkan secara manual</string>
     <string name="settings_desc_tap_to_reveal_timeout">Pilih durasi (dalam detik) yang setelahnya entri yang terungkapkan disembunyikan lagi</string>
-    <string name="settings_desc_panic">Putuskan apa yang terjadi ketika Pemicu Panik diterima</string>
     <string name="settings_desc_relock_screen_off">Diperlukan autentikasi setelah layar mati</string>
     <string name="settings_desc_relock_background">Diperlukan autentikasi setelah aplikasi di latar belakang (contohnya setelah menekan tombol beranda)</string>
     <string name="settings_desc_auth_inactivity">Diperlukan autentikasi setelah perangkat tidak aktif</string>
@@ -75,22 +68,17 @@
     <string name="settings_desc_focus_search_on_start">Fokuskan pencarian langsung setelah membuka aplikasi.</string>
     <string name="settings_desc_hide_issuer">Sembunyikan label Penerbit dalam setiap kartu</string>
     <string name="settings_desc_backup_append_date">Tambahkan tanggal dan waktu sekarang ke nama berkas cadangan yang disarankan</string>
-    <string name="settings_desc_backup_ask">Tanyakan nama berkas setiap kali cadangan dihasilkan atau dipulihkan</string>
     <string name="settings_desc_backup_location">Pilih lokasi pencadangan baku</string>
     <string name="settings_desc_backup_location_set">Lokasi pencadangan telah dipilih</string>
     <string name="settings_desc_backup_password">Atur kata sandi yang digunakan untuk mengenkripsi cadangan</string>
     <string name="settings_desc_auto_backup_password_enc">Membuat cadangan terenkripsi baru ketika entri baru ditambahkan atau disunting, jika Pengaturan memperbolehkannya</string>
     <string name="settings_desc_auto_backup_requirements">Pilih lokasi pencadangan baku dan kata sandi untuk mengaktifkan opsi ini</string>
     <string name="settings_desc_backup_broadcasts">Pilih tipe pencadangan yang dapat dipicu oleh aplikasi pihak ketiga menggunakan Siar</string>
-    <string name="settings_desc_openpgp_key_encrypt">Alamat surel dari kunci OpenPGP yang digunakan untuk mengenkripsi cadangan</string>
     <string name="settings_desc_openpgp_verify">Cadangan yang terenkripsi hanya diimpor jika ditandatangani oleh kunci yang valid</string>
     <string name="settings_desc_special_features">Hapus centang untuk menonaktifkan fitur khusus lagi</string>
-    <string name="settings_desc_enable_screenshot">Bolehkan untuk mengambil tangkapan layar halaman utama (dinonaktifkan secara baku karena keamanan)</string>
-    <string name="settings_desc_enable_android_backup_service">Memperbolehkan andOTP menggunakan layanan pencadangan bawaan Android untuk mencadangkan kunci dan preferensi</string>
     <string name="settings_desc_clear_keystore">Hapus kunci enkripsi dari KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Fitur ini memerlukan kunci layar aman untuk disiapkan (Pengaturan -&gt; Pengaman -&gt; Kunci Layar)</string>
-    <string name="settings_toast_password_empty">Kata sandi kosong tidak diperbolehkan, atur Autentikasi menjadi \"Tidak ada\" untuk menonaktifkannya!</string>
     <string name="settings_toast_encryption_changing">Sedang mengganti enkripsi basis data, mohon menunggu!</string>
     <string name="settings_toast_encryption_change_success">Berhasil mengganti enkripsi basis data!</string>
     <string name="settings_toast_encryption_change_failed">Gagal berganti ke enkripsi basis data, kembali ke pengaturan semula!</string>
@@ -104,13 +92,12 @@
     <string name="settings_dialog_title_error">Error</string>
     <string name="settings_dialog_title_clear_keystore">Bersihkan KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Sinkronisasi Android</string>
-    <string name="settings_dialog_msg_encryption_change">Sekarang andOTP akan mengganti enkripsi basis data. Jika terjadi kegagalan, cadangan internal akan dipulihkan dan enkripsi tetap tidak berubah.\n\n<b>Namun, ada baiknya untuk memiliki cadangan jika sesuatu yang tidak diinginkan terjadi!</b></string>
+    <string name="settings_dialog_msg_encryption_change">Sekarang OfflineOTP akan mengganti enkripsi basis data. Jika terjadi kegagalan, cadangan internal akan dipulihkan dan enkripsi tetap tidak berubah.\n\n<b>Namun, ada baiknya untuk memiliki cadangan jika sesuatu yang tidak diinginkan terjadi!</b></string>
     <string name="settings_dialog_msg_auth_invalid_with_encryption">Anda hanya dapat menggunakan Kata Sandi atau PIN selama enkripsi basis data diatur ke \"Kata Sandi/PIN\"!</string>
     <string name="settings_dialog_msg_encryption_invalid_with_auth">Anda harus mengatur Autentikasi terlebih dahulu menjadi \"Kata Sandi\" atau \"PIN\"!</string>
     <string name="settings_dialog_msg_encryption_invalid_without_credentials">Anda harus menentukan Kata Sandi atau PIN terlebih dahulu sebelum mengganti enkripsi!</string>
     <string name="settings_dialog_msg_clear_keystore_password">Dalam beberapa kasus, membersihkan KeyStore dapat membantu menyelesaikan masalah. Anda hanya boleh melanjutkan jika Anda tahu apa yang Anda lakukan.\n\n Karena <b>enkripsi basis data</b> diatur ke <b>Kata Sandi/PIN</b>, Anda tidak akan kehilangan data apa pun (tapi tidak ada salahnya memiliki cadangan).\n\n<b>Apakah Anda yakin ingin membersihkan KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Dalam beberapa kasus, membersihkan KeyStore dapat membantu menyelesaikan masalah. Anda hanya boleh melanjutkan jika Anda tahu apa yang Anda lakukan.\n\n<b>Peringatan</b>: Karena <b>enkripsi basis data</b> diatur ke <b>Android KeyStore</b>, Anda akan kehilangan semua akun Anda. Pastikan Anda memiliki cadangan!\n\n<b>Apakah Anda yakin ingin membersihkan KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Sinkronisasi Android tidak bisa digunakan dengan enkripsi KeyStore, <b>Anda harus melakukan pencadangan manual!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Tidak ada</item>

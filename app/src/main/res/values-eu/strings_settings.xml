@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Erabiltzaile interfazea</string>
     <string name="settings_category_title_backup">Segurtasun kopia</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Sakatu erakusteko</string>
     <string name="settings_title_tap_to_reveal_timeout">Sakatu ikusteko erabiltzeko denbora</string>
     <string name="settings_title_auth">Autentifikazioa</string>
-    <string name="settings_title_auth_password">Pasahitza</string>
-    <string name="settings_title_auth_pin">PINa</string>
     <string name="settings_title_encryption">Datubasea zifratzea</string>
-    <string name="settings_title_panic">Larrialdi abisua</string>
     <string name="settings_title_relock_screen_off">Blokeatu pantaila itzaltzean</string>
     <string name="settings_title_relock_background">Blokeatu atzeko planora joatean</string>
     <string name="settings_title_auth_inactivity">Blokeatu erabiltzen ez denean</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Fitxategi-izena galdetu</string>
     <string name="settings_title_backup_location">Segurtasun-kopien defektuzko kokalekua</string>
     <string name="settings_title_backup_password">Segurtasun-kopien pasahitza</string>
-    <string name="settings_title_auto_backup_password_enc">Sarrera berriak daudenean automatikoki segurtasun-kopia egin</string>
     <string name="settings_title_backup_broadcasts">Kanpotik eskatutako segurtasun-kopiak</string>
     <string name="settings_title_openpgp_provider">OpenPGP hornitzailea</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP zifratze-gakoa</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Android sinkronizazioa aktibatu</string>
     <string name="settings_title_clear_keystore">KeyStorea hustu</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">OTP tokenak ezkutatu, ikusteko eskuz
-        agertarazi beharko dituzu</string>
     <string name="settings_desc_tap_to_reveal_timeout">Aukeratu zenbat denboraren ondoren (segundotan)
         ezkutatuko diren erakutsitako sarrerak</string>
-    <string name="settings_desc_panic">Aukeratu zer egin Larrialdi abisua jasotzean</string>
     <string name="settings_desc_relock_screen_off">Autentifikazioa eskatu gailuen pantaila
         itzali ostean</string>
     <string name="settings_desc_relock_background">Autentifikazioa eskatu aplikazioa atzeko planora
@@ -86,8 +78,6 @@
     <string name="settings_desc_hide_issuer">Etiketa bakoitzean jaulkitzailea ezkutatu</string>
     <string name="settings_desc_backup_append_date">Aholkatutako segurtasun kopiaren fitxategi izenari
         uneko data eta ordua gehitu</string>
-    <string name="settings_desc_backup_ask">Segurtasun kopia bat sortu edo berrezartzen den bakoitzean
-        fitxategi izena eskatu</string>
     <string name="settings_desc_backup_location">Aukeratu seguratsun kopien defektuzko kokalekua</string>
     <string name="settings_desc_backup_location_set">Segurtasun kopien kokalekua ondo aukeratu da</string>
     <string name="settings_desc_backup_password">Segurtasun kopiak zifratzeko erabiliko den pasahitza
@@ -98,21 +88,13 @@
         kokalekua eta aukera hau aktibatzeko pasahitza</string>
     <string name="settings_desc_backup_broadcasts">Aukeratu zein segurtasun kopia mota jarri daitezkeen
         martxan hirugarrenen aplikazioetatik abiatuz</string>
-    <string name="settings_desc_openpgp_key_encrypt">Segurtasun kopiak zifratzeko erabiltzen den OpenPGP
-        gakoaren eposta helbidea</string>
     <string name="settings_desc_openpgp_verify">Zifratutako segurtasun kopiak baliozkoa den gako
         batekin sinatuta badaude barrik inportatuko dira</string>
     <string name="settings_desc_special_features">Desaktibatu aukera bereziak berriz desaktibatzeko</string>
-    <string name="settings_desc_enable_screenshot">Pantaila nagusiaren pantaila argazkiak ateratzea
-        baimendu (defektuz desaktibatuta dago segurtasun arrazoiengatik)</string>
-    <string name="settings_desc_enable_android_backup_service">Baimendu andOTPk gakoak eta ezarpenen segurtasun kopiak egiteko
-Androiden horretarako zerbitzua erabiltzea</string>
     <string name="settings_desc_clear_keystore">Ezabatu zifratze-gakoa KeyStoretik</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Aukera hau aktibatzeko pantailaren blokeo segurua
         aktibatu behar duzu (Ezarpenak -&gt; Segurtasuna -&gt; Pantaila blokeoa)</string>
-    <string name="settings_toast_password_empty">Ezin duzu pasahitza hutsik utzi, ezarri
-        Autentifikazioa \"Bat ere ez\" baliora desaktibatu nahi baduzu!</string>
     <string name="settings_toast_encryption_changing">Datu basearen zifratzea aldatzen,
         itxaron mesedez!</string>
     <string name="settings_toast_encryption_change_success">Datu basearen zifratzea ondo
@@ -131,7 +113,7 @@ migratzean, berrezarri eskuz Ezarpenetan!</string>
     <string name="settings_dialog_title_error">Errorea</string>
     <string name="settings_dialog_title_clear_keystore">KeyStorea garbitu?</string>
     <string name="settings_dialog_title_android_sync">Android sinkronizazioa</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP datu baearen zifratzea aldatzen saiatuko
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP datu baearen zifratzea aldatzen saiatuko
         da orain. Honek huts egiten badu barneko segurtasun kopia bat berrezarriko da eta
         zifratzea lehen bezala geratuko da.\n\n<b>Hala ere beti da ideia ona segurtasun kopia bat
         izatea zer edo zer gaizki badoa-ere!</b></string>
@@ -151,8 +133,6 @@ migratzean, berrezarri eskuz Ezarpenetan!</string>
         <b>Datu basearen zifratzea</b> <b>Android KeStore</b> baliora ezarrita duzunez zure kontu guztien
         informazioa galdu egingo duzu. Egin segurtasun kopia bat lehenengo!\n\n<b>Benetan
         KeyStorea garbitu nahi duzu?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Android sinkronizazioa ezin da KeyStore bidezko
-        zifratzearekin erabili, <b>segurtasun kopia eskuz egin beharko zenuke!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Bat ere ez</item>

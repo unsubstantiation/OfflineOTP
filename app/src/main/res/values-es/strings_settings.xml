@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Interfaz de usuario</string>
     <string name="settings_category_title_backup">Copia de seguridad</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Toca para mostrar</string>
     <string name="settings_title_tap_to_reveal_timeout">Tiempo de espera para tocar para mostrar</string>
     <string name="settings_title_auth">Autenticación</string>
-    <string name="settings_title_auth_password">Contraseña</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Cifrado de base de datos</string>
-    <string name="settings_title_panic">Botón del pánico</string>
     <string name="settings_title_relock_screen_off">Volver a bloquear cuando se apaga la pantalla</string>
     <string name="settings_title_relock_background">Volver a bloquear cuando se ponga en segundo plano</string>
     <string name="settings_title_auth_inactivity">Volver a bloquear por inactividad</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Pedir nombre de fichero</string>
     <string name="settings_title_backup_location">Ubicación de copia de seguridad por defecto</string>
     <string name="settings_title_backup_password">Contraseña de copia de seguridad</string>
-    <string name="settings_title_auto_backup_password_enc">Copia de seguridad automática en nuevas entradas</string>
     <string name="settings_title_backup_broadcasts">Copia de seguridad de difusión</string>
     <string name="settings_title_openpgp_provider">Proveedor de OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clave de encriptación OpenPGP</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Habilitar la sincronización de Android</string>
     <string name="settings_title_clear_keystore">Vaciar el almacén de claves</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Esconder códigos OTP por defecto,
-        necesitando mostrarlos manualmente</string>
     <string name="settings_desc_tap_to_reveal_timeout">Selecciona el tiempo (en segundos) tras el cual esconder
         las entradas reveladas</string>
-    <string name="settings_desc_panic">Decidir qué ocurre cuando el botón del pánico se ha pulsado</string>
     <string name="settings_desc_relock_screen_off">Requerir autenticación luego de que la pantalla se haya apagado</string>
     <string name="settings_desc_relock_background">Requerir autenticación después de que la aplicación se ponga en
         segundo plano (por ejemplo, pulsando el botón de inicio)</string>
@@ -85,8 +77,6 @@
     <string name="settings_desc_hide_issuer">Oculta la etiqueta del emisor en cada tarjeta</string>
     <string name="settings_desc_backup_append_date">Concatena la fecha y hora actual al nombre sugerido
         para el fichero de la copia de seguridad</string>
-    <string name="settings_desc_backup_ask">Pedir nombre de fichero cada vvez que una copia de seguridad
-        es creada o restaurada</string>
     <string name="settings_desc_backup_location">Elija una ubicación de copia de seguridad por defecto</string>
     <string name="settings_desc_backup_location_set">Se ha seleccionado la ubicación de la copia de seguridad</string>
     <string name="settings_desc_backup_password">Establecer la contraseña usada para cifrar las
@@ -97,21 +87,13 @@
         para habilitar esta opción</string>
     <string name="settings_desc_backup_broadcasts">Selecciona qué tipos de copias de seguridad pueden ser ejecutadas por
         aplicaciones de terceros usando difusión</string>
-    <string name="settings_desc_openpgp_key_encrypt">Dirección de correo de la clave OpenPGP usada para cifrar
-        las copias de seguridad</string>
     <string name="settings_desc_openpgp_verify">Las contraseñas de copias de seguridad cifradas sólo se importan
         si están firmadas con una clave válida</string>
     <string name="settings_desc_special_features">Desmarca para desactivar las funcionalidades especiales de nuevo</string>
-    <string name="settings_desc_enable_screenshot">Permitir capturas de pantalla de la vista principal
-        (Desactivado por defecto por razones de seguridad)</string>
-    <string name="settings_desc_enable_android_backup_service">Permite a andOTP usar el sistema
-        incorporado en Android para hacer copias de seguridad de las claves y preferencias</string>
     <string name="settings_desc_clear_keystore">Elimina la clave de cifrado del almacen de claves</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Esta característica requiere bloqueo de salvapantallas
         seguro (Settings -&gt; Security -&gt; Screenlock)</string>
-    <string name="settings_toast_password_empty">Una contraseña vacía no está permitida,
-        cambia autenticación a \"Ninguno\" para desactivarla!</string>
     <string name="settings_toast_encryption_changing">Intentando cambiar el cifrado de la base de datos,
         espera!</string>
     <string name="settings_toast_encryption_change_success">Cambio del cifrado de la base de datos
@@ -130,7 +112,7 @@
     <string name="settings_dialog_title_error">Error</string>
     <string name="settings_dialog_title_clear_keystore">Vaciar el almacen de claves?</string>
     <string name="settings_dialog_title_android_sync">Sincronización de Android</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP intentará ahora cambiar el cifrado
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP intentará ahora cambiar el cifrado
         de la base de datos. En caso de fallo una copia de seguridad interna será restaurada
         y el cifrado no cambiará.\n\n<b>¡Siempre es buena idea tener una copia de seguridad por si
         algo inesperado ocurriera!</b></string>
@@ -150,8 +132,6 @@
         Puesto que el <b>Cifrado de la base de datos</b> está como <b>Almacen de claves de Android</b> perderás todas
         tus cuentas. ¡Comprueba que tienes una copia de seguridad!\n\n
         <b>¿Seguro que quieres vaciar el almacen de claves?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">La sincronización de Android no puede ser usada con almacen de claves cifrado,
-        <b>¡Deberías hacer una copia de seguridad manual!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Ninguno</item>

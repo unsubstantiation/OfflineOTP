@@ -6,13 +6,9 @@
     <string name="settings_category_title_ui">Uporabniški vmesnik</string>
     <string name="settings_category_title_backup">Varnostna kopija</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal">Tapnite, če želite odkriti</string>
     <string name="settings_title_tap_to_reveal_timeout">Časovna omejitev za razkritje ob dotiku</string>
     <string name="settings_title_auth">Avtentikacija</string>
-    <string name="settings_title_auth_password">Geslo</string>
-    <string name="settings_title_auth_pin">PIN</string>
     <string name="settings_title_encryption">Kodiranje zbirke podatkov</string>
-    <string name="settings_title_panic">Sprožilec za paniko</string>
     <string name="settings_title_relock_screen_off">Ponovno zaklepanje ob zaklenitvi zaslona</string>
     <string name="settings_title_relock_background">Re-lock when going into the background</string>
     <string name="settings_title_auth_inactivity">Re-lock on inactivity</string>
@@ -44,7 +40,6 @@
     <string name="settings_title_backup_ask">Vprašaj za ime datoteke</string>
     <string name="settings_title_backup_location">Default backup location</string>
     <string name="settings_title_backup_password">Varnostno geslo</string>
-    <string name="settings_title_auto_backup_password_enc">Automatically backup on new entries</string>
     <string name="settings_title_backup_broadcasts">Varnostno kopiranje preko zunanjih naprav</string>
     <string name="settings_title_openpgp_provider">OpenPGP ponudnik</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP kodirni ključ</string>
@@ -55,11 +50,8 @@
     <string name="settings_title_enable_android_backup_service">Omogoči android sinhronizacijo</string>
     <string name="settings_title_clear_keystore">Izbriši KeyStore</string>
     <!-- Descriptions -->
-    <string name="settings_desc_tap_to_reveal">Privzeto skrij OTP žetone, prikazani so samo, če 
-        so odkriti ročno</string>
     <string name="settings_desc_tap_to_reveal_timeout">Izberite čas (v sekundah) po katerem se
         skrijejo izbrani računi</string>
-    <string name="settings_desc_panic">Določite, kaj se zgodi ob sprožitvi paničnega sprožilca</string>
     <string name="settings_desc_relock_screen_off">Zahtevaj ponovno avtentikacijo po
         zaklepanju zaslona</string>
     <string name="settings_desc_relock_background">Require authentication after the app was sent to
@@ -86,8 +78,6 @@
     <string name="settings_desc_hide_issuer">Hides issuer label on each card</string>
     <string name="settings_desc_backup_append_date">Dodaj trenutni datum in čas kot predlog
         imena varnostne kopije</string>
-    <string name="settings_desc_backup_ask">Vprašaj po imenu varnostne kopije ob vsakem ustvarjanju
-        ali obnavljanju</string>
     <string name="settings_desc_backup_location">Choose a default backup location</string>
     <string name="settings_desc_backup_location_set">Backup location has been chosen</string>
     <string name="settings_desc_backup_password">Nastavi geslo, ki bo uporabljeno za kodiranje
@@ -98,21 +88,13 @@
         backup password to enable this option</string>
     <string name="settings_desc_backup_broadcasts">Izberite katera varnostna kopiranja so lahko sprožena
         preko tretjih aplikacij</string>
-    <string name="settings_desc_openpgp_key_encrypt">Poštni naslov OpenPGP ključa je uporabljen za kodiranje
-        varnostne kopije</string>
     <string name="settings_desc_openpgp_verify">Kodirane varnostne kopije so lahko uvožene, če so 
         podpisane z veljavnim ključem</string>
     <string name="settings_desc_special_features">Odoznači za ponovno onemogočenje posebnih funkcij</string>
-    <string name="settings_desc_enable_screenshot">Dovoli posnetek glavnega zaslona
-        (privzeto je zaradi varnosti onemogočno)</string>
-    <string name="settings_desc_enable_android_backup_service">Omogoči andOTP in Androidov vgrajen mehanizem
-        varnostnega kopiranja za varnostno kopiranje ključev in nastavitev</string>
     <string name="settings_desc_clear_keystore">Izbrišite kodirni ključ iz KeyStore</string>
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Ta funkcija zahteva, da imate nastavljeno
         zaklepanje zaslona ( Nastavitve -&gt; Varnost -&gt; Zaklepanje zaslona)</string>
-    <string name="settings_toast_password_empty">Prazno geslo ni dovoljeno. Nastavite
-        Preverjanje pristnosti na Brez, da jo onemogočite!</string>
     <string name="settings_toast_encryption_changing">Poskus spreminjanja kodiranja zbirke podatkov je v teku,
         prosim počakajte!</string>
     <string name="settings_toast_encryption_change_success">Uspešno spremenjeno kodiranje 
@@ -131,7 +113,7 @@
     <string name="settings_dialog_title_error">Napaka</string>
     <string name="settings_dialog_title_clear_keystore">Izbriši KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Android sinhronizacija</string>
-    <string name="settings_dialog_msg_encryption_change">andOTP bo sedaj poskusil spremeniti kodiranje zbirke podatkov.
+    <string name="settings_dialog_msg_encryption_change">OfflineOTP bo sedaj poskusil spremeniti kodiranje zbirke podatkov.
         V primeru napake bo obnovljena notranja varnostna kopija in kodiranje bo
         ostalo nespremenjeno.\n\n<b>Kakorkoli, vedno je dobro za vsak slučaj imeti napravljeno
         varnostno kopijo, če se zgodi kaj nepričakovanega!</b></string>
@@ -151,8 +133,6 @@
         Ker je  <b>Kodiranje zbirke podatkov</b>nastavljeno na <b>Android KeyStore</b> bostei pri tem izgubili
         vse vaše račune. Preverite, da imate ustvarjeno varnostno kopijo.\n\n<b> Ali ste prepričani, da želite
         izbrisati KeyStore?</b></string>
-    <string name="settings_dialog_msg_android_sync_disabled_encryption">Android sinhronizacija ne more biti uporabljena s Keystore
-kodiranjem, <b>izvedite raje ročno varnostno kopiranje!</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Brez</item>

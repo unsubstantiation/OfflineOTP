@@ -6,7 +6,6 @@
     <string name="button_scan_qr">Ler código QR</string>
     <string name="button_save">Salvar</string>
     <string name="button_new_tag">Novo marcador</string>
-    <string name="button_settings">Configurações</string>
     <string name="button_all_tags">Todos os marcadores</string>
     <string name="button_no_tags">Sem marcadores</string>
     <string name="button_qr_from_image">Código QR de uma imagem</string>
@@ -56,19 +55,16 @@
     <string name="button_add">Adicionar nova conta</string>
     <string name="button_close_menu">Fechar menu</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">Falha na autenticação. Por favor, tente novamente.</string>
     <string name="toast_auth_failed_fatal">Falha na autenticação, fechando o aplicativo.</string>
     <string name="toast_copied_to_clipboard">Copiado para a área de transferência</string>
     <string name="toast_entry_exists">Esta conta já existe</string>
     <string name="toast_invalid_qr_code">Código QR inválido</string>
-    <string name="toast_encryption_key_empty">Chave de criptografia não carregada</string>
     <string name="toast_intent_creation_failed">Código da aplicação inválido</string>
-    <string name="toast_intent_creation_succeeded">Código da aplicação adicionado</string>
     <string name="toast_file_load_error">Não foi possível abrir o arquivo</string>
     <string name="toast_qr_error">Não foi possível encontrar/confirmar o código QR</string>
     <string name="toast_qr_checksum_exception">Falha na verificação de checksum ao decodificar código QR</string>
     <string name="toast_qr_format_error">Erro de formatação no código QR</string>
-    <string name="toast_qr_unsuported">Código QR não suportado</string>
+    <string name="toast_qr_unsupported">Código QR não suportado</string>
     <string name="toast_qr_failed_to_generate">Falha ao gerar código QR</string>
     <!-- Errors -->
     <string name="error_invalid_secret">Código secreto inválido</string>
@@ -76,23 +72,19 @@
     <string name="dialog_title_auth">Autenticar</string>
     <string name="dialog_title_manual_entry">Inserir detalhes</string>
     <string name="dialog_title_remove">Remover</string>
-    <string name="dialog_title_rename">Renomear</string>
     <string name="dialog_title_counter">Contador</string>
     <string name="dialog_title_used_tokens">Uso de tokens</string>
-    <string name="dialog_title_keystore_error">Erro de armazenamento de chaves</string>
     <string name="dialog_title_qr_code">Código QR</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">Digite a senha</string>
     <string name="dialog_title_auto_time">Horário automático</string>
     <string name="dialog_label_enter_password">Digite a senha</string>
     <string name="dialog_label_confirm_password">Confirme a senha</string>
-    <string name="dialog_msg_auth">Por favor, insira credenciais do dispositivo para iniciar andOTP.</string>
+    <string name="dialog_msg_auth">Por favor, insira credenciais do dispositivo para iniciar OfflineOTP.</string>
     <string name="dialog_msg_confirm_delete">Você tem certeza que deseja remover a conta \"%1$s\"?</string>
-    <string name="dialog_msg_used_tokens">andOTP vai rastrear seu uso dos tokens (usando a ferramenta
+    <string name="dialog_msg_used_tokens">OfflineOTP vai rastrear seu uso dos tokens (usando a ferramenta
         \"Toque para revelar\" ou copiando para a área de transferência) para conseguir
         classificá-los por \"Mais usados\" ou \"Usados por último\".\n\nEssa mensagem não será exibida novamente.</string>
-    <string name="dialog_msg_keystore_error">Falha ao carregar a chave de criptografia da KeyStore.
-        <b>Quaisquer alterações adicionadas serão perdidas.</b>\n\nPara continuar usando o andOTP, você precisa ir         até as <b>Configurações</b> e alterar a <b>Criptografia do Banco de Dados</b> para <b>Senha/PIN</b>.</string>
     <string name="dialog_msg_auto_time">Ative a opção <b>Data e hora automáticas</b> nas
          <b>Configurações</b> do seu telefone para garantir a correta geração
         de senhas-de-uso-único baseadas no horário (TOTP).</string>

@@ -9,8 +9,6 @@
     <string name="backup_receiver_title_backup_failed">La sauvegarde a échoué</string>
     <string name="backup_receiver_title_backup_success">Sauvegarde réussie</string>
     <string name="backup_receiver_encrypted_disabled">Les sauvegardes chiffrées ne sont actuellement pas autorisées, veuillez aller dans les Paramètres afin de les activer</string>
-    <string name="backup_receiver_read_permission_failed">L\'autorisation de lecture n\'est pas accordée, veuillez le faire avant d’effectuer la sauvegarde</string>
-    <string name="backup_receiver_write_permission_failed">L\'autorisation d\'écriture n\'est pas accordée, veuillez le faire avant d’effectuer la sauvegarde</string>
     <string name="backup_receiver_custom_encryption_failed">Le chiffrement à base de mot de passe ou code PIN n\'est pas supporté par la sauvegarde par diffusion</string>
     <string name="backup_receiver_no_location_set">Aucun emplacement de sauvegarde défini, veuillez en définir un
         dans les paramètres des applications</string>
@@ -35,7 +33,6 @@
     <string name="backup_toast_storage_not_accessible">Stockage externe non disponible</string>
     <string name="backup_toast_openpgp_error">Erreur OpenPGP : %s</string>
     <string name="backup_toast_openpgp_not_verified">Aucune signature vérifiée n\'a été trouvée</string>
-    <string name="backup_toast_crypt_password_not_set">Aucun mot de passe défini, vérifiez les <b>paramètres</b></string>
     <string name="backup_toast_file_selection_failed">Impossible d\'ouvrir la sélection de fichier !</string>
     <string name="backup_label_type">Type de sauvegarde : </string>
     <string name="backup_label_crypt">La sauvegarde sera stockée chiffrée avec un mot de passe personnalisé

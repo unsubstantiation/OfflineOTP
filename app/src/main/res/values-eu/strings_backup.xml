@@ -16,10 +16,6 @@
     <string name="backup_receiver_title_backup_success">Backup Arrakastatsua</string>
     <string name="backup_receiver_encrypted_disabled">Ezin dira zifratutako segurtasun-kopiak egin,
         joan ezarpenetara hau aktibatzeko</string>
-    <string name="backup_receiver_read_permission_failed">Ez dut irakurtzeko baimenik, eman baimena
-        segurtasun-kopia bat egin aurretik</string>
-    <string name="backup_receiver_write_permission_failed">Ez dut idazteko baimenik, eman baimena
-        segurtasun-kopia bat egin aurretik</string>
     <string name="backup_receiver_custom_encryption_failed">Pasahitz/PIN bidezko zifratzea ezin da
         kanpotik aktibatutako segurtasun-kopien moduarekin erabili</string>
     <string name="backup_receiver_no_location_set">Ez dago babeskopiak gordetzeko kokapenik, zehaztu bat
@@ -47,7 +43,6 @@
     <string name="backup_toast_storage_not_accessible">Ezin da kanpoko biltegiratzea orain erabili</string>
     <string name="backup_toast_openpgp_error">OpenPGP Errorea: %s</string>
     <string name="backup_toast_openpgp_not_verified">Egiaztatu gabeko sinadura aurkitu da</string>
-    <string name="backup_toast_crypt_password_not_set">Pasahitza ez dago ezarrita, begiratu <b>Ezarpenak</b> atalean</string>
     <string name="backup_toast_file_selection_failed">Ezin da fitxategia aukeratzeko leihoa ireki!</string>
     <string name="backup_label_type">Babeskopia-mota: </string>
     <string name="backup_label_crypt">Segurtasun kopia AES 256-biteko zifratzea eta zuk ezarritako

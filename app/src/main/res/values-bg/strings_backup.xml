@@ -14,10 +14,6 @@
     <string name="backup_receiver_title_backup_success">Архивирането е успешно</string>
     <string name="backup_receiver_encrypted_disabled">В момента, криптираните резервни копия не са позволени,
          моля, отидете в Настройките, за да ги активирате</string>
-    <string name="backup_receiver_read_permission_failed">Разрешението за четене не е предоставено, моля, направете
-         това преди да опитате да направите резервно копие</string>
-    <string name="backup_receiver_write_permission_failed">Разрешението за писане не е предоставено, моля, направете
-         това преди да опитате да направите резервно копие</string>
     <string name="backup_receiver_custom_encryption_failed">Криптиране на база Парола/ПИН код, не
          се поддържа с резервно копие чрез външно приложение</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
@@ -45,7 +41,6 @@
     <string name="backup_toast_storage_not_accessible">В момента външното хранилище не е достъпно</string>
     <string name="backup_toast_openpgp_error">OpenPGP Грешка: %s</string>
     <string name="backup_toast_openpgp_not_verified">Не е открит проверен подпис</string>
-    <string name="backup_toast_crypt_password_not_set">Паролата не е зададена, проверете в <b>Настройки</b></string>
     <string name="backup_toast_file_selection_failed">Не може да се отвори диалоговият прозорец за избор на файл!</string>
     <string name="backup_label_type">Backup type: </string>
     <string name="backup_label_crypt">The backup will be stored encrypted with a custom password

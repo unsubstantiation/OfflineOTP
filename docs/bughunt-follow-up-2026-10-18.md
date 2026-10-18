@@ -9,9 +9,8 @@ here all pass, and the gates that could not are now defined as CI workflows that
 ## Phase 1 — bug hunt results
 
 Every remaining `.kt` source, every `res/values*` translation and the manifest were read or
-re-checked (the full no-bug list is in the session record; the previously converted files from
-the 2026-10-17 pass were spot-checked rather than re-audited line by line). Two defects were
-found and fixed:
+re-checked; the previously converted files from the 2026-10-17 pass were spot-checked rather
+than re-audited line by line. Two defects were found and fixed:
 
 ### Bug 1: the sandbox R stand-in was stale after the thumbnail batch
 
@@ -42,7 +41,7 @@ without device acceptance is a product decision, not a bug fix.
 The 2026-10-17 follow-up documented two workflows as "planned, not yet present" and a test
 harness that had gone missing from the checkout. All of it now exists:
 
-### 1. The Python guard suite (`scripts/tests`, 12 files, 72 tests)
+### 1. The Python guard suite (`scripts/tests`, 12 files and 72 tests at this pass)
 
 `python3 -m unittest discover -s scripts/tests` runs the whole battery with no external Python
 dependencies (PyYAML-gated tests skip where it is unavailable):
@@ -149,8 +148,8 @@ no generated trust data is committed.
 
 ## Verification
 
-- `python3 -m unittest discover -s scripts/tests` — **72 passed** (toolchain-gated runner
-  tests included in this environment; they skip where kotlinc is absent).
+- `python3 -m unittest discover -s scripts/tests` — **72 tests** (toolchain-gated runner tests
+  included in this environment; they skip where kotlinc is absent).
 - `python3 scripts/check_build_inputs.py` — **passed** across all six workflows.
 - `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (regenerated R stub; env
   from `scripts/kotlin-sandbox/bootstrap-toolchain.sh`).
@@ -226,9 +225,8 @@ views and asserts both branches, and the localized format string is no longer an
 
 ## Verification (all host gates re-run)
 
-- `python3 -m unittest discover -s scripts/tests` — **82 passed** (with PyYAML installed,
-  zero skipped; includes the new `test_ui_surface_regressions.py` pinning all three
-  changes).
+- `python3 -m unittest discover -s scripts/tests` — **82 tests** (PyYAML installed, zero skips; includes the new
+  `test_ui_surface_regressions.py` pinning all three changes).
 - `python3 scripts/check_build_inputs.py` — **passed**.
 - `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (R stub regenerated after
   the source changes; the entry-card check now also asserts the custom-period row).
@@ -261,6 +259,6 @@ Upstream issue #994 requests per-tag entry counts in the tag drawer; the existin
 
 ## Verification (host gates re-run)
 
-- `python3 -m unittest discover -s scripts/tests` — **82 passed, 9 skipped (PyYAML-absent checks)** — unchanged.
+- `python3 -m unittest discover -s scripts/tests` — **82 tests, 9 skipped (PyYAML-absent checks)** — unchanged.
 - `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (stub regenerated for `length()`/`getIntrinsicWidth/Height`; `EntryViewHolder`/`EntryThumbnail` checks cover the new branches).
 - Sandbox compilation previously failed on `TypedArray.length()` and `Drawable.getIntrinsicWidth`; both stubs now match the platform API.

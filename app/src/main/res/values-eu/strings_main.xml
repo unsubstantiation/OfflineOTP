@@ -6,7 +6,6 @@
     <string name="button_scan_qr">QR kodea eskaneatu</string>
     <string name="button_save">Gorde</string>
     <string name="button_new_tag">Etiketa berria</string>
-    <string name="button_settings">Ezarpenak</string>
     <string name="button_all_tags">Etiketa guztiak</string>
     <string name="button_no_tags">Etiketarik ez</string>
     <string name="button_qr_from_image">QR kodea iruditik</string>
@@ -56,19 +55,16 @@
     <string name="button_add">Gehitu kontu berria</string>
     <string name="button_close_menu">Itxi menua</string>
     <!-- Toast messages -->
-    <string name="toast_auth_failed">Autentifikazioak huts egin du. Mesedez, saiatu berriro!</string>
-    <string name="toast_auth_failed_fatal">Autentifikazioak huts egin du, andOTP itxi egingo da!</string>
+    <string name="toast_auth_failed_fatal">Autentifikazioak huts egin du, OfflineOTP itxi egingo da!</string>
     <string name="toast_copied_to_clipboard">Arbelera kopiatu da</string>
     <string name="toast_entry_exists">Sarrera hau badago</string>
     <string name="toast_invalid_qr_code">QR kodea ez da zuzena</string>
-    <string name="toast_encryption_key_empty">Zifratze-gakoa ez da kargatu</string>
     <string name="toast_intent_creation_failed">Aplikazioak kode okerra pasatu du</string>
-    <string name="toast_intent_creation_succeeded">Aplikazioak pasatutako kodea ondo gehitu da</string>
     <string name="toast_file_load_error">Ezin da fitxategia ireki</string>
     <string name="toast_qr_error">Ezin da QR kodea bilatu/baieztatu</string>
     <string name="toast_qr_checksum_exception">Errorea gertatu da QR kodea deskodetzean</string>
     <string name="toast_qr_format_error">Errorea QR kodearen formatuan</string>
-    <string name="toast_qr_unsuported">QR kode hau ez da zuzena</string>
+    <string name="toast_qr_unsupported">QR kode hau ez da zuzena</string>
     <string name="toast_qr_failed_to_generate">Huts egin du QR kodea sortzean</string>
     <!-- Errors -->
     <string name="error_invalid_secret">Sekretua ez da zuzena</string>
@@ -76,24 +72,19 @@
     <string name="dialog_title_auth">Autentifikatu</string>
     <string name="dialog_title_manual_entry">Xehetasunak idatzi</string>
     <string name="dialog_title_remove">Ezabatu</string>
-    <string name="dialog_title_rename">Aldatu izena</string>
     <string name="dialog_title_counter">Kontagailua</string>
     <string name="dialog_title_used_tokens">Tokenen erabilera</string>
-    <string name="dialog_title_keystore_error">KeyStorearen errorea</string>
     <string name="dialog_title_qr_code">QR kodea</string>
     <string name="dialog_title_pin">PIN</string>
     <string name="dialog_title_enter_password">Pasahitza sartu</string>
     <string name="dialog_title_auto_time">Ordu automatikoa</string>
     <string name="dialog_label_enter_password">Pasahitza sartu</string>
     <string name="dialog_label_confirm_password">Pasahitza berretsi</string>
-    <string name="dialog_msg_auth">Sartu zure gailuaren kredentzialak andOTP hasteko.</string>
+    <string name="dialog_msg_auth">Sartu zure gailuaren kredentzialak OfflineOTP hasteko.</string>
     <string name="dialog_msg_confirm_delete">\"%1$s\" ezabatu nahi duzu?</string>
-    <string name="dialog_msg_used_tokens">andOTPk zure tokean noiz erabiltzen dituzun
+    <string name="dialog_msg_used_tokens">OfflineOTPk zure tokean noiz erabiltzen dituzun
         gordeko du (\"Sakatu erakusteko\" erabiltzen duzunean edo arbelera kopiatzean) horrela
         \"Gehien erabiliak\" edo \"Azkenaldian erabiliak\" zerrendetan erabiltzeko. \n\nMezu hau ez da berriz erakutsiko.</string>
-    <string name="dialog_msg_keystore_error">Ezin izan da zifratze-gakoa kargatu.
-        <b>Gehitutako sarrerak galdu egingo dira.</b>\n\nandOTP erabiltzen jarraitzeko
-        <b>Ezarpenak</b> atalera joan eta aldatu <b>Datu-basearen zifratzea</b>ren balioa <b>Pasahitza/PINa</b> izatera.</string>
     <string name="dialog_msg_auto_time">Aktibatu <b>Data eta ordu automatikoa</b> zure telefonoaren
         <b>Ezarpenak</b> atalean OTP gakoak ondo sortzen direla
         ziurtatzeko.</string>

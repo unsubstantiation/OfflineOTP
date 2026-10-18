@@ -2,7 +2,8 @@
 <resources>
     <string name="about_activity_title">About</string>
 
-    <string name="about_description">Open source two-factor authentication for Android</string>
+    <string name="about_description">Offline authenticator for Android</string>
+    <string name="about_copyright" translatable="false">Copyright (c) 2026 unsubstantiation — http://fairuniversal.com\nBased on OfflineOTP by unsubstantiation: http://fairuniversal.com</string>
 
     <string name="about_tab_about">About</string>
     <string name="about_tab_libraries">Libraries</string>
@@ -10,52 +11,46 @@
     <!-- Misc -->
     <string name="about_label_changelog">Changelog</string>
     <string name="about_label_license">License</string>
-    <string name="about_label_MIT">MIT License</string>
+    <string name="about_label_license_name">Custom noncommercial license 1.0</string>
     <string name="about_label_source">Source code</string>
     <string name="about_label_version">Version</string>
-    <string name="about_label_faq">FAQ</string>
-    <string name="about_label_faq_long">Frequently asked questions</string>
+    <string name="about_label_faq">Issues</string>
+    <string name="about_label_faq_long">Report a bug or request a feature</string>
 
-    <!-- Authors -->
-    <string name="about_title_authors">Authors</string>
+    <!-- Credits -->
+    <string name="about_title_authors">Credits</string>
 
-    <string name="about_label_main_developer">Main developer</string>
-    <string name="about_label_developer">Developer</string>
-    <string name="about_label_original_author">Author of the original app</string>
-    <string name="about_label_original_app">Original App</string>
-    <string name="about_label_website">Website</string>
-    <string name="about_label_github" translatable="false">Github</string>
+    <string name="about_label_main_developer">andOTP main developer</string>
+    <string name="about_label_developer">andOTP developer</string>
+    <string name="about_label_original_author">otp-authenticator author</string>
+    <string name="about_label_original_app">otp-authenticator</string>
     <string name="about_label_donate">Donate</string>
     <string name="about_name_author1" translatable="false">Jakob Nixdorf</string>
     <string name="about_name_author_original" translatable="false">Bruno Bierbaumer</string>
     <string name="about_name_author2" translatable="false">Richy HBM</string>
 
     <string name="about_label_contributors">Contributors</string>
-    <string name="about_label_translators">Translators</string>
 
     <!-- Thumbnail disclaimer -->
     <string name="about_title_thumbnail_disclaimer">Thumbnail disclaimer</string>
 
-    <string name="about_thumbnails_disclaimer_no1"><b>1.</b> All thumbnails are trademarks of their
+    <string name="about_thumbnails_disclaimer_no1">All thumbnails are trademarks of their
         respective owners.</string>
-    <string name="about_thumbnails_disclaimer_no2"><b>2.</b> The use of these trademarks does not
+    <string name="about_thumbnails_disclaimer_no2">The use of these trademarks does not
         indicate endorsement of the trademark holder by OfflineOTP, nor vice versa.</string>
-    <string name="about_thumbnails_disclaimer_no3"><b>3.</b> Thumbnails should only be used to
-        represent the company or product to which they refer.</string>
-    <string name="about_thumbnails_disclaimer_no4"><b>4. Please do not use thumbnails for any
-        purpose except to represent that particular brand or service.</b></string>
+    <string name="about_thumbnails_disclaimer_no3">Thumbnails should only be used to represent
+        the company or product to which they refer.</string>
+    <string name="about_thumbnails_disclaimer_no4">Please do not use thumbnails for any purpose
+        except to represent that particular brand or service.</string>
 
     <!-- Support -->
     <string name="about_title_support">Support development</string>
-    <string name="about_desc_support">Find out how you can support the development of OfflineOTP</string>
+    <string name="about_desc_support">Learn how to contribute to OfflineOTP</string>
 
     <string name="about_title_special_features">Special features</string>
-    <string name="about_dialog_special_features">Are you sure you want to enable the special
-        features? Most of them are non-standard OTP algorithms which were implemented on special
-        request. They are <b>not officially supported</b> and can come with <b>certain
-        limitations</b>, please read (and understand) the page \"Special features\" in the Github
-        wiki to learn more before using them.</string>
+    <string name="about_dialog_special_features">Enable the special features? They add screenshot
+        support and a KeyStore reset option.</string>
     <string name="about_toast_special_features">Special features enabled</string>
     <string name="about_toast_special_features_enabled">Special features already enabled</string>
-    <string name="about_toast_copied_to_clipboard">Donation link copied to clipboard</string>
+    <string name="about_toast_copied_to_clipboard">Link copied to clipboard</string>
 </resources>

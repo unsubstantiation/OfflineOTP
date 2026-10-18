@@ -53,6 +53,13 @@
                         android:textStyle="bold"
                         android:text="@string/about_description" />
 
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="@dimen/activity_margin_xsmall"
+                        android:textAppearance="?android:attr/textAppearanceSmall"
+                        android:text="@string/about_copyright" />
+
                 </LinearLayout>
 
             </LinearLayout>
@@ -148,7 +155,7 @@
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:textAppearance="?android:attr/textAppearanceSmall"
-                            android:text="@string/about_label_MIT" />
+                            android:text="@string/about_label_license_name" />
 
                     </LinearLayout>
                 </LinearLayout>

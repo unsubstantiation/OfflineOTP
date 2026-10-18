@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
     <string name="intro_slide1_title">Comencem</string>
-    <string name="intro_slide1_desc">Benvinguda a <b>andOTP</b>! Aquest assistents us guiarà en el
+    <string name="intro_slide1_desc">Benvinguda a <b>OfflineOTP</b>! Aquest assistents us guiarà en el
         procés de configuració inicial. Pareu atenció i llegiu atentament per tal d\'evitar la pèrdua de dades.
         \n\nNo patiu, podreu canviar qualsevol opció a <b>Preferències</b>.</string>
-    <string name="intro_slide2_desc">Per tal de garantir la seguretat dels vostres comptes, <b>andOTP</b> fa servir
+    <string name="intro_slide2_desc">Per tal de garantir la seguretat dels vostres comptes, <b>OfflineOTP</b> fa servir
         xifratge per a desar les dades. Aquí podeu triar el mètode de xifratge que 
         s\'hi farà servir.</string>
     <string name="intro_slide2_desc_keystore">The KeyStore is a system component of Android used to
         securely store cryptographic keys. The advantage of using the KeyStore is that the keys are
-        stored separately from <b>andOTP</b>\'s data, and can be backed by hardware-based encryption
-        (if your device supports it). However, as the keys are not stored with <b>andOTP</b>\'s data,
+        stored separately from <b>OfflineOTP</b>\'s data, and can be backed by hardware-based encryption
+        (if your device supports it). However, as the keys are not stored with <b>OfflineOTP</b>\'s data,
         <b>this method prevents external backup solutions (like Titanium) from working</b>. If you
         choose this method, you will have to rely on the internal backup functions provided by
-        <b>andOTP</b>.\n\n<b>Warning</b>: The KeyStore is known to cause many problems, so
+        <b>OfflineOTP</b>.\n\n<b>Warning</b>: The KeyStore is known to cause many problems, so
         please only use it if you absolutely have to. If you don\'t mind entering a password / PIN
-        every time you start <b>andOTP</b>, it is <b>highly recommended to use the password-based
+        every time you start <b>OfflineOTP</b>, it is <b>highly recommended to use the password-based
         encryption instead</b>.</string>
     <string name="intro_slide2_desc_password">This method will encrypt your data with a key
         generated from a password or PIN. The main advantage of using this method is that external
         backup solutions (like Titanium) will work as expected, and it is much less failure-prone
         than the KeyStore. However, you will have to enter your credentials every time you start
-        <b>andOTP</b>.</string>
+        <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Here you can setup an authentication method to lock
-        <b>andOTP</b>. Since you have chosen <b>Android KeyStore</b> as your encryption method, this
+        <b>OfflineOTP</b>. Since you have chosen <b>Android KeyStore</b> as your encryption method, this
         step is optional.</string>
     <string name="intro_slide3_desc_password">Here you can setup an authentication method to lock
-        <b>andOTP</b>. Since you have chosen <b>Password / PIN</b> as your encryption method, a
+        <b>OfflineOTP</b>. Since you have chosen <b>Password / PIN</b> as your encryption method, a
         password or a PIN must be set to proceed.</string>
     <string name="intro_slide3_warn_no_password">Si us plau, establiu una contrasenya per a continuar!</string>
     <string name="intro_slide3_warn_no_pin">Si us plau, establiu un PIN per a continuar!</string>
@@ -40,8 +40,7 @@
     <string name="intro_slide4_desc_failed">No ha estat possible establir la contrasenya, aquesta introducció
          tornarà a mostrar-se la pròxima vegada!</string>
     <string name="intro_slide4_desc">S\'han desat les preferències, ja podeu fer servir
-         <b>andOTP</b>!</string>
+         <b>OfflineOTP</b>!</string>
     <string name="intro_slide4_desc_progress">Les preferències s\'han desat i la clau d\'encriptació es generarà
          ara, per favor espereu…</string>
-    <string name="intro_slide_android_backup_desc">Android sync is a feature built in to android used to back up app data to a 3rd party service (usually Google). Backups are always encrypted and unaccessible to 3rd parties without your master password. Requires use of Password encryption method.</string>
 </resources>
