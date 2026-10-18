@@ -169,3 +169,68 @@ extractions in `docs/ui-decomposition-plan.md` remain proposed refactor boundari
 user-visible incomplete features), and the upstream triage items marked ❌ in
 `docs/andotp-open-issues-triage.md` — except the deliberately documented #591 portrait lock —
 are available as follow-up work.
+
+# Second pass (later 2026-10-18): edit saves, the PIN warning and the custom-period card row
+
+A further comprehensive audit read every remaining production file (Preferences, the
+About screens, `LetterBitmap`, `DimensionConverter`, `BackupAgent`, `OtpParseResult`,
+`NumberPickerPreference`, `PasswordEncryptedPreference`, the item-touch plumbing and the
+flavor fragments), compared every Kotlin class against the upstream andOTP master Java,
+diffed all `R.id`/`R.layout`/string references and menu/preference wiring, and checked the
+trailing layout-only ids and orphaned strings against upstream history. It found two
+defects and one unfinished feature surface; all three are fixed in this pass.
+
+## Fixed: editing an existing entry could never save (TOTP/HOTP/STEAM)
+
+`ManualEntryDialog` validated the typed secret with `Entry.validateSecret(secret, type)`
+for every save, but when editing, the secret field is display-only (GONE and empty; the
+stored secret is shown in `manual_secret_view` and the edit branches never read the typed
+value). The strict validator rejects the empty string — `decodeBase32Secret("")` does not
+match the Base32 text pattern and returns null — so the error was set on a hidden widget
+and Save silently did nothing. Upstream only appeared to work because commons-codec decodes
+`""` to an empty array. The fix gates typed-secret validation (and the throwaway
+`Entry(type, secret, ...)` construction that would throw the same way) on `isNewEntry`;
+new entries are validated exactly as strictly as before (`Checks.kt` still pins
+`validateSecret`'s behaviour itself). mOTP edits were never affected.
+
+## Fixed: PIN setup showed the password confirmation warning
+
+`IntroScreenActivity.setupForPinInput` assigned
+`R.string.intro_slide3_warn_confirm_password` where upstream used
+`R.string.intro_slide3_warn_confirm_pin`. The PIN string exists in all 33 translations and
+was orphaned by the conversion; the password path is unchanged.
+
+## Completed: the custom-period indicator on the entry cards
+
+Every card variant (`component_card_compact/default/full.xml`) ships a
+`customPeriodLayout` row (alarm icon plus a bold `customPeriod` label) and every
+translation ships `format_custom_period` (`"%d s"`), but no code bound them. The wiring
+existed in andOTP v0.4/v0.5 (`EntryViewHolder.showCustomPeriod` for entries with
+`hasNonDefaultPeriod()`, hidden otherwise) and was lost upstream in v0.6; every release
+since has carried the dead row and the translated strings. `EntryViewHolder.updateValues`
+binds the row again under the original contract, the sandbox fixture constructs the new
+views and asserts both branches, and the localized format string is no longer an orphan.
+
+## Unfinished-feature sweep (remaining candidates assessed, not defects)
+
+- `docs/ui-decomposition-plan.md` "Still to extract" remains proposed refactor boundaries
+  (the docs state they are not user-visible incomplete features) — unchanged.
+- The triage ❌ brand-icon batch is already complete in this checkout (PR #42 added the
+  missing vectors; 80 of the 81 requested brands resolve in `EntryThumbnail`, the rest is
+  `500px`/`FiveHundredPx`). The remaining ❌ items are product/UX requests (#591 portrait
+  lock is a documented deliberate choice), and the 🆕 gaps are explicitly "adopt only if
+  wanted" — no code in this repository claims them as started work.
+- Remaining orphaned strings (`card_separator`, `dialog_title_rename`, `button_settings`,
+  `about_label_github`/`website`/`translators`, ...) are dead in upstream the same way or
+  are documented removals from earlier passes; none marks a started-but-unfinished surface.
+
+## Verification (all host gates re-run)
+
+- `python3 -m unittest discover -s scripts/tests` — **82 passed** (with PyYAML installed,
+  zero skipped; includes the new `test_ui_surface_regressions.py` pinning all three
+  changes).
+- `python3 scripts/check_build_inputs.py` — **passed**.
+- `scripts/kotlin-sandbox/run.sh` — **all sandbox checks passed** (R stub regenerated after
+  the source changes; the entry-card check now also asserts the custom-period row).
+- `scripts/run-jvm-tests.sh` — **110 passed, 0 failed**.
+- `scripts/kotlin-sandbox/compile-android-tests.sh` — **COMPILE OK**.
