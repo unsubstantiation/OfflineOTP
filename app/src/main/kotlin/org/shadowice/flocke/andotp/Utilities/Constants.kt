@@ -1,14 +1,6 @@
 package org.shadowice.flocke.andotp.Utilities
 
-/**
- * Shared constants: the enum values used across the app, the intent IDs/extras and the crypto parameters.
- *
- * Replaces `Constants.java`. Every constant keeps its name, type and value; the Java-visible
- * `Constants.X` and `Constants.Enum.VALUE` spellings are unchanged because `const val` members are
- * static fields and the nested enums are static nested classes. The members that were package-private
- * in Java are `internal` here (Kotlin has no package-private visibility; `internal` is the closest
- * equivalent and is public in the bytecode, as the other converted helpers are).
- */
+/** App-wide enums, activity request codes, intent extras, and cryptographic parameters. */
 object Constants {
     // Enums
 

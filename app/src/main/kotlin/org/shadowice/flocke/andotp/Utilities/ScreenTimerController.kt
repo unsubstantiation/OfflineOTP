@@ -1,9 +1,8 @@
 package org.shadowice.flocke.andotp.Utilities
 
 /**
- * Main-thread screen scheduling, separate from views and session policy. The screen decides when
- * timers may run and what expiry means. No key/session state, Context or saved state is held here.
- * Runnable and Scheduler remain Java-callable boundaries, not Kotlin function-type adapters.
+ * Main-thread controller for the 1-second token tick and the inactivity auto-lock timer.
+ * Holds no key, session, Context, or saved state.
  */
 class ScreenTimerController(
     private val scheduler: Scheduler,

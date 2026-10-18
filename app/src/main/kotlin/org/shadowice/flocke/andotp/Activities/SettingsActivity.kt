@@ -52,17 +52,7 @@ import java.util.Locale
 
 import javax.crypto.SecretKey
 
-/**
- * Settings screen; encryption changes are executed as a background task.
- *
- * Converted from the Java class of the same name. The preference screen, the encryption change
- * and the backup location picker are unchanged.
- *
- * Documented deltas: the layout children are resolved with `requireNotNull`, the Java
- * package-private fields of the settings fragment are public here (the activity reads them), and
- * the platform fragment's protected `onCreate()` keeps the public visibility the Java class gave
- * it.
- */
+/** Settings screen that manages preferences, backup folder access, and background encryption changes. */
 open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result>(),
     SharedPreferences.OnSharedPreferenceChangeListener, EncryptionHelper.EncryptionChangeCallback {
 
@@ -119,7 +109,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         outState.putBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, encryptionChanged)
     }
 
-    /** Returns the (possibly changed) encryption key to MainActivity. */
+    /** Finishes and reports to MainActivity whether the encryption changed. */
     fun finishWithResult() {
         val data = Intent()
 
@@ -356,7 +346,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     /** The preference screen itself; encryption changes are forwarded to the activity. */
     open class SettingsFragment : PreferenceFragment() {
-        /** The "user interface" category of the preferences. */
         var catUI: PreferenceCategory? = null
 
         private var settings: Settings? = null
@@ -365,16 +354,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         private var encryptionKey: SecretKey? = null
         private var encryptionChangeCallback: EncryptionHelper.EncryptionChangeCallback? = null
 
-        /** The encryption type preference. */
         var encryption: ListPreference? = null
         private var useAutoBackup: ListPreference? = null
 
-        /** The Android backup service preference. */
         var useAndroidSync: CheckBoxPreference? = null
 
         private var pgpEncryptionKey: EditTextPreference? = null
 
-        /** The OpenPGP signing key preference. */
         var pgpSigningKey: OpenPgpKeyPreference? = null
         var themeMode: ListPreference? = null
         var themeBlack: CheckBoxPreference? = null
@@ -425,10 +411,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             credentialsPreference?.setEncryptionChangeCallback(changeCallback)
         }
 
-        /**
-         * The Java class widened the platform fragment's protected `onCreate()` to public, so the
-         * public visibility is kept here; the body is unchanged.
-         */
         public override fun onCreate(savedInstanceState: Bundle?) {
             super.onCreate(savedInstanceState)
 

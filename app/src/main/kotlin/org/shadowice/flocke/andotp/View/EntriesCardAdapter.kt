@@ -49,16 +49,7 @@ import java.util.function.Consumer
 
 import javax.crypto.SecretKey
 
-/**
- * Adapter for the entry cards; keeps the persisted [EntryList] and the (sorted and filtered) list
- * that is actually displayed.
- *
- * Converted from the Java class of the same name. The sorting, the filtering, the drag & drop and
- * the entry mutations are unchanged.
- *
- * Documented delta: the Java `getEncryptionKey`/`setEncryptionKey` pair becomes the `encryptionKey`
- * property, which is a read/write field exactly like the Java field was.
- */
+/** RecyclerView adapter for OTP entry cards, managing sorting, filtering, drag-and-drop, and persistence. */
 open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: TagsAdapter) :
     RecyclerView.Adapter<EntryViewHolder>(), ItemTouchHelperAdapter, Filterable {
 
@@ -95,10 +86,9 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         saveEntries(auto_backup)
     }
 
-    /** Adds the entry (with a toast if it is already present) and saves the database. */
     /**
-     * Takes ownership of [e]. It is kept only when the list accepts it; a rejected or failed entry
-     * is destroyed so its secret does not outlive the attempt.
+     * Takes ownership of [e], adds it (showing a toast on duplicate) and saves the database.
+     * Destroys [e] if rejected or if saving fails.
      */
     fun addEntry(e: Entry) {
         val added = try {
@@ -511,8 +501,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 withTarget(target, Consumer { actual ->
                     actual.setPin(value)
                     actual.updateOTP(true)
-                    // The PIN is part of the stored document now, so it has to reach the vault
-                    // here; otherwise a reload (or a failed-save revert) would drop it again.
+                    // Persist the updated mOTP PIN immediately so a reload or failed save cannot lose it.
                     saveEntries(settings.getAutoBackupEncryptedFullEnabled())
                     notifyEntryChanged(actual)
                 })
@@ -595,9 +584,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
         if (presentation.get(pos).getType() == Entry.OTPType.MOTP) {
-            // Look the item up by id, not by position: `menu_popup_establishPin` is the fourth
-            // <item> in R.menu.menu_popup (index 3), and a positional lookup silently made the
-            // wrong item visible, leaving the mOTP PIN action unreachable.
+            // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
         }
 

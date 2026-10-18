@@ -10,13 +10,7 @@ import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 
-/** Android scheduling adapter over the task state/outcome contract. */
-/*
- * The Java class was non-final and stayed extendable (task subclasses in Java and Kotlin);
- * Kotlin classes are final by default. The androidx threading annotations are expressed by
- * Kotlin types here: execute()/cancel()/isCanceled() stay callable from any thread, and the
- * callbacks stay main-thread deliveries made through the handler below.
- */
+/** Android scheduling adapter over [TaskController] that delivers outcomes on the main thread. */
 abstract class UiBasedBackgroundTask<Result>(private val failedResult: Result) {
     private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val mainThreadHandler = Handler(Looper.getMainLooper())
@@ -187,12 +181,7 @@ abstract class UiBasedBackgroundTask<Result>(private val failedResult: Result) {
         return state is TaskState.Cancelled && state.reason == TaskCancellation.EXPLICIT
     }
 
-    /*
-     * The Java method was public and non-final, and EncryptedBackupTask overrides it (a broadcast
-     * backup ignores session generation changes). Kotlin methods are final by default, so this
-     * stays explicitly open; the override could not compile — and javac would reject the Java one
-     * — against a final declaration.
-     */
+    /** True if the task was canceled or the vault session generation advanced; overridden for broadcast backups. */
     open fun isCanceled(): Boolean {
         controller.observeGeneration(VaultSession.generation())
         return controller.snapshot() is TaskState.Cancelled

@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../../../android/android_content.kt.
+// Sandbox-only stand-ins, see ../../../../android/android_content.kt.
 package me.zhanghai.android.materialprogressbar
 
 import android.content.Context

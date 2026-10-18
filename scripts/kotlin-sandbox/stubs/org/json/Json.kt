@@ -5,7 +5,7 @@
 // (JSON-java/Android): `put(name, null)` removes a mapping, `get(name)` throws JSONException for a
 // missing name, the JSON null sentinel is stored as JSONObject.NULL, and arrays are ordered.
 // The parser is a strict JSON reader; it is not the platform parser and no Android behaviour,
-// error message or extension (comments, single quotes) is replicated. See ../../../../README.md.
+// error message or extension (comments, single quotes) is replicated. See ../../../README.md.
 
 package org.json
 

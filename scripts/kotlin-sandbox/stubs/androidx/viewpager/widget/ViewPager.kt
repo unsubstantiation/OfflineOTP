@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../../android/android_content.kt.
+// Sandbox-only stand-ins, see ../../../android/android_content.kt.
 //
 // The pager surface the converted about screen wires its adapter into. `setAdapter` records the
 // adapter instead of laying out pages, so the checks can drive the two about tabs.

@@ -33,23 +33,9 @@ import org.shadowice.flocke.andotp.Utilities.Tools
 
 import java.util.Locale
 
-/**
- * Base activity that applies the selected theme and language.
- *
- * Converted from the Java class of the same name. The theme is still applied before
- * `super.onCreate()`, which is what AppCompat expects. Locale resources are now provided by a
- * configuration-specific base context instead of mutating shared [android.content.res.Resources].
- */
+/** Base activity that applies the configured theme and locale. */
 abstract class ThemedActivity : AppCompatActivity() {
-    /**
-     * The settings of this activity.
-     *
-     * The Java field was public and assigned in `onCreate`; it stays a public field so the Java
-     * activities keep reading it directly. Kotlin cannot declare a public field that is assigned
-     * later (`@JvmField` cannot be combined with `lateinit`), so the field is nullable: it is
-     * null before `onCreate`, exactly as it was in Java, and the `!!` uses below fail with the
-     * same `NullPointerException` the Java field access would have failed with.
-     */
+    /** Activity-scoped settings instance, initialized in [onCreate]. */
     @JvmField
     var settings: Settings? = null
 

@@ -5,12 +5,11 @@ import android.net.Uri
 
 import org.shadowice.flocke.andotp.R
 
-/** Result of a backup or restore task, including the toast/message to show for it. */
-/*
- * The Java class was non-final and stayed extendable; Kotlin classes are final by default. The
- * fields stay public (the Java callers read them directly) and the class stays a plain class
- * instead of a data class: {@code payload} can hold the whole parsed database, and the generated
- * toString/equals/copy surface would broadcast it.
+/**
+ * Result of a backup or restore task, including the toast/message resource ID.
+ *
+ * Not a data class because [payload] can hold decrypted backup JSON and must not be exposed via
+ * generated `toString`/`equals`/`copy` methods.
  */
 open class BackupTaskResult(type: ResultType, success: Boolean, payload: String?, messageId: Int) {
     /** Whether the result belongs to a backup or a restore (NONE for neither). */
@@ -35,13 +34,13 @@ open class BackupTaskResult(type: ResultType, success: Boolean, payload: String?
     }
 
     companion object {
-        /** Reports a successful backup ({@code payload} is the file name) or restore (the parsed database). */
+        /** Reports a successful backup ([payload] is the file name) or restore ([payload] is the decrypted JSON). */
         @JvmStatic
         fun success(type: ResultType, payload: String?): BackupTaskResult {
             return BackupTaskResult(type, true, payload, R.string.backup_toast_export_success)
         }
 
-        /** Reports a failed backup/restore; {@code messageId} is the error message to show (0 for the default). */
+        /** Reports a failed backup/restore; [messageId] is the error message resource ID (0 for default). */
         @JvmStatic
         fun failure(type: ResultType, messageId: Int): BackupTaskResult {
             return BackupTaskResult(type, false, null, messageId)

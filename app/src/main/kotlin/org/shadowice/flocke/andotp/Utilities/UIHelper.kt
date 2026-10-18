@@ -35,7 +35,7 @@ object UIHelper {
         showGenericDialog(context, titleId, messageId, null)
     }
 
-    /** Shows a message dialog, running {@code onOk} when it is confirmed. */
+    /** Shows a message dialog, running [onOk] when it is confirmed. */
     @JvmStatic
     fun showGenericDialog(context: Context, titleId: Int, messageId: Int, onOk: Runnable?) {
         AlertDialog.Builder(context)
@@ -51,13 +51,7 @@ object UIHelper {
         showKeyboard(context, view, false)
     }
 
-    /**
-     * Shows the soft keyboard for the given view (forced, or requested normally).
-     *
-     * {@code showForced} keeps the boxed Java parameter type; a null flag was never passed by a
-     * caller, and it fails like the Java unboxing would have instead of silently meaning "not
-     * forced".
-     */
+    /** Shows the soft keyboard for [view] (forced when [showForced] is true). */
     @JvmStatic
     fun showKeyboard(context: Context, view: View?, showForced: Boolean?) {
         if (view == null) {

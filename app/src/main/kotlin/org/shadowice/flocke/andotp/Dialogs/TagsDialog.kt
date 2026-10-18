@@ -13,12 +13,7 @@ import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.View.TagsAdapter
 import java.util.concurrent.Callable
 
-/**
- * Lets the user pick the tags of an entry and create new ones.
- *
- * The Java class had only a static entry point, so it becomes an `object` with the documented
- * `@JvmStatic` forwarder; the `ManualEntryDialog` call site is unchanged.
- */
+/** Dialog for selecting an entry's tags and creating new ones. */
 object TagsDialog {
     /** Shows the tag picker; the callables run after a tag was created and after the selection was confirmed. */
     @JvmStatic

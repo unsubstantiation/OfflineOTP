@@ -12,13 +12,10 @@ import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import java.util.Locale
 
 /**
- * Android-free entry document boundary: the JSON object one entry is stored as in the vault and in
- * backups. [parse] reads an untrusted object, [serialize] writes the same format; both are the only
- * place the field names, their order and the format defaults are defined.
+ * Android-free JSON parser and serializer for vault and backup entries.
  *
- * Expected malformed input produces a [EntryJsonResult.Failure], not an exception. The wire format
- * is byte-for-byte the one the Java `Entry` parser and serializer used, including the field order
- * the stored fixtures and the JSON round-trip test depend on.
+ * [parse] returns an [EntryJsonResult.Failure] on malformed input rather than throwing, and
+ * [serialize] writes fields in the canonical stored order.
  */
 object EntryJson {
     private const val JSON_SECRET = "secret"
@@ -35,7 +32,6 @@ object EntryJson {
     private const val JSON_USED_FREQUENCY = "used_frequency"
     private const val JSON_PIN = "pin"
 
-    // Older documents predate these fields; the Java parser defaulted them the same way.
     private const val DEFAULT_PERIOD = TokenCalculator.TOTP_DEFAULT_PERIOD
     private val INTEGER_TEXT = Regex("-?[0-9]+")
     private val BASE32_TEXT = Regex("[A-Z2-7]+={0,6}")
@@ -54,7 +50,6 @@ object EntryJson {
         if (!json.has(JSON_SECRET)) reject(EntryJsonError.MISSING_SECRET)
         val seed = decodeBase32Secret(text(json, JSON_SECRET)) ?: reject(EntryJsonError.INVALID_SECRET)
         try {
-            // Field order of the checks follows the previous Java constructor.
             val label = text(json, JSON_LABEL)
             // Older backups did not store the issuer separately.
             val issuer = if (json.has(JSON_ISSUER)) text(json, JSON_ISSUER) else ""
@@ -70,11 +65,9 @@ object EntryJson {
             val thumbnailName = thumbnailName(json)
             val lastUsed = usage(json, JSON_LAST_USED)
             val usedFrequency = usage(json, JSON_USED_FREQUENCY)
-            // The mOTP PIN was never stored before, so a document written by an older version (and
-            // every non-mOTP document) simply has no such key and reads back as an empty PIN.
+            // Absent on non-mOTP documents and older mOTP documents; defaults to empty.
             val pin = if (json.has(JSON_PIN)) text(json, JSON_PIN) else ""
 
-            // The bounds the Java model ran in validate() after reading every field, in its order.
             if (seed.isEmpty() || seed.size > InputPolicy.MAX_SECRET_BYTES) reject(EntryJsonError.INVALID_SECRET)
             try {
                 InputPolicy.tokenParameters(period, digits, counter)
@@ -95,8 +88,7 @@ object EntryJson {
             seed.fill(0)
             throw invalid
         } catch (invalid: IllegalArgumentException) {
-            // Defensive only: the value re-checks the bounds reported above; nothing else in this
-            // block throws an IllegalArgumentException.
+            // ValidatedEntry re-checks parameter bounds.
             seed.fill(0)
             throw Rejected(EntryJsonError.INVALID_PARAMETERS)
         }
@@ -130,9 +122,7 @@ object EntryJson {
         else if (kind == OtpKind.HOTP)
             jsonObj.put(JSON_COUNTER, counter)
 
-        // Same rule for the mOTP PIN: only an mOTP entry that actually has one carries the field,
-        // so every other document - and every mOTP document written before the field existed -
-        // stays byte-for-byte what the Java serializer produced.
+        // Only write a non-empty mOTP PIN so other documents keep their exact field set.
         if (kind == OtpKind.MOTP && pin.isNotEmpty())
             jsonObj.put(JSON_PIN, pin)
 
@@ -171,7 +161,7 @@ object EntryJson {
         return value as? String ?: reject(EntryJsonError.INVALID_TEXT)
     }
 
-    /** A numeric field in the Java parser's shape: digits only, no coercion from floats. */
+    /** Parses an integer field (optional leading '-', ASCII digits only, no float coercion). */
     private fun number(json: JSONObject, name: String): Long {
         val value = try {
             json.get(name)
@@ -183,7 +173,7 @@ object EntryJson {
         return text.toLongOrNull() ?: reject(EntryJsonError.INVALID_NUMBER)
     }
 
-    /** A numeric field that must fit an int, as `Math.toIntExact` required. */
+    /** Parses a numeric field that must fit in a 32-bit signed integer. */
     private fun int(json: JSONObject, name: String): Int {
         val value = number(json, name)
         if (value < Int.MIN_VALUE || value > Int.MAX_VALUE) reject(EntryJsonError.INVALID_NUMBER)
@@ -226,11 +216,7 @@ object EntryJson {
         return tags
     }
 
-    /**
-     * Best-effort display metadata: a missing, non-text or oversized name falls back to the default
-     * icon, exactly as the Java parser's value lookup catch did. No thumbnail name is longer than
-     * the entry text bound, so an oversized name can only be an unknown one.
-     */
+    /** Best-effort thumbnail name: returns null when missing, non-text, or oversized. */
     private fun thumbnailName(json: JSONObject): String? {
         val value = try {
             json.getString(JSON_THUMBNAIL)
@@ -240,7 +226,7 @@ object EntryJson {
         return if (value.length > InputPolicy.MAX_TEXT_CHARS) null else value
     }
 
-    /** Best-effort usage metadata: the Java parser defaulted unreadable values to zero. */
+    /** Best-effort usage metadata: missing or invalid values default to 0. */
     private fun usage(json: JSONObject, name: String): Long {
         return try {
             json.getLong(name)

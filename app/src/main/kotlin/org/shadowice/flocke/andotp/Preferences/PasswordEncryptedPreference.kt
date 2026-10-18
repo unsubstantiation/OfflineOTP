@@ -23,12 +23,7 @@ import org.shadowice.flocke.andotp.Utilities.Settings
 import java.nio.charset.StandardCharsets
 import java.security.KeyPair
 
-/**
- * Preference that stores a password/PIN encrypted with the KeyStore-backed key pair.
- *
- * `open` keeps the Java class's non-final shape and the two-argument constructor stays the one
- * the preference framework inflates from XML.
- */
+/** Dialog preference that stores a password or PIN encrypted with the KeyStore RSA key pair. */
 open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
     DialogPreference(context, attrs), View.OnClickListener, TextWatcher {
 

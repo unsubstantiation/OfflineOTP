@@ -38,7 +38,7 @@ open class HideableDialog(context: Context, titleId: Int, msgId: Int, private va
     }
 
     companion object {
-        /** Preserve the existing spelling/capitalization for MainActivity's Java call site. */
+        /** Shows the dialog unless its [hideSettingId] preference is already set. */
         @JvmStatic
         fun ShowHidableDialog(context: Context, titleId: Int, msgId: Int, hideSettingId: Int) {
             val settings = Settings(context)

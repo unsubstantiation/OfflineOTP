@@ -85,8 +85,7 @@ open class EntryThumbnail {
         }
     }
 
-    // Java exposed this type through getAssetType() despite declaring it private. Kotlin requires
-    // the return type to be visible too; making the enum public keeps the getter unmangled.
+    /** Vector or bitmap asset backing a thumbnail entry. */
     enum class AssetType { Bitmap, Vector }
 
     /** Names and declaration order are persisted/used by the thumbnail picker: do not normalize. */

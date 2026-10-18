@@ -40,16 +40,7 @@ import java.util.Locale
 
 import javax.crypto.SecretKey
 
-/**
- * Preference that switches the auth method and stores new password/PIN credentials.
- *
- * Converted from the Java class of the same name. The class name, the two-argument constructor
- * and the `DEFAULT_VALUE` constant stay the same, so the preference XML and the `Settings`
- * facade keep working.
- *
- * Documented deltas: the layout children are resolved with `requireNotNull`, and the package
- * private fields of the Java class are private here (nothing outside the class read them).
- */
+/** Dialog preference that selects the authentication method and updates password/PIN credentials. */
 open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
     DialogPreference(context, attrs), AdapterView.OnItemClickListener, View.OnClickListener,
     TextWatcher, TextView.OnEditorActionListener {

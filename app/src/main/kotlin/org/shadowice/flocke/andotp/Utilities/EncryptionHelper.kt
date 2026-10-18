@@ -51,27 +51,9 @@ import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-/**
- * Crypto helpers: AES/GCM encryption, PBKDF2 password derivation and the wrapped-key storage
- * used in KeyStore mode.
- *
- * Converted from the Java class of the same name. Every member was `static`, so this is the
- * documented `object` delta with `@JvmStatic` forwarders: Java callers keep writing
- * `EncryptionHelper.encrypt(…)` and the nested `PBKDF2Credentials`/`EncryptionChangeResult`/
- * `EncryptionChangeCallback` types keep their JVM names. The algorithms, the nonce framing, the
- * PBKDF2 split and the checked-exception surface are unchanged; the only intentional deltas are
- * the nullability annotations described next to the members that carry them.
- */
+/** Cryptographic helpers: AES-GCM encryption, PBKDF2 derivation, and KeyStore RSA key wrapping. */
 object EncryptionHelper {
-    /**
-     * The two halves of a derived credential: the authentication password and the encryption key.
-     *
-     * The class stays `open` like the Java nested class, which was extendable. Both fields stay
-     * public mutable `byte[]` fields (`@JvmField`) exactly as the Java declared them. Deliberate
-     * delta: they are non-null and start as empty arrays instead of `null`, so a Kotlin caller
-     * never needs `!!` for the wipe in `finally`; only the factory below constructs this holder,
-     * and it always fills both fields.
-     */
+    /** PBKDF2-derived authentication password hash and symmetric encryption key. */
     open class PBKDF2Credentials {
         @JvmField
         var password: ByteArray = ByteArray(0)
@@ -85,7 +67,7 @@ object EncryptionHelper {
         SUCCESS, CHANGE_FAILURE, BACKUP_FAILURE, MISSING_NEW_KEY, DECRYPTION_FAILED, TASK_CREATION_FAILED
     }
 
-    /** Called once the database has been re-encrypted with the new key. A SAM interface for Java. */
+    /** Called once the database has been re-encrypted with the new key. */
     fun interface EncryptionChangeCallback {
         fun onSuccessfulEncryptionChange(newEncryptionType: Constants.EncryptionType, newEncryptionKey: SecretKey)
     }
@@ -180,13 +162,7 @@ object EncryptionHelper {
         return raw
     }
 
-    /**
-     * Derives the PBKDF2 output and splits it into the auth password and the encryption key.
-     *
-     * [password]/[salt] are nullable because the Java parameters were: `null`, a missing short
-     * salt and out-of-range iterations are rejected here with the same `IllegalArgumentException`
-     * instead of failing later inside the provider.
-     */
+    /** Derives a PBKDF2 output and splits it into [PBKDF2Credentials.password] and [PBKDF2Credentials.key]. */
     @JvmStatic
     @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
     fun generatePBKDF2Credentials(password: String?, salt: ByteArray?, iter: Int): PBKDF2Credentials {
@@ -314,12 +290,7 @@ object EncryptionHelper {
         return cipher.doFinal(cipherText)
     }
 
-    /**
-     * Splits the nonce off the front of the blob and decrypts the remaining ciphertext.
-     *
-     * The parameter stays nullable: `null` and every frame shorter than nonce plus tag are
-     * rejected here with `IllegalArgumentException` before any provider work.
-     */
+    /** Splits the 12-byte GCM nonce off the front of [cipherText] and decrypts the remaining ciphertext. */
     @JvmStatic
     @Throws(NoSuchPaddingException::class, InvalidKeyException::class, NoSuchAlgorithmException::class,
             IllegalBlockSizeException::class, BadPaddingException::class, InvalidAlgorithmParameterException::class)
@@ -346,11 +317,7 @@ object EncryptionHelper {
         return cipher.doFinal(cipherText)
     }
 
-    /**
-     * Load our symmetric secret key.
-     * The symmetric secret key is stored securely on disk by wrapping
-     * it with a public/private key pair, possibly backed by hardware.
-     */
+    /** Loads (or generates and wraps) the symmetric vault key using [keyPair]. */
     @JvmStatic
     @Throws(GeneralSecurityException::class, IOException::class)
     fun loadOrGenerateWrappedKey(keyFile: File, keyPair: KeyPair): SecretKey {

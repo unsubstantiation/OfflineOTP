@@ -20,7 +20,7 @@ class EntryList {
     /** Adds the entry unless it is already in the list; returns whether it was added. */
     @Synchronized fun addEntry(newEntry: Entry): Boolean = addEntry(newEntry, false)
 
-    /** Like {@link #addEntry(Entry)}, but replaces an existing entry when {@code update} is true. */
+    /** Like [addEntry], but replaces an existing equal entry when [update] is true. */
     @Synchronized fun addEntry(newEntry: Entry, update: Boolean): Boolean {
         if (!entries.contains(newEntry)) {
             val newId = currentId.incrementAndGet()
@@ -72,7 +72,7 @@ class EntryList {
 
     @Synchronized fun getEntriesSorted(sortMode: Constants.SortMode): ArrayList<Entry> = sortEntries(entries, sortMode)
 
-    /** Returns a copy of the list, sorted according to {@code sortMode}. */
+    /** Returns a copy of [unsortedEntries] sorted by [sortMode]. */
     companion object {
         @JvmStatic
         fun sortEntries(unsortedEntries: ArrayList<Entry>, sortMode: Constants.SortMode): ArrayList<Entry> {

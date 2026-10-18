@@ -176,7 +176,7 @@ class ApplicationTest {
 
     @Test
     fun encryptedBackupHeaderAndKeyDerivationAgree() {
-        // The backup framing carries the PBKDF2 parameters the restore path must reuse.
+        // PBKDF2 credential split and backup key derivation with a 12-byte backup salt.
         val salt = EncryptionHelper.generateRandom(12)
         val credentials = EncryptionHelper.generatePBKDF2Credentials("correct horse battery staple", salt, 1000)
         assertEquals(16, credentials.key.size)

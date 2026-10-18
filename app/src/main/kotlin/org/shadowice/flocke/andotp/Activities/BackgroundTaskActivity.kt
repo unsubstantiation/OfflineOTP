@@ -11,16 +11,8 @@ import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 
 /**
- * Base activity for screens that run one [UiBasedBackgroundTask] through a retained task
- * fragment, so a running task survives configuration changes.
- *
- * Converted from the Java class of the same name. The retained fragment, the outcome routing, the
- * cancellation paths and the process-lifecycle observer are unchanged.
- *
- * Documented delta: the Java `onTaskResult` was package-private, and Kotlin has no package-private
- * visibility, so it is `protected` here (like the other task hooks of this class). The nested
- * `TaskFragment` keeps its name, its generic parameter and its public members; the task it holds
- * was private in Java and is `internal` here, because the outer activity reads and clears it.
+ * Base activity that runs a single [UiBasedBackgroundTask] inside a retained fragment
+ * so in-flight work survives configuration changes.
  */
 abstract class BackgroundTaskActivity<Result> : BaseActivity() {
     @JvmField
@@ -77,7 +69,7 @@ abstract class BackgroundTaskActivity<Result> : BaseActivity() {
     override fun onPause() {
         super.onPause()
 
-        // We don't want the task to callback to a dead activity and cause a memory leak, so null it here.
+        // Detach the callback while paused so a finished task does not reference a dead activity.
         findTaskFragment()?.setOutcomeCallback(null)
     }
 

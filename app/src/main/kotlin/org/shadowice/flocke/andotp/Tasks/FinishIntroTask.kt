@@ -14,7 +14,6 @@ import org.shadowice.flocke.andotp.Utilities.VaultWriteResult
 import javax.crypto.SecretKey
 
 /** Persists the choices made in the intro screen and derives the initial encryption key. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class FinishIntroTask(context: Context, private val encryptionType: Constants.EncryptionType,
                            private val authMethod: Constants.AuthMethod, private val password: String?,
                            private val androidSyncEnabled: Boolean) :
@@ -24,7 +23,6 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
     private val settingsContext: Context
 
     init {
-        // Only the application context is kept; the settings and the setup write share it.
         val applicationContext = context.getApplicationContext()
         settings = Settings(applicationContext)
         settingsContext = applicationContext

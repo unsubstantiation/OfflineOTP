@@ -68,15 +68,7 @@ import java.util.HashMap
 
 import javax.crypto.SecretKey
 
-/**
- * Main screen: the entry list with search, tag drawer and authentication handling.
- *
- * Converted from the Java class of the same name. The list, the drawer, the speed dial, the
- * authentication flow and the session hand-off are unchanged.
- *
- * Documented delta: the Java `public static long animatorDuration` becomes a public static field
- * (`@JvmField`) in the companion object, so the entry view holder can still read it.
- */
+/** Main screen displaying the OTP entry list, search, tag drawer, and authentication flow. */
 open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
 
     private var adapter: EntriesCardAdapter? = null
@@ -171,7 +163,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         cards?.visibility = View.INVISIBLE
     }
 
-    // Everything that should happen after the app is unlocked goes here
     private fun afterAuthentication() {
         if (VaultSession.getKey() == null || isFinishing()) return
         checkAutomaticTime()
@@ -211,7 +202,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 R.string.dialog_msg_auto_time, R.string.settings_key_dialog_hide_auto_time)
     }
 
-    // Initialize the main application
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -230,8 +220,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         encryptionType = settings!!.getEncryption()
 
-        // A live process-owned session may survive Activity recreation; process death cannot restore
-        // it from saved state, because no key or authentication proof is serialized there.
+        // Reuse the in-process session across Activity recreation; never serialize keys in saved state.
         requireAuthentication = VaultSession.getKey() == null &&
                 (settings!!.getAuthMethod() != AuthMethod.NONE || encryptionType == EncryptionType.PASSWORD)
 
@@ -437,9 +426,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     /**
-     * The activity is a singleInstance, so a link delivered while it is running arrives here. The
-     * cached intent must be replaced, or onResume would read the old, already-consumed intent and
-     * drop the new link. A locked vault is handled by onResume after authentication.
+     * Replaces the cached intent when a new intent arrives on an existing instance so [onResume]
+     * evaluates the new action (after authentication if the vault is locked).
      */
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
@@ -533,7 +521,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    // Activity results
     override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
         super.onActivityResult(requestCode, resultCode, intent)
 
@@ -646,7 +633,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    // Options menu
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         getMenuInflater().inflate(R.menu.menu_main, menu)
 
@@ -1054,12 +1040,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         private const val INTENT_IMPORT_QR = "org.shadowice.flocke.andotp.intent.IMPORT_QR"
         private const val INTENT_ENTER_DETAILS = "org.shadowice.flocke.andotp.intent.ENTER_DETAILS"
 
-        /**
-         * The duration of the token progress animations; the entry view holder reads it.
-         *
-         * The Java field was `public static long`; it stays a public static field here, so the
-         * Java-visible name does not change.
-         */
+        /** Duration of token progress bar animations, scaled by the system animator duration scale. */
         @JvmField
         var animatorDuration: Long = 1000
     }

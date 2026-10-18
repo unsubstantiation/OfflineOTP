@@ -19,7 +19,7 @@ enum class EntryJsonError {
     INVALID_TAGS, TOO_MANY_TAGS
 }
 
-/** A closed result contract, usable from Java via instanceof/getValue/getError. */
+/** Closed result of parsing a single entry JSON object. */
 sealed class EntryJsonResult {
     class Success(val value: ValidatedEntry) : EntryJsonResult() {
         override fun toString(): String = "EntryJsonResult.Success(redacted)"
@@ -28,12 +28,10 @@ sealed class EntryJsonResult {
 }
 
 /**
- * Immutable metadata and an owned seed read from an untrusted entry document; deliberately NOT a
- * data class: no seed-based equality/hash, generated copy/component methods or diagnostics.
+ * Validated entry metadata and owned seed read from an untrusted JSON document.
  *
- * Consumers copy the seed into their own model, then close this value. Unlike [ValidatedOtp] the
- * seed is not required to be ASCII hex for mOTP entries: the document format stores every seed as
- * Base32, and the historical parser accepted any Base32-decodable mOTP seed.
+ * Not a data class so secrets are never exposed via generated `toString`/`equals`/`copy`.
+ * Stored documents encode all seeds (including mOTP) as Base32.
  */
 class ValidatedEntry private constructor(
     val kind: OtpKind,

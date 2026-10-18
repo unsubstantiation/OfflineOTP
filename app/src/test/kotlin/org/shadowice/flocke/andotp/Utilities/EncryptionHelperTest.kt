@@ -66,7 +66,7 @@ class EncryptionHelperTest {
         val first = EncryptionHelper.generateSymmetricKeyPBKDF2("password", 1000, salt)
         val second = EncryptionHelper.generateSymmetricKeyPBKDF2("password", 1000, salt)
         assertArrayEquals(first.encoded, second.encoded)
-        assertEquals(32, first.encoded.size)  // PBKDF2_LENGTH / 2
+        assertEquals(32, first.encoded.size)  // PBKDF2_LENGTH / 8
     }
 
     @Test

@@ -56,16 +56,7 @@ import java.util.function.BooleanSupplier
 
 import javax.crypto.SecretKey
 
-/**
- * Backup/restore screen for password-encrypted and OpenPGP backups.
- *
- * Converted from the Java class of the same name. The file selection, the OpenPGP handshake, the
- * bounded document I/O and the restore merge are unchanged.
- *
- * Documented deltas: the layout children are resolved with `requireNotNull`, the Java
- * `outputStreamToString`/`handleOpenPGPResult` helpers stay public because they were, and the
- * platform's protected `onDestroy()` keeps the public visibility the Java class gave it.
- */
+/** Backup and restore screen for password-encrypted and OpenPGP backups. */
 open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var backupType: Constants.BackupType = Constants.BackupType.ENCRYPTED
     private var encryptionKey: SecretKey? = null
@@ -214,7 +205,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         finish()
     }
 
-    // Go back to the main activity
     override fun onSupportNavigateUp(): Boolean {
         if (allowExit)
             finishWithResult()
@@ -230,10 +220,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         }
     }
 
-    /**
-     * The Java class widened the platform's protected `onDestroy()` to public, so the public
-     * visibility is kept here; the body is unchanged.
-     */
     public override fun onDestroy() {
         encryptionKey = null
         super.onDestroy()
@@ -348,7 +334,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         progressRestore?.visibility = if (running) View.VISIBLE else View.GONE
     }
 
-    // Results from external activities
     override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
         super.onActivityResult(requestCode, resultCode, intent)
 
@@ -600,7 +585,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 return
             }
 
-            // Small hack to keep the target file even after user interaction
+            // Preserve the target URI across the OpenPGP user-interaction round trip.
             if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP) {
                 encryptTargetFile = file
             } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
@@ -631,7 +616,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     override fun shouldDestroyOnScreenOff(): Boolean {
-        return allowExit   // Don't destroy the backup activity as long as a backup task is running
+        return allowExit // Keep the activity open on screen off while a task is running.
     }
 
     companion object {

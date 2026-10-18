@@ -43,12 +43,10 @@ open class ThumbnailSelectionAdapter internal constructor(
     private val items = EntryThumbnails.values().toMutableList()
     private val settings = Settings(context)
 
-    // Was package-private Java. Keep an unmangled name for the existing same-package callers;
-    // Kotlin has no package-private visibility, so this method is now public.
     open fun filter(filter: String) {
         items.clear()
         for (thumbnail in EntryThumbnails.values()) {
-            // Java used the device locale. Do not silently switch existing filter semantics to ROOT.
+            // Filter case-insensitively using the active default locale.
             if (thumbnail.name.lowercase(Locale.getDefault()).contains(filter.lowercase(Locale.getDefault()))) {
                 items.add(thumbnail)
             }
@@ -58,7 +56,7 @@ open class ThumbnailSelectionAdapter internal constructor(
 
     override fun getCount(): Int = items.size
 
-    // Retain Object as the Java return type. High indexes fall back; negative indexes still throw.
+    // Out-of-range positive positions fall back to Default; negative positions throw.
     override fun getItem(position: Int): Any =
         if (position < getCount()) items[position] else EntryThumbnails.Default
 

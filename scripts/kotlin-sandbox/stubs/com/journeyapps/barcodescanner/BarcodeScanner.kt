@@ -1,4 +1,4 @@
-// Sandbox-only stand-in, see ../../android/android_content.kt.
+// Sandbox-only stand-in, see ../../../android/android_content.kt.
 //
 // It exists so the converted QR scanner activity can be type-checked and its window handling
 // executed on a desktop JVM. It is NOT the scanner library: there is no camera, no preview, no

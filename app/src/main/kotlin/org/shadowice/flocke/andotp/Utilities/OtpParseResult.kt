@@ -12,7 +12,7 @@ enum class OtpParseError {
 enum class OtpKind { TOTP, HOTP, MOTP, STEAM }
 enum class OtpHashAlgorithm { SHA1, SHA256, SHA512 }
 
-/** A closed result contract, usable from Java via instanceof/getValue/getError. */
+/** Closed result of parsing an `otpauth://` URI. */
 sealed class OtpParseResult {
     class Success(val value: ValidatedOtp) : OtpParseResult() {
         override fun toString(): String = "OtpParseResult.Success(redacted)"

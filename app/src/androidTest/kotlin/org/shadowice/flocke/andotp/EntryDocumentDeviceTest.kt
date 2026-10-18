@@ -99,7 +99,7 @@ class EntryDocumentDeviceTest {
             entry.toUri()
             throw AssertionError("destroyed entry still builds a URI")
         } catch (expected: NullPointerException) {
-            // expected: the Java model also failed on a missing seed
+            // expected: destroyed entry has no seed
         }
         assertTrue(entry.getLabel().isEmpty())
     }

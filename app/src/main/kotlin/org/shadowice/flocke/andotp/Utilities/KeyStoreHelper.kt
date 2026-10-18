@@ -39,16 +39,7 @@ import java.util.GregorianCalendar
 import javax.crypto.SecretKey
 import javax.security.auth.x500.X500Principal
 
-/**
- * Manages the app's Android KeyStore entries: the RSA pair that wraps the AES key in KeyStore mode.
- *
- * Converted from the Java class of the same name. Every member was `static`, so this is the
- * documented `object` delta with `@JvmStatic` forwarders: `Settings`, `SettingsActivity`,
- * `CredentialsPreference`, `EncryptedBackupWorker`, the converted tasks/preference and the tests
- * keep calling `KeyStoreHelper.wipeKeys(…)` etc. Deliberate deltas: the two lookup results are
- * explicitly nullable (`KeyPair?`/`SecretKey?`) because every Java failure path returned `null`,
- * and the unused `failSilent` parameter is kept for call-site compatibility.
- */
+/** Manages the Android KeyStore RSA key pair that wraps the AES vault key in KeyStore mode. */
 object KeyStoreHelper {
 
     /** Deletes the wrapped key file and the KeyStore entry (PANIC response and "clear keystore"). */
@@ -73,7 +64,7 @@ object KeyStoreHelper {
         }
     }
 
-    /** Read-only lookup; a missing alias is reported as `null`. A non-private entry throws ClassCastException, as the Java cast did. */
+    /** Read-only lookup of the KeyStore RSA key pair; returns null if the alias is absent. */
     @JvmStatic
     @Throws(GeneralSecurityException::class, IOException::class)
     fun loadAsymmetricKeyPair(context: Context, alias: String): KeyPair? {

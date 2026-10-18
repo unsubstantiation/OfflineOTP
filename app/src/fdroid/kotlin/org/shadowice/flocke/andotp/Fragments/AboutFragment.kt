@@ -8,12 +8,7 @@ import android.widget.LinearLayout
 
 import org.shadowice.flocke.andotp.R
 
-/**
- * fdroid flavor: adds the donation links for both authors to the About tab.
- *
- * Converted from the Java class of the same name. The two extra rows still fall back to the
- * clipboard for any failure of `openURI`, not only for a missing activity handler.
- */
+/** F-Droid flavor: adds donation links for both authors to the About tab. */
 open class AboutFragment : BaseAboutFragment() {
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View {

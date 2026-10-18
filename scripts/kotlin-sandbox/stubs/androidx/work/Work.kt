@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../android/android_content.kt.
+// Sandbox-only stand-ins, see ../../android/android_content.kt.
 //
 // They exist so the converted receivers and the WorkManager worker can be type-checked and their
 // decision logic executed on a desktop JVM. They are NOT WorkManager: no scheduler, no database,

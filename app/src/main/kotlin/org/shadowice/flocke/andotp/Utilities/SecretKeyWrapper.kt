@@ -36,7 +36,6 @@ import javax.crypto.SecretKey
  *
  * Not inherently thread safe.
  */
-// `open` keeps the Java class's non-final shape; Kotlin classes are final by default.
 open class SecretKeyWrapper
 @SuppressLint("GetInstance") // The RSA transformation JCA names is "RSA/ECB/PKCS1Padding"; the ECB warning is a false positive here.
 @Throws(GeneralSecurityException::class, IOException::class)

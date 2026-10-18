@@ -37,12 +37,10 @@ if [[ -z "$STDLIB" || ! -f "$STDLIB" ]]; then
     exit 2
 fi
 
-# The converted sources covered by this check. Every entry is compiled and its Java-visible shapes
-# are asserted in Checks.kt. The task subclasses are compiled against the real settings and crypto
-# helpers, not stand-ins. Since the twenty-first batch the whole user interface is compiled too: the six activities, the manual entry dialog, the credential preference and the two card
-# adapters. The fdroid flavor's AboutFragment is compiled as the representative flavor of the
-# about screens; the play flavor differs only by having no extras and is pinned by the Python
-# source guards instead.
+# The app sources covered by this check. Every entry is compiled and its JVM-visible shapes are
+# asserted in Checks.kt. The fdroid flavor's AboutFragment is compiled as the representative
+# flavor of the about screens; the play flavor differs only by having no extras and is pinned by
+# the Python source guards instead.
 APP_SOURCES=(
     "$KOTLIN_APP/Preferences/NumberPickerPreference.kt"
     "$KOTLIN_APP/Preferences/PasswordEncryptedPreference.kt"

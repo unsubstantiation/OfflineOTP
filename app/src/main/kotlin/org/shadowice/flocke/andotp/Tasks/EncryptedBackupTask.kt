@@ -14,7 +14,6 @@ import java.util.ArrayList
 import java.util.function.BooleanSupplier
 
 /** Writes a password-encrypted backup file. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class EncryptedBackupTask : GenericBackupTask {
     enum class Mode { USER, AUTO_EDIT, BROADCAST }
 

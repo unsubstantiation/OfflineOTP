@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../../../android/android_content.kt.
+// Sandbox-only stand-ins, see ../../../../../android/android_content.kt.
 package com.google.android.material.switchmaterial
 
 import android.content.Context

@@ -10,14 +10,7 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.function.BooleanSupplier
 
-/**
- * Reads and writes documents through the Storage Access Framework (content URIs).
- *
- * Converted from the Java class of the same name. Every member was `static`, so this is the
- * documented `object` delta with `@JvmStatic` forwarders: Java callers keep writing
- * `StorageAccessHelper.loadFile(…)`. The bounds, the scheme policy, the write chunking with its
- * permission re-checks and the never-throwing boolean/fallback results are unchanged.
- */
+/** Bounded Storage Access Framework (`content:`) document reads and chunked writes. */
 object StorageAccessHelper {
     /** Write granularity: the permission is consulted again before every chunk. */
     private const val WRITE_CHUNK_BYTES = 8192
@@ -77,8 +70,7 @@ object StorageAccessHelper {
         }
         val name = result ?: uri.getLastPathSegment()
         if (name == null || name.length > InputPolicy.MAX_TEXT_CHARS) return "backup"
-        // The length bound applies before stripping, exactly as in the Java; \p{Cntrl} is the
-        // ASCII control set (U+0000-U+001F, U+007F) of java.util.regex, which Kotlin's Regex uses.
+        // Enforce the length bound before stripping ASCII control characters.
         return name.replace(Regex("[\\p{Cntrl}]"), "")
     }
 

@@ -13,7 +13,6 @@ import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 /** Base for backup tasks: resolves the target file, then delegates to [doBackup]. */
-/* The Java class was abstract (extendable); Kotlin classes are final by default. */
 abstract class GenericBackupTask(context: Context, uri: Uri?) :
         UiBasedBackgroundTask<BackupTaskResult>(BackupTaskResult.failure(BackupTaskResult.ResultType.BACKUP, R.string.backup_toast_export_failed)) {
 
@@ -57,10 +56,7 @@ abstract class GenericBackupTask(context: Context, uri: Uri?) :
     /** Writes the backup to [uri] and reports whether it succeeded. */
     protected abstract fun doBackup(): Boolean
 
-    /**
-     * Whether the task may write: not canceled and a live session key. The Java method was
-     * non-final; [EncryptedBackupTask] replaces this policy, so it stays overridable.
-     */
+    /** Whether the task is still allowed to write (not canceled and vault session unlocked). */
     protected open fun canWrite(): Boolean {
         return !isCanceled() && VaultSession.getKey() != null
     }
