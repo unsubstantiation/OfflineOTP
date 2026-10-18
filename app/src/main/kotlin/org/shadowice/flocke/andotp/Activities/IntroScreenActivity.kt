@@ -46,14 +46,7 @@ import org.shadowice.flocke.andotp.Utilities.VaultSession
 import java.util.Arrays
 import java.util.Locale
 
-/**
- * First-run wizard: chooses the encryption, authentication and Android backup settings.
- *
- * Converted from the Java class of the same name. The slides, the collected settings and the
- * key hand-off to the vault session are unchanged.
- *
- * Documented delta: the layout children are resolved with `requireNotNull`.
- */
+/** First-run wizard for configuring encryption, authentication, and Android backup settings. */
 open class IntroScreenActivity : IntroActivity() {
     private var encryptionFragment: EncryptionFragment? = null
     private var authenticationFragment: AuthenticationFragment? = null
@@ -104,7 +97,6 @@ open class IntroScreenActivity : IntroActivity() {
             .build()
         )
 
-        // Tell the fragment where it is located
         authentication.setSlidePos(getSlides().size)
 
         addSlide(FragmentSlide.Builder()
@@ -135,8 +127,7 @@ open class IntroScreenActivity : IntroActivity() {
 
         addOnPageChangeListener(object : ViewPager.OnPageChangeListener {
             override fun onPageSelected(position: Int) {
-                // The second part is needed to prevent the function from being triggered a second
-                // time when clicking the finish button in the last slide
+                // Guard against saving a second time when the finish button is pressed on the final slide.
                 if (position == getCount() - 1 && currentSlidePosition < getCount()) {
                     try {
                         finished.saveSettings(encryption.getEncryptionType(), authentication.getAuthMethod(),
@@ -160,7 +151,7 @@ open class IntroScreenActivity : IntroActivity() {
         super.onDestroy()
     }
 
-    /** Returns the setup result to MainActivity. */
+    /** Returns the setup result to MainActivity and hands any derived key to [VaultSession]. */
     override fun onSendActivityResult(result: Int): Intent {
         val data = Intent()
         data.putExtra(Constants.EXTRA_INTRO_FINISHED, setupFinished)
@@ -176,7 +167,7 @@ open class IntroScreenActivity : IntroActivity() {
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
-        // We don't want users to quit the intro screen and end up in an uninitialized state
+        // Prevent leaving the intro screen before initial setup completes.
     }
 
     /** Slide to choose between KeyStore and password encryption. */
@@ -672,7 +663,6 @@ open class IntroScreenActivity : IntroActivity() {
 
                 val km = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager?
 
-                // The KEYGUARD_SERVICE should always be available
                 if (km == null || !km.isKeyguardSecure()) {
                     updateWarning(R.string.settings_toast_auth_device_not_secure)
                     return false

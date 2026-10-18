@@ -9,7 +9,6 @@ import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 import java.nio.charset.StandardCharsets
 
 /** Writes a backup whose contents were already encrypted by the OpenPGP app. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class PGPBackupTask(context: Context, private val payload: String, uri: Uri?) : GenericBackupTask(context, uri) {
 
     protected override fun getBackupType(): Constants.BackupType {

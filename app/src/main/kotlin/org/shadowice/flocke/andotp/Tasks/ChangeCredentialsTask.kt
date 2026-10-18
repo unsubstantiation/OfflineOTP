@@ -13,7 +13,6 @@ import org.shadowice.flocke.andotp.Utilities.VaultWriteResult
 import javax.crypto.SecretKey
 
 /** Changes the authentication credentials and re-encrypts the database if required. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class ChangeCredentialsTask(context: Context, private val encryptionType: Constants.EncryptionType,
                                  private val oldEncryptionKey: SecretKey?, private val newAuthMethod: Constants.AuthMethod,
                                  private val password: String?) :

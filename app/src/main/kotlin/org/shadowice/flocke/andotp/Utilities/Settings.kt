@@ -45,35 +45,9 @@ import java.util.function.BooleanSupplier
 import javax.crypto.SecretKey
 
 /**
- * Typed accessors for the app's SharedPreferences, addressed by string resource ID.
+ * Typed accessors for the app's [SharedPreferences], addressed by string resource ID.
  *
- * Converted from the Java class of the same name. It stays an instantiable, extendable class with a
- * public `Settings(Context)` constructor — the instrumentation tests subclass it to control one
- * preference getter — and every public member keeps its Java name, its boxed-versus-primitive
- * parameter shape and its checked exceptions. The accessors stay methods (`getTheme()`, not a Kotlin
- * property) so Java callers keep compiling; the two converted Kotlin callers that used property
- * syntax for a Java getter were changed to the method call.
- *
- * Deliberate deltas, made explicit instead of left implicit:
- *
- * - Every case conversion keeps the locale the Java call had. The Java sources were inconsistent on
- *   purpose (`Locale.ENGLISH`, `Locale.ROOT`, and plain `toLowerCase()`/`toUpperCase()`, which use
- *   the default locale); Kotlin's `lowercase()`/`uppercase()` without an argument use the *root*
- *   locale, so the default-locale call sites pass `Locale.getDefault()` explicitly.
- * - The platform preference getters are annotated nullable even when a non-null default is passed.
- *   The Java code relied on the platform's "non-null default, non-null result" contract and
- *   dereferenced the value immediately; the private accessors normalize that contract in one place
- *   (`!!`) and nowhere else, which is what keeps the Java-visible types non-null.
- * - The boxed `setAllTagsToggle`/`setNoTagsToggle`/`setTagToggle` parameters dereference their
- *   argument exactly as the Java unboxing did, so a `null` argument still fails instead of silently
- *   writing a default.
- * - `PreparedCredentials` stays a final nested class with its public `key` field and `destroy()`.
- *   Kotlin has no package-private visibility, so its constructor and the three remaining fields are
- *   public in bytecode where Java made them package-private.
- * - Nothing about the stored keys, the defaults, the deprecated-key migration, the credential
- *   transaction or the automatic-backup policy changed. `commitVaultSettings` is still the
- *   preference half of the staged vault transaction, and the migration still runs only when
- *   `DatabaseHelper.recoverPendingDatabase` reports a clean start.
+ * Runs deprecated-preference migrations on construction when no staged vault transaction is pending.
  */
 open class Settings(private val context: Context) {
     private val settings: SharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
@@ -155,10 +129,7 @@ open class Settings(private val context: Context) {
         return getString(keyId, getResString(defaultId))
     }
 
-    /**
-     * The platform accessor takes a non-null default here and is documented to return it when the
-     * key is absent, so the Java code's non-null assumption is asserted once, in this one place.
-     */
+    /** Reads a string preference with a non-null fallback. */
     private fun getString(keyId: Int, defaultValue: String): String {
         return settings.getString(getResString(keyId), defaultValue)!!
     }
@@ -235,9 +206,7 @@ open class Settings(private val context: Context) {
 
             if (keep_auth) {
                 editor.putString(getResString(R.string.settings_key_encryption), encryptionType.name.lowercase(Locale.ROOT))
-                // The Java class used the default locale here (and Locale.ROOT one line above); that
-                // inconsistency is preserved, because changing it would change what this commit writes
-                // on a non-root default locale — a stored-format change, not a conversion.
+                // Default-locale lowercasing matches the stored preference format.
                 editor.putString(getResString(R.string.settings_key_auth), authMethod.toString().lowercase(Locale.getDefault()))
 
                 if (!authCredentials.isEmpty()) {
@@ -307,13 +276,7 @@ open class Settings(private val context: Context) {
         return getString(R.string.settings_key_auth_credentials, "")
     }
 
-    /**
-     * Derived authentication material that has not been committed yet.
-     *
-     * The class stays final, keeps its public `key` field and public `destroy()`. Kotlin has no
-     * package-private visibility, so the constructor and the three remaining fields are public in
-     * bytecode where Java made them package-private.
-     */
+    /** Uncommitted PBKDF2 authentication material and derived encryption key. */
     class PreparedCredentials(
         @JvmField val key: ByteArray,
         @JvmField val verifier: String,
@@ -471,10 +434,8 @@ open class Settings(private val context: Context) {
             val blackTheme = getBoolean(R.string.settings_key_theme_black_auto, false)
 
             when (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) {
-                //Dark Mode
                 Configuration.UI_MODE_NIGHT_YES ->
                     theme = if (blackTheme) R.style.AppTheme_Black_NoActionBar else R.style.AppTheme_Dark_NoActionBar
-                //Light Mode / Undefined mode / Default mode
                 else -> theme = R.style.AppTheme_NoActionBar
             }
         } else {
@@ -630,8 +591,6 @@ open class Settings(private val context: Context) {
     open fun setTagToggle(tag: String, value: Boolean?) {
         val toggledTagsPref = settings.getStringSet(getResString(R.string.settings_key_tags_toggles), Collections.emptySet<String>())
 
-        // The Java code started from the immutable empty set and replaced it with a mutable copy
-        // only when the stored value was present; `MutableSet` keeps that exact sequence.
         var toggledTags: MutableSet<String> = Collections.emptySet()
 
         if (toggledTagsPref != null) toggledTags = HashSet(toggledTagsPref)

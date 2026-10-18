@@ -18,12 +18,7 @@ import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
 import org.shadowice.flocke.andotp.Utilities.Tools
 
-/**
- * Dialog that asks for a backup password (once, or twice with confirmation).
- *
- * `open` keeps the Java class's non-final shape; the listeners stay Java-facing so the
- * `BackupActivity` lambda call sites compile unchanged.
- */
+/** Dialog that prompts for a backup password (single entry or with confirmation). */
 open class PasswordEntryDialog(
     context: Context,
     newMode: Mode,

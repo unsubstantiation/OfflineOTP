@@ -32,17 +32,7 @@ import org.shadowice.flocke.andotp.View.AutoFillable.AutoFillableTextInputEditTe
 
 import java.util.Arrays
 
-/**
- * Asks for the password/PIN (or the device lock) and returns the derived database key.
- *
- * Converted from the Java class of the same name. The credential check, the task hand-off, the
- * one-use key hand-off to the session and the autofill/IME handling are unchanged.
- *
- * Documented deltas: the layout children are resolved with `requireNotNull` (a missing child now
- * fails with an `IllegalArgumentException` where Java would have failed later with a
- * `NullPointerException`), and the package-private `passwordInput` field is private here because
- * no other class read it.
- */
+/** Prompts for the password or PIN and hands the derived key to [VaultSession]. */
 open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(),
     TextView.OnEditorActionListener, View.OnClickListener {
 
@@ -73,7 +63,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             isAuthUpgrade = true
         }
 
-        // If our password is still empty at this point, we can't do anything.
+        // Abort if no current or legacy credentials are stored.
         if (existingAuthCredentials.isEmpty()) {
             val missingPwResId = if (authMethod == AuthMethod.PASSWORD)
                 R.string.auth_toast_password_missing else R.string.auth_toast_pin_missing
@@ -81,7 +71,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             finishWithResult(false, null)
             return
         }
-        // If we're not using password or PIN as the auth method, we have nothing to authenticate here.
+        // Only password and PIN authentication use this screen.
         if (authMethod != AuthMethod.PASSWORD && authMethod != AuthMethod.PIN) {
             finishWithResult(false, null)
             return

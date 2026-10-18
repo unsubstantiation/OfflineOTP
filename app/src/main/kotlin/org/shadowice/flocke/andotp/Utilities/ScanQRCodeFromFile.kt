@@ -46,16 +46,8 @@ import java.io.IOException
 import java.util.EnumMap
 import java.util.Vector
 
-/**
- * Decodes a QR code from an image file chosen by the user.
- *
- * Converted from the Java class of the same name. Its only member was `static`, so this is the
- * documented `object` delta with a `@JvmStatic` forwarder. The bounded document read, both image
- * dimension checks, the bitmap recycling, the normal-then-TRY_HARDER decode and the failure toasts
- * (the last decode failure decides the message) are unchanged.
- */
+/** Decodes a QR code from a user-selected image URI using bounded reads and dimensions. */
 object ScanQRCodeFromFile {
-    // Built once, in this order, exactly like the Java static initializer.
     private val HINTS: MutableMap<DecodeHintType, Any> =
         EnumMap<DecodeHintType, Any>(DecodeHintType::class.java).apply {
             val barcodeFormats = Vector<BarcodeFormat>()
@@ -71,7 +63,6 @@ object ScanQRCodeFromFile {
     /** Decodes the first QR code found in the given image file; null (after a toast) otherwise. */
     @JvmStatic
     fun scanQRImage(context: Context, uri: Uri?): String? {
-        // Read the image file
         val imageInBytes: ByteArray
         try {
             imageInBytes = StorageAccessHelper.loadFile(context, uri)
@@ -114,7 +105,6 @@ object ScanQRCodeFromFile {
         var savedException: ReaderException? = null
 
         try {
-            // Try a normal decode first
             contents = reader.decode(bitmap, HINTS).getText()
         } catch (re: ReaderException) {
             savedException = re
@@ -122,7 +112,6 @@ object ScanQRCodeFromFile {
 
         if (contents == null) {
             try {
-                // Retry with the TRY_HARDER hint
                 contents = reader.decode(bitmap, HINTS_HARDER).getText()
             } catch (re: ReaderException) {
                 savedException = re
@@ -130,8 +119,6 @@ object ScanQRCodeFromFile {
         }
 
         if (contents == null) {
-            // The Java threw the saved failure (or NotFound) and caught it by type; the most specific
-            // matching type picks the message, and the stack trace is still printed as before.
             val failure: ReaderException = savedException ?: NotFoundException.getNotFoundInstance()
             failure.printStackTrace()
             val message = when (failure) {
@@ -142,7 +129,6 @@ object ScanQRCodeFromFile {
             Toast.makeText(context, message, Toast.LENGTH_LONG).show()
         }
 
-        // Return the QR content (null if none was found)
         return contents
     }
 }

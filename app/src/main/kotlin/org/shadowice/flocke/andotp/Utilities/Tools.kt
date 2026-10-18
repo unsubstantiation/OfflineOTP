@@ -74,7 +74,7 @@ object Tools {
         return numberFormat.format(token)
     }
 
-    /** Splits the token into groups of {@code chunkSize} characters. */
+    /** Splits the token into groups of [chunkSize] characters. */
     @JvmStatic fun formatToken(s: String?, chunkSize: Int): String? {
         // A non-positive chunk never shrinks the index below zero and would loop forever.
         if (chunkSize <= 0 || s == null) return s

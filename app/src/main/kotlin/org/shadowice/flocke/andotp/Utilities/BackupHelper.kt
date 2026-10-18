@@ -12,23 +12,9 @@ import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.function.BooleanSupplier
 
-/**
- * Filenames, MIME types and file access for the backup files.
- *
- * Converted from the Java class of the same name. Every member was `static`, so this is the
- * documented `object` delta with `@JvmStatic` forwarders. The unique automatic-backup names, the
- * MIME mapping, the settings-driven names and the encrypted-backup layout (iteration count, salt,
- * then the AES-GCM output) are unchanged.
- */
+/** Filenames, MIME types, and file I/O for encrypted and OpenPGP backups. */
 object BackupHelper {
-    /**
-     * The resolved backup file, or the error to show if it could not be created.
-     *
-     * The Java nested class was non-final with two public mutable fields and a public no-argument
-     * constructor; it stays `open` with `@JvmField` fields so Java keeps reading/writing them
-     * directly. It is not a data class: it carries no secret, but a generated `equals`/`copy`
-     * surface was never part of its API.
-     */
+    /** Resolved backup target [file], or [errorMessage] resource ID if creation failed. */
     open class BackupFile {
         @JvmField var file: DocumentFile? = null
         @JvmField var errorMessage: Int = 0
@@ -65,7 +51,6 @@ object BackupHelper {
     /** The file name for the given backup type, optionally with a date/time suffix. */
     @JvmStatic
     fun backupFilename(context: Context, type: Constants.BackupType): String {
-        // Constructed before the type is inspected, as in the Java.
         val settings = Settings(context)
         return when (type) {
             Constants.BackupType.ENCRYPTED ->

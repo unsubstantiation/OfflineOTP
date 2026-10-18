@@ -36,13 +36,7 @@ import org.shadowice.flocke.andotp.R
 
 import java.util.Locale
 
-/**
- * Creates the backup notification channels and posts the backup notifications.
- *
- * Converted from the Java class of the same name. Every member was `static`, so this is the
- * documented `object` delta with `@JvmStatic` forwarders. Channel ids, names, importances, the
- * Android 13 permission gate and the single reused notification id are unchanged.
- */
+/** Creates backup notification channels and posts backup status notifications. */
 object NotificationHelper {
     // Only read after the Android 13 (TIRAMISU) check in requestNotificationPermission().
     @SuppressLint("InlinedApi")
@@ -65,11 +59,7 @@ object NotificationHelper {
         }
     }
 
-    /*
-     * Lower-cased with the *default* locale, exactly as the Java `toLowerCase()` did (Kotlin's
-     * `lowercase()` would use the root locale). Under a Turkish default locale this yields
-     * "andOTP_backup_faıled"; that pre-existing quirk is kept, not fixed, by this conversion.
-     */
+    // Uses the default locale to preserve existing notification channel IDs.
     private fun channelId(channel: Constants.NotificationChannel): String =
         "andOTP_" + channel.name.lowercase(Locale.getDefault())
 
@@ -111,9 +101,6 @@ object NotificationHelper {
     /** Posts a notification with an already resolved body text. */
     @JvmStatic
     fun notify(context: Context, channel: Constants.NotificationChannel, resIdTitle: Int, resBody: String?) {
-        // The Java built with a null channel id and set the id after creating the channel. The
-        // AndroidX constructor's channel id is @NonNull for Kotlin, so the same id is passed to
-        // the constructor instead; the builder only stores it, so the notification is identical.
         val builder = NotificationCompat.Builder(context, channelId(channel))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(context.getText(resIdTitle))

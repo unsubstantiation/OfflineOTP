@@ -18,17 +18,9 @@ import java.security.spec.InvalidKeySpecException
 import java.util.Arrays
 
 /** Verifies a password/PIN and returns the database key, upgrading legacy hashes when needed. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boolean,
                               private val existingAuthCredentials: String, private val plainPassword: String?) :
         UiBasedBackgroundTask<AuthenticationOutcome>(AuthenticationOutcome.Rejected(AuthenticationError.DENIED)) {
-    /*
-     * The Java code dereferenced existingAuthCredentials without a null check (Base64.decode and
-     * the upgrade guard), and every caller passes a settings-derived string, so it stays a
-     * required non-null constructor parameter: a null now fails fast with a clear exception
-     * instead of surfacing later. plainPassword is explicitly null-checked below and stays
-     * nullable. Only the application context is kept.
-     */
     private val settings: Settings = Settings(context.getApplicationContext())
 
     protected override fun discardResult(result: AuthenticationOutcome) {

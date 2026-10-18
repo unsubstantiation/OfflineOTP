@@ -7,7 +7,7 @@
 // Decoder-strictness differences are invisible to that check: text that does not round-trip
 // through this pair is rejected either way, exactly as an invalid or canonical-mismatched seed was
 // before. The real library's exception types and its leniency for over-padded input are not
-// replicated. See ../../../../README.md.
+// replicated. See ../../../../../../README.md.
 
 package org.apache.commons.codec.binary
 

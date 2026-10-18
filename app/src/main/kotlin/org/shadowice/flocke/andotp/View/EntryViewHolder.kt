@@ -31,18 +31,7 @@ import org.shadowice.flocke.andotp.View.ItemTouchHelper.ItemTouchHelperViewHolde
 
 import java.util.Locale
 
-/**
- * A single entry card and its (single/double) click handling.
- *
- * Converted from the Java class of the same name. The card binding, the tap handling and the
- * progress animation are unchanged. The custom-period row (`customPeriodLayout`/`customPeriod`,
- * present on every card variant with translated `format_custom_period` strings) is bound again:
- * andOTP v0.4/v0.5 showed it for entries with a non-default period, the wiring was lost upstream
- * in v0.6 and OfflineOTP kept shipping the dead row until now.
- *
- * Documented deltas: the layout children are resolved with `requireNotNull`, and the private
- * `AdapterPositionSafeCallbackConsumer` interface stays a nested type of this class.
- */
+/** ViewHolder for a single OTP entry card and its click/double-click actions. */
 open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     RecyclerView.ViewHolder(v), ItemTouchHelperViewHolder {
 
@@ -169,8 +158,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             counterLayout.visibility = View.GONE
         }
 
-        // The custom-period row: entries with a non-default period show it, like andOTP
-        // v0.4/v0.5 did ("%d s" via the localized format_custom_period string).
+        // Show the custom-period row when the entry uses a non-default period.
         if (entry.hasNonDefaultPeriod()) {
             customPeriodLayout.visibility = View.VISIBLE
             customPeriod.setText(

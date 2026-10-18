@@ -78,14 +78,14 @@ internal open class LetterBitmap(context: Context) {
         firstChar[0] = Character.toUpperCase(character)
         paint.textSize = tileLetterFontSizeScale * height
         paint.getTextBounds(firstChar, 0, 1, bounds)
-        // Preserve Java's integer centering for odd dimensions and odd glyph bounds.
+        // Integer centering for odd dimensions and odd glyph bounds.
         canvas.drawText(firstChar, 0, 1, (width / 2).toFloat(),
             (height / 2 + (bounds.bottom - bounds.top) / 2).toFloat(), paint)
         return bitmap
     }
 
     private fun pickColor(key: String): Int {
-        // Preserve the Java string hash mapping, including negative hashes.
+        // Map the string hash (including negative values) into the palette.
         val color = Math.abs(key.hashCode()) % NUM_OF_TILE_COLORS
         return colors[color]
     }

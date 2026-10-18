@@ -33,43 +33,25 @@ import com.journeyapps.barcodescanner.DecoratedBarcodeView
 import org.shadowice.flocke.andotp.Utilities.LocaleContextHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
 
-/**
- * QR scanner activity that honours the theme, language and screenshot settings.
- *
- * Converted from the Java class of the same name. The theme, the language, the window flags, the
- * secure flag and the hidden system bars are unchanged. Its separate locale override uses a
- * configuration-specific base context, like the other app activities, without mutating shared
- * Resources.
- */
+/** QR scanner activity that applies the app's theme, locale, and screenshot policy. */
 open class SecureCaptureActivity : CaptureActivity() {
     override fun attachBaseContext(newBase: Context) {
         val locale = Settings(newBase).getLocale()
         super.attachBaseContext(LocaleContextHelper.createLocalizedContext(newBase, locale))
     }
 
-    /**
-     * Overrides [CaptureActivity.initializeContent] to:
-     * - block screenshots and non-secure displays (unless enabled in the app settings),
-     * - request hardware acceleration,
-     * - hide the system bars.
-     *
-     * Note: the super class calls `android.app.Activity.setContentView(int)` before this method,
-     * so the window decor exists by the time [android.view.Window.getInsetsController] is used;
-     * calling it earlier would throw an NPE.
-     */
+    /** Applies theme and window flags around [CaptureActivity.initializeContent] and hides the system bars. */
     override fun initializeContent(): DecoratedBarcodeView {
         val settings = Settings(this)
 
         setTheme(settings.getTheme())
 
-        // This flag must be set before setting the content view of the activity or dialog.
+        // Must be set before super.initializeContent() inflates the content view.
         getWindow().setFlags(
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
             WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
         )
 
-        // All window flags, that must be set before the window decoration is created, are already set
-        // so we are safe to call super here.
         val barcodeScannerView = super.initializeContent()
 
         if (!settings.getScreenshotsEnabled()) {

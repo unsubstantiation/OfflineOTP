@@ -9,10 +9,7 @@ object BoundedInputReader {
     // Applies to encrypted backup and QR image bytes. Decoded-image limits are separate.
     const val MAX_DOCUMENT_BYTES = 16 * 1024 * 1024
 
-    /**
-     * Caller owns the stream. Reads at most limit + 1 bytes to detect oversized input.
-     * The checked exception is declared so Java callers keep their existing handling.
-     */
+    /** Caller owns the stream. Reads at most `limit + 1` bytes to detect oversized input. */
     @JvmStatic
     @Throws(IOException::class)
     fun read(input: InputStream?, limit: Int): ByteArray {

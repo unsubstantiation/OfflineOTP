@@ -34,8 +34,7 @@ import java.util.regex.Pattern
 /** Converts dimension strings such as "12dp" from the preferences to pixels. */
 object DimensionConverter {
 
-    // Maps dimension unit suffixes ("dp", "sp", ...) to TypedValue constants
-    /** Lookup table for the supported unit suffixes. */
+    /** Maps dimension unit suffixes ("dp", "sp", ...) to [TypedValue] constants. */
     @JvmField
     val dimensionConstantLookup: Map<String, Int> = initDimensionConstantLookup()
 
@@ -57,7 +56,6 @@ object DimensionConverter {
     /** Like [TypedValue.complexToDimensionPixelSize], but parses a string such as "12dp". */
     @JvmStatic
     fun stringToDimensionPixelSize(dimension: String, metrics: DisplayMetrics): Int {
-        // Mimics TypedValue.complexToDimensionPixelSize(int, DisplayMetrics)
         val internalDimension = stringToInternalDimension(dimension)
         val value = internalDimension.value
         val f = TypedValue.applyDimension(internalDimension.unit, value, metrics)
@@ -70,7 +68,6 @@ object DimensionConverter {
     /** Like [TypedValue.complexToDimension], but parses a string such as "12dp". */
     @JvmStatic
     fun stringToDimension(dimension: String, metrics: DisplayMetrics): Float {
-        // Mimics TypedValue.complexToDimension(int, DisplayMetrics)
         val internalDimension = stringToInternalDimension(dimension)
         return TypedValue.applyDimension(internalDimension.unit, internalDimension.value, metrics)
     }
@@ -82,8 +79,7 @@ object DimensionConverter {
             throw NumberFormatException()
         }
         val value = java.lang.Float.valueOf(matcher.group(1)).toFloat()
-        // The Java implementation lower-cased with the default locale; kept as-is so a locale
-        // change cannot silently alter which unit strings are accepted (see the conversion record).
+        // Lowercase with the default locale before looking up the unit suffix.
         val unit = matcher.group(3).lowercase(Locale.getDefault())
         val dimensionUnit = dimensionConstantLookup[unit]
         return if (dimensionUnit == null) {

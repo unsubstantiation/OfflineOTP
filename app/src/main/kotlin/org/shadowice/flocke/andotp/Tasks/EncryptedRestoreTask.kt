@@ -13,7 +13,6 @@ import java.nio.charset.StandardCharsets
 import javax.crypto.SecretKey
 
 /** Reads a password-encrypted backup, in the current or in the legacy format. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class EncryptedRestoreTask(context: Context, uri: Uri?, private val password: String, private val oldFormat: Boolean) :
         GenericRestoreTask(context, uri) {
 

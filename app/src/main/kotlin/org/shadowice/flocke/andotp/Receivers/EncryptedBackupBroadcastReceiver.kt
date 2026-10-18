@@ -36,15 +36,10 @@ import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
 
-// Android enforces the manifest signature permission before invoking this receiver.
-// Ordinary automation apps and adb shell are intentionally not authorized callers.
 /**
- * Queues a password-encrypted backup when the corresponding broadcast is received.
+ * Queues a password-encrypted backup via WorkManager when [ACTION] is received.
  *
- * Converted from the Java class of the same name. The check order, the four distinct failure
- * notifications, the throttled broadcast slot and the queued work are unchanged; the class stays
- * extendable, and the two constants stay `public static final` fields for the Java callers (the
- * panic responder and the settings screen cancel the queued work by its name).
+ * Manifest signature permission `CONTROL_VAULT` restricts callers to same-signer apps.
  */
 open class EncryptedBackupBroadcastReceiver : BackupBroadcastReceiver() {
     companion object {
@@ -70,8 +65,6 @@ open class EncryptedBackupBroadcastReceiver : BackupBroadcastReceiver() {
         }
 
         if (!settings.tryAcquireBroadcastBackupSlot()) return
-        // The Java read a possibly null password; the converted accessor is not null, but the
-        // empty check below is the one that decides the outcome.
         val password: String? = settings.getBackupPasswordEnc()
 
         if (password == null || password.isEmpty()) {

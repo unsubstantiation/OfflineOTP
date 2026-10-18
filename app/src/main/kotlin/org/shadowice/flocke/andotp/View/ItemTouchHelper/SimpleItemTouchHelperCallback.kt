@@ -32,7 +32,6 @@ import androidx.recyclerview.widget.RecyclerView
  *
  * @author Paul Burke (ipaulpro)
  */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class SimpleItemTouchHelperCallback(private val adapter: ItemTouchHelperAdapter) : ItemTouchHelper.Callback() {
 
     private var dragEnabled = true
@@ -52,7 +51,6 @@ open class SimpleItemTouchHelperCallback(private val adapter: ItemTouchHelperAda
 
     /** Allows dragging (both axes in a grid, vertically in a list); swiping is never allowed. */
     override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
-        // Set movement flags based on the layout manager
         return if (recyclerView.layoutManager is GridLayoutManager) {
             makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN or ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT, 0)
         } else {
@@ -66,21 +64,18 @@ open class SimpleItemTouchHelperCallback(private val adapter: ItemTouchHelperAda
             return false
         }
 
-        // Notify the adapter of the move
         adapter.onItemMove(source.adapterPosition, target.adapterPosition)
         return true
     }
 
     /** Never called: swiping is disabled. */
     override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-        // We don't do anything here as we don't support swipe-to-dismiss
     }
 
     /** Fades and slides the view while it is being swiped. */
     override fun onChildDraw(c: Canvas, recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder,
                              dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean) {
         if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
-            // Fade out the view as it is swiped out of the parent's bounds
             val alpha = ALPHA_FULL - Math.abs(dX) / viewHolder.itemView.width.toFloat()
             viewHolder.itemView.alpha = alpha
             viewHolder.itemView.translationX = dX
@@ -90,9 +85,7 @@ open class SimpleItemTouchHelperCallback(private val adapter: ItemTouchHelperAda
     }
 
     override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
-        // We only want the active item to change
         if (actionState != ItemTouchHelper.ACTION_STATE_IDLE && viewHolder is ItemTouchHelperViewHolder) {
-            // Let the view holder know that this item is being moved or dragged
             viewHolder.onItemSelected()
         }
 
@@ -105,7 +98,6 @@ open class SimpleItemTouchHelperCallback(private val adapter: ItemTouchHelperAda
         viewHolder.itemView.alpha = ALPHA_FULL
 
         if (viewHolder is ItemTouchHelperViewHolder) {
-            // Tell the view holder it's time to restore the idle state
             viewHolder.onItemClear()
         }
     }

@@ -34,15 +34,7 @@ import java.util.HashMap
 import java.util.Locale
 import java.util.concurrent.Callable
 
-/**
- * Dialog to add a new entry or edit an existing one.
- *
- * Converted from the Java class of the same name. The class was only used through its static
- * `show` methods, so it becomes the documented Kotlin `object` delta with `@JvmStatic`
- * forwarders; the nested [UpdateCallback] stays a nested type of this class.
- *
- * Documented delta: the layout children are resolved with `requireNotNull`.
- */
+/** Dialog for adding a new OTP entry or editing an existing one. */
 object ManualEntryDialog {
 
     /** Opens the dialog to add a new entry. */
@@ -92,7 +84,6 @@ object ManualEntryDialog {
         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
         counterInput.setText(String.format(Locale.US, "%d", TokenCalculator.HOTP_INITIAL_COUNTER))
 
-        // AdapterView.OnItemSelectedListener has two abstract methods, so it has no SAM constructor.
         typeInput.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
@@ -209,9 +200,7 @@ object ManualEntryDialog {
                 val secret = secretInput.text?.toString()?.replace("\\s+".toRegex(), "") ?: ""
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
 
-                // The secret field is display-only when editing (the existing secret stays in the
-                // entry and the typed value is empty), so only the new-entry path validates and
-                // decodes it. Validating the hidden empty field here rejected every edit save.
+                // Only validate the typed secret for new entries; editing keeps the existing secret.
                 if (isNewEntry && !Entry.validateSecret(secret, type)) {
                     secretInput.setError(callingActivity.getString(R.string.error_invalid_secret))
                     return@setOnClickListener

@@ -24,13 +24,7 @@ package org.shadowice.flocke.andotp.View
 
 import android.view.View
 
-/**
- * Distinguishes single and double taps; the single click is delayed by
- * `DOUBLE_CLICK_TIME_DELTA` ms to wait for a possible second tap.
- *
- * The pending delayed callback reads [firstTap] when it runs, so a second tap that arrives before
- * it runs suppresses the single click. Java subclasses keep overriding the same callbacks.
- */
+/** Distinguishes single and double taps by delaying single-tap delivery by [DOUBLE_CLICK_TIME_DELTA] ms. */
 abstract class SimpleDoubleClickListener : View.OnClickListener {
 
     private var lastClickTime = 0L

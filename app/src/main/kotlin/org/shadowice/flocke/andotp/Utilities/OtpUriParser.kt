@@ -28,8 +28,7 @@ object OtpUriParser {
     }
 
     private fun parseBounded(input: String): OtpParseResult.Success {
-        // The Java parser (android.net.Uri) accepted a raw space in the path or query, and the
-        // Kotlin conversion's java.net.URI rejected it. Encode it so the same labels still parse.
+        // Encode raw spaces before java.net.URI parsing so unescaped spaces in labels still parse.
         val uri = URI(input.replace(" ", "%20"))
         if (uri.scheme != "otpauth" || uri.isOpaque || uri.host == null ||
             uri.rawAuthority != uri.host || uri.rawFragment != null) reject(OtpParseError.INVALID_URI)

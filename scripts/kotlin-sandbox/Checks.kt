@@ -932,12 +932,11 @@ private fun expectThrowsClause(type: Class<*>, name: String, parameters: List<Cl
 // --- converted settings facade -------------------------------------------------------------------
 
 /**
- * The preference-key and default-value view for the converted `Settings`, which addresses everything
- * through string resources: keys are distinct synthetic strings per id and the *default* strings the
+ * The preference-key and default-value view for `Settings`, which addresses everything through
+ * string resources: keys are distinct synthetic strings per id and the *default* strings the
  * code parses into enums carry the values `app/src/main/res/values/settings.xml` declares, so an
  * empty store behaves like a fresh install. Every lookup is recorded so a check can assert which
- * resource an accessor resolved. Those literals are pinned against the XML by
- * scripts/tests/test_kotlin_settings_conversion.py.
+ * resource an accessor resolved.
  */
 private fun settingsDefaultValue(id: Int): String? = when (id) {
     R.string.settings_default_encryption -> "keystore"

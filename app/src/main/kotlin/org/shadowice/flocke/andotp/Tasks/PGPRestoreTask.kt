@@ -10,8 +10,7 @@ import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 import java.io.IOException
 import java.nio.charset.StandardCharsets
 
-/** Reads an OpenPGP-encrypted backup and hands it to the OpenPGP app for decryption. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
+/** Reads an OpenPGP-encrypted backup document so the caller can pass it to the OpenPGP app. */
 open class PGPRestoreTask(context: Context, uri: Uri?, private val decryptIntent: Intent) : GenericRestoreTask(context, uri) {
 
     protected override fun doInBackground(): BackupTaskResult {

@@ -38,14 +38,7 @@ import java.util.concurrent.CancellationException
 import javax.crypto.BadPaddingException
 import javax.crypto.SecretKey
 
-/**
- * Authenticated, bounded vault I/O. Failures must never masquerade as empty data.
- *
- * Converted from the Java class of the same name: the typed `VaultReadResult`/`VaultWriteResult`
- * outcomes live in [VaultContracts] and this file keeps the storage transaction around them. The
- * Java members are preserved one by one — every one of them was `static`, hence the deliberate
- * `object` conversion, with `@JvmStatic` so Java callers keep writing `DatabaseHelper.loadDatabase(…)`.
- */
+/** Authenticated, bounded vault file I/O and atomic settings-journal recovery. */
 object DatabaseHelper {
     /** The lock every vault file transaction is serialized on; `Settings`/`KeyStoreHelper` share it. */
     @JvmField
@@ -64,11 +57,7 @@ object DatabaseHelper {
 
     enum class Status { SUCCESS, MISSING, MISSING_KEY, AUTHENTICATION_FAILED, CORRUPT, IO_FAILURE }
 
-    /**
-     * Legacy Java adapter. Entry ownership is now one-use, not a repeatable shallow copy.
-     *
-     * The constructor stays private as it was in Java; only this file's repository methods build it.
-     */
+    /** One-use wrapper around [VaultReadResult]; entry ownership transfers on [requireEntries]. */
     class LoadResult private constructor(private val result: VaultReadResult) : AutoCloseable {
         @JvmField
         val status: Status = statusOf((result as? VaultReadResult.Unavailable)?.error)
@@ -85,18 +74,12 @@ object DatabaseHelper {
         }
 
         companion object {
-            // Only the load path needs this; Java could never call the private constructor either.
             @JvmSynthetic
             internal fun create(result: VaultReadResult): LoadResult = LoadResult(result)
         }
     }
 
-    /**
-     * Raised when a caller treats an unavailable vault as loaded data. The status is the Java
-     * `Status`, and the constructor stays non-public: Java code catches this type, never builds it.
-     * `status` stays a public final *field* (`@JvmField`), as the Java declared it, rather than
-     * becoming a `getStatus()` accessor.
-     */
+    /** Thrown when a caller accesses entries from an unavailable vault. */
     class VaultException private constructor(@JvmField val status: Status) :
         IllegalStateException("Vault unavailable: $status") {
         companion object {
@@ -105,13 +88,7 @@ object DatabaseHelper {
         }
     }
 
-    /**
-     * `VaultReadError` -> legacy `Status`, one arm per error so a new error constant cannot turn
-     * into a runtime `IllegalArgumentException` inside the constructor. `RECOVERY_REQUIRED` maps to
-     * `IO_FAILURE` exactly as the Java ternary did: the legacy status set has no recovery value, and
-     * `VaultFailureSecurityTest.failedPreferenceCommitBlocksWritesUntilRestartOrExplicitWipe`
-     * expects that mapping.
-     */
+    /** Maps [VaultReadError] to [Status]; `RECOVERY_REQUIRED` maps to `IO_FAILURE`. */
     private fun statusOf(error: VaultReadError?): Status = when (error) {
         null -> Status.SUCCESS
         VaultReadError.MISSING -> Status.MISSING
@@ -219,8 +196,7 @@ object DatabaseHelper {
     fun saveDatabase(context: Context, entries: ArrayList<Entry>?, key: SecretKey?): Boolean =
         saveVault(context, entries, key) is VaultWriteResult.Saved
 
-    // `entries` stays nullable along the write path: the Java reached entriesToString's null check
-    // and reported a null list as Rejected(INVALID_INPUT) after the read, not as a thrown NPE.
+    // Null entries are rejected inside entriesToString after the existing vault is verified.
     private fun encryptedEntries(entries: ArrayList<Entry>?, key: SecretKey?): ByteArray {
         if (key == null) throw IllegalArgumentException("Missing vault key")
         val plain = entriesToString(entries).toByteArray(StandardCharsets.UTF_8)

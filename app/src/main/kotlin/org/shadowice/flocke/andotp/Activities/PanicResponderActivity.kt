@@ -33,13 +33,7 @@ import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
-/**
- * Handles the PanicKit TRIGGER action: wipes the database/keys and/or the settings as configured.
- *
- * Converted from the Java class of the same name. The order of the steps is unchanged: the
- * automatic backups are disabled, the pending encrypted backup is cancelled and the vault is
- * locked before the accounts or the settings are wiped. The activity always removes its task.
- */
+/** Handles the PanicKit TRIGGER action by locking the vault and wiping accounts and/or settings as configured. */
 open class PanicResponderActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

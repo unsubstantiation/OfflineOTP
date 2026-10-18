@@ -28,13 +28,7 @@ import android.content.Context
 
 import org.shadowice.flocke.andotp.Utilities.Settings
 
-/**
- * Base class for the receivers that trigger a backup from an external broadcast.
- *
- * Converted from the Java class of the same name. It stays abstract and extendable, and the
- * protected helper keeps its name, parameter and return type, so the Java/Kotlin subclasses
- * call it unchanged.
- */
+/** Base broadcast receiver for externally triggered backups. */
 abstract class BackupBroadcastReceiver : BroadcastReceiver() {
     /** True if a backup location is configured. */
     protected fun canSaveBackup(context: Context): Boolean {

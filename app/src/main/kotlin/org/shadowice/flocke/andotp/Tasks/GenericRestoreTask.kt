@@ -7,7 +7,6 @@ import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Settings
 
 /** Base for restore tasks, which read the given document in [doInBackground]. */
-/* The Java class was abstract (extendable); Kotlin classes are final by default. */
 abstract class GenericRestoreTask(context: Context, uri: Uri?) :
         UiBasedBackgroundTask<BackupTaskResult>(BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_failed)) {
 
@@ -15,6 +14,6 @@ abstract class GenericRestoreTask(context: Context, uri: Uri?) :
     protected val settings: Settings = Settings(applicationContext)
     protected var uri: Uri? = uri
 
-    /** Reads and parses the selected backup file (implemented by the concrete task). */
+    /** Reads the selected backup document on a background thread. */
     protected abstract override fun doInBackground(): BackupTaskResult
 }

@@ -40,14 +40,7 @@ import org.shadowice.flocke.andotp.R
 import java.io.InputStream
 import java.util.Scanner
 
-/**
- * About screen: the "About" tab plus the licenses of the used libraries.
- *
- * Converted from the Java class of the same name. The two pages, the raw-resource library list and
- * the up/back navigation are unchanged. The unreachable `default` branch of `getItem` now throws
- * instead of returning null: `FragmentPagerAdapter.getItem` is `@NonNull`, and the pager only asks
- * for the two pages counted below, so the Java null could never be delivered to a caller.
- */
+/** About screen hosting the app overview and open-source library license tabs. */
 open class AboutActivity : BaseActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,7 +64,6 @@ open class AboutActivity : BaseActivity() {
         tabLayout.setupWithViewPager(viewPager)
     }
 
-    // Go back to the main activity
     override fun onSupportNavigateUp(): Boolean {
         finish()
         return true
@@ -93,8 +85,6 @@ open class AboutActivity : BaseActivity() {
                 .withLicenseShown(true)
                 .withVersionShown(true)
                 .supportFragment()
-            // Unreachable: only the two pages counted below are requested. Java returned null here
-            // against FragmentPagerAdapter's @NonNull contract; documented conversion delta.
             else -> throw IndexOutOfBoundsException("Invalid about page: $pos")
         }
 

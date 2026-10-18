@@ -1,4 +1,4 @@
-// Sandbox-only stand-in, see ../../../../../../android/android_content.kt.
+// Sandbox-only stand-in, see ../../../../../android/android_content.kt.
 package org.apache.commons.codec.digest
 
 /**

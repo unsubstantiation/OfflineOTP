@@ -23,15 +23,7 @@ import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.Tools
 
-/**
- * Shared logic of the About tab, which the fdroid/play flavors extend with their own extras.
- *
- * Converted from the Java class of the same name. The clipboard fallback and the seven-quick-taps
- * easter egg are unchanged; the links point at this repository. The four package-private static
- * fields are public fields here (`@JvmField`), because Kotlin has no package-private visibility;
- * they stay static shared state, so the tap counter survives a fragment re-creation exactly as in
- * Java.
- */
+/** Shared About tab UI and link handling; flavors extend this with their own extras. */
 open class BaseAboutFragment : Fragment() {
     private var settings: Settings? = null
 
@@ -175,11 +167,7 @@ open class BaseAboutFragment : Fragment() {
 
         private const val SUPPORT_URI = "$GITHUB_URI/blob/master/README.md#contributing"
 
-        /**
-         * The Java fields were `static final int[]`/`static` and package-private; they are public
-         * fields here (`@JvmField`), because Kotlin has no package-private visibility. Nothing in
-         * the repository reads them from outside this class.
-         */
+        /** About-tab icons tinted with the secondary text color. */
         @JvmField
         val imageResources: IntArray = intArrayOf(
                 R.id.aboutImgVersion, R.id.aboutImgLicense, R.id.aboutImgChangelog, R.id.aboutImgSource,
@@ -187,7 +175,7 @@ open class BaseAboutFragment : Fragment() {
                 R.id.aboutImgContributors, R.id.aboutImgSupport
         )
 
-        /** Shared across fragment instances so the tap counter survives a re-creation, as in Java. */
+        /** Shared across fragment instances so the tap counter survives recreation. */
         @JvmField
         var lastTap: Long = 0
 

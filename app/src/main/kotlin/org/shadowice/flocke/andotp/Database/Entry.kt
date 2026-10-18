@@ -43,9 +43,8 @@ import java.nio.charset.StandardCharsets
 import java.util.Objects
 
 /** One OTP entry: its secret, type and display/sort metadata, serialized to JSON and otpauth:// URIs. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class Entry {
-    /** The OTP algorithms supported by andOTP. */
+    /** Supported OTP types. */
     enum class OTPType {
         TOTP, HOTP, MOTP, STEAM
     }
@@ -67,10 +66,7 @@ open class Entry {
     private var last_used = 0L
     private var used_frequency = 0L
 
-    /**
-     * The entry's tags. Kept a directly assignable public field (and mirrored by
-     * [getTags]/[setTags]) because the Java model exposed all three.
-     */
+    /** Tags assigned to this entry. */
     @JvmField
     var tags: MutableList<String> = ArrayList()
 
@@ -121,7 +117,7 @@ open class Entry {
         validate()
     }
 
-    /** Legacy Java adapter: URI policy and explicit outcomes live in the Kotlin parser. */
+    /** Parses an `otpauth://` URI via [OtpUriParser], throwing on invalid input. */
     @Throws(Exception::class)
     constructor(contents: String?) {
         val result = OtpUriParser.parse(contents)
@@ -149,7 +145,7 @@ open class Entry {
         }
     }
 
-    /** Legacy Java adapter: field policy and explicit outcomes live in the Kotlin document parser. */
+    /** Parses a stored JSON entry via [EntryJson], throwing on invalid input. */
     @Throws(Exception::class)
     constructor(jsonObj: JSONObject) {
         val result = EntryJson.parse(jsonObj)
@@ -184,7 +180,6 @@ open class Entry {
      * Checks the entry's invariants: the seed bounds, the token parameters, the Steam digit count
      * and the text/tag bounds.
      */
-    /* A Java caller can still put nulls into the tag list; the Java model rejected that. */
     @Suppress("SENSELESS_COMPARISON")
     fun validate() {
         val seed = secret
@@ -254,12 +249,10 @@ open class Entry {
 
         builder.appendQueryParameter("issuer", issuer)
 
-        /* The Java switch fell through from HOTP into the period check: a counter-based entry with
-           a non-default period still emitted its period. Both branches keep that behaviour. */
         if (type == OTPType.HOTP) {
             builder.appendQueryParameter("counter", counter.toString())
         }
-        // Steam URIs may carry a period; keep it so a re-import does not change the code timing.
+        // HOTP, TOTP, and Steam entries all emit non-default periods so re-importing preserves timing.
         if (type == OTPType.HOTP || type == OTPType.TOTP || type == OTPType.STEAM) {
             if (period != TokenCalculator.TOTP_DEFAULT_PERIOD)
                 builder.appendQueryParameter("period", period.toString())
@@ -414,14 +407,12 @@ open class Entry {
         listId = newId
     }
 
-    /** Recalculates the token ({@code updateNow} forces a time-based refresh); returns whether one was produced. */
+    /** Recalculates the token ([updateNow] forces a time-based refresh); returns whether it changed. */
     fun updateOTP(updateNow: Boolean): Boolean = updateOTPAt(System.currentTimeMillis() / 1000, updateNow)
 
     /**
-     * Time-based update with an explicit epoch second. Besides making all token variants use one
-     * consistent clock sample, this refreshes when the wall clock moves backwards as well as
-     * forwards; otherwise a cached token from a future step could remain visible until time caught
-     * up. Internal visibility keeps this deterministic seam out of the Java API.
+     * Updates the token using an explicit epoch-second timestamp [time], refreshing on both forward
+     * and backward step changes so a future-step token never stays cached after a clock rollback.
      */
     internal fun updateOTPAt(time: Long, updateNow: Boolean): Boolean {
         val seed = secret ?: return false
@@ -481,8 +472,8 @@ open class Entry {
     }
 
     /**
-     * Returns true the first time the token is within {@link #EXPIRY_TIME} seconds of expiring,
-     * switching the entry to the expiring color. {@link #updateOTP(boolean)} resets that color.
+     * Returns true the first time the token is within [EXPIRY_TIME] seconds of expiring,
+     * switching the entry to [COLOR_RED]. [updateOTP] resets that color.
      */
     fun hasColorChanged(): Boolean {
         if (color == COLOR_DEFAULT) {
@@ -509,10 +500,7 @@ open class Entry {
         }
     }
 
-    /**
-     * The stored name of a document's thumbnail, or the default icon when the document names no
-     * usable one. The document parser never guessed a thumbnail from the issuer.
-     */
+    /** Resolves a stored thumbnail name, falling back to [EntryThumbnail.EntryThumbnails.Default]. */
     private fun thumbnailFromName(name: String?): EntryThumbnail.EntryThumbnails {
         if (name == null) return EntryThumbnail.EntryThumbnails.Default
         return try {
@@ -522,11 +510,7 @@ open class Entry {
         }
     }
 
-    /**
-     * The seed the serializers may dereference. The Java model passed its possibly-null field
-     * straight into `String(byte[])`/`Base32`, so a destroyed entry failed with a
-     * NullPointerException here; that behaviour is kept rather than silently writing an empty seed.
-     */
+    /** Returns the secret bytes, or throws [NullPointerException] if the entry has been destroyed. */
     private fun ownedSecret(): ByteArray = secret ?: throw NullPointerException("Entry has no secret")
 
     override fun equals(other: Any?): Boolean {
@@ -548,10 +532,7 @@ open class Entry {
                 issuer == entry.issuer
     }
 
-    /**
-     * Consistent with [equals], which compares the seed by content: equal entries must hash alike.
-     * (The Java hash used the array identity of the seed, which broke that contract.)
-     */
+    /** Hashes entry fields using content-based secret hashing to match [equals]. */
     override fun hashCode(): Int {
         return Objects.hash(type, period, counter, digits, algorithm, secret?.contentHashCode(), label, issuer)
     }

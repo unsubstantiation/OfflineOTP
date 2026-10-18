@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../android/android_content.kt.
+// Sandbox-only stand-ins, see android_content.kt.
 //
 // The platform backup agent helper is not part of the app any more (the platform backup service
 // is disabled); the converted agent only refuses the restore callback. The stand-ins are inert.

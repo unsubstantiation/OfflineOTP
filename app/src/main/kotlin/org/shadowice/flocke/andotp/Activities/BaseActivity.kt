@@ -33,13 +33,7 @@ import android.view.MotionEvent
 import org.shadowice.flocke.andotp.Utilities.SessionLockReason
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
-/**
- * Base activity that reacts to screen-off events to lock or close the screen.
- *
- * Converted from the Java class of the same name. The screen-off receiver, the lock listener and
- * the obscured-touch rejection are unchanged; the nested callback interface was package-private
- * in Java and is public here, because Kotlin has no package-private visibility.
- */
+/** Base activity that handles screen-off locking, session-lock callbacks, and obscured-touch filtering. */
 abstract class BaseActivity : ThemedActivity() {
     private var screenOffReceiver: ScreenOffReceiver? = null
     private val lockListener = Runnable { runOnUiThread { onVaultLocked() } }
@@ -56,7 +50,6 @@ abstract class BaseActivity : ThemedActivity() {
 
     override fun onDestroy() {
         VaultSession.removeLockListener(lockListener)
-        // The Java version unregistered a field that was null only if `onCreate` had failed.
         screenOffReceiver?.let { unregisterReceiver(it) }
         super.onDestroy()
     }
@@ -66,7 +59,7 @@ abstract class BaseActivity : ThemedActivity() {
         broadcastReceivedCallback = cb
     }
 
-    /** Finishes the activity (and notifies the callback) when the screen turns off. */
+    /** Locks the vault (if configured), notifies the callback, and finishes the activity on screen off. */
     inner class ScreenOffReceiver : BroadcastReceiver() {
         /** The filter this receiver is registered with. */
         var filter: IntentFilter = IntentFilter(Intent.ACTION_SCREEN_OFF)
@@ -102,13 +95,7 @@ abstract class BaseActivity : ThemedActivity() {
     /** True if this activity should be closed when the screen turns off. */
     protected open fun shouldDestroyOnScreenOff(): Boolean = true
 
-    /**
-     * Callback for the screen-off event.
-     *
-     * The Java interface was package-private; Kotlin has no package-private visibility, so it is
-     * public here. It stays a single-method interface, so the Java call sites keep passing a
-     * lambda.
-     */
+    /** Callback invoked when the screen turns off. */
     fun interface BroadcastReceivedCallback {
         fun onReceivedScreenOff()
     }

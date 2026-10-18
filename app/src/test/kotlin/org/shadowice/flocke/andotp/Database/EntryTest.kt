@@ -198,7 +198,7 @@ class EntryTest {
             entry.toJSON()
             throw AssertionError("destroyed entry still serializes")
         } catch (expected: NullPointerException) {
-            // expected: the Java model also failed on a missing seed
+            // expected: destroyed entry has no seed
         }
     }
 
@@ -264,8 +264,7 @@ class EntryTest {
 
     @Test
     fun legacyConstructorKeepsTheRawSeed() {
-        // The pre-conversion Java constructor stored the mOTP seed as raw UTF-8 bytes (the
-        // ASCII hex text, 16 bytes for a 16-character seed).
+        // mOTP seeds are stored as raw UTF-8 ASCII hex bytes (16 bytes for a 16-character seed).
         val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "Example", "alice", ArrayList())
         assertEquals(16, motp.getSecret()?.size)
     }

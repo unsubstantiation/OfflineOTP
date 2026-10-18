@@ -22,14 +22,7 @@ import java.util.function.BooleanSupplier
 
 import javax.crypto.SecretKey
 
-/**
- * Runs the password-encrypted backup triggered by the ENCRYPTED_BACKUP broadcast.
- *
- * Converted from the Java class of the same name. The check order, the failure notifications, the
- * vault read under the file lock and the entry cleanup are unchanged; the class stays extendable
- * and the WorkManager entry point keeps its constructor and `doWork()` result. The Java
- * `@NonNull` annotations are not repeated: the Kotlin types are not nullable.
- */
+/** WorkManager worker that runs a broadcast-triggered password-encrypted backup. */
 open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         Worker(context, params) {
 
@@ -37,12 +30,7 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         private val TAG = EncryptedBackupWorker::class.java.simpleName
     }
 
-    /**
-     * The Java worker called the task's protected `doInBackground()` from the same package.
-     * Kotlin's `protected` has no package-private part, so the call is made from this private
-     * subclass, which may reach the inherited member on itself. The task class itself and its
-     * Java-visible surface are unchanged, and the backup still runs on the caller's thread.
-     */
+    /** Subclass of [EncryptedBackupTask] that exposes its protected [doInBackground] for synchronous execution. */
     private class BroadcastBackupTask(
         context: Context,
         entries: ArrayList<Entry>,

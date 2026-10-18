@@ -2,7 +2,7 @@ package org.shadowice.flocke.andotp.Utilities
 
 import javax.crypto.SecretKey
 
-/** Java compatibility facade over the typed, process-only Kotlin controller. */
+/** Process-wide facade over [SessionController] for the active vault session and derived-key handoff. */
 object VaultSession {
     @JvmField val MutationLock: Any = Any()
     private val controller: SessionController = SessionController(MutationLock)

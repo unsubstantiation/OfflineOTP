@@ -34,7 +34,7 @@ object TokenCalculator {
     @JvmField
     val DEFAULT_ALGORITHM: HashAlgorithm = HashAlgorithm.SHA1
 
-    /** HMAC of {@code data} with the given algorithm and key. */
+    /** HMAC of [data] with the given algorithm and key. */
     private fun generateHash(algorithm: HashAlgorithm, key: ByteArray, data: ByteArray): ByteArray {
         val algo = "Hmac" + algorithm.toString()
 
@@ -44,13 +44,13 @@ object TokenCalculator {
         return mac.doFinal(data)
     }
 
-    /** Legacy Java-compatible overload without a time-step offset; retained for existing callers. */
+    /** Computes the TOTP for the given unix time with a 0-step offset. */
     @JvmStatic
     fun TOTP_RFC6238(secret: ByteArray, period: Int, time: Long, digits: Int, algorithm: HashAlgorithm): Int {
         return TOTP_RFC6238(secret, period, time, digits, algorithm, 0)
     }
 
-    /** Computes the TOTP for the given unix time; {@code offset} shifts the time step. */
+    /** Computes the TOTP for the given unix time; [offset] shifts the time step. */
     @JvmStatic
     fun TOTP_RFC6238(secret: ByteArray, period: Int, time: Long, digits: Int, algorithm: HashAlgorithm, offset: Int): Int {
         InputPolicy.tokenParameters(period, digits, 0)
@@ -131,12 +131,10 @@ object TokenCalculator {
         var otp = ""
 
         try {
-            // Create MD5 Hash
             val digest = MessageDigest.getInstance("MD5")
             digest.update(hashText.toByteArray())
             val messageDigest = digest.digest()
 
-            // Create Hex String
             val hexString = String(Hex.encodeHex(messageDigest))
             otp = hexString.substring(0, 6)
         } catch (e: NoSuchAlgorithmException) {

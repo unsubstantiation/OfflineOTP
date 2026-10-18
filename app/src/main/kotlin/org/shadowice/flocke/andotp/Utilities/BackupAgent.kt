@@ -31,14 +31,7 @@ import android.os.ParcelFileDescriptor
 
 import java.io.IOException
 
-/**
- * Legacy class retained to refuse old platform backup/restore callbacks. Not registered.
- *
- * Converted from the Java class of the same name. The class stays extendable and the restore stays
- * refused with the same message. The callback parameters stay nullable: the platform passes them
- * without annotations and the Java version accepted nulls, so the refusal is not preceded by a
- * Kotlin null check.
- */
+/** Unregistered legacy BackupAgentHelper retained only to refuse platform backup/restore callbacks. */
 open class BackupAgent : BackupAgentHelper() {
     override fun onCreate() {}
 

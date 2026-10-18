@@ -1,4 +1,4 @@
-// Sandbox-only stand-ins, see ../../../android/android_content.kt.
+// Sandbox-only stand-ins, see ../../../../android/android_content.kt.
 //
 // The OpenPGP service connection and API surface the backup screen uses. The provider is never
 // contacted; the stand-in only records that the API was called.

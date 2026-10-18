@@ -10,7 +10,6 @@ import org.shadowice.flocke.andotp.Utilities.EncryptionHelper.EncryptionChangeRe
 import javax.crypto.SecretKey
 
 /** Re-encrypts the database after the encryption type was changed in the settings. */
-/* The Java class was non-final and stayed extendable; Kotlin classes are final by default. */
 open class ChangeEncryptionTask(context: Context, private val oldEncryptionKey: SecretKey?,
                                 private val newEncryptionType: Constants.EncryptionType, newKey: ByteArray?) :
         UiBasedBackgroundTask<ChangeEncryptionTask.Result>(Result(EncryptionChangeResult.TASK_CREATION_FAILED, null, null)),

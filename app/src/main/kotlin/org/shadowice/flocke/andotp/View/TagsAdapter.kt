@@ -51,7 +51,6 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
         val tag = tagsOrder[position]
         val count = tagCounts[tag]
         checkedTextView.setText(if (count != null) "$tag ($count)" else tag)
-        // Match Java Boolean unboxing: a caller-supplied null is not silently treated as false.
         checkedTextView.isChecked = tagsState[tag]!!
         return checkedTextView
     }
@@ -60,7 +59,7 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
 
     open fun getTagState(tag: String?): Boolean? = if (tagsState.containsKey(tag)) tagsState[tag] else false
 
-    /** Unknown tags are ignored, but observers are still notified. Boolean stays boxed for Java. */
+    /** Updates the checked state for [tag] if present and notifies observers. */
     open fun setTagState(tag: String?, state: Boolean?) {
         if (tagsState.containsKey(tag)) {
             @Suppress("UNCHECKED_CAST")
@@ -77,7 +76,7 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
         return active
     }
 
-    /** The empty map is vacuously all-active, just as in the Java implementation. */
+    /** True if all known tags are checked (vacuously true when empty). */
     open fun allTagsActive(): Boolean {
         for (state in tagsState.values) {
             if (!state!!) return false
