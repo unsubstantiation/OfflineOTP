@@ -4195,7 +4195,12 @@ fun main() {
         expect(!settings.isHideIssuerEnabled(), { "hide issuer" })
         expect(!settings.isMinimizeAppOnCopyEnabled(), { "minimize on copy" })
         expect(!settings.getAuthInactivity(), { "auth inactivity" })
-        expect(settings.getAuthInactivityDelay() == 0, { "auth inactivity delay" })
+        // The default comes from the preference resource, not a hardcoded zero: the wizard
+        // writes 30 seconds there and the timer must not silently stay disabled.
+        expect(settings.getAuthInactivityDelay() ==
+                fixture.context.resources.getInteger(R.integer.settings_default_auth_inactivity_delay),
+                { "auth inactivity delay must default to the preference resource" })
+        expect(settings.getAuthInactivityDelay() != 0, { "auth inactivity delay must not default to 0" })
         expect(!settings.getUsedTokensDialogShown(), { "used tokens dialog" })
         expect(!settings.getFirstTimeWarningShown(), { "first-time warning" })
         expect(!settings.getSpecialFeatures(), { "special features" })

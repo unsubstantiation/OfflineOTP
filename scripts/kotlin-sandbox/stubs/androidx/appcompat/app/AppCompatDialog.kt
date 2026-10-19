@@ -5,8 +5,11 @@ package androidx.appcompat.app
 
 import android.content.Context
 import android.view.View
+import android.view.Window
 
 open class AppCompatDialog(val context: Context, theme: Int) {
+    /** The dialog window; the platform creates it with the dialog, the checks read it back. */
+    val window: Window = Window()
     var titleResource: Int = 0
         private set
     var contentResource: Int = 0

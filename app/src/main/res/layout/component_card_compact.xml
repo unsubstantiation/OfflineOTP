@@ -117,6 +117,10 @@
                                     android:textColor="?android:attr/textColorSecondary"
                                     android:textSize="24sp"
                                     android:textStyle="bold"
+                                    android:maxLines="1"
+                                    android:autoSizeTextType="uniform"
+                                    android:autoSizeMinTextSize="10sp"
+                                    android:autoSizeMaxTextSize="24sp"
                                     android:text="@string/label_hidden" />
 
                             </LinearLayout>

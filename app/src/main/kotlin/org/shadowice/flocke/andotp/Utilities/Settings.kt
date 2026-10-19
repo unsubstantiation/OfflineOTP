@@ -650,7 +650,10 @@ open class Settings(private val context: Context) {
     }
 
     open fun getAuthInactivityDelay(): Int {
-        return getIntValue(R.string.settings_key_auth_inactivity_delay, 0)
+        // Must match the preference's own default: a hardcoded 0 here would silently disable
+        // the timer whenever the XML defaults had not been written yet.
+        val defaultValue = context.resources.getInteger(R.integer.settings_default_auth_inactivity_delay)
+        return getIntValue(R.string.settings_key_auth_inactivity_delay, defaultValue)
     }
 
     open fun getAuthInactivity(): Boolean {
