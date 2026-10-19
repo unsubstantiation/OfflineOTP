@@ -58,9 +58,9 @@
             android:name=".Activities.BackupActivity" android:exported="false"
             android:parentActivityName=".Activities.MainActivity"
             android:theme="@style/AppTheme.NoActionBar" />
+        <!-- No fixed orientation: the first-run wizard follows the user's auto-rotate setting. -->
         <activity
             android:name=".Activities.IntroScreenActivity" android:exported="false"
-            android:screenOrientation="portrait"
             android:parentActivityName=".Activities.MainActivity"
             android:theme="@style/Theme.Intro.Solid" />
         <activity

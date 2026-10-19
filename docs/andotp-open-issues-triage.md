@@ -3,6 +3,10 @@
 > **Snapshot note:** verdicts and counts reflect the 2026-10-17 tree and upstream tracker. The
 > andOTP thumbnail carry-over (OfflineOTP issue #40) has since been completed, and upstream
 > issue counts have changed; treat this as a historical triage record.
+>
+> **Follow-up:** [andotp-carryover-issue-pass-2026-10-19.md](andotp-carryover-issue-pass-2026-10-19.md)
+> records the issue #39 pass: #591, #712, #805 and #880 are fixed, and the crash-report surfaces
+> gained device reachability tests. Everything else in the ⚠️ list remains a device/CI gate.
 
 **Source:** <https://github.com/andOTP/andOTP/issues> — all **181 open issues** (16 open PRs excluded), fetched 2026-10-17.
 
@@ -70,13 +74,13 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ✅ **FIXED** — TOTP calculation samples the clock once per update; 'invalid after a while' reports are service-side or clock-skew issues, not an app defect.
 - **#591** — The initial setup screen forces portrait orientation  
   _bug, help wanted_  
-  ❌ **APPLIES** — `IntroScreenActivity` is still locked to `android:screenOrientation="portrait"` in the manifest.
+  ✅ **FIXED (issue #39 pass)** — The portrait lock is gone and a completed setup survives recreation; see the carry-over pass doc.
 - **#649** — Switch to keystore bug after a factory reset  
   _bug, enhancement_  
   ✅ **FIXED** — KeyStore lookup never silently invents a replacement key; a missing/invalidated key fails closed and requires the portable recovery backup (factory reset wipes the Android KeyStore).
 - **#712** — Re-lock on inactivity not working  
   _bug, help wanted_  
-  ⚠️ **VERIFY** — Inactivity relock settings exist (`pref_auth_inactivity`, default 30 s delay) and locking revokes the session; verify the timeout actually fires.
+  ✅ **FIXED (issue #39 pass)** — The idle deadline now uses elapsed realtime across screen-off/background time and the accessor falls back to the preference's 30 s default; a device confirmation is still listed in the pass doc.
 - **#736** — Backup/Restore function fails if screen turns off/ goes home  
   _bug_  
   ⚠️ **VERIFY** — Backup/restore runs through `BackgroundTaskActivity` + WorkManager; workers recheck configuration at execution time. Test screen-off/home during an export.
@@ -512,7 +516,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ❌ **APPLIES** — Main-list UX; no scroll/position indicator.
 - **#805** — Don't let keyboard hide the [Abort] and [Save] buttons  
   _enhancement_  
-  ⚠️ **VERIFY** — No explicit `windowSoftInputMode` found; check dialog keyboard behavior.
+  ✅ **FIXED (issue #39 pass)** — The manual-entry and password dialogs resize with the IME (`SOFT_INPUT_ADJUST_RESIZE`).
 - **#808** — Support for DUO Mobile QR codes.  
   _enhancement, maybe_  
   🆕 **GAP** — DUO's proprietary QR format is not parsed (totp/hotp/steam only).
@@ -536,7 +540,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ❌ **APPLIES** — Manual-entry UX: prompt to edit the name when adding an entry.
 - **#880** — "Hidden" text should be shortened  
   _enhancement, help wanted, good first issue_  
-  ❌ **APPLIES** — String-resource shortening ('Hidden' text).
+  ✅ **FIXED (issue #39 pass)** — The hidden-token label is one auto-sized line on all card layouts; translations are kept.
 - **#881** — Performing UI Overhaul  
   _enhancement_  
   ❌ **APPLIES** — UI-overhaul meta-request.

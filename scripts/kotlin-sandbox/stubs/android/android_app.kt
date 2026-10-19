@@ -14,6 +14,8 @@ import android.view.Window
  * window/loopers are involved.
  */
 class AlertDialog private constructor() : DialogInterface {
+    /** The dialog window; the platform creates it with the dialog, the checks read it back. */
+    val window: Window = Window()
     var shown = false
         private set
     var titleId = 0
@@ -272,6 +274,9 @@ open class Activity : Context() {
         private set
 
     open fun getWindow(): Window = activityWindow
+
+    /** The orientation the manifest requests; -1 (`unspecified`) means "follow the sensor". */
+    var requestedOrientation: Int = -1
 
     /** The platform declares this as `isFinishing()`; the call syntax is kept. */
     open fun isFinishing(): Boolean = finishing

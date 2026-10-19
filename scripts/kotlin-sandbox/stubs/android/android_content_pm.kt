@@ -44,3 +44,12 @@ class PermissionInfo {
 class PackageInfo {
     @JvmField var versionName: String? = null
 }
+
+
+/** Stand-in for the platform activity metadata: only the orientation constants are used. */
+class ActivityInfo {
+    companion object {
+        /** The manifest value that lets the device orientation decide (no lock). */
+        const val SCREEN_ORIENTATION_UNSPECIFIED: Int = -1
+    }
+}

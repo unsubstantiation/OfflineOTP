@@ -463,6 +463,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             populateAdapter()
         }
         if (authenticationPending || currentAdapter.encryptionKey == null || isFinishing()) return
+        // The inactivity deadline also covers the time spent in the background or with the
+        // screen off, where the timer callback could not run. Lock before handling any intent so
+        // an idle-expired session is never used. Re-arm first, so the unlock that this request
+        // triggers is not immediately considered idle again.
+        if (inactivityRelockExpired()) {
+            restartInactivityTimer()
+            authenticate(R.string.auth_msg_authenticate)
+            return
+        }
         checkIntent()
         restartInactivityTimer()
 
@@ -487,7 +496,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         super.onPause()
         stopUpdater()
 
-        screenTimers?.pause()
+        // Keep the idle deadline: time in the background must count towards the timeout.
+        screenTimers?.suspendForeground()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -938,9 +948,20 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     /** The screen translates preferences to policy; the timer owns only scheduling. */
     private fun restartInactivityTimer() {
         val timers = screenTimers ?: return
-        val delay = if (settings!!.getAuthMethod() == AuthMethod.NONE || !settings!!.getAuthInactivity())
-            0L else 1000L * settings!!.getAuthInactivityDelay()
-        timers.restartInactivity(delay)
+        timers.restartInactivity(relockInactivityDelayMillis())
+    }
+
+    /** Zero when inactivity relocking is not configured; the timer treats it as disabled. */
+    private fun relockInactivityDelayMillis(): Long {
+        if (settings!!.getAuthMethod() == AuthMethod.NONE || !settings!!.getAuthInactivity())
+            return 0L
+        return 1000L * settings!!.getAuthInactivityDelay()
+    }
+
+    /** True when the idle deadline passed while the screen could not run the timer callback. */
+    private fun inactivityRelockExpired(): Boolean {
+        val timers = screenTimers ?: return false
+        return relockInactivityDelayMillis() > 0L && timers.hasInactivityExpired()
     }
 
     /** Rendering stays in the Activity; scheduling and teardown do not. */

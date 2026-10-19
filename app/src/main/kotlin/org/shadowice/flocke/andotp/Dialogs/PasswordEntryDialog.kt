@@ -6,6 +6,7 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
+import android.view.WindowManager
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -47,6 +48,8 @@ open class PasswordEntryDialog(
     init {
         setTitle(R.string.dialog_title_enter_password)
         setContentView(R.layout.dialog_password_entry)
+        // Resize with the IME so the buttons stay visible above the keyboard (#805).
+        window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
 
         val passwordLayout = requireNotNull(findViewById<TextInputLayout>(R.id.passwordInputLayout))
         passwordInput = requireNotNull(findViewById(R.id.passwordInput))

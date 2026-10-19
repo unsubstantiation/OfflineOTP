@@ -7,6 +7,7 @@ import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -182,6 +183,9 @@ object ManualEntryDialog {
             .setNegativeButton(android.R.string.cancel, DialogInterface.OnClickListener { _, _ -> })
 
         val dialog = builder.create()
+        // Keep [Save]/[Cancel] reachable while the IME is open: resize the dialog window and let
+        // the ScrollView in dialog_manual_entry scroll instead of panning the buttons off-screen.
+        dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.setOnDismissListener {
             secretInput.setText("")
             secretView.setText("")

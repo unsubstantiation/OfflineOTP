@@ -12,6 +12,9 @@ class ActivityScenario<T : Activity> private constructor() : AutoCloseable {
     fun onActivity(action: (T) -> Unit): ActivityScenario<T> =
         throw UnsupportedOperationException("android test compile stub")
 
+    fun recreate(): ActivityScenario<T> =
+        throw UnsupportedOperationException("android test compile stub")
+
     override fun close() = throw UnsupportedOperationException("android test compile stub")
 
     companion object {

@@ -2,6 +2,11 @@
 
 #### Unreleased
 
+ * Bugfix: Let the first-run wizard follow the device orientation and keep a completed setup (and the derived vault key) across recreation (andOTP #591)
+ * Bugfix: Make the inactivity re-lock count screen-off and background time instead of only foreground Handler time, and default the delay to the preference's 30 seconds (andOTP #712)
+ * Bugfix: Keep the localized "Hidden" token placeholder on one auto-sized line on the compact, default and full cards (andOTP #880)
+ * Bugfix: Resize the manual-entry and password dialogs with the keyboard so Save/Cancel stay reachable (andOTP #805)
+ * Internal: Add device reachability tests for the first-run, About and Settings screens, and Python guards for the carry-over fixes (OfflineOTP #39)
  * Bugfix: Regenerate the sandbox `R` stand-in after the thumbnail batch (the local compile gate was broken) and add a freshness check
  * Bugfix: Restore the missing `%1$s` format argument in the Arabic confirm-delete dialog
  * Internal: Add the JVM unit-test suite (RFC vectors, parser/document matrices, timer policy, entry-list semantics) with a no-Gradle harness (`scripts/run-jvm-tests.sh`)

@@ -58,6 +58,8 @@ open class WindowManager {
             /** The soft input state constants the authenticate screen uses. */
             const val SOFT_INPUT_STATE_ALWAYS_VISIBLE: Int = 0x00000005
             const val SOFT_INPUT_STATE_HIDDEN: Int = 0x00000004
+            /** The resize mode the settings/entry dialogs request (#805). */
+            const val SOFT_INPUT_ADJUST_RESIZE: Int = 0x00000010
         }
     }
 }

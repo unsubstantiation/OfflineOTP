@@ -173,6 +173,83 @@ class ScreenTimerControllerTest {
     }
 
     @Test
+    fun backgroundTimeCountsTowardsTheInactivityDeadline() {
+        // Reproduces the andOTP #712 report: the screen goes off while the app is open, the
+        // callback cannot run, and the app is still unlocked when the user comes back.
+        val scheduler = RecordingScheduler()
+        val counters = Counters()
+        val controller = ScreenTimerController(scheduler, { counters.ticks++ }, { counters.inactivity++ })
+
+        controller.restartInactivity(3000)
+        scheduler.advance(1000)
+        assertFalse(controller.hasInactivityExpired())
+
+        controller.suspendForeground()
+        assertEquals(0, scheduler.pending())
+        scheduler.advance(60000)
+
+        assertTrue(controller.hasInactivityExpired())
+        assertFalse("a suspended timer must not fire in the background", counters.inactivity > 0)
+        controller.close()
+    }
+
+    @Test
+    fun restartingAfterBackgroundTimeRearmsFromNow() {
+        val scheduler = RecordingScheduler()
+        val counters = Counters()
+        val controller = ScreenTimerController(scheduler, { counters.ticks++ }, { counters.inactivity++ })
+
+        controller.restartInactivity(3000)
+        controller.suspendForeground()
+        scheduler.advance(60000)
+        controller.restartInactivity(3000)
+
+        assertFalse(controller.hasInactivityExpired())
+        scheduler.advance(2999)
+        assertEquals(0, counters.inactivity)
+        scheduler.advance(1)
+        assertEquals(1, counters.inactivity)
+        controller.close()
+    }
+
+    @Test
+    fun aFiredOrCancelledTimerNoLongerReportsExpired() {
+        val scheduler = RecordingScheduler()
+        val counters = Counters()
+        val controller = ScreenTimerController(scheduler, { counters.ticks++ }, { counters.inactivity++ })
+
+        controller.restartInactivity(1000)
+        scheduler.advance(1000)
+        assertEquals(1, counters.inactivity)
+        assertFalse(controller.hasInactivityExpired())
+
+        controller.restartInactivity(1000)
+        controller.cancelInactivity()
+        scheduler.advance(10000)
+        assertFalse(controller.hasInactivityExpired())
+        controller.close()
+    }
+
+    @Test
+    fun pauseForgetsTheDeadlineWhileSuspendingKeepsIt() {
+        val scheduler = RecordingScheduler()
+        val counters = Counters()
+        val controller = ScreenTimerController(scheduler, { counters.ticks++ }, { counters.inactivity++ })
+
+        controller.restartInactivity(1000)
+        controller.pause()
+        scheduler.advance(10000)
+        assertFalse("pause() is the closing path and must drop the deadline",
+            controller.hasInactivityExpired())
+
+        controller.restartInactivity(1000)
+        controller.suspendForeground()
+        scheduler.advance(10000)
+        assertTrue(controller.hasInactivityExpired())
+        controller.close()
+    }
+
+    @Test
     fun closeIsPermanent() {
         val scheduler = RecordingScheduler()
         val counters = Counters()

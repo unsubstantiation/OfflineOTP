@@ -57,8 +57,17 @@ open class IntroScreenActivity : IntroActivity() {
     private var encryptionKey: ByteArray? = null
     private var setupGeneration: Long = VaultSession.generation()
 
+    private companion object {
+        /** Saved-state key for the setup outcome; never carries key material. */
+        const val STATE_SETUP_FINISHED = "intro_setup_finished"
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // The wizard is not portrait-locked any more, so it can be recreated at any slide.
+        // A completed setup must stay completed: the settings and vault are already committed.
+        setupFinished = savedInstanceState?.getBoolean(STATE_SETUP_FINISHED, false) == true
 
         val encryption = EncryptionFragment()
         val authentication = AuthenticationFragment()
@@ -125,10 +134,16 @@ open class IntroScreenActivity : IntroActivity() {
                 authentication.flashWarning()
         }
 
+        // A recreation after setup completed re-binds the slides with empty inputs; the
+        // successful state is restored instead of running the setup task a second time.
+        if (setupFinished)
+            finished.restoreCompletedSetup()
+
         addOnPageChangeListener(object : ViewPager.OnPageChangeListener {
             override fun onPageSelected(position: Int) {
-                // Guard against saving a second time when the finish button is pressed on the final slide.
-                if (position == getCount() - 1 && currentSlidePosition < getCount()) {
+                // Guard against saving a second time when the finish button is pressed on the final
+                // slide, and against re-running setup after a configuration change.
+                if (!setupFinished && position == getCount() - 1 && currentSlidePosition < getCount()) {
                     try {
                         finished.saveSettings(encryption.getEncryptionType(), authentication.getAuthMethod(),
                             authentication.getPassword(), sync.getSyncEnabled())
@@ -142,6 +157,12 @@ open class IntroScreenActivity : IntroActivity() {
 
             override fun onPageScrollStateChanged(state: Int) {}
         })
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        // Only the outcome is saved: the derived key never enters a Bundle.
+        outState.putBoolean(STATE_SETUP_FINISHED, setupFinished)
     }
 
     override fun onDestroy() {
@@ -243,6 +264,23 @@ open class IntroScreenActivity : IntroActivity() {
 
         private var canGoForward = false
         private var activeTask: FinishIntroTask? = null
+        private var completedSetupRestored = false
+
+        /**
+         * Re-shows a setup that already committed before this fragment was recreated. The
+         * credentials are not re-entered and the setup task is not run again.
+         */
+        fun restoreCompletedSetup() {
+            completedSetupRestored = true
+            canGoForward = true
+            applyCompletedSetup()
+        }
+
+        private fun applyCompletedSetup() {
+            title?.setText(R.string.intro_slide4_title)
+            message?.setText(R.string.intro_slide4_desc)
+            progress?.visibility = View.INVISIBLE
+        }
 
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                                   savedInstanceState: Bundle?): View {
@@ -251,6 +289,9 @@ open class IntroScreenActivity : IntroActivity() {
             title = requireNotNull(root.findViewById<TextView>(R.id.introFinishedTitle))
             message = requireNotNull(root.findViewById<TextView>(R.id.introFinishedMessage))
             progress = requireNotNull(root.findViewById<ProgressBar>(R.id.introFinishedProgress))
+
+            if (completedSetupRestored)
+                applyCompletedSetup()
 
             return root
         }
@@ -315,6 +356,10 @@ open class IntroScreenActivity : IntroActivity() {
                 return
             }
             if (result.saveSuccessful) {
+                // Publish the one-use, generation-bound handoff as soon as the vault is
+                // committed: a rotation between here and onSendActivityResult must not lose
+                // the only copy of the freshly derived key.
+                result.encryptionKey?.let { VaultSession.offerDerivedKey(it.copyOf(), result.generation) }
                 title?.setText(R.string.intro_slide4_title)
                 message?.setText(R.string.intro_slide4_desc)
 
