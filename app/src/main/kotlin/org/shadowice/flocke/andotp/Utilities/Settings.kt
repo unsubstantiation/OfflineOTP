@@ -650,7 +650,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getAuthInactivityDelay(): Int {
-        return getIntValue(R.string.settings_key_auth_inactivity_delay, 0)
+        return getInt(R.string.settings_key_auth_inactivity_delay, R.integer.settings_default_auth_inactivity_delay)
     }
 
     open fun getAuthInactivity(): Boolean {

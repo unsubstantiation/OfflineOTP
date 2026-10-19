@@ -229,6 +229,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     override fun requiresVaultSession(): Boolean = true
 
+    override fun shouldDestroyOnScreenOff(): Boolean = false
+
     override fun onVaultLocked() {
         encryptionKey = null
         cancelBackgroundTask()

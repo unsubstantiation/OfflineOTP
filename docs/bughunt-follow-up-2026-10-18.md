@@ -33,8 +33,10 @@ translation-format-argument guard (mutation-verified: removing the placeholder a
 
 No production `TODO`/`FIXME` marker remains; the 424-entry thumbnail/drawable mapping is
 bijective; no dangling `R` reference exists. The `IntroScreenActivity` portrait lock (upstream
-issue #591) is deliberately left in place: removing a user-facing orientation restriction
-without device acceptance is a product decision, not a bug fix.
+issue #591) was deliberately left in place at this pass — removing a user-facing orientation
+restriction without device acceptance was a product decision, not a bug fix. It has since been
+removed under OfflineOTP #39 (the wizard's `ScrollView` layouts already handled landscape via
+forced rotation; the `android:screenOrientation="portrait"` attribute is no longer set).
 
 ## Phase 2 — unfinished features completed
 
@@ -166,8 +168,8 @@ Runtime behaviour that depends on Android resources, lifecycle, SAF/OpenPGP prov
 keystore behaviour or a device still needs the Android gates above. The architectural
 extractions in `docs/ui-decomposition-plan.md` remain proposed refactor boundaries (not
 user-visible incomplete features), and the upstream triage items marked ❌ in
-`docs/andotp-open-issues-triage.md` — except the deliberately documented #591 portrait lock —
-are available as follow-up work.
+`docs/andotp-open-issues-triage.md` (none remain after OfflineOTP #39 fixed #591) are available
+as follow-up work.
 
 # Second pass (later 2026-10-18): edit saves, the PIN warning and the custom-period card row
 
@@ -216,8 +218,8 @@ views and asserts both branches, and the localized format string is no longer an
   (the docs state they are not user-visible incomplete features) — unchanged.
 - The triage ❌ brand-icon batch is already complete in this checkout (PR #42 added the
   missing vectors; 80 of the 81 requested brands resolve in `EntryThumbnail`, the rest is
-  `500px`/`FiveHundredPx`). The remaining ❌ items are product/UX requests (#591 portrait
-  lock is a documented deliberate choice), and the 🆕 gaps are explicitly "adopt only if
+  `500px`/`FiveHundredPx`). The remaining ❌ items were product/UX requests (#591 portrait
+  lock, since fixed under OfflineOTP #39), and the 🆕 gaps are explicitly "adopt only if
   wanted" — no code in this repository claims them as started work.
 - Remaining orphaned strings (`card_separator`, `dialog_title_rename`, `button_settings`,
   `about_label_github`/`website`/`translators`, ...) are dead in upstream the same way or

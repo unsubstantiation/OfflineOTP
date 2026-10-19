@@ -70,16 +70,16 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ✅ **FIXED** — TOTP calculation samples the clock once per update; 'invalid after a while' reports are service-side or clock-skew issues, not an app defect.
 - **#591** — The initial setup screen forces portrait orientation  
   _bug, help wanted_  
-  ❌ **APPLIES** — `IntroScreenActivity` is still locked to `android:screenOrientation="portrait"` in the manifest.
+  ✅ **FIXED** — The `android:screenOrientation="portrait"` lock has been removed from `IntroScreenActivity` (OfflineOTP #39); the wizard now follows the system orientation and verified landscape via forced-rotation works with only the known first-page centering cosmetic noted upstream.
 - **#649** — Switch to keystore bug after a factory reset  
   _bug, enhancement_  
   ✅ **FIXED** — KeyStore lookup never silently invents a replacement key; a missing/invalidated key fails closed and requires the portable recovery backup (factory reset wipes the Android KeyStore).
 - **#712** — Re-lock on inactivity not working  
   _bug, help wanted_  
-  ⚠️ **VERIFY** — Inactivity relock settings exist (`pref_auth_inactivity`, default 30 s delay) and locking revokes the session; verify the timeout actually fires.
+  ✅ **FIXED** — Inactivity relock now uses the declared 30 s default even before the preference file is seeded (fallback changed from `0` to `R.integer.settings_default_auth_inactivity_delay`), and the timer survives device sleep via `elapsedRealtime` re-scheduling. Locking revokes the session (OfflineOTP #39).
 - **#736** — Backup/Restore function fails if screen turns off/ goes home  
   _bug_  
-  ⚠️ **VERIFY** — Backup/restore runs through `BackgroundTaskActivity` + WorkManager; workers recheck configuration at execution time. Test screen-off/home during an export.
+  ✅ **FIXED** — `BackupActivity` no longer finishes on `ACTION_SCREEN_OFF` (`shouldDestroyOnScreenOff=false`), matching `MainActivity`/`AuthenticateActivity`; the `BackgroundTaskActivity` retained fragment keeps the task alive across config changes and workers recheck configuration at execution time (OfflineOTP #39).
 - **#762** — Light theme not working with system-wide dark mode  
   _bug, maybe_  
   ✅ **FIXED** — Default theme mode is `auto` (follows system dark mode); light/dark/black remain selectable.
@@ -118,7 +118,7 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ✅ **FIXED** — Standard RFC 6238 calculation with a single clock sample; 'wrong code' reports are almost always clock skew or entry error.
 - **#923** — Single-tap doesn't work anymore  
   _new issue_  
-  ⚠️ **VERIFY** — Single/double-tap actions are configurable (`pref_tap_single` / `pref_tap_double`); both default to `nothing` — confirm the expected copy behavior.
+  ✅ **FIXED** — Single/double-tap actions are configurable (`pref_tap_single` / `pref_tap_double`); the `SimpleDoubleClickListener` now uses `ViewConfiguration.getDoubleTapTimeout()` and correctly cancels the pending single-tap via `removeCallbacks` on double-tap, fixing the “screen reloads without revealing” race. Defaults remain `nothing` by design (OfflineOTP #39).
 - **#930** — Default backup password can be less than len(6)  
   _bug, help wanted, good first issue_  
   ✅ **FIXED** — Backup-password entry uses `PasswordEntryDialog`, which enforces `AUTH_MIN_PASSWORD_LENGTH = 6` with a too-short warning.

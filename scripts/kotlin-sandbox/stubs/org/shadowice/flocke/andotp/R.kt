@@ -591,8 +591,9 @@ object R {
         const val viewPager = 0x7f06007f
     }
     object integer {
-        const val settings_default_label_size = 0x7f070000
-        const val settings_default_tap_to_reveal_timeout = 0x7f070001
+        const val settings_default_auth_inactivity_delay = 0x7f070000
+        const val settings_default_label_size = 0x7f070001
+        const val settings_default_tap_to_reveal_timeout = 0x7f070002
     }
     object layout {
         const val activity_container = 0x7f080000

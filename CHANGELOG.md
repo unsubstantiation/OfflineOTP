@@ -2,6 +2,10 @@
 
 #### Unreleased
 
+ * Bugfix: Allow the initial-setup wizard to rotate with the device (remove the `android:screenOrientation="portrait"` lock from `IntroScreenActivity`, OfflineOTP #39 / andOTP #591; landscape was already verified via forced rotation)
+ * Bugfix: Fix inactivity auto-lock fallback (use the declared 30 s default when the preference has not been initialized) and keep the screen-off guard on the inactivity timer; covers andOTP #712 (OfflineOTP #39)
+ * Bugfix: Keep backup/restore tasks alive when the screen turns off (do not finish `BackupActivity` on `ACTION_SCREEN_OFF`); covers andOTP #736 (OfflineOTP #39)
+ * Bugfix: Use the platform double-tap timeout and correctly cancel the pending single-tap when a double-tap is detected; covers andOTP #923 (OfflineOTP #39)
  * Bugfix: Regenerate the sandbox `R` stand-in after the thumbnail batch (the local compile gate was broken) and add a freshness check
  * Bugfix: Restore the missing `%1$s` format argument in the Arabic confirm-delete dialog
  * Internal: Add the JVM unit-test suite (RFC vectors, parser/document matrices, timer policy, entry-list semantics) with a no-Gradle harness (`scripts/run-jvm-tests.sh`)

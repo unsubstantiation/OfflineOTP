@@ -23,34 +23,34 @@
 package org.shadowice.flocke.andotp.View
 
 import android.view.View
+import android.view.ViewConfiguration
 
 /** Distinguishes single and double taps by delaying single-tap delivery by [DOUBLE_CLICK_TIME_DELTA] ms. */
 abstract class SimpleDoubleClickListener : View.OnClickListener {
 
     private var lastClickTime = 0L
-    private var firstTap = true
+    private var pendingSingle: Runnable? = null
 
     override fun onClick(v: View) {
         val clickTime = System.currentTimeMillis()
+        val timeout = ViewConfiguration.getDoubleTapTimeout().toLong()
 
-        if (clickTime - lastClickTime < DOUBLE_CLICK_TIME_DELTA) {
-            if (firstTap)
+        if (clickTime - lastClickTime < timeout) {
+            pendingSingle?.let { v.removeCallbacks(it) }
+            pendingSingle = null
+            // Only the first tap in a double-tap sequence fires onDoubleClick; extra rapid taps are ignored.
+            if (lastClickTime != 0L) {
                 onDoubleClick(v)
-
-            firstTap = false
+            }
+            lastClickTime = 0L
         } else {
-            firstTap = true
-
-            v.postDelayed({ if (firstTap) onSingleClick(v) }, DOUBLE_CLICK_TIME_DELTA)
+            val runnable = Runnable { onSingleClick(v) }
+            pendingSingle = runnable
+            v.postDelayed(runnable, timeout)
+            lastClickTime = clickTime
         }
-
-        lastClickTime = clickTime
     }
 
     abstract fun onSingleClick(v: View)
     abstract fun onDoubleClick(v: View)
-
-    private companion object {
-        const val DOUBLE_CLICK_TIME_DELTA = 300L // Milliseconds
-    }
 }
