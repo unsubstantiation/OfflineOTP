@@ -20,12 +20,13 @@ import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
 import org.shadowice.flocke.andotp.Utilities.Tools
 
 /** Dialog that prompts for a backup password (single entry or with confirmation). */
-open class PasswordEntryDialog(
+open class PasswordEntryDialog @JvmOverloads constructor(
     context: Context,
     newMode: Mode,
     blockAccessibility: Boolean,
     blockAutofill: Boolean,
-    newCallback: PasswordEnteredCallback?
+    newCallback: PasswordEnteredCallback?,
+    newCancelCallback: PasswordCanceledCallback? = null
 ) : AppCompatDialog(context, Tools.getThemeResource(context, R.attr.dialogTheme)),
     View.OnClickListener, TextWatcher, TextView.OnEditorActionListener {
 
@@ -37,8 +38,15 @@ open class PasswordEntryDialog(
         fun onPasswordEntered(newPassword: String)
     }
 
+    /** Notifies the owner when a protected operation is explicitly canceled by the user. */
+    fun interface PasswordCanceledCallback {
+        fun onPasswordCanceled()
+    }
+
     private val dialogMode: Mode = newMode
     private val callback: PasswordEnteredCallback? = newCallback
+    private val cancelCallback: PasswordCanceledCallback? = newCancelCallback
+    private var passwordAccepted = false
 
     private val passwordInput: TextInputEditText
     private val passwordConfirm: EditText
@@ -47,6 +55,9 @@ open class PasswordEntryDialog(
 
     init {
         setTitle(R.string.dialog_title_enter_password)
+        setOnCancelListener {
+            if (!passwordAccepted) cancelCallback?.onPasswordCanceled()
+        }
         setContentView(R.layout.dialog_password_entry)
         // Resize with the IME so the buttons stay visible above the keyboard (#805).
         window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
@@ -138,7 +149,10 @@ open class PasswordEntryDialog(
     override fun onClick(view: View) {
         try {
             if (view.id == R.id.buttonOk) {
+                passwordAccepted = true
                 callback?.onPasswordEntered(passwordInput.text.toString())
+            } else {
+                cancelCallback?.onPasswordCanceled()
             }
         } finally {
             dismiss()

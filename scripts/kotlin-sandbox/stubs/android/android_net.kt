@@ -18,7 +18,7 @@ class Uri internal constructor(
     private val authorityValue: String? = null,
     private val pathValue: String? = null,
     private val parameters: List<Pair<String, String>> = emptyList()
-) {
+) : android.os.Parcelable {
     override fun toString(): String = text ?: ""
 
     fun getScheme(): String? = schemeValue

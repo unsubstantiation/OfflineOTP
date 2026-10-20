@@ -10,6 +10,7 @@
     tools:context="org.shadowice.flocke.andotp.Activities.MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/main_app_bar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:theme="@style/AppTheme.AppBarOverlay">
@@ -88,7 +89,11 @@
     <com.leinardi.android.speeddial.SpeedDialOverlayLayout
         android:id="@+id/speedDialOverlay"
         android:layout_width="match_parent"
-        android:layout_height="match_parent" />
+        android:layout_height="match_parent"
+        android:contentDescription="@string/button_close_menu"
+        android:clickable="true"
+        android:focusable="true"
+        android:importantForAccessibility="yes" />
 
     <com.leinardi.android.speeddial.SpeedDialView
         android:id="@+id/speedDial"

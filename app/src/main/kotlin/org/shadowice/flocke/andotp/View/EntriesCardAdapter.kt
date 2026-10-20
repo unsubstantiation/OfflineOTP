@@ -359,17 +359,19 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private fun cardTapToRevealHandler(position: Int) {
         val entry = presentation.get(position)
         val realIndex = entries.indexOf(entry)
+        if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
+        val realEntry = entries.getEntry(realIndex)
 
         if (entry.isVisible()) {
             hideEntry(entry)
         } else {
-            entries.getEntry(realIndex).setHideTask(Runnable { hideEntry(entry) })
+            realEntry.setHideTask(Runnable { hideEntry(entry) })
             taskHandler.postDelayed(
-                entries.getEntry(realIndex).getHideTask()!!,
+                realEntry.getHideTask()!!,
                 settings.getTapToRevealTimeout() * 1000L)
 
             if (entry.isCounterBased()) {
-                updateEntry(entry, entries.getEntry(realIndex), position)
+                updateEntry(entry, realEntry, position)
             }
             entry.setVisible(true)
             notifyItemChanged(position)
@@ -394,11 +396,13 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val pos = presentation.indexOf(entry)
         val realIndex = entries.indexOf(entry)
 
-        if (realIndex >= 0) {
-            entries.getEntry(realIndex).setVisible(false)
-            entries.getEntry(realIndex).getHideTask()?.let { taskHandler.removeCallbacks(it) }
-            entries.getEntry(realIndex).setHideTask(null)
-        }
+        // A delayed reveal timeout can race with lockEntries(), deletion, or a list reload. Once
+        // the entry has left the owned list this callback is stale; never index the list at -1.
+        if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
+
+        entries.getEntry(realIndex).setVisible(false)
+        entries.getEntry(realIndex).getHideTask()?.let { taskHandler.removeCallbacks(it) }
+        entries.getEntry(realIndex).setHideTask(null)
 
         val updateNeeded = updateLastUsedAndFrequency(pos, realIndex)
 
@@ -447,17 +451,22 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Records the usage; returns false when the resorting also updated the view. */
     private fun updateLastUsedAndFrequency(position: Int, realIndex: Int): Boolean {
+        val ownedEntries = entries.getEntries()
+        if (!EntryIndexGuard.isValid(realIndex, ownedEntries.size)) return false
+        val safePosition = position.takeIf { it >= 0 && it < presentation.size() }
+        val realEntry = ownedEntries[realIndex]
         val timeStamp = System.currentTimeMillis()
-        val entryUsedFrequency = entries.getEntry(realIndex).getUsedFrequency()
+        val entryUsedFrequency = realEntry.getUsedFrequency()
 
-        if (position >= 0) {
-            val displayEntryUsedFrequency = presentation.get(position).getUsedFrequency()
-            presentation.get(position).setLastUsed(timeStamp)
-            presentation.get(position).setUsedFrequency(displayEntryUsedFrequency + 1)
+        if (safePosition != null) {
+            val displayEntry = presentation.get(safePosition)
+            val displayEntryUsedFrequency = displayEntry.getUsedFrequency()
+            displayEntry.setLastUsed(timeStamp)
+            displayEntry.setUsedFrequency(displayEntryUsedFrequency + 1)
         }
 
-        entries.getEntry(realIndex).setLastUsed(timeStamp)
-        entries.getEntry(realIndex).setUsedFrequency(entryUsedFrequency + 1)
+        realEntry.setLastUsed(timeStamp)
+        realEntry.setUsedFrequency(entryUsedFrequency + 1)
         saveEntries(false)
 
         if (presentation.resortAfterUsage()) {

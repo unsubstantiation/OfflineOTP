@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.Activities
 
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
@@ -289,7 +290,15 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         if (settings!!.isBackupLocationSet())
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, settings!!.getBackupLocation())
 
-        startActivityForResult(intent, Constants.INTENT_SETTINGS_BACKUP_LOCATION)
+        try {
+            startActivityForResult(intent, Constants.INTENT_SETTINGS_BACKUP_LOCATION)
+        } catch (error: ActivityNotFoundException) {
+            // Work profiles and minimal ROMs may not have a document-tree provider. Do not let
+            // this optional backup-location setting crash the entire Settings screen.
+            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+        } catch (error: SecurityException) {
+            Toast.makeText(this, R.string.backup_toast_location_access_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

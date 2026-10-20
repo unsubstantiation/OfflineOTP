@@ -2055,8 +2055,10 @@ fun main() {
         val updateWidgets = FakePasswordDialogWidgets()
         try {
             var entered: String? = null
+            var canceled = 0
             val dialog = PasswordEntryDialog(Context(), PasswordEntryDialog.Mode.UPDATE, false, true,
-                    PasswordEntryDialog.PasswordEnteredCallback { entered = it })
+                    PasswordEntryDialog.PasswordEnteredCallback { entered = it },
+                    PasswordEntryDialog.PasswordCanceledCallback { canceled++ })
 
             expect(updateWidgets.confirm.visibility == View.VISIBLE,
                     { "UPDATE mode must show the confirmation field" })
@@ -2082,15 +2084,24 @@ fun main() {
                     { "matching but short inputs must still warn" })
 
             updateWidgets.cancel.performClick()
-            expect(dialog.dismissals == 1 && entered == null,
-                    { "cancel must dismiss without delivering a password" })
+            expect(dialog.dismissals == 1 && entered == null && canceled == 1,
+                    { "cancel must dismiss without delivering a password and notify its owner" })
 
             updateWidgets.input.setText("secret1")
             updateWidgets.confirm.setText("secret1")
             dialog.onTextChanged("", 0, 0, 0)
             updateWidgets.ok.performClick()
-            expect(entered == "secret1" && dialog.dismissals == 2,
-                    { "OK must deliver the password and dismiss" })
+            expect(entered == "secret1" && dialog.dismissals == 2 && canceled == 1,
+                    { "OK must deliver the password and dismiss without a cancel callback" })
+
+            // The platform also calls the cancel listener for Back/outside dismissal.
+            val cancelWidgets = FakePasswordDialogWidgets()
+            var systemCanceled = 0
+            val cancelDialog = PasswordEntryDialog(Context(), PasswordEntryDialog.Mode.ENTER, false, false, null,
+                    PasswordEntryDialog.PasswordCanceledCallback { systemCanceled++ })
+            cancelDialog.cancel()
+            expect(systemCanceled == 1,
+                    { "system cancellation did not notify the owner" })
 
             // The Java code tolerated a missing callback and still dismissed.
             val widgets = FakePasswordDialogWidgets()

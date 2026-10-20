@@ -73,6 +73,7 @@ object Constants {
     const val INTENT_BACKUP_ENCRYPT_PGP = 206
     const val INTENT_BACKUP_DECRYPT_PGP = 207
     const val INTENT_BACKUP_OPEN_DOCUMENT_CRYPT_OLD = 208
+    const val INTENT_BACKUP_OPEN_DOCUMENT_PLAIN = 209
 
     const val INTENT_SETTINGS_AUTHENTICATE = 300
     const val INTENT_SETTINGS_BACKUP_LOCATION = 301
@@ -83,6 +84,8 @@ object Constants {
     const val EXTRA_AUTH_MESSAGE = "message"
 
     const val EXTRA_BACKUP_ENCRYPTION_KEY = "encryption_key"
+    const val EXTRA_BACKUP_PENDING_ACTION = "backup_pending_action"
+    const val EXTRA_BACKUP_PENDING_REPLACE = "backup_pending_replace"
 
     const val EXTRA_INTRO_FINISHED = "setup_finished"
     const val EXTRA_INTRO_ENCRYPTION_KEY = "encryption_key"

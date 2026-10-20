@@ -2,6 +2,8 @@ package org.shadowice.flocke.andotp.Utilities
 
 import android.content.Context
 import android.net.Uri
+
+import androidx.documentfile.provider.DocumentFile
 import android.os.ParcelFileDescriptor
 import android.provider.OpenableColumns
 
@@ -72,6 +74,17 @@ object StorageAccessHelper {
         if (name == null || name.length > InputPolicy.MAX_TEXT_CHARS) return "backup"
         // Enforce the length bound before stripping ASCII control characters.
         return name.replace(Regex("[\\p{Cntrl}]"), "")
+    }
+
+    /** Deletes a failed/canceled `ACTION_CREATE_DOCUMENT` result, never an arbitrary path. */
+    @JvmStatic
+    fun deleteContentFile(context: Context, file: Uri?): Boolean {
+        if (file == null || file.toString().length > InputPolicy.MAX_URI_CHARS || file.getScheme() != "content") return false
+        return try {
+            DocumentFile.fromSingleUri(context, file)?.delete() == true
+        } catch (_: RuntimeException) {
+            false
+        }
     }
 
     @JvmStatic

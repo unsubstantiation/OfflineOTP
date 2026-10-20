@@ -6,8 +6,10 @@ splits the upstream reports that were not already fixed into **confirmed defects
 and **device-verification items** (`⚠️ verify`). This document records what changed, what is now
 covered by an automated test, and what still needs a real device or emulator run.
 
-Nothing here claims that the device matrix has been executed: the CI emulator jobs (fdroid/play ×
-API 28/36) run the instrumentation suite that now contains these checks, and that is the gate.
+The follow-up implementation is in [PR #52](https://github.com/unsubstantiation/OfflineOTP/pull/52)
+(commit `b3b0f04` before this tracker update). Local checks passed as listed below, but nothing here
+claims that the Android device matrix has been executed: the CI emulator jobs (fdroid/play × API
+28/36) and provider-specific device checks remain the acceptance gate.
 
 ## Fixed
 
@@ -59,40 +61,55 @@ API 28/36) run the instrumentation suite that now contains these checks, and tha
   content scrolls while the buttons stay reachable instead of the dialog being panned.
 * Test: `test_carryover_issue_fixes.py::DialogImeTest`.
 
-## Device coverage added
+## Code fixes in PR #52
 
-The triage items below are crash/flow reports that cannot be proven from a host JVM. The new
-`ActivityReachabilityDeviceTest` launches the named surfaces and recreates them on the emulator
-matrix, which turns "retest on the current build" into a CI result rather than a manual step:
+| Upstream | Code-level change |
+| --- | --- |
+| #208, #736 | Fail-closed authentication results; preserve picker-selected action/URI across relock and recreation; retry only after re-authentication; handle password cancellation and screen-off. |
+| #376, #533, #865, #895, #948 | Harden SAF content-URI flows and missing-picker/provider errors; clean up failed or canceled manually-created backup documents. Automatic backups continue to use the configured SAF location. |
+| #406 | Guard stale entry indexes; obscured-touch events continue to be rejected by `BaseActivity`. |
+| #498 | Improve Speed Dial focus, overlay labeling, and TalkBack traversal behavior. |
+| #873, #948 | Add Settings and Backup activity launch/recreation instrumentation fixtures. |
+| #892 | Add the reported CCP `otpauth://` URI as parser regression coverage. |
+| #923 | Use monotonic delayed single/double-tap sequencing with coverage for the rapid-third-tap case. |
+| #976 | Add warning-confirmed, bounded strict-UTF-8 plaintext restore; plaintext export remains unavailable. |
+| #995, #996 | Require a ready OpenPGP provider and valid recipients for encryption; reject empty output and report failures. |
+| #847, #879 | No KeyStore policy change in this PR; retain the fail-closed/no-key-regeneration behavior. |
+
+## Verification recorded for PR #52
+
+* `scripts/kotlin-sandbox/run.sh` — passed.
+* `scripts/run-jvm-tests.sh` — 136 passed.
+* `scripts/kotlin-sandbox/compile-android-tests.sh` — passed; this is compile-only.
+* `python3 -m unittest discover -s scripts/tests -v` — 95 tests run, 7 skipped because PyYAML is unavailable.
+* `git diff --check` — passed.
+
+## Instrumentation coverage added
+
+`ActivityReachabilityDeviceTest` now establishes an unlocked test session, launches Settings and
+Backup with fresh preferences, checks the toolbar, and recreates both activities. This provides
+reachability fixtures, not proof of SAF provider behavior or TalkBack operation:
 
 | Upstream | Surface | Instrumentation |
 | --- | --- | --- |
-| #873, #932 | Settings | launches; fails closed (finishes) without an unlocked vault |
-| #948 | backup entry point | covered indirectly by the settings/backup reachability smoke plus the existing backup task tests |
+| #873 | Settings | launch and recreation with an unlocked vault |
+| #948 | Backup | launch and recreation with an unlocked vault |
 | #591 | first-run wizard | orientation + recreation checks |
 
-## Still a device/CI gate (not modified in this pass)
+## Remaining device/CI gates
 
-These need a real-device or emulator run before they can be closed; no code change is justified by
-the current evidence:
+These need an Android Gradle/CI or real-device run before being closed; a host pass does not prove
+the provider, lifecycle, OEM, or accessibility behavior:
 
-* **#208** Back-key bypass — the flow (Back on `AuthenticateActivity` → `RESULT_CANCELED` →
-  `finishAndRemoveTask`, and `VaultSession` keys being process-memory state) is fail-closed in the
-  source, but the physical/gesture Back path needs a device run.
-* **#376, #976** restore paths — bounded, all-or-nothing outcomes exist; legacy encrypted and
-  plain-text backups need an end-to-end run.
-* **#406** obscured-touch crash — `BaseActivity` rejects obscured/partially obscured events; retest
-  with the BitWarden safe dialog.
-* **#498** TalkBack — no automated accessibility claim is made; the hardening doc keeps this as an
-  acceptance gate.
-* **#533, #736, #948, #995, #996** — SAF backup/restore and OpenPGP exports need provider and
-  OpenKeychain runs (screen-off/home during export included).
-* **#847, #879** — KeyStore/StrongBox and OEM (MIUI) behaviour needs hardware runs; the code keeps
-  the fail-closed policy (no silent key regeneration).
-* **#865, #895** — Google Drive and Work Profile behaviour through SAF.
-* **#892** — QR decoding is bounds-checked; a malformed-image corpus run on device is still needed.
-* **#923** — single-tap handling; the tap mode settings and the delayed single-tap listener are
-  unchanged by this pass, and the report needs a device repro (the default for both tap modes is
-  `nothing`, so a user who never changed the setting gets no tap action by design).
-* **#712** now has host coverage, but the screen-off/background scenario should still be confirmed
-  on the emulator matrix.
+* **#208** Back-key/gesture authentication flow — exercise cancellation, recents, and relock on device.
+* **#376, #976** Restore paths — test legacy encrypted and plaintext backups end-to-end, including cloud documents.
+* **#406** Obscured-touch crash — retest with the BitWarden safe dialog.
+* **#498** TalkBack — verify focus order and overlay dismissal on-device.
+* **#533, #736, #948** — test Files/SAF providers, missing-provider behavior, and screen-off/home during export/import.
+* **#847, #879** — verify Android 11/Pixel KeyStore and MIUI/OEM behavior on hardware; this PR does not change the fail-closed policy.
+* **#865, #895** — verify Google Drive and Work Profile behavior through SAF.
+* **#873** — run the Settings/Backup instrumentation fixtures on the emulator/API matrix; no runtime instrumentation was run locally.
+* **#892** — scan the reported QR and malformed-image cases on device.
+* **#923** — verify configured single/double-tap behavior in the app; host controller tests do not validate preference UX.
+* **#995, #996** — complete encrypted exports against current OpenKeychain and a real destination provider.
+* **#712** has host coverage, but the screen-off/background timeout should still be confirmed on the emulator matrix.

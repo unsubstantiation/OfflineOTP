@@ -203,6 +203,8 @@ open class Intent(action: String? = null) {
     open fun getBooleanExtra(name: String, defaultValue: Boolean): Boolean =
         extras[name] as? Boolean ?: defaultValue
 
+    open fun hasExtra(name: String): Boolean = extras.containsKey(name)
+
     open fun putExtra(name: String, value: String?): Intent {
         extras[name] = value
         return this

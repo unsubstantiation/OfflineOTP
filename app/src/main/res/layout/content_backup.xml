@@ -123,6 +123,13 @@
             android:layout_height="wrap_content"
             android:text="@string/backup_button_restore" />
 
+        <Button
+            android:id="@+id/buttonRestorePlainText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/activity_margin_small"
+            android:text="@string/backup_button_restore_plaintext" />
+
         <ProgressBar
             android:id="@+id/progressBarRestore"
             android:layout_width="wrap_content"

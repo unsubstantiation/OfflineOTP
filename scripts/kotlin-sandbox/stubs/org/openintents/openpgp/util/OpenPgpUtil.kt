@@ -6,31 +6,45 @@ package org.openintents.openpgp.util
 
 import android.content.Context
 import android.content.Intent
+import org.openintents.openpgp.IOpenPgpService2
 import org.openintents.openpgp.OpenPgpError
 import org.openintents.openpgp.OpenPgpSignatureResult
 import java.io.InputStream
 import java.io.OutputStream
 
 /** The connection to the OpenPGP provider app. */
-class OpenPgpServiceConnection(private val context: Context, private val provider: String?) {
+class OpenPgpServiceConnection(
+    private val context: Context,
+    private val provider: String?,
+    private val onBound: OnBound? = null
+) {
+    interface OnBound {
+        fun onBound(service: IOpenPgpService2)
+        fun onError(error: Exception)
+    }
+
     /** How often the connection was bound or unbound. */
     var binds = 0
         private set
     var unbinds = 0
         private set
 
-    /** The service the connection is bound to; the provider app supplies it. */
-    var boundService: Any? = null
+    /** The service the stand-in reports as connected. */
+    var boundService: IOpenPgpService2? = null
 
     fun bindToService() {
         binds++
+        boundService?.let { onBound?.onBound(it) }
     }
 
     fun unbindFromService() {
         unbinds++
+        boundService = null
     }
 
-    fun getService(): Any? = boundService
+    fun isBound(): Boolean = boundService != null
+
+    fun getService(): IOpenPgpService2? = boundService
 }
 
 /** The OpenPGP API client. */
