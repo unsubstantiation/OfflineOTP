@@ -10,9 +10,16 @@ class SpeedDialActionItem(private val id: Int) {
     fun getId(): Int = id
 }
 
+/** Child row that wraps the accessible action button. */
+class FabWithLabelView : View() {
+    private val fab = View()
+    fun getFab(): View = fab
+}
+
 /** The floating action button menu of the main screen. */
 open class SpeedDialView(context: Context) : ViewGroup() {
     private val mainFab = View()
+    private val actionItems = ArrayList<SpeedDialActionItem>()
 
     /** The action listener that was set. */
     var onActionSelectedListener: OnActionSelectedListener? = null
@@ -35,6 +42,8 @@ open class SpeedDialView(context: Context) : ViewGroup() {
     }
 
     fun getMainFab(): View = mainFab
+
+    fun getActionItems(): ArrayList<SpeedDialActionItem> = ArrayList(actionItems)
 
     fun setOnActionSelectedListener(listener: OnActionSelectedListener?) {
         onActionSelectedListener = listener

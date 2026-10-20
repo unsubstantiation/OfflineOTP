@@ -24,4 +24,17 @@ open class Bundle {
     }
 
     fun getBoolean(key: String, defaultValue: Boolean): Boolean = values[key] as? Boolean ?: defaultValue
+
+    fun putInt(key: String, value: Int) {
+        values[key] = value
+    }
+
+    fun getInt(key: String, defaultValue: Int): Int = values[key] as? Int ?: defaultValue
+
+    fun putParcelable(key: String, value: Parcelable?) {
+        values[key] = value
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    fun <T : Parcelable> getParcelable(key: String): T? = values[key] as? T
 }

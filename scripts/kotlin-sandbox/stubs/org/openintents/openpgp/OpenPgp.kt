@@ -4,6 +4,9 @@
 // stand-in, so the checks can only see that the converted screen called the API.
 package org.openintents.openpgp
 
+/** Binder service marker exposed by an OpenPGP provider. */
+interface IOpenPgpService2
+
 /** The error the OpenPGP app reported. */
 class OpenPgpError(private val message: String?) : android.os.Parcelable {
     fun getMessage(): String? = message

@@ -48,6 +48,9 @@ open class View {
     open fun refreshDrawableState() {}
 
     open fun postDelayed(runnable: Runnable, delayMillis: Long): Boolean = true
+    open fun post(runnable: Runnable): Boolean = true
+    open fun removeCallbacks(runnable: Runnable): Boolean = true
+    open fun performAccessibilityAction(action: Int, arguments: android.os.Bundle?): Boolean = true
 
     /** Records the listener so `performClick` can dispatch to it like the platform would. */
     open fun setOnClickListener(listener: OnClickListener?) {
@@ -100,6 +103,8 @@ open class View {
         const val VISIBLE = 0
         const val INVISIBLE = 4
         const val GONE = 8
+        const val IMPORTANT_FOR_ACCESSIBILITY_AUTO = 0
+        const val IMPORTANT_FOR_ACCESSIBILITY_YES = 1
         const val IMPORTANT_FOR_ACCESSIBILITY_NO = 2
         const val IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4
         const val IMPORTANT_FOR_AUTOFILL_NO = 2

@@ -48,6 +48,9 @@
     <string name="backup_toast_storage_not_accessible">External storage is not accessible.</string>
     <string name="backup_toast_openpgp_error">OpenPGP error: %s</string>
     <string name="backup_toast_openpgp_not_verified">No verified signature found.</string>
+    <string name="backup_toast_openpgp_unavailable">Could not connect to the selected OpenPGP provider.</string>
+    <string name="backup_toast_openpgp_no_recipients">Select at least one OpenPGP recipient key in Settings before creating a backup.</string>
+    <string name="backup_toast_openpgp_empty">The OpenPGP provider returned no encrypted backup.</string>
     <string name="backup_toast_file_selection_failed">Could not open the file picker.</string>
 
     <string name="backup_label_type">Backup type: </string>
@@ -61,6 +64,13 @@
 
     <string name="backup_button_backup">Create backup</string>
     <string name="backup_button_restore">Restore backup</string>
+    <string name="backup_button_restore_plaintext">Restore plain-text backup…</string>
+    <string name="backup_plaintext_warning_title">Restore plain-text backup?</string>
+    <string name="backup_plaintext_warning_message">Plain-text backups contain your OTP secrets without encryption. Only restore a file you trust. OfflineOTP imports the entries but does not create plain-text backups.</string>
+    <string name="backup_desc_openpgp_connecting">Connecting to the selected OpenPGP provider…</string>
+    <string name="backup_desc_openpgp_unavailable">Could not connect to the selected OpenPGP provider. Check that it is installed and enabled, then try again.</string>
+    <string name="backup_desc_vault_locked_picker">The vault locked while the file picker was open. The selected file will continue after you unlock.</string>
+    <string name="backup_toast_plaintext_invalid">The plain-text backup is empty or is not valid UTF-8.</string>
 
     <string-array name="backup_list_type_names">
         <item>Encrypted</item>

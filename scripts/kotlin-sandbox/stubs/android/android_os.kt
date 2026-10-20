@@ -45,6 +45,9 @@ class SystemClock private constructor() {
     companion object {
         @JvmStatic
         fun elapsedRealtime(): Long = System.nanoTime() / 1_000_000L
+
+        @JvmStatic
+        fun uptimeMillis(): Long = System.nanoTime() / 1_000_000L
     }
 }
 

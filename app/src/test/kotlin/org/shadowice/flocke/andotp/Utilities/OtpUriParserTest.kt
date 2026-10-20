@@ -38,6 +38,17 @@ class OtpUriParserTest {
     }
 
     @Test
+    fun acceptsTheLegacyCcpQrCodeReportedInIssue892() {
+        success("otpauth://totp/CCP:123456?secret=3KJPWL4V4MSKDPD6") { value ->
+            assertEquals(OtpKind.TOTP, value.kind)
+            assertEquals("CCP:123456", value.label)
+            assertEquals("", value.issuer)
+            assertEquals(30, value.period)
+            assertEquals(6, value.digits)
+        }
+    }
+
+    @Test
     fun parsesExplicitParameters() {
         success("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&period=60&digits=8&algorithm=SHA256"
             + "&issuer=Example&tags=a&tags=b") { value ->

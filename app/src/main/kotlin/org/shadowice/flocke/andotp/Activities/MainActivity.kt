@@ -3,9 +3,11 @@ package org.shadowice.flocke.andotp.Activities
 import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.KeyguardManager
+import android.content.ActivityNotFoundException
 import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
+import android.net.Uri
 import android.os.Bundle
 import android.preference.PreferenceManager
 import android.provider.Settings as AndroidSettings
@@ -15,6 +17,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.LinearInterpolator
 import android.widget.AdapterView
 import android.widget.CheckedTextView
@@ -37,6 +40,7 @@ import androidx.recyclerview.widget.RecyclerView
 
 import com.google.zxing.integration.android.IntentIntegrator
 import com.google.zxing.integration.android.IntentResult
+import com.leinardi.android.speeddial.FabWithLabelView
 import com.leinardi.android.speeddial.SpeedDialView
 
 import org.shadowice.flocke.andotp.Database.Entry
@@ -47,6 +51,7 @@ import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.Constants.EncryptionType
 import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
+import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.HandlerTimerScheduler
@@ -55,6 +60,7 @@ import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.ScanQRCodeFromFile
 import org.shadowice.flocke.andotp.Utilities.ScreenTimerController
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
+import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 import org.shadowice.flocke.andotp.Utilities.SessionLockReason
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultReadResult
@@ -81,6 +87,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var requireAuthentication = false
     private var authenticationPending = false
     private var authenticationGeneration: Long = 0
+    private var pendingBackupActionCode: Int? = null
+    private var pendingBackupUri: Uri? = null
+    private var pendingBackupReplace = false
     private val processObserver = ProcessLifecycleObserver()
 
     private var recreateActivity = false
@@ -166,6 +175,60 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun afterAuthentication() {
         if (VaultSession.getKey() == null || isFinishing()) return
         checkAutomaticTime()
+        if (adapter != null) launchPendingBackupActionIfReady()
+    }
+
+    /** Reopens a picker-selected operation only after MainActivity has re-established the vault. */
+    private fun launchPendingBackupActionIfReady() {
+        if (isFinishing() || authenticationPending || adapter == null || VaultSession.getKey() == null) return
+        val actionCode = pendingBackupActionCode ?: return
+        val uri = pendingBackupUri
+        if (uri == null || uri.getScheme() != "content") {
+            clearPendingBackupAction(discardCreatedDocument = true)
+            Toast.makeText(this, R.string.backup_toast_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        val resume = Intent(this, BackupActivity::class.java)
+            .putExtra(Constants.EXTRA_BACKUP_PENDING_ACTION, actionCode)
+            .putExtra(Constants.EXTRA_BACKUP_PENDING_REPLACE, pendingBackupReplace)
+        resume.data = uri
+        pendingBackupActionCode = null
+        pendingBackupUri = null
+        pendingBackupReplace = false
+        startActivityForResult(resume, Constants.INTENT_MAIN_BACKUP)
+    }
+
+    private fun clearPendingBackupAction(discardCreatedDocument: Boolean) {
+        val actionCode = pendingBackupActionCode
+        val uri = pendingBackupUri
+        if (discardCreatedDocument && uri != null &&
+            (actionCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT ||
+                actionCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP)) {
+            StorageAccessHelper.deleteContentFile(this, uri)
+        }
+        pendingBackupActionCode = null
+        pendingBackupUri = null
+        pendingBackupReplace = false
+    }
+
+    /** Keep TalkBack traversal inside the expanded add menu and restore it when it closes. */
+    private fun setSpeedDialAccessibility(menuOpen: Boolean) {
+        val backgroundImportance = if (menuOpen) View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            else View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+        findViewById<View>(R.id.main_app_bar)?.setImportantForAccessibility(backgroundImportance)
+        findViewById<View>(R.id.main_content)?.setImportantForAccessibility(backgroundImportance)
+
+        val overlay = findViewById<View>(R.id.speedDialOverlay) ?: return
+        overlay.setImportantForAccessibility(if (menuOpen)
+            View.IMPORTANT_FOR_ACCESSIBILITY_YES else View.IMPORTANT_FOR_ACCESSIBILITY_NO)
+        overlay.contentDescription = if (menuOpen) getString(R.string.button_close_menu) else null
+    }
+
+    /** Request accessibility focus on the first visible action when the menu expands. */
+    private fun focusFirstSpeedDialAction(dial: SpeedDialView) {
+        val firstActionId = dial.getActionItems().firstOrNull()?.getId() ?: return
+        val actionButton = dial.findViewById<FabWithLabelView>(firstActionId)?.getFab() ?: return
+        actionButton.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
     }
 
     private fun restoreSortMode() {
@@ -204,6 +267,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (savedInstanceState != null) {
+            pendingBackupActionCode = savedInstanceState.getInt(STATE_PENDING_BACKUP_ACTION, INVALID_BACKUP_ACTION)
+                .takeIf { it != INVALID_BACKUP_ACTION }
+            pendingBackupUri = savedInstanceState.getParcelable(STATE_PENDING_BACKUP_URI)
+            pendingBackupReplace = savedInstanceState.getBoolean(STATE_PENDING_BACKUP_REPLACE, false)
+        }
 
         setTitle(R.string.app_name)
 
@@ -266,8 +336,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 } else {
                     dial.getMainFab().contentDescription = getString(R.string.button_add)
                 }
+                setSpeedDialAccessibility(isOpen)
+                if (isOpen) focusFirstSpeedDialAction(dial)
             }
         })
+        // SpeedDialView may restore its expanded state before this listener is installed.
+        setSpeedDialAccessibility(dial.isOpen())
+        if (dial.isOpen()) focusFirstSpeedDialAction(dial)
 
         progressBar = requireNotNull(findViewById<ProgressBar>(R.id.progressBar))
         emptyListView = requireNotNull(findViewById<TextView>(R.id.emptyListView))
@@ -486,6 +561,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             cardList.visibility = View.VISIBLE
 
         startUpdater()
+        launchPendingBackupActionIfReady()
     }
 
     public override fun onPause() {
@@ -503,6 +579,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("filterString", filterString)
+        outState.putInt(STATE_PENDING_BACKUP_ACTION, pendingBackupActionCode ?: INVALID_BACKUP_ACTION)
+        outState.putParcelable(STATE_PENDING_BACKUP_URI, pendingBackupUri)
+        outState.putBoolean(STATE_PENDING_BACKUP_REPLACE, pendingBackupReplace)
     }
 
     override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
@@ -539,10 +618,26 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             if (result.getContents() != null) {
                 addQRCode(result.getContents())
             }
-        } else if (requestCode == Constants.INTENT_MAIN_BACKUP && resultCode == RESULT_OK) {
-            if (intent != null && intent.getBooleanExtra("reload", false)) {
-                adapter?.loadEntries()
-                refreshTags()
+        } else if (requestCode == Constants.INTENT_MAIN_BACKUP) {
+            if (resultCode == RESULT_OK && intent != null) {
+                if (intent.hasExtra(Constants.EXTRA_BACKUP_PENDING_ACTION)) {
+                    val actionCode = intent.getIntExtra(Constants.EXTRA_BACKUP_PENDING_ACTION, INVALID_BACKUP_ACTION)
+                    val actionUri = intent.data
+                    if (actionCode != INVALID_BACKUP_ACTION && actionUri?.getScheme() == "content") {
+                        pendingBackupActionCode = actionCode
+                        pendingBackupUri = actionUri
+                        pendingBackupReplace = intent.getBooleanExtra(Constants.EXTRA_BACKUP_PENDING_REPLACE, false)
+                    } else if (actionUri != null &&
+                        (actionCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT ||
+                            actionCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP)) {
+                        StorageAccessHelper.deleteContentFile(this, actionUri)
+                    }
+                }
+                if (intent.getBooleanExtra("reload", false)) {
+                    adapter?.loadEntries()
+                    refreshTags()
+                }
+                launchPendingBackupActionIfReady()
             }
         } else if (requestCode == Constants.INTENT_MAIN_SETTINGS && resultCode == RESULT_OK) {
             val encryptionChanged = intent != null &&
@@ -557,8 +652,17 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 recreate()
             }
         } else if (requestCode == Constants.INTENT_MAIN_AUTHENTICATE) {
-            if (resultCode != RESULT_OK || !authenticationPending ||
-                    !VaultSession.isCurrent(authenticationGeneration)) {
+            val accepted = AuthenticationResultPolicy.accepts(
+                resultOk = resultCode == RESULT_OK,
+                requestPending = authenticationPending,
+                sessionGenerationCurrent = VaultSession.isCurrent(authenticationGeneration)
+            )
+            if (!accepted) {
+                // Cancellation, stale callbacks, and results without an outstanding challenge all
+                // fail closed; the auth activity never receives permission to expose the vault.
+                authenticationPending = false
+                clearPendingBackupAction(discardCreatedDocument = true)
+                VaultSession.lock(SessionLockReason.AUTHENTICATION)
                 Toast.makeText(getBaseContext(), R.string.toast_auth_failed_fatal, Toast.LENGTH_LONG).show()
                 finishAndRemoveTask()
             } else {
@@ -986,7 +1090,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.setType("image/*")
-        startActivityForResult(intent, intentId)
+        try {
+            startActivityForResult(intent, intentId)
+        } catch (error: ActivityNotFoundException) {
+            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+        } catch (error: SecurityException) {
+            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Adds the entry encoded in the given otpauth URI. */
@@ -1057,6 +1167,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     companion object {
+        private const val STATE_PENDING_BACKUP_ACTION = "pending_backup_action"
+        private const val STATE_PENDING_BACKUP_URI = "pending_backup_uri"
+        private const val STATE_PENDING_BACKUP_REPLACE = "pending_backup_replace"
+        private const val INVALID_BACKUP_ACTION = -1
         private const val INTENT_SCAN_QR = "org.shadowice.flocke.andotp.intent.SCAN_QR"
         private const val INTENT_IMPORT_QR = "org.shadowice.flocke.andotp.intent.IMPORT_QR"
         private const val INTENT_ENTER_DETAILS = "org.shadowice.flocke.andotp.intent.ENTER_DETAILS"
