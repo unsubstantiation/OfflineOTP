@@ -132,6 +132,8 @@ class EmulatorScriptTest(unittest.TestCase):
             'timeout 60 "$SDKMANAGER" --licenses',
             'timeout 720 "$SDKMANAGER" --install',
             'timeout 60 "$AVDMANAGER" create avd',
+            'export ANDROID_AVD_HOME="$HOME/.android/avd"',
+            'timeout 30 "$EMULATOR" -list-avds',
             'timeout 60 "$ADB" wait-for-device',
             'boot_deadline=$((SECONDS + 480))',
             'timeout 900 ./gradlew --no-daemon',

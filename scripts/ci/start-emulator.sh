@@ -73,6 +73,12 @@ if ! command -v timeout >/dev/null 2>&1; then
     report_failure "GNU timeout is required to bound emulator setup and test waits"
 fi
 
+# Force avdmanager and emulator to use one explicit, canonical AVD directory. Runners may set
+# SDK-related home variables differently; without this, avdmanager can report success while the
+# emulator searches another directory and reports an unknown AVD.
+export ANDROID_AVD_HOME="$HOME/.android/avd"
+mkdir -p "$ANDROID_AVD_HOME"
+
 image="system-images;android-$api;default;x86_64"
 avd="ci-andotp-$flavor-$api"
 task="connected${flavor^}DebugAndroidTest"
@@ -135,6 +141,19 @@ else
     status=$?
     details="$(tail -n 16 "$report/avdmanager.log" 2>/dev/null | tr '\n' ' ')"
     report_failure "avdmanager create $avd failed or timed out (exit $status): $details" "$status"
+fi
+
+progress "verifying emulator can discover AVD $avd"
+if timeout 30 "$EMULATOR" -list-avds >"$report/emulator-avds.log" 2>&1; then
+    if ! grep -Fxq "$avd" "$report/emulator-avds.log"; then
+        avd_manager_details="$(tail -n 12 "$report/avdmanager.log" 2>/dev/null | tr '\n' ' ')"
+        avd_list="$(cat "$report/emulator-avds.log" 2>/dev/null | tr '\n' ' ')"
+        report_failure "avdmanager created $avd, but emulator -list-avds cannot find it; ANDROID_AVD_HOME=$ANDROID_AVD_HOME, emulator list: $avd_list, avdmanager log: $avd_manager_details"
+    fi
+else
+    status=$?
+    details="$(tail -n 16 "$report/emulator-avds.log" 2>/dev/null | tr '\n' ' ')"
+    report_failure "emulator -list-avds failed or timed out (exit $status): $details" "$status"
 fi
 
 progress "starting headless emulator"
