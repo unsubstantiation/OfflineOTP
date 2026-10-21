@@ -84,6 +84,15 @@ class AndroidCiWorkflowTest(unittest.TestCase):
         self.assertIn("scripts/ci/start-emulator.sh ${{ matrix.flavor }} ${{ matrix.api }}",
                       steps)
 
+    def test_instrumentation_grants_runner_access_to_kvm(self):
+        steps = self.jobs["instrumentation"]["steps"]
+        kvm_step = next((step for step in steps
+                         if step.get("name") == "Enable KVM access for the emulator"), None)
+        self.assertIsNotNone(kvm_step, "emulator jobs must prepare KVM before starting the AVD")
+        self.assertIn("sudo chmod 666 /dev/kvm", kvm_step["run"])
+        self.assertIn("! -r /dev/kvm", kvm_step["run"])
+        self.assertIn("! -w /dev/kvm", kvm_step["run"])
+
     def test_reproducibility_is_master_or_manual_only(self):
         job = self.jobs["reproducibility"]
         self.assertIn("github.event_name == 'workflow_dispatch'", job["if"])
