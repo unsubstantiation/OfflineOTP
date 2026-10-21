@@ -12,6 +12,9 @@ quality gate so a rename or a dropped matrix leg cannot silently shrink coverage
 Requires PyYAML; skipped when unavailable (GitHub's ubuntu runners ship it).
 """
 import os
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -25,6 +28,7 @@ WORKFLOWS = ROOT / ".github/workflows"
 CI = WORKFLOWS / "android-ci.yml"
 BASELINE = WORKFLOWS / "dependency-baseline.yml"
 EMULATOR_SCRIPT = ROOT / "scripts/ci/start-emulator.sh"
+FAILURE_SUMMARIZER = ROOT / "scripts/ci/summarize-instrumentation-failures.py"
 
 EXPECTED_JOBS = ["source-checks", "host-tests", "build-and-lint", "instrumentation",
                  "reproducibility"]
@@ -93,6 +97,15 @@ class AndroidCiWorkflowTest(unittest.TestCase):
         self.assertIn("! -r /dev/kvm", kvm_step["run"])
         self.assertIn("! -w /dev/kvm", kvm_step["run"])
 
+    def test_instrumentation_failure_artifacts_include_android_test_reports(self):
+        artifact_step = next((step for step in self.jobs["instrumentation"]["steps"]
+                              if "actions/upload-artifact" in step.get("uses", "") and
+                              step.get("if") == "failure()"), None)
+        self.assertIsNotNone(artifact_step, "failed instrumentation jobs must upload diagnostics")
+        artifact_paths = artifact_step["with"]["path"]
+        self.assertIn("app/build/outputs/androidTest-results/connected/", artifact_paths)
+        self.assertIn("app/build/reports/androidTests/connected/", artifact_paths)
+
     def test_reproducibility_is_master_or_manual_only(self):
         job = self.jobs["reproducibility"]
         self.assertIn("github.event_name == 'workflow_dispatch'", job["if"])
@@ -146,10 +159,41 @@ class EmulatorScriptTest(unittest.TestCase):
             'timeout 60 "$ADB" wait-for-device',
             'boot_deadline=$((SECONDS + 480))',
             'timeout 900 ./gradlew --no-daemon',
+            'summarize_test_failures > "$report/test-failures.txt"',
+            'summarize-instrumentation-failures.py',
             '::notice title=Android emulator progress::',
             '::error title=Android emulator failure::',
         ):
             self.assertIn(required, text, f"emulator CI lost a diagnostic/timeout: {required}")
+
+
+class InstrumentationFailureSummaryTest(unittest.TestCase):
+    def test_reports_failed_test_names_messages_and_stack_traces(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            build = Path(temporary)
+            result_file = build / "outputs/androidTest-results/connected/TEST-device.xml"
+            result_file.parent.mkdir(parents=True)
+            result_file.write_text(
+                '<testsuite><testcase classname="org.example.DeviceTest" name="fails">'
+                '<failure message="expected value">at org.example.DeviceTest.fails(DeviceTest.kt:9)'
+                '</failure></testcase></testsuite>',
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(FAILURE_SUMMARIZER), str(build)],
+                check=True, capture_output=True, text=True,
+            )
+
+        self.assertIn("org.example.DeviceTest.fails: expected value", result.stdout)
+        self.assertIn("DeviceTest.kt:9", result.stdout)
+
+    def test_reports_when_no_instrumentation_results_exist(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            result = subprocess.run(
+                [sys.executable, str(FAILURE_SUMMARIZER), temporary],
+                check=True, capture_output=True, text=True,
+            )
+        self.assertIn("No Android instrumentation JUnit XML", result.stdout)
 
 
 if __name__ == "__main__":

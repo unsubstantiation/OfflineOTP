@@ -57,6 +57,10 @@ report_failure() {
     exit "$status"
 }
 
+summarize_test_failures() {
+    python3 "$root/scripts/ci/summarize-instrumentation-failures.py" "$root/app/build"
+}
+
 if [[ -z "${ANDROID_HOME:-}" ]]; then
     report_failure "Set ANDROID_HOME to the Android SDK (android-actions/setup-android does)"
 fi
@@ -192,6 +196,8 @@ if timeout 900 ./gradlew --no-daemon ":app:$task" >"$report/gradle-test.log" 2>&
 else
     status=$?
     details="$(tail -n 24 "$report/gradle-test.log" 2>/dev/null | tr '\n' ' ')"
-    report_failure ":app:$task failed or timed out (exit $status): $details" "$status"
+    summarize_test_failures > "$report/test-failures.txt" 2>&1 || true
+    test_details="$(cat "$report/test-failures.txt" 2>/dev/null | tr '\n' ' ')"
+    report_failure ":app:$task failed or timed out (exit $status): $details Test failures: $test_details" "$status"
 fi
 progress "instrumentation task completed successfully"

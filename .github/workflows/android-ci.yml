@@ -147,7 +147,10 @@ jobs:
         if: failure()
         with:
           name: instrumentation-${{ matrix.flavor }}-api${{ matrix.api }}-logs
-          path: reports/emulator/
+          path: |
+            reports/emulator/
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
           if-no-files-found: ignore
 
   reproducibility:
