@@ -618,11 +618,11 @@ plus generated letter tiles for everything else. Cross-referencing every request
 
 ## Recommended next steps
 
-1. **Run the ⚠️ list on a device/emulator** (API 28 and 36): #208, #376, #406, #498, #533, #712, #736, #847, #865, #873,
-   #879, #892, #895, #923, #932, #948, #976, #995, #996, #477, #529, #805, #813, #814, #862, #911, #968, plus the
-   two logo-currency checks (#832, #872). These are the only upstream issues that could still be real defects.
-2. **Decide on the ❌ UI nits** that clearly apply: #591 (setup portrait lock), #172, #445, #853 (contrast), #613,
-   #804, #874, #880, #881, #813.
+1. **Run the remaining ⚠️ items on a device/emulator** (API 28 and 36): #208, #376, #406, #498, #533, #712, #736, #847, #865, #873,
+   #879, #892, #895, #923, #932, #948, #976, #995, #996, #477, #529, #813, #814, #862, #911, #968, plus the
+   two logo-currency checks (#832, #872). #591, #712, #805 and #880 now have code fixes covered by the issue #39 follow-up; #712 still needs device confirmation.
+2. **Decide on the remaining ❌ UI nits** that clearly apply: #172, #445, #853 (contrast), #613,
+   #804, #874, #881, #813.
 3. **Batch-add the ~80 missing brand thumbnails** — the largest concrete carry-over; consider the Simple Icons
    migration (#855) while doing it.
 4. **Triage the 🆕 gaps** as product decisions (DUO #808, GA-export import #561, yjotp #532, Garena #207, tag

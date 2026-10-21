@@ -37,9 +37,16 @@ ADB="$ANDROID_HOME/platform-tools/adb"
 EMULATOR="$ANDROID_HOME/emulator/emulator"
 SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 AVDMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/avdmanager"
+report="$root/reports/emulator"
+mkdir -p "$report"
 for tool in "$ADB" "$EMULATOR" "$SDKMANAGER" "$AVDMANAGER"; do
     if [[ ! -x "$tool" ]]; then
-        echo "missing SDK tool: $tool" >&2
+        message="missing SDK tool: $tool"
+        printf '%s\n' "$message" > "$report/preflight-error.txt"
+        if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+            echo "::error title=Android emulator preflight::$message"
+        fi
+        echo "$message" >&2
         exit 2
     fi
 done
@@ -47,8 +54,6 @@ done
 image="system-images;android-$api;default;x86_64"
 avd="ci-andotp-$flavor-$api"
 task="connected${flavor^}DebugAndroidTest"
-report="$root/reports/emulator"
-mkdir -p "$report"
 
 cleanup() {
     "$ADB" emu kill >/dev/null 2>&1 || true
@@ -62,7 +67,13 @@ cleanup() {
 trap cleanup EXIT
 
 echo "== installing $image"
-yes 2>/dev/null | "$SDKMANAGER" --licenses >/dev/null
+# Feed a finite response file. With `set -o pipefail`, `yes | sdkmanager --licenses` can
+# report the writer's expected SIGPIPE as a failure when sdkmanager closes stdin after its
+# final prompt, even though it accepted every license.
+printf 'y\n%.0s' {1..100} > "$report/sdkmanager-licenses-input.txt"
+"$SDKMANAGER" --licenses < "$report/sdkmanager-licenses-input.txt" \
+    >"$report/sdkmanager-licenses.log" 2>&1
+rm -f "$report/sdkmanager-licenses-input.txt"
 "$SDKMANAGER" --install "$image" >"$report/sdkmanager.log" 2>&1
 
 echo "== creating AVD $avd"

@@ -119,6 +119,13 @@ class EmulatorScriptTest(unittest.TestCase):
                          "delete avd -n", "DebugAndroidTest"):
             self.assertIn(required, text, f"start-emulator.sh lost: {required}")
 
+    def test_license_acceptance_avoids_pipefail_sigpipe(self):
+        text = EMULATOR_SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("sdkmanager-licenses-input.txt", text)
+        self.assertIn("printf 'y\\n%.0s' {1..100}", text)
+        self.assertNotIn("yes 2>/dev/null |", text,
+                         "yes gets SIGPIPE when sdkmanager closes the license prompt")
+
 
 if __name__ == "__main__":
     unittest.main()
