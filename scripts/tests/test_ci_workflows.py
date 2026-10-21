@@ -126,6 +126,20 @@ class EmulatorScriptTest(unittest.TestCase):
         self.assertNotIn("yes 2>/dev/null |", text,
                          "yes gets SIGPIPE when sdkmanager closes the license prompt")
 
+    def test_external_emulator_waits_are_bounded_and_reportable(self):
+        text = EMULATOR_SCRIPT.read_text(encoding="utf-8")
+        for required in (
+            'timeout 60 "$SDKMANAGER" --licenses',
+            'timeout 720 "$SDKMANAGER" --install',
+            'timeout 60 "$AVDMANAGER" create avd',
+            'timeout 60 "$ADB" wait-for-device',
+            'boot_deadline=$((SECONDS + 480))',
+            'timeout 900 ./gradlew --no-daemon',
+            '::notice title=Android emulator progress::',
+            '::error title=Android emulator failure::',
+        ):
+            self.assertIn(required, text, f"emulator CI lost a diagnostic/timeout: {required}")
+
 
 if __name__ == "__main__":
     unittest.main()
