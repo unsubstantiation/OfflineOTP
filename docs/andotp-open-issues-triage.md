@@ -5,8 +5,9 @@
 > issue counts have changed; treat this as a historical triage record.
 >
 > **Follow-up:** [andotp-carryover-issue-pass-2026-10-19.md](andotp-carryover-issue-pass-2026-10-19.md)
-> records the issue #39 pass: #591, #712, #805 and #880 are fixed, and the crash-report surfaces
-> gained device reachability tests. Everything else in the ⚠️ list remains a device/CI gate.
+> records the issue #39 pass: #591, #712, #805 and #880 are fixed; the Settings/Backup reachability
+> fixtures pass on the API 28/36 emulator matrix. The remaining checks are physical-device,
+> OEM/KeyStore, external-provider, or accessibility verification; see that document for specifics.
 
 **Source:** <https://github.com/andOTP/andOTP/issues> — all **181 open issues** (16 open PRs excluded), fetched 2026-10-17.
 
@@ -98,7 +99,7 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ✅ **OUTOFSCOPE** — OfflineOTP has no custom keyboard/IME surface; password widgets disable saved view state and clear on dismissal.
 - **#873** — New install, crash to white screen when going to Settings  
   _bug_  
-  ⚠️ **VERIFY** — Old device-specific crash report; `SettingsActivity` is unexported and themed — retest on a fresh install.
+  ⚠️ **VERIFY** — Old device-specific crash report; Settings launch/recreation passes on the API 28/36 emulator matrix, but the reported fresh-install path still needs a physical-device check if that ROM is available.
 - **#875** — Crash when MOTP secret is invalid  
   _bug_  
   ✅ **FIXED** — Bounded input validation (seed ≤ 2,048 decoded bytes, encoding checked); an invalid mOTP secret is rejected fail-closed instead of crashing.
@@ -128,10 +129,10 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ✅ **FIXED** — Backup-password entry uses `PasswordEntryDialog`, which enforces `AUTH_MIN_PASSWORD_LENGTH = 6` with a too-short warning.
 - **#932** — Touch Setting will be crash App!  
   _bug_  
-  ⚠️ **VERIFY** — Settings crash report; retest on the current build.
+  ⚠️ **VERIFY** — Settings launch/recreation passes on emulators, but the original crash-on-touch path needs reproduction by interacting with the affected preference on-device.
 - **#948** — CRASH on backup / backup location selection  
   _new issue_  
-  ⚠️ **VERIFY** — Backup flow rewritten (WorkManager + SAF, UUID-named documents); retest backup-location selection.
+  ⚠️ **VERIFY** — Backup flow rewritten (WorkManager + SAF, UUID-named documents); activity launch/recreation passes on the API 28/36 emulator matrix, but SAF backup-location selection still needs a real provider check.
 - **#976** — Cannot restore Plain-text backup  
   _bug, more information required_  
   ⚠️ **VERIFY** — Plain-text restore is supported within size limits; JSON import is all-or-nothing with distinct failure outcomes.
@@ -618,11 +619,11 @@ plus generated letter tiles for everything else. Cross-referencing every request
 
 ## Recommended next steps
 
-1. **Run the ⚠️ list on a device/emulator** (API 28 and 36): #208, #376, #406, #498, #533, #712, #736, #847, #865, #873,
-   #879, #892, #895, #923, #932, #948, #976, #995, #996, #477, #529, #805, #813, #814, #862, #911, #968, plus the
-   two logo-currency checks (#832, #872). These are the only upstream issues that could still be real defects.
-2. **Decide on the ❌ UI nits** that clearly apply: #591 (setup portrait lock), #172, #445, #853 (contrast), #613,
-   #804, #874, #880, #881, #813.
+1. **Run the remaining ⚠️ items on a device/emulator** (API 28 and 36): #208, #376, #406, #498, #533, #712, #736, #847, #865, #873,
+   #879, #892, #895, #923, #932, #948, #976, #995, #996, #477, #529, #813, #814, #862, #911, #968, plus the
+   two logo-currency checks (#832, #872). #591, #712, #805 and #880 now have code fixes covered by the issue #39 follow-up; #712 still needs device confirmation.
+2. **Decide on the remaining ❌ UI nits** that clearly apply: #172, #445, #853 (contrast), #613,
+   #804, #874, #881, #813.
 3. **Batch-add the ~80 missing brand thumbnails** — the largest concrete carry-over; consider the Simple Icons
    migration (#855) while doing it.
 4. **Triage the 🆕 gaps** as product decisions (DUO #808, GA-export import #561, yjotp #532, Garena #207, tag

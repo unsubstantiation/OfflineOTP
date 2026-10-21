@@ -4,12 +4,14 @@ This pass works through [OfflineOTP issue #39](https://github.com/unsubstantiati
 the carry-over list from [the andOTP tracker triage](andotp-open-issues-triage.md). The triage
 splits the upstream reports that were not already fixed into **confirmed defects** (`❌ applies`)
 and **device-verification items** (`⚠️ verify`). This document records what changed, what is now
-covered by an automated test, and what still needs a real device or emulator run.
+covered by an automated test, and what still needs a real device or provider-specific run.
 
-The follow-up implementation is in [PR #52](https://github.com/unsubstantiation/OfflineOTP/pull/52)
-(commit `b3b0f04` before this tracker update). Local checks passed as listed below, but nothing here
-claims that the Android device matrix has been executed: the CI emulator jobs (fdroid/play × API
-28/36) and provider-specific device checks remain the acceptance gate.
+The implementation was merged in [PR #51](https://github.com/unsubstantiation/OfflineOTP/pull/51)
+and [PR #52](https://github.com/unsubstantiation/OfflineOTP/pull/52). The Android emulator matrix
+(fdroid/play × API 28/36) passed in [CI run #39534025930](https://github.com/unsubstantiation/OfflineOTP/actions/runs/39534025930)
+on commit `282c1d3`. This verifies those instrumentation scenarios on emulators; it does not prove
+real-device OEM/KeyStore, SAF/cloud-provider, OpenPGP-provider, or TalkBack behavior, which remain
+manual acceptance gates.
 
 ## Fixed
 
@@ -76,7 +78,7 @@ claims that the Android device matrix has been executed: the CI emulator jobs (f
 | #995, #996 | Require a ready OpenPGP provider and valid recipients for encryption; reject empty output and report failures. |
 | #847, #879 | No KeyStore policy change in this PR; retain the fail-closed/no-key-regeneration behavior. |
 
-## Verification recorded for PR #52
+## Verification recorded at PR #52 merge
 
 * `scripts/kotlin-sandbox/run.sh` — passed.
 * `scripts/run-jvm-tests.sh` — 136 passed.
@@ -84,11 +86,20 @@ claims that the Android device matrix has been executed: the CI emulator jobs (f
 * `python3 -m unittest discover -s scripts/tests -v` — 95 tests run, 7 skipped because PyYAML is unavailable.
 * `git diff --check` — passed.
 
+## Follow-up verification — 2026-10-20
+
+* GitHub Actions run [#39534025930](https://github.com/unsubstantiation/OfflineOTP/actions/runs/39534025930), commit `282c1d3` — passed source checks, sandbox/host tests, all-variant build, Gradle host tests, lint, manifest policy, and the complete instrumentation matrix: fdroid/play × API 28/36 (all four connected-test jobs passed).
+* The separate play/fdroid debug/release APK workflows for `282c1d3` all passed.
+* `scripts/kotlin-sandbox/compile-android-tests.sh` — passed after the instrumentation fixes.
+* `python3 -m unittest discover -s scripts/tests -v` — 101 passed.
+* `bash -n scripts/ci/start-emulator.sh`, `python3 scripts/check_build_inputs.py`, and `git diff --check` — passed.
+
 ## Instrumentation coverage added
 
-`ActivityReachabilityDeviceTest` now establishes an unlocked test session, launches Settings and
-Backup with fresh preferences, checks the toolbar, and recreates both activities. This provides
-reachability fixtures, not proof of SAF provider behavior or TalkBack operation:
+`ActivityReachabilityDeviceTest` establishes an unlocked test session, launches Settings and
+Backup with fresh preferences, checks the toolbar, and recreates both activities. These fixtures
+passed in all four emulator matrix cells in CI run #39534025930. That verifies activity reachability
+on the tested emulator images, not SAF provider behavior or TalkBack operation:
 
 | Upstream | Surface | Instrumentation |
 | --- | --- | --- |
@@ -96,20 +107,23 @@ reachability fixtures, not proof of SAF provider behavior or TalkBack operation:
 | #948 | Backup | launch and recreation with an unlocked vault |
 | #591 | first-run wizard | orientation + recreation checks |
 
-## Remaining device/CI gates
+## Remaining device/provider gates
 
-These need an Android Gradle/CI or real-device run before being closed; a host pass does not prove
-the provider, lifecycle, OEM, or accessibility behavior:
+The emulator matrix above clears the CI-only instrumentation gate. These reported paths still need
+a real-device, provider, or accessibility check before they can be claimed fully verified; emulator
+success does not prove behavior on a vendor ROM or external document provider:
 
 * **#208** Back-key/gesture authentication flow — exercise cancellation, recents, and relock on device.
 * **#376, #976** Restore paths — test legacy encrypted and plaintext backups end-to-end, including cloud documents.
 * **#406** Obscured-touch crash — retest with the BitWarden safe dialog.
 * **#498** TalkBack — verify focus order and overlay dismissal on-device.
-* **#533, #736, #948** — test Files/SAF providers, missing-provider behavior, and screen-off/home during export/import.
+* **#533, #736, #948** — test Files/SAF providers, missing-provider behavior, and screen-off/home during export/import; the emulator activity-launch fixture does not exercise an external provider.
 * **#847, #879** — verify Android 11/Pixel KeyStore and MIUI/OEM behavior on hardware; this PR does not change the fail-closed policy.
 * **#865, #895** — verify Google Drive and Work Profile behavior through SAF.
-* **#873** — run the Settings/Backup instrumentation fixtures on the emulator/API matrix; no runtime instrumentation was run locally.
+* **#873** — Settings/Backup reachability and recreation passed on API 28/36 emulators; verify the reported fresh-install path on the affected physical ROM if available.
+* **#932** — the Settings screen launches and recreates in CI, but the reported crash-on-touch path requires identifying and interacting with the affected preference on-device.
+* **#591** — the wizard's unspecified orientation and repeated recreation passed in CI; physically rotate a device with auto-rotate enabled to verify sensor/layout behavior.
 * **#892** — scan the reported QR and malformed-image cases on device.
 * **#923** — verify configured single/double-tap behavior in the app; host controller tests do not validate preference UX.
 * **#995, #996** — complete encrypted exports against current OpenKeychain and a real destination provider.
-* **#712** has host coverage, but the screen-off/background timeout should still be confirmed on the emulator matrix.
+* **#712** — host deadline tests pass, but no instrumentation test simulates screen-off/deep-sleep; confirm the reported lock timeout on a physical device.

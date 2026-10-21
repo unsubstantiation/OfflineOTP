@@ -27,7 +27,10 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
+import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
+import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
+import org.shadowice.flocke.andotp.Utilities.VaultWriteResult
 import java.nio.charset.StandardCharsets
 import javax.crypto.AEADBadTagException
 import javax.crypto.SecretKey
@@ -82,8 +85,8 @@ class ApplicationTest {
 
         // Failures are IllegalArgumentException carrying only the error name, never the input.
         for (invalid in listOf(
-            JSONObject(""""secret":"""""),
-            JSONObject(""""secret":"JBSWY3DPEHPK3PXP","label":"l","type":"hotp""""),
+            JSONObject("""{"secret":""}"""),
+            JSONObject("""{"secret":"JBSWY3DPEHPK3PXP","label":"l","type":"hotp"}"""),
             "otpauth://totp/alice",
             "otpauth://hotp/alice?secret=JBSWY3DPEHPK3PXP"
         )) {
@@ -109,6 +112,13 @@ class ApplicationTest {
 
         try {
             val key: SecretKey = EncryptionHelper.generateSymmetricKey(EncryptionHelper.generateRandom(32))
+            val settings = Settings(context)
+            val initialized = DatabaseHelper.changeVaultEncryption(context, null, key, true) { transactionId ->
+                VaultCommitDecision.fromCommit(settings.commitVaultSettings(
+                    transactionId, Constants.EncryptionType.PASSWORD, null, null, true))
+            }
+            assertTrue("empty test vault initialization failed", initialized is VaultWriteResult.Saved)
+
             val first = Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "Example", "alice",
                 TokenCalculator.HashAlgorithm.SHA1, ArrayList(listOf("work")))
             val second = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 7L, 6, "Example", "bob",
@@ -119,8 +129,12 @@ class ApplicationTest {
             assertTrue(DatabaseHelper.saveDatabase(context, ArrayList(listOf(first, second)), key))
 
             val loaded = DatabaseHelper.loadDatabase(context, key)
-            assertEquals(2, loaded.size)
-            assertEquals(expected, loaded.map { it.toJSON().toString() })
+            try {
+                assertEquals(2, loaded.size)
+                assertEquals(expected, loaded.map { it.toJSON().toString() })
+            } finally {
+                loaded.forEach { it.destroy() }
+            }
 
             // A wrong key must not decrypt the vault.
             val wrongKey: SecretKey = EncryptionHelper.generateSymmetricKey(EncryptionHelper.generateRandom(32))

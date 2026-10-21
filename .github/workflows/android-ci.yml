@@ -127,6 +127,19 @@ jobs:
           cmdline-tools-version: '12266719'
           packages: 'platform-tools emulator platforms;android-36 build-tools;36.0.0'
 
+      - name: Enable KVM access for the emulator
+        run: |
+          if [[ ! -e /dev/kvm ]]; then
+            echo "::error title=Android emulator preflight::/dev/kvm is unavailable on this runner"
+            exit 1
+          fi
+          sudo chmod 666 /dev/kvm
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            echo "::error title=Android emulator preflight::runner cannot read and write /dev/kvm"
+            exit 1
+          fi
+          stat -c 'KVM device permissions: %A %U:%G' /dev/kvm
+
       - name: Emulator lifecycle and connected tests
         run: scripts/ci/start-emulator.sh ${{ matrix.flavor }} ${{ matrix.api }}
 
@@ -134,7 +147,10 @@ jobs:
         if: failure()
         with:
           name: instrumentation-${{ matrix.flavor }}-api${{ matrix.api }}-logs
-          path: reports/emulator/
+          path: |
+            reports/emulator/
+            app/build/outputs/androidTest-results/connected/
+            app/build/reports/androidTests/connected/
           if-no-files-found: ignore
 
   reproducibility:
