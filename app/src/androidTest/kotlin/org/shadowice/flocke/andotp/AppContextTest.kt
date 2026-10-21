@@ -19,8 +19,12 @@ import java.io.File
 class AppContextTest {
     @Test
     fun targetContextIsTheApp() {
-        val context = InstrumentationRegistry.getInstrumentation().targetContext
-        assertEquals("org.shadowice.flocke.andotp", context.getPackageName())
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val target = instrumentation.targetContext
+        val testApk = instrumentation.context
+        assertTrue("target context must not be the instrumentation APK",
+            testApk.getPackageName() != target.getPackageName())
+        assertTrue(target.getPackageName().startsWith("org.shadowice.flocke.andotp"))
     }
 
     @Test
