@@ -1,8 +1,9 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * JVM vectors for the entry document format: parse outcomes, the serialized field set/order and
- * byte-identical round trips.
+ * JVM vectors for the entry document format: parse outcomes, the serialized field set and
+ * byte-identical round trips. The Android platform's insertion-order behavior is covered by
+ * EntryDocumentDeviceTest; the host org.json implementation intentionally does not promise it.
  */
 package org.shadowice.flocke.andotp.Database
 
@@ -151,11 +152,27 @@ class EntryJsonTest {
             label = "alice", digits = 6, period = 30, counter = 0, algorithm = OtpHashAlgorithm.SHA1,
             thumbnailName = "Default", lastUsed = 5, usedFrequency = 7,
             tags = listOf("work"), pin = "")
-        // The field order is part of the stored format.
-        assertEquals("""{"secret":"$encoded","issuer":"Example","label":"alice",""" +
-            """"digits":6,"type":"TOTP","algorithm":"SHA1","thumbnail":"Default",""" +
-            """"last_used":5,"used_frequency":7,"period":30,"tags":["work"]}""",
-            json.toString())
+        // org.json:json (the real host implementation) stores keys in a HashMap, so a JVM test
+        // cannot assert Android JSONObject's insertion-order rendering. Check the canonical
+        // field set and values here; ApplicationTest.testEntry asserts the byte-exact Android
+        // representation on the platform implementation.
+        assertEquals(setOf(
+            "secret", "issuer", "label", "digits", "type", "algorithm", "thumbnail",
+            "last_used", "used_frequency", "period", "tags"
+        ), json.keys().asSequence().toSet())
+        assertEquals(encoded, json.getString("secret"))
+        assertEquals("Example", json.getString("issuer"))
+        assertEquals("alice", json.getString("label"))
+        assertEquals(6, json.getInt("digits"))
+        assertEquals("TOTP", json.getString("type"))
+        assertEquals("SHA1", json.getString("algorithm"))
+        assertEquals("Default", json.getString("thumbnail"))
+        assertEquals(5L, json.getLong("last_used"))
+        assertEquals(7L, json.getLong("used_frequency"))
+        assertEquals(30, json.getInt("period"))
+        assertEquals(listOf("work"), json.getJSONArray("tags").let { array ->
+            (0 until array.length()).map { array.getString(it) }
+        })
     }
 
     @Test
