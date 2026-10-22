@@ -146,13 +146,15 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         # #208: a cancelled prompt must fail closed; the positive case must still unlock.
         self.assertIn("aCancelledUnlockPromptCannotRevealTheVault", flow)
         self.assertIn("prompt!!.onBackPressed()", flow)
-        self.assertIn("Lifecycle.State.DESTROYED", flow)
+        self.assertIn("awaitFinishing(main)", flow)
+        # MainActivity leaves RESUMED while the prompt is up, so the test must not require it.
+        self.assertIn("DeviceTestSupport.startActivity(context, MainActivity::class.java)", flow)
         self.assertIn("theConfiguredPinStillUnlocksTheVault", flow)
         # #712: background time must count towards the elapsed-realtime deadline.
         self.assertIn("backgroundTimeCountsTowardsTheInactivityRelock", flow)
-        self.assertIn("moveToState(Lifecycle.State.CREATED)", flow)
-        self.assertIn("SystemClock.sleep(1_600)", flow)
-        self.assertIn("assertNull(\"the idle-expired session still held a vault key\"", flow)
+        self.assertIn("INACTIVITY_SECONDS * 1_000L + 700L", flow)
+        self.assertIn("awaitVaultKeyGone()", flow)
+        self.assertIn("background time did not trigger the inactivity prompt", flow)
 
     def test_obscured_touch_rejection_has_a_device_regression(self):
         device_test = read(ANDROID_TEST / "ObscuredTouchDeviceTest.kt")
@@ -163,6 +165,8 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("aPartiallyObscuredTapIsRejected", device_test)
         self.assertIn("aNormalTapIsDeliveredAndClicks", device_test)
         self.assertIn("InputDevice.SOURCE_TOUCHSCREEN", device_test)
+        # View.onTouchEvent posts its click runnable, so the test drains the queue before asserting.
+        self.assertIn("waitForIdleSync()", device_test)
         # The flag-word overload is the only public way to build an obscured MotionEvent.
         self.assertIn("MotionEvent.obtain(now, now, action, 1, properties, coordinates", device_test)
 
@@ -182,6 +186,16 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("PlainTextRestoreTask(", restore)
         self.assertIn("backup_toast_import_decryption_failed", restore)
         self.assertIn("backup_toast_plaintext_invalid", restore)
+
+    def test_screen_off_lock_has_a_device_regression(self):
+        device_test = read(ANDROID_TEST / "ScreenOffLockDeviceTest.kt")
+        base = read(APP / "Activities/BaseActivity.kt")
+        self.assertIn("Intent.ACTION_SCREEN_OFF", base)
+        self.assertIn("VaultSession.lock(SessionLockReason.SCREEN_OFF)", base)
+        self.assertIn("screenOffRevokesTheSessionAndClosesTheScreen", device_test)
+        self.assertIn("activity.ScreenOffReceiver().onReceive(", device_test)
+        self.assertIn("assertNull(\"screen-off did not revoke the vault key\"", device_test)
+        self.assertIn("screen-off left the vault screen on display", device_test)
 
     def test_screen_off_teardown_policy_is_shared_with_a_host_test(self):
         policy = read(APP / "Utilities/BackupScreenOffPolicy.kt")

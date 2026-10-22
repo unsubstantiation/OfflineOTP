@@ -11,7 +11,7 @@ import android.os.IBinder
  * the platform getters are final and the fakes subclass this stand-in instead. The id/visibility/
  * enable/click surface lets the dialog checks drive recording widgets the way the platform would.
  */
-open class View {
+open class View(suppliedContext: Context? = null) {
     /** The platform interface is Java; a `fun interface` keeps lambda/SAM conversion working. */
     fun interface OnClickListener {
         fun onClick(v: View)
@@ -40,7 +40,10 @@ open class View {
     var isSaveEnabled: Boolean = true
 
     /** The context the view is inflated in. */
-    open val context: Context = Context()
+    open val context: Context = suppliedContext ?: Context()
+
+    /** Whether a click listener makes the view the hit-test target. */
+    var isClickable: Boolean = false
     /** The drawable state the text colour lookup is resolved against. */
     var drawableState: IntArray = intArrayOf()
 
@@ -76,6 +79,21 @@ open class View {
         return listener.onLongClick(this)
     }
 
+    /** The platform measures for real; the stand-in records nothing. */
+    open fun measure(widthMeasureSpec: Int, heightMeasureSpec: Int) {}
+
+    /** Records the frame the platform layout pass would assign. */
+    open fun layout(left: Int, top: Int, right: Int, bottom: Int) {
+        width = right - left
+        height = bottom - top
+    }
+
+    /** Window coordinates; the stand-in reports the view's own frame origin. */
+    open fun getLocationInWindow(location: IntArray) {
+        location[0] = 0
+        location[1] = 0
+    }
+
     open fun requestFocus(): Boolean = true
     open fun requestLayout() {}
     open fun setBackgroundColor(color: Int) {}
@@ -102,6 +120,16 @@ open class View {
      * and `open` so the about checks can hand out scripted children of an inflated layout.
      */
     open fun <T : View> findViewById(id: Int): T? = null
+
+    /** The platform measure-spec packing; the stand-in only needs the mode constants. */
+    object MeasureSpec {
+        const val UNSPECIFIED = 0
+        const val EXACTLY = 1 shl 30
+        const val AT_MOST = 2 shl 30
+
+        @JvmStatic
+        fun makeMeasureSpec(size: Int, mode: Int): Int = size + mode
+    }
 
     companion object {
         const val VISIBLE = 0

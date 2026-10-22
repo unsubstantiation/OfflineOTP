@@ -8,7 +8,6 @@
 package org.shadowice.flocke.andotp
 
 import android.content.Context
-import android.preference.PreferenceManager
 import android.widget.ListView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -44,9 +43,7 @@ class ActivityReachabilityDeviceTest {
     @Test
     fun backupScreenLaunchesAndSurvivesRecreation() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        DeviceTestSupport.freshPreferences(context)
 
         val generation = VaultSession.beginUnlock().generation
         val key = SecretKeySpec(ByteArray(32) { 0x5a }, "AES")
@@ -64,8 +61,7 @@ class ActivityReachabilityDeviceTest {
                 }
             }
         } finally {
-            VaultSession.lock()
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 
@@ -77,9 +73,7 @@ class ActivityReachabilityDeviceTest {
     @Test
     fun tapPreferencesDefaultToNothingAndMapEveryListedValue() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        val preferences = DeviceTestSupport.freshPreferences(context)
         try {
             val settings = Settings(context)
             assertEquals(Constants.TapMode.NOTHING, settings.getTapSingle())
@@ -92,16 +86,14 @@ class ActivityReachabilityDeviceTest {
                     settings.getTapSingle())
             }
         } finally {
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 
     @Test
     fun settingsScreenLaunchesWithFreshDefaultsAndUnlockedVault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        DeviceTestSupport.freshPreferences(context)
 
         val generation = VaultSession.beginUnlock().generation
         val key = SecretKeySpec(ByteArray(32) { 0x5a }, "AES")
@@ -147,8 +139,7 @@ class ActivityReachabilityDeviceTest {
                 }
             }
         } finally {
-            VaultSession.lock()
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 }

@@ -55,6 +55,12 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
             expected = path.parent.relative_to(ANDROID_TEST_ROOT).as_posix().replace("/", ".")
             self.assertEqual(expected, package.group(1),
                              f"{path} package does not match its directory")
+            if path.name.endswith("Support.kt"):
+                # Shared fixtures, not a test class: these files must not be discovered as tests.
+                self.assertNotIn("@Test", text, f"{path.name} is support code but declares a test")
+                self.assertIn("internal object", text,
+                              f"{path.name} is not a support object")
+                continue
             self.assertIn("@RunWith(AndroidJUnit4::class)", text,
                           f"{path.name} is not an AndroidJUnit4 class")
             self.assertRegex(text, r"@Test\s*\n\s*fun ", f"{path.name} declares no @Test method")

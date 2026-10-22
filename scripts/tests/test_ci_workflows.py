@@ -161,6 +161,7 @@ class EmulatorScriptTest(unittest.TestCase):
             'timeout 900 ./gradlew --no-daemon',
             'summarize_test_failures > "$report/test-failures.txt"',
             'summarize-instrumentation-failures.py',
+            'annotate_test_failures',
             '::notice title=Android emulator progress::',
             '::error title=Android emulator failure::',
         ):
@@ -186,6 +187,34 @@ class InstrumentationFailureSummaryTest(unittest.TestCase):
 
         self.assertIn("org.example.DeviceTest.fails: expected value", result.stdout)
         self.assertIn("DeviceTest.kt:9", result.stdout)
+
+    def test_github_mode_annotates_each_failure_separately(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            build = Path(temporary)
+            result_file = build / "outputs/androidTest-results/connected/TEST-device.xml"
+            result_file.parent.mkdir(parents=True)
+            result_file.write_text(
+                '<testsuite>'
+                '<testcase classname="org.example.DeviceTest" name="first">'
+                '<failure message="one">at org.example.DeviceTest.first(DeviceTest.kt:9)</failure>'
+                '</testcase>'
+                '<testcase classname="org.example.DeviceTest" name="second">'
+                '<failure message="two">at org.example.DeviceTest.second(DeviceTest.kt:19)</failure>'
+                '</testcase>'
+                '</testsuite>',
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [sys.executable, str(FAILURE_SUMMARIZER), "--github", str(build)],
+                check=True, capture_output=True, text=True,
+            )
+
+        annotations = [line for line in result.stdout.splitlines() if line.startswith("::error")]
+        self.assertEqual(2, len(annotations),
+                         "each failing test must get its own annotation; one combined line is "
+                         "truncated by the Actions UI")
+        self.assertIn("DeviceTest.first", annotations[0])
+        self.assertIn("DeviceTest.second", annotations[1])
 
     def test_reports_when_no_instrumentation_results_exist(self):
         with tempfile.TemporaryDirectory() as temporary:

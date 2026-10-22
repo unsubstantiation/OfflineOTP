@@ -6,6 +6,7 @@
 package android.app
 
 import android.content.Context
+import android.content.Intent
 
 /** The instrumentation handle the platform hands to tests. */
 open class Instrumentation {
@@ -18,5 +19,9 @@ open class Instrumentation {
     fun waitForIdleSync(): Unit = throw UnsupportedOperationException("android test compile stub")
 
     fun runOnMainSync(runnable: Runnable): Unit =
+        throw UnsupportedOperationException("android test compile stub")
+
+    /** Starts an activity synchronously; unlike ActivityScenario it does not wait for RESUMED. */
+    fun startActivitySync(intent: Intent): Activity? =
         throw UnsupportedOperationException("android test compile stub")
 }

@@ -7,7 +7,6 @@
 package org.shadowice.flocke.andotp
 
 import android.content.Context
-import android.preference.PreferenceManager
 import android.view.View
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
@@ -40,9 +39,9 @@ class MainActivityAccessibilityDeviceTest {
         VaultSession.lock()
         assumeTrue("refusing to overwrite an existing vault", DatabaseHelper.canInitialize(context))
 
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        // Fresh defaults plus "the backup warning was shown": MainActivity otherwise starts the
+        // first-run wizard, which keeps it out of RESUMED for the whole scenario.
+        val preferences = DeviceTestSupport.freshPreferences(context)
         val settings = Settings(context)
         val generation = VaultSession.beginUnlock().generation
         val key = EncryptionHelper.generateSymmetricKey(ByteArray(32) { 0x21 })
@@ -101,9 +100,8 @@ class MainActivityAccessibilityDeviceTest {
                 }
             }
         } finally {
-            VaultSession.lock()
             DatabaseHelper.wipeDatabase(context)
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 }

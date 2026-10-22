@@ -61,6 +61,12 @@ summarize_test_failures() {
     python3 "$root/scripts/ci/summarize-instrumentation-failures.py" "$root/app/build"
 }
 
+# One annotation per failing test: a single combined line is truncated by the Actions UI, which
+# hides every failure after the first couple. Keep the plain text report for the summary line too.
+annotate_test_failures() {
+    python3 "$root/scripts/ci/summarize-instrumentation-failures.py" --github "$root/app/build"
+}
+
 if [[ -z "${ANDROID_HOME:-}" ]]; then
     report_failure "Set ANDROID_HOME to the Android SDK (android-actions/setup-android does)"
 fi
@@ -197,7 +203,10 @@ else
     status=$?
     details="$(tail -n 24 "$report/gradle-test.log" 2>/dev/null | tr '\n' ' ')"
     summarize_test_failures > "$report/test-failures.txt" 2>&1 || true
-    test_details="$(cat "$report/test-failures.txt" 2>/dev/null | tr '\n' ' ')"
+    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
+        annotate_test_failures || true
+    fi
+    test_details="$(head -n 4 "$report/test-failures.txt" 2>/dev/null | tr '\n' ' ')"
     report_failure ":app:$task failed or timed out (exit $status): $details Test failures: $test_details" "$status"
 fi
 progress "instrumentation task completed successfully"

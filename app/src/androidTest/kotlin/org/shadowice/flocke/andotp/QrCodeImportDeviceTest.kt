@@ -33,7 +33,7 @@ class QrCodeImportDeviceTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val file = writeQrPng(context.getCacheDir(), reportedUri)
         try {
-            val decoded = ScanQRCodeFromFile.scanQRImage(context, Uri.fromFile(file))
+            val decoded = scan(context, Uri.fromFile(file))
             assertEquals(reportedUri, decoded)
 
             val entry = Entry(requireNotNull(decoded))
@@ -50,10 +50,22 @@ class QrCodeImportDeviceTest {
         val file = File(context.getCacheDir(), "issue-892-invalid-image.bin")
         file.writeBytes(byteArrayOf(0x01, 0x02, 0x03, 0x04))
         try {
-            assertNull(ScanQRCodeFromFile.scanQRImage(context, Uri.fromFile(file)))
+            assertNull(scan(context, Uri.fromFile(file)))
         } finally {
             file.delete()
         }
+    }
+
+    /**
+     * The import path reports failures with a Toast, and a Toast needs a Looper: run the scan on
+     * the main thread like MainActivity does instead of on the instrumentation thread.
+     */
+    private fun scan(context: android.content.Context, uri: Uri): String? {
+        var decoded: String? = null
+        InstrumentationRegistry.getInstrumentation().runOnMainSync {
+            decoded = ScanQRCodeFromFile.scanQRImage(context, uri)
+        }
+        return decoded
     }
 
     private fun writeQrPng(directory: File, contents: String): File {
