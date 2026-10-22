@@ -70,10 +70,33 @@ jobs:
           packages: 'platforms;android-36 build-tools;36.0.0'
 
       - name: Assemble all variants and instrumentation APKs
-        run: >
-          ./gradlew --no-daemon :app:assembleFdroidDebug :app:assembleFdroidRelease
-          :app:assemblePlayDebug :app:assemblePlayRelease
-          :app:assembleFdroidDebugAndroidTest :app:assemblePlayDebugAndroidTest
+        run: |
+          log_file="$(mktemp)"
+          set +e
+          ./gradlew --no-daemon --console=plain \
+            :app:assembleFdroidDebug :app:assembleFdroidRelease \
+            :app:assemblePlayDebug :app:assemblePlayRelease \
+            :app:assembleFdroidDebugAndroidTest :app:assemblePlayDebugAndroidTest \
+            >"$log_file" 2>&1
+          gradle_status=$?
+          set -e
+          cat "$log_file"
+
+          if [[ $gradle_status -ne 0 ]]; then
+            diagnostics="$(grep -E '(^e: |^w: |^FAILURE:|^Execution failed for task|^> Task .* FAILED|^Could not resolve|^[[:space:]]*> (Could not|Compilation error|A problem occurred)|^Caused by:)' "$log_file" | tail -n 30 || true)"
+            if [[ -z "$diagnostics" ]]; then
+              diagnostics="$(tail -n 30 "$log_file")"
+            fi
+            while IFS= read -r line; do
+              line="${line//'%'/'%25'}"
+              line="${line//$'\r'/'%0D'}"
+              line="${line//$'\n'/'%0A'}"
+              printf '::error title=Gradle assembly failure::%s\n' "$line"
+            done <<< "$diagnostics"
+          fi
+
+          rm -f "$log_file"
+          exit "$gradle_status"
 
       - name: Host unit tests (Gradle, real JUnit)
         run: ./gradlew --no-daemon :app:testFdroidDebugUnitTest :app:testPlayDebugUnitTest
