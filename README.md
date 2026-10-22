@@ -51,6 +51,8 @@ job rebuilds both flavors twice from independent source and Gradle homes and com
 unsigned APKs and dependency inventories byte for byte on `master` and on demand.
 
 The four `build-*-apk.yml` workflows produce per-variant APK artifacts.
+[release-fdroid-debug.yml](.github/workflows/release-fdroid-debug.yml) publishes the fdroid
+debug APK (with SHA-256 checksums) as a GitHub Release when a `v*` tag is pushed.
 [dependency-baseline.yml](.github/workflows/dependency-baseline.yml) is a manual workflow that
 uploads the resolved-dependency inventory for provenance review.
 
