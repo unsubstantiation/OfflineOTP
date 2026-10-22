@@ -31,10 +31,11 @@ format arg in a translated string is also a lint error. The string now matches t
 argument list («%1$s»), and `scripts/tests/test_resource_references.py` gained a
 translation-format-argument guard (mutation-verified: removing the placeholder again fails it).
 
-No production `TODO`/`FIXME` marker remains; the 424-entry thumbnail/drawable mapping is
-bijective; no dangling `R` reference exists. The `IntroScreenActivity` portrait lock (upstream
-issue #591) is deliberately left in place: removing a user-facing orientation restriction
-without device acceptance is a product decision, not a bug fix.
+No production `TODO`/`FIXME` marker remained at this pass; the 424-entry thumbnail/drawable
+mapping was bijective and no dangling `R` reference existed. At that date, the `IntroScreenActivity`
+portrait lock (upstream issue #591) was deliberately left in place pending device acceptance. A
+later follow-up removed the manifest lock and added `IntroScreenLaunchTest` to assert that the
+wizard leaves orientation unspecified; see `docs/andotp-carryover-issue-pass-2026-10-19.md`.
 
 ## Phase 2 — unfinished features completed
 

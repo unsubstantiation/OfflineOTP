@@ -68,23 +68,29 @@ Automatic exports create new UUID-named documents, even if the old date/time nam
 
 The Python suite checks the signature-bound manifest policy, backup-disable policy, source
 exclusion rules, build-input provenance, and independent-build comparison logic. The host JVM
-suite covers input/header limits, parser/document rules, crypto derivation and wrapping, and
-process-session handoffs. The four instrumentation tests cover the platform-only paths: the app
-context and private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry
-URI/document round trips, the AES-GCM provider path and tamper rejection, and the database round
-trip.
+suite covers input/header limits, parser/document rules, crypto derivation and wrapping, portable
+AES-GCM (NIST vector), current/legacy encrypted-backup round trips and tamper rejection, and
+process-session handoffs. The instrumentation suite covers platform-only paths: app context and
+private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry URI/document round
+trips, Android AES-GCM tamper rejection, a real generated QR image for the reported CCP URI, an
+AndroidKeyStore wrap/read/delete cycle, and the database round trip. The sandbox's fake SAF resolver
+also exercises the actual encrypted backup writer and content-URI read path; it is not a substitute
+for Drive, Work Profile, or OEM document-provider testing.
 
 The independent-UID `security-test-client` module and the larger interop suites described in
 earlier revisions are not part of this checkout. IPC authorization is pinned by the
 signature-permission manifest policy checks; device execution of the remaining instrumentation
 suite is a CI gate.
 
-Local validation still cannot run the Gradle/Android gates in this sandbox: no complete pinned
-Android SDK or Gradle dependency resolution is available. The host gates pass here (110 JVM
-tests and 100 sandbox checks), and the instrumentation sources compile against stand-ins, but
-that is not validation against the Gradle plugin, real Android APIs or a device. Both-flavor
-builds, lint, packaged manifest/resource inspection, API 28/36 emulator runs, and actual
-reproducibility comparisons remain CI requirements. OEM restore behavior, provider failure
-injection, and UI/process-death/rotation flows need device testing.
+Local validation on 2026-10-22: the Python suite passed 113 tests (9 PyYAML-gated tests skipped),
+`scripts/run-jvm-tests.sh` passed 138 JVM tests, `scripts/kotlin-sandbox/run.sh` passed 102 checks,
+and `compile-android-tests.sh` type-checked all seven instrumentation sources against stand-ins.
+This is not validation against AGP, real Android APIs or a device. The Gradle wrapper was attempted
+but could not download Gradle from `services.gradle.org` under this sandbox's outbound-host policy;
+no Android SDK/emulator is installed. The last green API 28/36 CI run is on the unmodified base
+commit, not this follow-up. Both-flavor Gradle builds, lint, packaged manifest/resource inspection,
+API 28/36 emulator runs, and reproducibility comparisons remain CI requirements. OEM restore
+behavior, actual TalkBack traversal, cloud/work-profile provider grants, external OpenPGP behavior,
+and UI/process-death/rotation flows need device or provider testing.
 
 This work does not defend against a rooted device, compromised signing key, malicious user-selected OpenPGP/storage provider, privileged accessibility tooling, clipboard/token sharing chosen by the user, or arbitrary same-signer code. The production app must continue to have no `INTERNET` permission; external providers can have their own network access. Reviewed dependency locks/checksums and an archived/digest-pinned release toolchain remain separate supply-chain follow-up work.

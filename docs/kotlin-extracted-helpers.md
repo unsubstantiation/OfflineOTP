@@ -4,8 +4,10 @@
 > including names and counts at each batch. Some referenced files and suites (notably the
 > `Kotlin*InteropTest` classes and the `security-test-client` module) are not part of the current
 > checkout; batch-local statements that those suites provide device coverage are historical.
-> Current verification: 82 Python guards, 110 JVM host tests, 100 sandbox checks, and
-> four instrumentation sources that compile; Gradle and device acceptance remain CI gates.
+> Current verification after the 2026-10-22 issue #39 follow-up: 113 Python tests (9 skipped
+> because PyYAML is unavailable), 138 JVM host tests, 102 sandbox checks, and seven
+> instrumentation sources that type-check against stand-ins. Gradle/AGP and device acceptance
+> remain CI gates; the sandbox is explicitly not an Android runtime.
 
 ## Scope and status
 
@@ -1211,11 +1213,12 @@ checks after the twentieth batch:
   boundaries, the legacy SHA-256 key against known digests, `generateSymmetricKey`, the RSA
   encrypt/decrypt helpers against a real JVM key pair, the random/iteration/benchmark bounds, and the
   framed reader's pre-provider refusal of `null` and every frame shorter than nonce plus tag. The
-  AES-GCM provider calls cannot run on this JDK (it requires `GCMParameterSpec` while the unchanged
-  Android path passes `IvParameterSpec`), and `EncryptionHelper` cannot be reflected here at all
-  because its declared methods mention the Java-only `Constants.EncryptionType`; the static surface,
-  the throws clauses and the `KeyStoreHelper` member shapes are asserted where reflection works, and
-  the rest stays with the Python guard and the device test.
+  2026-10-22 issue #39 follow-up now runs the NIST AES-GCM vector plus current/legacy backup frame,
+  wrong-password and tamper checks on this JDK by translating the retained `IvParameterSpec` API
+  to `GCMParameterSpec(128, nonce)`. `EncryptionHelper` cannot be reflected here at all because its
+  declared methods mention the Java-only `Constants.EncryptionType`; the static surface, throws
+  clauses and `KeyStoreHelper` member shapes are asserted where reflection works, and Android's
+  provider-specific GCM/KeyStore behavior remains in instrumentation.
 - The settings facade **executed** against an in-memory `SharedPreferences` and a resource view that
   serves the `settings.xml` defaults: the stored-default matrix of the non-enum accessors, the resource
   and key each accessor resolves (recorded, so a dropped key fails), the round trips including the salt

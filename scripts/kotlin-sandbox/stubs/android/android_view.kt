@@ -84,6 +84,8 @@ open class View {
         importantForAccessibilityMode = mode
     }
 
+    fun getImportantForAccessibility(): Int = importantForAccessibilityMode
+
     fun setImportantForAutofill(mode: Int) {
         importantForAutofillMode = mode
     }

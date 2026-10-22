@@ -1,11 +1,10 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * On-device vectors for the app's core crypto and database surfaces. These are the checks that
- * cannot run on a host JVM: the AES-GCM paths initialize with an IvParameterSpec (accepted by
- * Android's crypto providers, the long-shipped andOTP behaviour) and the database round trip
- * needs a real Context. The calculator/document vectors are repeated here so a device failure
- * points at the platform integration, not the algorithm.
+ * On-device vectors for the app's core crypto, AndroidKeyStore and database surfaces. The host
+ * suite now exercises the same standard GCMParameterSpec crypto path, while the AndroidKeyStore
+ * wrapper and real database transaction require an Android runtime. The calculator/document
+ * vectors are repeated here so a device failure points at platform integration, not the algorithm.
  *
  * The suite is wired in app/build.gradle (androidx.test ext:junit/runner/core) and driven by
  * the CI instrumentation matrix via scripts/ci/start-emulator.sh.
@@ -19,6 +18,8 @@ import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -27,11 +28,15 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
+import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
+import org.shadowice.flocke.andotp.Utilities.SecretKeyWrapper
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
 import org.shadowice.flocke.andotp.Utilities.VaultWriteResult
 import java.nio.charset.StandardCharsets
+import java.security.KeyStore
+import java.util.UUID
 import javax.crypto.AEADBadTagException
 import javax.crypto.SecretKey
 
@@ -186,6 +191,29 @@ class ApplicationTest {
                 // expected: framing is rejected before any provider work
             }
         }
+    }
+
+    @Test
+    fun androidKeyStoreWrappingKeyCanBeLoadedAndMissingAliasesFailClosed() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val alias = "offlineotp-test-${UUID.randomUUID()}"
+        val store = KeyStore.getInstance("AndroidKeyStore")
+        try {
+            assertNull("a fresh test alias must not exist", KeyStoreHelper.loadAsymmetricKeyPair(context, alias))
+            val generated = KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, alias)
+            assertNotNull("AndroidKeyStore did not create a wrapping key", generated)
+
+            val raw = EncryptionHelper.generateRandom(32)
+            val wrapped = SecretKeyWrapper(generated!!)
+                .wrap(EncryptionHelper.generateSymmetricKey(raw))
+            val loaded = KeyStoreHelper.loadAsymmetricKeyPair(context, alias)
+            assertNotNull("read-only lookup lost the generated alias", loaded)
+            assertArrayEquals(raw, SecretKeyWrapper(loaded!!).unwrap(wrapped).encoded)
+        } finally {
+            store.load(null)
+            if (store.containsAlias(alias)) store.deleteEntry(alias)
+        }
+        assertNull("a deleted alias must not silently regenerate", KeyStoreHelper.loadAsymmetricKeyPair(context, alias))
     }
 
     @Test

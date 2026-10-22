@@ -16,6 +16,9 @@ abstract class DocumentFile {
     open fun exists(): Boolean = false
 
     companion object {
+        /** Optional fake tree factory for sandbox tests; null preserves the compile-only default. */
+        var treeFactory: ((Context?, Uri?) -> DocumentFile?)? = null
+
         @JvmStatic
         fun fromFile(file: File?): DocumentFile = object : DocumentFile() {
             override fun getUri(): Uri = Uri.EMPTY
@@ -23,7 +26,7 @@ abstract class DocumentFile {
         }
 
         @JvmStatic
-        fun fromTreeUri(context: Context?, uri: Uri?): DocumentFile? = null
+        fun fromTreeUri(context: Context?, uri: Uri?): DocumentFile? = treeFactory?.invoke(context, uri)
 
         @JvmStatic
         fun fromSingleUri(context: Context?, uri: Uri?): DocumentFile? = null

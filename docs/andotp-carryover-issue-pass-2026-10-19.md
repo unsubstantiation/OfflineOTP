@@ -127,3 +127,24 @@ success does not prove behavior on a vendor ROM or external document provider:
 * **#923** — verify configured single/double-tap behavior in the app; host controller tests do not validate preference UX.
 * **#995, #996** — complete encrypted exports against current OpenKeychain and a real destination provider.
 * **#712** — host deadline tests pass, but no instrumentation test simulates screen-off/deep-sleep; confirm the reported lock timeout on a physical device.
+
+## Follow-up regression coverage — 2026-10-22
+
+A follow-up review added runnable regression tests for the paths that can be exercised without
+vendor hardware or external providers:
+
+| Report(s) | Added/expanded coverage | Boundary |
+| --- | --- | --- |
+| #376 | Host JUnit NIST AES-GCM vector plus current-format PBKDF2 backup framing, legacy SHA-256 backup compatibility, wrong-password and tamper rejection; sandbox test writes through `BackupHelper` to a fake `content:` provider and reads it back. | A fake resolver does not prove Google Drive behavior. |
+| #533, #865, #895 | Fake content-provider writer/read round trip, plus a fake SAF tree test that verifies automatic backups request new unique Drive-compatible documents; permission checks and invalid-password refusal are covered. | Files/Drive/Work Profile grants still need provider/device verification. |
+| #847, #879 | Instrumentation round-trip using a unique AndroidKeyStore RSA alias; lookup after deletion is asserted not to regenerate a key. | Pixel 4 / MIUI behavior is not represented by the CI emulator KeyStore. |
+| #892 | Device test generates a PNG with the exact reported CCP `otpauth://` URI, decodes it through `ScanQRCodeFromFile`, and parses the resulting account; malformed image input is also rejected. | Tests ZXing and Android BitmapFactory, not the specific third-party camera/scanner app. |
+| #208, #406, #498, #591, #712, #736, #873, #923, #932, #948, #976, #995, #996 | Existing focused auth/session, obscured-touch, accessibility source, timer, SAF failure, reachability, tap-sequence, plaintext restore, and OpenPGP policy tests remain in the host/device suites. | The detailed external-app, TalkBack, cloud-provider, OEM, and UI-interaction gates below remain manual. |
+
+`EncryptionHelper` now retains its `IvParameterSpec` overload for compatibility but converts it to
+`GCMParameterSpec(128, nonce)` before initializing AES-GCM. This preserves the existing nonce/tag
+framing while allowing the backup regression vectors to run on standard desktop JCA providers as
+well as Android. The new device tests are wired into the repository's API 28/36 CI matrix, but this branch's
+instrumentation has not yet run there. The previously passing matrix was on the base commit; even a
+passing branch matrix cannot substitute for testing the specific vendor devices and external apps
+in the remaining-gates list.

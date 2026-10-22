@@ -14,4 +14,6 @@ open class Instrumentation {
 
     val targetContext: Context
         get() = throw UnsupportedOperationException("android test compile stub")
+
+    fun waitForIdleSync(): Unit = throw UnsupportedOperationException("android test compile stub")
 }
