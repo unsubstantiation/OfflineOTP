@@ -85,7 +85,16 @@ class ActivityReachabilityDeviceTest {
                     val keyName = activity.getString(R.string.settings_key_show_prev_token)
                     val preference = fragment.findPreference(keyName)
                     assertNotNull("show previous token preference is missing", preference)
-                    preference!!.performClick()
+                    val before = preference!!.getSharedPreferences()
+                        .getBoolean(keyName, false)
+                    // android.preference.Preference exposes performClick(PreferenceScreen), which
+                    // runs the same onClick/persistence path the list row click dispatches (the
+                    // path behind #932). Kotlin needs the explicit null for that parameter.
+                    preference.performClick(null)
+                    val after = preference.getSharedPreferences()
+                        .getBoolean(keyName, false)
+                    assertFalse("touching the Settings option did not persist its value",
+                        before == after)
                     assertFalse("touching the Settings option finished the screen", activity.isFinishing())
                 }
                 scenario.recreate()

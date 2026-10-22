@@ -111,7 +111,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         settings_test = read(ANDROID_TEST / "ActivityReachabilityDeviceTest.kt")
         self.assertIn("introScreenDoesNotForceAnOrientation", intro_test)
         self.assertIn("ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED", intro_test)
-        self.assertIn("preference!!.performClick()", settings_test)
+        self.assertIn("preference.performClick(null)", settings_test)
         self.assertIn("touching the Settings option finished the screen", settings_test)
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
