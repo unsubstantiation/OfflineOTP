@@ -153,8 +153,10 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         # #712: background time must count towards the elapsed-realtime deadline.
         self.assertIn("backgroundTimeCountsTowardsTheInactivityRelock", flow)
         self.assertIn("INACTIVITY_SECONDS * 1_000L + 700L", flow)
-        self.assertIn("awaitVaultKeyGone()", flow)
+        # The expired deadline revokes the session in onResume and goes straight to the prompt.
         self.assertIn("background time did not trigger the inactivity prompt", flow)
+        self.assertIn("the idle-expired session still held a vault key", flow)
+        self.assertIn("the entry list came back after the inactivity timeout", flow)
 
     def test_obscured_touch_rejection_has_a_device_regression(self):
         device_test = read(ANDROID_TEST / "ObscuredTouchDeviceTest.kt")

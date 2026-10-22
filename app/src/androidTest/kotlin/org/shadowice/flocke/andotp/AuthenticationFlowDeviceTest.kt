@@ -133,12 +133,16 @@ class AuthenticationFlowDeviceTest {
             // finish(), not finishAndRemoveTask(): the latter finishes every activity in the task,
             // which would destroy MainActivity instead of resuming it.
             instrumentation.runOnMainSync { cover.finish() }
-            assertNotNull("MainActivity did not come back to the foreground",
-                DeviceTestSupport.awaitResumed<MainActivity>())
 
-            assertNull("background time did not revoke the vault session", awaitVaultKeyGone())
-            assertNotNull("background time did not trigger the inactivity prompt",
+            // MainActivity.onResume hits the expired deadline before it can settle in RESUMED:
+            // it revokes the session and immediately starts the prompt, so the observable
+            // outcome is the prompt, not a resumed entry list.
+            assertNotNull("background time did not trigger the inactivity prompt; on screen: " +
+                DeviceTestSupport.resumedActivityNames(),
                 DeviceTestSupport.awaitResumed<AuthenticateActivity>())
+            assertNull("the idle-expired session still held a vault key", VaultSession.getKey())
+            assertNull("the entry list came back after the inactivity timeout",
+                DeviceTestSupport.awaitResumed<MainActivity>(timeoutMillis = 1_000))
         } finally {
             DeviceTestSupport.finishActivities()
             cleanUp(context)
@@ -186,15 +190,6 @@ class AuthenticationFlowDeviceTest {
         val deadline = SystemClock.uptimeMillis() + timeoutMillis
         while (SystemClock.uptimeMillis() < deadline) {
             if (VaultSession.getKey() != null) return true
-            SystemClock.sleep(50)
-        }
-        return false
-    }
-
-    private fun awaitVaultKeyGone(timeoutMillis: Long = 20_000): Boolean {
-        val deadline = SystemClock.uptimeMillis() + timeoutMillis
-        while (SystemClock.uptimeMillis() < deadline) {
-            if (VaultSession.getKey() == null) return true
             SystemClock.sleep(50)
         }
         return false
