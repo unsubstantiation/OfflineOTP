@@ -195,7 +195,10 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("screenOffRevokesTheSessionAndClosesTheScreen", device_test)
         self.assertIn("activity.ScreenOffReceiver().onReceive(", device_test)
         self.assertIn("assertNull(\"screen-off did not revoke the vault key\"", device_test)
-        self.assertIn("screen-off left the vault screen on display", device_test)
+        self.assertIn("screen-off left the decrypted entries on display", device_test)
+        # MainActivity stays alive on screen-off so the return trip lands on the unlock prompt.
+        self.assertIn("shouldDestroyOnScreenOff", base)
+        self.assertIn("MainActivity should stay alive", device_test)
 
     def test_screen_off_teardown_policy_is_shared_with_a_host_test(self):
         policy = read(APP / "Utilities/BackupScreenOffPolicy.kt")

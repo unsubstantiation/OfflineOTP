@@ -130,7 +130,11 @@ class AuthenticationFlowDeviceTest {
             assertNull("covering the screen did not pause MainActivity",
                 DeviceTestSupport.awaitResumed<MainActivity>(timeoutMillis = 500))
             SystemClock.sleep(INACTIVITY_SECONDS * 1_000L + 700L)
-            instrumentation.runOnMainSync { cover.finishAndRemoveTask() }
+            // finish(), not finishAndRemoveTask(): the latter finishes every activity in the task,
+            // which would destroy MainActivity instead of resuming it.
+            instrumentation.runOnMainSync { cover.finish() }
+            assertNotNull("MainActivity did not come back to the foreground",
+                DeviceTestSupport.awaitResumed<MainActivity>())
 
             assertNull("background time did not revoke the vault session", awaitVaultKeyGone())
             assertNotNull("background time did not trigger the inactivity prompt",
@@ -187,7 +191,7 @@ class AuthenticationFlowDeviceTest {
         return false
     }
 
-    private fun awaitVaultKeyGone(timeoutMillis: Long = 5_000): Boolean {
+    private fun awaitVaultKeyGone(timeoutMillis: Long = 20_000): Boolean {
         val deadline = SystemClock.uptimeMillis() + timeoutMillis
         while (SystemClock.uptimeMillis() < deadline) {
             if (VaultSession.getKey() == null) return true

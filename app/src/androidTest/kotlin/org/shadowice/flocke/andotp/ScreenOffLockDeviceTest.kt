@@ -3,8 +3,9 @@
  *
  * Device regression for andOTP #736 ("backup fails on screen-off/home") and the screen-off half
  * of #712: every vault activity is registered for ACTION_SCREEN_OFF, and with the default
- * "relock on screen off" setting the receiver must revoke the session and close the screen
- * instead of leaving decrypted entries (or a half-finished operation) on display.
+ * "relock on screen off" setting the receiver must revoke the session and hide the decrypted
+ * entries. MainActivity deliberately stays alive (instead of finishing) so the user comes back to
+ * the unlock prompt rather than to an empty launcher.
  *
  * ACTION_SCREEN_OFF is a protected broadcast, so a test cannot inject it through the system.
  * The receiver instance the activity registers is idempotent and holds no state, which lets the
@@ -14,9 +15,12 @@ package org.shadowice.flocke.andotp
 
 import android.content.Context
 import android.content.Intent
+import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -65,6 +69,7 @@ class ScreenOffLockDeviceTest {
             val activity = requireNotNull(resumed)
 
             var finishing = false
+            var entriesVisible = View.VISIBLE
             InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 assertTrue("relock-on-screen-off must be on for this regression",
                     activity.settings!!.getRelockOnScreenOff())
@@ -72,11 +77,14 @@ class ScreenOffLockDeviceTest {
                 activity.ScreenOffReceiver().onReceive(
                     activity, Intent(Intent.ACTION_SCREEN_OFF).setAction(Intent.ACTION_SCREEN_OFF))
                 finishing = activity.isFinishing()
+                entriesVisible = requireNotNull(activity.findViewById<View>(R.id.cardList)).visibility
             }
             InstrumentationRegistry.getInstrumentation().waitForIdleSync()
 
             assertNull("screen-off did not revoke the vault key", VaultSession.getKey())
-            assertTrue("screen-off left the vault screen on display", finishing)
+            assertEquals("screen-off left the decrypted entries on display",
+                View.INVISIBLE, entriesVisible)
+            assertFalse("MainActivity should stay alive to ask for the PIN on return", finishing)
         } finally {
             DeviceTestSupport.finishActivities()
             DatabaseHelper.wipeDatabase(context)
