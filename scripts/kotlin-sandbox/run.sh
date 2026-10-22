@@ -101,6 +101,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/Tasks/FinishIntroTask.kt"
     "$KOTLIN_APP/Utilities/Tools.kt"
     "$KOTLIN_APP/Utilities/ScreenTimerController.kt"
+    "$KOTLIN_APP/Utilities/BackupScreenOffPolicy.kt"
     "$KOTLIN_APP/Utilities/TokenCalculator.kt"
     "$KOTLIN_APP/Utilities/BoundedInputReader.kt"
     "$KOTLIN_APP/Utilities/BoundedOutput.kt"

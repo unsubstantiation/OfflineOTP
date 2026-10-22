@@ -220,14 +220,6 @@ open class Preference {
      */
     fun getSharedPreferences(): android.content.SharedPreferences = NoOpSharedPreferences
 
-    /**
-     * Mirrors `Preference.performClick(PreferenceScreen)` (the platform signature takes the
-     * hosting screen, which may be null). Real preference dispatch is platform-owned; this only
-     * invokes the recorded click listener so device-test sources type-check.
-     */
-    fun performClick(screen: PreferenceScreen?) {
-        clickListener?.onPreferenceClick(this)
-    }
 
     /** The change callback of a preference. */
     fun interface OnPreferenceChangeListener {
@@ -239,12 +231,6 @@ open class Preference {
         fun onPreferenceClick(preference: Preference): Boolean
     }
 }
-
-/**
- * The root preference container. The platform passes it to `Preference.performClick`; the
- * stand-in models the type only.
- */
-open class PreferenceScreen : Preference()
 
 /** Inert [android.content.SharedPreferences] returned by the preference stand-ins. */
 private object NoOpSharedPreferences : android.content.SharedPreferences {
@@ -301,6 +287,12 @@ open class EditTextPreference : Preference() {
 open class PreferenceFragment : android.app.Fragment() {
     /** The resources that were inflated. */
     val inflatedResources: MutableList<Int> = ArrayList()
+
+    /** The list the platform builds from the preference screen; no rows are laid out here. */
+    private val settingsList = android.widget.ListView(android.content.Context())
+
+    /** Mirrors `PreferenceFragment.getListView()`. */
+    fun getListView(): android.widget.ListView = settingsList
 
     /** The preferences that were found, by key. */
     val preferences: MutableMap<String, Preference> = LinkedHashMap()

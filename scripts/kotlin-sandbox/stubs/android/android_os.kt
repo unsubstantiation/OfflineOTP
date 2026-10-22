@@ -48,6 +48,12 @@ class SystemClock private constructor() {
 
         @JvmStatic
         fun uptimeMillis(): Long = System.nanoTime() / 1_000_000L
+
+        /** Sleeps the calling thread; the platform does the same (no interruption state is kept). */
+        @JvmStatic
+        fun sleep(millis: Long) {
+            Thread.sleep(millis)
+        }
     }
 }
 

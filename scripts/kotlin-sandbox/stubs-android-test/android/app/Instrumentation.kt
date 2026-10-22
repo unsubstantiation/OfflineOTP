@@ -16,4 +16,7 @@ open class Instrumentation {
         get() = throw UnsupportedOperationException("android test compile stub")
 
     fun waitForIdleSync(): Unit = throw UnsupportedOperationException("android test compile stub")
+
+    fun runOnMainSync(runnable: Runnable): Unit =
+        throw UnsupportedOperationException("android test compile stub")
 }

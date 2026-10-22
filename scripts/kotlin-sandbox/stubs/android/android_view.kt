@@ -24,6 +24,8 @@ open class View {
     var translationX: Float = 0.0f
     /** The platform getter is final; the stand-in is writable so checks can size a fake view. */
     var width: Int = 0
+    /** The platform getter is final; the stand-in is writable so checks can size a fake view. */
+    var height: Int = 0
     var visibility: Int = VISIBLE
     var isEnabled: Boolean = true
     /** Recorded by the setImportantFor* methods below; distinct names avoid the setter clash. */

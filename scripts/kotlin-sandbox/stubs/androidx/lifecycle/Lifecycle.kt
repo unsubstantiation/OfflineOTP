@@ -12,6 +12,9 @@ interface LifecycleOwner {
 
 /** A lifecycle; only the observer registration is modelled. */
 class Lifecycle {
+    /** The lifecycle states; the instrumentation tests move scenarios between them. */
+    enum class State { CREATED, STARTED, RESUMED, DESTROYED }
+
     /** The observers that were added, in order. */
     val observers = ArrayList<DefaultLifecycleObserver>()
 
