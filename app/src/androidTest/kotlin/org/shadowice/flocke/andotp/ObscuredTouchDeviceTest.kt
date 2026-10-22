@@ -67,10 +67,13 @@ class ObscuredTouchDeviceTest {
                 var clicks = 0
                 val content = clickableContent(activity) { clicks++ }
 
-                assertFalse("a partially obscured tap reached the view hierarchy",
-                    dispatch(activity, MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED,
-                        MotionEvent.ACTION_DOWN, centerX(activity, content), centerY(activity, content)))
-                assertEquals("a partially obscured tap-up was dispatched", 0, clicks)
+                // The flag constant is API 29; the guard keeps the lint NewApi/InlinedApi gate happy.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    assertFalse("a partially obscured tap reached the view hierarchy",
+                        dispatch(activity, MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED,
+                            MotionEvent.ACTION_DOWN, centerX(activity, content), centerY(activity, content)))
+                    assertEquals("a partially obscured tap-up was dispatched", 0, clicks)
+                }
             }
         }
     }

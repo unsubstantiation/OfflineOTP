@@ -69,7 +69,7 @@ class AuthenticationFlowDeviceTest {
 
                 assertNull("cancelling authentication left a vault key", VaultSession.getKey())
                 assertTrue("MainActivity stayed reachable after a cancelled unlock",
-                    awaitScenarioState(scenario, ActivityScenario.State.DESTROYED))
+                    awaitScenarioState(scenario, Lifecycle.State.DESTROYED))
             }
         } finally {
             cleanUp(context)
@@ -199,7 +199,7 @@ class AuthenticationFlowDeviceTest {
 
     private fun awaitScenarioState(
         scenario: ActivityScenario<MainActivity>,
-        expected: ActivityScenario.State,
+        expected: Lifecycle.State,
         timeoutMillis: Long = 10_000
     ): Boolean {
         val deadline = SystemClock.uptimeMillis() + timeoutMillis

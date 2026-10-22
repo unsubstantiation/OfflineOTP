@@ -17,6 +17,8 @@ object R {
     object id {
         /** The real public framework value of android.R.id.content. */
         const val content = 16908290
+        /** The real public framework value of android.R.id.list. */
+        const val list = 16908298
     }
     object string {
         /** The real public framework value of android.R.string.ok. */

@@ -112,7 +112,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("introScreenDoesNotForceAnOrientation", intro_test)
         self.assertIn("ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED", intro_test)
         self.assertIn("performItemClick", settings_test)
-        self.assertIn("fragment.getListView()", settings_test)
+        self.assertIn("android.R.id.list", settings_test)
         self.assertIn("touching the Settings option finished the screen", settings_test)
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
@@ -146,7 +146,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         # #208: a cancelled prompt must fail closed; the positive case must still unlock.
         self.assertIn("aCancelledUnlockPromptCannotRevealTheVault", flow)
         self.assertIn("prompt!!.onBackPressed()", flow)
-        self.assertIn("ActivityScenario.State.DESTROYED", flow)
+        self.assertIn("Lifecycle.State.DESTROYED", flow)
         self.assertIn("theConfiguredPinStillUnlocksTheVault", flow)
         # #712: background time must count towards the elapsed-realtime deadline.
         self.assertIn("backgroundTimeCountsTowardsTheInactivityRelock", flow)

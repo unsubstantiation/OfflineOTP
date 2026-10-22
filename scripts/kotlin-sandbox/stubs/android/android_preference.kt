@@ -288,12 +288,6 @@ open class PreferenceFragment : android.app.Fragment() {
     /** The resources that were inflated. */
     val inflatedResources: MutableList<Int> = ArrayList()
 
-    /** The list the platform builds from the preference screen; no rows are laid out here. */
-    private val settingsList = android.widget.ListView(android.content.Context())
-
-    /** Mirrors `PreferenceFragment.getListView()`. */
-    fun getListView(): android.widget.ListView = settingsList
-
     /** The preferences that were found, by key. */
     val preferences: MutableMap<String, Preference> = LinkedHashMap()
 

@@ -10,11 +10,8 @@ import androidx.lifecycle.Lifecycle
  * so onActivity is reachable without a separate moveToState call.
  */
 class ActivityScenario<T : Activity> private constructor() : AutoCloseable {
-    /** The scenario states of the real androidx.test core library. */
-    enum class State { CREATED, STARTED, RESUMED, DESTROYED }
-
-    /** The current scenario state; the real property is `getState()`. */
-    var state: State = State.RESUMED
+    /** The current scenario state; `getState()` returns an androidx.lifecycle state. */
+    var state: Lifecycle.State = Lifecycle.State.RESUMED
         private set
 
     fun onActivity(action: (T) -> Unit): ActivityScenario<T> =

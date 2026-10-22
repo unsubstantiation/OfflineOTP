@@ -9,6 +9,7 @@ package org.shadowice.flocke.andotp
 
 import android.content.Context
 import android.preference.PreferenceManager
+import android.widget.ListView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -115,9 +116,10 @@ class ActivityReachabilityDeviceTest {
                     val keyName = activity.getString(R.string.settings_key_show_prev_token)
                     val preference = fragment.findPreference(keyName)
                     assertNotNull("show previous token preference is missing", preference)
-                    // The framework preference has no public click entry point, so dispatch the
-                    // touch through the real settings list row (#932 is a crash on that touch).
-                    val list = fragment.getListView()
+                    // The framework preference has no public click entry point and
+                    // PreferenceFragment does not expose its list, so reach the standard
+                    // preference list view (#932 is a crash on a touch of one of its rows).
+                    val list = activity.findViewById<ListView>(android.R.id.list)
                     assertNotNull("the settings list is missing", list)
                     val adapter = requireNotNull(list!!.adapter)
                     var position = -1
