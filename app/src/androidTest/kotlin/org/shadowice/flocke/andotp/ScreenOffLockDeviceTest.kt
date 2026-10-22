@@ -14,10 +14,10 @@ package org.shadowice.flocke.andotp
 
 import android.content.Context
 import android.content.Intent
-import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -46,8 +46,9 @@ class ScreenOffLockDeviceTest {
         val settings = Settings(context)
         val generation = VaultSession.beginUnlock().generation
         val key = EncryptionHelper.generateSymmetricKey(ByteArray(32) { 0x33 })
-        val scenario = ActivityScenario.launch(MainActivity::class.java)
         try {
+            // The vault and the session must exist before MainActivity starts: launching it
+            // without a vault makes it report an unavailable vault and revoke the generation.
             val initialized = DatabaseHelper.changeVaultEncryption(context, null, key, true) { transactionId ->
                 VaultCommitDecision.fromCommit(settings.commitVaultSettings(
                     transactionId, Constants.EncryptionType.PASSWORD, Constants.AuthMethod.NONE,
@@ -57,8 +58,14 @@ class ScreenOffLockDeviceTest {
             assertTrue("could not activate the test vault",
                 VaultSession.activate(key, generation) is SessionCommandResult.Applied)
 
+            DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            val resumed = DeviceTestSupport.awaitResumed<MainActivity>()
+            assertNotNull("MainActivity never resumed; on screen: " +
+                DeviceTestSupport.resumedActivityNames(), resumed)
+            val activity = requireNotNull(resumed)
+
             var finishing = false
-            scenario.onActivity { activity ->
+            InstrumentationRegistry.getInstrumentation().runOnMainSync {
                 assertTrue("relock-on-screen-off must be on for this regression",
                     activity.settings!!.getRelockOnScreenOff())
                 // The platform delivers exactly this intent to the registered receiver.
@@ -71,7 +78,6 @@ class ScreenOffLockDeviceTest {
             assertNull("screen-off did not revoke the vault key", VaultSession.getKey())
             assertTrue("screen-off left the vault screen on display", finishing)
         } finally {
-            DeviceTestSupport.closeQuietly(scenario)
             DeviceTestSupport.finishActivities()
             DatabaseHelper.wipeDatabase(context)
             DeviceTestSupport.wipePreferences(context)

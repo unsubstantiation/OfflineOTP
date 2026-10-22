@@ -82,6 +82,17 @@ internal object DeviceTestSupport {
         return null
     }
 
+    /** The simple names of the activities currently on screen, for assertion messages. */
+    fun resumedActivityNames(): List<String> {
+        var names: List<String> = emptyList()
+        instrumentation.runOnMainSync {
+            names = ActivityLifecycleMonitorRegistry.getInstance()
+                .getActivitiesInStage(Stage.RESUMED)
+                .map { it.javaClass.simpleName }
+        }
+        return names
+    }
+
     /** True once the activity reports `isFinishing`, read on the main thread. */
     fun awaitFinishing(activity: Activity, timeoutMillis: Long = 10_000): Boolean {
         val deadline = SystemClock.uptimeMillis() + timeoutMillis
@@ -95,8 +106,13 @@ internal object DeviceTestSupport {
         return false
     }
 
-    /** Finishes every activity the test left on screen so the next test starts clean. */
-    fun finishActivities() {
+    /**
+     * Finishes every activity the test left on screen and waits for the teardown to complete.
+     * Waiting matters: a paused MainActivity keeps its inactivity runnable, which would revoke the
+     * session of whichever test runs next.
+     */
+    fun finishActivities(timeoutMillis: Long = 5_000) {
+        instrumentation.waitForIdleSync()
         for (stage in listOf(Stage.RESUMED, Stage.STARTED, Stage.PAUSED)) {
             instrumentation.runOnMainSync {
                 ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(stage)
@@ -104,7 +120,22 @@ internal object DeviceTestSupport {
                     .forEach { it.finishAndRemoveTask() }
             }
         }
-        instrumentation.waitForIdleSync()
+        val deadline = SystemClock.uptimeMillis() + timeoutMillis
+        while (SystemClock.uptimeMillis() < deadline) {
+            instrumentation.waitForIdleSync()
+            if (remainingActivityCount() == 0) return
+            SystemClock.sleep(50)
+        }
+    }
+
+    private fun remainingActivityCount(): Int {
+        var count = 0
+        instrumentation.runOnMainSync {
+            count = listOf(Stage.RESUMED, Stage.STARTED, Stage.PAUSED).sumOf {
+                ActivityLifecycleMonitorRegistry.getInstance().getActivitiesInStage(it).size
+            }
+        }
+        return count
     }
 
     /**

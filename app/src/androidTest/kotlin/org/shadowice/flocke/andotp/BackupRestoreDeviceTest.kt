@@ -20,10 +20,12 @@ package org.shadowice.flocke.andotp
 import android.content.Context
 import android.net.Uri
 import androidx.test.core.app.ApplicationProvider
+import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -48,6 +50,17 @@ class BackupRestoreDeviceTest {
         """"used_frequency":0,"period":30,"tags":["work"]}]"""
 
     private val context: Context get() = ApplicationProvider.getApplicationContext()
+
+    /**
+     * Tasks bind to the session generation they were constructed with. A leftover activity from a
+     * previous test could still hold an inactivity callback that revokes the session, which would
+     * cancel the restore and look like a restore failure; settle the app first.
+     */
+    @Before
+    fun settleTheApp() {
+        DeviceTestSupport.finishActivities()
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+    }
 
     @Test
     fun currentEncryptedBackupIsRestored() {

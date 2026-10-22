@@ -116,6 +116,9 @@ class AuthenticationFlowDeviceTest {
                 VaultSession.activate(key, generation) is SessionCommandResult.Applied)
 
             DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            assertNotNull("MainActivity did not resume on an active session; on screen: " +
+                DeviceTestSupport.resumedActivityNames(),
+                DeviceTestSupport.awaitResumed<MainActivity>())
             assertNotNull("an active session was dropped on launch", VaultSession.getKey())
             assertNull("the inactivity timeout fired while the screen was in front",
                 DeviceTestSupport.awaitResumed<AuthenticateActivity>(timeoutMillis = 500))
@@ -123,6 +126,9 @@ class AuthenticationFlowDeviceTest {
             // Another activity in front is the device equivalent of the app being backgrounded;
             // the session must not survive on the strength of the idle timer being paused.
             val cover = DeviceTestSupport.startActivity(context, AboutActivity::class.java)
+            assertNotNull("the covering activity did not resume", DeviceTestSupport.awaitResumed<AboutActivity>())
+            assertNull("covering the screen did not pause MainActivity",
+                DeviceTestSupport.awaitResumed<MainActivity>(timeoutMillis = 500))
             SystemClock.sleep(INACTIVITY_SECONDS * 1_000L + 700L)
             instrumentation.runOnMainSync { cover.finishAndRemoveTask() }
 
@@ -165,6 +171,9 @@ class AuthenticationFlowDeviceTest {
     }
 
     private fun cleanUp(context: Context) {
+        // Let the activities finish (and close their timers) before wiping the vault, otherwise a
+        // late inactivity callback could revoke the session of the next test.
+        DeviceTestSupport.finishActivities()
         DatabaseHelper.wipeDatabase(context)
         DeviceTestSupport.wipePreferences(context)
     }
