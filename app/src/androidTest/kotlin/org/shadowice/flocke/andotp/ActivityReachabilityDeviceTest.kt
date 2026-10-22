@@ -1,9 +1,9 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * Reachability smoke tests for the andOTP crash reports (#873 Settings and #948 backup) and the
- * About screen. They assert that the activities come up under the current theme/configuration and
- * survive configuration recreation; picker/provider behavior still needs device-specific checks.
+ * Reachability smoke tests for the andOTP crash reports (#873 Settings, #932 Settings tap, and
+ * #948 backup) and the About screen. They assert that the activities come up under the current
+ * theme/configuration and survive recreation; picker/provider behavior still needs device-specific checks.
  */
 package org.shadowice.flocke.andotp
 
@@ -80,6 +80,13 @@ class ActivityReachabilityDeviceTest {
                 scenario.onActivity { activity ->
                     assertNotNull(activity.findViewById<android.view.View>(R.id.container_toolbar))
                     assertFalse(activity.isFinishing())
+                    val fragment = activity.getFragmentManager()
+                        .findFragmentById(R.id.container_content) as SettingsActivity.SettingsFragment
+                    val keyName = activity.getString(R.string.settings_key_show_prev_token)
+                    val preference = fragment.findPreference(keyName)
+                    assertNotNull("show previous token preference is missing", preference)
+                    preference!!.performClick()
+                    assertFalse("touching the Settings option finished the screen", activity.isFinishing())
                 }
                 scenario.recreate()
                 scenario.onActivity { activity ->

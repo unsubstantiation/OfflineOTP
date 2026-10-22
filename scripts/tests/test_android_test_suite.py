@@ -78,14 +78,21 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
         self.assertLess(finally_keyword, wipe,
                         "wipeDatabase must run in the finally block, after any save attempt")
 
-    def test_gcm_coverage_lives_in_the_instrumentation_suite(self):
-        """The host suite cannot run AES-GCM (IvParameterSpec vs SunJCE); the device must."""
-        text = APPLICATION_TEST.read_text(encoding="utf-8")
-        self.assertIn("AEADBadTagException", text,
+    def test_gcm_coverage_runs_on_host_and_android(self):
+        """The NIST/backup vectors run on host; device tests still cover Android providers."""
+        host_text = (ROOT / "app/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptionHelperTest.kt") \
+            .read_text(encoding="utf-8")
+        self.assertRegex(host_text, r"fun aesGcmUsesTheNistVector",
+                         "the portable JCA NIST vector is missing from the host suite")
+        self.assertRegex(host_text, r"fun encryptedBackupFrameRoundTripsCurrentAndLegacyFormats",
+                         "current/legacy backup round trips are missing from the host suite")
+
+        device_text = APPLICATION_TEST.read_text(encoding="utf-8")
+        self.assertIn("AEADBadTagException", device_text,
                       "tampered-frame vectors are missing from the device suite")
-        self.assertRegex(text, r"fun aesGcmRejectsTamperedAndTruncatedFrames",
-                         "the tamper/truncation vector method is missing")
-        self.assertIn("EncryptionHelper.encrypt", text)
+        self.assertRegex(device_text, r"fun aesGcmRejectsTamperedAndTruncatedFrames",
+                         "the Android tamper/truncation vector method is missing")
+        self.assertIn("EncryptionHelper.encrypt", device_text)
 
     def test_build_gradle_wires_the_instrumentation_dependencies(self):
         text = BUILD_GRADLE.read_text(encoding="utf-8")

@@ -125,6 +125,7 @@ import android.widget.Filterable
 import android.widget.FrameLayout
 import android.widget.ImageButton
 import androidx.cardview.widget.CardView
+import androidx.documentfile.provider.DocumentFile
 import me.zhanghai.android.materialprogressbar.MaterialProgressBar
 import org.openintents.openpgp.util.OpenPgpAppPreference
 import org.openintents.openpgp.util.OpenPgpKeyPreference
@@ -2515,6 +2516,84 @@ fun main() {
         }
     }
 
+    check("encrypted backups round-trip through the SAF writer and reject wrong passwords/tampering") {
+        val directory = java.nio.file.Files.createTempDirectory("andotp-encrypted-backup").toFile()
+        try {
+            val resolver = FakeResolver()
+            val context = FakeStorageContext(resolver, File(directory, "cache"))
+            val document = File(directory, "accounts.json.aes")
+            val uri = contentUri("document", "accounts.json.aes")
+            val password = "backup password ! with punctuation"
+            val plaintext = "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"label\":\"alice\"}]"
+            val permitted = ScriptedPermission()
+
+            resolver.target = document
+            expect(BackupHelper.backupToFile(context, uri, password, plaintext, permitted),
+                    { "encrypted backup write failed" })
+            expect(permitted.asked == 5, { "permission checked ${permitted.asked} times" })
+
+            // Read back through the same content-provider boundary used by import, not a raw path.
+            resolver.input = ByteArrayInputStream(document.readBytes())
+            val header = EncryptedBackupHeader.parse(StorageAccessHelper.loadFile(context, uri))
+            expect(header.getIterations() in Constants.PBKDF2_MIN_BACKUP_ITERATIONS..
+                    Constants.PBKDF2_MAX_BACKUP_ITERATIONS, { "unexpected iteration count ${header.getIterations()}" })
+            val key = EncryptionHelper.generateSymmetricKeyPBKDF2(password,
+                    header.getIterations(), header.getSalt())
+            val restored = String(EncryptionHelper.decrypt(key, header.getEncrypted()), StandardCharsets.UTF_8)
+            expect(restored == plaintext, { "backup plaintext changed: $restored" })
+
+            val wrongKey = EncryptionHelper.generateSymmetricKeyPBKDF2("$password-wrong",
+                    header.getIterations(), header.getSalt())
+            expectThrows(GeneralSecurityException::class.java) {
+                EncryptionHelper.decrypt(wrongKey, header.getEncrypted())
+            }
+            val damaged = header.getEncrypted().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
+            expectThrows(GeneralSecurityException::class.java) { EncryptionHelper.decrypt(key, damaged) }
+
+            val callsBeforeReject = resolver.calls.size
+            expect(!BackupHelper.backupToFile(context, uri, "", plaintext), { "empty backup password accepted" })
+            expect(resolver.calls.size == callsBeforeReject, { "a refused backup reached the provider" })
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    check("automatic backups create unique documents under a selected SAF tree") {
+        val requestedTypes = ArrayList<String?>()
+        val requestedNames = ArrayList<String?>()
+        val treeUri = contentUri("tree", "drive-root")
+        val tree = object : DocumentFile() {
+            override fun getUri(): Uri = treeUri
+            override fun delete(): Boolean = false
+            override fun createFile(mimeType: String?, name: String?): DocumentFile? {
+                requestedTypes.add(mimeType)
+                requestedNames.add(name)
+                return object : DocumentFile() {
+                    override fun getUri(): Uri = contentUri("document", name ?: "missing")
+                    override fun delete(): Boolean = true
+                    override fun canWrite(): Boolean = true
+                }
+            }
+        }
+        val resolver = FakeResolver()
+        val context = FakeStorageContext(resolver, File("/tmp/andotp-cache"))
+        DocumentFile.treeFactory = { _, _ -> tree }
+        try {
+            val first = BackupHelper.backupFile(context, treeUri, Constants.BackupType.ENCRYPTED)
+            val second = BackupHelper.backupFile(context, treeUri, Constants.BackupType.ENCRYPTED)
+            expect(first.errorMessage == 0 && first.file != null, { "first tree backup file was not created" })
+            expect(second.errorMessage == 0 && second.file != null, { "second tree backup file was not created" })
+            expect(requestedTypes == listOf(Constants.BACKUP_MIMETYPE_CRYPT,
+                    Constants.BACKUP_MIMETYPE_CRYPT), { "unexpected backup MIME types $requestedTypes" })
+            expect(requestedNames.size == 2 && requestedNames[0] != requestedNames[1],
+                    { "automatic backup would overwrite an earlier document: $requestedNames" })
+            expect(requestedNames.all { it != null && it.startsWith("otp_accounts_") && it.endsWith(".json.aes") },
+                    { "unexpected encrypted backup names $requestedNames" })
+        } finally {
+            DocumentFile.treeFactory = null
+        }
+    }
+
     check("document reads are bounded and file URIs stay confined to the private cache") {
         val directory = java.nio.file.Files.createTempDirectory("andotp-sandbox").toFile()
         try {
@@ -3893,12 +3972,9 @@ fun main() {
     }
 
     check("the framed AES/GCM reader rejects null and every short frame before provider work") {
-        // The desktop JDK's SunJCE rejects the unchanged Android nonce type (it requires
-        // GCMParameterSpec while the app's IvParameterSpec path is what ships), so the cipher
-        // itself cannot run here. What this executes is the security-relevant part that precedes
-        // the provider: null and every frame shorter than nonce + 128-bit tag fail closed with the
-        // Java IllegalArgumentException. The vectors, tamper and tag cases on real AES/GCM stay with
-        // ApplicationTest/EncryptionSecurityTest on a device.
+        // AES-GCM itself now runs in the host suite through GCMParameterSpec (including the NIST
+        // vector and encrypted-backup round trip above). This check pins the separate framing
+        // guard: null and every frame shorter than nonce + 128-bit tag fail before provider work.
         val key = SecretKeySpec(ByteArray(16) { 3 }, "AES")
         expectThrows(IllegalArgumentException::class.java) { EncryptionHelper.decrypt(key, null) }
         for (length in 0 until ENCRYPTION_IV_BYTES + 16) {

@@ -1,15 +1,9 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * JVM vectors for the Android-free crypto helpers: PBKDF2 splitting, random generation, the
- * legacy key derivation and the RSA paths.
- *
- * The AES-GCM encrypt/decrypt round trips are deliberately NOT run here: EncryptionHelper
- * initializes the GCM cipher with an IvParameterSpec, which Android's crypto providers accept
- * (the long-shipped andOTP behaviour this fork keeps) but a desktop SunJCE rejects with
- * "AlgorithmParameterSpec not of GCMParameterSpec". Those vectors run in the instrumentation
- * suite (ApplicationTest) on an Android runtime instead. Only the pre-provider framing checks
- * are JDK-safe and asserted here.
+ * JVM vectors for PBKDF2, AES-GCM, random generation, legacy key derivation and RSA paths.
+ * The public IvParameterSpec overload is retained for compatibility, but normalizes to the
+ * portable GCMParameterSpec contract internally so the same vectors run on Android and JCA.
  */
 package org.shadowice.flocke.andotp.Utilities
 
@@ -18,8 +12,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.GeneralSecurityException
 import java.security.KeyPairGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.IvParameterSpec
 
 class EncryptionHelperTest {
     private val salt = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
@@ -105,6 +103,64 @@ class EncryptionHelperTest {
             } catch (expected: IllegalArgumentException) {
                 // expected
             }
+        }
+    }
+
+    @Test
+    fun aesGcmUsesTheNistVector() {
+        val key = EncryptionHelper.generateSymmetricKey(ByteArray(16))
+        val nonce = ByteArray(12)
+        val plaintext = ByteArray(16)
+        val expected = "0388dace60b6a392f328c2b971b2fe78ab6e47d42cec13bdf53a67b21257bddf"
+            .chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+
+        val encrypted = EncryptionHelper.encrypt(key, IvParameterSpec(nonce), plaintext)
+        assertArrayEquals(expected, encrypted)
+        assertArrayEquals(plaintext, EncryptionHelper.decrypt(key, nonce + encrypted))
+    }
+
+    @Test
+    fun encryptedBackupFrameRoundTripsCurrentAndLegacyFormats() {
+        val password = "backup password ! with punctuation"
+        val plaintext = "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"label\":\"alice\"}]"
+            .toByteArray(StandardCharsets.UTF_8)
+        val iterations = 4096
+        val backupSalt = ByteArray(Constants.ENCRYPTION_IV_LENGTH) { (it + 1).toByte() }
+        val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, iterations, backupSalt)
+        val encrypted = EncryptionHelper.encrypt(backupKey, plaintext)
+        val framed = ByteBuffer.allocate(Constants.INT_LENGTH + backupSalt.size + encrypted.size)
+            .putInt(iterations).put(backupSalt).put(encrypted).array()
+
+        val header = EncryptedBackupHeader.parse(framed)
+        assertEquals(iterations, header.getIterations())
+        assertArrayEquals(backupSalt, header.getSalt())
+        assertArrayEquals(plaintext, EncryptionHelper.decrypt(
+            EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt()),
+            header.getEncrypted()))
+
+        // Historical encrypted backups stored nonce + GCM body without the current PBKDF2 header.
+        val legacyKey = EncryptionHelper.generateSymmetricKeyFromPassword(password)
+        val legacyFrame = EncryptionHelper.encrypt(legacyKey, plaintext)
+        assertArrayEquals(plaintext, EncryptionHelper.decrypt(legacyKey, legacyFrame))
+
+        val tampered = framed.copyOf().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
+        try {
+            val alteredHeader = EncryptedBackupHeader.parse(tampered)
+            EncryptionHelper.decrypt(
+                EncryptionHelper.generateSymmetricKeyPBKDF2(password, alteredHeader.getIterations(), alteredHeader.getSalt()),
+                alteredHeader.getEncrypted())
+            throw AssertionError("tampered encrypted backup was accepted")
+        } catch (expected: GeneralSecurityException) {
+            // GCM tag verification rejects the altered ciphertext.
+        }
+
+        try {
+            EncryptionHelper.decrypt(
+                EncryptionHelper.generateSymmetricKeyPBKDF2("$password-wrong", iterations, backupSalt),
+                header.getEncrypted())
+            throw AssertionError("wrong backup password was accepted")
+        } catch (expected: GeneralSecurityException) {
+            // Authentication failure is distinct from a valid empty/imported document.
         }
     }
 

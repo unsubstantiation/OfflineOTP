@@ -41,8 +41,8 @@ The related host gates read the same `APP_SOURCES` and `STUBS` lists from `run.s
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 
-Last verified on 2026-10-18 with Kotlin 2.4.21 and Temurin 25.0.2: 100 sandbox checks passed,
-110 JVM tests passed, and all four instrumentation sources compiled.
+Last verified on 2026-10-22 with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
+138 JVM tests passed, and all seven instrumentation sources type-checked against stand-ins.
 
 ## What it checks
 
@@ -52,8 +52,9 @@ Last verified on 2026-10-18 with Kotlin 2.4.21 and Temurin 25.0.2: 100 sandbox c
   bounded document reads and provider output, encrypted-backup framing, and the replicated
   `org.json`, Commons Codec Base32, and `android.net.Uri` subsets.
 - **Cryptography that a desktop JVM can run:** PBKDF2 against an independent derivation and the
-  RFC 6070 vector, legacy SHA-256 key derivation, and RSA wrap/unwrap with a real generated key
-  pair, including tampered blobs, wrong keys, and short frames.
+  RFC 6070 vector, legacy SHA-256 key derivation, AES-GCM against the NIST vector, current and
+  legacy encrypted-backup round trips (including wrong-password/tamper rejection), and RSA
+  wrap/unwrap with a real generated key pair, including tampered blobs and wrong keys.
 - **Vault, session, and tasks:** typed vault outcomes and recovery decisions, one-use secrets and
   generation-bound handoffs, task cancellation/ownership, settings and credential staging,
   backup receivers/worker/agent, the panic responder, and screen-off/obscured-touch handling.
@@ -68,9 +69,8 @@ name what each check actually exercises.
 
 - The stubs are approximations, not the Android platform. There is no real window, theme,
   resource resolution, IME, `Looper`/`Handler` timing, notification channel, camera, KeyStore,
-  or Storage Access Framework provider.
-- The app's AES-GCM path passes an `IvParameterSpec`, which Android accepts but the desktop JDK
-  rejects. Only the framing checks that run before the provider are covered here.
+  or Storage Access Framework provider. The fake document resolver verifies backup bytes and
+  permission gates, not Google Drive, Work Profile grants, or any real provider's behavior.
 - `AtomicFile` refuses every operation, and `Context.getFilesDir()` is the working directory.
   The real file transaction is deliberately never executed.
 - Some stub behavior is itself replicated (for example `TypedValue.applyDimension`), so checks

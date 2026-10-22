@@ -22,6 +22,7 @@ class PorterDuff private constructor() {
  */
 class Bitmap(private val width: Int = 1, private val height: Int = 1, private val pixels: IntArray? = null) {
     enum class Config { ARGB_8888, RGB_565, ALPHA_8 }
+    enum class CompressFormat { JPEG, PNG, WEBP }
 
     private var recycled = false
 
@@ -40,6 +41,11 @@ class Bitmap(private val width: Int = 1, private val height: Int = 1, private va
             System.arraycopy(source, (y + row) * this.width + x, pixels, offset + row * stride, width)
         }
     }
+
+    /** Compile-only instrumentation surface; the sandbox does not encode real images. */
+    fun setPixels(colors: IntArray, offset: Int, stride: Int, x: Int, y: Int, width: Int, height: Int) {}
+
+    fun compress(format: CompressFormat, quality: Int, stream: java.io.OutputStream): Boolean = false
 
     companion object {
         @JvmStatic

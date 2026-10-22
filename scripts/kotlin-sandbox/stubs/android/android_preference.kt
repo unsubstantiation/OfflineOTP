@@ -214,6 +214,10 @@ open class Preference {
         clickListener = listener
     }
 
+    /** Compile-time callback used by device tests; real preference dispatch is platform-owned. */
+    fun performClick() {
+        clickListener?.onPreferenceClick(this)
+    }
 
     /** The change callback of a preference. */
     fun interface OnPreferenceChangeListener {

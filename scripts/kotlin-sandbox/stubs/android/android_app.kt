@@ -390,6 +390,9 @@ open class FragmentManager {
         lookups.add(tag)
         return taggedFragment
     }
+
+    /** Compile-time surface used by Android reachability tests. */
+    fun findFragmentById(id: Int): Fragment? = taggedFragment
 }
 
 /** Stand-in for a platform fragment transaction; nothing is committed. */

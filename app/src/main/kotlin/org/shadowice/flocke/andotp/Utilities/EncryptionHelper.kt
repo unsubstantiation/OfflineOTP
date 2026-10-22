@@ -47,6 +47,7 @@ import javax.crypto.IllegalBlockSizeException
 import javax.crypto.NoSuchPaddingException
 import javax.crypto.SecretKey
 import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
@@ -240,13 +241,16 @@ object EncryptionHelper {
         return SecretKeySpec(sha.digest(password.toByteArray(StandardCharsets.UTF_8)), "AES")
     }
 
-    /** Encrypts with an explicit nonce. */
+    /** Encrypts with an explicit nonce and the 128-bit GCM tag used by existing vault/backup files. */
     @JvmStatic
     @Throws(NoSuchPaddingException::class, NoSuchAlgorithmException::class, InvalidAlgorithmParameterException::class,
             InvalidKeyException::class, BadPaddingException::class, IllegalBlockSizeException::class)
     fun encrypt(secretKey: SecretKey, iv: IvParameterSpec, plainText: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(Constants.ALGORITHM_SYMMETRIC)
-        cipher.init(Cipher.ENCRYPT_MODE, secretKey, iv)
+        // GCMParameterSpec is the portable JCA contract. Some Android providers accept an
+        // IvParameterSpec as a legacy extension, but desktop SunJCE correctly rejects it.
+        // Keep the public overload for source/binary compatibility and translate its nonce here.
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(128, iv.iv))
 
         return cipher.doFinal(plainText)
     }
@@ -279,13 +283,14 @@ object EncryptionHelper {
         return cipher.doFinal(plaintext)
     }
 
-    /** Decrypts with an explicit nonce. */
+    /** Decrypts with an explicit nonce and the 128-bit GCM tag used by existing vault/backup files. */
     @JvmStatic
     @Throws(NoSuchPaddingException::class, InvalidKeyException::class, NoSuchAlgorithmException::class,
             IllegalBlockSizeException::class, BadPaddingException::class, InvalidAlgorithmParameterException::class)
     fun decrypt(secretKey: SecretKey, iv: IvParameterSpec, cipherText: ByteArray): ByteArray {
         val cipher = Cipher.getInstance(Constants.ALGORITHM_SYMMETRIC)
-        cipher.init(Cipher.DECRYPT_MODE, secretKey, iv)
+        // See encrypt(): normalize the compatibility overload to the standard GCM parameters.
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, iv.iv))
 
         return cipher.doFinal(cipherText)
     }
