@@ -2,6 +2,7 @@
 package androidx.test.core.app
 
 import android.app.Activity
+import androidx.lifecycle.Lifecycle
 
 /**
  * The scenario launcher the instrumentation sources use. Only the members the app's
@@ -9,10 +10,17 @@ import android.app.Activity
  * so onActivity is reachable without a separate moveToState call.
  */
 class ActivityScenario<T : Activity> private constructor() : AutoCloseable {
+    /** The current scenario state; `getState()` returns an androidx.lifecycle state. */
+    var state: Lifecycle.State = Lifecycle.State.RESUMED
+        private set
+
     fun onActivity(action: (T) -> Unit): ActivityScenario<T> =
         throw UnsupportedOperationException("android test compile stub")
 
     fun recreate(): ActivityScenario<T> =
+        throw UnsupportedOperationException("android test compile stub")
+
+    fun moveToState(newState: Lifecycle.State): ActivityScenario<T> =
         throw UnsupportedOperationException("android test compile stub")
 
     override fun close() = throw UnsupportedOperationException("android test compile stub")

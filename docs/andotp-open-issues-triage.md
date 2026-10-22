@@ -6,8 +6,10 @@
 >
 > **Follow-up:** [andotp-carryover-issue-pass-2026-10-19.md](andotp-carryover-issue-pass-2026-10-19.md)
 > records the issue #39 pass: #591, #712, #805 and #880 are fixed; the Settings/Backup reachability
-> fixtures pass on the API 28/36 emulator matrix. The remaining checks are physical-device,
-> OEM/KeyStore, external-provider, or accessibility verification; see that document for specifics.
+> fixtures pass on the API 28/36 emulator matrix. Its completion section records the device-level
+> regressions for #208, #376, #406, #712, #736, #923, #932 and #976. The remaining checks are
+> physical-device, OEM/KeyStore, external-provider, or accessibility verification; see that
+> document for specifics.
 
 **Source:** <https://github.com/andOTP/andOTP/issues> — all **181 open issues** (16 open PRs excluded), fetched 2026-10-17.
 

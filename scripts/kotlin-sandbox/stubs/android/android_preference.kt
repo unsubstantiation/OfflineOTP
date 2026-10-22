@@ -214,10 +214,12 @@ open class Preference {
         clickListener = listener
     }
 
-    /** Compile-time callback used by device tests; real preference dispatch is platform-owned. */
-    fun performClick() {
-        clickListener?.onPreferenceClick(this)
-    }
+    /**
+     * Mirrors `Preference.getSharedPreferences()`; the stand-in never persists anything.
+     * The platform type is non-null, so the stand-in returns the shared no-op store.
+     */
+    fun getSharedPreferences(): android.content.SharedPreferences = NoOpSharedPreferences
+
 
     /** The change callback of a preference. */
     fun interface OnPreferenceChangeListener {
@@ -228,6 +230,22 @@ open class Preference {
     fun interface OnPreferenceClickListener {
         fun onPreferenceClick(preference: Preference): Boolean
     }
+}
+
+/** Inert [android.content.SharedPreferences] returned by the preference stand-ins. */
+private object NoOpSharedPreferences : android.content.SharedPreferences {
+    override fun getAll(): Map<String, *>? = emptyMap<String, Any>()
+    override fun getString(key: String?, defValue: String?): String? = defValue
+    override fun getStringSet(key: String?, defValues: Set<String>?): Set<String>? = defValues
+    override fun getInt(key: String?, defValue: Int): Int = defValue
+    override fun getLong(key: String?, defValue: Long): Long = defValue
+    override fun getBoolean(key: String?, defValue: Boolean): Boolean = defValue
+    override fun contains(key: String?): Boolean = false
+    override fun edit(): android.content.SharedPreferences.Editor = throw UnsupportedOperationException("stand-in")
+    override fun registerOnSharedPreferenceChangeListener(
+        listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
+    override fun unregisterOnSharedPreferenceChangeListener(
+        listener: android.content.SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
 }
 
 /** A group of preferences. */

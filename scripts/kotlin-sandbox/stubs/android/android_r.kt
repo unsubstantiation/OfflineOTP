@@ -14,6 +14,12 @@ object R {
         const val simple_spinner_dropdown_item = 17367059
         const val simple_list_item_single_choice = 17367060
     }
+    object id {
+        /** The real public framework value of android.R.id.content. */
+        const val content = 16908290
+        /** The real public framework value of android.R.id.list. */
+        const val list = 16908298
+    }
     object string {
         /** The real public framework value of android.R.string.ok. */
         const val ok = 16908301

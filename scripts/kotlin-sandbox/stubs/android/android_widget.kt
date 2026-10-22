@@ -214,6 +214,19 @@ open class AdapterView<T> : android.view.ViewGroup() {
     /** The item click listener that was set. */
     var onItemClickListener: OnItemClickListener? = null
 
+    /** The adapter the platform would lay out; the platform getter is `getAdapter()`. */
+    var adapter: BaseAdapter? = null
+
+    /** The platform reports the scrolled position; no list layout exists here. */
+    fun getFirstVisiblePosition(): Int = 0
+
+    /** Dispatches the item click to the recorded listener, like the platform would. */
+    fun performItemClick(view: View?, position: Int, id: Long): Boolean {
+        val listener = onItemClickListener ?: return false
+        listener.onItemClick(this, view ?: View(), position, id)
+        return true
+    }
+
     fun interface OnItemClickListener {
         fun onItemClick(parent: AdapterView<*>?, view: View, position: Int, id: Long)
     }
@@ -228,7 +241,6 @@ open class AdapterView<T> : android.view.ViewGroup() {
 
 class ListView(context: Context) : AdapterView<Any?>() {
     var divider: android.graphics.drawable.Drawable? = null
-    var adapter: BaseAdapter? = null
 
     /** The selected position of the list. */
     var selectedPosition: Int = 0
@@ -254,9 +266,6 @@ open class AbsListView(context: Context) : AdapterView<Any?>() {
 }
 
 open class GridView(context: Context) : AbsListView(context) {
-
-    /** The adapter that fills the grid. */
-    var adapter: BaseAdapter? = null
 
     /** The column width of the grid. */
     var columnWidth: Int = 0
@@ -389,7 +398,6 @@ open class ImageButton(context: Context) : ImageView(context)
 
 /** The spinner used by the manual-entry dialog and the intro slides. */
 open class Spinner(context: Context) : AdapterView<Any?>() {
-    var adapter: BaseAdapter? = null
     var selectedItemPosition: Int = 0
     var onItemSelectedListener: OnItemSelectedListener? = null
 

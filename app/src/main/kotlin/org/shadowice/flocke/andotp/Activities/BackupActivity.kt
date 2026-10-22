@@ -40,6 +40,7 @@ import org.shadowice.flocke.andotp.Tasks.PlainTextRestoreTask
 import org.shadowice.flocke.andotp.Tasks.TaskFailure
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Utilities.BackupHelper
+import org.shadowice.flocke.andotp.Utilities.BackupScreenOffPolicy
 import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.Utilities.BoundedOutput
 import org.shadowice.flocke.andotp.Utilities.Constants
@@ -1080,8 +1081,12 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     override fun shouldDestroyOnScreenOff(): Boolean {
-        return allowExit && pendingPickerRequestCode == null &&
-            activeActionRequestCode == null && pendingResumeRequestCode == null
+        return BackupScreenOffPolicy.shouldFinish(
+            allowExit = allowExit,
+            pickerPending = pendingPickerRequestCode != null,
+            actionPending = activeActionRequestCode != null,
+            resumePending = pendingResumeRequestCode != null
+        )
     }
 
     companion object {

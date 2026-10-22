@@ -7,9 +7,7 @@
 package org.shadowice.flocke.andotp
 
 import android.content.Context
-import android.preference.PreferenceManager
 import android.view.View
-import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -40,9 +38,9 @@ class MainActivityAccessibilityDeviceTest {
         VaultSession.lock()
         assumeTrue("refusing to overwrite an existing vault", DatabaseHelper.canInitialize(context))
 
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        // Fresh defaults plus "the backup warning was shown": MainActivity otherwise starts the
+        // first-run wizard, which keeps it out of RESUMED.
+        DeviceTestSupport.freshPreferences(context)
         val settings = Settings(context)
         val generation = VaultSession.beginUnlock().generation
         val key = EncryptionHelper.generateSymmetricKey(ByteArray(32) { 0x21 })
@@ -54,56 +52,73 @@ class MainActivityAccessibilityDeviceTest {
                     null, true))
             }
             assertTrue("could not create an empty test vault", initialized is VaultWriteResult.Saved)
-            assertTrue("could not activate the test vault", VaultSession.activate(key, generation) is SessionCommandResult.Applied)
+            assertTrue("could not activate the test vault",
+                VaultSession.activate(key, generation) is SessionCommandResult.Applied)
 
-            ActivityScenario.launch(MainActivity::class.java).use { scenario ->
-                scenario.onActivity { activity ->
-                    val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
-                    val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
-                    val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
-                    assertFalse("the add menu should start closed", dial.isOpen())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO, appBar.getImportantForAccessibility())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, overlay.getImportantForAccessibility())
-                    assertEquals(activity.getString(R.string.button_add), dial.getMainFab().contentDescription)
-                    assertTrue("the add button did not handle a click", dial.getMainFab().performClick())
-                }
-                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-                scenario.onActivity { activity ->
-                    val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
-                    val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
-                    val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
-                    val mainContent = requireNotNull(activity.findViewById<View>(R.id.main_content))
-                    assertTrue("the speed dial did not open", dial.isOpen())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
-                        appBar.getImportantForAccessibility())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
-                        mainContent.getImportantForAccessibility())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, overlay.getImportantForAccessibility())
-                    assertEquals(activity.getString(R.string.button_close_menu), overlay.contentDescription)
-                    assertEquals(activity.getString(R.string.button_close_menu), dial.getMainFab().contentDescription)
+            DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            // Not ActivityScenario.launch: MainActivity leaves RESUMED when the first-run wizard
+            // or the authentication prompt is up, so the actual reason must be assertable here.
+            val resumed = DeviceTestSupport.awaitResumed<MainActivity>()
+            assertNotNull("MainActivity never resumed; on screen: " +
+                DeviceTestSupport.resumedActivityNames(), resumed)
+            val activity = requireNotNull(resumed)
 
-                    val firstAction = dial.getActionItems().firstOrNull()
-                    assertNotNull("the expanded menu has no actions", firstAction)
-                    assertNotNull("the first action is not present in the view hierarchy",
-                        dial.findViewById<FabWithLabelView>(firstAction!!.getId())?.getFab())
-                    dial.close()
-                }
-                InstrumentationRegistry.getInstrumentation().waitForIdleSync()
-                scenario.onActivity { activity ->
-                    val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
-                    val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
-                    val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
-                    assertFalse("the speed dial did not close", dial.isOpen())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,
-                        appBar.getImportantForAccessibility())
-                    assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, overlay.getImportantForAccessibility())
-                    assertEquals(activity.getString(R.string.button_add), dial.getMainFab().contentDescription)
-                }
+            onMain {
+                val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
+                val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
+                val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
+                assertFalse("the add menu should start closed", dial.isOpen())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO, appBar.getImportantForAccessibility())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, overlay.getImportantForAccessibility())
+                assertEquals(activity.getString(R.string.button_add), dial.getMainFab().contentDescription)
+                assertTrue("the add button did not handle a click", dial.getMainFab().performClick())
+            }
+            idle()
+
+            onMain {
+                val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
+                val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
+                val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
+                val mainContent = requireNotNull(activity.findViewById<View>(R.id.main_content))
+                assertTrue("the speed dial did not open", dial.isOpen())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                    appBar.getImportantForAccessibility())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS,
+                    mainContent.getImportantForAccessibility())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_YES, overlay.getImportantForAccessibility())
+                assertEquals(activity.getString(R.string.button_close_menu), overlay.contentDescription)
+                assertEquals(activity.getString(R.string.button_close_menu), dial.getMainFab().contentDescription)
+
+                val firstAction = dial.getActionItems().firstOrNull()
+                assertNotNull("the expanded menu has no actions", firstAction)
+                assertNotNull("the first action is not present in the view hierarchy",
+                    dial.findViewById<FabWithLabelView>(firstAction!!.getId())?.getFab())
+                dial.close()
+            }
+            idle()
+
+            onMain {
+                val dial = requireNotNull(activity.findViewById<SpeedDialView>(R.id.speedDial))
+                val overlay = requireNotNull(activity.findViewById<View>(R.id.speedDialOverlay))
+                val appBar = requireNotNull(activity.findViewById<View>(R.id.main_app_bar))
+                assertFalse("the speed dial did not close", dial.isOpen())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO,
+                    appBar.getImportantForAccessibility())
+                assertEquals(View.IMPORTANT_FOR_ACCESSIBILITY_NO, overlay.getImportantForAccessibility())
+                assertEquals(activity.getString(R.string.button_add), dial.getMainFab().contentDescription)
             }
         } finally {
-            VaultSession.lock()
+            DeviceTestSupport.finishActivities()
             DatabaseHelper.wipeDatabase(context)
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
+    }
+
+    private fun onMain(action: () -> Unit) {
+        InstrumentationRegistry.getInstrumentation().runOnMainSync(action)
+    }
+
+    private fun idle() {
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
 }

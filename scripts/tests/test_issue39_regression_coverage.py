@@ -111,7 +111,8 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         settings_test = read(ANDROID_TEST / "ActivityReachabilityDeviceTest.kt")
         self.assertIn("introScreenDoesNotForceAnOrientation", intro_test)
         self.assertIn("ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED", intro_test)
-        self.assertIn("preference!!.performClick()", settings_test)
+        self.assertIn("performItemClick", settings_test)
+        self.assertIn("android.R.id.list", settings_test)
         self.assertIn("touching the Settings option finished the screen", settings_test)
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
@@ -139,6 +140,77 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("OpenPgpOutputPolicy.hasContent(encryptedBackup)", backup)
         self.assertIn("backup_toast_openpgp_empty", backup)
         self.assertIn("isNullOrBlank", policy)
+
+    def test_back_key_and_inactivity_relock_have_device_regressions(self):
+        flow = read(ANDROID_TEST / "AuthenticationFlowDeviceTest.kt")
+        # #208: a cancelled prompt must fail closed; the positive case must still unlock.
+        self.assertIn("aCancelledUnlockPromptCannotRevealTheVault", flow)
+        self.assertIn("prompt!!.onBackPressed()", flow)
+        self.assertIn("awaitFinishing(main)", flow)
+        # MainActivity leaves RESUMED while the prompt is up, so the test must not require it.
+        self.assertIn("DeviceTestSupport.startActivity(context, MainActivity::class.java)", flow)
+        self.assertIn("theConfiguredPinStillUnlocksTheVault", flow)
+        # #712: background time must count towards the elapsed-realtime deadline.
+        self.assertIn("backgroundTimeCountsTowardsTheInactivityRelock", flow)
+        self.assertIn("INACTIVITY_SECONDS * 1_000L + 700L", flow)
+        # The expired deadline revokes the session in onResume and goes straight to the prompt.
+        self.assertIn("background time did not trigger the inactivity prompt", flow)
+        self.assertIn("the idle-expired session still held a vault key", flow)
+        self.assertIn("the entry list came back after the inactivity timeout", flow)
+
+    def test_obscured_touch_rejection_has_a_device_regression(self):
+        device_test = read(ANDROID_TEST / "ObscuredTouchDeviceTest.kt")
+        base = read(APP / "Activities/BaseActivity.kt")
+        self.assertIn("MotionEvent.FLAG_WINDOW_IS_OBSCURED", base)
+        self.assertIn("MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED", base)
+        self.assertIn("aFullyObscuredTapIsRejected", device_test)
+        self.assertIn("aPartiallyObscuredTapIsRejected", device_test)
+        self.assertIn("aNormalTapIsDeliveredAndClicks", device_test)
+        self.assertIn("InputDevice.SOURCE_TOUCHSCREEN", device_test)
+        # View.onTouchEvent posts its click runnable, so the test drains the queue before asserting.
+        self.assertIn("waitForIdleSync()", device_test)
+        # The flag-word overload is the only public way to build an obscured MotionEvent.
+        self.assertIn("MotionEvent.obtain(now, now, action, 1, properties, coordinates", device_test)
+
+    def test_encrypted_and_plaintext_restore_have_device_regressions(self):
+        restore = read(ANDROID_TEST / "BackupRestoreDeviceTest.kt")
+        for needle in (
+            "currentEncryptedBackupIsRestored",
+            "legacyEncryptedBackupIsRestored",
+            "aWrongPasswordIsRejected",
+            "aTruncatedEncryptedBackupIsRejected",
+            "aMissingDocumentFailsWithoutCrashing",
+            "aLegacyPlaintextBackupIsRestored",
+            "malformedPlaintextIsRejected",
+        ):
+            self.assertIn(needle, restore)
+        self.assertIn("EncryptedRestoreTask(", restore)
+        self.assertIn("PlainTextRestoreTask(", restore)
+        self.assertIn("backup_toast_import_decryption_failed", restore)
+        self.assertIn("backup_toast_plaintext_invalid", restore)
+
+    def test_screen_off_lock_has_a_device_regression(self):
+        device_test = read(ANDROID_TEST / "ScreenOffLockDeviceTest.kt")
+        base = read(APP / "Activities/BaseActivity.kt")
+        self.assertIn("Intent.ACTION_SCREEN_OFF", base)
+        self.assertIn("VaultSession.lock(SessionLockReason.SCREEN_OFF)", base)
+        self.assertIn("screenOffRevokesTheSessionAndClosesTheScreen", device_test)
+        self.assertIn("activity.ScreenOffReceiver().onReceive(", device_test)
+        self.assertIn("assertNull(\"screen-off did not revoke the vault key\"", device_test)
+        self.assertIn("screen-off left the decrypted entries on display", device_test)
+        # MainActivity stays alive on screen-off so the return trip lands on the unlock prompt.
+        self.assertIn("shouldDestroyOnScreenOff", base)
+        self.assertIn("MainActivity should stay alive", device_test)
+
+    def test_screen_off_teardown_policy_is_shared_with_a_host_test(self):
+        policy = read(APP / "Utilities/BackupScreenOffPolicy.kt")
+        backup = read(APP / "Activities/BackupActivity.kt")
+        host_test = read(TEST / "Utilities/BackupScreenOffPolicyTest.kt")
+        self.assertIn("BackupScreenOffPolicy.shouldFinish(", backup)
+        self.assertIn("pickerPending", policy)
+        self.assertIn("everyPendingOperationBlocksTeardown", host_test)
+        self.assertIn("aRunningTaskKeepsTheScreenAliveEvenWhenNothingElseIsPending", host_test)
+
 
 
 if __name__ == "__main__":

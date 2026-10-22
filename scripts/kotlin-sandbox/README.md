@@ -42,7 +42,7 @@ The related host gates read the same `APP_SOURCES` and `STUBS` lists from `run.s
   `app/src/androidTest/kotlin` against test stubs.
 
 Last verified on 2026-10-22 with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
-138 JVM tests passed, and all seven instrumentation sources type-checked against stand-ins.
+144 JVM tests passed, and all twelve instrumentation sources type-checked against stand-ins.
 
 ## What it checks
 

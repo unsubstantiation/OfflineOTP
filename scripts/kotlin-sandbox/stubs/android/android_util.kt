@@ -7,6 +7,8 @@ class DisplayMetrics {
     @JvmField var scaledDensity: Float = 0f
     @JvmField var xdpi: Float = 0f
     @JvmField var ydpi: Float = 0f
+    @JvmField var widthPixels: Int = 0
+    @JvmField var heightPixels: Int = 0
 }
 
 /**

@@ -8,10 +8,11 @@
 package org.shadowice.flocke.andotp
 
 import android.content.Context
-import android.preference.PreferenceManager
+import android.widget.ListView
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -20,7 +21,9 @@ import org.junit.runner.RunWith
 import org.shadowice.flocke.andotp.Activities.AboutActivity
 import org.shadowice.flocke.andotp.Activities.BackupActivity
 import org.shadowice.flocke.andotp.Activities.SettingsActivity
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
+import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 import javax.crypto.spec.SecretKeySpec
 
@@ -40,9 +43,7 @@ class ActivityReachabilityDeviceTest {
     @Test
     fun backupScreenLaunchesAndSurvivesRecreation() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        DeviceTestSupport.freshPreferences(context)
 
         val generation = VaultSession.beginUnlock().generation
         val key = SecretKeySpec(ByteArray(32) { 0x5a }, "AES")
@@ -60,17 +61,39 @@ class ActivityReachabilityDeviceTest {
                 }
             }
         } finally {
-            VaultSession.lock()
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
+        }
+    }
+
+    /**
+     * #923 "Single-tap doesn't work anymore": both tap actions are preference-driven and default
+     * to nothing (upstream's documented default). Every value the settings list offers must map
+     * back to a [Constants.TapMode], otherwise the card tap handler can never run that action.
+     */
+    @Test
+    fun tapPreferencesDefaultToNothingAndMapEveryListedValue() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val preferences = DeviceTestSupport.freshPreferences(context)
+        try {
+            val settings = Settings(context)
+            assertEquals(Constants.TapMode.NOTHING, settings.getTapSingle())
+            assertEquals(Constants.TapMode.NOTHING, settings.getTapDouble())
+
+            val key = context.getString(R.string.settings_key_tap_single)
+            for (mode in Constants.TapMode.values()) {
+                preferences.edit().putString(key, mode.name.lowercase(java.util.Locale.ROOT)).commit()
+                assertEquals("the settings value for $mode is not mapped back", mode,
+                    settings.getTapSingle())
+            }
+        } finally {
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 
     @Test
     fun settingsScreenLaunchesWithFreshDefaultsAndUnlockedVault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val preferences = PreferenceManager.getDefaultSharedPreferences(context)
-        preferences.edit().clear().commit()
-        PreferenceManager.setDefaultValues(context, R.xml.preferences, true)
+        DeviceTestSupport.freshPreferences(context)
 
         val generation = VaultSession.beginUnlock().generation
         val key = SecretKeySpec(ByteArray(32) { 0x5a }, "AES")
@@ -85,7 +108,28 @@ class ActivityReachabilityDeviceTest {
                     val keyName = activity.getString(R.string.settings_key_show_prev_token)
                     val preference = fragment.findPreference(keyName)
                     assertNotNull("show previous token preference is missing", preference)
-                    preference!!.performClick()
+                    // The framework preference has no public click entry point and
+                    // PreferenceFragment does not expose its list, so reach the standard
+                    // preference list view (#932 is a crash on a touch of one of its rows).
+                    val list = activity.findViewById<ListView>(android.R.id.list)
+                    assertNotNull("the settings list is missing", list)
+                    val adapter = requireNotNull(list!!.adapter)
+                    var position = -1
+                    for (index in 0 until adapter.getCount()) {
+                        if (adapter.getItem(index) === preference) {
+                            position = index
+                            break
+                        }
+                    }
+                    assertTrue("the preference has no row in the settings list", position >= 0)
+                    val before = preference!!.getSharedPreferences()
+                        .getBoolean(keyName, false)
+                    assertTrue("the settings row did not handle the touch",
+                        list.performItemClick(null, position, adapter.getItemId(position)))
+                    val after = preference.getSharedPreferences()
+                        .getBoolean(keyName, false)
+                    assertFalse("touching the Settings option did not persist its value",
+                        before == after)
                     assertFalse("touching the Settings option finished the screen", activity.isFinishing())
                 }
                 scenario.recreate()
@@ -95,8 +139,7 @@ class ActivityReachabilityDeviceTest {
                 }
             }
         } finally {
-            VaultSession.lock()
-            preferences.edit().clear().commit()
+            DeviceTestSupport.wipePreferences(context)
         }
     }
 }

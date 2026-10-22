@@ -148,3 +148,109 @@ well as Android. The new device tests are wired into the repository's API 28/36 
 instrumentation has not yet run there. The previously passing matrix was on the base commit; even a
 passing branch matrix cannot substitute for testing the specific vendor devices and external apps
 in the remaining-gates list.
+
+## Completion pass — 2026-10-22: build fix, device matrix, and the fixes it forced
+
+The follow-up above left the branch's instrumentation suite unexecuted: `master` was red at
+`:app:compileFdroidDebugAndroidTestKotlin`, so every matrix cell was skipped. This pass fixes the
+build, gets the emulator matrix to run, and repairs the test-harness defects that the first real
+run exposed.
+
+### The build break
+
+* `android.preference.Preference` has no public no-argument click entry point. The #932 test now
+  drives the real settings list row:
+
+```kotlin
+val list = activity.findViewById<ListView>(android.R.id.list) // android.R.id.list == 16908298
+val adapter = requireNotNull(list!!.adapter)
+list.performItemClick(null, position, adapter.getItemId(position))
+```
+
+  `PreferenceFragment` does not expose `getListView()` either, so the list is reached from the
+  activity. The row is located by comparing `adapter.getItem(index)` with the `Preference`, and the
+  test asserts the stored boolean flips and the screen survives, which fails if the touch never
+  reaches the preference.
+
+* `ActivityScenario.getState()` returns an `androidx.lifecycle.Lifecycle.State`; there is no
+  `ActivityScenario.State` enum. The compile check in `scripts/kotlin-sandbox` models only public
+  SDK surface, which is why it accepted the earlier non-public calls. The stub set was corrected
+  (`android.R.id.list`, lifecycle state, no `PreferenceFragment.getListView()`), so the sandbox
+  compile can no longer green-light an API the platform does not have.
+* `MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED` (API 29) is read behind a `SDK_INT` check to keep
+  the lint `NewApi` gate green.
+
+### What the first emulator run exposed
+
+CI run `39802964441` was the first run in which the matrix actually executed. Only the new tests
+failed; the failures were harness defects, not app defects:
+
+1. **First-run wizard.** `MainActivity.onCreate` starts `IntroScreenActivity` while
+   `pref_security_backup_warning_shown` is false, so `MainActivity` never settles in `RESUMED` and
+   `ActivityScenario.launch` times out. `DeviceTestSupport.freshPreferences` applies the XML
+   defaults and marks the warning as shown before launching.
+2. **Locked-vault launch.** `MainActivity.onResume` starts the authentication prompt, again
+   leaving the activity out of `RESUMED`. The authentication tests now start it with
+   `Instrumentation.startActivitySync` (`DeviceTestSupport.startActivity`) and poll the lifecycle
+   monitor, instead of requiring the scenario to reach `RESUMED`.
+3. **`Toast` without a `Looper`.** `ScanQRCodeFromFile` reports failures with a Toast.
+   `QrCodeImportDeviceTest` called it from the instrumentation thread, which throws
+   *"Can't toast on a thread that has not called Looper.prepare()"*. The scan now runs on the main
+   thread, like `MainActivity` does.
+4. **Posted click.** `View.onTouchEvent` posts the click runnable on `ACTION_UP`, so the
+   obscured-touch test now drains the main queue before asserting the click, and the tap target is
+   a view the test adds and lays out itself rather than whichever About-screen child happens to sit
+   under the screen centre.
+5. **Closing a finished activity.** `ActivityScenario.close()` throws once the code under test has
+   finished the activity (the fail-closed `finishAndRemoveTask()` paths). `closeQuietly` treats that
+   as "nothing left to close" so it cannot mask the assertions above it.
+6. **`finishAndRemoveTask()` on the covering activity.** Finishing the activity that covers
+   MainActivity removed the whole task, so MainActivity was destroyed rather than resumed and the
+   inactivity relock could not run. The test finishes only the cover (`finish()`), then waits for
+   MainActivity to resume and the key to be revoked.
+
+The instrumentation summary step also annotates **each** failing test now
+(`summarize-instrumentation-failures.py --github`). A single combined line is truncated by the
+Actions UI at 4096 characters, which had hidden every failure after the first two in the first run.
+
+### Coverage after this pass
+
+| Report(s) | Automated coverage | Boundary |
+| --- | --- | --- |
+| #208 | `AuthenticationFlowDeviceTest.aCancelledUnlockPromptCannotRevealTheVault` launches the locked app, presses Back on the prompt, and asserts the session key is gone and `MainActivity` is finishing (its `finishAndRemoveTask()` fail-closed path). `theConfiguredPinStillUnlocksTheVault` proves the same flow still unlocks with the right PIN, so "never unlock" cannot pass. | The device-credential (`Keyguard`) variant is Android's own UI and is not scripted. |
+| #376 | `BackupRestoreDeviceTest` restores a current-format PBKDF2/AES-GCM backup and a legacy SHA-256-keyed backup through `EncryptedRestoreTask`, with distinct outcomes for a wrong password, a truncated frame, and a missing document on the real Android crypto and bounded-read stack. | Fixtures are app-private cache documents; the SAF provider is a provider/device gate. |
+| #976 | `PlainTextRestoreTask` restores a legacy plain-text document and rejects malformed UTF-8/JSON with `backup_toast_plaintext_invalid`. | Same cache-document boundary. |
+| #406 | `ObscuredTouchDeviceTest` builds real `MotionEvent`s through the public 14-argument `obtain(...)` overload: an `FLAG_WINDOW_IS_OBSCURED` (and, from API 29, `FLAG_WINDOW_IS_PARTIALLY_OBSCURED`) tap is not delivered, while the same unobscured tap reaches a click listener. | Reproduces the system's obscured-touch flag, not the BitWarden app itself. |
+| #712 | `AuthenticationFlowDeviceTest.backgroundTimeCountsTowardsTheInactivityRelock` activates a session, covers the screen with another activity, waits past a four-second timeout, and returns: the session is revoked and the prompt reappears. | Emulator pause/resume, not a physical screen-off or deep-sleep cycle. |
+| #736 | New `ScreenOffLockDeviceTest` delivers the same `ACTION_SCREEN_OFF` intent the platform delivers to the activity's receiver (`ACTION_SCREEN_OFF` is protected, so a test cannot inject it through the system): with the default relock setting the key is revoked and the decrypted entries are hidden, while MainActivity stays alive so the return trip lands on the unlock prompt. `BackupScreenOffPolicy` owns the backup-screen teardown decision and `BackupScreenOffPolicyTest` pins every pending combination. | An OEM screen-off broadcast during a real cloud-provider export still needs a device. |
+| #923 | `ActivityReachabilityDeviceTest.tapPreferencesDefaultToNothingAndMapEveryListedValue` pins the documented default (both taps do nothing) and maps every `TapMode` back from the preference string. | Gesture delivery is covered by `TapSequenceControllerTest`; the preference UX is not driven by a finger. |
+| #932 | The settings test touches the real list row and asserts the value persists and the screen survives. | Still a check for the affected preference/path only; the original ROM is not reproduced. |
+| #847, #879 | `ApplicationTest.androidKeyStoreWrappingKeyCanBeLoadedAndMissingAliasesFailClosed` wraps and unwraps with a unique RSA alias, and asserts a deleted alias is not silently regenerated. | Pixel 4 / MIUI KeyStore behavior on physical hardware. |
+| #892 | `QrCodeImportDeviceTest` encodes the reported CCP URI into a PNG, decodes it with ZXing/BitmapFactory, and rejects malformed image input. | Not the reporter's third-party scanner app. |
+| #498 | `MainActivityAccessibilityDeviceTest` asserts the add-menu overlay's accessibility scope, labels, and focusability states through open/close. | TalkBack traversal itself remains a manual accessibility-service check. |
+| #591 | `IntroScreenLaunchTest` asserts no requested orientation and repeated recreation. | Physical rotation with auto-rotate enabled. |
+| #873, #948 | `ActivityReachabilityDeviceTest` launches and recreates Settings and Backup with an unlocked vault. | A real provider/ROM. |
+| #995, #996 | `OpenPgpPolicyTest` and the backup-screen guards keep OpenPGP readiness and empty-provider output fail-closed. | OpenKeychain on a device. |
+
+### Verification for this pass
+
+* `python3 -m unittest discover -s scripts/tests` — **119 tests, 9 skipped** (PyYAML absent).
+* `scripts/kotlin-sandbox/run.sh` — **102 checks passed**.
+* `scripts/run-jvm-tests.sh` — **144 passed, 0 failed**.
+* `scripts/kotlin-sandbox/compile-android-tests.sh` — **COMPILE OK**, twelve instrumentation sources.
+* `python3 scripts/check_build_inputs.py` and `git diff --check` — passed.
+
+### Remaining acceptance gates
+
+Every report in issue #39 now has an automated regression or a pinned policy check. These are the
+checks that need hardware, a real provider, or an accessibility service:
+
+* **#847, #879** — Pixel 4 / MIUI KeyStore behavior.
+* **#376, #533, #865, #895, #948** — a real Files/Google Drive/Work Profile provider during export
+  and restore.
+* **#406** — the BitWarden safe dialog specifically.
+* **#498, #591** — TalkBack traversal and a physical rotation.
+* **#892, #923, #932** — the reporter's scanner app, a physical tap sequence, and the affected ROM.
+* **#995, #996** — OpenKeychain encryption on a device.
+* **#208, #712, #736** — a real device-credential challenge, deep sleep, and an OEM screen-off
+  broadcast while a cloud provider is open.

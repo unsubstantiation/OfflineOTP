@@ -48,7 +48,8 @@ fi
 TEST_STUBS=("$SANDBOX"/stubs-android-test/android/app/*.kt
     "$SANDBOX"/stubs-android-test/androidx/test/core/app/*.kt
     "$SANDBOX"/stubs-android-test/androidx/test/ext/junit/runners/*.kt
-    "$SANDBOX"/stubs-android-test/androidx/test/platform/app/*.kt)
+    "$SANDBOX"/stubs-android-test/androidx/test/platform/app/*.kt
+    "$SANDBOX"/stubs-android-test/androidx/test/runner/lifecycle/*.kt)
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 
 rm -rf "$OUT"
