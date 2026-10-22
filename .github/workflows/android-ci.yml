@@ -83,7 +83,7 @@ jobs:
           cat "$log_file"
 
           if [[ $gradle_status -ne 0 ]]; then
-            diagnostics="$(grep -E '(^e: |^w: |^FAILURE:|^Execution failed for task|^> Task .* FAILED|^Could not resolve|^[[:space:]]*> (Could not|Compilation error|A problem occurred)|^Caused by:)' "$log_file" | tail -n 30 || true)"
+            diagnostics="$(grep -E '(^e: |^FAILURE:|^Execution failed for task|^> Task .* FAILED|^Could not resolve|^[[:space:]]*> (Could not|Compilation error|A problem occurred)|^Caused by:)' "$log_file" | tail -n 30 || true)"
             if [[ -z "$diagnostics" ]]; then
               diagnostics="$(tail -n 30 "$log_file")"
             fi
