@@ -532,7 +532,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                     actual.getHideTask()?.let { taskHandler.removeCallbacks(it) }
                     actual.setHideTask(null)
                     try {
-                        saveEntries(settings.getAutoBackupEncryptedFullEnabled())
+                        // saveAndRefresh, not a bare save: the removed entry may have carried the
+                        // last use of a tag, so the drawer row (and its entry count) would
+                        // otherwise stay selectable and filter the list down to nothing.
+                        saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled())
                     } finally {
                         actual.destroy()
                     }
@@ -658,6 +661,9 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     fun getTags(): List<String> = entries.getAllTags()
+
+    /** Per-tag entry counts for the drawer rows (#994). */
+    fun getTagCounts(): Map<String, Int> = entries.getTagCounts()
 
     /** Search filter that applies the configured search fields. */
     inner class EntryFilter : Filter() {
