@@ -209,7 +209,7 @@ open class IntroScreenActivity : IntroActivity() {
 
             selectionMapping = SparseArray()
             for (i in encValues.indices)
-                selectionMapping.put(i, Constants.EncryptionType.valueOf(encValues[i].uppercase(Locale.getDefault())))
+                selectionMapping.put(i, Constants.EncryptionType.valueOf(encValues[i].uppercase(Locale.ROOT)))
         }
 
         fun getEncryptionType(): Constants.EncryptionType {

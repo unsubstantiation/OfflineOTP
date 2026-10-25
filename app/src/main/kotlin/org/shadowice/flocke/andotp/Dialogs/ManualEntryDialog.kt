@@ -15,6 +15,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.Spinner
 import android.widget.TextView
+import android.widget.Toast
 
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.content.res.ResourcesCompat
@@ -29,6 +30,7 @@ import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 import org.shadowice.flocke.andotp.View.EntriesCardAdapter
+import org.shadowice.flocke.andotp.View.EntryActionDialogs
 import org.shadowice.flocke.andotp.View.TagsAdapter
 
 import java.util.HashMap
@@ -229,11 +231,16 @@ object ManualEntryDialog {
 
                         adapter.addEntry(e)
                     } else {
-                        oldEntry!!.setIssuer(issuer, true)
-                        oldEntry.setLabel(label)
-                        oldEntry.setDigits(digits)
-                        oldEntry.setPeriod(period)
-                        oldEntry.setTags(tagsAdapter.getActiveTags())
+                        // applyEdit() rolls the live entry back when the model rejects the new
+                        // values; otherwise a too-large digits/period stayed on the entry and the
+                        // next token refresh or vault write threw again.
+                        oldEntry!!.applyEdit { edited ->
+                            edited.setIssuer(issuer, true)
+                            edited.setLabel(label)
+                            edited.setDigits(digits)
+                            edited.setPeriod(period)
+                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        }
 
                         oldEntry.updateOTP(true)
 
@@ -253,11 +260,13 @@ object ManualEntryDialog {
 
                         adapter.addEntry(e)
                     } else {
-                        oldEntry!!.setIssuer(issuer, true)
-                        oldEntry.setLabel(label)
-                        oldEntry.setDigits(digits)
-                        oldEntry.setCounter(counter)
-                        oldEntry.setTags(tagsAdapter.getActiveTags())
+                        oldEntry!!.applyEdit { edited ->
+                            edited.setIssuer(issuer, true)
+                            edited.setLabel(label)
+                            edited.setDigits(digits)
+                            edited.setCounter(counter)
+                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        }
 
                         oldEntry.updateOTP(true)
 
@@ -273,9 +282,11 @@ object ManualEntryDialog {
 
                         adapter.addEntry(newEntry)
                     } else {
-                        oldEntry!!.setIssuer(issuer, true)
-                        oldEntry.setLabel(label)
-                        oldEntry.setTags(tagsAdapter.getActiveTags())
+                        oldEntry!!.applyEdit { edited ->
+                            edited.setIssuer(issuer, true)
+                            edited.setLabel(label)
+                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        }
 
                         oldEntry.updateOTP(false)
 
@@ -287,7 +298,10 @@ object ManualEntryDialog {
 
                 dialog.dismiss()
             } catch (error: RuntimeException) {
-                secretInput.setError(callingActivity.getString(R.string.toast_invalid_qr_code))
+                // The secret field is hidden in the edit path, so its error would never be seen;
+                // a rejected period/digits/counter needs a visible message.
+                secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
             }
         }
 
@@ -306,7 +320,10 @@ object ManualEntryDialog {
                 } else {
                     val type = typeInput.getSelectedItem() as? Entry.OTPType
                     if (type == Entry.OTPType.HOTP) {
-                        positiveButton.isEnabled = isZeroOrPositiveLongInput(counterInput)
+                        // Same bound the entry model applies (Long.MAX_VALUE is rejected), so Save
+                        // is disabled instead of failing after the dialog closes.
+                        positiveButton.isEnabled =
+                            EntryActionDialogs.isValidCounter(counterInput.text?.toString() ?: "")
                     } else if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
                         positiveButton.isEnabled = isNonZeroIntegerInput(periodInput)
                     } else {
@@ -325,15 +342,6 @@ object ManualEntryDialog {
                 }
             }
 
-            /** True for a non-empty, non-negative long input. */
-            private fun isZeroOrPositiveLongInput(editText: EditText): Boolean {
-                try {
-                    val text = editText.text
-                    return !TextUtils.isEmpty(text) && (java.lang.Long.parseLong(text.toString()) >= 0)
-                } catch (e: NumberFormatException) {
-                    return false
-                }
-            }
         }
 
         labelInput.addTextChangedListener(watcher)

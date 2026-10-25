@@ -90,9 +90,7 @@ class EntryActionDialogs(private val context: Context, private val settings: Set
         if (btn != null) btn.isEnabled = validCounter(input.text.toString())
     }
 
-    private fun validCounter(text: String): Boolean {
-        return try { text.isNotEmpty() && text.toLong() >= 0 } catch (e: NumberFormatException) { false }
-    }
+    private fun validCounter(text: String): Boolean = isValidCounter(text)
 
     fun pin(current: String, save: Consumer<String>) {
         val input = input()
@@ -160,5 +158,19 @@ class EntryActionDialogs(private val context: Context, private val settings: Set
             dialog.cancel()
         }
         show(dialog, input)
+    }
+
+    companion object {
+        /** Whether [text] may be saved as an HOTP counter; mirrors `InputPolicy.tokenParameters`. */
+        @JvmStatic
+        fun isValidCounter(text: String): Boolean {
+            // Long.MAX_VALUE is rejected by the entry model, so offering it here only produced a
+            // confusing "could not save" after the dialog closed.
+            return try {
+                text.isNotEmpty() && text.toLong() in 0 until Long.MAX_VALUE
+            } catch (e: NumberFormatException) {
+                false
+            }
+        }
     }
 }

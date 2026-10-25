@@ -36,6 +36,10 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="otpauth" android:host="totp" />
                 <data android:scheme="otpauth" android:host="hotp" />
+                <!-- Entry.toUri() also emits steam/motp links; without these the app cannot open
+                     the QR codes it generates itself. -->
+                <data android:scheme="otpauth" android:host="steam" />
+                <data android:scheme="otpauth" android:host="motp" />
             </intent-filter>
             <intent-filter>
                 <action android:name="org.shadowice.flocke.andotp.intent.SCAN_QR" />

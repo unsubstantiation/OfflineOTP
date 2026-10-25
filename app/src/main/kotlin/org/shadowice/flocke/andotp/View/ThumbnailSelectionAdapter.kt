@@ -32,7 +32,6 @@ import android.widget.ImageView
 import org.shadowice.flocke.andotp.Utilities.EntryThumbnail
 import org.shadowice.flocke.andotp.Utilities.EntryThumbnail.EntryThumbnails
 import org.shadowice.flocke.andotp.Utilities.Settings
-import java.util.Locale
 
 /** Adapter for the thumbnail picker grid; supports filtering by name. */
 open class ThumbnailSelectionAdapter internal constructor(
@@ -46,8 +45,9 @@ open class ThumbnailSelectionAdapter internal constructor(
     open fun filter(filter: String) {
         items.clear()
         for (thumbnail in EntryThumbnails.values()) {
-            // Filter case-insensitively using the active default locale.
-            if (thumbnail.name.lowercase(Locale.getDefault()).contains(filter.lowercase(Locale.getDefault()))) {
+            // Locale-independent: lowercasing with the app locale made the match depend on it
+            // (under Turkish, "Instagram" folds to "ınstagram" and no longer matched "instagram").
+            if (thumbnail.name.contains(filter, ignoreCase = true)) {
                 items.add(thumbnail)
             }
         }

@@ -34,12 +34,20 @@ import org.shadowice.flocke.andotp.Utilities.Settings
 import java.util.ArrayList
 import java.util.HashMap
 
+/**
+ * The adapter's own list (which `getItem(position)` reads) must use the same order as `getView`,
+ * which binds `tagsOrder`. Sorting here keeps both views of position [p] on the same tag from
+ * construction on, not only after the first [TagsAdapter.setTags] call.
+ */
+private fun sortedTagNames(tags: Map<String, Boolean?>): ArrayList<String> =
+    ArrayList(tags.keys).apply { sort() }
+
 /** Adapter for the tag lists (drawer and entry dialog); keeps tags sorted by name. */
 open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
-    ArrayAdapter<String>(context, LAYOUT_RESOURCE_ID, ArrayList(tags.keys)) {
+    ArrayAdapter<String>(context, LAYOUT_RESOURCE_ID, sortedTagNames(tags)) {
 
     private var tagsState = tags
-    private var tagsOrder: MutableList<String> = ArrayList(tags.keys).apply { sort() }
+    private var tagsOrder: MutableList<String> = sortedTagNames(tags)
     private var tagCounts: Map<String, Int> = emptyMap()
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -89,7 +97,7 @@ open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :
     /** Replaces (rather than merges) the backing map, and re-sorts the displayed names. */
     open fun setTags(tags: HashMap<String, Boolean?>) {
         tagsState = tags
-        tagsOrder = ArrayList(tags.keys).apply { sort() }
+        tagsOrder = sortedTagNames(tags)
         clear()
         addAll(getTags())
         notifyDataSetChanged()

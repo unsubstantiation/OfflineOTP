@@ -72,10 +72,26 @@ class ManualEntryEditSaveTest(unittest.TestCase):
 
     def test_edit_branches_keep_updating_the_old_entry(self):
         text = self.DIALOG.read_text(encoding="utf-8")
-        self.assertEqual(3, text.count("oldEntry!!.setIssuer(issuer, true)"),
+        self.assertEqual(3, text.count("oldEntry!!.applyEdit"),
                          "every type branch must keep its edit path")
+        self.assertEqual(3, text.count("edited.setIssuer(issuer, true)"),
+                         "every type branch must still apply the typed issuer")
         self.assertEqual(3, text.count("updateCallback?.onUpdate()"),
                          "every type branch must report the edit to the callback")
+
+    def test_edit_branches_go_through_the_rollback_wrapper(self):
+        """A rejected edit must not stay on the live entry (see Entry.applyEdit).
+
+        The setters do not validate, so a period/digits/counter the model refuses used to remain
+        on the shared entry and made every later updateOTP()/vault write throw.
+        """
+        text = self.DIALOG.read_text(encoding="utf-8")
+        self.assertNotRegex(
+            text, r"oldEntry!!\.set\w+\(",
+            "the edit branches must mutate the entry through applyEdit's rollback wrapper",
+        )
+        self.assertIn("fun applyEdit(mutate: (Entry) -> Unit)", (APP_KOTLIN / "Database/Entry.kt")
+                      .read_text(encoding="utf-8"))
 
 
 class CustomPeriodCardLabelTest(unittest.TestCase):

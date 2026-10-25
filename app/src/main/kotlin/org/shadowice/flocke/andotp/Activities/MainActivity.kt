@@ -989,8 +989,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         noTagsButton.isChecked = settings!!.getNoTagsToggle()
 
         drawerList.adapter = drawerAdapter
-        drawerList.onItemClickListener = AdapterView.OnItemClickListener { _, view, _, _ ->
+        drawerList.onItemClickListener = AdapterView.OnItemClickListener { _, view, position, _ ->
             val checkedTextView = view as CheckedTextView
+            // The row text carries the entry count (#994, "tag (3)"), so the clicked tag is
+            // resolved by position; parsing the text stored a toggle for a tag that does not exist
+            // and left the filter unchanged.
+            val tag = drawerAdapter.getItem(position) ?: return@OnItemClickListener
 
             if (settings!!.getTagFunctionality() == Constants.TagFunctionality.SINGLE) {
                 allTagsButton.isChecked = false
@@ -1007,8 +1011,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 checkedTextView.isChecked = !checkedTextView.isChecked
             }
 
-            settings!!.setTagToggle(checkedTextView.text.toString(), checkedTextView.isChecked)
-            drawerAdapter.setTagState(checkedTextView.text.toString(), checkedTextView.isChecked)
+            settings!!.setTagToggle(tag, checkedTextView.isChecked)
+            drawerAdapter.setTagState(tag, checkedTextView.isChecked)
 
             if (!checkedTextView.isChecked) {
                 allTagsButton.isChecked = false

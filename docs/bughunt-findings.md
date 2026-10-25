@@ -1,8 +1,9 @@
 # OfflineOTP bug hunt — historical findings
 
 > This is the historical audit snapshot of the earlier tree/branch named below. For the latest
-> follow-up, see [`bughunt-follow-up-2026-10-18.md`](bughunt-follow-up-2026-10-18.md); the
-> earlier [`bughunt-follow-up-2026-10-17.md`](bughunt-follow-up-2026-10-17.md) is also available.
+> follow-up, see [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md); the
+> earlier [`bughunt-follow-up-2026-10-18.md`](bughunt-follow-up-2026-10-18.md) and
+> [`bughunt-follow-up-2026-10-17.md`](bughunt-follow-up-2026-10-17.md) are also available.
 
 Audit of `nuipona/OfflineOTP` at `c3618ade` (branch `arena/b9338704-offlineotp`), Kotlin
 conversion of andOTP with the vault-security hardening from PR #23.

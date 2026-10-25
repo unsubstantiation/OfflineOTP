@@ -2,7 +2,6 @@ package org.shadowice.flocke.andotp.Dialogs
 
 import android.content.Context
 import android.text.Editable
-import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.KeyEvent
 import android.view.View
@@ -108,15 +107,13 @@ open class PasswordEntryDialog @JvmOverloads constructor(
 
     // TextWatcher callbacks
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-        if (passwordInput.editableText.length >= Constants.AUTH_MIN_PASSWORD_LENGTH) {
-            tooShortWarning.visibility = View.GONE
-
-            okButton.isEnabled = dialogMode == Mode.ENTER ||
-                TextUtils.equals(passwordInput.editableText, passwordConfirm.editableText)
-        } else {
-            tooShortWarning.visibility = View.VISIBLE
-            okButton.isEnabled = false
-        }
+        // ENTER decrypts an existing backup. Its password may be shorter than the policy minimum
+        // (older andOTP releases, or Settings' own password field, enforce none), so only the
+        // UPDATE ("choose a new password") path may require the minimum length.
+        val tooShort = dialogMode == Mode.UPDATE &&
+            passwordInput.editableText.length < Constants.AUTH_MIN_PASSWORD_LENGTH
+        tooShortWarning.visibility = if (tooShort) View.VISIBLE else View.GONE
+        okButton.isEnabled = canSubmit(dialogMode, passwordInput.editableText, passwordConfirm.editableText)
     }
 
     override fun afterTextChanged(s: Editable?) {}
@@ -156,6 +153,22 @@ open class PasswordEntryDialog @JvmOverloads constructor(
             }
         } finally {
             dismiss()
+        }
+    }
+
+    companion object {
+        /**
+         * Whether the typed password may be submitted. [Mode.ENTER] only needs a non-empty value:
+         * the file was encrypted with whatever password it was created with. [Mode.UPDATE] sets a
+         * new password, so it must reach the minimum and match its confirmation.
+         */
+        @JvmStatic
+        fun canSubmit(mode: Mode, password: CharSequence?, confirm: CharSequence?): Boolean {
+            val typed = password?.toString() ?: ""
+            if (typed.isEmpty()) return false
+            if (mode == Mode.ENTER) return true
+            val confirmed = confirm?.toString() ?: ""
+            return typed.length >= Constants.AUTH_MIN_PASSWORD_LENGTH && typed == confirmed
         }
     }
 }

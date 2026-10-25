@@ -79,8 +79,8 @@ object DimensionConverter {
             throw NumberFormatException()
         }
         val value = java.lang.Float.valueOf(matcher.group(1)).toFloat()
-        // Lowercase with the default locale before looking up the unit suffix.
-        val unit = matcher.group(3).lowercase(Locale.getDefault())
+        // The unit suffix is a machine token: "IN" must not become "ın" under a Turkish locale.
+        val unit = matcher.group(3).lowercase(Locale.ROOT)
         val dimensionUnit = dimensionConstantLookup[unit]
         return if (dimensionUnit == null) {
             throw NumberFormatException()

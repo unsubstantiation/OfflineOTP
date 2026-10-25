@@ -59,9 +59,10 @@ object NotificationHelper {
         }
     }
 
-    // Uses the default locale to preserve existing notification channel IDs.
+    // A channel id is a persisted machine token: case-map it with Locale.ROOT, never the default
+    // locale (Turkish would create "andOTP_backup_faıled" next to the existing channel).
     private fun channelId(channel: Constants.NotificationChannel): String =
-        "andOTP_" + channel.name.lowercase(Locale.getDefault())
+        "andOTP_" + channel.name.lowercase(Locale.ROOT)
 
     /** Creates the channel for the given type. */
     private fun createNotificationChannel(context: Context, channel: Constants.NotificationChannel) {
@@ -98,6 +99,15 @@ object NotificationHelper {
         notify(context, channel, resIdTitle, context.getText(resIdBody).toString())
     }
 
+    /**
+     * Per-channel ids: a single shared id made every new notification replace the previous one, so
+     * a backup success could silently overwrite the failure it followed (and vice versa).
+     */
+    private fun notificationId(channel: Constants.NotificationChannel): Int = when (channel) {
+        Constants.NotificationChannel.BACKUP_FAILED -> NOTIFICATION_ID_BACKUP_FAILED
+        Constants.NotificationChannel.BACKUP_SUCCESS -> NOTIFICATION_ID_BACKUP_SUCCESS
+    }
+
     /** Posts a notification with an already resolved body text. */
     @JvmStatic
     fun notify(context: Context, channel: Constants.NotificationChannel, resIdTitle: Int, resBody: String?) {
@@ -109,9 +119,12 @@ object NotificationHelper {
 
         createNotificationChannel(context, channel)
 
-        val notificationId = 1
+        val notificationId = notificationId(channel)
 
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.notify(notificationId, builder.build())
     }
+
+    private const val NOTIFICATION_ID_BACKUP_FAILED = 1
+    private const val NOTIFICATION_ID_BACKUP_SUCCESS = 2
 }
