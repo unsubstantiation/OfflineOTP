@@ -1,5 +1,8 @@
 # Bug hunt and unfinished-feature follow-up, 2026-10-18
 
+> **Snapshot:** written 2026-10-18. A later bug-hunt pass exists:
+> [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md).
+
 Second comprehensive pass over this checkout, in the user's two phases: (1) a full bug hunt
 across the app sources, resources, manifest and tooling, and (2) completion of the unfinished
 features the repository's own documents listed as planned-but-absent. The verification

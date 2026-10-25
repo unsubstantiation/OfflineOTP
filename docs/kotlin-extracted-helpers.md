@@ -411,9 +411,13 @@ Twenty-first batch (the remaining user interface):
   activity is `protected` (Kotlin has no package-private visibility); and the two platform methods
   that the Java classes had widened to public stay public (`BackupActivity.onDestroy()` and
   `SettingsActivity.SettingsFragment.onCreate()`).
-- The locale semantics of the Java code are kept: Java's bare `toUpperCase()`/`toLowerCase()` use
-  the default locale, so the converted calls pass `Locale.getDefault()` explicitly, while the
-  credential preference keeps its deliberate `Locale.ENGLISH`.
+- The locale semantics of the Java code were kept during the conversion: Java's bare
+  `toUpperCase()`/`toLowerCase()` use the default locale, so the converted calls passed
+  `Locale.getDefault()` explicitly, while the credential preference keeps its deliberate
+  `Locale.ENGLISH`. The 2026-10-25 pass changed the sites that case-map *stored machine tokens*
+  (settings values, enum names, notification channel ids) to `Locale.ROOT` and the search/thumbnail
+  matching to `String.contains(..., ignoreCase = true)`; the user-facing `Collator` sorting still
+  follows the in-app language. See `bughunt-follow-up-2026-10-25.md`.
 - The sandbox compiles all ten and **executes** the entry card (the token is bound and kept
   unformatted in the view tag for the copy action, the label and the comma separated tags are
   written, a counter based entry shows its counter instead of the progress bar) and the retained
@@ -937,9 +941,10 @@ These three are small Android-facing leaves, not orchestration owners. Their Act
 callers, the backup policy and the settings screen were Java at that conversion stage; subsequent batches converted all main app sources to Kotlin.
 
 - **Password entry**: `PasswordEntryDialog` stays open with the same five-argument Java constructor,
-  nested `Mode` enum and SAM `PasswordEnteredCallback`. ENTER still hides confirmation, listens on
-  the first field and enables OK at `AUTH_MIN_PASSWORD_LENGTH`; UPDATE shows/listens on both fields
-  and additionally requires `TextUtils.equals`. The short warning, privacy flags, shared password
+  nested `Mode` enum and SAM `PasswordEnteredCallback`. ENTER hides confirmation, listens on the
+  first field and enables OK for any non-empty value (it decrypts an existing file, whose password
+  may predate the minimum; see `bughunt-follow-up-2026-10-25.md`); UPDATE shows/listens on both
+  fields, requires `AUTH_MIN_PASSWORD_LENGTH` and the matching confirmation. The short warning, privacy flags, shared password
   transformation helper, IME-done/hardware-enter handling, enter-up suppression, callback-before-
   dismissal ordering and nullable callback are unchanged. Required inflated children now fail with
   explicit `requireNotNull` rather than a later dereference.
@@ -947,8 +952,10 @@ callers, the backup policy and the settings screen were Java at that conversion 
   delta (`INSTANCE`, private constructor/final class) with an `@JvmStatic show(Context, TagsAdapter,
   Callable, Callable)` forwarder. It keeps the original margins, adapter instance, checked-row
   toggle, copied map/replacement semantics, new tags initially active, nullable callables, caught/
-  printed callback exceptions, cancel dismissal and nested new-tag dialog. It does not trim, reject
-  or de-duplicate empty/new names beyond the adapter map's existing replacement behavior.
+  printed callback exceptions, cancel dismissal and nested new-tag dialog. New names were originally
+  accepted verbatim; since the 2026-10-25 pass the input is capped at `InputPolicy.MAX_TAG_CHARS`,
+  trimmed, and blank names are ignored (and a clicked row is resolved by adapter position, not by
+  its count-decorated text) — see `bughunt-follow-up-2026-10-25.md`.
 - **Encrypted preference**: `PasswordEncryptedPreference` stays open with its XML `(Context,
   AttributeSet)` constructor, nested `Mode`, open `setMode`, protected framework hooks and listener
   interfaces. It keeps the same AndroidKeyStore alias, RSA helper calls, UTF-8/Base64 URL-safe stored

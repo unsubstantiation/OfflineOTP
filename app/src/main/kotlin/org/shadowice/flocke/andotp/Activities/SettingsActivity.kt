@@ -222,7 +222,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         encryptionKey = newEncryptionKey
         encryptionChanged = true
 
-        fragment?.encryption?.value = newEncryptionType.name.lowercase(Locale.getDefault())
+        fragment?.encryption?.value = newEncryptionType.name.lowercase(Locale.ROOT)
         fragment?.setEncryptionKey(newEncryptionKey)
     }
 
@@ -452,7 +452,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
             encryption?.setOnPreferenceChangeListener { _, o ->
                 val newEncryption = o as? String ?: return@setOnPreferenceChangeListener false
-                val encryptionType = EncryptionType.valueOf(newEncryption.uppercase(Locale.getDefault()))
+                val encryptionType = EncryptionType.valueOf(newEncryption.uppercase(Locale.ROOT))
                 val oldEncryptionType = currentSettings.getEncryption()
                 val authMethod = currentSettings.getAuthMethod()
 

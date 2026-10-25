@@ -85,6 +85,7 @@
 
     <!-- Errors -->
     <string name="error_invalid_secret">Invalid secret</string>
+    <string name="error_invalid_entry">This entry cannot be saved: check the period, digits and counter</string>
 
     <!-- Dialogs -->
     <string name="dialog_title_auth">Authenticate</string>

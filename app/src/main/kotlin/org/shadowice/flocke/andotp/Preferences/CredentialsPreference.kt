@@ -49,6 +49,24 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
         /** The auth method a fresh installation starts with. */
         @JvmField
         val DEFAULT_VALUE: AuthMethod = AuthMethod.NONE
+
+        /**
+         * Whether the typed credential may be saved for [method]. NONE/DEVICE store no credential
+         * and are always saveable; a password/PIN must reach [minLength] and match its
+         * confirmation. Mirrors the minimums the intro screen enforces.
+         */
+        @JvmStatic
+        fun canSaveCredentials(
+            method: AuthMethod,
+            minLength: Int,
+            password: CharSequence?,
+            confirm: CharSequence?
+        ): Boolean {
+            if (method == AuthMethod.NONE || method == AuthMethod.DEVICE) return true
+            val typed = password?.toString() ?: ""
+            val confirmed = confirm?.toString() ?: ""
+            return typed.isNotEmpty() && typed.length >= minLength && typed == confirmed
+        }
     }
 
     private val entries: List<String>
@@ -275,23 +293,27 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
     }
 
     override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-        val password = passwordInput?.editableText?.toString() ?: ""
-
-        if (password.length >= minLength) {
+        if (value == AuthMethod.NONE || value == AuthMethod.DEVICE) {
+            // No credential is typed for these methods, so their save button stays usable.
             tooShortWarning?.visibility = View.GONE
-            val confirm = passwordConfirm?.editableText?.toString() ?: ""
-
-            val canSave = password.isNotEmpty() && confirm.isNotEmpty() && password == confirm
-            btnSave?.isEnabled = canSave
-        } else {
-            tooShortWarning?.visibility = View.VISIBLE
+            btnSave?.isEnabled = true
+            return
         }
+
+        val password = passwordInput?.editableText?.toString() ?: ""
+        val confirm = passwordConfirm?.editableText?.toString() ?: ""
+
+        // The warning alone used to leave Save enabled after the typed credential fell below the
+        // minimum, so a too-short password/PIN could still be committed from this dialog.
+        tooShortWarning?.visibility = if (password.length >= minLength) View.GONE else View.VISIBLE
+        btnSave?.isEnabled = canSaveCredentials(value, minLength, password, confirm)
     }
 
     /** Shows or hides the password fields for the selected auth method. */
     private fun updateLayout() {
         if (value == AuthMethod.NONE || value == AuthMethod.DEVICE) {
             credentialsLayout?.visibility = View.GONE
+            tooShortWarning?.visibility = View.GONE
             if (getDialog() != null) {
                 UIHelper.hideKeyboard(context, passwordInput)
             }

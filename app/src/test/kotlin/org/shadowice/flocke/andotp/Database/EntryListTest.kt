@@ -11,6 +11,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
+import java.util.Locale
 
 class EntryListTest {
     private fun entry(label: String, issuer: String = "", tags: List<String> = emptyList()): Entry =
@@ -113,6 +114,29 @@ class EntryListTest {
         assertEquals(0, labels("zzz", listOf(Constants.SearchIncludes.LABEL, Constants.SearchIncludes.ISSUER)).size)
         // Only the selected fields are searched: "Amaz" appears in the issuer, not the label.
         assertEquals(0, labels("Amaz", listOf(Constants.SearchIncludes.LABEL)).size)
+    }
+
+    @Test
+    fun searchMatchesIndependentlyOfTheDefaultLocale() {
+        val previous = Locale.getDefault()
+        try {
+            // Turkish folds "I" to "ı"; a locale-sensitive match would miss these.
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val list = EntryList()
+            list.addEntry(entry("Instagram", "Istanbul", listOf("INVOICE")))
+
+            fun labels(constraint: String, includes: List<Constants.SearchIncludes>): List<String> =
+                list.getFilteredEntries(constraint, includes, Constants.SortMode.UNSORTED)
+                    .map { it.getLabel() }
+
+            assertEquals(listOf("Instagram"), labels("instagram", listOf(Constants.SearchIncludes.LABEL)))
+            assertEquals(listOf("Instagram"), labels("ISTANBUL", listOf(Constants.SearchIncludes.ISSUER)))
+            assertEquals(listOf("Instagram"), labels("invoice", listOf(Constants.SearchIncludes.TAGS)))
+            // The Turkish dotted/dotless pair still matches in either spelling.
+            assertEquals(listOf("Instagram"), labels("ınstagram", listOf(Constants.SearchIncludes.LABEL)))
+        } finally {
+            Locale.setDefault(previous)
+        }
     }
 
     @Test

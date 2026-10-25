@@ -56,23 +56,30 @@ open class BaseAboutFragment : Fragment() {
             if (thisTap - lastTap < 500) {
                 taps = taps + 1
 
-                if (currentToast != null && taps <= 7)
-                    currentToast!!.cancel()
-
-                if (taps >= 3 && taps <= 7)
-                    currentToast = Toast.makeText(getActivity()!!, taps.toString(), Toast.LENGTH_SHORT)
+                // Only the toast created by this tap is shown. The previous counter toast is
+                // cancelled and forgotten, so a cancelled toast can never be re-shown: that used
+                // to repeat the last count (for example "7") on the next, unrelated quick tap.
+                currentToast?.cancel()
+                currentToast = null
 
                 if (taps == 7) {
                     if (settings!!.getSpecialFeatures())
                         currentToast = Toast.makeText(getActivity()!!, R.string.about_toast_special_features_enabled, Toast.LENGTH_LONG)
                     else
                         enableSpecialFeatures()
+
+                    // A burst ends at seven: the next one starts counting from one again.
+                    taps = 0
+                } else if (taps >= 3) {
+                    currentToast = Toast.makeText(getActivity()!!, taps.toString(), Toast.LENGTH_SHORT)
                 }
 
-                if (currentToast != null)
-                    currentToast!!.show()
+                currentToast?.show()
             } else {
+                // A slow tap ends the burst; drop its toast so it cannot reappear later.
                 taps = 0
+                currentToast?.cancel()
+                currentToast = null
             }
 
             lastTap = thisTap

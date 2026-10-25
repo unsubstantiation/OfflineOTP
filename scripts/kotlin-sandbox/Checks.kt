@@ -101,6 +101,7 @@ import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
 import org.shadowice.flocke.andotp.Preferences.CredentialsPreference
 import org.shadowice.flocke.andotp.View.EntriesCardAdapter
 import org.shadowice.flocke.andotp.View.EntryListPresentation
+import org.shadowice.flocke.andotp.View.EntryActionDialogs
 import org.shadowice.flocke.andotp.View.EntryViewHolder
 import org.shadowice.flocke.andotp.R
 
@@ -2025,10 +2026,16 @@ fun main() {
             expect(enterWidgets.warning.text == "text:${R.string.settings_label_short_password}",
                     { "the short-password warning text changed" })
 
+            // ENTER decrypts an existing file, whose password may be shorter than the policy
+            // minimum (Settings' own password field enforces none), so it must stay submittable.
             enterWidgets.input.setText("abcde")
             dialog.onTextChanged("", 0, 0, 0)
-            expect(enterWidgets.warning.visibility == View.VISIBLE && !enterWidgets.ok.isEnabled,
-                    { "a short password must warn and keep OK disabled" })
+            expect(enterWidgets.warning.visibility == View.GONE && enterWidgets.ok.isEnabled,
+                    { "an existing backup's short password must remain submittable" })
+
+            enterWidgets.input.setText("")
+            dialog.onTextChanged("", 0, 0, 0)
+            expect(!enterWidgets.ok.isEnabled, { "an empty password must keep OK disabled" })
 
             enterWidgets.input.setText("abcdef")
             dialog.onTextChanged("", 0, 0, 0)
@@ -3298,6 +3305,21 @@ fun main() {
             expectThrows(NumberFormatException::class.java) {
                 DimensionConverter.stringToDimensionPixelSize(invalid, metrics)
             }
+        }
+
+        // Lowercasing the unit suffix is a locale-independent operation: Turkish turns "IN" into
+        // "ın", which is not a unit at all.
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            expect(DimensionConverter.stringToDimensionPixelSize("2IN", metrics) == 640,
+                    { "2IN did not convert under a Turkish default locale" })
+            expect(DimensionConverter.stringToDimensionPixelSize("12DIP", metrics) == 24,
+                    { "12DIP did not convert under a Turkish default locale" })
+            expect(DimensionConverter.stringToDimensionPixelSize("25.4MM", metrics) == 320,
+                    { "25.4MM did not convert under a Turkish default locale" })
+        } finally {
+            Locale.setDefault(previous)
         }
 
         val lookup = DimensionConverter.dimensionConstantLookup
@@ -4894,8 +4916,10 @@ fun main() {
         fixture.versionLayout.performClick()
         expect(BaseAboutFragment.taps == 0, { "the first tap counted" })
         for (tap in 1..7) fixture.versionLayout.performClick()
-        expect(BaseAboutFragment.taps == 7, { "the quick taps did not count up: ${BaseAboutFragment.taps}" })
-        expect(Toast.shownTexts == listOf<CharSequence>("3", "4", "5", "6", "7"),
+        // The seventh count ends the burst (and starts the next one at one), so the counter is
+        // back to zero; a stale seven must not leak into the next burst either.
+        expect(BaseAboutFragment.taps == 0, { "the seven taps did not finish the burst: ${BaseAboutFragment.taps}" })
+        expect(Toast.shownTexts == listOf<CharSequence>("3", "4", "5", "6"),
                 { "the counter toasts are wrong: ${Toast.shownTexts}" })
         // Each new count toast cancels its predecessor (four cancellations after the third count).
         expect(Toast.cancels == 4, { "the counter toasts were not cancelled: ${Toast.cancels}" })
@@ -4917,20 +4941,20 @@ fun main() {
         expect(Toast.shown == listOf(R.string.about_toast_special_features),
                 { "the enabling was not toasted: ${Toast.shown}" })
 
-        // A slow tap restarts the count instead of adding to it, and toasts nothing.
+        // A slow tap restarts the count instead of adding to it, toasts nothing and drops the
+        // burst's toast so it can never be re-shown later.
         Toast.shownTexts.clear()
         Thread.sleep(600)
         fixture.versionLayout.performClick()
         expect(BaseAboutFragment.taps == 0, { "a slow tap kept the count: ${BaseAboutFragment.taps}" })
         expect(Toast.shownTexts.isEmpty(), { "a slow tap toasted the counter: ${Toast.shownTexts}" })
+        expect(BaseAboutFragment.currentToast == null, { "the ended burst kept its toast around" })
 
-        // With the features already enabled the second burst only reports them on the seventh count.
-        // Counts 1 and 2 re-show the stale "7" toast first, exactly as the Java `currentToast.show()`
-        // at the end of the quick-tap branch did; the counter texts then replace it and the seventh
-        // count swaps in the already-enabled message before it is shown.
+        // With the features already enabled the second burst only reports them on the seventh
+        // count; the first two counts stay silent instead of repeating the previous burst's toast.
         for (tap in 1..7) fixture.versionLayout.performClick()
-        expect(BaseAboutFragment.taps == 7, { "the count after the restart is wrong: ${BaseAboutFragment.taps}" })
-        expect(Toast.shownTexts == listOf<CharSequence>("7", "7", "3", "4", "5", "6"),
+        expect(BaseAboutFragment.taps == 0, { "the count after the restart is wrong: ${BaseAboutFragment.taps}" })
+        expect(Toast.shownTexts == listOf<CharSequence>("3", "4", "5", "6"),
                 { "the restarted counter toasts are wrong: ${Toast.shownTexts}" })
         expect(Toast.shown == listOf(R.string.about_toast_special_features,
                 R.string.about_toast_special_features_enabled),
@@ -5406,6 +5430,263 @@ fun main() {
         expect(motp.updateOTPAt(95L, false), { "mOTP did not refresh after a skipped step" })
         expect(motp.getCurrentOTP() == TokenCalculator.MOTP(pin, motpSeed, 95L, 0),
             { "the mOTP at 95s is wrong: ${motp.getCurrentOTP()}" })
+    }
+
+    check("tag rows keep their identity when the display text carries the entry counts") {
+        val context = Context()
+        // Deliberately unsorted input: getItem() must agree with getView() from construction on.
+        val states = hashMapOf<String, Boolean?>("zeta" to true, "Alpha" to false)
+        val adapter = TagsAdapter(context, states)
+        val firstRow = adapter.getView(0, null, android.view.ViewGroup()) as android.widget.CheckedTextView
+        expect(firstRow.text.toString() == "Alpha", { "getView(0) bound ${firstRow.text}" })
+        expect(adapter.getItem(0) == "Alpha" && adapter.getItem(1) == "zeta",
+                { "getItem() does not follow the sorted display order: ${adapter.getItem(0)}, ${adapter.getItem(1)}" })
+
+        // #994 decorates the row text; a click must still toggle the tag itself.
+        adapter.setTagCounts(hashMapOf("Alpha" to 3, "zeta" to 1))
+        AlertDialog.Builder.created.clear()
+        TagsDialog.show(context, adapter, null, null)
+        val selector = AlertDialog.Builder.created[0]
+        val list = (selector.contentView as android.widget.FrameLayout).getChildAt(0) as android.widget.ListView
+        val row = requireNotNull(list.adapter).getView(0, null, android.view.ViewGroup()) as android.widget.CheckedTextView
+        expect(row.text.toString() == "Alpha (3)", { "the decorated row text changed: ${row.text}" })
+
+        list.onItemClickListener!!.onItemClick(list, row, 0, 0L)
+        expect(adapter.getTagState("Alpha") == true,
+                { "the counted row did not toggle its tag: ${adapter.getTagState("Alpha")}" })
+        expect(row.isChecked, { "the counted row did not follow the tag state" })
+    }
+
+    check("the new-tag dialog caps the tag length and ignores blank names") {
+        val context = Context()
+        val adapter = TagsAdapter(context, hashMapOf())
+        AlertDialog.Builder.created.clear()
+        TagsDialog.show(context, adapter, null, null)
+        val selector = AlertDialog.Builder.created[0]
+        selector.neutralButtonListener!!.onClick(selector, DialogInterface.BUTTON_NEUTRAL)
+        val newTagDialog = AlertDialog.Builder.created[1]
+        val input = (newTagDialog.contentView as android.widget.FrameLayout).getChildAt(0) as android.widget.EditText
+
+        // The entry model rejects longer tags on the next write, so the dialog must never offer them.
+        val lengthFilter = input.filters.single() as android.text.InputFilter.LengthFilter
+        expect(lengthFilter.getMax() == InputPolicy.MAX_TAG_CHARS,
+                { "the tag input cap is ${lengthFilter.getMax()}" })
+
+        input.setText("   ")
+        newTagDialog.positiveButtonListener!!.onClick(newTagDialog, DialogInterface.BUTTON_POSITIVE)
+        expect(adapter.getTags().isEmpty(), { "a blank tag was added: ${adapter.getTags()}" })
+
+        input.setText("  trimmed  ")
+        newTagDialog.positiveButtonListener!!.onClick(newTagDialog, DialogInterface.BUTTON_POSITIVE)
+        expect(adapter.getTags() == mutableListOf("trimmed"), { "the trimmed tag was not added: ${adapter.getTags()}" })
+    }
+
+    check("credential changes reject a too-short or unconfirmed password and PIN") {
+        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
+                Constants.AUTH_MIN_PASSWORD_LENGTH, "abc", "abc"),
+                { "a too-short password was accepted" })
+        expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
+                Constants.AUTH_MIN_PASSWORD_LENGTH, "abcdef", "abcdef"),
+                { "a valid password was rejected" })
+        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
+                Constants.AUTH_MIN_PASSWORD_LENGTH, "abcdef", "abcdeg"),
+                { "a mismatched confirmation was accepted" })
+        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
+                Constants.AUTH_MIN_PASSWORD_LENGTH, "", ""),
+                { "an empty password was accepted" })
+        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
+                Constants.AUTH_MIN_PIN_LENGTH, "123", "123"),
+                { "a too-short PIN was accepted" })
+        expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
+                Constants.AUTH_MIN_PIN_LENGTH, "1234", "1234"),
+                { "a valid PIN was rejected" })
+        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
+                Constants.AUTH_MIN_PIN_LENGTH, "12345", "123"),
+                { "an unconfirmed PIN was accepted" })
+        expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.NONE, 0, "", ""),
+                { "NONE must stay saveable without a credential" })
+        expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.DEVICE, 0, null, null),
+                { "DEVICE must stay saveable without a credential" })
+    }
+
+    check("the counter dialog never offers a value the entry model rejects") {
+        // InputPolicy.tokenParameters rejects negatives and Long.MAX_VALUE; the dialog's own guard
+        // must agree, or the user gets an unexplained "could not save" after closing it.
+        expect(EntryActionDialogs.isValidCounter("0"), { "counter 0 was rejected" })
+        expect(EntryActionDialogs.isValidCounter("42"), { "counter 42 was rejected" })
+        expect(!EntryActionDialogs.isValidCounter(Long.MAX_VALUE.toString()),
+                { "Long.MAX_VALUE was accepted but the entry model rejects it" })
+        expect(EntryActionDialogs.isValidCounter((Long.MAX_VALUE - 1).toString()),
+                { "Long.MAX_VALUE - 1 was rejected" })
+        expect(!EntryActionDialogs.isValidCounter("-1"), { "a negative counter was accepted" })
+        expect(!EntryActionDialogs.isValidCounter(""), { "an empty counter was accepted" })
+        expect(!EntryActionDialogs.isValidCounter("12a"), { "a malformed counter was accepted" })
+        expect(!EntryActionDialogs.isValidCounter(Long.MIN_VALUE.toString()),
+                { "Long.MIN_VALUE was accepted" })
+    }
+
+    check("a rejected edit leaves the live entry unchanged") {
+        val entry = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "ACME", "label",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("work"))
+        entry.updateOTP(false)
+        val previousToken = entry.getCurrentOTP()
+
+        // 12 digits is outside InputPolicy's 1..9 range: the setters accept it, validate() does not.
+        expectThrows(IllegalArgumentException::class.java) {
+            entry.applyEdit { edited ->
+                edited.setIssuer("Other", true)
+                edited.setLabel("changed")
+                edited.setDigits(12)
+                edited.setPeriod(15)
+                edited.setTags(arrayListOf("personal"))
+            }
+        }
+        // Every applied value must be rolled back, or the card and the next vault write use them.
+        expect(entry.getDigits() == 6, { "the rejected digits stayed on the entry: ${entry.getDigits()}" })
+        expect(entry.getPeriod() == 30, { "the rejected period stayed on the entry: ${entry.getPeriod()}" })
+        expect(entry.getIssuer() == "ACME", { "the rejected issuer stayed on the entry: ${entry.getIssuer()}" })
+        expect(entry.getLabel() == "label", { "the rejected label stayed on the entry: ${entry.getLabel()}" })
+        expect(entry.getTags() == arrayListOf("work"), { "the rejected tags stayed on the entry: ${entry.getTags()}" })
+        expect(previousToken != null && !previousToken.isNullOrEmpty(),
+                { "the fixture produced no token before the failed edit" })
+        entry.updateOTP(true)
+        expect(!entry.getCurrentOTP().isNullOrEmpty(),
+                { "the restored entry no longer produces tokens" })
+
+        // An HOTP counter of Long.MAX_VALUE is rejected by the model for the same reason.
+        val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 42L, 6, "ACME", "hotp",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        expectThrows(IllegalArgumentException::class.java) {
+            hotp.applyEdit { edited -> edited.setCounter(Long.MAX_VALUE) }
+        }
+        expect(hotp.getCounter() == 42L, { "the rejected counter stayed on the entry: ${hotp.getCounter()}" })
+
+        // A valid edit is kept (and the caller's tag list is copied, not aliased).
+        val callerTags = arrayListOf("new")
+        entry.applyEdit { edited ->
+            edited.setLabel("renamed")
+            edited.setDigits(8)
+            edited.setTags(callerTags)
+        }
+        callerTags.add("later")
+        expect(entry.getLabel() == "renamed" && entry.getDigits() == 8,
+                { "a valid edit was not applied: ${entry.getLabel()}/${entry.getDigits()}" })
+        expect(entry.getTags() == arrayListOf("new"), { "the entry aliases the caller's tag list: ${entry.getTags()}" })
+        entry.destroy()
+        hotp.destroy()
+    }
+
+    check("restoring a backup accepts a short legacy password, setting one still needs the minimum") {
+        val enter = PasswordEntryDialog.Mode.ENTER
+        val update = PasswordEntryDialog.Mode.UPDATE
+        // ENTER decrypts an existing file: the password it was created with must be accepted even
+        // below AUTH_MIN_PASSWORD_LENGTH (Settings' own password field enforces no minimum).
+        expect(PasswordEntryDialog.canSubmit(enter, "abc", ""),
+                { "a 3-character backup password cannot be entered" })
+        expect(PasswordEntryDialog.canSubmit(enter, "sixsix", ""),
+                { "a valid backup password was rejected" })
+        expect(!PasswordEntryDialog.canSubmit(enter, "", ""), { "an empty backup password was accepted" })
+        expect(!PasswordEntryDialog.canSubmit(enter, null, null), { "a missing backup password was accepted" })
+
+        // UPDATE creates the password that later protects the file, so it needs the minimum and
+        // matching confirmation.
+        expect(!PasswordEntryDialog.canSubmit(update, "abc", "abc"),
+                { "a new backup password below the minimum was accepted" })
+        expect(PasswordEntryDialog.canSubmit(update, "abcdef", "abcdef"),
+                { "a valid new backup password was rejected" })
+        expect(!PasswordEntryDialog.canSubmit(update, "abcdef", "abcdeg"),
+                { "an unconfirmed new backup password was accepted" })
+        expect(!PasswordEntryDialog.canSubmit(update, "abcdef", ""),
+                { "a new backup password without confirmation was accepted" })
+        expect(!PasswordEntryDialog.canSubmit(update, "", ""),
+                { "an empty new backup password was accepted" })
+    }
+
+    check("thumbnail search ignores the default locale's case rules") {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val context = SettingsFixture().context
+            // Turkish lowercases "Instagram" to "ınstagram", so the filter must not case-fold
+            // with the default locale.
+            val adapter = withPoisonedTransaction { ThumbnailSelectionAdapter(context, "", "label") }
+            adapter.filter("instagram")
+            val shown = (0 until adapter.getCount()).map { adapter.getItem(it) }
+            expect(shown.contains(EntryThumbnail.EntryThumbnails.Instagram),
+                    { "the Turkish default locale broke the thumbnail search: $shown" })
+
+            adapter.filter("zzz")
+            expect(adapter.getCount() == 0, { "a non-matching filter kept ${adapter.getCount()} thumbnails" })
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    check("stored machine tokens survive a Turkish default locale") {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val fixture = SettingsFixture()
+            // "single".uppercase(tr) is "SİNGLE", which the enum does not know.
+            fixture.seed(R.string.settings_key_tag_functionality, "single")
+            expect(fixture.settings.getTagFunctionality() == Constants.TagFunctionality.SINGLE,
+                    { "the stored tag functionality did not round trip under Turkish" })
+
+            fixture.settings.setEncryption(Constants.EncryptionType.KEYSTORE)
+            expect(fixture.stored(R.string.settings_key_encryption) == "keystore",
+                    { "the stored encryption token is locale-dependent: ${fixture.stored(R.string.settings_key_encryption)}" })
+            expect(fixture.settings.getEncryption() == Constants.EncryptionType.KEYSTORE,
+                    { "the encryption token did not round trip under Turkish" })
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    check("backup notifications keep a failure visible next to a success") {
+        val context = ComponentContext()
+        NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_FAILED,
+                R.string.backup_receiver_title_backup_failed, "failure")
+        NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_SUCCESS,
+                R.string.backup_receiver_title_backup_success, "success")
+
+        val ids = context.notifications.posted.map { it.first }
+        expect(ids.size == 2, { "both notifications were not posted: $ids" })
+        expect(ids[0] != ids[1], { "the success replaced the failure notification: $ids" })
+    }
+
+    check("notification channel ids stay stable under a Turkish default locale") {
+        val previous = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.forLanguageTag("tr-TR"))
+            val context = ComponentContext()
+            NotificationHelper.initializeNotificationChannels(context)
+            val ids = context.notifications.channels.map { it.getId() }
+            expect(ids.contains("andOTP_backup_failed") && ids.contains("andOTP_backup_success"),
+                    { "the channel ids depend on the default locale: $ids" })
+
+            // Posting creates the channel again; the id must keep the stored (ASCII) form.
+            context.notifications.channels.clear()
+            NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_FAILED,
+                    R.string.backup_receiver_title_backup_failed, "failure")
+            val created = context.notifications.channels.map { it.getId() }
+            expect(created == listOf("andOTP_backup_failed"),
+                    { "posting under Turkish created $created" })
+        } finally {
+            Locale.setDefault(previous)
+        }
+    }
+
+    check("letter tiles map every string hash, including Integer.MIN_VALUE, into the palette") {
+        val context = Context()
+        // "polygenelubricants" hashes to Integer.MIN_VALUE and "a" to 97; the harness palette has a
+        // single colour, so an index taken from a hard-coded count would leave its bounds.
+        for (key in listOf("polygenelubricants", "a", "zeta")) {
+            val tile = LetterBitmap(context).getLetterTile(key, key, 48, 48)
+            expect(!tile.isRecycled(), { "no usable tile for $key" })
+        }
+        val graphic = EntryThumbnail.getThumbnailGraphic(context, "", "label", 48,
+                EntryThumbnail.EntryThumbnails.Default)
+        expect(graphic != null, { "the default thumbnail produced no bitmap" })
     }
 
     if (failures == 0) {

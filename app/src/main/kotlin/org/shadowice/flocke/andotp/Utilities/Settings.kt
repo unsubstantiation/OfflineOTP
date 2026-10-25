@@ -206,8 +206,9 @@ open class Settings(private val context: Context) {
 
             if (keep_auth) {
                 editor.putString(getResString(R.string.settings_key_encryption), encryptionType.name.lowercase(Locale.ROOT))
-                // Default-locale lowercasing matches the stored preference format.
-                editor.putString(getResString(R.string.settings_key_auth), authMethod.toString().lowercase(Locale.getDefault()))
+                // Stored values are machine tokens: case-map them with Locale.ROOT, never with the
+                // user's locale (Turkish "PIN" would otherwise be stored as "pın").
+                editor.putString(getResString(R.string.settings_key_auth), authMethod.name.lowercase(Locale.ROOT))
 
                 if (!authCredentials.isEmpty()) {
                     editor.putString(getResString(R.string.settings_key_auth_credentials), authCredentials)
@@ -379,11 +380,11 @@ open class Settings(private val context: Context) {
 
     open fun getEncryption(): Constants.EncryptionType {
         val encType = getString(R.string.settings_key_encryption, R.string.settings_default_encryption)
-        return Constants.EncryptionType.valueOf(encType.uppercase(Locale.getDefault()))
+        return Constants.EncryptionType.valueOf(encType.uppercase(Locale.ROOT))
     }
 
     open fun setEncryption(encryptionType: Constants.EncryptionType) {
-        setEncryption(encryptionType.name.lowercase(Locale.getDefault()))
+        setEncryption(encryptionType.name.lowercase(Locale.ROOT))
     }
 
     open fun setEncryption(encryption: String) {
@@ -622,7 +623,9 @@ open class Settings(private val context: Context) {
 
     open fun getTagFunctionality(): Constants.TagFunctionality {
         val tagFunctionality = getString(R.string.settings_key_tag_functionality, R.string.settings_default_tag_functionality)
-        return Constants.TagFunctionality.valueOf(tagFunctionality.uppercase(Locale.getDefault()))
+        // Locale.ROOT: uppercase(Turkish) turns the stored token "single" into "SİNGLE", which
+        // valueOf() rejects, so the settings/entry screens crashed for Turkish users.
+        return Constants.TagFunctionality.valueOf(tagFunctionality.uppercase(Locale.ROOT))
     }
 
     open fun getScreenshotsEnabled(): Boolean {

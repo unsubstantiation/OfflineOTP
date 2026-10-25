@@ -6,6 +6,7 @@ library components present). This guard runs the same policy over the *source* m
 weakened protection level fails before anything is built.
 """
 import json
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -55,6 +56,32 @@ class ManifestSourcePolicyTest(unittest.TestCase):
         self.assertEqual([], errors,
                          "the source manifest drifted from the release security policy")
         _ = allowed  # the policy's own allowed set is enforced by check_manifest itself
+
+    def test_every_exported_otpauth_kind_can_be_opened(self):
+        """The app builds otpauth:// links for all four kinds; ACTION_VIEW must accept each one.
+
+        `Entry.toUri()` (the QR-code export) maps every OTPType onto its lowercased name, so a
+        filter that only lists totp/hotp leaves the app unable to open the steam/motp QR codes it
+        generates itself.
+        """
+        entry = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt").read_text(
+            encoding="utf-8")
+        enum_body = re.search(r"enum class OTPType \{([^}]*)\}", entry).group(1)
+        kinds = {name.strip().lower() for name in enum_body.split(",") if name.strip()}
+        self.assertGreaterEqual(len(kinds), 4, "the OTP types could not be read from Entry.kt")
+
+        manifest = ET.fromstring(MANIFEST.read_text(encoding="utf-8").replace(
+            "${applicationId}", PACKAGE))
+        android = "{http://schemas.android.com/apk/res/android}"
+        main = next(
+            activity for activity in manifest.iter("activity")
+            if activity.get(android + "name") == ".Activities.MainActivity")
+        hosts = {
+            data.get(android + "host") for data in main.iter("data")
+            if data.get(android + "scheme") == "otpauth"
+        }
+        self.assertEqual(set(), kinds - hosts,
+                         "otpauth links the app creates are not handled by its VIEW filter")
 
 
 if __name__ == "__main__":

@@ -348,13 +348,50 @@ open class Entry {
     fun getTags(): MutableList<String> = tags
 
     fun setTags(tags: MutableList<String>) {
-        this.tags = tags
+        // Copy: callers keep handing over their own working lists (the edit dialog passes the
+        // adapter's active tags), and a later mutation there must not silently edit the entry.
+        this.tags = ArrayList(tags)
     }
 
     fun getThumbnail(): EntryThumbnail.EntryThumbnails = thumbnail
 
     fun setThumbnail(value: EntryThumbnail.EntryThumbnails) {
         thumbnail = value
+    }
+
+    /**
+     * Applies an in-place edit and re-validates the entry, restoring the previous values when
+     * [validate] rejects the result.
+     *
+     * The edit dialog mutates an entry that is already part of the list. The individual setters
+     * deliberately do not validate (they are also used while constructing/importing), so a
+     * rejected value used to stay on the live entry after the exception: the card then showed the
+     * invalid state and every later [updateOTP]/vault write threw again. Returns true when the
+     * edit was kept, rethrowing the original failure after the rollback.
+     */
+    fun applyEdit(mutate: (Entry) -> Unit) {
+        val previousIssuer = issuer
+        val previousLabel = label
+        val previousDigits = digits
+        val previousPeriod = period
+        val previousCounter = counter
+        val previousTags = ArrayList(tags)
+        val previousThumbnail = thumbnail
+        try {
+            mutate(this)
+            validate()
+        } catch (error: RuntimeException) {
+            // Restore the numeric parameters first: setIssuer() validates, so it must not run
+            // while a rejected period/digits/counter is still in place.
+            setPeriod(previousPeriod)
+            setDigits(previousDigits)
+            setCounter(previousCounter)
+            setTags(previousTags)
+            setLabel(previousLabel)
+            setIssuer(previousIssuer, false)
+            thumbnail = previousThumbnail
+            throw error
+        }
     }
 
     fun getAlgorithm(): TokenCalculator.HashAlgorithm = algorithm

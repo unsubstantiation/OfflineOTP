@@ -85,14 +85,15 @@ internal open class LetterBitmap(context: Context) {
     }
 
     private fun pickColor(key: String): Int {
-        // Map the string hash (including negative values) into the palette.
-        val color = Math.abs(key.hashCode()) % NUM_OF_TILE_COLORS
-        return colors[color]
+        // The loaded palette defines the valid range: a hard-coded count silently drifts from
+        // R.array.letter_tile_colors, and `Math.abs` returns a negative index for
+        // Integer.MIN_VALUE whenever the palette length does not divide it. floorMod maps every
+        // hash into [0, colors.size).
+        if (colors.isEmpty()) return Color.BLACK
+        return colors[Math.floorMod(key.hashCode(), colors.size)]
     }
 
     private companion object {
-        const val NUM_OF_TILE_COLORS = 8
-
         fun startsWithAlphabeticOrDigit(string: String): Boolean =
             Character.isAlphabetic(string.codePointAt(0)) || Character.isDigit(string[0])
     }
