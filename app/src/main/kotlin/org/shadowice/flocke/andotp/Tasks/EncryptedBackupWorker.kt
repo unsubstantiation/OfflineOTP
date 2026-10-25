@@ -81,6 +81,7 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
                 NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_SUCCESS, R.string.backup_receiver_title_backup_success, result.payload)
                 return Result.success()
             }
+            if (isStopped()) return Result.failure()
             return fail(context, result.messageId)
         } catch (e: RuntimeException) {
             Log.e(TAG, "Encrypted backup failed")
@@ -90,7 +91,8 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
 
     /** Shows the failure notification. No retry: a failed backup would most likely fail again. */
     private fun fail(context: Context, messageId: Int): Result {
-        NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_FAILED, R.string.backup_receiver_title_backup_failed, messageId)
+        val resolvedMessageId = if (messageId != 0) messageId else R.string.backup_receiver_unexpected_error
+        NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_FAILED, R.string.backup_receiver_title_backup_failed, resolvedMessageId)
         return Result.failure()
     }
 }

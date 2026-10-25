@@ -12,6 +12,7 @@ import android.util.Base64
 import android.view.View
 import android.widget.Button
 import android.widget.EditText
+import android.widget.Toast
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import org.shadowice.flocke.andotp.R
@@ -30,8 +31,15 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
     /** Which kind of credential the dialog asks for. */
     enum class Mode { PASSWORD, PIN }
 
-    private val key: KeyPair? = try {
+    private fun loadOrGenerateKey(): KeyPair? = try {
         KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+
+    private fun loadExistingKey(): KeyPair? = try {
+        KeyStoreHelper.loadAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
     } catch (e: Exception) {
         e.printStackTrace()
         null
@@ -115,13 +123,18 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
 
     /** Encrypts a plaintext value immediately; plaintext is never retained in a preference field. */
     private fun encryptAndPersist(value: String) {
+        if (value.isEmpty()) {
+            if (persistString(DEFAULT_VALUE)) encryptedValue = DEFAULT_VALUE
+            return
+        }
         try {
-            val pair = requireNotNull(key)
+            val pair = requireNotNull(loadOrGenerateKey())
             val encBytes = EncryptionHelper.encrypt(pair.getPublic(), value.toByteArray(StandardCharsets.UTF_8))
             val encoded = Base64.encodeToString(encBytes, Base64.URL_SAFE)
             if (persistString(encoded)) encryptedValue = encoded
         } catch (e: Exception) {
             e.printStackTrace()
+            Toast.makeText(context, R.string.settings_toast_encryption_no_key, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -130,7 +143,7 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
         if (encValue.isNullOrEmpty()) return DEFAULT_VALUE
 
         return try {
-            val pair = requireNotNull(key)
+            val pair = loadExistingKey() ?: return DEFAULT_VALUE
             val encBytes = Base64.decode(encValue, Base64.URL_SAFE)
             String(EncryptionHelper.decrypt(pair.getPrivate(), encBytes), StandardCharsets.UTF_8)
         } catch (e: Exception) {

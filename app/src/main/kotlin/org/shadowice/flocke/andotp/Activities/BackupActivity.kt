@@ -83,12 +83,14 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var btnBackup: Button? = null
     private var btnRestore: Button? = null
     private var btnRestorePlainText: Button? = null
+    private var spBackupTypeView: Spinner? = null
     private var txtBackupLabel: TextView? = null
     private var txtBackupWarning: TextView? = null
     private var swReplace: SwitchMaterial? = null
     private var chkOldFormat: CheckBox? = null
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
+    private var activePasswordDialog: PasswordEntryDialog? = null
 
     private var reload = false
     private var allowExit = true
@@ -124,6 +126,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             encryptTargetFile = savedInstanceState.getParcelable(STATE_PGP_ENCRYPT_TARGET)
             decryptSourceFile = savedInstanceState.getParcelable(STATE_PGP_DECRYPT_SOURCE)
             reload = savedInstanceState.getBoolean(STATE_RELOAD, false)
+            savedInstanceState.getString(STATE_CURRENT_TASK)?.let { savedTask ->
+                currentTask = try {
+                    BackupTaskResult.ResultType.valueOf(savedTask)
+                } catch (_: IllegalArgumentException) {
+                    BackupTaskResult.ResultType.NONE
+                }
+            }
         } else {
             pendingResumeRequestCode = getIntent()?.getIntExtra(Constants.EXTRA_BACKUP_PENDING_ACTION, INVALID_REQUEST_CODE)
                 ?.takeIf { it != INVALID_REQUEST_CODE }
@@ -159,6 +168,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (encryptionKey != null) restoreOperation = VaultRestoreOperation(this)
 
         val spBackupType = requireNotNull(v.findViewById<Spinner>(R.id.backupType))
+        spBackupTypeView = spBackupType
         btnBackup = requireNotNull(v.findViewById<Button>(R.id.buttonBackup))
         btnRestore = requireNotNull(v.findViewById<Button>(R.id.buttonRestore))
         btnRestorePlainText = requireNotNull(v.findViewById<Button>(R.id.buttonRestorePlainText))
@@ -184,7 +194,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
         spBackupType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, selectedView: View?, i: Int, selectedId: Long) {
-                setupBackupType(Constants.BackupType.values()[i])
+                if (encryptionKey == null) return
+                val selected = Constants.BackupType.values()[i]
+                if (selected == backupType) return
+                setupBackupType(selected)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -520,6 +533,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         outState.putParcelable(STATE_PGP_ENCRYPT_TARGET, encryptTargetFile)
         outState.putParcelable(STATE_PGP_DECRYPT_SOURCE, decryptSourceFile)
         outState.putBoolean(STATE_RELOAD, reload)
+        outState.putString(STATE_CURRENT_TASK, currentTask.name)
     }
 
     /** Finishes the activity, reporting to MainActivity whether entries had to be reloaded. */
@@ -551,6 +565,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     public override fun onDestroy() {
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
         encryptionKey = null
         releaseOpenPgpService()
         super.onDestroy()
@@ -561,6 +577,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     override fun onVaultLocked() {
         encryptionKey = null
+        waitingForPassword = false
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
         cancelBackgroundTask()
         if (pendingPickerRequestCode != null) {
             // Keep only the pending request code while the external picker finishes. The URI and
@@ -642,7 +661,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     clearActiveAction()
                     return
                 }
-                val input = ByteArrayInputStream(result.payload!!.toByteArray(StandardCharsets.UTF_8))
+                val ciphertextBytes = result.rawPayload ?: result.payload!!.toByteArray(StandardCharsets.UTF_8)
+                val input = ByteArrayInputStream(ciphertextBytes)
                 val os = BoundedOutput(BoundedInputReader.MAX_DOCUMENT_BYTES)
 
                 val api = OpenPgpApi(this, service)
@@ -684,11 +704,15 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private fun toggleInProgressMode(running: Boolean) {
         allowExit = !running
 
+        spBackupTypeView?.isEnabled = !running
         btnBackup?.isEnabled = !running
         btnRestore?.isEnabled = !running
         chkOldFormat?.isEnabled = !running
         swReplace?.isEnabled = !running
         btnRestorePlainText?.isEnabled = !running
+        if (!running && backupType == Constants.BackupType.OPEN_PGP) {
+            updateOpenPgpAvailability()
+        }
     }
 
     private fun showBackupProgress(running: Boolean) {
@@ -856,15 +880,19 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
         if (password.isEmpty()) {
             waitingForPassword = true
+            activePasswordDialog?.dismiss()
             val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
                 settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
                 PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
                     waitingForPassword = false
+                    activePasswordDialog = null
                     doRestoreCryptWithPassword(uri, newPassword, oldFormat)
                 }, PasswordEntryDialog.PasswordCanceledCallback {
                     waitingForPassword = false
+                    activePasswordDialog = null
                     discardActiveBackupDocument()
                 })
+            activePasswordDialog = pwDialog
             pwDialog.show()
         } else {
             doRestoreCryptWithPassword(uri, password, oldFormat)
@@ -885,15 +913,19 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
         if (password.isEmpty()) {
             waitingForPassword = true
+            activePasswordDialog?.dismiss()
             val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.UPDATE,
                 settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
                 PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
                     waitingForPassword = false
+                    activePasswordDialog = null
                     doBackupCryptWithPassword(uri, newPassword)
                 }, PasswordEntryDialog.PasswordCanceledCallback {
                     waitingForPassword = false
+                    activePasswordDialog = null
                     discardActiveBackupDocument()
                 })
+            activePasswordDialog = pwDialog
             pwDialog.show()
         } else {
             doBackupCryptWithPassword(uri, password)
@@ -927,11 +959,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         startBackgroundTask(task, BackupTaskResult.ResultType.RESTORE)
     }
 
-    private fun doBackupEncrypted(uri: Uri?, data: String) {
+    private fun doBackupEncrypted(uri: Uri?, data: String, rawBytes: ByteArray? = null) {
         if (!canOperate()) return
         // The destination is a SAF content URI, not a raw external-storage path. Cloud providers
         // and managed profiles are valid destinations even when shared storage is not mounted.
-        val task = PGPBackupTask(this, data, uri)
+        val task = PGPBackupTask(this, data, uri).apply {
+            rawPayload = rawBytes
+        }
         startBackgroundTask(task, BackupTaskResult.ResultType.BACKUP)
     }
 
@@ -1009,13 +1043,15 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         when (result.getIntExtra(OpenPgpApi.RESULT_CODE, OpenPgpApi.RESULT_CODE_ERROR)) {
             OpenPgpApi.RESULT_CODE_SUCCESS -> {
                 if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP) {
+                    val rawEncrypted = os?.toByteArray()
                     val encryptedBackup = os?.let { outputStreamToString(it) } ?: ""
-                    if (!OpenPgpOutputPolicy.hasContent(encryptedBackup)) {
+                    if (rawEncrypted == null || rawEncrypted.isEmpty() ||
+                            !OpenPgpOutputPolicy.hasContent(encryptedBackup)) {
                         discardActiveBackupDocument()
                         notifyBackupState(R.string.backup_toast_openpgp_empty)
                         return
                     }
-                    doBackupEncrypted(file, encryptedBackup)
+                    doBackupEncrypted(file, encryptedBackup, rawEncrypted)
                 } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
                     val restoredJSON = os?.let { outputStreamToString(it) } ?: ""
                     if (!OpenPgpOutputPolicy.hasContent(restoredJSON)) {
@@ -1084,7 +1120,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         return BackupScreenOffPolicy.shouldFinish(
             allowExit = allowExit,
             pickerPending = pendingPickerRequestCode != null,
-            actionPending = activeActionRequestCode != null,
+            actionPending = activeActionRequestCode != null ||
+                waitingForPassword ||
+                encryptTargetFile != null ||
+                decryptSourceFile != null,
             resumePending = pendingResumeRequestCode != null
         )
     }
@@ -1103,6 +1142,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         private const val STATE_PGP_ENCRYPT_TARGET = "pgp_encrypt_target"
         private const val STATE_PGP_DECRYPT_SOURCE = "pgp_decrypt_source"
         private const val STATE_RELOAD = "reload"
+        private const val STATE_CURRENT_TASK = "current_task"
         private const val INVALID_REQUEST_CODE = -1
     }
 }

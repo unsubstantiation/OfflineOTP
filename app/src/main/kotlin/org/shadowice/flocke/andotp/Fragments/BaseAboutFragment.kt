@@ -36,7 +36,7 @@ open class BaseAboutFragment : Fragment() {
         val filter = Tools.getThemeColorFilter(getActivity()!!, android.R.attr.textColorSecondary)
         for (i in imageResources) {
             val imgView = requireNotNull(v.findViewById<ImageView>(i))
-            imgView.getDrawable()!!.setColorFilter(filter)
+            imgView.getDrawable()!!.mutate().setColorFilter(filter)
         }
 
         var versionName: String? = ""

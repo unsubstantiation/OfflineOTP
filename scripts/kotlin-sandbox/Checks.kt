@@ -2052,10 +2052,10 @@ fun main() {
                     { "the enter-key release must be consumed" })
             expect(entered == "abcdef" && dialog.dismissals == 1, { "the enter-key release must be a no-op" })
 
-            // Any other action without its key event still fails, like the Java dereference did.
-            expectThrows(NullPointerException::class.java) {
-                dialog.onEditorAction(enterWidgets.input, EditorInfo.IME_ACTION_NEXT, null)
-            }
+            // Non-Done IME actions carry a null KeyEvent on soft keyboards and must be ignored
+            // cleanly rather than crashing the UI thread with a NullPointerException.
+            expect(!dialog.onEditorAction(enterWidgets.input, EditorInfo.IME_ACTION_NEXT, null),
+                    { "a non-Done IME action without a KeyEvent must not be consumed or crash" })
         } finally {
             AppCompatDialog.viewProvider = null
         }
@@ -5687,6 +5687,149 @@ fun main() {
         val graphic = EntryThumbnail.getThumbnailGraphic(context, "", "label", 48,
                 EntryThumbnail.EntryThumbnails.Default)
         expect(graphic != null, { "the default thumbnail produced no bitmap" })
+
+        // Supplementary Unicode code points (2 UTF-16 code units) must be measured and drawn
+        // intact rather than truncating to an unpaired high surrogate.
+        val supplementaryCjk = "\uD840\uDC00Account"
+        val cjkTile = LetterBitmap(context).getLetterTile(supplementaryCjk, "cjk", 48, 48)
+        expect(cjkTile.lastDrawnText == "\uD840\uDC00",
+                { "supplementary CJK letter was truncated: ${cjkTile.lastDrawnText}" })
+        // Deseret small letter long I (U+10428) uppercases to U+10400 across surrogate pairs.
+        val deseretTile = LetterBitmap(context).getLetterTile("\uD801\uDC28", "deseret", 48, 48)
+        expect(deseretTile.lastDrawnText == "\uD801\uDC00",
+                { "supplementary uppercase mapping failed: ${deseretTile.lastDrawnText}" })
+    }
+
+    check("editor action helper returns false instead of throwing when IME supplies no KeyEvent") {
+        expect(EditorActionHelper.isActionDoneOrKeyboardEnter(EditorInfo.IME_ACTION_DONE, null),
+                { "IME_ACTION_DONE with null event must succeed" })
+        expect(!EditorActionHelper.isActionDoneOrKeyboardEnter(EditorInfo.IME_ACTION_NEXT, null),
+                { "IME_ACTION_NEXT with null event must return false, not throw" })
+        expect(!EditorActionHelper.isActionDoneOrKeyboardEnter(0, null),
+                { "IME_ACTION_UNSPECIFIED (0) with null event must return false, not throw" })
+        expect(!EditorActionHelper.isActionUpKeyboardEnter(null),
+                { "isActionUpKeyboardEnter(null) must return false, not throw" })
+        expect(EditorActionHelper.isActionDoneOrKeyboardEnter(0, KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_ENTER)),
+                { "hardware Enter key-down must succeed" })
+        expect(EditorActionHelper.isActionUpKeyboardEnter(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_NUMPAD_ENTER)),
+                { "hardware Numpad Enter key-up must succeed" })
+    }
+
+    check("notifications populate both collapsed contentText and expanded bigText") {
+        val context = ComponentContext()
+        NotificationHelper.notify(context, Constants.NotificationChannel.BACKUP_FAILED,
+                R.string.backup_receiver_title_backup_failed, "detailed failure body")
+        val posted = context.notifications.posted.single().second
+        expect(posted.contentText?.toString() == "detailed failure body",
+                { "collapsed notification lost its body text: ${posted.contentText}" })
+        expect(posted.bigText?.toString() == "detailed failure body",
+                { "expanded notification lost its body text: ${posted.bigText}" })
+    }
+
+    check("cancelling the tag picker rolls back in-place tag edits while OK commits them") {
+        val context = Context()
+        val tagsAdapter = TagsAdapter(context, hashMapOf("Personal" to true, "Work" to false))
+
+        AlertDialog.Builder.created.clear()
+        TagsDialog.show(context, tagsAdapter, null, null)
+        val cancelSelector = AlertDialog.Builder.created[0]
+        val cancelList = (cancelSelector.contentView as FrameLayout).getChildAt(0) as android.widget.ListView
+        val personalRow = android.widget.CheckedTextView().apply {
+            setText("Personal")
+            isChecked = true
+        }
+        cancelList.onItemClickListener!!.onItemClick(cancelList, personalRow, 0, 0L)
+        expect(tagsAdapter.getTagState("Personal") == false, { "row toggle did not stage false" })
+
+        cancelSelector.negativeButtonListener!!.onClick(cancelSelector, DialogInterface.BUTTON_NEGATIVE)
+        expect(tagsAdapter.getTagState("Personal") == true && tagsAdapter.getTagState("Work") == false,
+                { "Cancel left mutated tag states behind: ${tagsAdapter.getTagsWithState()}" })
+
+        // Back/outside cancellation also rolls back uncommitted tag changes.
+        AlertDialog.Builder.created.clear()
+        TagsDialog.show(context, tagsAdapter, null, null)
+        val dismissedSelector = AlertDialog.Builder.created[0]
+        val dismissedList = (dismissedSelector.contentView as FrameLayout).getChildAt(0) as android.widget.ListView
+        val workRow = android.widget.CheckedTextView().apply {
+            setText("Work")
+            isChecked = false
+        }
+        dismissedList.onItemClickListener!!.onItemClick(dismissedList, workRow, 1, 0L)
+        expect(tagsAdapter.getTagState("Work") == true, { "row toggle did not stage true" })
+        dismissedSelector.onCancelListener!!.onCancel(dismissedSelector)
+        expect(tagsAdapter.getTagState("Personal") == true && tagsAdapter.getTagState("Work") == false,
+                { "system cancel left mutated tag states behind: ${tagsAdapter.getTagsWithState()}" })
+    }
+
+    check("binary OpenPGP backup and restore tasks preserve non-UTF8 packet bytes") {
+        val directory = java.nio.file.Files.createTempDirectory("andotp-pgp-binary").toFile()
+        try {
+            val resolver = FakeResolver()
+            val context = FakeStorageContext(resolver, File(directory, "cache"))
+            val target = File(directory, "vault.pgp")
+            val uri = contentUri("document", "vault.pgp")
+            // Valid binary OpenPGP packet header bytes (0x85, 0x99, 0xFF, 0xFE) are invalid UTF-8
+            // sequences that String(bytes, UTF_8) replaces with U+FFFD (EF BF BD).
+            val binaryPgpPacket = byteArrayOf(
+                0x85.toByte(), 0x01, 0x0C, 0x03, 0x99.toByte(), 0xFF.toByte(), 0xFE.toByte(), 0x00, 0x42
+            )
+
+            resolver.target = target
+            val attempt = VaultSession.beginUnlock()
+            expect(VaultSession.activate(SecretKeySpec(ByteArray(32) { 7 }, "AES"), attempt.generation)
+                    is SessionCommandResult.Applied, { "failed to activate test vault session" })
+            val writeResult = withPoisonedTransaction {
+                val writeTask = object : PGPBackupTask(context, "", uri) {
+                    fun runNow(): BackupTaskResult = doInBackground()
+                }.apply {
+                    rawPayload = binaryPgpPacket
+                }
+                writeTask.runNow()
+            }
+            expect(writeResult.success, { "binary PGPBackupTask failed" })
+            expect(target.readBytes().contentEquals(binaryPgpPacket),
+                    { "PGPBackupTask corrupted binary OpenPGP bytes" })
+
+            resolver.input = ByteArrayInputStream(binaryPgpPacket)
+            val readResult = withPoisonedTransaction {
+                val readTask = object : PGPRestoreTask(context, uri, Intent("decrypt")) {
+                    fun runNow(): BackupTaskResult = doInBackground()
+                }
+                readTask.runNow()
+            }
+            expect(readResult.success && readResult.isPGP, { "binary PGPRestoreTask failed" })
+            expect(readResult.rawPayload != null && readResult.rawPayload!!.contentEquals(binaryPgpPacket),
+                    { "PGPRestoreTask did not preserve raw binary OpenPGP bytes" })
+        } finally {
+            VaultSession.lock()
+            directory.deleteRecursively()
+        }
+    }
+
+    check("cancelling a pending single tap prevents recycled card rows from firing stale clicks") {
+        val view = FakeView()
+        val listener = RecordingListener()
+        listener.onClick(view)
+        expect(view.posted.size == 1 && listener.singles == 0, { "single tap should be pending" })
+        listener.cancelPending()
+        view.posted.forEach { it.run() }
+        expect(listener.singles == 0 && listener.doubles == 0,
+                { "cancelled pending single tap still fired: singles=${listener.singles}" })
+    }
+
+    check("intro slide fragments expose public no-arg constructors for Android recreation") {
+        for (fragmentType in listOf(
+            IntroScreenActivity.EncryptionFragment::class.java,
+            IntroScreenActivity.AuthenticationFragment::class.java,
+            IntroScreenActivity.AndroidSyncFragment::class.java,
+            IntroScreenActivity.IntroFinishedFragment::class.java
+        )) {
+            val noArg = fragmentType.getConstructor()
+            expect(Modifier.isPublic(noArg.modifiers),
+                    { "${fragmentType.simpleName} no-arg constructor must be public" })
+            val instance = noArg.newInstance()
+            expect(instance != null, { "failed to instantiate ${fragmentType.simpleName}()" })
+        }
     }
 
     if (failures == 0) {

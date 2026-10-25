@@ -71,6 +71,7 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
                     android:inputType="textPassword"
+                    android:imeOptions="actionNext"
                     android:saveEnabled="false"
                     android:autofillHints="password" />
 
@@ -82,6 +83,7 @@
                 android:layout_height="wrap_content"
                 android:hint="@string/settings_hint_password_confirm"
                 android:inputType="textPassword"
+                android:imeOptions="actionDone"
                 android:saveEnabled="false"
                 android:autofillHints="password" />
 

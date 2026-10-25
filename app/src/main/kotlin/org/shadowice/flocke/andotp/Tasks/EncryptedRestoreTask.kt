@@ -17,32 +17,49 @@ open class EncryptedRestoreTask(context: Context, uri: Uri?, private val passwor
         GenericRestoreTask(context, uri) {
 
     protected override fun doInBackground(): BackupTaskResult {
+        if (isCanceled()) {
+            return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
+        }
         var success = true
         var decryptedString = ""
 
         try {
             val data = StorageAccessHelper.loadFile(applicationContext, uri)
+            if (isCanceled()) {
+                return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
+            }
 
             decryptedString = if (oldFormat) {
                 // Legacy format: AES-GCM data only, key derived as SHA-256 of the password
                 val key: SecretKey = EncryptionHelper.generateSymmetricKeyFromPassword(password)
                 val decrypted = EncryptionHelper.decrypt(key, data)
-                String(decrypted, StandardCharsets.UTF_8)
+                try {
+                    String(decrypted, StandardCharsets.UTF_8)
+                } finally {
+                    decrypted.fill(0)
+                }
             } else {
                 // Current format: [iteration count][salt][nonce + ciphertext]
                 val header = EncryptedBackupHeader.parse(data)
                 val key: SecretKey = EncryptionHelper.generateSymmetricKeyPBKDF2(
                         password, header.getIterations(), header.getSalt())
+                if (isCanceled()) {
+                    return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
+                }
 
                 val decrypted = EncryptionHelper.decrypt(key, header.getEncrypted())
-                String(decrypted, StandardCharsets.UTF_8)
+                try {
+                    String(decrypted, StandardCharsets.UTF_8)
+                } finally {
+                    decrypted.fill(0)
+                }
             }
         } catch (error: Exception) {
             success = false
             error.printStackTrace()
         }
 
-        if (success) {
+        if (success && !isCanceled()) {
             return BackupTaskResult.success(BackupTaskResult.ResultType.RESTORE, decryptedString)
         } else {
             return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)

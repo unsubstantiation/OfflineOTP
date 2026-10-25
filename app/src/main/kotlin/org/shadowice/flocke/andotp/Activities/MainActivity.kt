@@ -114,9 +114,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             .initiateScan()
     }
 
+    private var introPending = false
     private var introGeneration: Long = 0
 
     private fun showFirstTimeWarning() {
+        if (introPending) return
+        introPending = true
         introGeneration = VaultSession.generation()
         val introIntent = Intent(this, IntroScreenActivity::class.java)
         startActivityForResult(introIntent, Constants.INTENT_MAIN_INTRO)
@@ -165,6 +168,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     override fun onVaultLocked() {
         authenticationPending = false
+        introPending = false
         requireAuthentication = true
         adapter?.lockEntries()
         screenTimers?.pause()
@@ -276,6 +280,18 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 .takeIf { it != INVALID_BACKUP_ACTION }
             pendingBackupUri = savedInstanceState.getParcelable(STATE_PENDING_BACKUP_URI)
             pendingBackupReplace = savedInstanceState.getBoolean(STATE_PENDING_BACKUP_REPLACE, false)
+            val savedAuthPending = savedInstanceState.getBoolean(STATE_AUTH_PENDING, false)
+            val savedAuthGen = savedInstanceState.getLong(STATE_AUTH_GENERATION, -1L)
+            if (savedAuthPending && savedAuthGen >= 0L && VaultSession.isCurrent(savedAuthGen)) {
+                authenticationPending = true
+                authenticationGeneration = savedAuthGen
+            }
+            val savedIntroPending = savedInstanceState.getBoolean(STATE_INTRO_PENDING, false)
+            val savedIntroGen = savedInstanceState.getLong(STATE_INTRO_GENERATION, -1L)
+            if (savedIntroPending && savedIntroGen >= 0L && VaultSession.isCurrent(savedIntroGen)) {
+                introPending = true
+                introGeneration = savedIntroGen
+            }
         }
 
         setTitle(R.string.app_name)
@@ -294,7 +310,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         encryptionType = settings!!.getEncryption()
 
         // Reuse the in-process session across Activity recreation; never serialize keys in saved state.
-        requireAuthentication = VaultSession.getKey() == null &&
+        requireAuthentication = !authenticationPending && !introPending && VaultSession.getKey() == null &&
                 (settings!!.getAuthMethod() != AuthMethod.NONE || encryptionType == EncryptionType.PASSWORD)
 
         setBroadcastCallback {
@@ -303,10 +319,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         ProcessLifecycleOwner.get().lifecycle.addObserver(processObserver)
 
-        if (!settings!!.getFirstTimeWarningShown())
-            showFirstTimeWarning()
-        else if (!requireAuthentication)
+        if (!settings!!.getFirstTimeWarningShown()) {
+            if (!introPending) showFirstTimeWarning()
+        } else if (!requireAuthentication && !authenticationPending && !introPending) {
             afterAuthentication()
+        }
 
         val dial = requireNotNull(findViewById<SpeedDialView>(R.id.speedDial))
         speedDial = dial
@@ -518,7 +535,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     public override fun onResume() {
         super.onResume()
 
-        if (isFinishing() || authenticationPending) return
+        if (isFinishing() || authenticationPending || introPending) return
         if (!settings!!.getFirstTimeWarningShown()) return
         if (requireAuthentication) {
             if (settings!!.getAuthMethod() != AuthMethod.NONE ||
@@ -585,6 +602,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         outState.putInt(STATE_PENDING_BACKUP_ACTION, pendingBackupActionCode ?: INVALID_BACKUP_ACTION)
         outState.putParcelable(STATE_PENDING_BACKUP_URI, pendingBackupUri)
         outState.putBoolean(STATE_PENDING_BACKUP_REPLACE, pendingBackupReplace)
+        outState.putBoolean(STATE_AUTH_PENDING, authenticationPending)
+        outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
+        outState.putBoolean(STATE_INTRO_PENDING, introPending)
+        outState.putLong(STATE_INTRO_GENERATION, introGeneration)
     }
 
     override fun onSharedPreferenceChanged(prefs: SharedPreferences?, key: String?) {
@@ -684,6 +705,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 addQRCode(ScanQRCodeFromFile.scanQRImage(this, intent.data))
             }
         } else if (requestCode == Constants.INTENT_MAIN_INTRO) {
+            introPending = false
             var setupFinished = false
 
             if (resultCode == RESULT_OK && intent != null)
@@ -963,6 +985,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 settings!!.setTagToggle(tag, checkedTextView.isChecked)
             }
 
+            if (checkedTextView.isChecked &&
+                    settings!!.getTagFunctionality() == Constants.TagFunctionality.SINGLE &&
+                    !noTagsButton.isChecked) {
+                noTagsButton.isChecked = true
+                settings!!.setNoTagsToggle(true)
+            }
+
             if (checkedTextView.isChecked) {
                 adapter?.filterByTags(drawerAdapter.getActiveTags())
             } else {
@@ -1022,7 +1051,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 settings!!.setAllTagsToggle(false)
             }
 
-            if (drawerAdapter.allTagsActive()) {
+            if (settings!!.getTagFunctionality() != Constants.TagFunctionality.SINGLE &&
+                    drawerAdapter.allTagsActive()) {
                 allTagsButton.isChecked = true
                 settings!!.setAllTagsToggle(true)
             }
@@ -1043,9 +1073,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         for (tag in drawerAdapter.getActiveTags()) {
             tagsHashMap[tag] = true
         }
+        val activateNewTags = settings!!.getAllTagsToggle() ||
+            settings!!.getTagFunctionality() != Constants.TagFunctionality.SINGLE
         for (tag in adapter?.getTags() ?: ArrayList()) {
             if (!tagsHashMap.containsKey(tag))
-                tagsHashMap[tag] = true
+                tagsHashMap[tag] = activateNewTags
         }
         drawerAdapter.setTags(tagsHashMap)
         // Recompute the counts: a restored/imported entry set changes them, and a tag that is new
@@ -1180,6 +1212,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         private const val STATE_PENDING_BACKUP_ACTION = "pending_backup_action"
         private const val STATE_PENDING_BACKUP_URI = "pending_backup_uri"
         private const val STATE_PENDING_BACKUP_REPLACE = "pending_backup_replace"
+        private const val STATE_AUTH_PENDING = "main_auth_pending"
+        private const val STATE_AUTH_GENERATION = "main_auth_generation"
+        private const val STATE_INTRO_PENDING = "main_intro_pending"
+        private const val STATE_INTRO_GENERATION = "main_intro_generation"
         private const val INVALID_BACKUP_ACTION = -1
         private const val INTENT_SCAN_QR = "org.shadowice.flocke.andotp.intent.SCAN_QR"
         private const val INTENT_IMPORT_QR = "org.shadowice.flocke.andotp.intent.IMPORT_QR"

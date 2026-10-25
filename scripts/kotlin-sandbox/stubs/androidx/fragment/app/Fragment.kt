@@ -18,8 +18,12 @@ open class Fragment {
     /** The attached host; the platform sets it on attach and clears it on detach. */
     var host: FragmentActivity? = null
 
+    open fun onCreate(savedInstanceState: Bundle?) {}
+
     open fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                           savedInstanceState: Bundle?): View? = null
+
+    open fun onSaveInstanceState(outState: Bundle) {}
 
     /** The platform getter is final and nullable; here it reports the attached host. */
     fun getActivity(): FragmentActivity? = host
@@ -61,7 +65,11 @@ open class FragmentActivity : android.app.Activity() {
 }
 
 /** Fragment transactions are not modelled; the pager adapter only needs the type. */
-open class FragmentManager
+open class FragmentManager {
+    val restoredFragments: MutableList<Fragment> = ArrayList()
+
+    open fun getFragments(): List<Fragment> = restoredFragments
+}
 
 /**
  * Stand-in for the pager adapter that hands out fragments per page. It records nothing itself;

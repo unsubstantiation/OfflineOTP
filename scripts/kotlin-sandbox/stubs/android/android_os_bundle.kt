@@ -31,6 +31,12 @@ open class Bundle {
 
     fun getInt(key: String, defaultValue: Int): Int = values[key] as? Int ?: defaultValue
 
+    fun putLong(key: String, value: Long) {
+        values[key] = value
+    }
+
+    fun getLong(key: String, defaultValue: Long): Long = values[key] as? Long ?: defaultValue
+
     fun putParcelable(key: String, value: Parcelable?) {
         values[key] = value
     }

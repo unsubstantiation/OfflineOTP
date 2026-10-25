@@ -4,10 +4,14 @@ package android.graphics
 abstract class ColorFilter
 
 
-class Canvas(bitmap: Bitmap? = null) {
-    fun setBitmap(bitmap: Bitmap?) {}
+class Canvas(private var targetBitmap: Bitmap? = null) {
+    fun setBitmap(bitmap: Bitmap?) {
+        targetBitmap = bitmap
+    }
     fun drawColor(color: Int) {}
-    fun drawText(text: CharArray, index: Int, count: Int, x: Float, y: Float, paint: Paint) {}
+    fun drawText(text: CharArray, index: Int, count: Int, x: Float, y: Float, paint: Paint) {
+        targetBitmap?.lastDrawnText = String(text, index, count)
+    }
 }
 
 class PorterDuffColorFilter(color: Int, mode: PorterDuff.Mode) : ColorFilter()
@@ -25,6 +29,7 @@ class Bitmap(private val width: Int = 1, private val height: Int = 1, private va
     enum class CompressFormat { JPEG, PNG, WEBP }
 
     private var recycled = false
+    var lastDrawnText: String? = null
 
     fun getWidth(): Int = width
     fun getHeight(): Int = height

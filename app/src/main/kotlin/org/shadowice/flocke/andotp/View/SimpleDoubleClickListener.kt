@@ -39,6 +39,11 @@ abstract class SimpleDoubleClickListener : View.OnClickListener {
         taps.onClick(v)
     }
 
+    /** Cancels any pending delayed single-tap delivery (e.g. when a RecyclerView row is recycled or rebound). */
+    fun cancelPending() {
+        taps.cancelPending()
+    }
+
     abstract fun onSingleClick(v: View)
     abstract fun onDoubleClick(v: View)
 }

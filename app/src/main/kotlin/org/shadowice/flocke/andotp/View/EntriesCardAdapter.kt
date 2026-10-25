@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.View
 
 import android.app.AlertDialog
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -62,6 +63,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private val settings: Settings = Settings(context)
     private val dialogs: EntryActionDialogs = EntryActionDialogs(context, settings)
     private var callback: Callback? = null
+    private var activeQrDialog: AlertDialog? = null
+    private var activePopupMenu: PopupMenu? = null
 
     /** The key the entries are encrypted with; null while the vault is locked. */
     var encryptionKey: SecretKey? = null
@@ -113,6 +116,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     /** Maps a position in the displayed list to the position in the persisted list. */
     private fun getRealIndex(displayPosition: Int): Int = presentation.sourceIndex(displayPosition)
 
+    private fun validDisplayedPosition(pos: Int): Boolean = pos >= 0 && pos < presentation.size()
+
     /** Re-sorts and re-filters the displayed list and notifies the view. */
     private fun entriesChanged(itemPos: Int) {
         clearFilter()
@@ -121,7 +126,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
         if (itemPos == RecyclerView.NO_POSITION)
             notifyDataSetChanged()
-        else
+        else if (validDisplayedPosition(itemPos))
             notifyItemChanged(itemPos)
     }
 
@@ -162,14 +167,24 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         if (result.success) {
             Toast.makeText(context, R.string.backup_toast_export_success, Toast.LENGTH_LONG).show()
         } else {
-            Toast.makeText(context, result.messageId, Toast.LENGTH_LONG).show()
+            val messageId = if (result.messageId != 0) result.messageId else R.string.backup_toast_export_failed
+            Toast.makeText(context, messageId, Toast.LENGTH_LONG).show()
         }
+    }
+
+    private fun dismissTransientUi() {
+        dialogs.dismissAll()
+        ManualEntryDialog.dismissActive()
+        activeQrDialog?.dismiss()
+        activeQrDialog = null
+        activePopupMenu?.dismiss()
+        activePopupMenu = null
     }
 
     /** Clears secrets held by adapters/views and invalidates outstanding filters/timers. */
     fun lockEntries() {
         encryptionKey = null
-        dialogs.dismissAll()
+        dismissTransientUi()
         taskHandler.removeCallbacksAndMessages(null)
         for (entry in entries.getEntries()) entry.destroy()
         entries.updateEntries(ArrayList(), false)
@@ -189,7 +204,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 lockEntries()
                 return false
             }
-            dialogs.dismissAll()
+            dismissTransientUi()
             taskHandler.removeCallbacksAndMessages(null)
             for (entry in entries.getEntries()) entry.destroy()
             entries.updateEntries(ArrayList(), false)
@@ -233,13 +248,18 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     override fun onBindViewHolder(entryViewHolder: EntryViewHolder, i: Int) {
+        entryViewHolder.cancelPendingClicks()
         val entry = presentation.get(i)
 
-        if (!entry.isTimeBased())
+        if (!entry.isTimeBased() || entry.getCurrentOTP() == null)
             entry.updateOTP(false)
 
-        if (settings.isHighlightTokenOptionEnabled())
+        if (settings.isHighlightTokenOptionEnabled()) {
+            if (!settings.getTapToReveal() || entry.isVisible()) {
+                entry.hasColorChanged()
+            }
             entryViewHolder.updateColor(entry.getColor())
+        }
 
         entryViewHolder.updateValues(entry, settings)
 
@@ -248,6 +268,11 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
         if (settings.getThumbnailVisible())
             entryViewHolder.setThumbnailSize(settings.getThumbnailSize())
+    }
+
+    override fun onViewRecycled(holder: EntryViewHolder) {
+        super.onViewRecycled(holder)
+        holder.cancelPendingClicks()
     }
 
     override fun onCreateViewHolder(viewGroup: ViewGroup, i: Int): EntryViewHolder {
@@ -278,26 +303,32 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             }
 
             override fun onCopyButtonClicked(text: String, position: Int) {
-                copyHandler(position, text, settings.isMinimizeAppOnCopyEnabled())
+                if (!establishPinIfNeeded(position)) {
+                    copyHandler(position, text, settings.isMinimizeAppOnCopyEnabled())
+                }
             }
 
             override fun onCardSingleClicked(position: Int, text: String) {
                 when (settings.getTapSingle()) {
                     Constants.TapMode.REVEAL -> {
-                        establishPinIfNeeded(position)
-                        cardTapToRevealHandler(position)
+                        if (!establishPinIfNeeded(position)) {
+                            cardTapToRevealHandler(position)
+                        }
                     }
                     Constants.TapMode.COPY -> {
-                        establishPinIfNeeded(position)
-                        copyHandler(position, text, false)
+                        if (!establishPinIfNeeded(position)) {
+                            copyHandler(position, text, false)
+                        }
                     }
                     Constants.TapMode.COPY_BACKGROUND -> {
-                        establishPinIfNeeded(position)
-                        copyHandler(position, text, true)
+                        if (!establishPinIfNeeded(position)) {
+                            copyHandler(position, text, true)
+                        }
                     }
                     Constants.TapMode.SEND_KEYSTROKES -> {
-                        establishPinIfNeeded(position)
-                        sendKeystrokes(position)
+                        if (!establishPinIfNeeded(position)) {
+                            sendKeystrokes(position)
+                        }
                     }
                     else -> {
                         // If tap-to-reveal is disabled a single tap still needs to establish the PIN
@@ -310,27 +341,34 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             override fun onCardDoubleClicked(position: Int, text: String) {
                 when (settings.getTapDouble()) {
                     Constants.TapMode.REVEAL -> {
-                        establishPinIfNeeded(position)
-                        cardTapToRevealHandler(position)
+                        if (!establishPinIfNeeded(position)) {
+                            cardTapToRevealHandler(position)
+                        }
                     }
                     Constants.TapMode.COPY -> {
-                        establishPinIfNeeded(position)
-                        copyHandler(position, text, false)
+                        if (!establishPinIfNeeded(position)) {
+                            copyHandler(position, text, false)
+                        }
                     }
                     Constants.TapMode.COPY_BACKGROUND -> {
-                        establishPinIfNeeded(position)
-                        copyHandler(position, text, true)
+                        if (!establishPinIfNeeded(position)) {
+                            copyHandler(position, text, true)
+                        }
                     }
                     Constants.TapMode.SEND_KEYSTROKES -> {
-                        establishPinIfNeeded(position)
-                        sendKeystrokes(position)
+                        if (!establishPinIfNeeded(position)) {
+                            sendKeystrokes(position)
+                        }
                     }
                     else -> Unit
                 }
             }
 
             override fun onCounterClicked(position: Int) {
-                updateEntry(presentation.get(position), entries.getEntry(getRealIndex(position)), position)
+                if (!validDisplayedPosition(position)) return
+                val realIndex = getRealIndex(position)
+                if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
+                updateEntry(presentation.get(position), entries.getEntry(realIndex), position)
             }
 
             override fun onCounterLongPressed(position: Int) {
@@ -341,22 +379,34 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         return viewHolder
     }
 
-    private fun establishPinIfNeeded(position: Int) {
+    /**
+     * Prompts for the mOTP PIN when missing. Returns true when [position] is invalid or a PIN
+     * prompt had to be opened instead of executing the immediate card action.
+     */
+    private fun establishPinIfNeeded(position: Int): Boolean {
+        if (!validDisplayedPosition(position)) return true
         val entry = presentation.get(position)
 
-        if (entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty())
+        if (entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty()) {
             establishPIN(position)
+            return true
+        }
+        return false
     }
 
     private fun copyHandler(position: Int, text: String, dropToBackground: Boolean) {
-        Tools.copyToClipboard(context, text)
+        if (!validDisplayedPosition(position)) return
+        val otp = text.ifEmpty { presentation.get(position).getCurrentOTP() ?: "" }
+        if (otp.isEmpty()) return
+        Tools.copyToClipboard(context, otp)
         updateLastUsedAndFrequency(position, getRealIndex(position))
         if (dropToBackground) {
-            (context as MainActivity).moveTaskToBack(true)
+            (context as? MainActivity)?.moveTaskToBack(true)
         }
     }
 
     private fun cardTapToRevealHandler(position: Int) {
+        if (!validDisplayedPosition(position)) return
         val entry = presentation.get(position)
         val realIndex = entries.indexOf(entry)
         if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
@@ -365,6 +415,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         if (entry.isVisible()) {
             hideEntry(entry)
         } else {
+            realEntry.getHideTask()?.let { taskHandler.removeCallbacks(it) }
             realEntry.setHideTask(Runnable { hideEntry(entry) })
             taskHandler.postDelayed(
                 realEntry.getHideTask()!!,
@@ -406,11 +457,12 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
         val updateNeeded = updateLastUsedAndFrequency(pos, realIndex)
 
-        if (pos >= 0) {
-            presentation.get(pos).setVisible(false)
+        val currentPos = presentation.indexOf(entry)
+        if (currentPos >= 0) {
+            presentation.get(currentPos).setVisible(false)
 
             if (updateNeeded)
-                notifyItemChanged(pos)
+                notifyItemChanged(currentPos)
         }
     }
 
@@ -549,17 +601,23 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * such as KDE Connect can pick up (e.g. to type it on a connected device).
      */
     private fun sendKeystrokes(pos: Int) {
+        if (!validDisplayedPosition(pos)) return
         val otp = presentation.get(pos).getCurrentOTP()
+        if (otp.isNullOrEmpty()) return
         val sendIntent = Intent(Intent.ACTION_SEND)
         sendIntent.setType("text/x-keystrokes")
         sendIntent.putExtra(Intent.EXTRA_TEXT, otp)
         if (sendIntent.resolveActivity(this.context.getPackageManager()) != null) {
-            this.context.startActivity(sendIntent)
+            try {
+                this.context.startActivity(sendIntent)
+            } catch (_: ActivityNotFoundException) {
+            }
         }
     }
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
+        if (!validDisplayedPosition(pos)) return
         val uri: Uri? = presentation.get(pos).toUri()
         if (uri != null) {
             val bitmap: Bitmap
@@ -577,12 +635,18 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             image.setScaleType(ImageView.ScaleType.FIT_CENTER)
             image.setImageDrawable(drawable)
 
-            AlertDialog.Builder(context)
+            activeQrDialog?.dismiss()
+            val dialog = AlertDialog.Builder(context)
                 .setTitle(R.string.dialog_title_qr_code)
                 .setPositiveButton(android.R.string.ok, { _, _ -> })
                 .setView(image)
                 .create()
-                .show()
+            activeQrDialog = dialog
+            dialog.setOnDismissListener {
+                if (activeQrDialog === dialog) activeQrDialog = null
+                image.setImageDrawable(null)
+            }
+            dialog.show()
         } else {
             Toast.makeText(context, R.string.toast_qr_unsupported, Toast.LENGTH_LONG).show()
         }
@@ -590,45 +654,64 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the per-entry context menu. */
     private fun showPopupMenu(view: View, pos: Int) {
+        if (!validDisplayedPosition(pos)) return
+        val popupEntry = presentation.get(pos)
+        val popupGeneration = VaultSession.generation()
+        val popupTarget = EntryActionTarget(popupEntry, popupGeneration)
         val menuItemView = requireNotNull(view.findViewById<View>(R.id.menuButton))
         val popup = PopupMenu(view.context, menuItemView)
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
-        if (presentation.get(pos).getType() == Entry.OTPType.MOTP) {
+        if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
         }
 
         popup.setOnMenuItemClickListener(PopupMenu.OnMenuItemClickListener { item ->
+            if (!VaultSession.isCurrent(popupGeneration) ||
+                    encryptionKey == null ||
+                    VaultSession.getKey() !== encryptionKey) {
+                return@OnMenuItemClickListener false
+            }
             val id = item.getItemId()
 
             if (id == R.id.menu_popup_edit) {
-                ManualEntryDialog.show(context as MainActivity, settings, this,
-                    entries.getEntry(getRealIndex(pos)),
-                    ManualEntryDialog.UpdateCallback {
-                        saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(), pos)
-                    })
+                withTarget(popupTarget, Consumer { actual ->
+                    val hostActivity = context as? MainActivity ?: return@Consumer
+                    ManualEntryDialog.show(hostActivity, settings, this, actual,
+                        ManualEntryDialog.UpdateCallback {
+                            withTarget(popupTarget, Consumer { edited ->
+                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(),
+                                    presentation.indexOf(edited))
+                            })
+                        })
+                })
                 true
             } else if (id == R.id.menu_popup_changeImage) {
-                changeThumbnail(pos)
+                changeThumbnail(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_popup_establishPin) {
                 establishPIN(pos)
                 true
             } else if (id == R.id.menu_popup_remove) {
-                removeItem(pos)
+                removeItem(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_popup_show_qr_code) {
-                showQRCode(pos)
+                showQRCode(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_send_keystrokes) {
-                sendKeystrokes(pos)
+                val currentPos = presentation.indexOf(popupEntry)
+                if (!establishPinIfNeeded(currentPos)) {
+                    sendKeystrokes(currentPos)
+                }
                 true
             } else {
                 false
             }
         })
+        activePopupMenu?.dismiss()
+        activePopupMenu = popup
         popup.show()
     }
 

@@ -39,4 +39,11 @@ open class PopupMenu(context: Context, anchor: View) {
     fun show() {
         shows++
     }
+
+    var dismissals = 0
+        private set
+
+    fun dismiss() {
+        dismissals++
+    }
 }
