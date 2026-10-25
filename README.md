@@ -64,7 +64,7 @@ uploads the resolved-dependency inventory for provenance review.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
-- [Latest bug-hunt follow-up](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
+- [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
 
 ## Contributing
 

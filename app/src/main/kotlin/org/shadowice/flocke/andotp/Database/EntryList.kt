@@ -105,7 +105,9 @@ class EntryList {
     @Synchronized fun getTagCounts(): HashMap<String, Int> {
         val counts = HashMap<String, Int>()
         for (entry in entries) {
-            for (tag in entry.getTags()) {
+            // Count each entry once per tag: imported URIs/documents may repeat a tag, and the
+            // drawer shows how many entries carry the tag, not how often it was written.
+            for (tag in HashSet(entry.getTags())) {
                 counts[tag] = (counts[tag] ?: 0) + 1
             }
         }

@@ -99,6 +99,20 @@ class EntryListTest {
     }
 
     @Test
+    fun tagCountsCountEveryEntryOnceEvenWhenATagRepeats() {
+        val list = EntryList()
+        // A repeated tag is accepted by the URI parser and by imported documents, so a single
+        // entry must still count as one entry per tag in the drawer.
+        list.addEntry(entry("github", "GitHub", listOf("work", "work")))
+        list.addEntry(entry("aws", "Amazon", listOf("work", "cloud")))
+
+        val counts = list.getTagCounts()
+        assertEquals(2, counts["work"])
+        assertEquals(1, counts["cloud"])
+        assertEquals(2, counts.size)
+    }
+
+    @Test
     fun searchMatchesSelectedFieldsCaseInsensitively() {
         val list = populatedList()
 

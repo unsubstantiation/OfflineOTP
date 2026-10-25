@@ -254,6 +254,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             return
         }
         tagsDrawerAdapter?.setTags(TagsAdapter.createTagsMap(currentAdapter.getEntries(), settings!!))
+        // The drawer rows carry their entry counts (#994); setTags() only replaces the rows, so the
+        // counts have to be pushed here as well or they stay empty until the first entry mutation.
+        tagsDrawerAdapter?.setTagCounts(currentAdapter.getTagCounts())
         currentAdapter.filterByTags(tagsDrawerAdapter?.getActiveTags() ?: ArrayList())
     }
 
@@ -1045,6 +1048,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 tagsHashMap[tag] = true
         }
         drawerAdapter.setTags(tagsHashMap)
+        // Recompute the counts: a restored/imported entry set changes them, and a tag that is new
+        // to the drawer has no count yet (#994).
+        adapter?.let { drawerAdapter.setTagCounts(it.getTagCounts()) }
         adapter?.filterByTags(drawerAdapter.getActiveTags())
     }
 
