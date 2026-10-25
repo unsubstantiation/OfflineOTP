@@ -15,6 +15,7 @@
  * UI: Rewrite the in-app English text for accuracy and concision, point the About links at this repository, display the required license attribution, and drop unused or stale strings
  * Docs: Refresh the READMEs and issue templates, and correct stale test-suite and environment references in the design records
  * Internal: Add the `android-ci.yml` quality gate (source checks, host tests, build/lint/manifest policy, fdroid/play × API 28/36 emulator matrix, reproducibility) and the manual `dependency-baseline.yml` inventory workflow
+ * Internal: Add the `release-fdroid-debug.yml` workflow that publishes the fdroid debug APK and its SHA-256 checksums as a GitHub Release for pushed `v*` tags
 
 #### v0.9.0.1
 
