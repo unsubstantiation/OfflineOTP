@@ -1145,18 +1145,59 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    /** Adds the entry encoded in the given otpauth URI. */
+    /** Adds the entry encoded in the given otpauth URI, warning before reusing an issuer. */
     private fun addQRCode(result: String?) {
-        if (!TextUtils.isEmpty(result)) {
-            try {
-                val e = Entry(result!!)
-                e.updateOTP(false)
-                e.setLastUsed(System.currentTimeMillis())
-                adapter!!.addEntry(e)
-                refreshTags()
-            } catch (e: Exception) {
-                Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
+        if (TextUtils.isEmpty(result)) return
+        var parsedEntry: Entry? = null
+        try {
+            val entry = Entry(result)
+            parsedEntry = entry
+            val currentAdapter = adapter ?: throw IllegalStateException("Entry list is unavailable")
+            val issuer = entry.getIssuer().trim()
+            if (currentAdapter.hasIssuer(issuer)) {
+                showDuplicateIssuerConfirmation(entry, issuer)
+                parsedEntry = null // The confirmation dialog now owns and wipes the entry.
+            } else {
+                saveImportedQrEntry(entry)
+                parsedEntry = null // addEntry takes ownership, including on rejected writes.
             }
+        } catch (_: Exception) {
+            parsedEntry?.destroy()
+            Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun showDuplicateIssuerConfirmation(entry: Entry, issuer: String) {
+        var accepted = false
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.dialog_title_duplicate_issuer)
+            .setMessage(getString(R.string.dialog_msg_duplicate_issuer, issuer))
+            .setPositiveButton(R.string.button_add_anyway) { _, _ ->
+                accepted = true
+                saveImportedQrEntry(entry)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        dialog.setOnDismissListener {
+            if (!accepted) entry.destroy()
+        }
+        dialog.show()
+    }
+
+    /** Takes ownership of [entry], adding it only while the current vault remains available. */
+    private fun saveImportedQrEntry(entry: Entry) {
+        var transferredToAdapter = false
+        try {
+            if (VaultSession.getKey() == null) throw IllegalStateException("Vault locked")
+            entry.updateOTP(false)
+            entry.setLastUsed(System.currentTimeMillis())
+            val currentAdapter = adapter ?: throw IllegalStateException("Entry list is unavailable")
+            currentAdapter.addEntry(entry)
+            transferredToAdapter = true
+            refreshTags()
+        } catch (_: Exception) {
+            if (!transferredToAdapter) entry.destroy()
+            Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
         }
     }
 

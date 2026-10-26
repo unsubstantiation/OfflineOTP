@@ -59,6 +59,17 @@ class EntryListTest {
     }
 
     @Test
+    fun issuerLookupIgnoresCaseAndSurroundingWhitespaceButNotBlankValues() {
+        val list = populatedList()
+        assertTrue(list.hasIssuer("  gItHuB  "))
+        assertTrue(list.hasIssuer("AMAZON"))
+        assertFalse(list.hasIssuer(""))
+        assertFalse(list.hasIssuer("   "))
+        assertFalse(list.hasIssuer(null))
+        assertFalse(list.hasIssuer("GitHub Inc"))
+    }
+
+    @Test
     fun updateEntriesKeepsExistingEntriesAndAddsNewOnes() {
         val list = populatedList()
         val kept = list.getEntry(0)  // github

@@ -15,6 +15,30 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <EditText
+                android:id="@+id/manual_otp_uri"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/hint_otp_uri"
+                android:inputType="textUri|textMultiLine"
+                android:maxLines="3"
+                android:saveEnabled="false"
+                android:importantForAutofill="no" />
+
+            <Button
+                android:id="@+id/manual_apply_otp_uri"
+                style="@style/Widget.AppCompat.Button.Borderless.Colored"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/button_import_otp_uri" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal" >
 

@@ -10,11 +10,11 @@ is `versionName 0.9.0.1` (versionCode 39); the application ID remains
 
 ## Features
 
-- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually.
+- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually (including by pasting an `otpauth://` URI); get a warning when an issuer is already present.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Search and tag entries, and choose light, dark, or black themes.
+- Search and tag entries, see per-tag entry counts, and choose light, dark, or black themes.
 - Stay offline: the app declares no `INTERNET` permission.
 
 ## Protecting and restoring your vault

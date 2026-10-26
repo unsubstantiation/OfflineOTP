@@ -3,6 +3,7 @@ package org.shadowice.flocke.andotp.Dialogs
 import android.app.AlertDialog
 import android.content.DialogInterface
 import android.text.Editable
+import android.text.InputFilter
 import android.text.TextUtils
 import android.text.TextWatcher
 import android.view.View
@@ -70,6 +71,10 @@ object ManualEntryDialog {
             inputView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
 
         val typeInput = requireNotNull(inputView.findViewById<Spinner>(R.id.manual_type))
+        val otpUriInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_otp_uri))
+        val applyOtpUriButton = requireNotNull(inputView.findViewById<Button>(R.id.manual_apply_otp_uri))
+        otpUriInput.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(InputPolicy.MAX_URI_CHARS))
+        otpUriInput.isSaveEnabled = false
         val issuerInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_issuer))
         val labelInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_label))
         val secretInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_secret))
@@ -99,6 +104,9 @@ object ManualEntryDialog {
         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
         counterInput.setText(String.format(Locale.US, "%d", TokenCalculator.HOTP_INITIAL_COUNTER))
 
+        // Once a URI supplies parameters, changing the type must not silently replace those values
+        // with manual-entry defaults (the user can still edit each field explicitly).
+        var importedUri = false
         typeInput.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
@@ -109,7 +117,7 @@ object ManualEntryDialog {
                     expandButton.visibility = View.VISIBLE
                     expandLayout.visibility = View.VISIBLE
 
-                    if (isNewEntry) {
+                    if (isNewEntry && !importedUri) {
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.STEAM_DEFAULT_DIGITS))
                         periodInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_PERIOD))
                         algorithmInput.setSelection(algorithmAdapter.getPosition(TokenCalculator.HashAlgorithm.SHA1))
@@ -124,7 +132,7 @@ object ManualEntryDialog {
                     expandButton.visibility = View.VISIBLE
                     expandLayout.visibility = View.VISIBLE
 
-                    if (isNewEntry)
+                    if (isNewEntry && !importedUri)
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
 
                     digitsInput.isEnabled = true
@@ -136,7 +144,7 @@ object ManualEntryDialog {
                     expandButton.visibility = View.VISIBLE
                     expandLayout.visibility = View.VISIBLE
 
-                    if (isNewEntry)
+                    if (isNewEntry && !importedUri)
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
 
                     digitsInput.isEnabled = true
@@ -146,7 +154,7 @@ object ManualEntryDialog {
                     counterLayout.visibility = View.GONE
                     periodLayout.visibility = View.VISIBLE
 
-                    if (isNewEntry)
+                    if (isNewEntry && !importedUri)
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
 
                     expandButton.visibility = View.GONE
@@ -167,6 +175,8 @@ object ManualEntryDialog {
             tagsHashMap[tag] = false
         }
         val tagsAdapter = TagsAdapter(callingActivity, tagsHashMap)
+        // Show how many saved entries use each tag in the selection list as well as the drawer.
+        tagsAdapter.setTagCounts(adapter.getTagCounts())
 
         val tagsCallable = Callable<Any?> {
             val selectedTags = tagsAdapter.getActiveTags()
@@ -183,6 +193,37 @@ object ManualEntryDialog {
 
         tagsInput.setOnClickListener {
             TagsDialog.show(callingActivity, tagsAdapter, tagsCallable, tagsCallable)
+        }
+
+        applyOtpUriButton.setOnClickListener {
+            var parsedEntry: Entry? = null
+            try {
+                // The URI carries the seed. Keep it out of logs, saved view state and any message.
+                val entry = Entry(otpUriInput.text?.toString()?.trim())
+                parsedEntry = entry
+                importedUri = true
+                typeInput.setSelection(typeAdapter.getPosition(entry.getType()))
+                issuerInput.setText(entry.getIssuer())
+                labelInput.setText(entry.getLabel())
+                secretInput.setText(entry.getSecretEncoded())
+                periodInput.setText(String.format(Locale.US, "%d", entry.getPeriod()))
+                digitsInput.setText(String.format(Locale.US, "%d", entry.getDigits()))
+                counterInput.setText(String.format(Locale.US, "%d", entry.getCounter()))
+                algorithmInput.setSelection(algorithmAdapter.getPosition(entry.getAlgorithm()))
+
+                val importedTags = HashMap(tagsAdapter.getTagsWithState())
+                for (tag in importedTags.keys.toList()) importedTags[tag] = false
+                for (tag in entry.getTags()) importedTags[tag] = true
+                tagsAdapter.setTags(importedTags)
+                tagsCallable.call()
+                // The decoded fields remain available for confirmation; drop the redundant URI copy.
+                otpUriInput.setText("")
+                validationWatcher?.afterTextChanged(null)
+            } catch (_: Exception) {
+                Toast.makeText(callingActivity, R.string.error_invalid_otp_uri, Toast.LENGTH_LONG).show()
+            } finally {
+                parsedEntry?.destroy()
+            }
         }
 
         // Dirty fix for the compound drawable to avoid crashes on older Android versions
@@ -219,6 +260,7 @@ object ManualEntryDialog {
             if (activeDialog === dialog) activeDialog = null
             secretInput.setText("")
             secretView.setText("")
+            otpUriInput.setText("")
         }
         dialog.show()
 
@@ -389,6 +431,8 @@ object ManualEntryDialog {
         counterInput.addTextChangedListener(watcher)
 
         if (!isNewEntry) {
+            otpUriInput.visibility = View.GONE
+            applyOtpUriButton.visibility = View.GONE
             val oldType = oldEntry!!.getType()
 
             typeInput.setSelection(typeAdapter.getPosition(oldType))

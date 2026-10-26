@@ -552,7 +552,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   🆕 **GAP** — App samples the system clock (checks `AUTO_TIME`); no in-app NTP sync.
 - **#918** — Compare existing Issuer  
   _enhancement_  
-  🆕 **GAP** — No issuer comparison / duplicate detection at scan time.
+  ✅ **FIXED** — QR imports warn before adding another account with a matching non-blank issuer; the user can still continue.
 - **#921** — Nitrokey/hardware keys support  
   _enhancement_  
   🆕 **GAP** — No Nitrokey/hardware-key support.
@@ -585,10 +585,10 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ✅ **OUTOFSCOPE** — No BLE/keyboard HID support.
 - **#990** — Support entering `otpauth://` URIs in details  
   _enhancement_  
-  🆕 **GAP** — `ManualEntryDialog` has no `otpauth://` URI field.
+  ✅ **FIXED** — The manual-entry dialog accepts and applies supported `otpauth://` URIs (#990).
 - **#994** — Tag counters  
   _enhancement, help wanted, good first issue_  
-  🆕 **GAP** — Tags dialog is selection-only; no per-tag counters.
+  ✅ **FIXED** — Per-tag entry counts appear in the main tag drawer and the manual-entry tag picker.
 
 ## 5. Build & maintenance (2)
 
@@ -629,8 +629,8 @@ plus generated letter tiles for everything else. Cross-referencing every request
 3. **Batch-add the ~80 missing brand thumbnails** — the largest concrete carry-over; consider the Simple Icons
    migration (#855) while doing it.
 4. **Triage the 🆕 gaps** as product decisions (DUO #808, GA-export import #561, yjotp #532, Garena #207, tag
-   rename/counters #230/#994, next-code preview #670, custom images #225, backup retention #701, share-sheet export
-   #779, preferences export #648, AES+base64 export #980, otpauth:// manual entry #990, issuer comparison #918,
+   rename #230, next-code preview #670, custom images #225, backup retention #701, share-sheet export
+   #779, preferences export #648, AES+base64 export #980,
    NTP clock #914, paper backups #178, highlighting #784, automatic OpenPGP backups #531, backup deletion #925).
 5. **Close as not-ours (✅):** everything marked fixed/by-design/out-of-scope — notably the whole security cluster
    (#157, #692, #975, #649, #888, #875, #890, #944, #952) and the absent-feature requests (#68, #616, #481, #707,

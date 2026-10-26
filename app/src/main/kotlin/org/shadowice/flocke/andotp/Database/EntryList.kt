@@ -69,6 +69,13 @@ class EntryList {
 
     @Synchronized fun getEntries(): ArrayList<Entry> = ArrayList(entries)
 
+    /** True when a non-blank issuer is already present, ignoring surrounding space and case. */
+    @Synchronized fun hasIssuer(issuer: String?): Boolean {
+        val candidate = issuer?.trim().orEmpty()
+        if (candidate.isEmpty()) return false
+        return entries.any { existing -> existing.getIssuer().trim().equals(candidate, ignoreCase = true) }
+    }
+
     @Synchronized fun getEntriesSorted(sortMode: Constants.SortMode): ArrayList<Entry> = sortEntries(entries, sortMode)
 
     /** Returns a copy of [unsortedEntries] sorted by [sortMode]. */

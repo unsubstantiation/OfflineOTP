@@ -79,6 +79,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     fun getEntries(): ArrayList<Entry> = entries.getEntries()
 
+    fun hasIssuer(issuer: String?): Boolean = entries.hasIssuer(issuer)
+
     fun saveAndRefresh(auto_backup: Boolean) {
         saveAndRefresh(auto_backup, RecyclerView.NO_POSITION)
     }
