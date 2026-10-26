@@ -7,4 +7,7 @@ import android.content.Context
 object ContextCompat {
     @JvmStatic
     fun checkSelfPermission(context: Context, permission: String): Int = context.checkSelfPermission(permission)
+
+    @JvmStatic
+    fun getColor(context: Context, id: Int): Int = context.resources.getColor(id)
 }

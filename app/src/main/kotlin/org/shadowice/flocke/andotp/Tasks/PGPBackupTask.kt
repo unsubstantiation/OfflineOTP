@@ -10,12 +10,15 @@ import java.nio.charset.StandardCharsets
 
 /** Writes a backup whose contents were already encrypted by the OpenPGP app. */
 open class PGPBackupTask(context: Context, private val payload: String, uri: Uri?) : GenericBackupTask(context, uri) {
+    @JvmSynthetic
+    internal var rawPayload: ByteArray? = null
 
     protected override fun getBackupType(): Constants.BackupType {
         return Constants.BackupType.OPEN_PGP
     }
 
     protected override fun doBackup(): Boolean {
-        return StorageAccessHelper.saveFile(applicationContext, uri, payload.toByteArray(StandardCharsets.UTF_8), this::canWrite)
+        val bytes = rawPayload ?: payload.toByteArray(StandardCharsets.UTF_8)
+        return StorageAccessHelper.saveFile(applicationContext, uri, bytes, this::canWrite)
     }
 }

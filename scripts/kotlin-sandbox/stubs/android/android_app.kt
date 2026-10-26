@@ -231,7 +231,13 @@ class NotificationChannel(private val id: String?, private var name: CharSequenc
 }
 
 /** What the AndroidX builder stand-in recorded; the platform object has no such accessors. */
-class Notification(val channelId: String?, val smallIcon: Int, val title: CharSequence?, val bigText: CharSequence?)
+class Notification(
+    val channelId: String?,
+    val smallIcon: Int,
+    val title: CharSequence?,
+    val bigText: CharSequence?,
+    val contentText: CharSequence? = null
+)
 
 /** A context subclass so a fragment can hand one back; no lifecycle is modelled. */
 open class Activity : Context() {

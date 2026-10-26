@@ -66,9 +66,14 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     private var encryptionKey: SecretKey? = null
     private var authenticationGeneration: Long = -1
     private var encryptionChanged = false
+    private var clearingKeyStore = false
 
     private var inProgress: AlertDialog? = null
     private var canGoBack = true
+
+    private companion object {
+        const val STATE_AUTH_GENERATION = "settings_auth_generation"
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -87,8 +92,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             finish()
             return
         }
-        if (savedInstanceState != null)
+        if (savedInstanceState != null) {
             encryptionChanged = savedInstanceState.getBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, false)
+            val savedAuthGeneration = savedInstanceState.getLong(STATE_AUTH_GENERATION, -1L)
+            if (savedAuthGeneration >= 0L && VaultSession.isCurrent(savedAuthGeneration)) {
+                authenticationGeneration = savedAuthGeneration
+            }
+        }
 
         val settingsFragment = SettingsFragment()
         fragment = settingsFragment
@@ -108,6 +118,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         super.onSaveInstanceState(outState)
 
         outState.putBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, encryptionChanged)
+        outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
     }
 
     /** Finishes and reports to MainActivity whether the encryption changed. */
@@ -184,25 +195,50 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     override fun requiresVaultSession(): Boolean = true
 
     override fun onVaultLocked() {
+        if (clearingKeyStore) return
         encryptionKey = null
         fragment?.setEncryptionKey(null)
         cancelBackgroundTask()
         finish()
     }
 
+    internal fun clearKeyStore() {
+        clearingKeyStore = true
+        try {
+            KeyStoreHelper.wipeKeys(this)
+            PreferenceManager.getDefaultSharedPreferences(this)
+                .edit()
+                .remove(getString(R.string.settings_key_backup_password_enc))
+                .apply()
+            if (settings!!.getEncryption() == EncryptionType.KEYSTORE) {
+                DatabaseHelper.wipeDatabase(this)
+                generateNewEncryptionKey()
+            }
+            fragment?.updateAutoBackup()
+        } finally {
+            clearingKeyStore = false
+        }
+    }
+
     /** Generates a new KeyStore key after all keys were wiped. */
     private fun generateNewEncryptionKey() {
         if (settings!!.getEncryption() == EncryptionType.KEYSTORE) {
+            val unlockAttempt = VaultSession.beginUnlock()
             val key = KeyStoreHelper.createEncryptionKey(this)
-            encryptionKey = key
             if (key == null || DatabaseHelper.changeVaultEncryption(this, null, key, true,
                     { id ->
                         VaultCommitDecision.fromCommit(
                             settings!!.commitVaultSettings(id, EncryptionType.KEYSTORE, null, null, true))
-                    }) !is VaultWriteResult.Saved) {
+                    }) !is VaultWriteResult.Saved ||
+                    VaultSession.activate(key, unlockAttempt.generation) !is SessionCommandResult.Applied) {
+                VaultSession.lock()
+                encryptionKey = null
+                fragment?.setEncryptionKey(null)
                 finish()
                 return
             }
+            encryptionKey = key
+            fragment?.setEncryptionKey(key)
             encryptionChanged = true
         }
     }
@@ -544,11 +580,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         builder.setMessage(R.string.settings_dialog_msg_clear_keystore_keystore)
 
                     builder.setPositiveButton(android.R.string.ok) { _, _ ->
-                        KeyStoreHelper.wipeKeys(getActivity()!!)
-                        if (currentSettings.getEncryption() == EncryptionType.KEYSTORE) {
-                            DatabaseHelper.wipeDatabase(getActivity()!!)
-                            (getActivity()!! as SettingsActivity).generateNewEncryptionKey()
-                        }
+                        (getActivity() as? SettingsActivity)?.clearKeyStore()
                     }
                     builder.setNegativeButton(android.R.string.cancel) { _, _ -> }
 

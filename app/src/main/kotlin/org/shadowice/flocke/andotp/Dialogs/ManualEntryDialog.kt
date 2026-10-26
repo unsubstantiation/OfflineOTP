@@ -18,6 +18,7 @@ import android.widget.TextView
 import android.widget.Toast
 
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.content.ContextCompat
 import androidx.core.content.res.ResourcesCompat
 
 import com.github.aakira.expandablelayout.ExpandableLayoutListenerAdapter
@@ -26,6 +27,7 @@ import com.github.aakira.expandablelayout.ExpandableLinearLayout
 import org.shadowice.flocke.andotp.Activities.MainActivity
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.R
+import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultSession
@@ -39,6 +41,14 @@ import java.util.concurrent.Callable
 
 /** Dialog for adding a new OTP entry or editing an existing one. */
 object ManualEntryDialog {
+    @JvmSynthetic
+    internal var activeDialog: AlertDialog? = null
+
+    @JvmSynthetic
+    internal fun dismissActive() {
+        activeDialog?.dismiss()
+        activeDialog = null
+    }
 
     /** Opens the dialog to add a new entry. */
     @JvmStatic
@@ -74,6 +84,8 @@ object ManualEntryDialog {
         val algorithmInput = requireNotNull(inputView.findViewById<Spinner>(R.id.manual_algorithm))
         val tagsInput = requireNotNull(inputView.findViewById<Button>(R.id.manual_tags))
         val expandButton = requireNotNull(inputView.findViewById<Button>(R.id.dialog_expand_button))
+        val expandLayout = requireNotNull(inputView.findViewById<ExpandableLinearLayout>(R.id.dialog_expand_layout))
+        var validationWatcher: TextWatcher? = null
 
         val algorithmAdapter = ArrayAdapter<TokenCalculator.HashAlgorithm>(callingActivity,
             android.R.layout.simple_expandable_list_item_1, TokenCalculator.HashAlgorithm.values().toMutableList())
@@ -95,10 +107,13 @@ object ManualEntryDialog {
                     counterLayout.visibility = View.GONE
                     periodLayout.visibility = View.VISIBLE
                     expandButton.visibility = View.VISIBLE
+                    expandLayout.visibility = View.VISIBLE
 
-                    digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.STEAM_DEFAULT_DIGITS))
-                    periodInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_PERIOD))
-                    algorithmInput.setSelection(algorithmAdapter.getPosition(TokenCalculator.HashAlgorithm.SHA1))
+                    if (isNewEntry) {
+                        digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.STEAM_DEFAULT_DIGITS))
+                        periodInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_PERIOD))
+                        algorithmInput.setSelection(algorithmAdapter.getPosition(TokenCalculator.HashAlgorithm.SHA1))
+                    }
 
                     digitsInput.isEnabled = false
                     periodInput.isEnabled = false
@@ -107,28 +122,40 @@ object ManualEntryDialog {
                     counterLayout.visibility = View.GONE
                     periodLayout.visibility = View.VISIBLE
                     expandButton.visibility = View.VISIBLE
+                    expandLayout.visibility = View.VISIBLE
 
                     if (isNewEntry)
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
 
+                    digitsInput.isEnabled = true
+                    periodInput.isEnabled = true
                     algorithmInput.isEnabled = isNewEntry
                 } else if (type == Entry.OTPType.HOTP) {
                     counterLayout.visibility = View.VISIBLE
                     periodLayout.visibility = View.GONE
                     expandButton.visibility = View.VISIBLE
+                    expandLayout.visibility = View.VISIBLE
 
                     if (isNewEntry)
                         digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
 
+                    digitsInput.isEnabled = true
+                    periodInput.isEnabled = true
                     algorithmInput.isEnabled = isNewEntry
                 } else if (type == Entry.OTPType.MOTP) {
                     counterLayout.visibility = View.GONE
                     periodLayout.visibility = View.VISIBLE
 
-                    digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
+                    if (isNewEntry)
+                        digitsInput.setText(String.format(Locale.US, "%d", TokenCalculator.TOTP_DEFAULT_DIGITS))
+
                     expandButton.visibility = View.GONE
+                    expandLayout.visibility = View.GONE
+                    digitsInput.isEnabled = true
+                    periodInput.isEnabled = true
                     algorithmInput.isEnabled = isNewEntry
                 }
+                validationWatcher?.afterTextChanged(null)
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -162,8 +189,6 @@ object ManualEntryDialog {
         expandButton.setCompoundDrawablesWithIntrinsicBounds(null, null,
             ResourcesCompat.getDrawable(callingActivity.resources, R.drawable.ic_arrow_down_accent, null), null)
 
-        val expandLayout = requireNotNull(inputView.findViewById<ExpandableLinearLayout>(R.id.dialog_expand_layout))
-
         expandButton.setOnClickListener { expandLayout.toggle() }
 
         expandLayout.setListener(object : ExpandableLayoutListenerAdapter() {
@@ -184,11 +209,14 @@ object ManualEntryDialog {
             .setPositiveButton(R.string.button_save, null)
             .setNegativeButton(android.R.string.cancel, DialogInterface.OnClickListener { _, _ -> })
 
+        activeDialog?.dismiss()
         val dialog = builder.create()
+        activeDialog = dialog
         // Keep [Save]/[Cancel] reachable while the IME is open: resize the dialog window and let
         // the ScrollView in dialog_manual_entry scroll instead of panning the buttons off-screen.
         dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
         dialog.setOnDismissListener {
+            if (activeDialog === dialog) activeDialog = null
             secretInput.setText("")
             secretView.setText("")
         }
@@ -208,6 +236,12 @@ object ManualEntryDialog {
 
                 // Only validate the typed secret for new entries; editing keeps the existing secret.
                 if (isNewEntry && !Entry.validateSecret(secret, type)) {
+                    secretInput.setError(callingActivity.getString(R.string.error_invalid_secret))
+                    return@setOnClickListener
+                }
+                if (isNewEntry && type == Entry.OTPType.MOTP &&
+                        (secret.isEmpty() ||
+                            secret.toByteArray(java.nio.charset.StandardCharsets.UTF_8).size > InputPolicy.MAX_SECRET_BYTES)) {
                     secretInput.setError(callingActivity.getString(R.string.error_invalid_secret))
                     return@setOnClickListener
                 }
@@ -272,6 +306,8 @@ object ManualEntryDialog {
 
                         updateCallback?.onUpdate()
                     }
+
+                    callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.MOTP) {
                     if (isNewEntry) {
                         val validated = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
@@ -344,6 +380,7 @@ object ManualEntryDialog {
 
         }
 
+        validationWatcher = watcher
         labelInput.addTextChangedListener(watcher)
         issuerInput.addTextChangedListener(watcher)
         secretInput.addTextChangedListener(watcher)
@@ -383,7 +420,8 @@ object ManualEntryDialog {
             secretInput.isEnabled = false
             secretView.background = secretInput.background
             secretView.setTextColor(secretInput.getTextColors()
-                .getColorForState(secretInput.drawableState, R.color.colorPrimary))
+                .getColorForState(secretInput.drawableState,
+                    ContextCompat.getColor(callingActivity, R.color.colorPrimary)))
 
             typeInput.isEnabled = false
             algorithmInput.isEnabled = false

@@ -13,6 +13,7 @@ abstract class Drawable {
     open fun getIntrinsicHeight(): Int = 1
     open fun setAlpha(alpha: Int) {}
     open fun setColorFilter(filter: android.graphics.ColorFilter?) {}
+    open fun mutate(): Drawable = this
 }
 
 /** The drawable of a bitmap; the entry popup shows the QR code in one. */

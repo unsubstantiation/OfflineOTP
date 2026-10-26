@@ -38,6 +38,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private val context: Context = context
     private var callback: Callback? = null
     private var tapToReveal: Boolean = false
+    private lateinit var cardClickListener: SimpleDoubleClickListener
 
     private val card: CardView
     private val valueLayout: LinearLayout
@@ -80,13 +81,18 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         val colorFilter: ColorFilter = Tools.getThemeColorFilter(context, android.R.attr.textColorSecondary)
 
         // app:srcCompat drawables are missing when the layout is inflated without AppCompat's factory.
-        menuButton.getDrawable()?.setColorFilter(colorFilter)
-        copyButton.getDrawable()?.setColorFilter(colorFilter)
-        invisibleImg.getDrawable()?.setColorFilter(colorFilter)
+        menuButton.getDrawable()?.mutate()?.setColorFilter(colorFilter)
+        copyButton.getDrawable()?.mutate()?.setColorFilter(colorFilter)
+        invisibleImg.getDrawable()?.mutate()?.setColorFilter(colorFilter)
 
         setupOnClickListeners(menuButton, copyButton)
 
         setTapToReveal(tapToReveal)
+    }
+
+    /** Cancels any pending single-tap callback before rebinding or recycling this ViewHolder. */
+    fun cancelPendingClicks() {
+        cardClickListener.cancelPending()
     }
 
     private fun setupOnClickListeners(menuButton: ImageButton, copyButton: ImageButton) {
@@ -98,7 +104,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
 
         copyButton.setOnClickListener { view ->
             adapterPositionSafeCallback { callback, adapterPosition ->
-                callback.onCopyButtonClicked(value.tag.toString(), adapterPosition)
+                callback.onCopyButtonClicked(value.tag?.toString() ?: "", adapterPosition)
             }
         }
 
@@ -115,19 +121,20 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             false
         }
 
-        card.setOnClickListener(object : SimpleDoubleClickListener() {
+        cardClickListener = object : SimpleDoubleClickListener() {
             override fun onSingleClick(v: View) {
                 adapterPositionSafeCallback { callback, adapterPosition ->
-                    callback.onCardSingleClicked(adapterPosition, value.tag.toString())
+                    callback.onCardSingleClicked(adapterPosition, value.tag?.toString() ?: "")
                 }
             }
 
             override fun onDoubleClick(v: View) {
                 adapterPositionSafeCallback { callback, adapterPosition ->
-                    callback.onCardDoubleClicked(adapterPosition, value.tag.toString())
+                    callback.onCardDoubleClicked(adapterPosition, value.tag?.toString() ?: "")
                 }
             }
-        })
+        }
+        card.setOnClickListener(cardClickListener)
     }
 
     /** Consumer for a click event, called only with a bound view holder. */

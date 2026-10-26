@@ -60,6 +60,10 @@ open class IntroScreenActivity : IntroActivity() {
     private companion object {
         /** Saved-state key for the setup outcome; never carries key material. */
         const val STATE_SETUP_FINISHED = "intro_setup_finished"
+        const val STATE_SETUP_GENERATION = "intro_setup_generation"
+        const val STATE_ENCRYPTION_SELECTION = "intro_encryption_selection"
+        const val STATE_AUTH_ENCRYPTION_TYPE = "intro_auth_encryption_type"
+        const val STATE_AUTH_METHOD_SELECTION = "intro_auth_method_selection"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,15 +72,26 @@ open class IntroScreenActivity : IntroActivity() {
         // The wizard is not portrait-locked any more, so it can be recreated at any slide.
         // A completed setup must stay completed: the settings and vault are already committed.
         setupFinished = savedInstanceState?.getBoolean(STATE_SETUP_FINISHED, false) == true
+        if (savedInstanceState != null) {
+            setupGeneration = savedInstanceState.getLong(STATE_SETUP_GENERATION, setupGeneration)
+        }
 
-        val encryption = EncryptionFragment()
-        val authentication = AuthenticationFragment()
-        val sync = AndroidSyncFragment(encryption)
-        val finished = IntroFinishedFragment(this, IntroFinishedFragment.SaveSettingsCallback { success, key ->
+        val restoredFragments = getSupportFragmentManager().getFragments()
+        val encryption = restoredFragments.filterIsInstance<EncryptionFragment>().firstOrNull()
+            ?: EncryptionFragment()
+        val authentication = restoredFragments.filterIsInstance<AuthenticationFragment>().firstOrNull()
+            ?: AuthenticationFragment()
+        val sync = restoredFragments.filterIsInstance<AndroidSyncFragment>().firstOrNull()
+            ?.also { it.attachEncryptionFragment(encryption) }
+            ?: AndroidSyncFragment(encryption)
+        val saveCallback = IntroFinishedFragment.SaveSettingsCallback { success, key ->
             this.setupFinished = success
             this.encryptionKey?.let { Arrays.fill(it, 0) }
             this.encryptionKey = key?.copyOf()
-        })
+        }
+        val finished = restoredFragments.filterIsInstance<IntroFinishedFragment>().firstOrNull()
+            ?.also { it.attachHost(this, saveCallback) }
+            ?: IntroFinishedFragment(this, saveCallback)
 
         encryptionFragment = encryption
         authenticationFragment = authentication
@@ -163,6 +178,7 @@ open class IntroScreenActivity : IntroActivity() {
         super.onSaveInstanceState(outState)
         // Only the outcome is saved: the derived key never enters a Bundle.
         outState.putBoolean(STATE_SETUP_FINISHED, setupFinished)
+        outState.putLong(STATE_SETUP_GENERATION, setupGeneration)
     }
 
     override fun onDestroy() {
@@ -197,6 +213,7 @@ open class IntroScreenActivity : IntroActivity() {
 
         private var selection: Spinner? = null
         private var desc: TextView? = null
+        private var selectedType: Constants.EncryptionType = Constants.EncryptionType.PASSWORD
 
         private var selectionMapping: SparseArray<Constants.EncryptionType> = SparseArray()
 
@@ -213,13 +230,25 @@ open class IntroScreenActivity : IntroActivity() {
         }
 
         fun getEncryptionType(): Constants.EncryptionType {
-            val spinner = selection ?: return Constants.EncryptionType.KEYSTORE
-            return selectionMapping.get(spinner.selectedItemPosition) ?: Constants.EncryptionType.KEYSTORE
+            val spinner = selection ?: return selectedType
+            return selectionMapping.get(spinner.selectedItemPosition) ?: selectedType
+        }
+
+        override fun onSaveInstanceState(outState: Bundle) {
+            super.onSaveInstanceState(outState)
+            outState.putString(STATE_ENCRYPTION_SELECTION, getEncryptionType().name)
         }
 
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                                   savedInstanceState: Bundle?): View {
             val root = inflater.inflate(R.layout.component_intro_encryption, container, false)
+            savedInstanceState?.getString(STATE_ENCRYPTION_SELECTION)?.let { savedName ->
+                selectedType = try {
+                    Constants.EncryptionType.valueOf(savedName)
+                } catch (_: IllegalArgumentException) {
+                    Constants.EncryptionType.PASSWORD
+                }
+            }
 
             val spinner = requireNotNull(root.findViewById<Spinner>(R.id.introEncryptionSelection))
             selection = spinner
@@ -237,14 +266,16 @@ open class IntroScreenActivity : IntroActivity() {
                     else if (encryptionType == Constants.EncryptionType.KEYSTORE)
                         description.setText(R.string.intro_slide2_desc_keystore)
 
-                    if (encryptionType != null)
+                    if (encryptionType != null) {
+                        selectedType = encryptionType
                         encryptionChangedCallback?.onEncryptionChanged(encryptionType)
+                    }
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
             }
 
-            spinner.setSelection(selectionMapping.indexOfValue(Constants.EncryptionType.PASSWORD))
+            spinner.setSelection(selectionMapping.indexOfValue(selectedType))
 
             return root
         }
@@ -256,8 +287,21 @@ open class IntroScreenActivity : IntroActivity() {
     }
 
     /** Last slide: saves the collected settings and shows whether the setup succeeded. */
-    open class IntroFinishedFragment(private val context: Context, private val callback: SaveSettingsCallback) :
-        SlideFragment() {
+    open class IntroFinishedFragment : SlideFragment {
+        private var hostContext: Context? = null
+        private var callback: SaveSettingsCallback? = null
+
+        constructor() : super()
+
+        constructor(context: Context, callback: SaveSettingsCallback) : super() {
+            this.hostContext = context
+            this.callback = callback
+        }
+
+        internal fun attachHost(context: Context, callback: SaveSettingsCallback) {
+            this.hostContext = context
+            this.callback = callback
+        }
         private var title: TextView? = null
         private var message: TextView? = null
         private var progress: ProgressBar? = null
@@ -298,18 +342,20 @@ open class IntroScreenActivity : IntroActivity() {
 
         internal fun saveSettings(encryptionType: Constants.EncryptionType, authMethod: Constants.AuthMethod,
                                  password: String?, androidSyncEnabled: Boolean) {
-            if ((authMethod == Constants.AuthMethod.PASSWORD || authMethod == Constants.AuthMethod.PIN) &&
-                    (password == null || password.isEmpty())) {
+            val resolvedContext = hostContext ?: getContext()
+            if (resolvedContext == null ||
+                    ((authMethod == Constants.AuthMethod.PASSWORD || authMethod == Constants.AuthMethod.PIN) &&
+                            (password == null || password.isEmpty()))) {
                 title?.setText(R.string.intro_slide4_title_failed)
                 message?.setText(R.string.intro_slide4_desc_failed)
 
                 canGoForward = false
 
-                callback.onAfterSaveSettings(false, null)
+                callback?.onAfterSaveSettings(false, null)
                 return
             }
 
-            val task = FinishIntroTask(context, encryptionType, authMethod, password, androidSyncEnabled)
+            val task = FinishIntroTask(resolvedContext, encryptionType, authMethod, password, androidSyncEnabled)
             activeTask?.let {
                 it.setOutcomeCallback(null)
                 it.cancel()
@@ -333,7 +379,7 @@ open class IntroScreenActivity : IntroActivity() {
                     message?.setText(R.string.intro_slide4_desc_failed)
                     progress?.visibility = View.INVISIBLE
                     canGoForward = false
-                    callback.onAfterSaveSettings(false, null)
+                    callback?.onAfterSaveSettings(false, null)
                 }
             }
 
@@ -373,7 +419,7 @@ open class IntroScreenActivity : IntroActivity() {
 
             progress?.visibility = View.INVISIBLE
 
-            callback.onAfterSaveSettings(result.saveSuccessful, result.encryptionKey)
+            callback?.onAfterSaveSettings(result.saveSuccessful, result.encryptionKey)
         }
 
         override fun canGoForward(): Boolean {
@@ -387,8 +433,19 @@ open class IntroScreenActivity : IntroActivity() {
     }
 
     /** Slide to enable the Android backup service (only useful for password encryption). */
-    open class AndroidSyncFragment(private val encryptionFragment: EncryptionFragment) : SlideFragment() {
+    open class AndroidSyncFragment : SlideFragment {
+        private var encryptionFragment: EncryptionFragment? = null
         private var introAndroidSync: SwitchCompat? = null
+
+        constructor() : super()
+
+        constructor(encryptionFragment: EncryptionFragment) : super() {
+            this.encryptionFragment = encryptionFragment
+        }
+
+        internal fun attachEncryptionFragment(encryptionFragment: EncryptionFragment) {
+            this.encryptionFragment = encryptionFragment
+        }
 
         fun getSyncEnabled(): Boolean {
             return introAndroidSync?.isChecked == true
@@ -415,7 +472,8 @@ open class IntroScreenActivity : IntroActivity() {
 
     /** Slide to choose the auth method and enter the password/PIN. */
     open class AuthenticationFragment : SlideFragment(), TextView.OnEditorActionListener {
-        private var encryptionType: Constants.EncryptionType = Constants.EncryptionType.KEYSTORE
+        private var encryptionType: Constants.EncryptionType = Constants.EncryptionType.PASSWORD
+        private var selectedAuthMethod: Constants.AuthMethod = Constants.AuthMethod.PASSWORD
 
         private var slidePos = -1
 
@@ -441,7 +499,15 @@ open class IntroScreenActivity : IntroActivity() {
 
         /** Adapts the slide to the encryption choice (password encryption requires password/PIN). */
         fun updateEncryptionType(encryptionType: Constants.EncryptionType) {
+            val changed = this.encryptionType != encryptionType
             this.encryptionType = encryptionType
+            if (encryptionType == Constants.EncryptionType.KEYSTORE && changed) {
+                selectedAuthMethod = Constants.AuthMethod.NONE
+            } else if (encryptionType == Constants.EncryptionType.PASSWORD &&
+                    selectedAuthMethod != Constants.AuthMethod.PASSWORD &&
+                    selectedAuthMethod != Constants.AuthMethod.PIN) {
+                selectedAuthMethod = Constants.AuthMethod.PASSWORD
+            }
 
             val description = desc
             val spinner = selection
@@ -449,7 +515,9 @@ open class IntroScreenActivity : IntroActivity() {
                 if (encryptionType == Constants.EncryptionType.KEYSTORE) {
                     description.setText(R.string.intro_slide3_desc_keystore)
 
-                    spinner.setSelection(selectionMapping.indexOfValue(Constants.AuthMethod.NONE))
+                    if (changed) {
+                        spinner.setSelection(selectionMapping.indexOfValue(Constants.AuthMethod.NONE))
+                    }
                 } else if (encryptionType == Constants.EncryptionType.PASSWORD) {
                     description.setText(R.string.intro_slide3_desc_password)
 
@@ -500,8 +568,8 @@ open class IntroScreenActivity : IntroActivity() {
         }
 
         fun getAuthMethod(): Constants.AuthMethod {
-            val spinner = selection ?: return Constants.AuthMethod.NONE
-            return selectionMapping.get(spinner.selectedItemPosition) ?: Constants.AuthMethod.NONE
+            val spinner = selection ?: return selectedAuthMethod
+            return selectionMapping.get(spinner.selectedItemPosition) ?: selectedAuthMethod
         }
 
         fun getPassword(): String? {
@@ -514,9 +582,31 @@ open class IntroScreenActivity : IntroActivity() {
             passwordConfirm?.setText("")
         }
 
+        override fun onSaveInstanceState(outState: Bundle) {
+            super.onSaveInstanceState(outState)
+            outState.putString(STATE_AUTH_ENCRYPTION_TYPE, encryptionType.name)
+            outState.putString(STATE_AUTH_METHOD_SELECTION, getAuthMethod().name)
+        }
+
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                                   savedInstanceState: Bundle?): View {
             val root = inflater.inflate(R.layout.component_intro_authentication, container, false)
+            if (savedInstanceState != null) {
+                savedInstanceState.getString(STATE_AUTH_ENCRYPTION_TYPE)?.let { savedEnc ->
+                    encryptionType = try {
+                        Constants.EncryptionType.valueOf(savedEnc)
+                    } catch (_: IllegalArgumentException) {
+                        encryptionType
+                    }
+                }
+                savedInstanceState.getString(STATE_AUTH_METHOD_SELECTION)?.let { savedAuth ->
+                    selectedAuthMethod = try {
+                        Constants.AuthMethod.valueOf(savedAuth)
+                    } catch (_: IllegalArgumentException) {
+                        selectedAuthMethod
+                    }
+                }
+            }
 
             desc = requireNotNull(root.findViewById<TextView>(R.id.introAuthDesc))
             val spinner = requireNotNull(root.findViewById<Spinner>(R.id.introAuthSelection))
@@ -562,6 +652,7 @@ open class IntroScreenActivity : IntroActivity() {
             spinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
                 override fun onItemSelected(adapterView: AdapterView<*>?, selectedView: View?, i: Int, selectedId: Long) {
                     val authMethod = selectionMapping.get(i)
+                    if (authMethod != null) selectedAuthMethod = authMethod
 
                     if (authMethod == Constants.AuthMethod.PASSWORD) {
                         setupForPasswordInput()
@@ -598,7 +689,18 @@ open class IntroScreenActivity : IntroActivity() {
 
             pwdConfirm.setOnEditorActionListener(this)
 
-            spinner.setSelection(selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD))
+            desc?.setText(
+                if (encryptionType == Constants.EncryptionType.KEYSTORE)
+                    R.string.intro_slide3_desc_keystore
+                else
+                    R.string.intro_slide3_desc_password
+            )
+            if (encryptionType == Constants.EncryptionType.PASSWORD &&
+                    selectedAuthMethod != Constants.AuthMethod.PASSWORD &&
+                    selectedAuthMethod != Constants.AuthMethod.PIN) {
+                selectedAuthMethod = Constants.AuthMethod.PASSWORD
+            }
+            spinner.setSelection(selectionMapping.indexOfValue(selectedAuthMethod))
 
             return root
         }

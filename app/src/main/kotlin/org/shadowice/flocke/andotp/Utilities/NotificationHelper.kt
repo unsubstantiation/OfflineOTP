@@ -114,6 +114,7 @@ object NotificationHelper {
         val builder = NotificationCompat.Builder(context, channelId(channel))
                 .setSmallIcon(R.mipmap.ic_launcher)
                 .setContentTitle(context.getText(resIdTitle))
+                .setContentText(resBody)
                 .setStyle(NotificationCompat.BigTextStyle()
                     .bigText(resBody))
 

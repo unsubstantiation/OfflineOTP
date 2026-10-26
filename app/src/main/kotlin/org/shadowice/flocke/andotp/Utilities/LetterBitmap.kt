@@ -48,7 +48,6 @@ internal open class LetterBitmap(context: Context) {
     }
     private val bounds = Rect()
     private val canvas = Canvas()
-    private val firstChar = CharArray(1)
     private val colors: IntArray = run {
         val typedArray = context.resources.obtainTypedArray(R.array.letter_tile_colors)
         try {
@@ -68,18 +67,19 @@ internal open class LetterBitmap(context: Context) {
     /** Returns a tile at the requested dimensions; invalid dimensions are rejected by Bitmap. */
     open fun getLetterTile(displayName: String, key: String, width: Int, height: Int): Bitmap {
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        var character = '?'
-        if (displayName.isNotEmpty() && startsWithAlphabeticOrDigit(displayName)) {
-            character = displayName[0]
+        val codePoint = if (displayName.isNotEmpty() && startsWithAlphabeticOrDigit(displayName)) {
+            Character.toUpperCase(displayName.codePointAt(0))
+        } else {
+            '?'.code
         }
+        val glyph = Character.toChars(codePoint)
 
         canvas.setBitmap(bitmap)
         canvas.drawColor(pickColor(key))
-        firstChar[0] = Character.toUpperCase(character)
         paint.textSize = tileLetterFontSizeScale * height
-        paint.getTextBounds(firstChar, 0, 1, bounds)
+        paint.getTextBounds(glyph, 0, glyph.size, bounds)
         // Integer centering for odd dimensions and odd glyph bounds.
-        canvas.drawText(firstChar, 0, 1, (width / 2).toFloat(),
+        canvas.drawText(glyph, 0, glyph.size, (width / 2).toFloat(),
             (height / 2 + (bounds.bottom - bounds.top) / 2).toFloat(), paint)
         return bitmap
     }
@@ -94,7 +94,9 @@ internal open class LetterBitmap(context: Context) {
     }
 
     private companion object {
-        fun startsWithAlphabeticOrDigit(string: String): Boolean =
-            Character.isAlphabetic(string.codePointAt(0)) || Character.isDigit(string[0])
+        fun startsWithAlphabeticOrDigit(string: String): Boolean {
+            val firstCodePoint = string.codePointAt(0)
+            return Character.isAlphabetic(firstCodePoint) || Character.isDigit(firstCodePoint)
+        }
     }
 }

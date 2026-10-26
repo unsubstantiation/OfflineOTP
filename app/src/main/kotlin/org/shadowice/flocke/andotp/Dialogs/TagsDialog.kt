@@ -25,6 +25,9 @@ object TagsDialog {
         newTagCallable: Callable<*>?,
         selectedTagsCallable: Callable<*>?
     ) {
+        val initialStates = tagsAdapter.getTagsWithState()
+        var committed = false
+
         val margin = context.resources.getDimensionPixelSize(R.dimen.activity_margin)
         val marginSmall = context.resources.getDimensionPixelSize(R.dimen.activity_margin_small)
         val marginMedium = context.resources.getDimensionPixelSize(R.dimen.activity_margin_medium)
@@ -47,7 +50,10 @@ object TagsDialog {
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val newTag = input.text.toString().trim()
                 // A blank row is not a tag; keep the picker free of unnamed entries.
-                if (newTag.isEmpty()) return@setPositiveButton
+                if (newTag.isEmpty()) {
+                    tagsAdapter.setTags(HashMap(initialStates))
+                    return@setPositiveButton
+                }
                 val allTags = tagsAdapter.getTagsWithState()
                 allTags[newTag] = true
                 tagsAdapter.setTags(allTags)
@@ -59,7 +65,12 @@ object TagsDialog {
                     }
                 }
             }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> }
+            .setNegativeButton(android.R.string.cancel) { _, _ ->
+                tagsAdapter.setTags(HashMap(initialStates))
+            }
+            .setOnCancelListener {
+                tagsAdapter.setTags(HashMap(initialStates))
+            }
 
         val tagsSelectionView = ListView(context)
         tagsSelectionView.divider = null
@@ -86,9 +97,18 @@ object TagsDialog {
         tagsSelectorBuilder.setTitle(R.string.label_tags)
             .setView(tagsSelectionLayout)
             .setNegativeButton(android.R.string.cancel) { dialogInterface, _ ->
+                if (!committed) {
+                    tagsAdapter.setTags(HashMap(initialStates))
+                }
                 dialogInterface.dismiss()
             }
+            .setOnCancelListener {
+                if (!committed) {
+                    tagsAdapter.setTags(HashMap(initialStates))
+                }
+            }
             .setPositiveButton(android.R.string.ok) { _, _ ->
+                committed = true
                 if (selectedTagsCallable != null) {
                     try {
                         selectedTagsCallable.call()
@@ -98,6 +118,7 @@ object TagsDialog {
                 }
             }
             .setNeutralButton(R.string.button_new_tag) { _, _ ->
+                committed = true
                 newTagBuilder.create().show()
             }
             .create().show()

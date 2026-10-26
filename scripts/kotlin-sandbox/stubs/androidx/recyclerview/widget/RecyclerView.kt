@@ -66,6 +66,8 @@ class RecyclerView(context: android.content.Context = android.content.Context())
 
         abstract fun onBindViewHolder(holder: VH, position: Int)
 
+        open fun onViewRecycled(holder: VH) {}
+
         open fun getItemCount(): Int = 0
 
         open fun getItemId(position: Int): Long = RecyclerView.NO_ID

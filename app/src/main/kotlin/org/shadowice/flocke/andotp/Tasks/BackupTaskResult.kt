@@ -25,6 +25,7 @@ open class BackupTaskResult(type: ResultType, success: Boolean, payload: String?
     @JvmField var isPGP: Boolean = false
     @JvmField var decryptIntent: Intent? = null
     @JvmField var uri: Uri? = null
+    @JvmSynthetic internal var rawPayload: ByteArray? = null
 
     constructor(type: ResultType, success: Boolean, payload: String?, messageId: Int,
                 isPGP: Boolean, decryptIntent: Intent?, uri: Uri?) : this(type, success, payload, messageId) {
