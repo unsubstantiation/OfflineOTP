@@ -132,11 +132,11 @@ set's counts for tags that still existed and showed no count for the tags the im
 
 Still open from `bughunt-follow-up-2026-10-25.md`, not re-investigated in this pass:
 
-* `IntroFinishedFragment` completed state across a rotation (needs a device/`FragmentPagerAdapter`
-  re-attachment run).
-* `PasswordEncryptedPreference.encryptAndPersist` swallowing KeyStore failures.
 * Everything the hardening document lists as a device/CI acceptance gate (rotation, process death,
   TalkBack, OEM document providers, both-flavor Gradle builds, API 28/36 emulator runs).
+
+Fixed in the 2026-10-26 pass: `IntroFinishedFragment` completed state across a rotation, and
+`PasswordEncryptedPreference.encryptAndPersist` no longer closes the dialog when the KeyStore write fails.
 
 ## Verification
 

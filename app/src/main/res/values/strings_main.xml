@@ -73,6 +73,7 @@
     <!-- Toast messages -->
     <string name="toast_auth_failed_fatal">Authentication failed. Closing OfflineOTP.</string>
     <string name="toast_copied_to_clipboard">Copied to clipboard</string>
+    <string name="toast_no_keystroke_receiver">No app is available to type these keystrokes</string>
     <string name="toast_entry_exists">This entry already exists</string>
     <string name="toast_invalid_qr_code">Invalid QR code</string>
     <string name="toast_intent_creation_failed">The link did not contain a valid account</string>

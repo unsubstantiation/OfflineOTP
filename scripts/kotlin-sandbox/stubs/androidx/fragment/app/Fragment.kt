@@ -69,6 +69,17 @@ open class FragmentManager {
     val restoredFragments: MutableList<Fragment> = ArrayList()
 
     open fun getFragments(): List<Fragment> = restoredFragments
+
+    /** Records the callbacks; the platform delivers fragment lifecycle events to them. */
+    val lifecycleCallbacks: MutableList<FragmentLifecycleCallbacks> = ArrayList()
+
+    open fun registerFragmentLifecycleCallbacks(cb: FragmentLifecycleCallbacks, recursive: Boolean) {
+        lifecycleCallbacks.add(cb)
+    }
+
+    open class FragmentLifecycleCallbacks {
+        open fun onFragmentResumed(fm: FragmentManager, f: Fragment) {}
+    }
 }
 
 /**

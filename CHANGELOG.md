@@ -2,6 +2,13 @@
 
 #### Unreleased
 
+ * Bugfix: Keep the first-run finish button enabled after rotating on the last slide, and attach the pager's restored slides instead of a second set of fragments
+ * Bugfix: Keep the backup-password dialog open when the KeyStore cannot store the password, instead of closing it as if the password had been saved
+ * Bugfix: Apply the screenshot block to Settings, Backup, About and the first-run wizard, not only the entry list and the unlock screen
+ * Bugfix: Mark copied tokens as sensitive so the system clipboard overlay does not preview the code
+ * Bugfix: Refresh entry cards when individual timeout bars are turned on or off, and stop overlapping progress animations from fighting each other
+ * Bugfix: Open the mOTP PIN dialog for the entry that was actually long-pressed after the list has resorted, and report when no app can receive keystrokes
+ * Bugfix: Do not show an authentication-failed message when the encryption-change prompt is cancelled
  * Bugfix: Let the first-run wizard follow the device orientation and keep a completed setup (and the derived vault key) across recreation (andOTP #591)
  * Bugfix: Make the inactivity re-lock count screen-off and background time instead of only foreground Handler time, and default the delay to the preference's 30 seconds (andOTP #712)
  * Bugfix: Keep the localized "Hidden" token placeholder on one auto-sized line on the compact, default and full cards (andOTP #880)

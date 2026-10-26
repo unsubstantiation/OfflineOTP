@@ -72,8 +72,12 @@ class PopupMenuItemLookupTest(unittest.TestCase):
             ),
             "the mOTP PIN row must stay hidden by default (only shown for mOTP entries)",
         )
-        # The popup handler must route the item to establishPIN().
-        self.assertRegex(text, r"R\.id\.menu_popup_establishPin\s*\)\s*\{\s*establishPIN\(pos\)")
+        # The click handler must still open the PIN dialog, but for the entry that was
+        # long-pressed rather than whoever now occupies the row the menu was opened on.
+        handler = text.split("menu_popup_establishPin) {", 1)[1].split("menu_popup_remove", 1)[0]
+        self.assertIn("presentation.indexOf(popupEntry)", handler)
+        self.assertIn("establishPIN(currentPos)", handler)
+        self.assertNotIn("establishPIN(pos)", handler)
 
 
 if __name__ == "__main__":

@@ -260,19 +260,12 @@ produced its own toasts.
 * The gates that need a real SDK (all-variant Gradle builds + lint, packaged-manifest policy,
   the fdroid/play × API 28/36 matrix, reproducibility) still run only in CI; nothing in this pass
   changed build inputs, and `generate-r-stub.py --check` confirms the sandbox R stand-in is current.
-* **Intro wizard after a configuration change (unverified)**: `IntroScreenActivity` now allows
-  rotation, but it builds its slides from fresh fragment instances in `onCreate` while
-  `FragmentPagerAdapter` re-attaches the *restored* instances by tag. The activity's
-  `finished`/`authentication` fields can therefore point at instances the pager does not show, and
-  `IntroFinishedFragment.canGoForward` is not part of its own saved state. Rotating on the last
-  slide may leave the finish button disabled even though the setup committed. Verifying this needs
-  a device; `IntroScreenLaunchTest` only recreates the activity on the first slide. The clean fix
-  is to persist `IntroFinishedFragment`'s completed state in `onSaveInstanceState` (and resolve the
-  displayed fragment from the pager instead of the activity's fields).
-* **`PasswordEncryptedPreference.encryptAndPersist` failure path**: when the KeyStore is unusable,
-  the encryption throws, only `printStackTrace()` runs, and the dialog still closes — the user is
-  told nothing and the backup password silently stays unset. Fixing it needs an error string and a
-  "keep the dialog open" path, which is why it is not part of this pass.
+* **Intro wizard after a configuration change**: fixed in the 2026-10-26 pass.
+  `IntroFinishedFragment` now persists its own completed flag, and the activity adopts the
+  fragments the pager actually shows instead of the fresh instances it handed to `addSlide`.
+* **`PasswordEncryptedPreference.encryptAndPersist` failure path**: fixed in the 2026-10-26 pass.
+  A KeyStore or preference-store failure shows `settings_toast_encryption_no_key` and leaves the
+  dialog open. Empty values still clear the stored password when the write succeeds.
 
 ## Verification
 

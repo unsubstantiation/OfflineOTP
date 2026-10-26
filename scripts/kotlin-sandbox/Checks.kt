@@ -115,6 +115,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.drawable.Drawable
 import android.content.ActivityNotFoundException
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
@@ -152,6 +153,7 @@ import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewStub
+import android.view.Window
 import android.view.WindowInsets
 import android.view.WindowInsetsController
 import android.view.WindowManager
@@ -5815,6 +5817,45 @@ fun main() {
         view.posted.forEach { it.run() }
         expect(listener.singles == 0 && listener.doubles == 0,
                 { "cancelled pending single tap still fired: singles=${listener.singles}" })
+    }
+
+    check("a completed intro slide keeps the finish button enabled after it is recreated") {
+        val finished = IntroScreenActivity.IntroFinishedFragment()
+        expect(!finished.canGoForward(), { "a new finish slide must not be completable" })
+        finished.restoreCompletedSetup()
+        expect(finished.canGoForward(), { "restoring a completed setup must enable finish" })
+        val saved = android.os.Bundle()
+        finished.onSaveInstanceState(saved)
+        val restored = IntroScreenActivity.IntroFinishedFragment()
+        restored.onCreate(saved)
+        expect(restored.canGoForward(),
+                { "the pager-restored finish slide must stay completable without the activity field" })
+        val blank = android.os.Bundle()
+        val fresh = IntroScreenActivity.IntroFinishedFragment()
+        fresh.onSaveInstanceState(blank)
+        val stillFresh = IntroScreenActivity.IntroFinishedFragment()
+        stillFresh.onCreate(blank)
+        expect(!stillFresh.canGoForward(), { "an unfinished slide must not become completable" })
+    }
+
+    check("copied tokens are marked sensitive and the screenshot policy follows the setting") {
+        val host = AboutHost()
+        Tools.copyToClipboard(host, "123456")
+        val clip = host.clipboard.clips.single()
+        expect(clip.description.extras?.getBoolean(ClipDescription.EXTRA_IS_SENSITIVE, false) == true,
+                { "the copied token was not marked sensitive" })
+
+        val blocked = Window()
+        Tools.applyScreenshotPolicy(blocked, false)
+        expect(blocked.flagCalls.any { it.first == WindowManager.LayoutParams.FLAG_SECURE &&
+                it.second == WindowManager.LayoutParams.FLAG_SECURE },
+                { "screenshots must be blocked unless the user enabled them" })
+        val allowed = Window()
+        Tools.applyScreenshotPolicy(allowed, true)
+        expect(allowed.clearedFlags.contains(WindowManager.LayoutParams.FLAG_SECURE),
+                { "enabling screenshots must clear FLAG_SECURE" })
+        expect(allowed.flagCalls.none { it.first == WindowManager.LayoutParams.FLAG_SECURE },
+                { "enabling screenshots must not set FLAG_SECURE" })
     }
 
     check("intro slide fragments expose public no-arg constructors for Android recreation") {

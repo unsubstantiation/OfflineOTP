@@ -43,6 +43,7 @@ import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.Tools
 import org.shadowice.flocke.andotp.Utilities.UIHelper
 import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
 import org.shadowice.flocke.andotp.Utilities.VaultSession
@@ -153,6 +154,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 !settings!!.isEncryptedBackupBroadcastEnabled()) {
             androidx.work.WorkManager.getInstance(this)
                 .cancelUniqueWork(EncryptedBackupBroadcastReceiver.UNIQUE_WORK_NAME)
+        }
+
+        if (key == getString(R.string.settings_key_enable_screenshot)) {
+            Tools.applyScreenshotPolicy(getWindow(), settings!!.getScreenshotsEnabled())
         }
 
         if (key == getString(R.string.settings_key_theme) ||
@@ -355,7 +360,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_no_key,
                         BaseTransientBottomBar.LENGTH_SHORT).show()
                 }
-            } else {
+            } else if (resultCode != RESULT_CANCELED && !isFinishing()) {
                 Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_auth_failed,
                     BaseTransientBottomBar.LENGTH_SHORT).show()
             }

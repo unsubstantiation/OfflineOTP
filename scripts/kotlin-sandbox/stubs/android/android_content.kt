@@ -142,7 +142,18 @@ interface SharedPreferences {
     }
 }
 
+/** Clipboard description, including the sensitive-content extra. */
+class ClipDescription {
+    var extras: android.os.PersistableBundle? = null
+
+    companion object {
+        const val EXTRA_IS_SENSITIVE = "android.content.extra.IS_SENSITIVE"
+    }
+}
+
 class ClipData private constructor(val label: CharSequence?, val text: CharSequence?) {
+    val description = ClipDescription()
+
     companion object {
         @JvmStatic
         fun newPlainText(label: CharSequence?, text: CharSequence?): ClipData = ClipData(label, text)

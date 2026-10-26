@@ -39,6 +39,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private var callback: Callback? = null
     private var tapToReveal: Boolean = false
     private lateinit var cardClickListener: SimpleDoubleClickListener
+    private var progressAnimator: ObjectAnimator? = null
 
     private val card: CardView
     private val valueLayout: LinearLayout
@@ -93,6 +94,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     /** Cancels any pending single-tap callback before rebinding or recycling this ViewHolder. */
     fun cancelPendingClicks() {
         cardClickListener.cancelPending()
+        progressAnimator?.cancel()
+        progressAnimator = null
     }
 
     private fun setupOnClickListeners(menuButton: ImageButton, copyButton: ImageButton) {
@@ -289,9 +292,12 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         progressBar.max = step * 100
         progressBar.progress = progress * 100
 
+        // A new animator every bind fights the previous one and makes the bar jump backwards.
+        progressAnimator?.cancel()
         val animation = ObjectAnimator.ofInt(progressBar, "progress", (progress - 1) * 100)
         animation.setDuration(org.shadowice.flocke.andotp.Activities.MainActivity.animatorDuration)
         animation.setInterpolator(LinearInterpolator())
+        progressAnimator = animation
         animation.start()
     }
 

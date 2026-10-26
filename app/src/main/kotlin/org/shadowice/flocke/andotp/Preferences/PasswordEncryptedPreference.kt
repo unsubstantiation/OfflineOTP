@@ -121,21 +121,45 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
 
     override fun onGetDefaultValue(a: TypedArray, index: Int): Any? = a.getString(index)
 
-    /** Encrypts a plaintext value immediately; plaintext is never retained in a preference field. */
-    private fun encryptAndPersist(value: String) {
+    /**
+     * Encrypts a plaintext value immediately; plaintext is never retained in a preference field.
+     * Returns false when the KeyStore or the preference store rejects the write, so the dialog
+     * can stay open instead of looking as if the password was saved.
+     */
+    private fun encryptAndPersist(value: String): Boolean {
         if (value.isEmpty()) {
-            if (persistString(DEFAULT_VALUE)) encryptedValue = DEFAULT_VALUE
-            return
+            if (!persistString(DEFAULT_VALUE)) {
+                notifyEncryptionFailed()
+                return false
+            }
+            encryptedValue = DEFAULT_VALUE
+            return true
         }
-        try {
-            val pair = requireNotNull(loadOrGenerateKey())
-            val encBytes = EncryptionHelper.encrypt(pair.getPublic(), value.toByteArray(StandardCharsets.UTF_8))
-            val encoded = Base64.encodeToString(encBytes, Base64.URL_SAFE)
-            if (persistString(encoded)) encryptedValue = encoded
+        return try {
+            val pair = loadOrGenerateKey()
+            if (pair == null) {
+                notifyEncryptionFailed()
+                false
+            } else {
+                val encBytes = EncryptionHelper.encrypt(pair.getPublic(), value.toByteArray(StandardCharsets.UTF_8))
+                val encoded = Base64.encodeToString(encBytes, Base64.URL_SAFE)
+                if (persistString(encoded)) {
+                    encryptedValue = encoded
+                    true
+                } else {
+                    notifyEncryptionFailed()
+                    false
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            Toast.makeText(context, R.string.settings_toast_encryption_no_key, Toast.LENGTH_LONG).show()
+            notifyEncryptionFailed()
+            false
         }
+    }
+
+    private fun notifyEncryptionFailed() {
+        Toast.makeText(context, R.string.settings_toast_encryption_no_key, Toast.LENGTH_LONG).show()
     }
 
     /** Decrypts only while binding the dialog, returning an empty value if no credential is stored. */
@@ -170,8 +194,8 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
         when (view.id) {
             R.id.btnCancel -> requireNotNull(getDialog()).dismiss()
             R.id.btnSave -> {
-                encryptAndPersist(passwordInput.text.toString())
-                requireNotNull(getDialog()).dismiss()
+                if (encryptAndPersist(passwordInput.text.toString()))
+                    requireNotNull(getDialog()).dismiss()
             }
         }
     }

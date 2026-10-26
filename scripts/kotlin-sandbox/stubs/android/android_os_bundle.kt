@@ -44,3 +44,6 @@ open class Bundle {
     @Suppress("UNCHECKED_CAST")
     fun <T : Parcelable> getParcelable(key: String): T? = values[key] as? T
 }
+
+/** The persistable bundle clipboard extras use. Same map as [Bundle]; no parceling. */
+open class PersistableBundle : Bundle()
