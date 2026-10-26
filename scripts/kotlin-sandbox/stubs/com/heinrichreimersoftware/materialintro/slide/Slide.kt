@@ -4,12 +4,13 @@ package com.heinrichreimersoftware.materialintro.slide
 import androidx.fragment.app.Fragment
 
 /** The base of the slides the wizard shows. */
-open class Slide
+open class Slide {
+    /** The fragment this slide shows; the pager may replace it with the restored instance. */
+    open var fragment: Fragment? = null
+}
 
 /** A slide that shows a fragment. */
 open class FragmentSlide : Slide() {
-    /** The fragment the slide shows. */
-    var fragment: Fragment? = null
 
     class Builder {
         private var slide = FragmentSlide()

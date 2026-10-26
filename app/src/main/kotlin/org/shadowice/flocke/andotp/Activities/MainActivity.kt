@@ -105,6 +105,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private var progressBar: ProgressBar? = null
     private var emptyListView: TextView? = null
+    private var timeoutAnimator: ObjectAnimator? = null
 
     private fun scanQRCode() {
         IntentIntegrator(this)
@@ -613,7 +614,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (key == getString(R.string.settings_key_label_size) ||
                 key == getString(R.string.settings_key_label_display) ||
                 key == getString(R.string.settings_key_split_group_size) ||
-                key == getString(R.string.settings_key_thumbnail_size)) {
+                key == getString(R.string.settings_key_thumbnail_size) ||
+                key == getString(R.string.settings_key_show_individual_timeouts)) {
             adapter?.notifyDataSetChanged()
         } else if (key == getString(R.string.settings_key_search_includes)) {
             adapter?.clearFilter()
@@ -1118,9 +1120,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             val bar = progressBar
             if (bar != null) {
                 bar.progress = progress * 100
+                timeoutAnimator?.cancel()
                 val animation = ObjectAnimator.ofInt(bar, "progress", (progress - 1) * 100)
                 animation.setDuration(animatorDuration)
                 animation.setInterpolator(LinearInterpolator())
+                timeoutAnimator = animation
                 animation.start()
             }
         }
@@ -1185,6 +1189,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     override fun onDestroy() {
+        timeoutAnimator?.cancel()
+        timeoutAnimator = null
         settings!!.unregisterPreferenceChangeListener(this)
         ProcessLifecycleOwner.get().lifecycle.removeObserver(processObserver)
         adapter?.lockEntries()

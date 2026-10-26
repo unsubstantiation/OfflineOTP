@@ -39,6 +39,14 @@ open class Window {
         flagCalls.add(flags to mask)
     }
 
+    /** The flags that were cleared, in call order. */
+    val clearedFlags = ArrayList<Int>()
+
+    /** Records a clear; the platform turns these bits off. */
+    open fun clearFlags(flags: Int) {
+        clearedFlags.add(flags)
+    }
+
     /** The controller of the system bars; the platform returns null before the window exists. */
     open fun getInsetsController(): WindowInsetsController? = windowInsetsController
 }

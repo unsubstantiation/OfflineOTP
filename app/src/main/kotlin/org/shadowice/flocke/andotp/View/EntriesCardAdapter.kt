@@ -607,11 +607,15 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val sendIntent = Intent(Intent.ACTION_SEND)
         sendIntent.setType("text/x-keystrokes")
         sendIntent.putExtra(Intent.EXTRA_TEXT, otp)
-        if (sendIntent.resolveActivity(this.context.getPackageManager()) != null) {
-            try {
-                this.context.startActivity(sendIntent)
-            } catch (_: ActivityNotFoundException) {
-            }
+        if (sendIntent.resolveActivity(this.context.getPackageManager()) == null) {
+            Toast.makeText(context, R.string.toast_no_keystroke_receiver, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            this.context.startActivity(sendIntent)
+            updateLastUsedAndFrequency(pos, getRealIndex(pos))
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(context, R.string.toast_no_keystroke_receiver, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -692,7 +696,11 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 changeThumbnail(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_popup_establishPin) {
-                establishPIN(pos)
+                // pos is the row at menu-open time. A hide timeout can resort the list before the
+                // click, so resolve the entry again instead of opening the PIN dialog for whoever
+                // now occupies that row.
+                val currentPos = presentation.indexOf(popupEntry)
+                if (currentPos >= 0) establishPIN(currentPos)
                 true
             } else if (id == R.id.menu_popup_remove) {
                 removeItem(presentation.indexOf(popupEntry))

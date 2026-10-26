@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.Utilities
 
 import android.content.ClipData
+import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Resources
@@ -9,6 +10,9 @@ import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
 import android.os.Environment
+import android.os.PersistableBundle
+import android.view.Window
+import android.view.WindowManager
 import android.widget.Toast
 
 import org.shadowice.flocke.andotp.R
@@ -96,10 +100,27 @@ object Tools {
         return df.format(now)
     }
 
-    /** Copies the text to the clipboard and shows a confirmation toast. */
+    /**
+     * Applies the screenshot setting to [window]. Screenshots are blocked unless the user has
+     * explicitly enabled them; the flag also keeps the window out of the recents thumbnail.
+     */
+    @JvmStatic fun applyScreenshotPolicy(window: Window, screenshotsEnabled: Boolean) {
+        if (screenshotsEnabled)
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        else
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+    }
+
+    /**
+     * Copies the text to the clipboard and shows a confirmation toast.
+     * The clip is marked sensitive so the system clipboard overlay does not preview the token.
+     */
     @JvmStatic fun copyToClipboard(context: Context, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText(context.getString(R.string.label_clipboard_content), text)
+        val extras = PersistableBundle()
+        extras.putBoolean(ClipDescription.EXTRA_IS_SENSITIVE, true)
+        clip.description.extras = extras
         clipboard.setPrimaryClip(clip)
 
         Toast.makeText(context, R.string.toast_copied_to_clipboard, Toast.LENGTH_LONG).show()

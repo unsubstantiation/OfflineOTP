@@ -25,6 +25,8 @@ import android.widget.Spinner
 import android.widget.TextView
 
 import androidx.appcompat.widget.SwitchCompat
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.viewpager.widget.ViewPager
 
 import com.google.android.material.textfield.TextInputEditText
@@ -40,6 +42,8 @@ import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Utilities.ConfirmedPasswordTransformationHelper
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
+import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.Tools
 import org.shadowice.flocke.andotp.Utilities.UIHelper
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
@@ -56,6 +60,13 @@ open class IntroScreenActivity : IntroActivity() {
     private var setupFinished = false
     private var encryptionKey: ByteArray? = null
     private var setupGeneration: Long = VaultSession.generation()
+    private var authSlideIndex = 2
+
+    private val saveSettingsCallback = IntroFinishedFragment.SaveSettingsCallback { success, key ->
+        setupFinished = success
+        encryptionKey?.let { Arrays.fill(it, 0) }
+        encryptionKey = key?.copyOf()
+    }
 
     private companion object {
         /** Saved-state key for the setup outcome; never carries key material. */
@@ -64,10 +75,14 @@ open class IntroScreenActivity : IntroActivity() {
         const val STATE_ENCRYPTION_SELECTION = "intro_encryption_selection"
         const val STATE_AUTH_ENCRYPTION_TYPE = "intro_auth_encryption_type"
         const val STATE_AUTH_METHOD_SELECTION = "intro_auth_method_selection"
+        const val STATE_AUTH_SLIDE_POS = "intro_auth_slide_pos"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // The wizard does not extend BaseActivity, so the screenshot policy has to be applied here.
+        Tools.applyScreenshotPolicy(getWindow(), Settings(this).getScreenshotsEnabled())
 
         // The wizard is not portrait-locked any more, so it can be recreated at any slide.
         // A completed setup must stay completed: the settings and vault are already committed.
@@ -76,22 +91,14 @@ open class IntroScreenActivity : IntroActivity() {
             setupGeneration = savedInstanceState.getLong(STATE_SETUP_GENERATION, setupGeneration)
         }
 
-        val restoredFragments = getSupportFragmentManager().getFragments()
-        val encryption = restoredFragments.filterIsInstance<EncryptionFragment>().firstOrNull()
-            ?: EncryptionFragment()
-        val authentication = restoredFragments.filterIsInstance<AuthenticationFragment>().firstOrNull()
-            ?: AuthenticationFragment()
-        val sync = restoredFragments.filterIsInstance<AndroidSyncFragment>().firstOrNull()
-            ?.also { it.attachEncryptionFragment(encryption) }
-            ?: AndroidSyncFragment(encryption)
-        val saveCallback = IntroFinishedFragment.SaveSettingsCallback { success, key ->
-            this.setupFinished = success
-            this.encryptionKey?.let { Arrays.fill(it, 0) }
-            this.encryptionKey = key?.copyOf()
-        }
-        val finished = restoredFragments.filterIsInstance<IntroFinishedFragment>().firstOrNull()
-            ?.also { it.attachHost(this, saveCallback) }
-            ?: IntroFinishedFragment(this, saveCallback)
+        // SlideAdapter.instantiateItem returns an already-added fragment without attaching it to
+        // the new pager, so a restored fragment passed in here never gets its view back. Fresh
+        // instances let the adapter find the restored fragment by tag, attach it, and swap it
+        // onto the slide. adoptDisplayedFragment then points the activity fields at that instance.
+        val encryption = EncryptionFragment()
+        val authentication = AuthenticationFragment()
+        val sync = AndroidSyncFragment(encryption)
+        val finished = IntroFinishedFragment(this, saveSettingsCallback)
 
         encryptionFragment = encryption
         authenticationFragment = authentication
@@ -99,8 +106,14 @@ open class IntroScreenActivity : IntroActivity() {
         introFinishedFragment = finished
 
         encryption.setEncryptionChangedCallback(EncryptionFragment.EncryptionChangedCallback { newEncryptionType ->
-            authentication.updateEncryptionType(newEncryptionType)
+            authenticationFragment?.updateEncryptionType(newEncryptionType)
         })
+
+        getSupportFragmentManager().registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
+                adoptDisplayedFragment(f)
+            }
+        }, false)
 
         setButtonBackFunction(BUTTON_BACK_FUNCTION_BACK)
 
@@ -121,7 +134,8 @@ open class IntroScreenActivity : IntroActivity() {
             .build()
         )
 
-        authentication.setSlidePos(getSlides().size)
+        authSlideIndex = getSlides().size
+        authentication.setSlidePos(authSlideIndex)
 
         addSlide(FragmentSlide.Builder()
             .background(R.color.colorPrimary)
@@ -146,7 +160,7 @@ open class IntroScreenActivity : IntroActivity() {
 
         addOnNavigationBlockedListener { position, _ ->
             if (position == 2)
-                authentication.flashWarning()
+                authenticationFragment?.flashWarning()
         }
 
         // A recreation after setup completed re-binds the slides with empty inputs; the
@@ -156,6 +170,13 @@ open class IntroScreenActivity : IntroActivity() {
 
         addOnPageChangeListener(object : ViewPager.OnPageChangeListener {
             override fun onPageSelected(position: Int) {
+                // The pager may have swapped in the restored fragments by now. Read those, not the
+                // fresh instances this method created.
+                adoptDisplayedFragments()
+                val finished = introFinishedFragment ?: return
+                val encryption = encryptionFragment ?: return
+                val authentication = authenticationFragment ?: return
+                val sync = androidSyncFragment ?: return
                 // Guard against saving a second time when the finish button is pressed on the final
                 // slide, and against re-running setup after a configuration change.
                 if (!setupFinished && position == getCount() - 1 && currentSlidePosition < getCount()) {
@@ -172,6 +193,39 @@ open class IntroScreenActivity : IntroActivity() {
 
             override fun onPageScrollStateChanged(state: Int) {}
         })
+
+        getWindow().decorView.post { adoptDisplayedFragments() }
+    }
+
+    /** Points the activity fields at the fragments the pager is actually showing. */
+    private fun adoptDisplayedFragments() {
+        for (slide in getSlides()) {
+            slide.fragment?.let { adoptDisplayedFragment(it) }
+        }
+    }
+
+    private fun adoptDisplayedFragment(fragment: Fragment) {
+        when (fragment) {
+            is EncryptionFragment -> {
+                encryptionFragment = fragment
+                fragment.setEncryptionChangedCallback(EncryptionFragment.EncryptionChangedCallback { newEncryptionType ->
+                    authenticationFragment?.updateEncryptionType(newEncryptionType)
+                })
+            }
+            is AuthenticationFragment -> {
+                authenticationFragment = fragment
+                fragment.setSlidePos(authSlideIndex)
+            }
+            is AndroidSyncFragment -> {
+                androidSyncFragment = fragment
+                encryptionFragment?.let { fragment.attachEncryptionFragment(it) }
+            }
+            is IntroFinishedFragment -> {
+                introFinishedFragment = fragment
+                fragment.attachHost(this, saveSettingsCallback)
+                if (setupFinished) fragment.restoreCompletedSetup()
+            }
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -310,6 +364,25 @@ open class IntroScreenActivity : IntroActivity() {
         private var activeTask: FinishIntroTask? = null
         private var completedSetupRestored = false
 
+        private companion object {
+            const val STATE_SETUP_COMPLETED = "intro_finished_setup_completed"
+        }
+
+        override fun onCreate(savedInstanceState: Bundle?) {
+            super.onCreate(savedInstanceState)
+            // The pager shows the fragment it restored, which is not the instance the activity
+            // created in onCreate. This instance has to remember the outcome itself.
+            if (savedInstanceState?.getBoolean(STATE_SETUP_COMPLETED, false) == true) {
+                completedSetupRestored = true
+                canGoForward = true
+            }
+        }
+
+        override fun onSaveInstanceState(outState: Bundle) {
+            super.onSaveInstanceState(outState)
+            outState.putBoolean(STATE_SETUP_COMPLETED, canGoForward || completedSetupRestored)
+        }
+
         /**
          * Re-shows a setup that already committed before this fragment was recreated. The
          * credentials are not re-entered and the setup task is not run again.
@@ -318,6 +391,7 @@ open class IntroScreenActivity : IntroActivity() {
             completedSetupRestored = true
             canGoForward = true
             applyCompletedSetup()
+            if (getActivity() != null) updateNavigation()
         }
 
         private fun applyCompletedSetup() {
@@ -586,12 +660,14 @@ open class IntroScreenActivity : IntroActivity() {
             super.onSaveInstanceState(outState)
             outState.putString(STATE_AUTH_ENCRYPTION_TYPE, encryptionType.name)
             outState.putString(STATE_AUTH_METHOD_SELECTION, getAuthMethod().name)
+            outState.putInt(STATE_AUTH_SLIDE_POS, slidePos)
         }
 
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                                   savedInstanceState: Bundle?): View {
             val root = inflater.inflate(R.layout.component_intro_authentication, container, false)
             if (savedInstanceState != null) {
+                slidePos = savedInstanceState.getInt(STATE_AUTH_SLIDE_POS, slidePos)
                 savedInstanceState.getString(STATE_AUTH_ENCRYPTION_TYPE)?.let { savedEnc ->
                     encryptionType = try {
                         Constants.EncryptionType.valueOf(savedEnc)

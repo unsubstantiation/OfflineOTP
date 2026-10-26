@@ -862,12 +862,13 @@ object R {
         const val toast_file_load_error = 0x7f0c00dd
         const val toast_intent_creation_failed = 0x7f0c00de
         const val toast_invalid_qr_code = 0x7f0c00df
-        const val toast_qr_checksum_exception = 0x7f0c00e0
-        const val toast_qr_error = 0x7f0c00e1
-        const val toast_qr_failed_to_generate = 0x7f0c00e2
-        const val toast_qr_format_error = 0x7f0c00e3
-        const val toast_qr_unsupported = 0x7f0c00e4
-        const val yes = 0x7f0c00e5
+        const val toast_no_keystroke_receiver = 0x7f0c00e0
+        const val toast_qr_checksum_exception = 0x7f0c00e1
+        const val toast_qr_error = 0x7f0c00e2
+        const val toast_qr_failed_to_generate = 0x7f0c00e3
+        const val toast_qr_format_error = 0x7f0c00e4
+        const val toast_qr_unsupported = 0x7f0c00e5
+        const val yes = 0x7f0c00e6
     }
     object style {
         const val AppTheme_Black_NoActionBar = 0x7f0d0000

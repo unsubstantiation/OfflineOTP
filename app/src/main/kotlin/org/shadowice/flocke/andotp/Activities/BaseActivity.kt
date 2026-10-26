@@ -31,6 +31,7 @@ import android.os.Bundle
 import android.view.MotionEvent
 
 import org.shadowice.flocke.andotp.Utilities.SessionLockReason
+import org.shadowice.flocke.andotp.Utilities.Tools
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 /** Base activity that handles screen-off locking, session-lock callbacks, and obscured-touch filtering. */
@@ -41,6 +42,11 @@ abstract class BaseActivity : ThemedActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Settings, backup and about share this base. The main list and the unlock screen used
+        // to be the only windows that honoured "block screenshots", so a password dialog on
+        // those other screens was still captured in the recents thumbnail.
+        Tools.applyScreenshotPolicy(getWindow(), settings?.getScreenshotsEnabled() == true)
 
         VaultSession.addLockListener(lockListener)
         val receiver = ScreenOffReceiver()

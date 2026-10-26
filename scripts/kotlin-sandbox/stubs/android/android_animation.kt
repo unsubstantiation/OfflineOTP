@@ -60,6 +60,14 @@ open class ObjectAnimator {
         starts++
     }
 
+    /** How often the animation was cancelled. */
+    var cancels = 0
+        private set
+
+    fun cancel() {
+        cancels++
+    }
+
     companion object {
         @JvmStatic
         fun ofInt(target: Any, propertyName: String, vararg values: Int): ObjectAnimator {
