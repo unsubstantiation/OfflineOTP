@@ -86,11 +86,17 @@
 
     <!-- Errors -->
     <string name="error_invalid_secret">Invalid secret</string>
+    <string name="error_invalid_otp_uri">Invalid OTP URI</string>
     <string name="error_invalid_entry">This entry cannot be saved: check the period, digits and counter</string>
 
     <!-- Dialogs -->
     <string name="dialog_title_auth">Authenticate</string>
     <string name="dialog_title_manual_entry">Enter details</string>
+    <string name="dialog_title_duplicate_issuer">Issuer already exists</string>
+    <string name="dialog_msg_duplicate_issuer">An account for %1$s is already in your vault. Add another account from this issuer anyway?</string>
+    <string name="hint_otp_uri">otpauth:// URI</string>
+    <string name="button_import_otp_uri">Use URI</string>
+    <string name="button_add_anyway">Add anyway</string>
     <string name="dialog_title_remove">Remove</string>
     <string name="dialog_title_counter">Counter</string>
     <string name="dialog_title_used_tokens">Token usage</string>

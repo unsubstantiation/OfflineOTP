@@ -2,6 +2,9 @@
 
 #### Unreleased
 
+ * Feature: Import supported `otpauth://` URIs from the manual-entry dialog, including type, algorithm, timing, counter and tags (andOTP #990)
+ * Improvement: Show per-tag entry counts in the manual-entry tag picker as well as the main tag drawer (andOTP #994)
+ * Improvement: Warn before importing an account from an issuer already in the vault, while allowing additional accounts (andOTP #918)
  * Bugfix: Keep the first-run finish button enabled after rotating on the last slide, and attach the pager's restored slides instead of a second set of fragments
  * Bugfix: Keep the backup-password dialog open when the KeyStore cannot store the password, instead of closing it as if the password had been saved
  * Bugfix: Apply the screenshot block to Settings, Backup, About and the first-run wizard, not only the entry list and the unlock screen
