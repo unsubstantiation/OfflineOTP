@@ -15,7 +15,6 @@ import android.widget.Toast
 
 import org.shadowice.flocke.andotp.R
 
-import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -54,13 +53,8 @@ object Tools {
     }
 
     /** Formats the token with leading zeros (without grouping separators). */
-    @JvmStatic fun formatTokenString(token: Int, digits: Int): String {
-        val numberFormat = NumberFormat.getInstance(Locale.ENGLISH)
-        numberFormat.minimumIntegerDigits = digits
-        numberFormat.isGroupingUsed = false
-
-        return numberFormat.format(token)
-    }
+    @JvmStatic
+    fun formatTokenString(token: Int, digits: Int): String = TokenFormat.formatTokenString(token, digits)
 
     /** Splits the token into groups of [chunkSize] characters. */
     @JvmStatic fun formatToken(s: String?, chunkSize: Int): String? {

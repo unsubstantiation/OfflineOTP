@@ -2,8 +2,8 @@
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
  * JVM vectors for the entry model: token refresh across clock steps (including a backwards
- * clock), cached-token invalidation, destruction and equality. The URI serializer needs
- * android.net.Uri, so URI coverage lives in OtpUriParserTest and the instrumentation suite.
+ * clock), cached-token invalidation, destruction, equality and the now Android-free
+ * `toUriString()` serializer. Platform-JSON document behavior stays in the instrumentation suite.
  */
 package org.shadowice.flocke.andotp.Database
 
@@ -331,5 +331,69 @@ class EntryTest {
         // mOTP seeds are stored as raw UTF-8 ASCII hex bytes (16 bytes for a 16-character seed).
         val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "Example", "alice", ArrayList())
         assertEquals(16, motp.getSecret()?.size)
+    }
+
+    @Test
+    fun uriStringRoundTripsThroughThePureSerializerForEveryType() {
+        val samples = listOf(
+            totp(),
+            hotp(),
+            Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 30, 5, "Steam", "alice",
+                TokenCalculator.HashAlgorithm.SHA1, ArrayList()),
+            Entry(Entry.OTPType.MOTP, "000102030405060708090a0b0c0d0e0f", "Example", "alice", ArrayList())
+        )
+        for (original in samples) {
+            val restored = Entry(original.toUriString())
+            assertEquals(original, restored)
+        }
+    }
+
+    @Test
+    fun uriStringPercentEncodesSpacesAndSpecialCharacters() {
+        val entry = Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "ACME Co+Plus",
+            "alice@example.com", TokenCalculator.HashAlgorithm.SHA1, ArrayList(listOf("work tag")))
+        val uri = entry.toUriString()
+
+        // Spaces become %20 (never a raw '+') and a literal '+' is escaped so the parser keeps it.
+        assertTrue(uri, uri.contains("issuer=ACME%20Co%2BPlus"))
+        assertFalse(uri, uri.contains("ACME+Co") || uri.contains("ACME Co"))
+        assertTrue(uri, uri.startsWith("otpauth://totp/alice%40example.com?"))
+
+        val restored = Entry(uri)
+        assertEquals("ACME Co+Plus", restored.getIssuer())
+        assertEquals("alice@example.com", restored.getLabel())
+        assertEquals(listOf("work tag"), restored.getTags())
+    }
+
+    @Test
+    fun uriStringOnlyEmitsNonDefaultParameters() {
+        val defaultEntry = totp()
+        assertFalse(defaultEntry.toUriString(), defaultEntry.toUriString().contains("period="))
+        assertFalse(defaultEntry.toUriString(), defaultEntry.toUriString().contains("digits="))
+        assertFalse(defaultEntry.toUriString(), defaultEntry.toUriString().contains("algorithm="))
+
+        val custom = Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 60, 8, "Example", "alice",
+            TokenCalculator.HashAlgorithm.SHA256, ArrayList())
+        val customUri = custom.toUriString()
+        assertTrue(customUri, customUri.contains("period=60"))
+        assertTrue(customUri, customUri.contains("digits=8"))
+        assertTrue(customUri, customUri.contains("algorithm=SHA256"))
+        assertEquals(custom, Entry(customUri))
+    }
+
+    @Test
+    fun thumbnailNameDefaultsNormalizesAndSurvivesJson() {
+        val entry = totp()
+        assertEquals("Default", entry.getThumbnailName())
+
+        entry.setThumbnailName("GitHub")
+        assertEquals("GitHub", entry.getThumbnailName())
+
+        // Unknown and null-equivalent names resolve back to the default rather than being stored.
+        entry.setThumbnailName("not-a-real-brand")
+        assertEquals("Default", entry.getThumbnailName())
+
+        entry.setThumbnailName("GitHub")
+        assertEquals("GitHub", Entry(entry.toJSON()).getThumbnailName())
     }
 }
