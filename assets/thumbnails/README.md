@@ -1,10 +1,10 @@
 # Brand thumbnail sources
 
 Android VectorDrawable thumbnails live in `app/src/main/res/drawable/thumb_*.xml` and are
-registered in `Utilities/EntryThumbnail.kt`. The bundled set includes the andOTP carry-over
-batch tracked in OfflineOTP issue #40 (81 requests, 79 distinct brands after duplicate requests
-were collapsed). The issue also records the three logo-currency follow-ups for Discord, netcup,
-and Proton Mail.
+registered in `Utilities/EntryThumbnail.kt`. The bundled set includes OfflineOTP's carry-over
+batch of upstream andOTP requests, tracked in OfflineOTP issue #40 (81 requests, 79 distinct brands
+after duplicate requests were collapsed). The issue also records the three logo-currency
+follow-ups for Discord, netcup, and Proton Mail.
 
 New vectors are adapted from these sources:
 

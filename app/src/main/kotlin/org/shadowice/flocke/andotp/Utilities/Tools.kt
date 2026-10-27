@@ -5,11 +5,9 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.res.Resources
-import android.content.res.TypedArray
 import android.graphics.ColorFilter
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
-import android.os.Environment
 import android.os.PersistableBundle
 import android.view.Window
 import android.view.WindowManager
@@ -17,27 +15,13 @@ import android.widget.Toast
 
 import org.shadowice.flocke.andotp.R
 
-import java.text.DateFormat
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Date
 import java.util.Locale
 
-/** Small helpers for storage checks, theming, token formatting and the clipboard. */
+/** Small helpers for theming, token formatting and the clipboard. */
 object Tools {
-    /** True if external storage is mounted and writable. */
-    @JvmStatic fun isExternalStorageWritable(): Boolean {
-        val state = Environment.getExternalStorageState()
-        return Environment.MEDIA_MOUNTED == state
-    }
-
-    /** True if external storage is mounted (read-only is enough). */
-    @JvmStatic fun isExternalStorageReadable(): Boolean {
-        val state = Environment.getExternalStorageState()
-        return Environment.MEDIA_MOUNTED == state || Environment.MEDIA_MOUNTED_READ_ONLY == state
-    }
-
     /** Resolves a theme color attribute to its color value. */
     @JvmStatic fun getThemeColor(context: Context, colorAttr: Int): Int {
         val theme = context.theme
@@ -113,7 +97,7 @@ object Tools {
 
     /**
      * Copies the text to the clipboard and shows a confirmation toast.
-     * The clip is marked sensitive so the system clipboard overlay does not preview the token.
+     * Marks the clip sensitive for supported system previews; other clipboard consumers may still read it.
      */
     @JvmStatic fun copyToClipboard(context: Context, text: String) {
         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager

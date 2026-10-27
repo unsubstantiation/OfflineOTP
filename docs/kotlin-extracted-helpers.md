@@ -4,10 +4,12 @@
 > including names and counts at each batch. Some referenced files and suites (notably the
 > `Kotlin*InteropTest` classes and the `security-test-client` module) are not part of the current
 > checkout; batch-local statements that those suites provide device coverage are historical.
-> Current verification after the 2026-10-22 issue #39 follow-up: 113 Python tests (9 skipped
+> At the 2026-10-22 issue #39 follow-up: 113 Python tests (9 skipped
 > because PyYAML is unavailable), 138 JVM host tests, 102 sandbox checks, and seven
 > instrumentation sources that type-check against stand-ins. Gradle/AGP and device acceptance
-> remain CI gates; the sandbox is explicitly not an Android runtime.
+> remain release checks; the sandbox is explicitly not an Android runtime. GitHub Actions
+> workflows mentioned in batch records have since been removed. Later cleanup also removed two
+> unused external-storage probes.
 
 ## Scope and status
 
@@ -273,9 +275,9 @@ Seventeenth batch (the Android components):
   responder and the settings screen cancel the queued work by its name) and the check order —
   action, opt-in, location, throttled slot, password, encryption type — is unchanged, with the
   same four distinct failure messages and the same `KEEP` policy for the queued work.
-- `Utilities/BackupAgent.kt` replaces the legacy platform backup agent: the class stays extendable
-  and the restore stays refused with the same message. Its callback parameters stay nullable, so
-  the refusal is not preceded by a Kotlin null check the Java version did not have.
+- `Utilities/BackupAgent.kt` replaced the legacy platform agent and still refuses restore. It is
+  retained for compatibility but not registered; the source manifest opts out of platform backup,
+  and the manifest policy rejects a registered agent.
 - The one structural change is the worker's call into the task layer: the Java worker reached the
   task's `protected doInBackground()` through the package, and Kotlin's `protected` has no
   package-private part. The call is therefore made from a private nested subclass of
@@ -284,14 +286,10 @@ Seventeenth batch (the Android components):
 - The Java `@NonNull` annotations are not repeated: the Kotlin types are not nullable. The
   `Result` of the worker is imported explicitly (`androidx.work.ListenableWorker.Result`), so it
   cannot be confused with `kotlin.Result`.
-- The sandbox compiles all four and asserts their Java-visible shapes: the two constants, the
-  protected `canSaveBackup` helper, the abstract base class, the worker's constructor and result
-  type and the agent's `IOException`-declaring restore. It **executes** the receiver's action gate
-  (another action is ignored entirely) and the worker's early exits (stopped or disabled work
-  fails without a notification), and the agent's refusal. The failure paths behind them post a
-  notification through the Java-only `Constants.NotificationChannel`, which has no class file in
-  the sandbox, and the happy path needs the AndroidKeyStore; both are covered by the source guards
-  and by the new `KotlinBackupComponentsInteropTest` (Java, instrumentation) instead.
+- The sandbox compiles all four components and checks their Java-visible shapes, the receiver's
+  action gate, the worker's early exits and the retained agent's restore refusal. Real notification
+  and AndroidKeyStore-backed worker behavior requires device verification; the historical
+  `KotlinBackupComponentsInteropTest` is not in this checkout.
 
 Eighteenth batch (the activity base classes):
 
@@ -568,8 +566,9 @@ derivation.
 
 `TokenCalculator` keeps its constants (`TOTP_DEFAULT_PERIOD`, `TOTP_DEFAULT_DIGITS`,
 `HOTP_INITIAL_COUNTER`, `STEAM_DEFAULT_DIGITS`), the nested `HashAlgorithm` enum, the
-`DEFAULT_ALGORITHM` *field*, all four public overloads (`TOTP_RFC6238` × 3, `TOTP_Steam`, `HOTP`,
-`MOTP`) and the `IllegalStateException("OTP calculation failed")` wrapper. Dynamic truncation, the
+`DEFAULT_ALGORITHM` field, the current-time and explicit-time overloads, and the
+`IllegalStateException("OTP calculation failed")` wrapper. Entry updates use a single clock sample
+with the explicit-time methods. Dynamic truncation, the
 `Math.pow(10, digits)` modulus, the Steam alphabet mapping and the mOTP MD5 prefix keep the original
 arithmetic. Parameter validation still goes through `InputPolicy.tokenParameters`.
 
@@ -647,17 +646,13 @@ the static `success`/`failure` factories survive with identical Java signatures.
 
 ### Task runner
 
-`UiBasedBackgroundTask` keeps its exact Java surface: a non-final generic abstract class with the
-same single constructor (`failedResult`), `protected final taskGeneration()`, `getState()`, the
-`setCallback` legacy adapter and `setOutcomeCallback`, `execute()`, `isCanceled()`, `cancel()`,
-`disposeOutcome(...)`, the protected `doInBackground` (still `throws Exception` in bytecode),
-`onCancellation()`/`discardResult(...)` override hooks, `wasCanceled()`, and the nested
-`OutcomeCallback`/`UiCallback` functional interfaces (now `fun interface`, so Java lambdas keep
-working). The semantics are unchanged: delivery is posted to the main loop and captured by task,
-not by result or Activity; delivery claims are one-shot; explicit cancellation and session
-revocation dispose owned values even while callbacks are detached; the legacy adapter maps Failure
-to the supplied fallback and suppresses Cancelled; `execute()` still throws
-`IllegalStateException("Task already submitted")` and still accepts a CANCELED start exactly once.
+`UiBasedBackgroundTask` remains a non-final generic abstract class with a single `failedResult`
+constructor, typed `setOutcomeCallback`, legacy `setCallback`, and the `OutcomeCallback` and
+`UiCallback` interfaces. Delivery is posted to the main loop and captured by task, not by result or
+Activity; delivery claims are one-shot; explicit cancellation and session revocation dispose owned
+values even while callbacks are detached. The legacy adapter maps Failure to its fallback and
+suppresses Cancelled. `execute()` throws `IllegalStateException("Task already submitted")` on a
+second start and accepts a CANCELED start exactly once.
 The androidx threading annotations are dropped as separate symbols: `execute`/`cancel`/
 `isCanceled` remain any-thread callable and the delivery remains a main-loop post, which the
 Kotlin nullability/types plus the retained comments express.
@@ -876,15 +871,16 @@ and refusal exactly where the Java had it.
   private cache directory — the `+ File.separator` suffix keeps a sibling such as `cache-evil/`
   out, and canonicalization defeats `..`. The stream is read through `BoundedInputReader` with the
   document limit regardless of provider metadata, and `loadFile` still declares `IOException`
-  (`@Throws`) because the Java `ScanQRCodeFromFile` catches it. `loadFileString` stays the
-  never-throwing `""` fallback.
+  (`@Throws`) because `ScanQRCodeFromFile` catches it. `loadFileString` returns `""` on read
+  failures. Legacy write overloads without a permission callback remain for compatibility; actual
+  app backup callers use the overloads with cancellation/permission checks.
 - **Display names are advisory**: provider metadata is used only when the cursor has a non-null
   `DISPLAY_NAME`; any query failure, missing row/column or null value falls back to the last path
   segment, and a null/oversized URI or name yields `"backup"`. The `MAX_TEXT_CHARS` bound is applied
-  *before* control characters are stripped, and the stripping regex is the same `[\p{Cntrl}]`, i.e.
-  the ASCII control set of `java.util.regex` — C1 controls such as U+0085 are kept, as before.
+  *before* control characters are stripped with `[\p{Cntrl}]`. On a default desktop JVM this
+  matches ASCII controls; Android regex behavior requires separate verification.
 - **Backup naming and the encrypted layout are unchanged**: automatic backups get a fresh
-  `otp_accounts_<UUID>.json.aes`/`.json.gpg` name so the last recoverable backup is never truncated;
+  `otp_accounts_<UUID>.json.aes`/`.json.gpg` name to avoid truncating a prior backup;
   the MIME mapping keeps its `application/octet-stream` fallback; `backupFilename` still constructs
   `Settings` before inspecting the type and falls back to the encrypted name; `autoBackupType` still
   requires a location before it consults the backup password. `backupToFile` refuses a missing/empty
@@ -911,12 +907,11 @@ and refusal exactly where the Java had it.
   is not granted. The early-return `SDK_INT` check is kept in the same form, because lint's `NewApi`/
   `InlinedApi` gates (warnings are errors in this build) analyse exactly that flow; the permission
   name stays a class-level constant as in the Java.
-- **Channels are unchanged**: ids are `"andOTP_"` plus the enum name lower-cased with the **default
-  locale**, as the Java `toLowerCase()` did — Kotlin's `lowercase()` would use the root locale and
-  silently rename the channel under a Turkish locale. That pre-existing locale dependence
-  (`andOTP_backup_faıled` there) is documented, not fixed: a fix needs a channel migration. Names,
-  descriptions, `IMPORTANCE_HIGH`/`IMPORTANCE_LOW` and the default importance for the initial
-  constructor are the same, and every notification still reuses id 1.
+- **Channel IDs and notification IDs**: the conversion initially kept default-locale case mapping
+  and a single notification ID. The [2026-10-25 follow-up](bughunt-follow-up-2026-10-25.md) changed
+  case mapping to `Locale.ROOT` and uses separate IDs for success and failure. The `andOTP_` prefix
+  remains for compatibility. Existing locale-specific channel settings are not migrated to the
+  ASCII ID; channel names, descriptions and importance remain as documented here.
 - **One documented API delta**: the Java built `NotificationCompat.Builder(context, null)` and set the
   channel id after creating the channel. The AndroidX constructor's channel id is `@NonNull` for
   Kotlin, so the converted code passes the same id to the constructor; the builder only stores the
@@ -957,10 +952,11 @@ callers, the backup policy and the settings screen were Java at that conversion 
   trimmed, and blank names are ignored (and a clicked row is resolved by adapter position, not by
   its count-decorated text) — see `bughunt-follow-up-2026-10-25.md`.
 - **Encrypted preference**: `PasswordEncryptedPreference` stays open with its XML `(Context,
-  AttributeSet)` constructor, nested `Mode`, open `setMode`, protected framework hooks and listener
-  interfaces. It keeps the same AndroidKeyStore alias, RSA helper calls, UTF-8/Base64 URL-safe stored
-  format, password/PIN input flags, show-password wiring, matching-only save rule and caught/printed
-  crypto failures. `key` is explicitly nullable after generation failure and is required only inside
+  AttributeSet)` constructor, nested `Mode`, overridable `setMode`, protected framework hooks and
+  listener interfaces. The app uses it for backup passwords; PIN mode remains for compatibility.
+  It keeps the same AndroidKeyStore alias, RSA helper calls, UTF-8/Base64 URL-safe stored format,
+  password/PIN input flags, show-password wiring, matching-only save rule and caught/printed crypto
+  failures. `key` is explicitly nullable after generation failure and is required only inside
   the existing catch blocks. One null edge is intentionally hardened: this preference XML has no
   `android:defaultValue`, so first attachment can supply a null default. The Java stored null, caught
   a failed encryption and later crashed when the dialog called `value.isEmpty()`; Kotlin now retains
@@ -1022,11 +1018,10 @@ that matter:
 
 ## Tests and acceptance
 
-The characterization assertions remain in place after the twenty-third test-source batch: the 7 host tests
-(`BoundedInputReaderTest`, `EncryptedBackupHeaderTest`, `InputPolicyTest`, `ScreenTimerControllerTest`,
-`VaultSessionTest`, `EntryActionTargetTest`, `EntryListPresentationTest`) now live in Kotlin beside
-`TaskContractsTest`, `SessionContractsTest`, `OtpUriParserTest` and `BackupTaskResultTest`. At that point the 11 ordinary Android suites and all 15 `Kotlin*InteropTest.kt` interop suites also moved to Kotlin; the current checkout has 14 host test classes and four instrumentation tests.
-Their reflection assertions continue to pin Java-visible production APIs while the tests themselves compile as Kotlin. New
+At the twenty-third test-source batch, characterization suites and interop tests were converted
+to Kotlin. Some suites and guards described below are historical and are not in this checkout;
+see the [README](../README.md) for the current test commands. Those batch-local reflection and
+source guards were intended to pin Java-visible production APIs. New
 reflection/source guards were added where a conversion could silently change a Java-visible shape:
 `scripts/tests/test_ui_decomposition_policy.py` now requires the converted stems, the
 `@JvmStatic`/`@JvmField`/`const`/`@Throws`/`@Synchronized` shapes and the editor-action short-circuit,
@@ -1098,18 +1093,12 @@ uses real inflated password widgets from Kotlin for both modes, privacy flags, w
 editor-action behavior; `KotlinPasswordEncryptedPreferenceInteropTest` records preference writes
 while exercising the real AndroidKeyStore round trip, first-attachment null default, restored field,
 input modes and matching rule. Both are checked in but have **not been compiled or run** here.
-With the component batch the stem list gains `Receivers/BackupBroadcastReceiver`,
+The component batch added `Receivers/BackupBroadcastReceiver`,
 `Receivers/EncryptedBackupBroadcastReceiver`, `Tasks/EncryptedBackupWorker` and
-`Utilities/BackupAgent`, and `scripts/tests/test_kotlin_backup_components_conversion.py` pins the
-replacements, the receiver's and worker's check order, the four distinct failure messages, the
-throttled slot in front of the password check, the `KEEP` policy and the queued worker class, the
-entry cleanup and the generation check of the backup, the private subclass that reaches the task's
-`protected doInBackground()`, the refused platform restore, the app callers that cancel the queued
-work by its name and the manifest entry with its signature permission.
-`KotlinBackupComponentsInteropTest` (Kotlin, instrumentation) covers what the sandbox cannot reach:
-the real broadcast with a keystore-backed password queues the work, the disabled broadcast and
-another action queue nothing, and the queued work really runs the worker and reaches a terminal
-state. It has **not been compiled or run** here.
+`Utilities/BackupAgent` to the sandbox compile list. The current
+`scripts/tests/test_kotlin_backup_components_conversion.py` checks receiver/worker source ordering,
+notifications, queued work and entry cleanup. The manifest policy rejects registering the legacy
+agent. The historical device interop suite is not part of this checkout.
 With the activity-base batch the stem list gains `Activities/ThemedActivity` and
 `Activities/BaseActivity`, and `scripts/tests/test_kotlin_activity_bases_conversion.py` pins the
 replacements, the public `settings` field the Java activities read, the theme applied before
@@ -1157,13 +1146,13 @@ checks after the twentieth batch:
 - `PasswordEntryDialog` against scripted children: both modes, minimum length/matching confirmation,
   warning/OK state, privacy flags, IME done/enter-up, callback/dismissal and nullable callback;
   `TagsDialog` row toggling and both dialog stages, including optional callables. Reflection pins
-  both Java APIs plus `PasswordEncryptedPreference`'s open class/setter, XML constructor and modes;
-  the preference's real crypto body is not executed here.
+  both Java APIs plus `PasswordEncryptedPreference`'s open class and XML constructor. The sandbox
+  binds the password fields but does not execute the real KeyStore crypto body.
 - `BackupTaskResult` factories, field defaults, writable PGP fields and a payload-free `toString`.
 - The background runner on real executor threads with a queued fake main loop: single owned-value
-  delivery and one-shot execution, null/exception mapping to typed failures with the legacy
-  fallback, pre-start cancellation and idempotent cleanup, explicit cancellation disposing late
-  results without legacy callbacks, session-revocation cancellation disposing in-flight values,
+  delivery and one-shot execution, null/exception mapping to typed failures, pre-start cancellation
+  and idempotent cleanup, explicit cancellation disposing late results, session-revocation
+  cancellation disposing in-flight values,
   and a stale captured generation being cancelled before work begins.
 - `VaultSession` facade shapes (mutation lock field, static generation/listener forwarders) read
   live by the runner.
@@ -1190,19 +1179,18 @@ checks after the twentieth batch:
   (through a replicated write-truncate `ParcelFileDescriptor`): a 20,000-byte write in three chunks
   with exactly six permission checks and a closed descriptor; revocation before the third chunk
   (16 KiB written, no further checks, descriptor closed), refusal right after opening and after the
-  flush; empty and UTF-8 `String` writes; the exact document bound accepted and every pre-open
+  flush; empty writes; the exact document bound accepted and every pre-open
   refusal (null URI/data, `file:` scheme, oversized URI/data, refused permission) proven not to
   reach the provider; missing descriptors and provider exceptions as `false`. Reads: content and
   cache-fixture documents (stream closed), refusal of null/oversized/`https`/outside/sibling-prefix/
   `..`/cache-directory/empty-path URIs before the provider, the byte limit on a lazily oversized
-  stream, a null stream, and provider exceptions propagating from `loadFile` but becoming `""` in
-  `loadFileString`. Display names: control-character stripping (C1 kept), cursor closing and
+  stream, a null stream, and provider exceptions propagating from `loadFile` but becoming `""`
+  through `loadFileString`. Display names: control-character stripping (C1 kept), cursor closing and
   projection, every metadata fallback, the bound applied before stripping, the placeholder cases and
   no query for `file:` URIs.
-- The static Java surfaces of both helpers: `StorageAccessHelper`'s six `@JvmStatic` signatures with
-  `IOException` declared on `loadFile` only, and `BackupHelper.BackupFile` as a non-final static
-  nested class with public mutable fields and its defaults. `BackupHelper`'s own methods take the
-  Java-only `Constants.BackupType`, so they are pinned by the Python guards instead.
+- The static Java surfaces of both helpers, including legacy and permission-aware write overloads;
+  `loadFile` declares `IOException`. `BackupHelper.BackupFile` remains a non-final static nested
+  class with public mutable fields and its defaults.
 - `ScanQRCodeFromFile` **executed** against scripted stand-ins (a recording `BitmapFactory` hook, a
   pixel-holding `Bitmap`, a replaying zxing `QRCodeReader`, recorded toasts): both load-failure
   kinds, rejected bounds (undecodable, empty, oversized, too many pixels) never reaching the full
@@ -1272,19 +1260,11 @@ checks after the twentieth batch:
 - The converted sources are compiled with the real `Utilities/Constants.java` on the resolution
   path, so `SecretKeyWrapper` is checked against the actual package-private constant rather than a copy.
 - Reflection assertions on the Java-visible shapes (static forwarders, constant fields, checked exceptions, synchronized methods, enum constants, private constructor, non-final class where the Java was extendable, abstract callbacks, and the deliberate `object` delta for static-only utilities).
-- The converted Android components: the receiver's action gate is **executed** (a null intent and
-  another action are ignored without touching the settings, the notifications or the work manager),
-  the worker's early exits are **executed** (stopped or disabled work fails without a
-  notification), the legacy agent's refusal is **executed** (the restore throws the documented
-  `IOException`, and the refusal is not preceded by a null check on the platform's arguments), and
-  the Java-visible shapes of all four are reflected (the two public static final constants, the
-  protected `canSaveBackup` helper, the abstract base class, the worker's constructor and its
-  `ListenableWorker.Result` return type, the agent's `IOException`-declaring restore). The failure
-  paths behind the action gate post a notification through the Java-only
-  `Constants.NotificationChannel` and the happy path needs the AndroidKeyStore, so they are pinned
-  by the Python source guard and by the device test instead. The sandbox gained the
-  `androidx.work` and `android.app.backup` stand-ins for this; the worker's stop flag is a
-  stand-in property, and the recorded enqueues are not work.
+- The converted Android components: the receiver's action gate, the worker's early exits and the
+  unregistered legacy agent's restore refusal are **executed**, and their Java-visible shapes are
+  reflected. Failure notifications and successful AndroidKeyStore-backed work require separate
+  source and device checks. The sandbox's worker stop flag is a stand-in property, and recorded
+  enqueues are not work.
 - The runner's `isCanceled()` is asserted **overridable** — the regression that converting
   `EncryptedBackupTask` exposed (see [task runner and `isCanceled()`](#task-runner-and-iscanceled))
   cannot silently return.
@@ -1306,23 +1286,13 @@ so it says nothing about Android runtime behaviour, resources, manifest or packa
 
 ### Still required before release
 
-Both flavors must compile and pass host tests, focused lint and packaged-manifest policy, and the API
-28/36 instrumentation matrix, plus the independent release/reproducibility and dependency
-comparisons. Java-side compilation of the callers, `Handler`/`Looper` timing on a real main thread,
-`KeyEvent` delivery, `TypedValue.applyDimension` (the stub replicates the documented density formula),
-the real `View.postDelayed` scheduling, `Entry`'s thumbnail-dependent members, the vault file
-transaction itself (`FileHelper`/`AtomicFile`, `SharedPreferences` and the
-staged-promotion choreography all need a device), the AES-GCM provider calls and every
-AndroidKeyStore path of the converted crypto helpers (alias creation/loading/wipe, wrapping and
-unwrapping, the credential ciphertexts) which the desktop JDK and this sandbox cannot run at all, real Storage Access Framework providers (the
-platform `ContentResolver`/`ParcelFileDescriptor`, `DocumentFile` tree creation, URI grants and
-provider write semantics), the encrypted-backup writer and settings-driven backup names (which need
-`EncryptionHelper`/`Settings`), real image decoding, zxing, notification channels/posting and the
-runtime-permission flow, and the real
-`org.json`/`commons-codec`/`android.net.Uri` behaviour beyond the documented replicated subsets are
-not covered by the sandbox check. See
-the build commands in the README. Remaining decomposition and UI conversion work is
-tracked in the [decomposition plan](ui-decomposition-plan.md).
+Both flavors require builds, host tests, lint, packaged-manifest policy, the API 28/36
+instrumentation matrix, and release/reproducibility and dependency comparisons. The sandbox uses
+desktop JCA and fake providers; it cannot validate real Android scheduling, vault transaction
+recovery, AndroidKeyStore or provider behavior, SAF grants and writes, image decoding, ZXing,
+notifications, runtime permissions, or platform/library behavior beyond the stubbed subsets.
+See the [README](../README.md) for commands and the [decomposition plan](ui-decomposition-plan.md)
+for remaining UI work.
 
 ## Deliberately not converted
 
@@ -1348,12 +1318,6 @@ small standalone activities (nineteenth), the about screens (twentieth) and the 
 interface — the six large activities, the credential preference, the manual entry dialog and the
 two card adapters (twenty-first).
 
-The thumbnail pair has also left this list (eighth batch). The small visibility widenings are
-explicitly recorded above; these leaf renderers still need Android acceptance despite their sandbox
-compile. The activity base classes are converted too (eighteenth batch) and so are the two small
-standalone activities (nineteenth batch), the about screens (twentieth batch — the about
-activity and the fragments) and the remaining user interface (twenty-first batch — the six large
-activities, the credential preference, the manual entry dialog and the two card adapters). Current local
-checks pass: 82 Python guards, 110 JVM host tests, 100 sandbox checks, and four instrumentation
-sources that compile. The both-flavor Gradle build, lint, packaging and device instrumentation runs remain
-CI requirements; no Android acceptance result is claimed from this environment.
+The thumbnail helpers were converted in the eighth batch. Sandbox compilation does not establish
+Android rendering behavior; both-flavor builds, lint, packaging and device instrumentation remain
+release gates. See the [sandbox guide](../scripts/kotlin-sandbox/README.md) for current limits.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify checked-in wrapper provenance and immutable CI action references.
+"""Verify checked-in Gradle wrapper provenance and distribution settings.
 
 Wrapper hashes are from Gradle's v8.13.0 release and the corresponding tagged
 scripts: https://github.com/gradle/gradle-distributions/releases/tag/v8.13.0
@@ -7,7 +7,6 @@ No downloads are executed by this check.
 """
 import hashlib
 from pathlib import Path
-import re
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,8 +16,6 @@ HASHES = {
     "gradlew.bat": "0f3ed8f03b50934cb8c48b15a470d5c20a30a5385825e48b55bcc8ea3d8f8e18",
 }
 DISTRIBUTION_HASH = "fba8464465835e74f7270bbf43d6d8a8d7709ab0a43ce1aa3323f73e9aa0c612"
-ACTION_REFERENCE = re.compile(r"[\w.-]+/[\w./-]+@[0-9a-f]{40}")
-ACTION_USE = re.compile(r"(?m)^\s*(?:-\s*)?uses:\s*([^\s#]+)")
 
 
 def _read_wrapper_properties(root: Path, errors: list[str]) -> dict[str, str]:
@@ -42,17 +39,6 @@ def _read_wrapper_properties(root: Path, errors: list[str]) -> dict[str, str]:
     return properties
 
 
-def _workflow_files(root: Path, errors: list[str]) -> list[Path]:
-    directory = root / ".github/workflows"
-    if not directory.is_dir():
-        errors.append("GitHub Actions workflow directory is missing")
-        return []
-    workflows = sorted((*directory.glob("*.yml"), *directory.glob("*.yaml")))
-    if not workflows:
-        errors.append("No GitHub Actions workflows found")
-    return workflows
-
-
 def check(root=ROOT):
     root = Path(root)
     errors = []
@@ -73,16 +59,6 @@ def check(root=ROOT):
     if properties.get("validateDistributionUrl") != "true":
         errors.append("Gradle distribution URL validation disabled")
 
-    for workflow in _workflow_files(root, errors):
-        try:
-            text = workflow.read_text(encoding="utf-8")
-        except OSError as error:
-            errors.append(f"Cannot inspect workflow {workflow.name}: {error}")
-            continue
-        references = ACTION_USE.findall(text)
-        for reference in references:
-            if not ACTION_REFERENCE.fullmatch(reference):
-                errors.append(f"Unpinned workflow action in {workflow.name}: {reference}")
     return errors
 
 
@@ -91,7 +67,7 @@ def main():
     if errors:
         print("\n".join(errors), file=sys.stderr)
         return 1
-    print("Wrapper hashes, distribution checksum, and CI action pins passed")
+    print("Wrapper hashes and distribution settings passed")
     return 0
 
 

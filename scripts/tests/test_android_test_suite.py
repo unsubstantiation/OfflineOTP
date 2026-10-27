@@ -1,6 +1,6 @@
 """Guards for the instrumentation suite (app/src/androidTest + its compile check).
 
-The instrumentation sources only run on a device (CI emulator matrix); this file pins the parts
+The instrumentation sources only run on a device or emulator; this file pins the parts
 that must hold in every checkout without one:
 
 * ``ApplicationTest.kt`` exists at exactly the path docs/language-security-assessment.md links

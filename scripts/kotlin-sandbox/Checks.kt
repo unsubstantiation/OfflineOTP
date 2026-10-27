@@ -96,11 +96,9 @@ import org.shadowice.flocke.andotp.Activities.BackgroundTaskActivity
 import org.shadowice.flocke.andotp.Activities.IntroScreenActivity
 import org.shadowice.flocke.andotp.Activities.MainActivity
 import org.shadowice.flocke.andotp.Activities.SettingsActivity
-import org.shadowice.flocke.andotp.Database.EntryList
 import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
 import org.shadowice.flocke.andotp.Preferences.CredentialsPreference
 import org.shadowice.flocke.andotp.View.EntriesCardAdapter
-import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.View.EntryActionDialogs
 import org.shadowice.flocke.andotp.View.EntryViewHolder
 import org.shadowice.flocke.andotp.R
@@ -129,8 +127,6 @@ import android.widget.ImageButton
 import androidx.cardview.widget.CardView
 import androidx.documentfile.provider.DocumentFile
 import me.zhanghai.android.materialprogressbar.MaterialProgressBar
-import org.openintents.openpgp.util.OpenPgpAppPreference
-import org.openintents.openpgp.util.OpenPgpKeyPreference
 import com.heinrichreimersoftware.materialintro.app.IntroActivity
 import javax.crypto.SecretKey
 import java.io.ByteArrayOutputStream
@@ -186,7 +182,6 @@ import com.google.zxing.qrcode.QRCodeReader
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.preference.FakeSharedPreferences
-import android.preference.ListPreference
 import android.preference.PreferenceManager
 
 import org.json.JSONObject
@@ -1421,16 +1416,30 @@ fun main() {
     }
 
     check("Steam tokens match the alphabet mapping of the same truncation") {
-        val before = System.currentTimeMillis() / 1000
-        val token = TokenCalculator.TOTP_Steam(keySha1, TokenCalculator.TOTP_DEFAULT_PERIOD,
+        val time = 1700000000L
+        val token = TokenCalculator.TOTP_SteamAt(keySha1, TokenCalculator.TOTP_DEFAULT_PERIOD, time,
                 TokenCalculator.STEAM_DEFAULT_DIGITS, TokenCalculator.HashAlgorithm.SHA1, 0)
-        val after = System.currentTimeMillis() / 1000
         expect(token.length == 5, { token })
         expect(token.all { it in "23456789BCDFGHJKMNPQRTVWXY" }, { token })
-        val expected = setOf(
-                ownSteam("SHA1", keySha1, 30, before, 0),
-                ownSteam("SHA1", keySha1, 30, after, 0))
-        expect(expected.contains(token), { "Steam token $token not in $expected" })
+        val expected = ownSteam("SHA1", keySha1, 30, time, 0)
+        expect(token == expected, { "Steam token $token did not match $expected" })
+    }
+
+    check("current-time TOTP and Steam compatibility overloads use the current step") {
+        val period = 30
+        val beforeTotp = System.currentTimeMillis() / 1000
+        val totp = TokenCalculator.TOTP_RFC6238(keySha1, period, 8, TokenCalculator.HashAlgorithm.SHA1, 0)
+        val afterTotp = System.currentTimeMillis() / 1000
+        val expectedTotp = setOf(beforeTotp, afterTotp).map {
+            String.format(Locale.ROOT, "%08d", ownTotp("SHA1", keySha1, period, it, 8, 0))
+        }
+        expect(totp in expectedTotp, { "current-time TOTP $totp not in $expectedTotp" })
+
+        val beforeSteam = System.currentTimeMillis() / 1000
+        val steam = TokenCalculator.TOTP_Steam(keySha1, period, 5, TokenCalculator.HashAlgorithm.SHA1, 0)
+        val afterSteam = System.currentTimeMillis() / 1000
+        val expectedSteam = setOf(beforeSteam, afterSteam).map { ownSteam("SHA1", keySha1, period, it, 0) }
+        expect(steam in expectedSteam, { "current-time Steam token $steam not in $expectedSteam" })
     }
 
     check("mOTP matches an independent MD5 computation") {
@@ -2223,6 +2232,43 @@ fun main() {
         expect(TextWatcher::class.java.isAssignableFrom(preference), { "text watcher" })
     }
 
+    check("the backup-password preference binds masked text inputs") {
+        val fixture = SettingsFixture()
+        val root = CardRoot()
+        val layout = com.google.android.material.textfield.TextInputLayout()
+        val password = com.google.android.material.textfield.TextInputEditText()
+        val confirm = android.widget.EditText()
+        val cancel = android.widget.Button()
+        val save = android.widget.Button()
+        root.children[R.id.passwordLayout] = layout
+        root.children[R.id.passwordEdit] = password
+        root.children[R.id.passwordConfirm] = confirm
+        root.children[R.id.btnCancel] = cancel
+        root.children[R.id.btnSave] = save
+        val preference = object : PasswordEncryptedPreference(fixture.context, null) {
+            fun bind(view: View) = onBindDialogView(view)
+        }
+        withPoisonedTransaction { preference.bind(root) }
+        val passwordType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        expect(password.inputType == passwordType && confirm.inputType == passwordType,
+                { "backup credentials did not use password text input" })
+        expect(!password.isSaveEnabled && !confirm.isSaveEnabled, { "secret fields save view state" })
+        expect(password.transformationMethod is PasswordTransformationMethod &&
+                confirm.transformationMethod is PasswordTransformationMethod,
+                { "backup password inputs were not masked" })
+        expect(layout.endIconClickListener != null, { "password visibility toggle was not installed" })
+        expect(!save.isEnabled, { "save must begin disabled" })
+
+        preference.setMode(PasswordEncryptedPreference.Mode.PIN)
+        withPoisonedTransaction { preference.bind(root) }
+        val pinType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        expect(password.inputType == pinType && confirm.inputType == pinType,
+                { "PIN mode did not use numeric password input" })
+        expect(password.transformationMethod is PasswordTransformationMethod &&
+                confirm.transformationMethod is PasswordTransformationMethod,
+                { "PIN mode inputs were not masked" })
+    }
+
     check("the converted vault repository keeps its Java-visible surface and fails closed") {
         val helper = DatabaseHelper::class.java
         expect(Modifier.isPublic(helper.modifiers), { "DatabaseHelper is not public" })
@@ -2462,7 +2508,7 @@ fun main() {
     }
 
     check("document writes are content-only, bounded and re-check permission around every chunk") {
-        val directory = java.nio.file.Files.createTempDirectory("andotp-sandbox").toFile()
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-sandbox").toFile()
         try {
             val resolver = FakeResolver()
             val context = FakeStorageContext(resolver, File(directory, "cache"))
@@ -2492,41 +2538,64 @@ fun main() {
             expect(!StorageAccessHelper.saveFile(context, uri, data, ScriptedPermission(refuseAt = 6)), { "final refusal" })
             expect(document.length() == data.size.toLong(), { "final refusal must not truncate what was written" })
 
-            // An empty document is opened, flushed and permitted three times; the String overload is UTF-8.
+            // An empty document is opened, flushed and permitted three times.
             val empty = ScriptedPermission()
             expect(StorageAccessHelper.saveFile(context, uri, ByteArray(0), empty) && empty.asked == 3, { "empty write" })
-            expect(StorageAccessHelper.saveFile(context, uri, "Grüße"), { "String overload" })
-            expect(document.readText(Charsets.UTF_8) == "Grüße", { "String overload encoding" })
+            expect(StorageAccessHelper.saveFile(context, uri, "Grüße"), { "legacy String overload" })
+            expect(document.readText(Charsets.UTF_8) == "Grüße", { "legacy String overload encoding" })
+            val legacyBytes = byteArrayOf(1, 2, 3)
+            expect(StorageAccessHelper.saveFile(context, uri, legacyBytes), { "legacy byte-array overload" })
+            expect(document.readBytes().contentEquals(legacyBytes), { "legacy byte-array write changed" })
 
             // Refused before the provider is touched: the scheme, the bounds, a missing URI/data,
             // and a permission that is already gone.
             resolver.calls.clear()
             val longUri = contentUri("x".repeat(InputPolicy.MAX_URI_CHARS))
+            expect(!StorageAccessHelper.saveFile(context, null, data), { "legacy writer accepted a null URI" })
+            expect(!StorageAccessHelper.saveFile(context, uri, null as ByteArray?), { "legacy writer accepted null data" })
             for ((label, refused) in listOf(
-                    "null uri" to { StorageAccessHelper.saveFile(context, null, data) },
-                    "null data" to { StorageAccessHelper.saveFile(context, uri, null as ByteArray?) },
-                    "file scheme" to { StorageAccessHelper.saveFile(context, fileUri(document.path), data) },
-                    "long uri" to { StorageAccessHelper.saveFile(context, longUri, data) },
-                    "oversized" to { StorageAccessHelper.saveFile(context, uri, ByteArray(BoundedInputReader.MAX_DOCUMENT_BYTES + 1)) },
+                    "null uri" to { StorageAccessHelper.saveFile(context, null, data, ScriptedPermission()) },
+                    "null data" to { StorageAccessHelper.saveFile(context, uri, null as ByteArray?, ScriptedPermission()) },
+                    "file scheme" to { StorageAccessHelper.saveFile(context, fileUri(document.path), data, ScriptedPermission()) },
+                    "long uri" to { StorageAccessHelper.saveFile(context, longUri, data, ScriptedPermission()) },
+                    "oversized" to { StorageAccessHelper.saveFile(context, uri, ByteArray(BoundedInputReader.MAX_DOCUMENT_BYTES + 1), ScriptedPermission()) },
                     "not permitted" to { StorageAccessHelper.saveFile(context, uri, data, ScriptedPermission(refuseAt = 1)) })) {
                 expect(!refused(), { "$label was written" })
             }
             expect(resolver.calls.isEmpty(), { "the provider was reached by a refused write: ${resolver.calls}" })
             // The exact bound is still accepted.
-            expect(StorageAccessHelper.saveFile(context, uri, ByteArray(BoundedInputReader.MAX_DOCUMENT_BYTES)), { "exact bound" })
+            expect(StorageAccessHelper.saveFile(context, uri, ByteArray(BoundedInputReader.MAX_DOCUMENT_BYTES), ScriptedPermission()), { "exact bound" })
 
             // Provider failures are false, never an exception: no descriptor, or a SecurityException.
             resolver.target = null
-            expect(!StorageAccessHelper.saveFile(context, uri, data), { "a missing descriptor reported success" })
+            expect(!StorageAccessHelper.saveFile(context, uri, data, ScriptedPermission()), { "a missing descriptor reported success" })
             resolver.failure = SecurityException("revoked grant")
-            expect(!StorageAccessHelper.saveFile(context, uri, data), { "a provider exception reported success" })
+            expect(!StorageAccessHelper.saveFile(context, uri, data, ScriptedPermission()), { "a provider exception reported success" })
         } finally {
             directory.deleteRecursively()
         }
     }
 
+    check("an unpermitted encryption change stops before reading the vault") {
+        try {
+            val key = SecretKeySpec(ByteArray(32), "AES")
+            val generation = VaultSession.beginUnlock().generation
+            expect(VaultSession.activate(key, generation) is SessionCommandResult.Applied, { "session not active" })
+            var checks = 0
+            val result = EncryptionHelper.tryEncryptionChange(
+                    Context(), key, Constants.EncryptionType.KEYSTORE, null, null) {
+                checks++
+                false
+            }
+            expect(result == EncryptionHelper.EncryptionChangeResult.DECRYPTION_FAILED && checks == 1,
+                    { "an unpermitted change did not stop at its first gate" })
+        } finally {
+            VaultSession.lock(SessionLockReason.RESET)
+        }
+    }
+
     check("encrypted backups round-trip through the SAF writer and reject wrong passwords/tampering") {
-        val directory = java.nio.file.Files.createTempDirectory("andotp-encrypted-backup").toFile()
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-encrypted-backup").toFile()
         try {
             val resolver = FakeResolver()
             val context = FakeStorageContext(resolver, File(directory, "cache"))
@@ -2560,7 +2629,11 @@ fun main() {
             expectThrows(GeneralSecurityException::class.java) { EncryptionHelper.decrypt(key, damaged) }
 
             val callsBeforeReject = resolver.calls.size
-            expect(!BackupHelper.backupToFile(context, uri, "", plaintext), { "empty backup password accepted" })
+            expect(!BackupHelper.backupToFile(context, uri, "", plaintext), { "legacy writer accepted an empty password" })
+            expect(!BackupHelper.backupToFile(context, uri, "", plaintext, ScriptedPermission()), { "empty backup password accepted" })
+            val denied = ScriptedPermission(refuseAt = 1)
+            expect(!BackupHelper.backupToFile(context, uri, password, plaintext, denied), { "denied backup succeeded" })
+            expect(denied.asked == 1, { "backup permission was not checked first" })
             expect(resolver.calls.size == callsBeforeReject, { "a refused backup reached the provider" })
         } finally {
             directory.deleteRecursively()
@@ -2585,7 +2658,7 @@ fun main() {
             }
         }
         val resolver = FakeResolver()
-        val context = FakeStorageContext(resolver, File("/tmp/andotp-cache"))
+        val context = FakeStorageContext(resolver, File("/tmp/offlineotp-cache"))
         DocumentFile.treeFactory = { _, _ -> tree }
         try {
             val first = BackupHelper.backupFile(context, treeUri, Constants.BackupType.ENCRYPTED)
@@ -2604,7 +2677,7 @@ fun main() {
     }
 
     check("document reads are bounded and file URIs stay confined to the private cache") {
-        val directory = java.nio.file.Files.createTempDirectory("andotp-sandbox").toFile()
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-sandbox").toFile()
         try {
             val resolver = FakeResolver()
             val cache = File(directory, "cache").apply { mkdirs() }
@@ -2647,7 +2720,7 @@ fun main() {
             expectThrows(IOException::class.java) { StorageAccessHelper.loadFile(context, contentUri("big")) }
             resolver.input = null
             expectThrows(IOException::class.java) { StorageAccessHelper.loadFile(context, contentUri("none")) }
-            // Provider exceptions propagate from loadFile and become "" in loadFileString.
+            // Provider exceptions propagate from loadFile but are mapped to an empty string by its legacy text adapter.
             resolver.failure = SecurityException("revoked grant")
             expectThrows(SecurityException::class.java) { StorageAccessHelper.loadFile(context, contentUri("a")) }
             expect(StorageAccessHelper.loadFileString(context, contentUri("a")) == "", { "provider failure produced text" })
@@ -2715,9 +2788,18 @@ fun main() {
         expect(storage.declaredMethods.filter { Modifier.isPublic(it.modifiers) && Modifier.isStatic(it.modifiers) }
                 .none { it.exceptionTypes.isNotEmpty() && it.name != "loadFile" }, { "an unexpected checked exception appeared" })
 
-        // BackupHelper's methods are not reflected here (the Python guards pin their names and
-        // signatures); the nested result type is, and it stays a mutable,
-        // extendable Java-style holder with public fields and a public no-argument constructor.
+        for (signature in listOf(
+                "static boolean backupToFile(Context,Uri,String,String)",
+                "static boolean backupToFile(Context,Uri,String,String,BooleanSupplier)")) {
+            expectMethod(BackupHelper::class.java, signature)
+        }
+        for (signature in listOf(
+                "static EncryptionChangeResult tryEncryptionChange(Context,SecretKey,EncryptionType,byte[],EncryptionChangeCallback)",
+                "static EncryptionChangeResult tryEncryptionChange(Context,SecretKey,EncryptionType,byte[],EncryptionChangeCallback,BooleanSupplier)")) {
+            expectMethod(EncryptionHelper::class.java, signature)
+        }
+
+        // BackupFile stays a mutable, extendable Java-style holder with public fields.
         val backupFile = BackupHelper.BackupFile::class.java
         expect(!Modifier.isFinal(backupFile.modifiers) && Modifier.isStatic(backupFile.modifiers),
                 { "BackupFile is final or no longer a static nested class" })
@@ -3459,10 +3541,10 @@ fun main() {
     }
 
     check("backup task results keep their factories, defaults and redaction") {
-        val success = BackupTaskResult.success(BackupTaskResult.ResultType.BACKUP, "andotp-backup.json")
+        val success = BackupTaskResult.success(BackupTaskResult.ResultType.BACKUP, "offlineotp-backup.json")
         expect(success.success && success.resultType == BackupTaskResult.ResultType.BACKUP,
                 { "success reports the wrong state" })
-        expect(success.payload == "andotp-backup.json", { "file name payload changed" })
+        expect(success.payload == "offlineotp-backup.json", { "file name payload changed" })
         expect(success.messageId == R.string.backup_toast_export_success, { "success message id changed" })
         expect(!success.isPGP && success.decryptIntent == null && success.uri == null, { "PGP defaults changed" })
 
@@ -3478,7 +3560,7 @@ fun main() {
         expect(!pgp.isPGP, { "isPGP is no longer writable" })
 
         // payload can be the whole parsed database; the default toString must not broadcast it.
-        expect(!success.toString().contains("andotp-backup"), { "payload leaked through toString" })
+        expect(!success.toString().contains("offlineotp-backup"), { "payload leaked through toString" })
         expect(BackupTaskResult.ResultType.values().map { it.name } == listOf("NONE", "BACKUP", "RESTORE"),
                 { "ResultType constants changed" })
         expect(BackupTaskResult.ResultType.valueOf("NONE") == BackupTaskResult.ResultType.NONE, { "valueOf broke" })
@@ -3509,7 +3591,7 @@ fun main() {
         expectThrows(IllegalStateException::class.java) { task.execute() }
     }
 
-    check("null and thrown results become failures and legacy clients get the fallback") {
+    check("null and thrown results become typed failures and legacy clients get the fallback") {
         Handler.posted.clear()
         val nullTask = NullRunnerTask("fallback")
         val outcomes = ArrayList<TaskOutcome<String?>>()
@@ -3561,18 +3643,46 @@ fun main() {
         expectThrows(IllegalStateException::class.java) { task.execute() }
     }
 
-    check("explicit cancellation disposes the late result and never calls the legacy callback") {
+    check("explicit cancellation disposes the late result and delivers cancellation") {
         val task = BlockingRunnerTask("fallback")
-        val legacy = AtomicInteger(0)
-        task.setCallback { legacy.incrementAndGet() }
+        val delivered = ArrayList<TaskOutcome<String>>()
+        task.setOutcomeCallback { delivered.add(it) }
         task.execute()
         expect(task.started.await(5, TimeUnit.SECONDS), { "work never started" })
         task.cancel()
         task.release.countDown()
         expect(task.discardedOnce.await(5, TimeUnit.SECONDS), { "the late value was never disposed" })
         drainMainThreadDeliveries()
-        expect(legacy.get() == 0, { "a cancelled task delivered a legacy result" })
+        expect(delivered.size == 1 && delivered[0] is TaskOutcome.Cancelled,
+                { "a cancelled task delivered a value instead: $delivered" })
+        expect((delivered[0] as TaskOutcome.Cancelled<*>).reason == TaskCancellation.EXPLICIT,
+                { "wrong cancellation reason" })
         expect(task.discarded.get() == 1, { "unexpected disposal count ${task.discarded.get()}" })
+    }
+
+    check("legacy task callbacks deliver values and suppress cancellation") {
+        Handler.posted.clear()
+        val completed = BlockingRunnerTask("fallback")
+        var result: String? = null
+        completed.setCallback { result = it }
+        completed.execute()
+        expect(completed.started.await(5, TimeUnit.SECONDS), { "legacy task never started" })
+        completed.release.countDown()
+        awaitQueuedDelivery()
+        drainMainThreadDeliveries()
+        expect(result == "late-value", { "legacy callback received $result" })
+
+        val cancelled = BlockingRunnerTask("fallback")
+        val calls = AtomicInteger(0)
+        cancelled.setCallback { calls.incrementAndGet() }
+        cancelled.execute()
+        expect(cancelled.started.await(5, TimeUnit.SECONDS), { "legacy task never started" })
+        cancelled.cancel()
+        cancelled.release.countDown()
+        expect(cancelled.discardedOnce.await(5, TimeUnit.SECONDS), { "late legacy value was not disposed" })
+        drainMainThreadDeliveries()
+        expect(calls.get() == 0, { "a cancelled task delivered a legacy result" })
+        expect(cancelled.discarded.get() == 1, { "legacy late result disposal count changed" })
     }
 
     check("session revocation cancels in-flight work and disposes its result") {
@@ -3832,6 +3942,7 @@ fun main() {
         val outcomeCallback = runner.declaredClasses.first { it.simpleName == "OutcomeCallback" }
         expect(outcomeCallback.declaredMethods.single { !it.isSynthetic && Modifier.isAbstract(it.modifiers) }.name == "onOutcome",
                 { "OutcomeCallback abstract method changed" })
+
         val uiCallback = runner.declaredClasses.first { it.simpleName == "UiCallback" }
         expect(uiCallback.declaredMethods.single { !it.isSynthetic && Modifier.isAbstract(it.modifiers) }.name == "onResult",
                 { "UiCallback abstract method changed" })
@@ -4353,15 +4464,14 @@ fun main() {
         // Setters write exactly the key they read and nothing else.
         fixture.store.edit().clear().commit()
         settings.setFirstTimeWarningShown(true)
-        expect(fixture.store.getBoolean(settingsKey(R.string.settings_key_security_backup_warning), false),
-                { "setFirstTimeWarningShown did not write its key" })
+        expect(settings.getFirstTimeWarningShown(), { "warning state did not round-trip" })
         settings.setUsedTokensDialogShown(true)
         expect(fixture.store.getAll().keys == setOf(
                 settingsKey(R.string.settings_key_security_backup_warning),
                 settingsKey(R.string.settings_key_last_used_dialog_shown)),
-                { "setters wrote unexpected keys: ${fixture.store.getAll().keys}" })
+                { "setter wrote unexpected keys: ${fixture.store.getAll().keys}" })
         settings.setIterations(42000)
-        expect(settings.getIterations() == 42000, { "iterations round trip" })
+        expect(settings.getIterations() == 42000, { "iterations did not round-trip" })
 
         settings.setLocale("de_DE")
         expect(settings.getLocale() == Locale("de", "DE"), { "locale ${settings.getLocale()}" })
@@ -4376,12 +4486,12 @@ fun main() {
         expect(settings.getBackupLocation().toString() == "content://org.example.backup/vault.aes",
                 { "backup location round trip: ${settings.getBackupLocation()}" })
 
-        // The salt/verifier pair is Base64 URL_SAFE, and a missing salt is a programming error.
-        settings.setSalt(ByteArray(16) { (it + 1).toByte() })
-        val salt = settings.getSalt()
-        expect(salt.contentEquals(ByteArray(16) { (it + 1).toByte() }), { "the salt must round-trip" })
-        expect(!settings.getSalt().let { java.util.Base64.getEncoder().encodeToString(it) }.contains('+'),
-                { "the stored salt must use the URL-safe alphabet" })
+        // The salt/verifier pair is Base64 URL_SAFE; the compatibility setter and getter round-trip.
+        val expectedSalt = ByteArray(16) { (it + 1).toByte() }
+        settings.setSalt(expectedSalt)
+        expect(settings.getSalt().contentEquals(expectedSalt), { "salt did not round-trip" })
+        expect(fixture.stored(R.string.settings_key_auth_salt) == java.util.Base64.getUrlEncoder().encodeToString(expectedSalt),
+                { "the stored salt must use URL-safe Base64" })
 
         // The language migration lists are private static data on the class itself; the mapping they
         // encode is asserted here and applied by migrateDeprecatedSettings, which needs the file
@@ -4728,6 +4838,38 @@ fun main() {
         }
     }
 
+    check("the derived-key handoff is generation-bound and one-use") {
+        try {
+            val generation = VaultSession.beginUnlock().generation
+            val secret = ByteArray(32) { it.toByte() }
+            expect(VaultSession.offerDerivedKey(secret, generation), { "key was not published" })
+            expect(VaultSession.takeDerivedKey(generation - 1) == null, { "stale generation consumed the key" })
+            val received = VaultSession.takeDerivedKey(generation)
+            expect(received != null && received.contentEquals(secret), { "the key handoff changed" })
+            expect(VaultSession.takeDerivedKey(generation) == null, { "the key was handed out twice" })
+            received?.fill(0)
+        } finally {
+            VaultSession.lock(SessionLockReason.RESET)
+        }
+    }
+
+    check("legacy session adapters still open and transfer a handoff once") {
+        try {
+            VaultSession.lock(SessionLockReason.RESET)
+            val key = SecretKeySpec(ByteArray(32), "AES")
+            VaultSession.open(key)
+            expect(VaultSession.getKey() === key, { "legacy bootstrap did not activate the key" })
+            val secret = ByteArray(32) { it.toByte() }
+            expect(VaultSession.offerDerivedKey(secret, VaultSession.generation()), { "handoff was not published" })
+            val received = VaultSession.takeDerivedKey()
+            expect(received != null && received.contentEquals(secret), { "legacy handoff changed" })
+            expect(VaultSession.takeDerivedKey() == null, { "legacy handoff was consumed twice" })
+            received?.fill(0)
+        } finally {
+            VaultSession.lock(SessionLockReason.RESET)
+        }
+    }
+
     check("the panic responder wipes only what the panic action asks for") {
         PreferenceManager.reset()
         val activity = PanicActivity()
@@ -4764,8 +4906,10 @@ fun main() {
             // encrypted backup and locks the vault.
             store.edit().putStringSet(settingsKey(R.string.settings_key_panic), setOf("settings")).commit()
             work.reset()
-            VaultSession.open(SecretKeySpec(ByteArray(32), "AES"))
-            expect(VaultSession.getKey() != null, { "the vault session could not be opened" })
+            val generation = VaultSession.beginUnlock().generation
+            expect(VaultSession.activate(SecretKeySpec(ByteArray(32), "AES"), generation)
+                    is SessionCommandResult.Applied, { "the vault session could not be opened" })
+            expect(VaultSession.getKey() != null, { "the vault session was not unlocked" })
             activity.create()
             expect(activity.removedTasks == 3, { "the task was not removed" })
             expect(work.cancelled == listOf(EncryptedBackupBroadcastReceiver.UNIQUE_WORK_NAME),
@@ -5244,6 +5388,7 @@ fun main() {
         val entry = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
         entry.updateOTP(true)
+        holder.updateValues(entry, fixture.settings)
         withPoisonedTransaction { holder.updateValues(entry) }
 
         // The unformatted token is kept in the view's tag, so the copy action has the raw value.
@@ -5269,7 +5414,7 @@ fun main() {
         // A counter based entry shows the counter instead of the progress bar.
         val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 42L, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
-        withPoisonedTransaction { holder.updateValues(hotp) }
+        holder.updateValues(hotp, fixture.settings)
         expect(counterLayout.visibility == View.VISIBLE, { "the counter must be visible for a HOTP entry" })
         expect(counter.text.toString() == "42", { "the counter is wrong: ${counter.text}" })
 
@@ -5277,7 +5422,7 @@ fun main() {
         // localized format_custom_period string (the fake context keeps the resource mapping).
         val custom = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 45, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
-        withPoisonedTransaction { holder.updateValues(custom) }
+        holder.updateValues(custom, fixture.settings)
         expect(customPeriodLayout.visibility == View.VISIBLE,
                 { "the custom period must be visible for a non-default period" })
         expect(customPeriod.text.toString() == "key:" + R.string.format_custom_period,
@@ -5764,7 +5909,7 @@ fun main() {
     }
 
     check("binary OpenPGP backup and restore tasks preserve non-UTF8 packet bytes") {
-        val directory = java.nio.file.Files.createTempDirectory("andotp-pgp-binary").toFile()
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-pgp-binary").toFile()
         try {
             val resolver = FakeResolver()
             val context = FakeStorageContext(resolver, File(directory, "cache"))

@@ -59,8 +59,9 @@ object NotificationHelper {
         }
     }
 
-    // A channel id is a persisted machine token: case-map it with Locale.ROOT, never the default
-    // locale (Turkish would create "andOTP_backup_faıled" next to the existing channel).
+    // The andOTP_ prefix is retained for existing notification settings: channel IDs are persisted
+    // machine tokens. Case-map with Locale.ROOT, never the default locale (Turkish would create
+    // "andOTP_backup_faıled" next to the existing channel).
     private fun channelId(channel: Constants.NotificationChannel): String =
         "andOTP_" + channel.name.lowercase(Locale.ROOT)
 

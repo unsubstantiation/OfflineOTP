@@ -12,19 +12,21 @@ import java.io.IOException
 import java.nio.charset.StandardCharsets
 import java.util.function.BooleanSupplier
 
-/** Bounded Storage Access Framework (`content:`) document reads and chunked writes. */
+/** Bounded document reads and chunked writes through the Storage Access Framework. */
 object StorageAccessHelper {
     /** Write granularity: the permission is consulted again before every chunk. */
     private const val WRITE_CHUNK_BYTES = 8192
 
-    /** Provider writes are not atomic; automatic backups always use a new document. */
+    /** Legacy overload without a permission callback; provider writes are not atomic. */
     @JvmStatic
     fun saveFile(context: Context, file: Uri?, data: ByteArray?): Boolean =
         saveFile(context, file, data, BooleanSupplier { true })
 
     /**
      * Writes [data] to a `content:` document, re-checking [permitted] before opening, after
-     * opening, before every chunk and once more after the flush; any refusal or failure is `false`.
+     * opening, before every chunk and once more after the flush. Invalid input, denied checks,
+     * and caught provider I/O or runtime failures return `false`. Provider writes are not atomic;
+     * automatic backups therefore use a new document.
      */
     @JvmStatic
     fun saveFile(context: Context, file: Uri?, data: ByteArray?, permitted: BooleanSupplier): Boolean {
@@ -72,11 +74,11 @@ object StorageAccessHelper {
         }
         val name = result ?: uri.getLastPathSegment()
         if (name == null || name.length > InputPolicy.MAX_TEXT_CHARS) return "backup"
-        // Enforce the length bound before stripping ASCII control characters.
+        // Enforce the length bound before stripping characters matched by \p{Cntrl}.
         return name.replace(Regex("[\\p{Cntrl}]"), "")
     }
 
-    /** Deletes a failed/canceled `ACTION_CREATE_DOCUMENT` result, never an arbitrary path. */
+    /** Requests deletion of a `content:` document; callers must restrict this to their own failed exports. */
     @JvmStatic
     fun deleteContentFile(context: Context, file: Uri?): Boolean {
         if (file == null || file.toString().length > InputPolicy.MAX_URI_CHARS || file.getScheme() != "content") return false
@@ -87,11 +89,12 @@ object StorageAccessHelper {
         }
     }
 
+    /** Legacy UTF-8 overload without a permission callback. */
     @JvmStatic
     fun saveFile(context: Context, file: Uri?, data: String): Boolean =
         saveFile(context, file, data.toByteArray(StandardCharsets.UTF_8))
 
-    /** Reads a document with a hard byte limit, independent of provider metadata. */
+    /** Reads a `content:` document or private-cache file with a hard byte limit. */
     @JvmStatic
     @Throws(IOException::class)
     fun loadFile(context: Context, file: Uri?): ByteArray {

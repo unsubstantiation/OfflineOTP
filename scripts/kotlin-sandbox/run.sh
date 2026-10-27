@@ -37,8 +37,8 @@ if [[ -z "$STDLIB" || ! -f "$STDLIB" ]]; then
     exit 2
 fi
 
-# The app sources covered by this check. Every entry is compiled and its JVM-visible shapes are
-# asserted in Checks.kt. The fdroid flavor's AboutFragment is compiled as the representative
+# The app sources covered by this check; Checks.kt exercises selected behavior and JVM-visible
+# shapes. The fdroid flavor's AboutFragment is compiled as the representative
 # flavor of the about screens; the play flavor differs only by having no extras and is pinned by
 # the Python source guards instead.
 APP_SOURCES=(

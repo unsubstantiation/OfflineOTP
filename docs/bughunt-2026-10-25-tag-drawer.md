@@ -1,5 +1,7 @@
 # Bug hunt pass, 2026-10-25 (tag drawer and per-tag counts)
 
+> **Historical report:** the GitHub Actions workflows referenced here have since been removed.
+
 Second pass of 2026-10-25, after [`bughunt-follow-up-2026-10-25.md`](bughunt-follow-up-2026-10-25.md)
 (13 findings) and the earlier 2026-10-17/18/19 passes. Nothing from this pass duplicates those
 reports; the fixes here are in the tag-counter feature added for #994 and in the deletion path.
@@ -7,8 +9,8 @@ reports; the fixes here are in the tag-counter feature added for #994 and in the
 Scope: every Kotlin source under `app/src/main/kotlin` was re-read against the existing tests and
 sandbox checks, plus mechanical audits (below) instead of further reading of the 29 translations.
 All three findings are in the #994 tag-counter feature and the paths that feed it.
-This environment still has no Android SDK, Gradle distribution or device, so lint, packaging,
-instrumentation and the emulator matrix remain CI/device gates. All gates that run here pass, and
+That environment had no Android SDK, Gradle distribution or device, so lint, packaging,
+instrumentation and the emulator matrix remained CI/device gates. All gates run in that pass succeeded, and
 each fix was mutation-verified: the fix was reverted, its new test was seen to fail, and the fix was
 restored.
 

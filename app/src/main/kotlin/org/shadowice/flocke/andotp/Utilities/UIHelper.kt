@@ -24,7 +24,6 @@ package org.shadowice.flocke.andotp.Utilities
 
 import android.app.AlertDialog
 import android.content.Context
-import android.content.DialogInterface
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 

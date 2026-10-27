@@ -6,8 +6,8 @@
  * wrapper and real database transaction require an Android runtime. The calculator/document
  * vectors are repeated here so a device failure points at platform integration, not the algorithm.
  *
- * The suite is wired in app/build.gradle (androidx.test ext:junit/runner/core) and driven by
- * the CI instrumentation matrix via scripts/ci/start-emulator.sh.
+ * The suite is wired in app/build.gradle (androidx.test ext:junit/runner/core) and runs on
+ * a connected device or emulator.
  */
 package org.shadowice.flocke.andotp
 

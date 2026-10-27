@@ -4,17 +4,22 @@
 
 OfflineOTP is a source-available Android authenticator for time-based (TOTP), counter-based
 (HOTP), Steam Guard, and mOTP one-time passwords. It supports Android 9 (API 28) and later. It
-is a Kotlin rewrite of andOTP with hardened vault, backup, and IPC handling. The current build
-is `versionName 0.9.0.1` (versionCode 39); the application ID remains
-`org.shadowice.flocke.andotp`.
+is a Kotlin rewrite of the upstream andOTP project with hardened vault, backup, and IPC handling.
+The current build is `versionName 0.9.0.1` (versionCode 39).
+
+The Android application ID and Kotlin namespace intentionally remain
+`org.shadowice.flocke.andotp`; changing the application ID would create a separate installation
+rather than update an existing one. Legacy notification channel IDs and intent/broadcast action
+names are also retained to preserve notification settings and integrations. Updating an existing
+installation additionally requires the same signing key.
 
 ## Features
 
-- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually (including by pasting an `otpauth://` URI); get a warning when an issuer is already present.
+- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually (including by pasting an `otpauth://` URI). QR imports warn when the issuer is already present.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Search and tag entries, see per-tag entry counts, and choose light, dark, or black themes.
+- Search and tag entries, and see per-tag entry counts. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
 
 ## Protecting and restoring your vault
@@ -33,28 +38,54 @@ behavior and limits.
 ## Build
 
 The project uses Gradle, the Android Gradle Plugin, Kotlin, and the Android SDK (JDK 17,
-compile SDK 36, build-tools 36.0.0). The GitHub Actions workflows build the fdroid and play
-APKs in debug and release:
+compile SDK 36, build-tools 36.0.0). Build the fdroid and play APKs in debug and release:
 
 ```sh
 ./gradlew --no-daemon :app:assembleFdroidDebug :app:assembleFdroidRelease \
   :app:assemblePlayDebug :app:assemblePlayRelease
 ```
 
-## Continuous integration
+## Testing
 
-[android-ci.yml](.github/workflows/android-ci.yml) is the quality gate on every push and pull
-request: Python source guards and build-input provenance, the Kotlin sandbox check, host JVM
-tests, the instrumentation compile check, all-variant builds with Gradle unit tests and lint,
-the packaged-manifest policy, and the fdroid/play × API 28/36 emulator matrix. A reproducibility
-job rebuilds both flavors twice from independent source and Gradle homes and compares the
-unsigned APKs and dependency inventories byte for byte on `master` and on demand.
+Run the source guards and Gradle wrapper checks:
 
-The four `build-*-apk.yml` workflows produce per-variant APK artifacts.
-[release-fdroid-debug.yml](.github/workflows/release-fdroid-debug.yml) publishes the fdroid
-debug APK (with SHA-256 checksums) as a GitHub Release when a `v*` tag is pushed.
-[dependency-baseline.yml](.github/workflows/dependency-baseline.yml) is a manual workflow that
-uploads the resolved-dependency inventory for provenance review.
+```sh
+python3 -m unittest discover -s scripts/tests -v
+python3 scripts/check_build_inputs.py
+```
+
+With the Android SDK and JDK configured, run the Gradle unit tests and lint:
+
+```sh
+./gradlew --no-daemon :app:testFdroidDebugUnitTest :app:testPlayDebugUnitTest \
+  :app:lintFdroidDebug :app:lintFdroidRelease :app:lintPlayDebug :app:lintPlayRelease
+```
+
+For instrumentation tests, use a disposable connected emulator or device:
+
+```sh
+./gradlew --no-daemon :app:connectedFdroidDebugAndroidTest :app:connectedPlayDebugAndroidTest
+```
+
+The [Kotlin sandbox](scripts/kotlin-sandbox/README.md) provides partial host checks without an
+Android SDK; it does not replace Gradle builds, lint, or device tests.
+
+## Build verification
+
+No GitHub Actions workflows are configured. Builds, lint, device tests and release publishing
+must be run separately. The dependency inventory can be generated locally:
+
+```sh
+./gradlew --no-daemon :writeDependencyInventory
+```
+
+The report is written to `build/reports/dependency-inventory.txt`. For independent builds and
+byte-for-byte comparisons of both unsigned release APKs and dependency inventories, set
+`ANDROID_HOME`, put `apkanalyzer` on `PATH`, then run:
+
+```sh
+bash scripts/verify_reproducible_build.sh
+```
 
 ## Documentation
 
@@ -64,7 +95,11 @@ uploads the resolved-dependency inventory for provenance review.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
-- [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
+- [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
+
+The [Fastlane seven-inch screenshots](fastlane/metadata/android/en-US/images/sevenInchScreenshots/)
+are inherited from the upstream app and do not reflect the current OfflineOTP UI. Replace them with
+current device screenshots before publishing store metadata.
 
 ## Contributing
 

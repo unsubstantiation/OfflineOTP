@@ -2,13 +2,16 @@
 
 #### Unreleased
 
+ * Internal: Remove unreferenced external-storage probes
+ * Internal: Use the OfflineOTP name for the Gradle project and test fixtures while preserving legacy Android identifiers for compatibility
+ * Internal: Remove GitHub Actions workflows; run build and release checks separately
  * Feature: Import supported `otpauth://` URIs from the manual-entry dialog, including type, algorithm, timing, counter and tags (andOTP #990)
  * Improvement: Show per-tag entry counts in the manual-entry tag picker as well as the main tag drawer (andOTP #994)
- * Improvement: Warn before importing an account from an issuer already in the vault, while allowing additional accounts (andOTP #918)
+ * Improvement: Warn before importing a scanned or file-based QR account from an issuer already in the vault, while allowing additional accounts (andOTP #918)
  * Bugfix: Keep the first-run finish button enabled after rotating on the last slide, and attach the pager's restored slides instead of a second set of fragments
  * Bugfix: Keep the backup-password dialog open when the KeyStore cannot store the password, instead of closing it as if the password had been saved
  * Bugfix: Apply the screenshot block to Settings, Backup, About and the first-run wizard, not only the entry list and the unlock screen
- * Bugfix: Mark copied tokens as sensitive so the system clipboard overlay does not preview the code
+ * Bugfix: Mark copied tokens as sensitive for supported system clipboard previews
  * Bugfix: Refresh entry cards when individual timeout bars are turned on or off, and stop overlapping progress animations from fighting each other
  * Bugfix: Open the mOTP PIN dialog for the entry that was actually long-pressed after the list has resorted, and report when no app can receive keystrokes
  * Bugfix: Do not show an authentication-failed message when the encryption-change prompt is cancelled
@@ -21,11 +24,9 @@
  * Bugfix: Restore the missing `%1$s` format argument in the Arabic confirm-delete dialog
  * Internal: Add the JVM unit-test suite (RFC vectors, parser/document matrices, timer policy, entry-list semantics) with a no-Gradle harness (`scripts/run-jvm-tests.sh`)
  * Internal: Add the instrumentation suite (on-device crypto/database/URI vectors, environment and first-run smoke checks) and a compile check for no-SDK environments
- * Internal: Add the Python guard battery in `scripts/tests` (82 tests) covering resources, conversion surfaces, secret-state and build-input mutations
+ * Internal: Add Python guards in `scripts/tests` for resources, conversion surfaces, secret state and build-input mutations
  * UI: Rewrite the in-app English text for accuracy and concision, point the About links at this repository, display the required license attribution, and drop unused or stale strings
  * Docs: Refresh the READMEs and issue templates, and correct stale test-suite and environment references in the design records
- * Internal: Add the `android-ci.yml` quality gate (source checks, host tests, build/lint/manifest policy, fdroid/play × API 28/36 emulator matrix, reproducibility) and the manual `dependency-baseline.yml` inventory workflow
- * Internal: Add the `release-fdroid-debug.yml` workflow that publishes the fdroid debug APK and its SHA-256 checksums as a GitHub Release for pushed `v*` tags
 
 #### v0.9.0.1
 

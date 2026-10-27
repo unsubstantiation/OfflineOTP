@@ -107,7 +107,7 @@ against upstream andOTP master (`/tmp/up/andOTP-master`) and/or the repo's own d
   `menu/`, `values/` and the `values-*` translations is `content_backup.xml` swapping
   `backup_label_warning_plain` for `backup_label_crypt` (plain-text backups were removed). The
   remaining differences are intentional: the rebrand (andOTP → OfflineOTP), the "Dark Forest"
-  theme, the AboutLibraries 14.x attributes/colors, the `pref_theme_mode` → `pref_theme_mode`
+  theme, the AboutLibraries 14.x attributes/colors, the `perf_theme_mode` → `pref_theme_mode`
   key spelling fix (with the documented `Settings.migrateDeprecatedSettings` migration), and the
   removed `plain` entry of `settings_values_backup_broadcasts`.
 * **Dangling resource references** — every `R.<type>.<name>` reference in `app/src/main/kotlin`
@@ -132,11 +132,12 @@ against upstream andOTP master (`/tmp/up/andOTP-master`) and/or the repo's own d
 * `docs/vault-security-hardening.md` states that "Password/seed widgets do not automatically save
   their text into Android view state". No layout sets `android:saveEnabled="false"` /
   `android:freezesText="false"` and no activity overrides `onSaveInstanceState` for them, so the
-  claim is stronger than the implementation. This is identical to upstream and the text never
-  leaves the app's private storage, so it is a documentation overstatement, not a bug.
-* The same document's `\p{Cntrl}` comment in `StorageAccessHelper.getContentFileName` describes the
-  Java `\p{Cntrl}` class as the ASCII control set only; it is actually the Unicode `Cc` category
-  (U+0000–U+001F and U+007F–U+009F). Behaviour is byte-identical to upstream.
+  claim was stronger than the implementation at that snapshot. Subsequent changes disabled saved
+  view state for these fields; see the [current security record](vault-security-hardening.md).
+* The audit also characterized `\p{Cntrl}` as Unicode `Cc`. Correction: on a desktop JVM without
+  `UNICODE_CHARACTER_CLASS`, this POSIX class matches ASCII controls; Unicode mode includes C1
+  controls such as U+0085. Android regex behavior should be verified separately rather than
+  inferred from the unchanged pattern alone.
 * `Settings.getAndroidBackupServiceEnabled()` returning a hard `false` and
   `setAndroidBackupServiceEnabled()` ignoring its argument are the documented platform-backup
   kill switch, not a defect.

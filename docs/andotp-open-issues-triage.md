@@ -1,4 +1,4 @@
-# andOTP open-issue triage for OfflineOTP
+# OfflineOTP triage of upstream andOTP open issues
 
 > **Snapshot note:** verdicts and counts reflect the 2026-10-17 tree and upstream tracker. The
 > andOTP thumbnail carry-over (OfflineOTP issue #40) has since been completed, and upstream

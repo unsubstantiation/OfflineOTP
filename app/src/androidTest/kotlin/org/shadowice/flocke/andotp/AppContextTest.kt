@@ -2,8 +2,7 @@
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
  * Smoke checks for the instrumentation environment itself: the target context is the app
- * (never the test APK) and its private storage is usable. These run first in CI to fail fast
- * when the emulator/instrumentation wiring is broken.
+ * (never the test APK) and its private storage is usable on the device or emulator.
  */
 package org.shadowice.flocke.andotp
 
