@@ -23,6 +23,7 @@ from collections import defaultdict
 SANDBOX = Path(__file__).resolve().parent
 ROOT = SANDBOX.parents[1]
 KOTLIN_APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 
 # Keep in sync with the APP_SOURCES list in run.sh. Parsing run.sh itself keeps the
 # two from drifting apart.
@@ -37,12 +38,17 @@ def source_lists(variable):
 
 
 def expand(path):
-    return str(path).replace("$KOTLIN_APP", str(KOTLIN_APP)).replace("$ROOT", str(ROOT))
+    return (str(path)
+            .replace("$KOTLIN_APP", str(KOTLIN_APP))
+            .replace("$KOTLIN_CORE", str(KOTLIN_CORE))
+            .replace("$ROOT", str(ROOT)))
 
 
 def collect():
     groups = defaultdict(set)
-    for variable in ("APP_SOURCES",):
+    # Core sources are R-free, but scanning them too keeps this in lockstep with every list run.sh
+    # compiles and fails loudly if a listed file disappears.
+    for variable in ("CORE_SOURCES", "APP_SOURCES"):
         for entry in source_lists(variable):
             source = Path(expand(entry))
             if not source.is_file():

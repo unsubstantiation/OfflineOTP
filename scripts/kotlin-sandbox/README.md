@@ -1,7 +1,11 @@
 # Kotlin sandbox check (non-authoritative)
 
-`run.sh` compiles the app's Kotlin main sources against hand-written Android/AndroidX stubs and
-runs `Checks.kt` on a desktop JVM. It exists for environments that have a JDK and a Kotlin
+`run.sh` builds in two phases on a desktop JVM, mirroring the Gradle `:core`/`:app` dependency.
+It first compiles the shared `:core` module (`core/src/main`, the `CORE_SOURCES` list) with **no**
+Android/AndroidX stubs on the classpath, then compiles the app's Kotlin main sources
+(`APP_SOURCES`) against that compiled core output and the hand-written Android/AndroidX stubs and
+runs `Checks.kt`. The phase split fails if a core source reaches for an Android API, since such a
+reference cannot resolve in phase 1. It exists for environments that have a JDK and a Kotlin
 compiler but no Android SDK, AndroidX artifacts, or Gradle dependency graph. It is not the
 app's real build.
 
@@ -38,9 +42,13 @@ KOTLINC=/path/to/kotlinc-jvm JAVA_BIN="$JAVA_HOME/bin/java" bash scripts/kotlin-
 Set `KOTLIN_STDLIB` to use a specific `kotlin-stdlib.jar`. Output defaults to the ignored
 `reports/kotlin-sandbox/` directory.
 
-The related host gates read the same `APP_SOURCES` and `STUBS` lists from `run.sh`:
+The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists from `run.sh`:
 
-- `scripts/run-jvm-tests.sh` runs the JVM unit tests in `app/src/test/kotlin`.
+- `scripts/kotlin-sandbox/compile-core.sh` is the strict core boundary gate: it compiles
+  `core/src/main` together with `core/src/test` using no `android.*`/`androidx.*` stubs (only the
+  third-party stubs that `core/build.gradle` declares) and runs the core JVM tests.
+- `scripts/run-jvm-tests.sh` runs the JVM unit tests under both `app/src/test/kotlin` and
+  `core/src/test/kotlin`.
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 

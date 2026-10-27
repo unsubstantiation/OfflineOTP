@@ -70,6 +70,12 @@ Backup framing, database schema, KDF settings and token algorithms are **not** c
 - The dependency inventory includes the root buildscript, both flavors' compile/runtime classpaths, and resolvable Kotlin compiler/build-tools configurations. A missing compiler configuration fails the inventory gate; test classpaths are not inventoried.
 - No Kotlin plugin is applied outside the app module.
 
+> **Later update (`:core` module).** A subsequent change introduced the pure-JVM `:core` library
+> (`settings.gradle`, `core/build.gradle`), which applies `org.jetbrains.kotlin.jvm` — so the last
+> bullet above describes the state at pilot time, not the current tree. The dependency inventory was
+> extended to record `:core`, including its test classpaths; the app's test classpaths remain
+> uninventoried as stated.
+
 Selection sources: [official Kotlin 2.4.21 release](https://github.com/JetBrains/kotlin/releases/tag/v2.4.21), and the [KGP compatibility table](https://github.com/JetBrains/kotlin-web-site/blob/master/docs/topics/gradle/gradle-configure-project.md). The 2.4.20–2.4.21 row covers Gradle 7.6.3–9.7.0 and AGP 8.5.2–9.3.1, including this repository's Gradle 8.13/AGP 8.13.2. Compiler configuration names were checked against the [tagged KGP source](https://github.com/JetBrains/kotlin/blob/v2.4.21/libraries/tools/kotlin-gradle-plugin/src/common/kotlin/org/jetbrains/kotlin/gradle/plugin/AbstractKotlinPlugin.kt). Compatibility declarations are not evidence that this project actually builds.
 
 The new resolved Kotlin inputs need the same trusted lockfile/checksum baseline review as the rest of the build. No dependency locks or verification checksums have been fabricated. Independent unsigned APK and dependency-inventory comparisons must be rerun; repeatability is not assumed from adding a pinned version.

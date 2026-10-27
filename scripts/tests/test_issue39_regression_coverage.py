@@ -8,7 +8,9 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 TEST = ROOT / "app/src/test/kotlin/org/shadowice/flocke/andotp"
+CORE_TEST = ROOT / "core/src/test/kotlin/org/shadowice/flocke/andotp"
 ANDROID_TEST = ROOT / "app/src/androidTest/kotlin/org/shadowice/flocke/andotp"
 
 
@@ -19,7 +21,7 @@ def read(path: Path) -> str:
 class Issue39RegressionCoverageTest(unittest.TestCase):
     def test_authentication_cancellation_stays_fail_closed(self):
         main = read(APP / "Activities/MainActivity.kt")
-        policy = read(TEST / "Utilities/AuthenticationResultPolicyTest.kt")
+        policy = read(CORE_TEST / "Utilities/AuthenticationResultPolicyTest.kt")
         self.assertIn("AuthenticationResultPolicy.accepts", main)
         self.assertIn("VaultSession.lock(SessionLockReason.AUTHENTICATION)", main)
         self.assertIn("finishAndRemoveTask()", main)
@@ -28,7 +30,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
 
     def test_stale_card_callbacks_guard_indexes_before_access(self):
         adapter = read(APP / "View/EntriesCardAdapter.kt")
-        guards = read(TEST / "View/EntryIndexGuardTest.kt")
+        guards = read(CORE_TEST / "View/EntryIndexGuardTest.kt")
         hide = adapter[adapter.index("private fun hideEntry("):adapter.index("private fun showActionDialog(")]
         self.assertLess(hide.index("EntryIndexGuard.isValid"), hide.index("entries.getEntry(realIndex)"))
         update = adapter[adapter.index("private fun updateLastUsedAndFrequency("):adapter.index("/** Swaps two entries")]
@@ -72,8 +74,8 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("automatic backups create unique documents under a selected SAF tree", sandbox)
 
     def test_relock_timeout_is_deadline_based_and_covers_pause(self):
-        timer = read(APP / "Utilities/ScreenTimerController.kt")
-        tests = read(TEST / "Utilities/ScreenTimerControllerTest.kt")
+        timer = read(CORE / "Utilities/ScreenTimerController.kt")
+        tests = read(CORE_TEST / "Utilities/ScreenTimerControllerTest.kt")
         main = read(APP / "Activities/MainActivity.kt")
         self.assertIn("suspendForeground", timer)
         self.assertIn("inactivityRelockExpired", main)
@@ -116,7 +118,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("touching the Settings option finished the screen", settings_test)
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
-        taps = read(TEST / "View/TapSequenceControllerTest.kt")
+        taps = read(CORE_TEST / "View/TapSequenceControllerTest.kt")
         decoder = read(TEST / "Utilities/PlainTextBackupDecoderTest.kt")
         task = read(APP / "Tasks/PlainTextRestoreTask.kt")
         backup = read(APP / "Activities/BackupActivity.kt")
@@ -132,8 +134,8 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
                         "restore progress must stop before the failure result is displayed")
 
     def test_openpgp_readiness_and_empty_output_fail_closed(self):
-        tests = read(TEST / "Utilities/OpenPgpPolicyTest.kt")
-        policy = read(APP / "Utilities/OpenPgpPolicy.kt")
+        tests = read(CORE_TEST / "Utilities/OpenPgpPolicyTest.kt")
+        policy = read(CORE / "Utilities/OpenPgpPolicy.kt")
         backup = read(APP / "Activities/BackupActivity.kt")
         self.assertIn("providerMustBeConfiguredAndBoundBeforeEitherActionCanRun", tests)
         self.assertIn("emptyProviderOutputIsNotAValidEncryptedBackup", tests)
@@ -203,9 +205,9 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("MainActivity should stay alive", device_test)
 
     def test_screen_off_teardown_policy_is_shared_with_a_host_test(self):
-        policy = read(APP / "Utilities/BackupScreenOffPolicy.kt")
+        policy = read(CORE / "Utilities/BackupScreenOffPolicy.kt")
         backup = read(APP / "Activities/BackupActivity.kt")
-        host_test = read(TEST / "Utilities/BackupScreenOffPolicyTest.kt")
+        host_test = read(CORE_TEST / "Utilities/BackupScreenOffPolicyTest.kt")
         self.assertIn("BackupScreenOffPolicy.shouldFinish(", backup)
         self.assertIn("pickerPending", policy)
         self.assertIn("everyPendingOperationBlocksTeardown", host_test)

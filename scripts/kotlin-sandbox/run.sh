@@ -12,6 +12,7 @@ set -euo pipefail
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
 KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
 OUT="${KOTLIN_SANDBOX_OUT:-$ROOT/reports/kotlin-sandbox/out}"
 
 KOTLINC="${KOTLINC:-$(command -v kotlinc-jvm || command -v kotlinc || true)}"
@@ -37,6 +38,23 @@ if [[ -z "$STDLIB" || ! -f "$STDLIB" ]]; then
     exit 2
 fi
 
+CORE_SOURCES=(
+    "$KOTLIN_CORE/Utilities/ThumbnailCatalog.kt"
+    "$KOTLIN_CORE/Utilities/InputPolicy.kt"
+    "$KOTLIN_CORE/Utilities/AuthenticationResultPolicy.kt"
+    "$KOTLIN_CORE/Utilities/OpenPgpRecipientIds.kt"
+    "$KOTLIN_CORE/Utilities/OpenPgpPolicy.kt"
+    "$KOTLIN_CORE/Utilities/ScreenTimerController.kt"
+    "$KOTLIN_CORE/Utilities/BackupScreenOffPolicy.kt"
+    "$KOTLIN_CORE/Utilities/TokenCalculator.kt"
+    "$KOTLIN_CORE/Utilities/TokenFormat.kt"
+    "$KOTLIN_CORE/Utilities/BoundedInputReader.kt"
+    "$KOTLIN_CORE/Utilities/BoundedOutput.kt"
+    "$KOTLIN_CORE/Utilities/EncryptedBackupHeader.kt"
+    "$KOTLIN_CORE/View/TapSequenceController.kt"
+    "$KOTLIN_CORE/View/EntryIndexGuard.kt"
+)
+
 # The app sources covered by this check; Checks.kt exercises selected behavior and JVM-visible
 # shapes. The fdroid flavor's AboutFragment is compiled as the representative
 # flavor of the about screens; the play flavor differs only by having no extras and is pinned by
@@ -58,7 +76,6 @@ APP_SOURCES=(
     "$KOTLIN_APP/View/ThumbnailSelectionAdapter.kt"
     "$KOTLIN_APP/View/AutoFillable/AutoFillableTextInputEditText.kt"
     "$KOTLIN_APP/Utilities/EntryThumbnail.kt"
-    "$KOTLIN_APP/Utilities/ThumbnailCatalog.kt"
     "$KOTLIN_APP/Utilities/LetterBitmap.kt"
     "$KOTLIN_APP/Database/EntryJsonResult.kt"
     "$KOTLIN_APP/Database/EntryJson.kt"
@@ -78,7 +95,6 @@ APP_SOURCES=(
     "$KOTLIN_APP/Utilities/BackupHelper.kt"
     "$KOTLIN_APP/Utilities/NotificationHelper.kt"
     "$KOTLIN_APP/Utilities/ScanQRCodeFromFile.kt"
-    "$KOTLIN_APP/Utilities/InputPolicy.kt"
     "$KOTLIN_APP/Utilities/GoogleAuthenticatorMigration.kt"
     "$KOTLIN_APP/Utilities/HardwareUnlockEnvelope.kt"
     "$KOTLIN_APP/Utilities/HardwareUnlockStore.kt"
@@ -89,9 +105,6 @@ APP_SOURCES=(
     "$KOTLIN_APP/Activities/HardwareUnlockActivity.kt"
     "$KOTLIN_APP/Utilities/PendingEntryImport.kt"
     "$KOTLIN_APP/Utilities/PendingMigrationImport.kt"
-    "$KOTLIN_APP/Utilities/AuthenticationResultPolicy.kt"
-    "$KOTLIN_APP/Utilities/OpenPgpRecipientIds.kt"
-    "$KOTLIN_APP/Utilities/OpenPgpPolicy.kt"
     "$KOTLIN_APP/Utilities/PlainTextBackupDecoder.kt"
     "$KOTLIN_APP/Utilities/OtpParseResult.kt"
     "$KOTLIN_APP/Utilities/OtpUriParser.kt"
@@ -115,20 +128,11 @@ APP_SOURCES=(
     "$KOTLIN_APP/Tasks/ChangeCredentialsTask.kt"
     "$KOTLIN_APP/Tasks/FinishIntroTask.kt"
     "$KOTLIN_APP/Utilities/Tools.kt"
-    "$KOTLIN_APP/Utilities/ScreenTimerController.kt"
-    "$KOTLIN_APP/Utilities/BackupScreenOffPolicy.kt"
-    "$KOTLIN_APP/Utilities/TokenCalculator.kt"
-    "$KOTLIN_APP/Utilities/TokenFormat.kt"
-    "$KOTLIN_APP/Utilities/BoundedInputReader.kt"
-    "$KOTLIN_APP/Utilities/BoundedOutput.kt"
-    "$KOTLIN_APP/Utilities/EncryptedBackupHeader.kt"
     "$KOTLIN_APP/Utilities/EditorActionHelper.kt"
     "$KOTLIN_APP/Utilities/HandlerTimerScheduler.kt"
     "$KOTLIN_APP/Utilities/SecretKeyWrapper.kt"
     "$KOTLIN_APP/Utilities/DimensionConverter.kt"
     "$KOTLIN_APP/View/SimpleDoubleClickListener.kt"
-    "$KOTLIN_APP/View/TapSequenceController.kt"
-    "$KOTLIN_APP/View/EntryIndexGuard.kt"
     "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperAdapter.kt"
     "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt"
     "$KOTLIN_APP/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt"
@@ -200,13 +204,24 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
 # every declaration it checks. FileHelper runs over the AtomicFile stand-in, which refuses every
 # operation, so the file transaction fails loudly here instead of touching the working directory.
 
+# Phase 1 compiles the shared :core module standalone with NO android/androidx/R stubs on the
+# classpath — only the pure-JVM third-party stubs the module declares. A core source that reaches
+# for an Android API fails here, which is the desktop-reuse boundary. This mirrors Gradle compiling
+# :core before :app ever sees it.
+CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt)
+
 rm -rf "$OUT"
-mkdir -p "$OUT"
+mkdir -p "$OUT/core" "$OUT/app"
 
 echo "kotlinc: $KOTLINC"
 echo "java:    $JAVA_BIN"
 echo "stdlib:  $STDLIB"
 echo "output:  $OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn "${APP_SOURCES[@]}" "${STUBS[@]}" "$SANDBOX/Checks.kt" -d "$OUT"
-"$JAVA_BIN" -cp "$OUT:$STDLIB" ChecksKt
+"$KOTLINC" -jvm-target 1.8 -nowarn "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" -d "$OUT/core"
+
+# Phase 2 compiles the app and its Checks harness against core's compiled output exactly as a Gradle
+# project dependency (core sources are deliberately absent here), plus the full platform stub set.
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
+    "${APP_SOURCES[@]}" "${STUBS[@]}" "$SANDBOX/Checks.kt" -d "$OUT/app"
+"$JAVA_BIN" -cp "$OUT/app:$OUT/core:$STDLIB" ChecksKt

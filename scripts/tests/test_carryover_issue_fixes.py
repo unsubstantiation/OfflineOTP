@@ -30,6 +30,7 @@ ROOT = Path(__file__).resolve().parents[2]
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 MANIFEST = ROOT / "app/src/main/AndroidManifest.xml"
 KOTLIN_APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 LAYOUTS = ROOT / "app/src/main/res/layout"
 VALUES = ROOT / "app/src/main/res/values"
 
@@ -88,7 +89,7 @@ class InactivityRelockTest(unittest.TestCase):
     """#712: background time counts, and the default delay matches the preference."""
 
     def test_controller_keeps_the_deadline_across_a_suspension(self):
-        text = read(KOTLIN_APP / "Utilities/ScreenTimerController.kt")
+        text = read(KOTLIN_CORE / "Utilities/ScreenTimerController.kt")
         self.assertIn("fun suspendInactivity()", text)
         self.assertIn("fun hasInactivityExpired(): Boolean", text)
         self.assertIn("fun suspendForeground()", text)

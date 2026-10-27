@@ -10,6 +10,7 @@ set -euo pipefail
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SANDBOX/../.."
 KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
 OUT="${KOTLIN_SANDBOX_OUT:-$ROOT/reports/kotlin-sandbox/compile-only}"
 
 export JAVA_HOME="${JAVA_HOME:-/tmp/ks-toolchain/jdk/jdk4py/java-runtime}"
@@ -20,7 +21,7 @@ KOTLINC="${KOTLINC:-/tmp/ks-toolchain/kotlin/bin/kotlinc-jvm}"
 eval "$(python3 - "$SANDBOX/run.sh" <<'PY'
 import re, shlex, sys
 text = open(sys.argv[1]).read()
-for variable in ("APP_SOURCES", "STUBS"):
+for variable in ("CORE_SOURCES", "APP_SOURCES", "STUBS"):
     match = re.search(rf"^{variable}=\((.*?)^\)", text, re.MULTILINE | re.DOTALL)
     # Each entry is one shell word (quoted prefix plus an optional glob), so split with shlex
     # rather than taking only the quoted parts; comment lines inside the array are skipped.
@@ -46,9 +47,11 @@ STUBS=("${expanded[@]}")
 
 APP_SOURCES=("${APP_SOURCES[@]//\$KOTLIN_APP/$KOTLIN_APP}")
 APP_SOURCES=("${APP_SOURCES[@]//\$ROOT/$ROOT}")
+CORE_SOURCES=("${CORE_SOURCES[@]//\$KOTLIN_CORE/$KOTLIN_CORE}")
+CORE_SOURCES=("${CORE_SOURCES[@]//\$ROOT/$ROOT}")
 
 rm -rf "$OUT"
 mkdir -p "$OUT"
 
-"$KOTLINC" -jvm-target 1.8 -nowarn "$@" "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT"
+"$KOTLINC" -jvm-target 1.8 -nowarn "$@" "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT"
 echo "COMPILE OK -> $OUT"
