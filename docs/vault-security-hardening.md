@@ -11,7 +11,7 @@ The panic activity and encrypted-backup receiver require the app-owned
 
 A companion application must use the same signing identity and request this permission. An explicit package/component or a correct action string does not grant access. Independently signed Tasker/PanicKit installations and ordinary `adb shell am` commands are intentionally no longer authorized. There is no caller-name, Intent-extra, or user-toggle bypass. Introducing independently signed automation again requires a separately designed, revocable authorization mechanism.
 
-The launcher/import activity remains public for normal account import. Incoming OTP accounts require confirmation after vault authentication; invalid input does not silently add entries. Internal credential/settings/backup activities remain unexported. Obscured touch events are rejected by the base vault activities (partially obscured events additionally on API 29+).
+The launcher/import activity remains public for normal account import. An external `ACTION_VIEW` OTP import requires confirmation after vault authentication. Scanned or file-imported QR codes are added directly, except that an existing issuer triggers a confirmation; invalid input does not silently add entries. Internal credential/settings/backup activities remain unexported. Obscured touch events are rejected by the base vault activities (partially obscured events additionally on API 29+).
 
 ## Bounded input and fail-closed results
 
@@ -58,20 +58,20 @@ The recovery copy contains old ciphertext, not a plaintext export or a raw key. 
 
 ## Backup lifecycle
 
-Platform cloud backup and device transfer are disabled: `allowBackup=false`, no manifest backup agent, and explicit exclusion resources for cloud/device-transfer/full-backup storage domains. The retained legacy agent registers no helpers and refuses restore callbacks. Old cloud restore behavior is intentionally not supported. Maintain and test portable password-encrypted or OpenPGP backups before upgrading or changing devices/signing identities.
+The source manifest opts out of platform cloud backup and device transfer with `allowBackup=false`, no backup agent registration, and explicit cloud/device-transfer/full-backup exclusions. The retained unregistered legacy agent registers no helpers and refuses restore callbacks; it cannot receive platform callbacks without being registered. Old platform restores are intentionally unsupported. Verify the merged, packaged manifest and behavior on target devices as release checks. Maintain and test portable password-encrypted or OpenPGP backups before upgrading or changing devices/signing identities.
 
 Automatic backups require a configured location, explicit opt-in, and a nonempty encrypted backup password. Broadcast backups additionally require KeyStore mode and the signature permission. Duplicate broadcasts are coalesced through unique WorkManager work and a one-minute enqueue throttle. Workers recheck configuration at execution time; export checks also cover cancellation, changed location/password/opt-in, and session revocation during an in-flight operation.
 
-Automatic exports create new UUID-named documents, even if the old date/time naming option is off. A failed export does not truncate the previous backup. Failed new documents are deleted best-effort. Storage providers are not atomic or inherently trustworthy: a failed user-selected export may leave partial data, and a hostile provider can ignore delete requests or retain bytes already received. Panic disables automatic backups, cancels pending unique work, revokes the session and performs the requested wipe under mutation locks; it cannot recall bytes already exported.
+Automatic exports request new UUID-named documents, even if the old date/time naming option is off, to avoid truncating a previous backup. Failed new documents are deleted best-effort. Storage providers are not atomic or inherently trustworthy: a failed user-selected export may leave partial data, and a hostile provider can ignore delete requests or retain bytes already received. Panic disables automatic backups, cancels pending unique work, revokes the session and performs the requested wipe under mutation locks; it cannot recall bytes already exported.
 
 ## Regression coverage and remaining verification
 
 The Python suite checks the signature-bound manifest policy, backup-disable policy, source
 exclusion rules, build-input provenance, and independent-build comparison logic. The host JVM
 suite covers input/header limits, parser/document rules, crypto derivation and wrapping, portable
-AES-GCM (NIST vector), current/legacy encrypted-backup round trips and tamper rejection, and
-process-session handoffs. The instrumentation suite covers platform-only paths: app context and
-private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry URI/document round
+AES-GCM (NIST vector), and current/legacy encrypted-backup round trips and tamper rejection. The
+sandbox checks process-session handoffs against stand-ins. Instrumentation sources cover platform
+paths: app context and private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry URI/document round
 trips, Android AES-GCM tamper rejection, a real generated QR image for the reported CCP URI, an
 AndroidKeyStore wrap/read/delete cycle, and the database round trip. The sandbox's fake SAF resolver
 also exercises the actual encrypted backup writer and content-URI read path; it is not a substitute
@@ -79,17 +79,19 @@ for Drive, Work Profile, or OEM document-provider testing.
 
 The independent-UID `security-test-client` module and the larger interop suites described in
 earlier revisions are not part of this checkout. IPC authorization is pinned by the
-signature-permission manifest policy checks; device execution of the remaining instrumentation
-suite is a CI gate.
+signature-permission manifest policy checks; the remaining instrumentation suite still needs
+device execution.
 
 Local validation on 2026-10-22: the Python suite passed 113 tests (9 PyYAML-gated tests skipped),
 `scripts/run-jvm-tests.sh` passed 138 JVM tests, `scripts/kotlin-sandbox/run.sh` passed 102 checks,
 and `compile-android-tests.sh` type-checked all seven instrumentation sources against stand-ins.
 This is not validation against AGP, real Android APIs or a device. The Gradle wrapper was attempted
 but could not download Gradle from `services.gradle.org` under this sandbox's outbound-host policy;
-no Android SDK/emulator is installed. The last green API 28/36 CI run is on the unmodified base
-commit, not this follow-up. Both-flavor Gradle builds, lint, packaged manifest/resource inspection,
-API 28/36 emulator runs, and reproducibility comparisons remain CI requirements. OEM restore
+no Android SDK/emulator was installed in that environment. At that point the last green API 28/36
+CI run was on the base commit; see the [later issue #39 record](andotp-carryover-issue-pass-2026-10-19.md)
+for subsequent verification. Both-flavor Gradle builds, lint, packaged manifest/resource inspection,
+API 28/36 emulator runs, and reproducibility comparisons remain release checks. GitHub Actions
+workflows are no longer configured. OEM restore
 behavior, actual TalkBack traversal, cloud/work-profile provider grants, external OpenPGP behavior,
 and UI/process-death/rotation flows need device or provider testing.
 

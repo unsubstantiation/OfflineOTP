@@ -37,7 +37,6 @@ import org.shadowice.flocke.andotp.Utilities.OtpParseResult
 import org.shadowice.flocke.andotp.Utilities.OtpUriParser
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.Tools
-import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
 
 import java.nio.charset.StandardCharsets
 import java.util.Objects
@@ -229,7 +228,7 @@ open class Entry {
         pin = getPin()
     )
 
-    /** Serializes this entry to an otpauth:// URI (null if the type is unsupported). */
+    /** Serializes this entry to an otpauth:// URI. */
     fun toUri(): Uri? {
         val typeName = when (type) {
             OTPType.TOTP -> "totp"
@@ -252,7 +251,7 @@ open class Entry {
         if (type == OTPType.HOTP) {
             builder.appendQueryParameter("counter", counter.toString())
         }
-        // HOTP, TOTP, and Steam entries all emit non-default periods so re-importing preserves timing.
+        // Export non-default TOTP/Steam periods. HOTP also emits a legacy period, but import ignores it.
         if (type == OTPType.HOTP || type == OTPType.TOTP || type == OTPType.STEAM) {
             if (period != TokenCalculator.TOTP_DEFAULT_PERIOD)
                 builder.appendQueryParameter("period", period.toString())
@@ -322,8 +321,8 @@ open class Entry {
     fun getPeriod(): Int = period
 
     /**
-     * Seconds per token step. mOTP always uses the protocol's 10-second step, so the stored
-     * period (which is 30 for mOTP entries) must not drive its refresh, expiry or progress.
+     * Seconds per token step. mOTP uses a 10-second step regardless of its stored period;
+     * imports default that period to 30 seconds, but entries can be changed later.
      */
     fun getTokenStepSeconds(): Int = if (type == OTPType.MOTP) TokenCalculator.MOTP_STEP_SECONDS else period
 
@@ -360,14 +359,9 @@ open class Entry {
     }
 
     /**
-     * Applies an in-place edit and re-validates the entry, restoring the previous values when
-     * [validate] rejects the result.
-     *
-     * The edit dialog mutates an entry that is already part of the list. The individual setters
-     * deliberately do not validate (they are also used while constructing/importing), so a
-     * rejected value used to stay on the live entry after the exception: the card then showed the
-     * invalid state and every later [updateOTP]/vault write threw again. Returns true when the
-     * edit was kept, rethrowing the original failure after the rollback.
+     * Applies an edit and validates the entry. On a [RuntimeException], restores issuer, label,
+     * digits, period, counter, tags and thumbnail before rethrowing. Other fields are not rolled
+     * back, so callers must not mutate them if they rely on this rollback.
      */
     fun applyEdit(mutate: (Entry) -> Unit) {
         val previousIssuer = issuer
@@ -444,7 +438,7 @@ open class Entry {
         listId = newId
     }
 
-    /** Recalculates the token ([updateNow] forces a time-based refresh); returns whether it changed. */
+    /** Recalculates the token ([updateNow] forces a time-based refresh); returns whether it was recalculated. */
     fun updateOTP(updateNow: Boolean): Boolean = updateOTPAt(System.currentTimeMillis() / 1000, updateNow)
 
     /**

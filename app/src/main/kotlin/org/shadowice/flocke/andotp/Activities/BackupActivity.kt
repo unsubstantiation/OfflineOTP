@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentSender
 import android.net.Uri
 import android.os.Bundle
-import android.text.TextUtils
 import android.util.Log
 import android.view.View
 import android.view.ViewStub
@@ -55,7 +54,6 @@ import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
-import java.io.InputStream
 import java.nio.charset.StandardCharsets
 import java.util.ArrayList
 import java.util.function.BooleanSupplier

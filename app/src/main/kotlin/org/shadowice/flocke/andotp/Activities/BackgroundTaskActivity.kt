@@ -134,7 +134,7 @@ abstract class BackgroundTaskActivity<Result> : BaseActivity() {
         setupUiForTaskState(!fragment.isCanceled())
     }
 
-    /** The retained task fragment, or null if none is attached. */
+    /** Finds a retained fragment with a task, or null if none is available. */
     @Suppress("UNCHECKED_CAST")
     private fun findTaskFragment(): TaskFragment<Result>? {
         val active = activeFragment

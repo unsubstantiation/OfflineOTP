@@ -40,9 +40,9 @@ allprojects {
     }
 }
 
-// Reject floating/changing dependencies instead of accepting a different graph silently.
-// Dependency locking is not enabled: Gradle refuses it together with these guards, and no
-// lockfiles are committed. Every version is pinned, so the guards enforce the same graph today.
+// Reject dynamic and explicitly changing dependency versions. Dependency locking is not enabled:
+// Gradle refuses it together with these guards, and no lockfiles are committed. These guards do
+// not lock the transitive graph or verify artifact bytes.
 allprojects {
     configurations.configureEach {
         resolutionStrategy.failOnDynamicVersions()

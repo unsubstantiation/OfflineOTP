@@ -2,14 +2,13 @@
 #
 # Full emulator lifecycle for the instrumentation matrix: create the AVD, boot it headless,
 # wait for the system to come up, run the flavor's connected test task, then always tear the
-# emulator and the AVD down again. Every external wait is bounded so a broken SDK/emulator cannot
-# consume the entire Actions job timeout; failure summaries go to both the step log and annotations.
+# emulator and the AVD down again. External waits are bounded; failures are logged under
+# reports/emulator/ and printed to stderr.
 #
 # Usage: scripts/ci/start-emulator.sh <fdroid|play> <28|36>
 #
-# Requires ANDROID_HOME with the cmdline-tools, platform-tools and emulator packages installed
-# (android-actions/setup-android provides exactly that) and Gradle via the repository wrapper.
-# The runner needs KVM; GitHub's ubuntu-24.04 images expose it.
+# Requires ANDROID_HOME with cmdline-tools, platform-tools and emulator packages, Gradle via
+# the repository wrapper, and KVM for hardware acceleration.
 set -euo pipefail
 
 flavor="${1:-}"
@@ -35,11 +34,7 @@ report="$root/reports/emulator"
 mkdir -p "$report"
 
 progress() {
-    local message="$1"
-    echo "== $message"
-    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-        echo "::notice title=Android emulator progress::$message"
-    fi
+    echo "== $1"
 }
 
 report_failure() {
@@ -47,13 +42,6 @@ report_failure() {
     local status="${2:-2}"
     printf '%s\n' "$message" >> "$report/failure.txt"
     echo "$message" >&2
-    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-        local annotation="$message"
-        annotation=${annotation//'%'/'%25'}
-        annotation=${annotation//$'\r'/'%0D'}
-        annotation=${annotation//$'\n'/'%0A'}
-        echo "::error title=Android emulator failure::$annotation"
-    fi
     exit "$status"
 }
 
@@ -61,14 +49,8 @@ summarize_test_failures() {
     python3 "$root/scripts/ci/summarize-instrumentation-failures.py" "$root/app/build"
 }
 
-# One annotation per failing test: a single combined line is truncated by the Actions UI, which
-# hides every failure after the first couple. Keep the plain text report for the summary line too.
-annotate_test_failures() {
-    python3 "$root/scripts/ci/summarize-instrumentation-failures.py" --github "$root/app/build"
-}
-
 if [[ -z "${ANDROID_HOME:-}" ]]; then
-    report_failure "Set ANDROID_HOME to the Android SDK (android-actions/setup-android does)"
+    report_failure "Set ANDROID_HOME to the Android SDK"
 fi
 ADB="$ANDROID_HOME/platform-tools/adb"
 EMULATOR="$ANDROID_HOME/emulator/emulator"
@@ -90,7 +72,7 @@ export ANDROID_AVD_HOME="$HOME/.android/avd"
 mkdir -p "$ANDROID_AVD_HOME"
 
 image="system-images;android-$api;default;x86_64"
-avd="ci-andotp-$flavor-$api"
+avd="ci-offlineotp-$flavor-$api"
 task="connected${flavor^}DebugAndroidTest"
 emulator_pid=""
 
@@ -203,9 +185,6 @@ else
     status=$?
     details="$(tail -n 24 "$report/gradle-test.log" 2>/dev/null | tr '\n' ' ')"
     summarize_test_failures > "$report/test-failures.txt" 2>&1 || true
-    if [[ -n "${GITHUB_ACTIONS:-}" ]]; then
-        annotate_test_failures || true
-    fi
     test_details="$(head -n 4 "$report/test-failures.txt" 2>/dev/null | tr '\n' ' ')"
     report_failure ":app:$task failed or timed out (exit $status): $details Test failures: $test_details" "$status"
 fi

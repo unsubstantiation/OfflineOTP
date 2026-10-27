@@ -31,6 +31,19 @@ class BackupHelperGuardTest(unittest.TestCase):
                       self.text)
         self.assertIn("StorageAccessHelper.saveFile(context, uri, data, permitted)", self.text)
 
+    def test_task_callers_supply_cancellation_or_permission_guards(self):
+        """Legacy convenience overloads remain, but app tasks use the guarded versions."""
+        tasks = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Tasks"
+        pgp = (tasks / "PGPBackupTask.kt").read_text(encoding="utf-8")
+        encrypted = (tasks / "EncryptedBackupTask.kt").read_text(encoding="utf-8")
+        change = (tasks / "ChangeEncryptionTask.kt").read_text(encoding="utf-8")
+        self.assertIn("StorageAccessHelper.saveFile(applicationContext, uri, bytes, this::canWrite)", pgp)
+        self.assertIn("BackupHelper.backupToFile(applicationContext, uri, password, payload, this::canWrite)",
+                      encrypted)
+        self.assertIn(
+            "EncryptionHelper.tryEncryptionChange(context, oldEncryptionKey, newEncryptionType, "
+            "newKeyMaterial, this) { !isCanceled() }", change)
+
     def test_encrypted_backup_framing(self):
         """The framed layout is iteration count, then salt, then the AES-GCM output."""
         self.assertIn("ByteBuffer.allocate(Constants.INT_LENGTH).putInt(iter)", self.text)

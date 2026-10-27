@@ -7,7 +7,6 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.BackupHelper
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
-import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 import java.util.ArrayList

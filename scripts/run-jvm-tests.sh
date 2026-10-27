@@ -20,8 +20,7 @@ KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
 TEST_ROOT="$ROOT/app/src/test/kotlin"
 OUT="${KOTLIN_JVM_TESTS_OUT:-$ROOT/reports/jvm-tests/out}"
 
-# Toolchain discovery identical to run.sh; scripts/kotlin-sandbox/bootstrap-toolchain.sh
-# provisions /tmp/kotlin-sandbox-toolchain when the machine has neither compiler nor JDK.
+# Discover the compiler and JVM, falling back to the bootstrapped toolchain directory.
 KOTLINC="${KOTLINC:-$(command -v kotlinc-jvm || command -v kotlinc || true)}"
 JAVA_BIN="${JAVA_BIN:-$(command -v java || true)}"
 if [[ -z "$KOTLINC" || -z "$JAVA_BIN" ]]; then

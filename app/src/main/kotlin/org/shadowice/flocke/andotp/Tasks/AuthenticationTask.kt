@@ -17,7 +17,7 @@ import java.security.spec.InvalidKeySpecException
 
 import java.util.Arrays
 
-/** Verifies a password/PIN and returns the database key, upgrading legacy hashes when needed. */
+/** Verifies a password/PIN, returning a generation-bound derived key on success. */
 open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boolean,
                               private val existingAuthCredentials: String, private val plainPassword: String?) :
         UiBasedBackgroundTask<AuthenticationOutcome>(AuthenticationOutcome.Rejected(AuthenticationError.DENIED)) {
@@ -36,7 +36,7 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
         }
     }
 
-    /** Upgrades a legacy SHA-256 hash to PBKDF2 credentials and returns the new key. */
+    /** Verifies legacy SHA-256 credentials and attempts a PBKDF2 upgrade. */
     private fun upgradeAuthentication(): AuthenticationOutcome {
         val hashedPassword = String(Hex.encodeHex(DigestUtils.sha256(plainPassword)))
         if (hashedPassword != existingAuthCredentials)

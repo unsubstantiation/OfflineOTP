@@ -222,7 +222,7 @@ object EntryJson {
         return tags
     }
 
-    /** Best-effort thumbnail name: returns null when missing, non-text, or oversized. */
+    /** Best-effort thumbnail name: returns null when missing, unreadable, or oversized. */
     private fun thumbnailName(json: JSONObject): String? {
         val value = try {
             json.getString(JSON_THUMBNAIL)

@@ -1,8 +1,7 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * JVM vectors for the otpauth:// boundary: every accepted shape and the explicit failure
- * outcomes for malformed input.
+ * JVM vectors for supported otpauth:// variants and selected malformed-input outcomes.
  */
 package org.shadowice.flocke.andotp.Utilities
 

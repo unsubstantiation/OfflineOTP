@@ -6,7 +6,7 @@
  * JUnit 4's per-method instance semantics. @Ignore skips, an AssumptionViolatedException from
  * Assume skips, anything else fails the run (non-zero exit).
  *
- * The exit code is what CI consumes: 0 = all green, 1 = at least one failure.
+ * The exit code is 0 when all tests pass, or 1 when at least one fails.
  */
 import org.junit.After
 import org.junit.Before

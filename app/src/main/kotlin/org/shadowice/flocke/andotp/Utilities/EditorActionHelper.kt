@@ -8,7 +8,7 @@ object EditorActionHelper {
     /**
      * True for [EditorInfo.IME_ACTION_DONE] or a hardware Enter key-down [event].
      *
-     * [event] is null for actions reported by the IME itself, so it is only inspected when
+     * [event] may be null for IME actions; it is only inspected when
      * [actionId] is not [EditorInfo.IME_ACTION_DONE].
      */
     @JvmStatic

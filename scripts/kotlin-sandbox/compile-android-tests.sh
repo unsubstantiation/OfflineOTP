@@ -2,9 +2,9 @@
 #
 # Compile-only check for the instrumentation sources (app/src/androidTest/kotlin).
 #
-# The app's androidTest suite is normally compiled by AGP (./gradlew assembleDebugAndroidTest,
-# exercised in CI) and executed on a device. This script is the no-Android-SDK stand-in: it
-# type-checks the instrumentation sources against run.sh's app sources and stub set plus the
+# AGP compiles the flavor-specific androidTest APKs; tests run on an emulator or device.
+# This no-Android-SDK stand-in type-checks the instrumentation sources against run.sh's app
+# sources and stub set plus the
 # androidx.test stand-ins in ./stubs-android-test and the JUnit shim in ../jvm-tests. It says
 # nothing about Android runtime behaviour; a green run only means the suite compiles.
 set -euo pipefail

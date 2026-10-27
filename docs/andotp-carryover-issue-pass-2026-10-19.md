@@ -1,4 +1,8 @@
-# andOTP carry-over pass — issue #39 (2026-10-19)
+# OfflineOTP upstream-issue carry-over pass — issue #39 (2026-10-19)
+
+> **Historical record:** the follow-ups below run through 2026-10-22. CI results apply to the
+> named commits; they do not establish acceptance for later changes. The GitHub Actions
+> workflows used by those runs have since been removed.
 
 This pass works through [OfflineOTP issue #39](https://github.com/unsubstantiation/OfflineOTP/issues/39),
 the carry-over list from [the andOTP tracker triage](andotp-open-issues-triage.md). The triage

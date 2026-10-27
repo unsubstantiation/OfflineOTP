@@ -1,6 +1,9 @@
 # Bug hunt and fix pass, 2026-10-25
 
-Another comprehensive pass over this checkout, after the 2026-10-17/18 bug hunts and the 2026-10-19 andOTP carry-over pass. Scope: every Kotlin source under
+> **Historical report:** the GitHub Actions workflows described here have since been removed.
+
+Another comprehensive pass over this checkout, after the 2026-10-17/18 bug hunts and the
+2026-10-19 OfflineOTP upstream-issue carry-over pass. Scope: every Kotlin source under
 `app/src/main/kotlin` (94 files), both manifests, `app/src/test`, the sandbox/JVM harnesses and the
 Python source guards. The 29 `res/values-*` translations and the `settings_*` arrays were checked
 mechanically rather than re-read (results below).

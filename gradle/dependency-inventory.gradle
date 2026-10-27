@@ -17,11 +17,9 @@ tasks.register('writeDependencyInventory') {
                 }
                 lines.add("graph ${label} ${dependency.from.id.displayName} -> ${dependency.selected.id.displayName}")
             }
-            // Test classpaths include the tested :app component. Its graph variant is unambiguous,
-            // but it publishes several *artifact* variants (classes, resources, APK metadata, ...).
-            // Inventory the full graph above, then request bytes only for external components.
-            // Filtering before artifact selection avoids that ambiguity and does not build/hash
-            // local project outputs. Do not use a lenient view: missing external inputs must fail.
+            // Inventory the full graph above, but request bytes only for external components.
+            // Filtering before artifact selection avoids ambiguous local project variants and does
+            // not build/hash project outputs. Missing external inputs must fail the inventory.
             def externalArtifacts = configuration.incoming.artifactView {
                 componentFilter { id -> id instanceof ModuleComponentIdentifier }
             }.artifacts
@@ -54,7 +52,7 @@ tasks.register('writeDependencyInventory') {
         ['fdroidDebug', 'fdroidRelease', 'playDebug', 'playRelease'].each { variant ->
             ['CompileClasspath', 'RuntimeClasspath'].each { suffix ->
                 def name = "${variant}${suffix}"
-                // Missing configurations are errors, not a reason to silently drop test inputs.
+                // Missing variant configurations are errors, not a reason to drop inputs.
                 record(name, app.configurations.getByName(name))
             }
         }

@@ -5,8 +5,9 @@ runs `Checks.kt` on a desktop JVM. It exists for environments that have a JDK an
 compiler but no Android SDK, AndroidX artifacts, or Gradle dependency graph. It is not the
 app's real build.
 
-**It is not a substitute for the CI gate**: the Gradle unit tests, lint, APK builds, packaged-
-manifest policy, and API 28/36 instrumentation runs described in the root [README](../../README.md).
+**It is not a substitute for release checks**: the Gradle unit tests, lint, APK builds,
+packaged-manifest policy, and API 28/36 instrumentation runs described in the root
+[README](../../README.md).
 A green run means the covered sources compile under `-jvm-target 1.8` and the checked logic
 behaves against the stubs. It says nothing about Android runtime behavior, resources, the
 manifest, packaging, signing, or reproducibility.
@@ -14,12 +15,12 @@ manifest, packaging, signing, or reproducibility.
 ## Run it
 
 On a machine without a JDK or Kotlin compiler, `bootstrap-toolchain.sh` fetches both from package
-mirrors, verifies pinned SHA-256 digests, unpacks them outside the repository, and prints the
+mirrors, verifies pinned SHA-256 digests, unpacks them outside the repository by default, and prints the
 environment to use:
 
 ```sh
 bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
-eval "$(bash scripts/kotlin-sandbox/bootstrap-toolchain.sh | grep ^export)"
+# Run the export commands printed by the script, then:
 bash scripts/kotlin-sandbox/run.sh
 ```
 
@@ -29,7 +30,9 @@ verification. Prefer a package manager or a verified archive where available.
 With an existing toolchain:
 
 ```sh
-KOTLINC=/path/to/kotlinc-jvm JAVA_BIN=/path/to/java bash scripts/kotlin-sandbox/run.sh
+export JAVA_HOME=/path/to/jdk
+export PATH="$JAVA_HOME/bin:$PATH"
+KOTLINC=/path/to/kotlinc-jvm JAVA_BIN="$JAVA_HOME/bin/java" bash scripts/kotlin-sandbox/run.sh
 ```
 
 Set `KOTLIN_STDLIB` to use a specific `kotlin-stdlib.jar`. Output defaults to the ignored
@@ -41,7 +44,7 @@ The related host gates read the same `APP_SOURCES` and `STUBS` lists from `run.s
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 
-Last verified on 2026-10-22 with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
+On 2026-10-22, with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
 144 JVM tests passed, and all twelve instrumentation sources type-checked against stand-ins.
 
 ## What it checks
@@ -57,7 +60,7 @@ Last verified on 2026-10-22 with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox c
   wrap/unwrap with a real generated key pair, including tampered blobs and wrong keys.
 - **Vault, session, and tasks:** typed vault outcomes and recovery decisions, one-use secrets and
   generation-bound handoffs, task cancellation/ownership, settings and credential staging,
-  backup receivers/worker/agent, the panic responder, and screen-off/obscured-touch handling.
+  backup receivers, worker and unregistered agent, the panic responder, and screen-off/obscured-touch handling.
 - **UI and Java-visible shapes:** dialog and preference wiring, tags, about rows, entry-card
   binding, and the retained task fragment. Names, descriptors, annotations, enum order, and
   other ABI details are reflected from compiled classes where a class cannot be loaded.

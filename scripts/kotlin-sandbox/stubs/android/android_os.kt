@@ -57,16 +57,6 @@ class SystemClock private constructor() {
     }
 }
 
-class Environment private constructor() {
-    companion object {
-        const val MEDIA_MOUNTED = "mounted"
-        const val MEDIA_MOUNTED_READ_ONLY = "mounted_ro"
-
-        @JvmStatic
-        fun getExternalStorageState(): String = MEDIA_MOUNTED
-    }
-}
-
 class LocaleList {
     operator fun get(index: Int): Locale = Locale.ENGLISH
     fun size(): Int = 1

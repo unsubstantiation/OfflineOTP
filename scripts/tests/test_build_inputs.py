@@ -1,10 +1,4 @@
-"""Mutation tests for the build-input checker.
-
-``scripts/check_build_inputs.py`` verifies the Gradle wrapper provenance and that every CI
-action reference is an immutable 40-hex pin. These tests run the checker over a copy of the
-real workflow set (and, for the wrapper, over a minimal fixture tree) and confirm that both a
-clean tree passes and each tampering is rejected.
-"""
+"""Mutation tests for Gradle wrapper provenance and distribution settings."""
 import shutil
 import sys
 import tempfile
@@ -18,44 +12,21 @@ import check_build_inputs  # noqa: E402
 
 WRAPPER_FILES = ["gradlew", "gradlew.bat", "gradle/wrapper/gradle-wrapper.jar",
                  "gradle/wrapper/gradle-wrapper.properties"]
-MUTATIONS = {
-    "mutable action tag": lambda text: text.replace(
-        "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683", "actions/checkout@v4", 1),
-    "unpinned local action": lambda text: text.replace(
-        "android-actions/setup-android@", "some-org/some-action@", 1),
-    "commented pin is not a use": lambda text: text,
-}
+
 
 
 class BuildInputsCheckerTest(unittest.TestCase):
     def copy_fixture(self):
-        """A minimal tree: real wrapper files and the real workflow directory."""
+        """A minimal tree containing the real wrapper files."""
         work = Path(tempfile.mkdtemp(prefix="build-inputs-"))
         self.addCleanup(shutil.rmtree, work, True)
-        (work / ".github/workflows").mkdir(parents=True)
         (work / "gradle/wrapper").mkdir(parents=True)
         for name in WRAPPER_FILES:
             shutil.copy2(ROOT / name, work / name)
-        for workflow in (ROOT / ".github/workflows").glob("*.yml"):
-            shutil.copy2(workflow, work / ".github/workflows" / workflow.name)
         return work
 
     def test_clean_tree_passes(self):
         self.assertEqual([], check_build_inputs.check(self.copy_fixture()))
-
-    def test_mutable_action_tag_is_rejected(self):
-        work = self.copy_fixture()
-        workflow = sorted((work / ".github/workflows").glob("*.yml"))[0]
-        text = workflow.read_text(encoding="utf-8")
-        workflow.write_text(MUTATIONS["mutable action tag"](text), encoding="utf-8")
-        errors = check_build_inputs.check(work)
-        self.assertTrue(any("Unpinned workflow action" in error for error in errors), errors)
-
-    def test_missing_workflow_directory_is_rejected(self):
-        work = self.copy_fixture()
-        shutil.rmtree(work / ".github/workflows")
-        errors = check_build_inputs.check(work)
-        self.assertTrue(any("workflow directory is missing" in error for error in errors), errors)
 
     def test_tampered_wrapper_is_rejected(self):
         work = self.copy_fixture()

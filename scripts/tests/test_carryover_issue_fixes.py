@@ -1,4 +1,4 @@
-"""Regression guards for the andOTP carry-over pass (OfflineOTP issue #39).
+"""Regression guards for OfflineOTP's upstream-issue carry-over pass (issue #39).
 
 Four confirmed defects from the upstream triage are pinned here:
 

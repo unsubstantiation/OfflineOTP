@@ -78,8 +78,8 @@ class EntryList {
 
     @Synchronized fun getEntriesSorted(sortMode: Constants.SortMode): ArrayList<Entry> = sortEntries(entries, sortMode)
 
-    /** Returns a copy of [unsortedEntries] sorted by [sortMode]. */
     companion object {
+        /** Returns a copy of [unsortedEntries] sorted by [sortMode]. */
         @JvmStatic
         fun sortEntries(unsortedEntries: ArrayList<Entry>, sortMode: Constants.SortMode): ArrayList<Entry> {
             val sorted = ArrayList(unsortedEntries)

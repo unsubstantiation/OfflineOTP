@@ -1,10 +1,11 @@
 # Language conversion assessment: security and Android compatibility
 
 > **Historical assessment.** This reviews the 2026-10-14 baseline
-> (`be039203c2baa104a559e3a62beff96b70819881`). The app main sources are now fully Kotlin and
-> CI/build gates are in place; see the root [README](../README.md) for current build and test
-> behavior. Statements below about Java sources, lint settings, and missing workflows describe
-> that baseline.
+> (`be039203c2baa104a559e3a62beff96b70819881`). The app main sources are now fully Kotlin; see
+> the root [README](../README.md) for current build and test commands. GitHub Actions workflows
+> have since been removed. Findings, risks and recommendations below describe that baseline, not
+> necessarily current behavior. The linked source files have since changed; see the
+> [vault security record](vault-security-hardening.md) for implemented hardening and limits.
 
 Reviewed: 2026-10-14. Baseline: `be039203c2baa104a559e3a62beff96b70819881`.
 
@@ -32,15 +33,15 @@ This is **static source analysis, not a penetration test or a security certifica
 
 | Area | Observed state | Implication |
 | --- | --- | --- |
-| Application language | No app main-source Java since the twenty-second batch (`Constants` and `FileHelper` converted; the 2026-10-14 baseline had 22 main-source Java files, about 6,430 lines). The app has 86 main Kotlin files plus two flavor-specific Kotlin files. The host suite has 14 Kotlin test classes (110 tests in the sandbox); the instrumentation suite has four Kotlin tests (`AppContextTest`, `ApplicationTest`, `EntryDocumentDeviceTest`, `IntroScreenLaunchTest`) | A Kotlin/Java mixed migration was feasible; there is no in-repository C/C++ memory-unsafe core to replace. The current test suites are the maintained coverage, not an unfinished app conversion |
+| Application language | The 2026-10-14 baseline had 22 main-source Java files. Subsequent batches converted all app main sources to Kotlin; host and instrumentation tests are under `app/src/test/kotlin` and `app/src/androidTest/kotlin`. | No in-repository C/C++ core needs replacing; see the [conversion record](kotlin-extracted-helpers.md) for migration history. |
 | Native/other runtimes | Kotlin (JVM) sources are checked in under `app/src/main/kotlin`; no Rust, C, or C++ implementation | Rust would introduce JNI, native packaging and a second toolchain rather than remove existing native exposure |
 | Build | Three Groovy Gradle files; Gradle 8.13 wrapper; Android Gradle Plugin 8.13.2; Kotlin plugin 2.4.21 pinned with `jvmTarget` 1.8 | Kotlin is added; keep plugin/AGP/Gradle compatibility verified, and note that no Gradle build has been executed in this environment |
 | Android contract | `minSdkVersion 28`, `targetSdkVersion 35`, `compileSdk 36`; Java source/target 8 and core-library desugaring | Declared support begins at Android 9, not the older Android versions supported by historical upstream releases |
 | UI | Android activities, XML layouts, preferences, RecyclerView; data binding enabled | Kotlin works with the existing UI; no need to combine language migration with Compose |
 | Storage/crypto | Encrypted JSON in private files; JCA AES-GCM/PBKDF2/HMAC; RSA key wrapping through AndroidKeyStore | Preserve platform providers and existing file formats during language migration |
 | Integration | ZXing, OpenPGP service, Storage Access Framework, WorkManager, process lifecycle callbacks | Security depends heavily on Android trust boundaries and lifecycle policy |
-| Tests | RFC TOTP/HOTP, entry parsing/serialization, database round-trip and AES-GCM vectors in `ApplicationTest`; token formatting in `ToolsTest` | Baseline vectors were useful, but adversarial-input, process-death and migration coverage were thin; the current host suite adds those cases |
-| Build assurance | At baseline, lint had `abortOnError false` and no GitHub Actions workflow was checked in | This has since changed: lint fails on errors and `.github/workflows/android-ci.yml` runs the build, host-test and device gates |
+| Tests | RFC TOTP/HOTP, entry parsing/serialization, database round-trip and AES-GCM vectors in `ApplicationTest`; token formatting in `ToolsTest` | Baseline vectors were useful, but adversarial-input, process-death and migration coverage were thin; subsequent tests expanded coverage without replacing device testing |
+| Build assurance | At baseline, lint had `abortOnError false` and no GitHub Actions workflow was checked in | Lint now fails on errors; build and device checks must be run separately |
 
 Sources: [app build](../app/build.gradle), [root build](../build.gradle), [wrapper](../gradle/wrapper/gradle-wrapper.properties), [manifest](../app/src/main/AndroidManifest.xml), [tests](../app/src/androidTest/kotlin/org/shadowice/flocke/andotp/ApplicationTest.kt).
 
@@ -52,7 +53,7 @@ Protect OTP seeds, passwords/PINs, encryption keys, live OTPs, account metadata,
 
 ### Network-origin threats
 
-The checked-in application manifest does **not** declare `INTERNET`, and the reviewed app source does not implement a network client or embedded WebView. Keep this offline design. The use of `URL` in `Entry` parses text; it does not fetch that URL.
+The checked-in application manifest does **not** declare `INTERNET`, and the reviewed app source does not implement a network client or embedded WebView. Keep this offline design. At the baseline, `Entry` used `URL` to parse text, not to fetch it; the current parser uses `java.net.URI`.
 
 This is not proof that the release APK cannot use the network: library manifests must be merged and inspected for both flavors. Also, a browser can deliver an `otpauth` link, a cloud document provider can supply hostile content, Android backup can transfer data, and the OpenPGP or token-sharing recipient can have network access independently. No app-level network permission is needed for those trust-boundary crossings.
 
@@ -66,7 +67,7 @@ Separately assess user-enabled accessibility services, keyboards, autofill provi
 
 ## 3. Security work with greater benefit than a language conversion
 
-Priorities below are remediation priorities, not CVSS scores or claims of demonstrated exploitation.
+The observations and proposed actions below are from the baseline. Priorities are not CVSS scores or claims of demonstrated exploitation.
 
 ### A. Restrict destructive external IPC — high priority
 
@@ -76,17 +77,17 @@ Priorities below are remediation priorities, not CVSS scores or claims of demons
 
 **Action:** Decide whether arbitrary apps are intentionally trusted to trigger panic. Otherwise remove external access or require a user-authorized integration/capability. A signature permission works for same-signer applications but would break independently signed PanicKit integrations; do not apply it blindly. Test destructive behavior using disposable test data and an independently signed attacker app.
 
-Evidence: [manifest, lines 67–77](../app/src/main/AndroidManifest.xml); [PanicResponderActivity, lines 37–60](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/PanicResponderActivity.kt) (Kotlin since the nineteenth batch; the action, the responses and the order of the steps are unchanged); [Settings.getPanicResponse](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Settings.kt) (Kotlin since the sixteenth batch; the stored keys and the default are unchanged).
+Evidence: [manifest](../app/src/main/AndroidManifest.xml); [PanicResponderActivity](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/PanicResponderActivity.kt) (Kotlin since the nineteenth batch; current implementation; panic authorization was subsequently hardened); [Settings.getPanicResponse](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Settings.kt) (Kotlin since the sixteenth batch; the stored keys and the default are unchanged).
 
 ### B. Validate and confirm externally supplied OTP entries — high priority
 
-**Observed:** `MainActivity.checkIntent` accepts `ACTION_VIEW`, parses an entry, computes its OTP and adds it without an entry-preview/confirmation step in that path. Normal authentication flow exists; this observation does **not** establish an authentication bypass. `Entry(String)` rewrites `otpauth` to `http`, accepts the resulting HTTP scheme, and parses numeric parameters without enforcing domain ranges there. Manifest filters do not constrain explicitly addressed intents. (The numeric-range enforcement this action asks for has since landed — the parsing moved to `OtpUriParser`/`EntryJson` under `InputPolicy`, see the implementation update in Phase 2 — but the confirmation step and the intent-authorization policy have not. The text above describes the reviewed baseline.)
+**Observed:** `MainActivity.checkIntent` accepts `ACTION_VIEW`, parses an entry, computes its OTP and adds it without an entry-preview/confirmation step in that path. Normal authentication flow exists; this observation does **not** establish an authentication bypass. `Entry(String)` rewrites `otpauth` to `http`, accepts the resulting HTTP scheme, and parses numeric parameters without enforcing domain ranges there. Manifest filters do not constrain explicitly addressed intents. (Since then, `OtpUriParser`/`EntryJson` enforce input bounds and `ACTION_VIEW` imports show a confirmation. QR scan/file imports follow a different path; see the [current security record](vault-security-hardening.md).)
 
 **Risk:** Unwanted account insertion and malformed values reaching token generation. For example, a zero period reaches time-step division; excessive digits/labels/tags can cause failures or resource consumption. QR/file and JSON paths need the same validation, not separate UI-only checks.
 
 **Action:** Require the actual expected scheme and supported OTP type; reject missing/invalid Base32 secrets, invalid periods, digit counts, counters and algorithms; bound strings and collections; define behavior for duplicate parameters and Unicode/locale cases. Preserve supported Steam/mOTP behavior deliberately. Present a confirmation screen before committing external entries.
 
-Evidence: [MainActivity, `checkIntent` and `addQRCode`](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt) (Kotlin since the twenty-first batch; the intent handling is unchanged); [Entry, lines 124 and 152](../app/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt) (converted to Kotlin; `Entry(String)` and `Entry(JSONObject)` are now adapters over [OtpUriParser](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/OtpUriParser.kt) and [EntryJson](../app/src/main/kotlin/org/shadowice/flocke/andotp/Database/EntryJson.kt)); [TokenCalculator](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/TokenCalculator.kt) (converted to Kotlin; the OTP math and parameter bounds are unchanged).
+Evidence: [MainActivity, `checkIntent` and `addQRCode`](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt) (Kotlin since the twenty-first batch; intent handling has since changed); [Entry](../app/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt) (converted to Kotlin; `Entry(String)` and `Entry(JSONObject)` are now adapters over [OtpUriParser](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/OtpUriParser.kt) and [EntryJson](../app/src/main/kotlin/org/shadowice/flocke/andotp/Database/EntryJson.kt)); [TokenCalculator](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/TokenCalculator.kt) (converted to Kotlin; current input bounds are enforced by `InputPolicy`).
 
 ### C. Bound document, image and password-derivation work — high priority
 
@@ -118,12 +119,12 @@ Evidence: [DatabaseHelper, readVault and changeVaultEncryption](../app/src/main/
 
 For a stronger interactive mode, evaluate a non-exportable AndroidKeyStore AES-GCM key with an appropriate device-credential/biometric authorization policy. Keep legacy decryption and make migration recoverable. Verify hardware security level on actual devices; hardware backing is not universal. **Auth-bound keys conflict with unattended encrypted backups:** choose an explicit product policy (disable them in that mode or design a separately reviewed backup mechanism), not a silent fallback to weaker authorization.
 
-Evidence: [MainActivity, `onSaveInstanceState` and the lock/relock paths](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt) (Kotlin since the twenty-first batch; the key handling is unchanged); [KeyStoreHelper, loadOrGenerateWrappedKey](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/KeyStoreHelper.kt) (Kotlin since the fifteenth batch; the key-generation policy described here is unchanged); [SecretKeyWrapper](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/SecretKeyWrapper.kt) (Kotlin since the third batch).
+Evidence: [MainActivity, `onSaveInstanceState` and the lock/relock paths](../app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt) (Kotlin since the twenty-first batch; session and saved-state handling have since changed); [KeyStoreHelper, loadOrGenerateWrappedKey](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/KeyStoreHelper.kt) (Kotlin since the fifteenth batch; the key-generation policy described here is unchanged); [SecretKeyWrapper](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/SecretKeyWrapper.kt) (Kotlin since the third batch).
 
 ### F. Constrain intentional token/backup integrations — medium priority
 
 - `EntriesCardAdapter.sendKeystrokes` sends an OTP in an implicit `ACTION_SEND` intent. Require informed recipient selection; consider a user-approved explicit component and signing-identity checks for a persistently trusted integration. Do not silently trust whichever handler resolves. OpenPGP also receives plaintext vault data for encryption: provider trust is part of the security model, not something Kotlin fixes.
-- `Tools.copyToClipboard` copies plain text without a sensitive-content marker or app-managed timeout. Add supported sensitive metadata with API guards and best-effort expiration only when the clipboard still contains this app's clip. Clipboard visibility/protections differ across Android versions; API 28 deserves particular attention.
+- At the baseline, `Tools.copyToClipboard` copied plain text without a sensitive-content marker or app-managed timeout. It now marks clips sensitive but still has no app-managed expiration. Consider best-effort expiration only when the clipboard still contains this app's clip. Clipboard visibility/protections differ across Android versions; API 28 deserves particular attention.
 - The exported encrypted-backup receiver is gated by user opt-in, password, location and encryption mode. WorkManager unique work with `KEEP` avoids simultaneous duplicates, but not repeated completed backups or notification spam. The receiver does not check the incoming action, and the worker does not recheck whether broadcast backups are still enabled. Validate action, recheck authorization at execution and define rate limits. Addressing a broadcast to a package is routing, not authorization. Signature permissions alone are not compatible with arbitrary third-party automation.
 - Preserve default screenshot blocking (`Settings.getScreenshotsEnabled` defaults false). Review all secret-bearing windows, including dialogs. Evaluate obscured-touch rejection for sensitive actions and API-guarded overlay hiding on supported Android releases. Accessibility/autofill restrictions already exist for several credential fields; review coverage without treating them as complete protection against privileged services.
 
@@ -137,7 +138,7 @@ Evidence: [EntriesCardAdapter, `sendKeystrokes`](../app/src/main/kotlin/org/shad
 
 Keep AES-GCM, secure random nonces and JCA HMAC. Prefer explicit `GCMParameterSpec` after provider/format tests. Review the existing PBKDF2-HMAC-SHA1 work factors, short PIN policy, RSA-PKCS1 wrapping and old SHA-256-only backup import. These are design/compatibility decisions, not grounds for mechanical algorithm substitution. HMAC-SHA1 OTP interoperability is distinct from SHA-1 collision weaknesses; do not break RFC-compatible accounts to “upgrade” it. Likewise, retain legacy mOTP behavior only as an explicit compatibility feature. If upgrading backup KDFs, introduce a versioned format and preserve old readers; changing constants alone breaks existing files. Randomizing backup iterations within a narrow range is not a substitute for an appropriate work factor and strong passwords.
 
-Evidence: [manifest](../app/src/main/AndroidManifest.xml); [BackupAgent](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/BackupAgent.kt); [Settings](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Settings.kt) (Kotlin since the sixteenth batch; `getAndroidBackupServiceEnabled()` still returns `false` without reading storage and every commit still writes that flag off); [Constants](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Constants.kt) (Kotlin since the twenty-second batch; the PBKDF2 and backup parameters are unchanged); [EncryptionHelper](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptionHelper.kt) (Kotlin since the fifteenth batch; PBKDF2 work factors, RSA-PKCS1 wrapping and the SHA-256 legacy import are unchanged).
+Evidence: [manifest](../app/src/main/AndroidManifest.xml); the [legacy `BackupAgent`](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/BackupAgent.kt) (currently unregistered); [Settings](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Settings.kt) (Kotlin since the sixteenth batch; `getAndroidBackupServiceEnabled()` still returns `false` without reading storage and every commit still writes that flag off); [Constants](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Constants.kt) (Kotlin since the twenty-second batch; the PBKDF2 and backup parameters are unchanged); [EncryptionHelper](../app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptionHelper.kt) (Kotlin since the fifteenth batch; PBKDF2 work factors, RSA-PKCS1 wrapping and the SHA-256 legacy import are unchanged).
 
 ## 4. Language conversion choices
 
@@ -160,7 +161,7 @@ Rust could become appropriate for a future audited, shared native subsystem, or 
 2. **Vault repository outcomes:** replace ambiguous list/boolean returns in `DatabaseHelper` and encryption-change paths with sealed outcomes and transactional operations. These semantics can and should be fixed in Java first if Kotlin setup would delay remediation.
 3. **Authentication/vault session state:** replace scattered booleans/raw-key transfers with explicit locked/unlocking/unlocked/error states. Use a process-memory session plus lifecycle-aware ViewModels; do not persist its secrets through saved state. Reauthentication, not restoration of raw keys, is the process-death path.
 4. **Task lifecycle:** replace `UiBasedBackgroundTask` and retained platform fragments with lifecycle-aware execution where appropriate. Coroutines offer structured cancellation, but a PBKDF2/provider call may not be interruptible. Preserve input limits and prevent stale task results from unlocking a newer/locked session. Keep WorkManager for durable background backup; Kotlin does not require replacing a working Java worker.
-5. **UI/presentation:** convert activities/adapters only after smaller contracts are validated and their responsibilities have been decomposed and tested. `MainActivity` (~1,007 baseline lines) and `EntriesCardAdapter` (~840 baseline lines) are poor automatic-conversion targets. Keep extractions in Java initially; review language conversion separately. The [UI decomposition plan](ui-decomposition-plan.md) defines proposed owners, extraction order and acceptance gates. No large UI class is currently marked ready for conversion.
+5. **UI/presentation:** convert activities/adapters only after smaller contracts are validated and their responsibilities have been decomposed and tested. `MainActivity` (~1,007 baseline lines) and `EntriesCardAdapter` (~840 baseline lines) are poor automatic-conversion targets. Keep extractions in Java initially; review language conversion separately. The UI has since been converted; the [UI decomposition plan](ui-decomposition-plan.md) tracks remaining extractions and acceptance gates.
 6. **Crypto wrappers/OTP:** keep JCA primitives and proven behavior; convert last if it improves maintenance. Avoid a simultaneous algorithm/provider/file-format change. Keep byte arrays out of generated `toString`/logging, equality and serialization paths for secret-bearing models.
 
 During mixed-language work, annotate Java null contracts, minimize platform types and Kotlin `!!`, avoid unchecked mutable collections across boundaries, and preserve Java-facing method signatures where needed. Converting a nullable platform API call to `!!` simply preserves its crash risk.
@@ -188,7 +189,11 @@ Resolve panic authorization, external-entry confirmation, bounded inputs/KDF wor
 
 ### Phase 2 — pilot Kotlin at a narrow boundary
 
-**Implementation update:** the [Kotlin OTP parser pilot](kotlin-otp-parser-pilot.md) supplied this narrow boundary and a Java adapter, and the [conversion record](kotlin-extracted-helpers.md) lists the leaf/utility classes converted since, including `TokenCalculator`. The entry-model target (1) and the settings facade (the sixteenth batch, `Utilities/Settings.kt`) are the latest steps: `EntryJson`/`EntryJsonResult` carry the closed parse-error set and the owned one-use validated value with `Entry` as a Kotlin adapter over them, and `Settings` keeps the stored keys, the defaults, the credential transaction and the automatic-backup policy unchanged while the malformed-input matrices for both the URI and the document path are exercised by tests — the sandbox check for the document path and `EntryInputSecurityTest`/`EntryJsonTest` for both. The confirmation-before-commit step this finding asks for is **not** part of that batch and remains open. The tests/build/runtime acceptance gates are still pending: only a partial sandbox compile/run check ([scripts/kotlin-sandbox](../scripts/kotlin-sandbox/README.md)) has been executed, and it is not Gradle, lint, packaging or device acceptance. This is not approval for a wider migration, in particular the large UI classes. The original assessment below describes the intended rollout.
+**Implementation update:** The [OTP parser](kotlin-otp-parser-pilot.md), entry model, session/task
+contracts and UI were subsequently converted to Kotlin. External `ACTION_VIEW` imports now ask
+for confirmation. The [conversion record](kotlin-extracted-helpers.md) documents the batches;
+current builds, lint, packaging and device checks remain release gates. The rollout below is the
+original recommendation.
 
 Add Kotlin and migrate a bounded OTP parser/validator plus tests, keeping a Java façade. Compare old/new behavior on valid fixtures and intentionally document stricter rejection of invalid input. Continue only if interoperability, build complexity and maintenance ownership are acceptable.
 

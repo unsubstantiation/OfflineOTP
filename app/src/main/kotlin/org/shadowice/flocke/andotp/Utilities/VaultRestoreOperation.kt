@@ -4,7 +4,6 @@ import android.content.Context
 import org.shadowice.flocke.andotp.Database.Entry
 
 import java.util.ArrayList
-import java.util.Iterator
 import java.util.function.BooleanSupplier
 import javax.crypto.SecretKey
 

@@ -3,7 +3,6 @@ package org.shadowice.flocke.andotp.Dialogs
 import android.app.AlertDialog
 import android.content.Context
 import android.text.InputFilter
-import android.view.View
 import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.CheckedTextView

@@ -11,7 +11,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.MenuInflater
-import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Filter
@@ -503,7 +502,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         })
     }
 
-    /** Records the usage; returns false when the resorting also updated the view. */
+    /** Records usage; returns false for an invalid index or when resorting refreshed the full view. */
     private fun updateLastUsedAndFrequency(position: Int, realIndex: Int): Boolean {
         val ownedEntries = entries.getEntries()
         if (!EntryIndexGuard.isValid(realIndex, ownedEntries.size)) return false

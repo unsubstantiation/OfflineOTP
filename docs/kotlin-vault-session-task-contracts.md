@@ -2,7 +2,13 @@
 
 ## Scope and acceptance status
 
-This contract migration extended the OTP parser pilot with Kotlin contract envelopes and Android-free session/task controllers. At the time, UI/storage adapters and Android entry points were intentionally left Java while the runner and task subclasses moved to Kotlin. Later conversion batches moved all app main sources, including UI, storage, WorkManager, crypto and Android components, to Kotlin; the ordinary host/device suites and independent IPC client followed in the twenty-third test-source batch. The `Kotlin*InteropTest` suites described in earlier revisions are not part of this checkout; the current instrumentation suite is the four Kotlin tests under `app/src/androidTest/kotlin`, and no Java test source remains. See the [conversion record](kotlin-extracted-helpers.md). There is no coroutine, Compose or serialization migration. Ciphertext, JSON, encrypted backup and staged UUID formats and cryptographic algorithms are unchanged.
+This migration introduced Kotlin contracts and Android-free session/task controllers. Later batches
+converted the app's UI, storage and Android entry points to Kotlin; see the
+[conversion record](kotlin-extracted-helpers.md). Current host and instrumentation sources live under
+`app/src/test/kotlin` and `app/src/androidTest/kotlin`. The independent IPC client and
+`Kotlin*InteropTest` suites mentioned in historical records are not in this checkout. The migration
+did not introduce Compose, coroutines, a new serializer, or changes to ciphertext, JSON, backup
+framing, transaction UUIDs or cryptographic algorithms.
 
 **Implementation and test sources are present.** The sandbox checks described in the conversion record are partial and non-authoritative; passing Gradle and Android gates remains necessary for release confidence. Local Python/source grammar checks are not Kotlin/Java compilation, JVM JUnit, Android instrumentation, or a security/reproducibility certification. Both flavors must pass the existing build/lint/packaged-manifest/independent-release gates and instrumentation matrix on API 28 and 36 before release. Network and IPC protections remain separate gates, not properties granted by sealed types.
 
@@ -13,9 +19,9 @@ This contract migration extended the OTP parser pilot with Kotlin contract envel
 - `beginUnlock()` revokes existing authority and yields a new attempt generation.
 - `activate(key, expectedGeneration)` rejects stale generations and failed sessions. Replacing the key identity advances the generation; re-activating the identical object does not.
 - `lock(reason)` and `fail(error)` clear the key and pending handoff and advance the generation.
-- Lock listeners retain their UI semantics; separate change listeners also observe key replacement and cancel old-generation tasks. Listener exceptions do not skip remaining cleanup. Notifications happen outside the controller monitor.
+- Lock listeners retain their UI semantics; separate change listeners also observe key replacement and cancel old-generation tasks. Listener runtime exceptions do not skip remaining cleanup. Notifications happen outside the controller monitor.
 - `OwnedSecret` copies bounded input, transfers bytes once, wipes untransferred bytes on `close()`, and redacts diagnostics. After `takeBytes()`, wiping belongs to the receiver. It is deliberately not a data class.
-- Handoffs require the originating generation. A stale consumer cannot steal a newer handoff. Main/settings authentication consumers use their captured generation, not a completion-time epoch.
+- Generation-bound handoffs reject a stale consumer; main/settings authentication consumers pass their captured generation. The legacy no-argument `takeDerivedKey()` samples the current generation instead and must not be used for asynchronous callbacks.
 
 The mutation lock remains the existing database lock. Controller lock order is mutation lock then monitor; task delivery takes the mutation lock before its callback lock. An `Applied` result describes the transition at that time, not a lease or proof of future authority. Each later mutation still requires current-generation/key checks. These APIs are trusted in-process boundaries, not new IPC authentication mechanisms.
 
@@ -58,7 +64,7 @@ Legacy `LoadResult`, boolean write APIs and metadata callback adapters remain fo
 - Results returned while cancellation unwinds are disposed rather than delivered. Cancellation does not roll back already committed metadata or provider output.
 - `discardResult()` disposes owned output. `onCancellation()` performs idempotent owned-input cleanup even if the worker never started. Cleanup overrides must not acquire the mutation lock and must not block on external operations.
 - Delivery transfers Value ownership to the consumer. `disposeOutcome()` is available for stale/replaced results; consumers must close or transfer owned values.
-- The legacy `setCallback()` adapter still maps Failure to the supplied fallback and suppresses Cancelled, for compatibility tests. Production task consumers now use `setOutcomeCallback()` (the adapter delegates automatic-backup scheduling/callback binding to `EntryPersistence`).
+- Production task consumers use `setOutcomeCallback()`. The legacy `setCallback()` adapter remains for compatibility: it maps Failure to the fallback and suppresses Cancelled. `EntryPersistence` handles automatic-backup scheduling and callback binding.
 
 `BackgroundTaskActivity` retains its task fragment across configuration changes, detaches on pause, rebinds on resume and guards callback delivery by source-task identity. A replaced task cannot update/remove the newer task's UI. Permanent fragment destruction detaches and cancels. Authentication handles infrastructure failure as failure; backup reports an error without successful export/import. Credential dialogs cancel/detach on close. Intro slide destruction cancels unfinished work; setup keys are copied into the Activity and the task-owned array is disposed after the callback. Intro is not converted to a new retained/coroutine lifecycle owner here.
 
@@ -70,10 +76,10 @@ Broadcast encrypted backup deliberately remains independent of an unlocked UI se
 
 ## Test coverage and remaining limits
 
-At the time of this migration, the added source tests were:
+The migration originally added the tests below; not all historical suites remain in this checkout. The current host, sandbox and instrumentation coverage is described in the [README](../README.md) and [vault security record](vault-security-hardening.md).
 
 - 14 Kotlin/JVM tests for session transitions, stale/failed activation, one-use owned secrets/handoffs, listener isolation, task state transitions, cancellation, redacted outcomes and authentication key ownership.
-- Five additional runner instrumentation tests for typed exception/null failure, detached completion/rebinding, key replacement disposing queued secrets, and pre-submission cleanup. Existing legacy cancellation/fallback tests remain.
+- Five additional runner instrumentation tests for typed exception/null failure, detached completion/rebinding, key replacement disposing queued secrets, and pre-submission cleanup. The sandbox continues to check typed cancellation and result disposal.
 - Five additional vault instrumentation tests for missing versus valid empty reads, entry ownership, pre-commit cancellation, unknown metadata quarantine, and committed promotion failure/recovery without implicit unlock.
 - Four Python source-policy checks for boundary placement, typed production consumers, redaction and explicit recovery. These check source structure only.
 
@@ -81,6 +87,6 @@ Build the APKs with the Gradle commands in the README; do not substitute grammar
 
 ## Subsequent UI work
 
-Large activities and adapters were kept in Java until their responsibilities had been decomposed and tested. Follow the [UI decomposition plan](ui-decomposition-plan.md); contract implementation alone is not approval for a bulk UI conversion. The twenty-first batch later converted the remaining user interface (the six large activities, the credential preference, the manual-entry dialog and the two card adapters) after the five implemented decomposition slices, without extracting the roles the plan still lists under "Still to extract".
-
-The subsequent [extracted-helper conversion](kotlin-extracted-helpers.md) starts with the isolated timer controller and delayed-action identity. Its earlier batches kept Java UI/Android bridges and Java characterization tests; later batches converted the remaining production classes and ordinary test sources. This does not replace Gradle, lint or device acceptance. The current instrumentation suite is Kotlin; no Java test source remains.
+The large UI classes were converted after the first five decomposition slices. That conversion did
+not complete the remaining extractions; see the [UI decomposition plan](ui-decomposition-plan.md).
+Gradle, lint and device acceptance remain necessary.

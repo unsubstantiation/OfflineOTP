@@ -1,4 +1,4 @@
-# Decompose UI responsibilities before language conversion
+# UI decomposition plan
 
 > **Status:** the five decomposition slices below are implemented and the large UI classes were
 > converted to Kotlin in the twenty-first batch. The extractions listed under "Still to extract"
@@ -6,9 +6,12 @@
 
 ## Decision and current status
 
-Large activities and adapters must be decomposed **before** converting them to Kotlin. Do not run an automatic converter over these classes or move their existing responsibilities wholesale into one oversized presenter, ViewModel or helper.
-
-Initial extractions are now wired into the adapter, main screen and backup screen (listed below). Kotlin conversion has covered the isolated timer controller, the delayed-action target, a set of leaf/utility classes (bounded document I/O, backup framing, OTP generation, editor actions, the timer bridge, RSA key wrapping, dimension strings, the card tap listener, the drag & drop plumbing, the dialog/keyboard helpers, the two small password/tag dialogs, the encrypted-password preference and the backup task result DTO), the background task layer (the `UiBasedBackgroundTask` runner plus its ten task subclasses) that Java owners still called at that stage, and the Android components that are not UI (the two backup broadcast receivers, the WorkManager backup worker and the legacy platform backup agent), the two activity base classes (the themed base and the screen-off base), the two small standalone activities (the panic responder and the QR scanner activity), the about screens (the about activity and the flavor fragments — thin shells of layout wiring, row links and navigation only, converted under step 6's "thin Android shells" rule without further extraction) and, as the twenty-first batch, the remaining user interface (the six large activities, the credential preference, the manual-entry dialog and the entry-card adapter/view holder); see the [conversion scope/status](kotlin-extracted-helpers.md). The broader decomposition is **not** complete: the conversion of the twenty-first batch did not extract the roles listed under "Still to extract" below, it only moved them into Kotlin. No main-source Java is left: `Utilities/Constants.java` and `Utilities/FileHelper.java` were converted in the twenty-second batch. The vault/session/task contracts are implemented, but Gradle and device acceptance remain required before treating them as a validated foundation. See [contract status](kotlin-vault-session-task-contracts.md).
+The original recommendation was to decompose large activities and adapters before converting them
+to Kotlin. Five slices were extracted before the remaining UI was converted; the other roles below
+remain inside their existing Kotlin owners. Do not replace those owners with a single catch-all
+presenter or helper. See the [conversion record](kotlin-extracted-helpers.md) and
+[vault/session/task contracts](kotlin-vault-session-task-contracts.md) for migration history and
+verification limits.
 
 Line counts below are a source-review snapshot on 2026-10-14, not conversion thresholds. A smaller file alone is not evidence of a sound boundary.
 
@@ -16,7 +19,7 @@ Line counts below are a source-review snapshot on 2026-10-14, not conversion thr
 
 This table records the original review and target boundaries. Concrete implementations completed so far are listed below; remaining roles are proposals. Reuse existing owners where possible rather than duplicating their policy.
 
-| Current owner | Responsibilities observed | Extract before conversion | Keep in the Android boundary |
+| Owner at the review | Responsibilities observed | Proposed extractions | Keep in the Android boundary |
 | --- | --- | --- | --- |
 | `EntriesCardAdapter` (~880 lines) | Card binding, entry list ownership, filtering/sorting, mutation/save/automatic backup, token refresh/usage, drag handling, edit/thumbnail/PIN/delete dialogs, QR/token export | Separate display-query state from entry mutations and persistence; separate dialog construction and explicit export actions. Continue using `EntryList` for existing collection/sort logic and typed vault/task contracts for I/O. | RecyclerView binding/notifications, gesture dispatch and view lifecycle; translate actions to stable entry identities rather than carrying adapter positions through dialogs. |
 | `MainActivity` (~1,044 lines) | Authentication and startup/unlock, inbound QR/import intents, navigation/search/tag drawer, update/inactivity timers, preferences and activity results | Separate startup/authentication orchestration, external-input routing, entry-list presentation and timer scheduling. Session authority stays in `VaultSession`, not in the screen coordinator. | Android lifecycle, intent/result entry points, system launches, window privacy, view wiring and navigation effects. |
@@ -36,11 +39,14 @@ This table records the original review and target boundaries. Concrete implement
 | Main-screen scheduling | `Utilities/ScreenTimerController` (now Kotlin) owns periodic updates and inactivity scheduling; `Utilities/HandlerTimerScheduler` (now Kotlin) is the Android main-loop/elapsed-realtime bridge and holds no policy. `MainActivity` supplies rendering and authentication effects, pauses on lock/pause and closes permanently on destruction. Repeated starts cannot create duplicate loops; obsolete callbacks cannot restart a stopped timer. |
 | Restore merge/save | `Utilities/VaultRestoreOperation` owns parsed/current entries and destroys them on exit. It serializes the read/merge/write, checks the originating generation/current key and caller permission, and returns non-secret result enums. `BackupActivity` retains consent, progress/toasts and navigation rather than parsing/merging/saving. |
 
-Preserved behavior includes enabled search fields and default-locale case handling; separate search versus tag projections (not a new combined-filter feature); AND/OR/tagless semantics, including AND with no selected tags; stable list IDs; sorting only the visible subset after usage updates; import ordering, duplicate handling and existing metadata precedence during merge; and empty-import rejection. Inactivity remains elapsed-realtime based, with one-second checks like the previous CountDownTimer. Delay multiplication uses long arithmetic to avoid integer overflow.
+Current behavior includes enabled search fields and locale-independent case-insensitive matching; separate search versus tag projections (not a new combined-filter feature); AND/OR/tagless semantics, including AND with no selected tags; stable list IDs; sorting only the visible subset after usage updates; import ordering, duplicate handling and existing metadata precedence during merge; and empty-import rejection. Inactivity remains elapsed-realtime based, with one-second checks like the previous CountDownTimer. Delay multiplication uses long arithmetic to avoid integer overflow.
 
 Lifecycle hardening accompanying these boundaries is explicit: a display change invalidates pending queries, rejected query results drop their borrowed references, query publication still requires current session authority, and timer cancellation invalidates already-dequeued callbacks as well as removing queued callbacks. Clearing a display projection does not destroy repository-owned entries; the adapter remains responsible for destruction on lock/reload.
 
-The original decomposition added 11 JVM presentation tests, 7 JVM timer tests, 4 JVM delayed-action identity tests and 10 Android persistence/restore tests, plus five Python architecture guards. Their assertions remain in the current suite: 14 host test classes (110 tests) and four instrumentation tests. The 15 `Kotlin*InteropTest` suites described in earlier revisions are not present in this checkout. The non-authoritative [sandbox compile/run check](../scripts/kotlin-sandbox/README.md) passes, but **the Gradle JVM/Android tasks still need CI and device acceptance**; Python/source parsing is not runtime validation.
+The original decomposition introduced characterization and architecture tests. Some historical
+suites, including `Kotlin*InteropTest`, are not in this checkout. See the [README](../README.md)
+for current test commands and the [sandbox guide](../scripts/kotlin-sandbox/README.md) for the
+limits of host-side checks. Android lifecycle and provider behavior still require device testing.
 
 ### Still to extract
 
@@ -48,12 +54,16 @@ Remaining adapter entry commands, manual-entry editing and QR/token-export actio
 
 ## Extraction order
 
-1. **Accept the existing foundation first.** Compile/test the Kotlin contract migration for both flavors, including API 28/36 instrumentation. Until then, review boundaries and add characterization tests without starting a large conversion.
-2. **Start with adapter display-query behavior.** Characterize existing search fields, case/locale handling, sort order, AND/OR and tagless filtering, stable IDs and drag eligibility. Preserve existing behavior in the extraction; a change to combined search/tag semantics is a separate feature/fix, not an incidental refactor.
-3. **Separate entry commands from rendering.** Test add/edit/delete/reorder/usage updates, failed-save handling and automatic backup eligibility. Make ownership of original entries versus borrowed display references explicit. The adapter should not become a second vault repository.
-4. **Separate adapter dialogs and export actions.** Revalidate entry identity and current session on delayed confirmation. Keep credential/PIN fields, QR images and token sharing under the owning screen's privacy/lifecycle policy. Do not broaden export recipients or permissions as part of extraction.
-5. **Extract one activity use case at a time.** Start with `MainActivity` input routing and timer ownership; then startup/auth orchestration. Extract backup restore/merge and provider handling independently, followed by settings and setup orchestration. Each extraction stays Java initially and has a reviewable behavior-preserving diff.
-6. **Convert accepted leaf components, then thin Android shells.** Kotlin conversion is a separate change after extraction tests pass. Keep Java-callable boundaries during transition. Convert a shell only once it is responsible for Android wiring/rendering rather than storage, crypto or business policy.
+1. **Verify the foundation.** Run both-flavor build, contract and API 28/36 instrumentation gates;
+   add characterization coverage before changing a boundary.
+2. **Preserve display-query behavior.** Keep search, sorting, tag filtering, stable IDs and drag
+   eligibility covered; changes to search/tag semantics are separate features or fixes.
+3. **Separate entry commands from rendering.** Test mutations, failed saves and automatic backup;
+   make owned entries and borrowed display references explicit.
+4. **Separate remaining dialogs and export actions.** Revalidate entry identity and session on
+   delayed confirmation, and preserve screen privacy and recipient permissions.
+5. **Extract one activity use case at a time.** Address input routing and startup/authentication,
+   provider handling, settings and setup orchestration in separate reviewable changes.
 
 Do not combine these steps with Compose, coroutine/task-runner replacement, new storage formats, algorithm/provider changes, or Gradle DSL conversion.
 
@@ -69,13 +79,13 @@ Do not combine these steps with Compose, coroutine/task-runner replacement, new 
 
 ## Completion gate for an individual component
 
-Before accepting an individual conversion for release:
+Before accepting an individual extraction for release:
 
 - Its responsibility, inputs/outputs, secret ownership and lifecycle teardown are documented and reflected in the caller; moved code is not duplicated or replaced by a catch-all coordinator.
 - Characterization tests cover preserved behavior; domain logic can be tested without constructing an Activity/RecyclerView where practical.
 - Integration tests cover lock during work, stale/replaced results, rotation/pause/resume, permanent destruction, process recreation and cancellation around metadata commitment as applicable.
 - Adapter tests include filtering after lock, reorder/delete while a dialog is open, invalidation of pending searches, failed persistence and secret cleanup. Backup tests cover corrupt input, merge versus replace, provider failures and recovery without implicit unlock.
 - Both flavors compile and pass host tests, focused lint and packaged-manifest policy; API 28/36 tests pass. Existing independent release/dependency comparisons remain required for release acceptance.
-- The extraction and the language conversion are separately reviewable. No unexecuted test or source-only check is described as runtime acceptance.
+- Boundary changes are reviewable separately from unrelated behavior changes. No unexecuted test or source-only check is described as runtime acceptance.
 
-**Current readiness:** the twenty-first batch converted the large UI classes after the five implemented slices above, on an explicit request; that conversion is **not** a statement that this plan is complete, that the remaining extractions are done or that the classes are release-ready. The Gradle host/lint/instrumentation gates, the both-flavor build and the device acceptance are still outstanding, and the remaining extractions listed under "Still to extract" still apply.
+**Current readiness:** the large UI classes are Kotlin, but the remaining extractions are not complete. Both-flavor builds and relevant device/provider checks remain release gates for changes to these boundaries.
