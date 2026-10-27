@@ -63,7 +63,7 @@ object TokenCalculator {
     /** Returns the current TOTP as a zero-padded string. */
     @JvmStatic
     fun TOTP_RFC6238(secret: ByteArray, period: Int, digits: Int, algorithm: HashAlgorithm, offset: Int): String {
-        return Tools.formatTokenString(
+        return TokenFormat.formatTokenString(
                 TOTP_RFC6238(secret, period, System.currentTimeMillis() / 1000, digits, algorithm, offset), digits)
     }
 
@@ -92,7 +92,7 @@ object TokenCalculator {
         val fullToken = HOTP(secret, counter, algorithm)
         val div = Math.pow(10.0, digits.toDouble()).toInt()
 
-        return Tools.formatTokenString(fullToken % div, digits)
+        return TokenFormat.formatTokenString(fullToken % div, digits)
     }
 
     /** The raw (untruncated) TOTP for the given time step. */

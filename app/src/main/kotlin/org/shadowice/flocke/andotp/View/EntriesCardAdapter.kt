@@ -621,7 +621,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         showActionDialog(position, BiConsumer { target, entry ->
             dialogs.thumbnail(entry.getIssuer(), entry.getLabel(), Consumer { value ->
                 withTarget(target, Consumer { actual ->
-                    actual.setThumbnail(value)
+                    actual.setThumbnailName(value.name)
                     saveEntries(settings.getAutoBackupEncryptedFullEnabled())
                     notifyEntryChanged(actual)
                 })
@@ -695,7 +695,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
         if (!validDisplayedPosition(pos)) return
-        val uri: Uri? = presentation.get(pos).toUri()
+        val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
             try {

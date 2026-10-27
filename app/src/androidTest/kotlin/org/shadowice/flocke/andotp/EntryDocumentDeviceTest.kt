@@ -1,9 +1,10 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * Device-only document vectors: android.net.Uri and the platform org.json. The URI serializer
- * (Entry.toUri) is built on the platform Uri builder, and the stored document is parsed by the
- * platform JSON parser, so their behaviour is asserted here rather than in the host suite.
+ * Device-only document vectors for the platform org.json parser. The URI serializer
+ * (Entry.toUriString) is now Android-free and only assembles a percent-encoded string, but the
+ * stored document is parsed by the platform JSON parser, so the JSON behaviour stays asserted here;
+ * the URI round trips below guard the string serializer against regressions on a real device.
  */
 package org.shadowice.flocke.andotp
 
@@ -23,11 +24,11 @@ class EntryDocumentDeviceTest {
         "alice", TokenCalculator.HashAlgorithm.SHA1, ArrayList(listOf("work")))
 
     @Test
-    fun totpUriRoundTripsThroughThePlatformUriBuilder() {
+    fun totpUriRoundTripsThroughTheUriStringSerializer() {
         val original = totp()
-        val uri = original.toUri()
+        val uri = original.toUriString()
         assertNotNull(uri)
-        val restored = Entry(uri.toString())
+        val restored = Entry(uri)
         assertEquals(original, restored)
         assertEquals(30, restored.getPeriod())
         assertEquals(6, restored.getDigits())
@@ -37,7 +38,7 @@ class EntryDocumentDeviceTest {
     fun uriCarriesNonDefaultParametersAndTags() {
         val original = Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 60, 8, "Example",
             "alice", TokenCalculator.HashAlgorithm.SHA256, ArrayList(listOf("work", "cloud")))
-        val restored = Entry(original.toUri().toString())
+        val restored = Entry(original.toUriString())
         assertEquals(original, restored)
         assertEquals(60, restored.getPeriod())
         assertEquals(8, restored.getDigits())
@@ -49,13 +50,13 @@ class EntryDocumentDeviceTest {
     fun hotpAndSteamEntriesRoundTrip() {
         val hotp = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 7L, 6, "Example", "alice",
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
-        val restoredHotp = Entry(hotp.toUri().toString())
+        val restoredHotp = Entry(hotp.toUriString())
         assertEquals(hotp, restoredHotp)
         assertEquals(7L, restoredHotp.getCounter())
 
         val steam = Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 30, 5, "Steam", "alice",
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
-        val restoredSteam = Entry(steam.toUri().toString())
+        val restoredSteam = Entry(steam.toUriString())
         assertEquals(steam, restoredSteam)
         assertEquals(5, restoredSteam.getDigits())
     }
@@ -65,7 +66,7 @@ class EntryDocumentDeviceTest {
         val motp = Entry(Entry.OTPType.MOTP, "000102030405060708090a0b0c0d0e0f", "Example",
             "alice", ArrayList())
         motp.setPin("1234")
-        val restored = Entry(motp.toUri().toString())
+        val restored = Entry(motp.toUriString())
         // The URI format has no PIN parameter: the seed survives, the PIN does not.
         assertEquals(motp.getSecretEncoded(), restored.getSecretEncoded())
         assertEquals("", restored.getPin())
@@ -75,7 +76,7 @@ class EntryDocumentDeviceTest {
     fun labelsWithSpacesAndColonsSurviveTheRoundTrip() {
         val original = Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "ACME Co",
             "alice@example.com", TokenCalculator.HashAlgorithm.SHA1, ArrayList())
-        val restored = Entry(original.toUri().toString())
+        val restored = Entry(original.toUriString())
         assertEquals(original, restored)
         assertEquals("alice@example.com", restored.getLabel())
         assertEquals("ACME Co", restored.getIssuer())
@@ -96,7 +97,7 @@ class EntryDocumentDeviceTest {
         entry.destroy()
         assertNull(entry.getSecret())
         try {
-            entry.toUri()
+            entry.toUriString()
             throw AssertionError("destroyed entry still builds a URI")
         } catch (expected: NullPointerException) {
             // expected: destroyed entry has no seed

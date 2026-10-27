@@ -1815,8 +1815,8 @@ fun main() {
                     { "Entry(${parameters.first().simpleName}) no longer declares throws Exception" })
         }
 
-        expect(entry.getMethod("getThumbnail").returnType == EntryThumbnail.EntryThumbnails::class.java,
-                { "thumbnail getter type changed" })
+        expect(entry.getMethod("getThumbnailName").returnType == String::class.java,
+                { "thumbnail name getter type changed" })
     }
 
     check("thumbnail names retain exact and ordered whole-word lookup semantics") {
@@ -5899,13 +5899,13 @@ fun main() {
         val restored = Entry(json)
         expect(restored.getPeriod() == 60, { "the Steam period was lost on JSON restore: ${restored.getPeriod()}" })
 
-        val uri = steam.toUri().toString()
+        val uri = steam.toUriString()
         expect(uri.contains("period=60"), { "the Steam period is missing from the URI: $uri" })
 
         val defaultSteam = Entry(Entry.OTPType.STEAM, ENTRY_SEED, 30, TokenCalculator.STEAM_DEFAULT_DIGITS, "ACME", "steam",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
         expect(!defaultSteam.toJSON().has("period"), { "a default Steam period must not be written" })
-        expect(!defaultSteam.toUri().toString().contains("period="), { "a default Steam period must not be in the URI" })
+        expect(!defaultSteam.toUriString().contains("period="), { "a default Steam period must not be in the URI" })
     }
 
     check("the previous token is the one for the period before the current one; an empty mOTP PIN shows none") {

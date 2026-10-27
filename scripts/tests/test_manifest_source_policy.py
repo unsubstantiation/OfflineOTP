@@ -123,7 +123,7 @@ class ManifestSourcePolicyTest(unittest.TestCase):
     def test_every_exported_otpauth_kind_can_be_opened(self):
         """The app builds otpauth:// links for all four kinds; ACTION_VIEW must accept each one.
 
-        `Entry.toUri()` (the QR-code export) maps every OTPType onto its lowercased name, so a
+        `Entry.toUriString()` (the QR-code export) maps every OTPType onto its lowercased name, so a
         filter that only lists totp/hotp leaves the app unable to open the steam/motp QR codes it
         generates itself.
         """

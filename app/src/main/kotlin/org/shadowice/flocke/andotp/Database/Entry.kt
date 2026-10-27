@@ -23,20 +23,18 @@
 
 package org.shadowice.flocke.andotp.Database
 
-import android.net.Uri
-
 import org.apache.commons.codec.binary.Base32
 import org.apache.commons.codec.binary.Hex
 import org.json.JSONException
 import org.json.JSONObject
-import org.shadowice.flocke.andotp.Utilities.EntryThumbnail
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.OtpParseResult
 import org.shadowice.flocke.andotp.Utilities.OtpUriParser
+import org.shadowice.flocke.andotp.Utilities.ThumbnailCatalog
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
-import org.shadowice.flocke.andotp.Utilities.Tools
+import org.shadowice.flocke.andotp.Utilities.TokenFormat
 import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
 
 import java.nio.charset.StandardCharsets
@@ -70,7 +68,7 @@ open class Entry {
     @JvmField
     var tags: MutableList<String> = ArrayList()
 
-    private var thumbnail: EntryThumbnail.EntryThumbnails = EntryThumbnail.EntryThumbnails.Default
+    private var thumbnailName: String = ThumbnailCatalog.DEFAULT_NAME
     private var color = COLOR_DEFAULT
     private var pin = ""
     private var listId = 0L
@@ -174,7 +172,7 @@ open class Entry {
             this.counter = value.counter
             this.algorithm = TokenCalculator.HashAlgorithm.valueOf(value.algorithm.name)
             this.tags = ArrayList(value.tags)
-            this.thumbnail = thumbnailFromName(value.thumbnailName)
+            this.thumbnailName = ThumbnailCatalog.normalizeName(value.thumbnailName)
             this.last_used = value.lastUsed
             this.used_frequency = value.usedFrequency
             this.pin = value.pin
@@ -233,51 +231,72 @@ open class Entry {
         period = getPeriod(),
         counter = getCounter(),
         algorithm = OtpHashAlgorithm.valueOf(algorithm.name),
-        thumbnailName = getThumbnail().name,
+        thumbnailName = getThumbnailName(),
         lastUsed = getLastUsed(),
         usedFrequency = getUsedFrequency(),
         tags = tags,
         pin = getPin()
     )
 
-    /** Serializes this entry to an otpauth:// URI. */
-    fun toUri(): Uri? {
+    /**
+     * Serializes this entry to an otpauth:// URI string. Pure JVM percent-encoding (spaces become
+     * `%20`, never `+`) keeps this Android-free and byte-compatible with the [OtpUriParser] rules.
+     */
+    fun toUriString(): String {
         val typeName = when (type) {
             OTPType.TOTP -> "totp"
             OTPType.HOTP -> "hotp"
             OTPType.STEAM -> "steam"
             OTPType.MOTP -> "motp"
         }
-        val builder = Uri.Builder()
-            .scheme("otpauth")
-            .authority(typeName)
-            .appendPath(label)
 
+        val query = LinkedHashMap<String, String>()
         if (type == OTPType.MOTP)
-            builder.appendQueryParameter("secret", String(ownedSecret()))
+            query["secret"] = String(ownedSecret())
         else
-            builder.appendQueryParameter("secret", Base32().encodeAsString(ownedSecret()))
+            query["secret"] = Base32().encodeAsString(ownedSecret())
 
-        builder.appendQueryParameter("issuer", issuer)
+        query["issuer"] = issuer
 
         if (type == OTPType.HOTP) {
-            builder.appendQueryParameter("counter", counter.toString())
+            query["counter"] = counter.toString()
         }
         // Export non-default TOTP/Steam periods. HOTP also emits a legacy period, but import ignores it.
         if (type == OTPType.HOTP || type == OTPType.TOTP || type == OTPType.STEAM) {
             if (period != TokenCalculator.TOTP_DEFAULT_PERIOD)
-                builder.appendQueryParameter("period", period.toString())
+                query["period"] = period.toString()
         }
         if (digits != TokenCalculator.TOTP_DEFAULT_DIGITS) {
-            builder.appendQueryParameter("digits", digits.toString())
+            query["digits"] = digits.toString()
         }
         if (algorithm != TokenCalculator.DEFAULT_ALGORITHM) {
-            builder.appendQueryParameter("algorithm", algorithm.name)
+            query["algorithm"] = algorithm.name
         }
+
+        val builder = StringBuilder("otpauth://")
+            .append(typeName)
+            .append('/')
+            .append(percentEncode(label))
+            .append('?')
+            .append(query.entries.joinToString("&") { "${it.key}=${percentEncode(it.value)}" })
         for (tag in tags) {
-            builder.appendQueryParameter("tags", tag)
+            builder.append("&tags=").append(percentEncode(tag))
         }
-        return builder.build()
+        return builder.toString()
+    }
+
+    /** RFC 3986 unreserved characters pass through; every other byte (including space and `+`) is encoded. */
+    private fun percentEncode(value: String): String {
+        val bytes = value.toByteArray(StandardCharsets.UTF_8)
+        val builder = StringBuilder(bytes.size)
+        for (raw in bytes) {
+            val c = raw.toInt() and 0xFF
+            val unreserved = (c in 'A'.code..'Z'.code) || (c in 'a'.code..'z'.code) ||
+                    (c in '0'.code..'9'.code) || c == '-'.code || c == '_'.code ||
+                    c == '.'.code || c == '~'.code
+            if (unreserved) builder.append(c.toChar()) else builder.append('%').append(String.format("%02X", c))
+        }
+        return builder.toString()
     }
 
     fun isTimeBased(): Boolean = type == OTPType.TOTP || type == OTPType.STEAM || type == OTPType.MOTP
@@ -367,10 +386,11 @@ open class Entry {
         this.tags = ArrayList(tags)
     }
 
-    fun getThumbnail(): EntryThumbnail.EntryThumbnails = thumbnail
+    /** The persisted thumbnail name; the UI layer resolves it to a drawable (unknown names render as default). */
+    fun getThumbnailName(): String = thumbnailName
 
-    fun setThumbnail(value: EntryThumbnail.EntryThumbnails) {
-        thumbnail = value
+    fun setThumbnailName(value: String) {
+        thumbnailName = ThumbnailCatalog.normalizeName(value)
     }
 
     /**
@@ -385,7 +405,7 @@ open class Entry {
         val previousPeriod = period
         val previousCounter = counter
         val previousTags = ArrayList(tags)
-        val previousThumbnail = thumbnail
+        val previousThumbnail = thumbnailName
         try {
             mutate(this)
             validate()
@@ -398,7 +418,7 @@ open class Entry {
             setTags(previousTags)
             setLabel(previousLabel)
             setIssuer(previousIssuer, false)
-            thumbnail = previousThumbnail
+            thumbnailName = previousThumbnail
             throw error
         }
     }
@@ -480,11 +500,11 @@ open class Entry {
 
                 when (type) {
                     OTPType.TOTP -> {
-                        currentOTP = Tools.formatTokenString(
+                        currentOTP = TokenFormat.formatTokenString(
                             TokenCalculator.TOTP_RFC6238(seed, period, time, digits, algorithm, 0), digits)
 
                         if (prevOTP.isNullOrEmpty())
-                            prevOTP = Tools.formatTokenString(
+                            prevOTP = TokenFormat.formatTokenString(
                                 TokenCalculator.TOTP_RFC6238(seed, period, time, digits, algorithm, -1), digits)
                     }
                     OTPType.STEAM -> {
@@ -537,27 +557,9 @@ open class Entry {
         return true
     }
 
-    /** Sets the thumbnail by exact, then by fuzzy issuer match. */
+    /** Sets the thumbnail name by exact, then fuzzy whole-word issuer match, then the default. */
     private fun setThumbnailFromIssuer(issuer: String) {
-        try {
-            this.thumbnail = EntryThumbnail.EntryThumbnails.valueOfIgnoreCase(issuer)
-        } catch (error: Exception) {
-            try {
-                this.thumbnail = EntryThumbnail.EntryThumbnails.valueOfFuzzy(issuer)
-            } catch (fallback: Exception) {
-                this.thumbnail = EntryThumbnail.EntryThumbnails.Default
-            }
-        }
-    }
-
-    /** Resolves a stored thumbnail name, falling back to [EntryThumbnail.EntryThumbnails.Default]. */
-    private fun thumbnailFromName(name: String?): EntryThumbnail.EntryThumbnails {
-        if (name == null) return EntryThumbnail.EntryThumbnails.Default
-        return try {
-            EntryThumbnail.EntryThumbnails.valueOfIgnoreCase(name)
-        } catch (unknown: Exception) {
-            EntryThumbnail.EntryThumbnails.Default
-        }
+        this.thumbnailName = ThumbnailCatalog.resolveName(issuer)
     }
 
     /** Returns the secret bytes, or throws [NullPointerException] if the entry has been destroyed. */

@@ -539,6 +539,18 @@ open class EntryThumbnail {
                 }
                 throw IllegalArgumentException()
             }
+
+            /**
+             * Resolves a persisted thumbnail name (the format the entry model stores) back to the
+             * resource-backed enum, falling back to [Default] for null or unknown names.
+             */
+            @JvmStatic
+            fun fromName(name: String?): EntryThumbnails =
+                try {
+                    valueOfIgnoreCase(name)
+                } catch (unknown: Exception) {
+                    Default
+                }
         }
     }
 }

@@ -253,7 +253,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         val thumbnailSize = settings.getThumbnailSize()
         if (settings.getThumbnailVisible()) {
             thumbnailImg.setImageBitmap(
-                EntryThumbnail.getThumbnailGraphic(context, issuerText, labelText, thumbnailSize, entry.getThumbnail()))
+                EntryThumbnail.getThumbnailGraphic(context, issuerText, labelText, thumbnailSize,
+                    EntryThumbnail.EntryThumbnails.fromName(entry.getThumbnailName())))
         }
 
         if (entry.isTimeBased() && (entry.hasNonDefaultTokenStep() || settings.isShowIndividualTimeoutsEnabled())) {

@@ -5,12 +5,13 @@ package android.net
  * Stand-in for `android.net.Uri`.
  *
  * `parse`/`fromFile` stay accessor-level inert values: the checked sources never read back a parsed
- * URI, they only route on scheme/last-segment. `Builder`/`build` are a *replication* instead,
- * because the entry model's `toUri()` is executed here: it assembles a scheme, an authority, one
- * path segment and query parameters, and the checks read those parameters back. Values are stored
- * decoded and rendered percent-encoded over the unreserved set, which is what `appendQueryParameter`
- * does on the platform; the platform's exact escaping, hierarchy and normalization rules are not
- * replicated. See ../../README.md.
+ * URI, they only route on scheme/last-segment or hand the string to another API (the entry model's
+ * `toUriString()` is now Android-free and builds its own percent-encoded string, so it no longer
+ * touches this stub). The retained `Builder`/`build` replication is inert legacy coverage for any
+ * checked source that still constructs a URI; values are stored decoded and rendered
+ * percent-encoded over the unreserved set, which is what `appendQueryParameter` does on the
+ * platform; the platform's exact escaping, hierarchy and normalization rules are not replicated.
+ * See ../../README.md.
  */
 class Uri internal constructor(
     private val text: String? = null,
