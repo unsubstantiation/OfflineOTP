@@ -11,14 +11,14 @@ import org.shadowice.flocke.andotp.Database.Entry
 import java.nio.charset.StandardCharsets
 
 /** Accesses OATH-app-compatible smart cards without copying their stored secrets into the vault. */
-internal object HardwareOathClient {
-    internal class Account(val credential: Credential, val code: String?, val validUntil: Long,
-                           val validFrom: Long = 0) {
+object HardwareOathClient {
+    class Account(val credential: Credential, val code: String?, val validUntil: Long,
+                  val validFrom: Long = 0) {
         fun usableAt(time: Long): Boolean = code != null &&
             (credential.oathType == OathType.HOTP || time >= validFrom && time < validUntil)
         override fun toString(): String = "HardwareOathAccount(redacted)"
     }
-    internal class Accounts(val deviceId: String, val items: List<Account>)
+    class Accounts(val deviceId: String, val items: List<Account>)
 
     fun list(device: YubiKeyDevice, password: CharArray?, permitted: () -> Boolean): Accounts =
         withSession(device, password, permitted) { session ->

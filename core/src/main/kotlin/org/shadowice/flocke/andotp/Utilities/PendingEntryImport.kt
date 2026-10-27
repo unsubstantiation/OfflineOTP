@@ -3,7 +3,7 @@ package org.shadowice.flocke.andotp.Utilities
 import org.shadowice.flocke.andotp.Database.Entry
 
 /** Owns a parsed entry until a confirmation consumes it or the dialog is dismissed. */
-internal class PendingEntryImport(entry: Entry, private val generation: Long) : AutoCloseable {
+class PendingEntryImport(entry: Entry, private val generation: Long) : AutoCloseable {
     private var pending: Entry? = entry
 
     /** Caller must check the live session and call this under VaultSession.MutationLock. */

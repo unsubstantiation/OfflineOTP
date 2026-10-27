@@ -45,7 +45,7 @@ sealed class SessionHandoff {
 }
 
 /** An owned backup-key copy tied to one unlocked session and credential revision. */
-internal class LoginBackupLease(
+class LoginBackupLease(
     val key: LoginBackupKey,
     val generation: Long,
     val revision: Long

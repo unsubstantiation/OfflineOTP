@@ -26,14 +26,14 @@ object VaultSession {
         }
     }
     /** Password-derived backup material is never persisted and is revoked with the session. */
-    internal fun offerBackupKey(key: LoginBackupKey, expected: Long): Boolean = controller.offerBackupKey(key, expected)
-    internal fun replaceBackupKeyWithoutNotification(key: LoginBackupKey?, expected: Long): Boolean =
+    fun offerBackupKey(key: LoginBackupKey, expected: Long): Boolean = controller.offerBackupKey(key, expected)
+    fun replaceBackupKeyWithoutNotification(key: LoginBackupKey?, expected: Long): Boolean =
         controller.replaceBackupKeyWithoutNotification(key, expected)
-    internal fun notifyBackupKeyChanged() = controller.notifyBackupKeyChanged()
-    internal fun copyBackupKey(): LoginBackupLease? = controller.copyBackupKey()
-    internal fun isBackupCurrent(lease: LoginBackupLease): Boolean = controller.isBackupCurrent(lease)
-    internal fun addBackupChangeListener(listener: Runnable) = controller.addBackupChangeListener(listener)
-    internal fun removeBackupChangeListener(listener: Runnable) = controller.removeBackupChangeListener(listener)
+    fun notifyBackupKeyChanged() = controller.notifyBackupKeyChanged()
+    fun copyBackupKey(): LoginBackupLease? = controller.copyBackupKey()
+    fun isBackupCurrent(lease: LoginBackupLease): Boolean = controller.isBackupCurrent(lease)
+    fun addBackupChangeListener(listener: Runnable) = controller.addBackupChangeListener(listener)
+    fun removeBackupChangeListener(listener: Runnable) = controller.removeBackupChangeListener(listener)
 
     @JvmStatic fun publishDerived(bytes: ByteArray, expected: Long): SessionCommandResult = controller.publishDerived(bytes, expected)
     @JvmStatic fun consumeDerived(expected: Long): SessionHandoff = controller.consumeDerived(expected)

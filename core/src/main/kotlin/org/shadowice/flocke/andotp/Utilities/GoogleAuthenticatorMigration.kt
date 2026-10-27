@@ -10,9 +10,9 @@ import java.util.Base64
 import java.util.TreeMap
 
 /** Parsing failures never contain the scanned URI, account names or secrets. */
-internal enum class MigrationError { INVALID_URI, TOO_LARGE, INVALID_DATA, UNSUPPORTED }
+enum class MigrationError { INVALID_URI, TOO_LARGE, INVALID_DATA, UNSUPPORTED }
 
-internal sealed class MigrationParseResult {
+sealed class MigrationParseResult {
     class Success(val payload: MigrationPayload) : MigrationParseResult() {
         override fun toString(): String = "MigrationParseResult.Success(redacted)"
     }
@@ -20,7 +20,7 @@ internal sealed class MigrationParseResult {
 }
 
 /** Owns the validated accounts in one QR until transferred or closed. */
-internal class MigrationPayload(
+class MigrationPayload(
     val version: Int, val batchSize: Int, val batchIndex: Int, val batchId: Int,
     accounts: List<ValidatedOtp>
 ) : AutoCloseable {
@@ -50,7 +50,7 @@ internal class MigrationPayload(
  * This reader is bounded, non-recursive and rejects unsupported token parameters rather than
  * silently importing accounts that would produce incorrect codes.
  */
-internal object GoogleAuthenticatorMigration {
+object GoogleAuthenticatorMigration {
     private const val SCHEME = "otpauth-migration"
     private const val MAX_BATCHES = InputPolicy.MAX_ENTRIES
 
@@ -303,10 +303,10 @@ internal object GoogleAuthenticatorMigration {
     private fun reject(error: MigrationError): Nothing = throw Rejected(error)
 }
 
-internal enum class MigrationBatchStatus { ADDED, COMPLETE, DUPLICATE, DIFFERENT_EXPORT, TOO_MANY, STALE }
+enum class MigrationBatchStatus { ADDED, COMPLETE, DUPLICATE, DIFFERENT_EXPORT, TOO_MANY, STALE }
 
 /** Holds a single, session-bound export in memory until every QR has been scanned. */
-internal class MigrationBatchCollector(private val generation: Long) : AutoCloseable {
+class MigrationBatchCollector(private val generation: Long) : AutoCloseable {
     private val parts = TreeMap<Int, MigrationPayload>()
     private var version = -1
     private var batchId = 0

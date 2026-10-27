@@ -127,7 +127,7 @@ class ManifestSourcePolicyTest(unittest.TestCase):
         filter that only lists totp/hotp leaves the app unable to open the steam/motp QR codes it
         generates itself.
         """
-        entry = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt").read_text(
+        entry = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt").read_text(
             encoding="utf-8")
         enum_body = re.search(r"enum class OTPType \{([^}]*)\}", entry).group(1)
         kinds = {name.strip().lower() for name in enum_body.split(",") if name.strip()}

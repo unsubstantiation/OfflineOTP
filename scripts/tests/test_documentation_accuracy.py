@@ -5,6 +5,7 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 KOTLIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 
 
 def text(path):
@@ -14,8 +15,8 @@ def text(path):
 class DocumentationAccuracyTest(unittest.TestCase):
     def test_parser_space_behavior_is_documented_and_characterized(self):
         document = text("docs/kotlin-otp-parser-pilot.md")
-        parser = (KOTLIN / "Utilities/OtpUriParser.kt").read_text(encoding="utf-8")
-        tests = text("app/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/OtpUriParserTest.kt")
+        parser = (CORE_KOTLIN / "Utilities/OtpUriParser.kt").read_text(encoding="utf-8")
+        tests = text("core/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/OtpUriParserTest.kt")
         self.assertIn("Raw ASCII spaces are converted to `%20`", document)
         self.assertIn('URI(input.replace(" ", "%20"))', parser)
         self.assertIn("fun spaceCharactersAreEncodedBeforeParsing()", tests)

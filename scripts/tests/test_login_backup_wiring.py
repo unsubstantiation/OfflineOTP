@@ -4,10 +4,15 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 K = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE_K = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 
 
 def source(path):
     return (K / path).read_text(encoding="utf-8")
+
+
+def core_source(path):
+    return (CORE_K / path).read_text(encoding="utf-8")
 
 
 class LoginBackupWiringTest(unittest.TestCase):
@@ -23,7 +28,7 @@ class LoginBackupWiringTest(unittest.TestCase):
         self.assertIn("newAuthMethod == Constants.AuthMethod.PASSWORD", change)
         self.assertIn("VaultSession.replaceBackupKeyWithoutNotification(backupCandidate, epoch)", change)
         self.assertIn("if (replacedBackup) VaultSession.notifyBackupKeyChanged()", change)
-        self.assertNotIn("KeyStoreHelper", source("Utilities/LoginBackupKey.kt"))
+        self.assertNotIn("KeyStoreHelper", core_source("Utilities/LoginBackupKey.kt"))
         self.assertNotIn("KeyStoreHelper", source("Tasks/LoginEncryptedBackupTask.kt"))
 
     def test_change_marker_is_staged_before_save_and_retried_after_unlock(self):

@@ -30,7 +30,15 @@ class KotlinCoreBoundaryTest(unittest.TestCase):
 
     def test_core_third_party_imports_stay_declared(self):
         """Any non-kotlin/java import in core must be a dependency core/build.gradle declares."""
-        allowed_prefixes = ("org.apache.commons.codec",)
+        allowed_prefixes = (
+            "org.apache.commons.codec",
+            "org.json",
+            # Only the portable PC/SC-capable core/oath/fido surface. A separate guard below rejects
+            # the Android-transport packages, which stay in :app.
+            "com.yubico.yubikit.core",
+            "com.yubico.yubikit.oath",
+            "com.yubico.yubikit.fido",
+        )
         offenders = []
         for path in CORE_MAIN.rglob("*.kt"):
             for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -40,9 +48,23 @@ class KotlinCoreBoundaryTest(unittest.TestCase):
                 imported = stripped[len("import "):].split()[0].strip(".")
                 if imported.startswith(("kotlin", "java", "javax")):
                     continue
+                # The project's own package is first-party (core spans several subpackages), not a
+                # third-party dependency.
+                if imported.startswith("org.shadowice.flocke.andotp"):
+                    continue
                 if not any(imported == p or imported.startswith(p + ".") for p in allowed_prefixes):
                     offenders.append(f"{path.relative_to(ROOT)}:{idx} {imported}")
         self.assertEqual([], offenders, "core has an undeclared third-party import")
+
+    def test_core_never_uses_yubikit_android_transports(self):
+        """YubiKitManager/NFC/USB discovery stays in :app; core uses the PC/SC-capable surface."""
+        offenders = []
+        for path in CORE_MAIN.rglob("*.kt"):
+            for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith("import com.yubico.yubikit.android"):
+                    offenders.append(f"{path.relative_to(ROOT)}:{idx} {stripped}")
+        self.assertEqual([], offenders, "core must not depend on yubikit's Android transport module")
 
     def test_run_sh_core_list_matches_tree_and_is_disjoint(self):
         """CORE_SOURCES must enumerate exactly the physical core tree and never overlap APP_SOURCES."""

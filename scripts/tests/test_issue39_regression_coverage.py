@@ -119,7 +119,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
         taps = read(CORE_TEST / "View/TapSequenceControllerTest.kt")
-        decoder = read(TEST / "Utilities/PlainTextBackupDecoderTest.kt")
+        decoder = read(CORE_TEST / "Utilities/PlainTextBackupDecoderTest.kt")
         task = read(APP / "Tasks/PlainTextRestoreTask.kt")
         backup = read(APP / "Activities/BackupActivity.kt")
         self.assertIn("singleClickRunsAfterTheDoubleTapWindow", taps)

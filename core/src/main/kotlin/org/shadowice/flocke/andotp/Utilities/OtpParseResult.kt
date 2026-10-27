@@ -76,9 +76,10 @@ class ValidatedOtp private constructor(
     override fun toString(): String = "ValidatedOtp(redacted)"
 
     companion object {
-        // Only the parser needs this builder; constructor rechecks invariants too.
+        // Only the parser needs this builder; constructor rechecks invariants too. Kept
+        // @JvmSynthetic: it is part of the Kotlin-only core API, not the Java-visible surface.
         @JvmSynthetic
-        internal fun create(
+        fun create(
             kind: OtpKind, secret: ByteArray, period: Int, digits: Int, counter: Long,
             issuer: String, label: String, algorithm: OtpHashAlgorithm, tags: List<String>
         ): ValidatedOtp = ValidatedOtp(kind, secret, period, digits, counter, issuer, label, algorithm, tags)

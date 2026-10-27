@@ -9,11 +9,16 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main"
 KOTLIN = APP / "kotlin/org/shadowice/flocke/andotp"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 
 def source(path):
     return (KOTLIN / path).read_text(encoding="utf-8")
+
+
+def core_source(path):
+    return (CORE_KOTLIN / path).read_text(encoding="utf-8")
 
 
 class HardwareKeyWiringTest(unittest.TestCase):
@@ -52,11 +57,11 @@ class HardwareKeyWiringTest(unittest.TestCase):
         self.assertIn("current.contentEquals(envelope)", unlock)
         self.assertIn("raw?.fill(0)", unlock)
         self.assertNotIn("putExtra(", unlock)
-        self.assertIn('"userVerification" to "required"', source("Utilities/HardwareFidoClient.kt"))
-        self.assertIn('"prf" to', source("Utilities/HardwareFidoClient.kt"))
+        self.assertIn('"userVerification" to "required"', core_source("Utilities/HardwareFidoClient.kt"))
+        self.assertIn('"prf" to', core_source("Utilities/HardwareFidoClient.kt"))
 
     def test_irreversible_commands_check_permission_and_never_overwrite(self):
-        oath = source("Utilities/HardwareOathClient.kt")
+        oath = core_source("Utilities/HardwareOathClient.kt")
         self.assertIn("session.credentials.any { it.id.contentEquals(data.id) }", oath)
         self.assertIn('if (!permitted()) throw IllegalStateException("Hardware operation was canceled")', oath)
         self.assertLess(oath.index("if (!permitted())", oath.index("fun copyToKey")), oath.index("session.putCredential"))
@@ -73,7 +78,7 @@ class HardwareKeyWiringTest(unittest.TestCase):
         self.assertIn("interruptedMessage = R.string.hardware_copy_uncertain", screen)
         self.assertIn("account.usableAt(clock())", screen)
         self.assertIn("Character.getType(it) == Character.FORMAT.toInt()", screen)
-        adapter = source("Utilities/HardwareFidoClient.kt")
+        adapter = core_source("Utilities/HardwareFidoClient.kt")
         self.assertIn("toMap(SerializationType.CBOR)", adapter)
         layout = ET.parse(APP / "res/layout/activity_hardware_unlock.xml").getroot()
         self.assertEqual("ScrollView", layout.tag)

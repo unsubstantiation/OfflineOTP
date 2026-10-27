@@ -8,7 +8,7 @@ import javax.crypto.spec.SecretKeySpec
  * never stored here. Each password unlock creates a fresh salt and key; each file gets a fresh
  * AES-GCM nonce. Copies are owned and must be closed by their caller.
  */
-internal class LoginBackupKey private constructor(
+class LoginBackupKey private constructor(
     key: ByteArray,
     salt: ByteArray,
     private val iterations: Int,
@@ -39,7 +39,7 @@ internal class LoginBackupKey private constructor(
         val bytes = checkNotNull(material) { "Backup key has been cleared" }.clone()
         try {
             check(budget.take()) { "Backup session exhausted; unlock with the password again" }
-            val encrypted = EncryptionHelper.encrypt(SecretKeySpec(bytes, "AES"), plaintext)
+            val encrypted = CryptoPrimitives.encrypt(SecretKeySpec(bytes, "AES"), plaintext)
             return ByteBuffer.allocate(Constants.INT_LENGTH + salt.size + encrypted.size)
                 .putInt(iterations).put(salt).put(encrypted).array()
         } finally {
@@ -58,9 +58,9 @@ internal class LoginBackupKey private constructor(
         /** Uses the existing backup KDF and format so older compatible readers can restore it. */
         fun derive(password: String): LoginBackupKey {
             require(password.isNotEmpty() && password.length <= InputPolicy.MAX_TEXT_CHARS)
-            val salt = EncryptionHelper.generateRandom(Constants.ENCRYPTION_IV_LENGTH)
+            val salt = CryptoPrimitives.generateRandom(Constants.ENCRYPTION_IV_LENGTH)
             val iterations = Constants.PBKDF2_MAX_BACKUP_ITERATIONS
-            val derived = EncryptionHelper.generateSymmetricKeyPBKDF2(password, iterations, salt).encoded
+            val derived = CryptoPrimitives.generateSymmetricKeyPBKDF2(password, iterations, salt).encoded
             try {
                 return LoginBackupKey(derived, salt, iterations)
             } finally {

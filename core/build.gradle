@@ -20,9 +20,22 @@ dependencies {
         version { strictly '2.4.21' }
     }
 
-    // TokenCalculator uses commons-codec Hex for the legacy mOTP digest; no commons type appears
-    // in the public API, so this stays an implementation dependency.
+    // TokenCalculator uses commons-codec Hex/Base32 for the legacy mOTP digest and OTP secrets; no
+    // commons type appears in the public API, so this stays an implementation dependency.
     implementation 'commons-codec:commons-codec:1.23.0'
 
+    // org.json types appear in the Entry/EntryJson public surface (the JSONObject adapters). The
+    // desktop JVM has no platform org.json, so this is an api dependency, not implementation.
+    api 'org.json:json:20240303'
+
+    // Portable PC/SC-capable YubiKit surface for OATH accounts and FIDO2 PRF unlock. Only the
+    // pure-JVM core/oath/fido modules: the yubikit android transport (YubiKitManager/NFC/USB) stays
+    // in :app, and the desktop client will supply its own PcscManager-based discovery. These types
+    // occur in the hardware clients' public signatures, hence api.
+    api 'com.yubico.yubikit:core:3.2.1'
+    api 'com.yubico.yubikit:oath:3.2.1'
+    api 'com.yubico.yubikit:fido:3.2.1'
+
     testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
 }
