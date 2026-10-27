@@ -12,6 +12,7 @@ set -euo pipefail
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
 KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
 ANDROID_TEST_ROOT="$ROOT/app/src/androidTest/kotlin"
 OUT="${KOTLIN_ANDROID_TEST_OUT:-$ROOT/reports/kotlin-sandbox/android-test-compile}"
 
@@ -36,6 +37,7 @@ export PATH="$(dirname "$(readlink -f "$JAVA_BIN")"):$PATH"
 
 # The app sources and platform stubs are exactly what run.sh compiles, read out of that file so
 # the checks can never drift (the same block scripts/tests/test_kotlin_sandbox_harness.py pins).
+eval "$(sed -n '/^CORE_SOURCES=(/,/^)$/p' "$SANDBOX/run.sh")"
 eval "$(sed -n '/^APP_SOURCES=(/,/^)$/p' "$SANDBOX/run.sh")"
 eval "$(sed -n '/^STUBS=(/,/^)$/p' "$SANDBOX/run.sh")"
 
@@ -60,7 +62,7 @@ echo "androidTest: ${#ANDROID_TEST_SOURCES[@]} files"
 echo "output:      $OUT"
 
 "$KOTLINC" -jvm-target 1.8 -nowarn \
-    "${APP_SOURCES[@]}" "${STUBS[@]}" "${ANDROID_TEST_SOURCES[@]}" \
+    "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" "${ANDROID_TEST_SOURCES[@]}" \
     "${TEST_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT"
 

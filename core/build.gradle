@@ -1,0 +1,28 @@
+// Pure-JVM shared core: OTP/parser/policy primitives with no Android dependency. Both the Android
+// :app and the future desktop client depend on this module. A Python source guard and the
+// kotlin-sandbox core compile (which puts no android.* stubs on the classpath) enforce the boundary.
+apply plugin: 'org.jetbrains.kotlin.jvm'
+apply plugin: 'java-library'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    }
+}
+
+dependencies {
+    implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
+        version { strictly '2.4.21' }
+    }
+
+    // TokenCalculator uses commons-codec Hex for the legacy mOTP digest; no commons type appears
+    // in the public API, so this stays an implementation dependency.
+    implementation 'commons-codec:commons-codec:1.23.0'
+
+    testImplementation 'junit:junit:4.13.2'
+}

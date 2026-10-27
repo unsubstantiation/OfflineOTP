@@ -72,9 +72,10 @@ object TokenCalculator {
     fun TOTP_Steam(secret: ByteArray, period: Int, digits: Int, algorithm: HashAlgorithm, offset: Int): String =
         TOTP_SteamAt(secret, period, System.currentTimeMillis() / 1000, digits, algorithm, offset)
 
-    /** Internal explicit-time variant used to keep entry updates on one clock sample. */
-    internal fun TOTP_SteamAt(secret: ByteArray, period: Int, time: Long, digits: Int,
-                              algorithm: HashAlgorithm, offset: Int): String {
+    /** Explicit-time variant used to keep entry updates on one clock sample; part of the shared core API. */
+    @JvmStatic
+    fun TOTP_SteamAt(secret: ByteArray, period: Int, time: Long, digits: Int,
+                     algorithm: HashAlgorithm, offset: Int): String {
         var fullToken = TOTP(secret, period, time, algorithm, offset)
 
         val tokenBuilder = StringBuilder()

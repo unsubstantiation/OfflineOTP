@@ -20,13 +20,22 @@ STUBS = SANDBOX / "stubs"
 GENERATOR = SANDBOX / "generate-r-stub.py"
 
 
-def run_sh_sources():
+def run_sh_sources(variable="APP_SOURCES"):
     """The (shell-expanded) source lists of run.sh, as written in the file."""
     text = (SANDBOX / "run.sh").read_text(encoding="utf-8")
-    start = text.index("APP_SOURCES=(")
+    start = text.index(f"{variable}=(")
     end = text.index(")", start)
     body = text[start:end]
     return [line.strip().strip('"') for line in body.splitlines()[1:] if line.strip().startswith('"')]
+
+
+def expand_run_path(entry):
+    app = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+    core = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+    return (entry
+            .replace("$KOTLIN_APP", str(app))
+            .replace("$KOTLIN_CORE", str(core))
+            .replace("$ROOT", "."))
 
 
 def stub_declarations():
@@ -53,15 +62,12 @@ def stub_declarations():
 
 class KotlinSandboxHarnessTest(unittest.TestCase):
     def test_listed_sources_exist(self):
-        """Every APP_SOURCES entry of run.sh must resolve to a file in the checkout."""
+        """Every APP_SOURCES/CORE_SOURCES entry of run.sh must resolve to a file in the checkout."""
         missing = []
-        for entry in run_sh_sources():
-            expanded = (
-                entry.replace("$KOTLIN_APP", "app/src/main/kotlin/org/shadowice/flocke/andotp")
-                .replace("$ROOT", ".")
-            )
-            if not (ROOT / expanded).is_file():
-                missing.append(entry)
+        for variable in ("CORE_SOURCES", "APP_SOURCES"):
+            for entry in run_sh_sources(variable):
+                if not (ROOT / expand_run_path(entry)).is_file():
+                    missing.append(entry)
         self.assertEqual([], missing, "run.sh lists sources that are not in the checkout")
 
     def test_no_stub_shadows_production_class(self):
@@ -70,7 +76,7 @@ class KotlinSandboxHarnessTest(unittest.TestCase):
 
         def production_names():
             names = set()
-            roots = [ROOT / "app/src/main/kotlin"]
+            roots = [ROOT / "app/src/main/kotlin", ROOT / "core/src/main/kotlin"]
             roots += [ROOT / f"app/src/{flavor}/kotlin" for flavor in ("fdroid", "play")]
             for root in roots:
                 for path in root.rglob("*.kt"):

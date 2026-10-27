@@ -71,6 +71,24 @@ tasks.register('writeDependencyInventory') {
                 record("kotlin-tooling:${kotlinProject.name}:${configuration.name}", configuration)
             }
         }
+        // The shared JVM library has no Android variants. Record its main/test classpaths and the
+        // Kotlin compiler/build-tool inputs the same way as :app so the new module's external inputs
+        // appear in the provenance report instead of leaving an invisible gap.
+        def core = project(':core')
+        ['compileClasspath', 'runtimeClasspath', 'testCompileClasspath', 'testRuntimeClasspath'].each { name ->
+            // Missing configurations are errors, not a reason to drop the module from the inventory.
+            record("core:$name", core.configurations.getByName(name))
+        }
+        def coreKotlinTooling = core.configurations.findAll { configuration ->
+            configuration.canBeResolved && (configuration.name.startsWith('kotlinCompiler')
+                    || configuration.name.startsWith('kotlinBuildTools'))
+        }.sort { it.name }
+        if (!coreKotlinTooling.any { it.name == 'kotlinCompilerClasspath' }) {
+            throw new GradleException("Missing Kotlin compiler configuration for :core; review inventory coverage")
+        }
+        coreKotlinTooling.each { configuration ->
+            record("kotlin-tooling:core:${configuration.name}", configuration)
+        }
         def destination = report.get().asFile
         destination.parentFile.mkdirs()
         destination.setText(lines.join('\n') + '\n', 'UTF-8')

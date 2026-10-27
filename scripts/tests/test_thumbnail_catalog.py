@@ -12,9 +12,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 UTIL = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
-ENUM_FILE = UTIL / "EntryThumbnail.kt"
-CATALOG_FILE = UTIL / "ThumbnailCatalog.kt"
-TOKEN_FORMAT_FILE = UTIL / "TokenFormat.kt"
+CORE_UTIL = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
+ENUM_FILE = UTIL / "EntryThumbnail.kt"  # stays in app: binds names to Android drawables
+CATALOG_FILE = CORE_UTIL / "ThumbnailCatalog.kt"
+TOKEN_FORMAT_FILE = CORE_UTIL / "TokenFormat.kt"
 
 
 def enum_constant_names():
@@ -43,7 +44,7 @@ class ThumbnailCatalogTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertNotRegex(
                 text, r"(?m)^import (android|androidx)\.",
-                f"{path.name} must stay Android-free so it can move into the shared core",
+                f"{path.name} must stay Android-free in the shared :core module",
             )
 
     def test_catalog_exposes_the_expected_resolution_entry_points(self):

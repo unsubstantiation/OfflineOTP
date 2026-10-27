@@ -17,7 +17,9 @@ SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPTS/.." && pwd)"
 SANDBOX="$SCRIPTS/kotlin-sandbox"
 KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
 TEST_ROOT="$ROOT/app/src/test/kotlin"
+CORE_TEST_ROOT="$ROOT/core/src/test/kotlin"
 OUT="${KOTLIN_JVM_TESTS_OUT:-$ROOT/reports/jvm-tests/out}"
 
 # Discover the compiler and JVM, falling back to the bootstrapped toolchain directory.
@@ -59,12 +61,13 @@ fi
 
 # The exact source and stub lists the sandbox check compiles, kept in lockstep by reading them
 # from run.sh itself (the same block scripts/tests/test_kotlin_sandbox_harness.py validates).
+eval "$(sed -n '/^CORE_SOURCES=(/,/^)$/p' "$SANDBOX/run.sh")"
 eval "$(sed -n '/^APP_SOURCES=(/,/^)$/p' "$SANDBOX/run.sh")"
 eval "$(sed -n '/^STUBS=(/,/^)$/p' "$SANDBOX/run.sh")"
 
-mapfile -d '' TEST_SOURCES < <(find "$TEST_ROOT" -name '*.kt' -print0 | sort -z)
+mapfile -d '' TEST_SOURCES < <(find "$TEST_ROOT" "$CORE_TEST_ROOT" -name '*.kt' -print0 | sort -z)
 if [[ ${#TEST_SOURCES[@]} -eq 0 ]]; then
-    echo "no test sources found under $TEST_ROOT" >&2
+    echo "no test sources found under $TEST_ROOT or $CORE_TEST_ROOT" >&2
     exit 2
 fi
 
@@ -81,7 +84,7 @@ echo "tests:   ${#TEST_SOURCES[@]} files"
 echo "output:  $OUT"
 
 "$KOTLINC" -jvm-target 1.8 -nowarn \
-    "${APP_SOURCES[@]}" "${STUBS[@]}" "${TEST_SOURCES[@]}" \
+    "${CORE_SOURCES[@]}" "${APP_SOURCES[@]}" "${STUBS[@]}" "${TEST_SOURCES[@]}" \
     "$SCRIPTS/jvm-tests/org/junit/JUnit4.kt" \
     "$SCRIPTS/jvm-tests/org/junit/internal/AssumptionViolatedException.kt" \
     "$SCRIPTS/jvm-tests/JvmTestRunner.kt" \
