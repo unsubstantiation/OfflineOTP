@@ -4,6 +4,7 @@
   "target_sdk": 35,
   "allowed_permissions": [
     "android.permission.CAMERA",
+    "android.permission.NFC",
     "android.permission.VIBRATE",
     "android.permission.POST_NOTIFICATIONS",
     "android.permission.WAKE_LOCK",
@@ -40,6 +41,10 @@
         {
           "scheme": "otpauth",
           "host": "motp"
+        },
+        {
+          "scheme": "otpauth-migration",
+          "host": "offline"
         }
       ]
     },

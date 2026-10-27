@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Lägg till datum till filnamn</string>
     <string name="settings_title_backup_ask">Fråga efter filnamn</string>
     <string name="settings_title_backup_location">Standard plats för säkerhetskopiering</string>
-    <string name="settings_title_backup_password">Säkerhetskopieringslösenord</string>
     <string name="settings_title_backup_broadcasts">Säkerhetskopierings-Broadcasts</string>
     <string name="settings_title_openpgp_provider">OpenPGP-leverantör</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP-krypteringsnyckel</string>
@@ -80,14 +79,8 @@
         säkerhetskopieringsfilnamnet</string>
     <string name="settings_desc_backup_location">Välj en standardplats för säkerhetskopiering</string>
     <string name="settings_desc_backup_location_set">Platsen för säkerhetskopiering har valts</string>
-    <string name="settings_desc_backup_password">Ange lösenordet som används för att kryptera
-        säkerhetskopior</string>
     <string name="settings_desc_auto_backup_password_enc">Skapar en ny krypterad säkerhetskopia när nya
         -poster läggs till, eller redigeras, om inställningsvillkoren är uppfyllda</string>
-    <string name="settings_desc_auto_backup_requirements">Ange en standardplats för säkerhetskopiering och ett
-        lösenord för att aktivera detta alternativ</string>
-    <string name="settings_desc_backup_broadcasts">Välj vilka säkerhetskopieringstyper som kan utlösas av
-        Appar från tredje part som använder Broadcasts</string>
     <string name="settings_desc_openpgp_verify">Krypterade säkerhetskopior importeras endast om de är
         signerade med en giltig nyckel</string>
     <string name="settings_desc_special_features">Avmarkera för att inaktivera specialfunktionerna igen</string>

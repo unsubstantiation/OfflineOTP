@@ -178,6 +178,70 @@ class EntryTest {
     }
 
     @Test
+    fun actualTokenStepDeterminesWhetherAnIndividualCountdownIsNeeded() {
+        val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "Example", "alice", ArrayList())
+        val timed = totp()
+        val counter = hotp()
+        try {
+            assertEquals(30, motp.getPeriod()) // legacy stored field, not the mOTP step
+            assertEquals(10, motp.getTokenStepSeconds())
+            assertFalse(motp.hasNonDefaultPeriod())
+            assertTrue(motp.hasNonDefaultTokenStep())
+            motp.setPeriod(60)
+            assertEquals(10, motp.getTokenStepSeconds())
+            assertTrue(motp.hasNonDefaultPeriod()) // the compatibility check still reads stored data
+            assertTrue(motp.hasNonDefaultTokenStep())
+
+            assertFalse(timed.hasNonDefaultTokenStep())
+            timed.setPeriod(60)
+            assertTrue(timed.hasNonDefaultTokenStep())
+            counter.setPeriod(60)
+            assertFalse(counter.hasNonDefaultTokenStep())
+        } finally {
+            motp.destroy()
+            timed.destroy()
+            counter.destroy()
+        }
+    }
+
+    @Test
+    fun expiryHighlightUsesTheActualStepAndNeverHighlightsHotp() {
+        val timed = totp()
+        val counter = hotp()
+        val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "Example", "alice", ArrayList())
+        try {
+            assertFalse(timed.hasColorChangedAt(21)) // nine seconds left
+            assertTrue(timed.hasColorChangedAt(22))  // eight seconds left
+            assertEquals(Entry.COLOR_RED, timed.getColor())
+            assertFalse(timed.hasColorChangedAt(29))
+            assertTrue(timed.hasColorChangedAt(20))  // clock moved back within the same step
+            assertEquals(0, timed.getColor())
+
+            assertFalse(counter.hasColorChangedAt(29))
+            assertEquals(0, counter.getColor())
+            counter.setColor(Entry.COLOR_RED)
+            assertTrue(counter.hasColorChangedAt(29))
+            assertEquals(0, counter.getColor())
+
+            assertFalse(motp.hasColorChangedAt(2)) // the PIN placeholder is not a token
+            motp.setPin("1234")
+            assertFalse(motp.hasColorChangedAt(1)) // nine seconds left in the 10-second step
+            assertTrue(motp.hasColorChangedAt(2))
+            assertEquals(Entry.COLOR_RED, motp.getColor())
+            motp.setPin("")
+            assertTrue(motp.hasColorChangedAt(3))
+            assertEquals(0, motp.getColor())
+
+            timed.setPeriod(5)
+            assertTrue(timed.hasColorChangedAt(0)) // every second is within eight seconds of expiry
+        } finally {
+            timed.destroy()
+            counter.destroy()
+            motp.destroy()
+        }
+    }
+
+    @Test
     fun motpWithoutAPinShowsThePlaceholder() {
         val motp = Entry(Entry.OTPType.MOTP, "000102030405060708090a0b0c0d0e0f", "Example", "alice", ArrayList())
         assertTrue(motp.updateOTPAt(1700000000L, false))

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">إلحاق تاريخ اليوم باسم الملف</string>
     <string name="settings_title_backup_ask">إسأل عن إسم الملف</string>
     <string name="settings_title_backup_location">Default backup location</string>
-    <string name="settings_title_backup_password">كلمة المرور للنسخة الإحتياطية</string>
     <string name="settings_title_backup_broadcasts">النسخ الاحتياطي المبث</string>
     <string name="settings_title_openpgp_provider">مزود أوبن بي جي بي</string>
     <string name="settings_title_openpgp_key_encrypt">مفتاح التشفير أوبن بي جي بي</string>
@@ -77,12 +76,8 @@
     <string name="settings_desc_backup_append_date">إلحاق بالتاريخ الحالي والوقت إلى اسم الملف النسخ الاحتياطي المقترح</string>
     <string name="settings_desc_backup_location">Choose a default backup location</string>
     <string name="settings_desc_backup_location_set">Backup location has been chosen</string>
-    <string name="settings_desc_backup_password">إختر كلمة المرور التي سوف تستخدم لتشفير النسخ الإحتياطية</string>
     <string name="settings_desc_auto_backup_password_enc">Creates a new encrypted backup when new
         entries are added, or edited, if settings conditions are met</string>
-    <string name="settings_desc_auto_backup_requirements">Set a default backup location and a
-        backup password to enable this option</string>
-    <string name="settings_desc_backup_broadcasts">حدد أنواع النسخ الإحتياطي التي يمكن تشغيلها بواسطة تطبيقات البث</string>
     <string name="settings_desc_openpgp_verify">النسخ المشفرة تسترد فقط إذا وقعوا بمفتاح صالح</string>
     <string name="settings_desc_special_features">قم بإلغاء الخيار لتعطيل الميزات الخاصة مجددا</string>
     <string name="settings_desc_clear_keystore">حذف مفتاح التعمية من مخزن المفاتيح</string>

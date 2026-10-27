@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">為檔案名追加日期</string>
     <string name="settings_title_backup_ask">詢問檔案名</string>
     <string name="settings_title_backup_location">預設備份位置</string>
-    <string name="settings_title_backup_password">備份密碼</string>
     <string name="settings_title_backup_broadcasts">備份廣播</string>
     <string name="settings_title_openpgp_provider">OpenPGP 提供者</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP 加密金鑰</string>
@@ -75,12 +74,8 @@
     <string name="settings_desc_backup_append_date">將當前日期和時間追加到預設的備份檔案名中</string>
     <string name="settings_desc_backup_location">選擇預設備份位置</string>
     <string name="settings_desc_backup_location_set">備份位置已選擇</string>
-    <string name="settings_desc_backup_password">設定用於加密備份的密碼</string>
     <string name="settings_desc_auto_backup_password_enc">如果滿足設定的條件的話，新增項目或
         編輯時建立新的加密備份。</string>
-    <string name="settings_desc_auto_backup_requirements">設定預設備份位置與
-        備份密碼以啟用此選項</string>
-    <string name="settings_desc_backup_broadcasts">選取第三方程式使用廣播可觸發哪種備份類型</string>
     <string name="settings_desc_openpgp_verify">僅匯入有效金鑰簽署的加密備份</string>
     <string name="settings_desc_special_features">取消選中以再次禁用特殊功能</string>
     <string name="settings_desc_clear_keystore">從金鑰庫中刪除加密金鑰</string>

@@ -54,8 +54,15 @@ import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.HandlerTimerScheduler
+import org.shadowice.flocke.andotp.Utilities.GoogleAuthenticatorMigration
+import org.shadowice.flocke.andotp.Utilities.MigrationBatchCollector
+import org.shadowice.flocke.andotp.Utilities.MigrationBatchStatus
+import org.shadowice.flocke.andotp.Utilities.MigrationError
+import org.shadowice.flocke.andotp.Utilities.MigrationParseResult
+import org.shadowice.flocke.andotp.Utilities.PendingMigrationImport
 import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
+import org.shadowice.flocke.andotp.Utilities.PendingEntryImport
 import org.shadowice.flocke.andotp.Utilities.ScanQRCodeFromFile
 import org.shadowice.flocke.andotp.Utilities.ScreenTimerController
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
@@ -89,6 +96,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var pendingBackupActionCode: Int? = null
     private var pendingBackupUri: Uri? = null
     private var pendingBackupReplace = false
+    private var pendingImport: PendingEntryImport? = null
+    private var activeImportDialog: AlertDialog? = null
+    private var migrationCollector: MigrationBatchCollector? = null
+    private var pendingMigrationImport: PendingMigrationImport? = null
+    private var activeMigrationDialog: AlertDialog? = null
+    private var awaitingMigrationQr = false
     private val processObserver = ProcessLifecycleObserver()
 
     private var recreateActivity = false
@@ -149,6 +162,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } else if (authMethod == AuthMethod.PASSWORD || authMethod == AuthMethod.PIN) {
             val challenge = Intent(this, AuthenticateActivity::class.java)
             challenge.putExtra(Constants.EXTRA_AUTH_MESSAGE, messageId)
+            challenge.putExtra(Constants.EXTRA_AUTH_ALLOW_HARDWARE, true)
             startActivityForResult(challenge, Constants.INTENT_MAIN_AUTHENTICATE)
         } else {
             vaultUnavailable()
@@ -170,6 +184,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         authenticationPending = false
         introPending = false
         requireAuthentication = true
+        dismissPendingImport()
+        dismissMigrationImport()
         adapter?.lockEntries()
         screenTimers?.pause()
         val cards = findViewById<View>(R.id.cardList)
@@ -178,6 +194,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private fun afterAuthentication() {
         if (VaultSession.getKey() == null || isFinishing()) return
+        adapter?.retryPendingAutomaticBackup()
         checkAutomaticTime()
         if (adapter != null) launchPendingBackupActionIfReady()
     }
@@ -454,38 +471,34 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (callingIntent != null && callingIntent.getAction() != null) {
             // Cache and reset the action to prevent the same intent from being evaluated multiple times
             val intentAction = callingIntent.getAction()
+            val intentData = if (intentAction == Intent.ACTION_VIEW) callingIntent.getDataString() else null
             callingIntent.setAction(null)
+            if (intentAction == Intent.ACTION_VIEW) callingIntent.data = null
 
             when (intentAction) {
                 INTENT_SCAN_QR -> scanQRCode()
                 INTENT_IMPORT_QR -> showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
                 INTENT_ENTER_DETAILS -> ManualEntryDialog.show(this, settings!!, adapter!!)
                 Intent.ACTION_VIEW -> {
+                    if (GoogleAuthenticatorMigration.isMigration(intentData)) {
+                        addMigrationQRCode(intentData)
+                        return
+                    }
+                    if (migrationCollector != null) {
+                        Toast.makeText(this, R.string.google_import_expected_qr, Toast.LENGTH_LONG).show()
+                        showMigrationProgress()
+                        return
+                    }
+                    var parsedEntry: Entry? = null
                     try {
-                        val entry = Entry(callingIntent.getDataString())
                         val epoch = VaultSession.generation()
-                        AlertDialog.Builder(this)
-                            .setTitle(R.string.security_import_title)
-                            .setMessage(importPreviewText(entry))
-                            .setPositiveButton(android.R.string.ok, DialogInterface.OnClickListener { _, _ ->
-                                if (!VaultSession.isCurrent(epoch) || VaultSession.getKey() == null) {
-                                    entry.destroy()
-                                    return@OnClickListener
-                                }
-                                try {
-                                    entry.updateOTP(false)
-                                    entry.setLastUsed(System.currentTimeMillis())
-                                    adapter!!.addEntry(entry)
-                                    refreshTags()
-                                } catch (error: RuntimeException) {
-                                    entry.destroy()
-                                    Toast.makeText(this, R.string.toast_intent_creation_failed, Toast.LENGTH_LONG).show()
-                                }
-                            })
-                            .setNegativeButton(android.R.string.cancel, DialogInterface.OnClickListener { _, _ -> entry.destroy() })
-                            .setOnCancelListener { entry.destroy() }
-                            .show()
-                    } catch (e: Exception) {
+                        val entry = Entry(intentData)
+                        parsedEntry = entry
+                        showImportConfirmation(entry, epoch, R.string.security_import_title,
+                            importPreviewText(entry), android.R.string.ok, R.string.toast_intent_creation_failed)
+                        parsedEntry = null // The confirmation owns the entry until it is consumed or dismissed.
+                    } catch (_: Exception) {
+                        parsedEntry?.destroy()
                         Toast.makeText(this, R.string.toast_intent_creation_failed, Toast.LENGTH_LONG).show()
                     }
                 }
@@ -498,11 +511,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
      * change its codes, so the user can see what is about to be added before it is committed.
      */
     private fun importPreviewText(entry: Entry): String {
-        val details = getString(R.string.security_import_details, entry.getType().name,
-            entry.getDigits(), entry.getAlgorithm().name)
+        val details = if (entry.getType() == Entry.OTPType.MOTP)
+            getString(R.string.security_import_motp_details)
+        else
+            getString(R.string.security_import_details, entry.getType().name,
+                entry.getDigits(), entry.getAlgorithm().name)
         val lines = arrayListOf(entry.getIssuer() ?: "", entry.getLabel() ?: "", details)
-        if (entry.isTimeBased() && entry.hasNonDefaultPeriod())
-            lines.add(getString(R.string.security_import_period, entry.getPeriod()))
+        if (entry.hasNonDefaultTokenStep())
+            lines.add(getString(R.string.security_import_period, entry.getTokenStepSeconds()))
         return lines.filter { it.isNotEmpty() }.joinToString("\n")
     }
 
@@ -567,6 +583,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             authenticate(R.string.auth_msg_authenticate)
             return
         }
+        currentAdapter.retryPendingAutomaticBackup()
         checkIntent()
         restartInactivityTimer()
 
@@ -618,6 +635,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             adapter?.notifyDataSetChanged()
         } else if (key == getString(R.string.settings_key_search_includes)) {
             adapter?.clearFilter()
+            filterString?.let { setFilterString(it) }
         } else if (key == getString(R.string.settings_key_tap_single) ||
                 key == getString(R.string.settings_key_tap_double) ||
                 key == getString(R.string.settings_key_theme) ||
@@ -640,8 +658,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, intent)
         if (result != null) {
+            val wasAwaiting = awaitingMigrationQr
+            awaitingMigrationQr = false
             if (result.getContents() != null) {
                 addQRCode(result.getContents())
+            } else if (wasAwaiting) {
+                showMigrationProgress()
             }
         } else if (requestCode == Constants.INTENT_MAIN_BACKUP) {
             if (resultCode == RESULT_OK && intent != null) {
@@ -701,10 +723,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 }
                 afterAuthentication()
             }
-        } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE && resultCode == RESULT_OK) {
-            if (intent != null) {
-                addQRCode(ScanQRCodeFromFile.scanQRImage(this, intent.data))
-            }
+        } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE) {
+            val wasAwaiting = awaitingMigrationQr
+            awaitingMigrationQr = false
+            val contents = if (resultCode == RESULT_OK && intent != null)
+                ScanQRCodeFromFile.scanQRImage(this, intent.data) else null
+            if (contents != null) addQRCode(contents) else if (wasAwaiting) showMigrationProgress()
         } else if (requestCode == Constants.INTENT_MAIN_INTRO) {
             introPending = false
             var setupFinished = false
@@ -854,11 +878,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     /** Applies the search text, or the tag filter when the search is empty. */
     private fun setFilterString(newText: String) {
         val currentAdapter = adapter ?: return
-        if (newText.isEmpty())
-            currentAdapter.filterByTags(tagsDrawerAdapter?.getActiveTags() ?: ArrayList())
-        else
-            currentAdapter.getFilter().filter(newText)
-
+        currentAdapter.setSearchQuery(newText)
         filterString = newText
     }
 
@@ -869,6 +889,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             val backupIntent = Intent(this, BackupActivity::class.java)
             if (VaultSession.getKey() == null) return true
             startActivityForResult(backupIntent, Constants.INTENT_MAIN_BACKUP)
+        } else if (id == R.id.action_hardware) {
+            if (VaultSession.getKey() == null) return true
+            startActivity(Intent(this, HardwareKeyActivity::class.java))
+            return true
         } else if (id == R.id.action_settings) {
             val settingsIntent = Intent(this, SettingsActivity::class.java)
             if (VaultSession.getKey() == null) return true
@@ -1131,34 +1155,57 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     @Suppress("SameParameterValue")
-    private fun showOpenFileSelector(intentId: Int) {
+    private fun showOpenFileSelector(intentId: Int): Boolean {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.setType("image/*")
-        try {
+        return try {
             startActivityForResult(intent, intentId)
+            true
         } catch (error: ActivityNotFoundException) {
             Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            false
         } catch (error: SecurityException) {
             Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            false
         }
     }
 
-    /** Adds the entry encoded in the given otpauth URI, warning before reusing an issuer. */
+    /** Imports a standard provisioning QR or a Google Authenticator export QR. */
     private fun addQRCode(result: String?) {
-        if (TextUtils.isEmpty(result)) return
+        if (TextUtils.isEmpty(result)) {
+            if (migrationCollector != null) showMigrationProgress()
+            return
+        }
+        if (GoogleAuthenticatorMigration.isMigration(result)) {
+            addMigrationQRCode(result)
+            return
+        }
+        if (migrationCollector != null) {
+            Toast.makeText(this, R.string.google_import_expected_qr, Toast.LENGTH_LONG).show()
+            showMigrationProgress()
+            return
+        }
         var parsedEntry: Entry? = null
+        val epoch = VaultSession.generation()
         try {
             val entry = Entry(result)
             parsedEntry = entry
-            val currentAdapter = adapter ?: throw IllegalStateException("Entry list is unavailable")
-            val issuer = entry.getIssuer().trim()
-            if (currentAdapter.hasIssuer(issuer)) {
-                showDuplicateIssuerConfirmation(entry, issuer)
-                parsedEntry = null // The confirmation dialog now owns and wipes the entry.
-            } else {
-                saveImportedQrEntry(entry)
-                parsedEntry = null // addEntry takes ownership, including on rejected writes.
+            synchronized(VaultSession.MutationLock) {
+                val currentAdapter = adapter
+                val key = VaultSession.getKey()
+                if (!VaultSession.isCurrent(epoch) || key == null || currentAdapter == null ||
+                        currentAdapter.encryptionKey !== key) {
+                    entry.destroy()
+                } else {
+                    val issuer = entry.getIssuer().trim()
+                    if (currentAdapter.hasIssuer(issuer)) {
+                        showDuplicateIssuerConfirmation(entry, issuer)
+                    } else {
+                        saveImportedEntry(entry, epoch, R.string.toast_invalid_qr_code)
+                    }
+                }
+                parsedEntry = null // The dialog or save path has consumed the entry.
             }
         } catch (_: Exception) {
             parsedEntry?.destroy()
@@ -1166,37 +1213,288 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    private fun showDuplicateIssuerConfirmation(entry: Entry, issuer: String) {
-        var accepted = false
+    /** Accumulates only matching export parts and never commits a partial batch. */
+    private fun addMigrationQRCode(contents: String?) {
+        val epoch = VaultSession.generation()
+        val parsed = GoogleAuthenticatorMigration.parse(contents)
+        if (parsed is MigrationParseResult.Failure) {
+            val message = if (parsed.error == MigrationError.UNSUPPORTED)
+                R.string.google_import_unsupported else R.string.google_import_invalid
+            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+            if (migrationCollector != null) showMigrationProgress()
+            return
+        }
+        val payload = (parsed as MigrationParseResult.Success).payload
+        synchronized(VaultSession.MutationLock) {
+            val key = VaultSession.getKey()
+            if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null || adapter?.encryptionKey !== key) {
+                payload.close()
+                dismissMigrationImport()
+                return
+            }
+            var collector = migrationCollector
+            if (collector == null) {
+                dismissPendingImport()
+                dismissMigrationImport()
+                collector = MigrationBatchCollector(epoch)
+                migrationCollector = collector
+            }
+            when (collector.add(payload, VaultSession.generation(), true)) {
+                MigrationBatchStatus.ADDED -> showMigrationProgress()
+                MigrationBatchStatus.DUPLICATE -> {
+                    Toast.makeText(this, R.string.google_import_already_scanned, Toast.LENGTH_LONG).show()
+                    showMigrationProgress()
+                }
+                MigrationBatchStatus.DIFFERENT_EXPORT -> {
+                    Toast.makeText(this, R.string.google_import_wrong_batch, Toast.LENGTH_LONG).show()
+                    showMigrationProgress()
+                }
+                MigrationBatchStatus.TOO_MANY -> {
+                    dismissMigrationImport()
+                    Toast.makeText(this, R.string.google_import_too_many, Toast.LENGTH_LONG).show()
+                }
+                MigrationBatchStatus.STALE -> dismissMigrationImport()
+                MigrationBatchStatus.COMPLETE -> {
+                    val accounts = try {
+                        collector.takeAccounts(VaultSession.generation(), true)
+                    } catch (_: RuntimeException) {
+                        dismissMigrationImport()
+                        Toast.makeText(this, R.string.google_import_invalid, Toast.LENGTH_LONG).show()
+                        return
+                    }
+                    migrationCollector = null
+                    if (accounts == null) {
+                        dismissMigrationImport()
+                        return
+                    }
+                    val entries = ArrayList<Entry>()
+                    try {
+                        accounts.forEach { entries.add(Entry(it)) }
+                        showMigrationConfirmation(entries, epoch)
+                    } catch (_: RuntimeException) {
+                        entries.forEach { it.destroy() }
+                        Toast.makeText(this, R.string.google_import_invalid, Toast.LENGTH_LONG).show()
+                    } finally {
+                        accounts.forEach { it.close() }
+                    }
+                }
+            }
+        }
+    }
+
+    /** Offers either camera or image input for the next part; cancellation wipes the batch. */
+    private fun showMigrationProgress() {
+        val collector = migrationCollector ?: return
+        if (isFinishing() || VaultSession.getKey() == null || adapter?.encryptionKey !== VaultSession.getKey()) {
+            dismissMigrationImport()
+            return
+        }
+        val previous = activeMigrationDialog
+        activeMigrationDialog = null
+        previous?.dismiss()
+        var continuing = false
         val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.dialog_title_duplicate_issuer)
-            .setMessage(getString(R.string.dialog_msg_duplicate_issuer, issuer))
-            .setPositiveButton(R.string.button_add_anyway) { _, _ ->
-                accepted = true
-                saveImportedQrEntry(entry)
+            .setTitle(R.string.google_import_title)
+            .setMessage(getString(R.string.google_import_progress, collector.received, collector.expected))
+            .setPositiveButton(R.string.button_scan_qr) { _, _ ->
+                if (migrationCollector !== collector || VaultSession.getKey() == null) {
+                    dismissMigrationImport()
+                } else {
+                    continuing = true
+                    awaitingMigrationQr = true
+                    try {
+                        scanQRCode()
+                    } catch (_: RuntimeException) {
+                        awaitingMigrationQr = false
+                        Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
+                        showMigrationProgress()
+                    }
+                }
+            }
+            .setNeutralButton(R.string.button_qr_from_image) { _, _ ->
+                if (migrationCollector !== collector || VaultSession.getKey() == null) {
+                    dismissMigrationImport()
+                } else {
+                    continuing = true
+                    awaitingMigrationQr = true
+                    if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)) {
+                        awaitingMigrationQr = false
+                        showMigrationProgress()
+                    }
+                }
             }
             .setNegativeButton(android.R.string.cancel, null)
             .create()
+        activeMigrationDialog = dialog
         dialog.setOnDismissListener {
-            if (!accepted) entry.destroy()
+            if (activeMigrationDialog === dialog) {
+                activeMigrationDialog = null
+                if (!continuing) dismissMigrationImport()
+            }
         }
         dialog.show()
     }
 
-    /** Takes ownership of [entry], adding it only while the current vault remains available. */
-    private fun saveImportedQrEntry(entry: Entry) {
+    /** Displays account names but never the exported secrets. */
+    private fun migrationPreview(entries: List<Entry>): String {
+        fun safeText(value: String): String = value.filterNot {
+            it.isISOControl() || Character.getType(it) == Character.FORMAT.toInt()
+        }.trim().take(100)
+        val names = entries.take(12).map { entry ->
+            val parts = listOf(safeText(entry.getIssuer()), safeText(entry.getLabel())).filter { it.isNotEmpty() }
+            if (parts.isEmpty()) getString(R.string.google_import_unnamed) else parts.joinToString(" — ")
+        }.toMutableList()
+        if (entries.size > names.size) names.add(getString(R.string.google_import_more, entries.size - names.size))
+        return getString(R.string.google_import_confirm, entries.size) + "\n\n" + names.joinToString("\n") +
+            "\n\n" + getString(R.string.google_import_duplicate_notice)
+    }
+
+    /** Owns the complete batch until confirmation, dismissal, activity destruction or lock. */
+    private fun showMigrationConfirmation(entries: ArrayList<Entry>, epoch: Long) {
+        synchronized(VaultSession.MutationLock) {
+            val key = VaultSession.getKey()
+            if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null || adapter?.encryptionKey !== key) {
+                entries.forEach { it.destroy() }
+                return
+            }
+            val previous = activeMigrationDialog
+            activeMigrationDialog = null
+            previous?.dismiss()
+            val pending = PendingMigrationImport(entries, epoch)
+            try {
+                val dialog = AlertDialog.Builder(this)
+                    .setTitle(R.string.google_import_title)
+                    .setMessage(migrationPreview(entries))
+                    .setPositiveButton(R.string.google_import_button) { _, _ ->
+                        synchronized(VaultSession.MutationLock) {
+                            val currentKey = VaultSession.getKey()
+                            val currentAdapter = adapter
+                            val authorized = !isFinishing() && currentKey != null &&
+                                currentAdapter != null && currentAdapter.encryptionKey === currentKey
+                            val confirmed = pending.take(VaultSession.generation(), authorized)
+                            if (confirmed != null && currentAdapter != null) {
+                                try {
+                                    val outcome = currentAdapter.importEntries(confirmed)
+                                    if (outcome == null) {
+                                        Toast.makeText(this, R.string.google_import_save_failed, Toast.LENGTH_LONG).show()
+                                    } else {
+                                        refreshTags()
+                                        Toast.makeText(this, getString(R.string.google_import_finished,
+                                            outcome.added, outcome.skipped), Toast.LENGTH_LONG).show()
+                                    }
+                                } catch (_: RuntimeException) {
+                                    Toast.makeText(this, R.string.google_import_save_failed, Toast.LENGTH_LONG).show()
+                                }
+                            }
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .create()
+                pendingMigrationImport = pending
+                activeMigrationDialog = dialog
+                dialog.setOnDismissListener {
+                    pending.close()
+                    if (pendingMigrationImport === pending) pendingMigrationImport = null
+                    if (activeMigrationDialog === dialog) activeMigrationDialog = null
+                }
+                dialog.show()
+            } catch (error: RuntimeException) {
+                if (pendingMigrationImport === pending) dismissMigrationImport() else pending.close()
+                throw error
+            }
+        }
+    }
+
+    /** Clears every owned account before a dialog can deliver a delayed callback. */
+    private fun dismissMigrationImport() {
+        awaitingMigrationQr = false
+        migrationCollector?.close()
+        migrationCollector = null
+        pendingMigrationImport?.close()
+        pendingMigrationImport = null
+        val dialog = activeMigrationDialog
+        activeMigrationDialog = null
+        dialog?.dismiss()
+    }
+
+    private fun showDuplicateIssuerConfirmation(entry: Entry, issuer: String) {
+        showImportConfirmation(entry, VaultSession.generation(), R.string.dialog_title_duplicate_issuer,
+            getString(R.string.dialog_msg_duplicate_issuer, issuer), R.string.button_add_anyway,
+            R.string.toast_invalid_qr_code)
+    }
+
+    /** Owns the parsed entry until it is confirmed, cancelled, dismissed, locked or destroyed. */
+    private fun showImportConfirmation(entry: Entry, epoch: Long, title: Int, message: String,
+                                       positiveButton: Int, failureMessage: Int) {
+        synchronized(VaultSession.MutationLock) {
+            val key = VaultSession.getKey()
+            if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null ||
+                    adapter?.encryptionKey !== key) {
+                entry.destroy()
+                return
+            }
+            dismissPendingImport()
+            val pending = PendingEntryImport(entry, epoch)
+            try {
+                val dialog = AlertDialog.Builder(this)
+                    .setTitle(title)
+                    .setMessage(message)
+                    .setPositiveButton(positiveButton) { _, _ ->
+                        synchronized(VaultSession.MutationLock) {
+                            val currentKey = VaultSession.getKey()
+                            val authorized = !isFinishing() && currentKey != null &&
+                                    adapter?.encryptionKey === currentKey
+                            val confirmed = pending.take(VaultSession.generation(), authorized)
+                            if (confirmed != null) saveImportedEntry(confirmed, epoch, failureMessage)
+                        }
+                    }
+                    .setNegativeButton(android.R.string.cancel, null)
+                    .create()
+                pendingImport = pending
+                activeImportDialog = dialog
+                dialog.setOnDismissListener {
+                    pending.close()
+                    if (pendingImport === pending) pendingImport = null
+                    if (activeImportDialog === dialog) activeImportDialog = null
+                }
+                dialog.show()
+            } catch (error: RuntimeException) {
+                if (pendingImport === pending) dismissPendingImport() else pending.close()
+                throw error
+            }
+        }
+    }
+
+    /** Clears the secret before dismissing; Android may deliver the dismiss callback later. */
+    private fun dismissPendingImport() {
+        pendingImport?.close()
+        pendingImport = null
+        val dialog = activeImportDialog
+        activeImportDialog = null
+        dialog?.dismiss()
+    }
+
+    /** Takes ownership and rechecks the original session at the mutation boundary. */
+    private fun saveImportedEntry(entry: Entry, epoch: Long, failureMessage: Int) {
         var transferredToAdapter = false
         try {
-            if (VaultSession.getKey() == null) throw IllegalStateException("Vault locked")
-            entry.updateOTP(false)
-            entry.setLastUsed(System.currentTimeMillis())
-            val currentAdapter = adapter ?: throw IllegalStateException("Entry list is unavailable")
-            currentAdapter.addEntry(entry)
-            transferredToAdapter = true
-            refreshTags()
+            synchronized(VaultSession.MutationLock) {
+                val currentAdapter = adapter
+                val key = VaultSession.getKey()
+                if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null ||
+                        currentAdapter == null || currentAdapter.encryptionKey !== key) {
+                    entry.destroy()
+                    return
+                }
+                entry.updateOTP(false)
+                entry.setLastUsed(System.currentTimeMillis())
+                currentAdapter.addEntry(entry)
+                transferredToAdapter = true
+                refreshTags()
+            }
         } catch (_: Exception) {
             if (!transferredToAdapter) entry.destroy()
-            Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, failureMessage, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -1229,6 +1527,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     override fun onDestroy() {
+        dismissPendingImport()
+        dismissMigrationImport()
         timeoutAnimator?.cancel()
         timeoutAnimator = null
         settings!!.unregisterPreferenceChangeListener(this)

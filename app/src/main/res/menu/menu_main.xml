@@ -48,6 +48,12 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_hardware"
+        android:orderInCategory="100"
+        android:title="@string/menu_main_hardware"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_settings"
         android:orderInCategory="100"
         android:title="@string/menu_main_settings"

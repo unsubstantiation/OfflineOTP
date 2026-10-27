@@ -10,12 +10,14 @@ import java.util.HashMap
 /**
  * Display-only projection over a borrowed EntryList. No Context, views, session authority or I/O.
  * Entries are borrowed, not copied/owned: clearing this projection must never destroy them.
- * Collection/query semantics remain in EntryList, including locale-sensitive search and sorting.
+ * Search covers the whole vault; when it is empty, the tag selection determines the projection.
  */
 class EntryListPresentation(private val source: EntryList) {
     private var displayed: ArrayList<Entry> = ArrayList()
     private var tags: MutableList<String> = ArrayList()
     private var sortMode: Constants.SortMode = Constants.SortMode.UNSORTED
+    private var searchQuery: String = ""
+    private var searchIncludes: List<Constants.SearchIncludes> = emptyList()
     private var revision: Long = 0
 
     @Synchronized fun size(): Int = displayed.size
@@ -50,8 +52,19 @@ class EntryListPresentation(private val source: EntryList) {
         refreshTags(noTags, functionality)
     }
 
+    /** Invalidates in-flight results before a new asynchronous search is scheduled. */
+    @Synchronized fun setSearch(query: String, includes: List<Constants.SearchIncludes>) {
+        searchQuery = query
+        searchIncludes = includes.distinct().sortedBy { it.ordinal }
+        revision++
+    }
+
+    /** Rebuilds the active projection after entry, tag, or sort changes. */
     @Synchronized fun refreshTags(noTags: Boolean, functionality: Constants.TagFunctionality) {
-        displayed = source.getEntriesFilteredByTags(tags, noTags, functionality, sortMode)
+        displayed = if (searchQuery.isEmpty())
+            source.getEntriesFilteredByTags(tags, noTags, functionality, sortMode)
+        else
+            source.getFilteredEntries(searchQuery, searchIncludes, sortMode)
         revision++
     }
 
@@ -83,6 +96,8 @@ class EntryListPresentation(private val source: EntryList) {
     @Synchronized fun clear() {
         displayed.clear()
         tags.clear()
+        searchQuery = ""
+        searchIncludes = emptyList()
         revision++
     }
 
@@ -95,13 +110,17 @@ class EntryListPresentation(private val source: EntryList) {
             mode = sortMode
         }
         // Do not hold the presentation monitor during collection work.
-        val matches = source.getFilteredEntries(constraint, includes, mode)
-        return SearchResult(this, version, matches)
+        val query = constraint?.toString().orEmpty()
+        val fields = includes.distinct().sortedBy { it.ordinal }
+        val matches = source.getFilteredEntries(query, fields, mode)
+        return SearchResult(this, version, matches, query, fields)
     }
 
     @Synchronized fun publishSearch(result: SearchResult): Boolean {
         synchronized(result) {
-            if (result.owner !== this || result.revision != revision || result.entries == null) {
+            if (result.owner !== this || result.revision != revision || result.entries == null ||
+                    result.query != searchQuery ||
+                    (searchQuery.isNotEmpty() && result.includes != searchIncludes)) {
                 result.close()
                 return false
             }
@@ -112,10 +131,12 @@ class EntryListPresentation(private val source: EntryList) {
     }
 
     /** Owns only a list of borrowed references, never the entries/seeds themselves. */
-    class SearchResult(
+    class SearchResult @JvmOverloads constructor(
         val owner: EntryListPresentation,
         val revision: Long,
-        var entries: ArrayList<Entry>?
+        var entries: ArrayList<Entry>?,
+        val query: String = "",
+        val includes: List<Constants.SearchIncludes> = emptyList()
     ) : AutoCloseable {
         @Synchronized fun size(): Int = entries?.size ?: 0
         @Synchronized override fun close() { entries?.clear(); entries = null }

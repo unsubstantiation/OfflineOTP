@@ -65,20 +65,19 @@ object BackupHelper {
         }
     }
 
-    /** Automatic backups need a backup location and password-encrypted backups enabled. */
+    /** Automatic backups need a location and an available key for the selected password mode. */
     @JvmStatic
     fun autoBackupType(context: Context): Constants.BackupType {
         val settings = Settings(context)
-
-        if (!settings.isBackupLocationSet()) {
-            return Constants.BackupType.UNAVAILABLE
-        }
-
-        if (!settings.getBackupPasswordEnc().isEmpty()) {
+        if (!settings.isBackupLocationSet()) return Constants.BackupType.UNAVAILABLE
+        if (LoginBackupPolicy.usesLoginPassword(context)) {
+            if (settings.getAuthMethod() != Constants.AuthMethod.PASSWORD) return Constants.BackupType.UNAVAILABLE
+            val lease = VaultSession.copyBackupKey() ?: return Constants.BackupType.UNAVAILABLE
+            lease.close()
             return Constants.BackupType.ENCRYPTED
         }
-
-        return Constants.BackupType.UNAVAILABLE
+        return if (settings.getBackupPasswordEnc().isNotEmpty()) Constants.BackupType.ENCRYPTED
+        else Constants.BackupType.UNAVAILABLE
     }
 
     /** Writes a password-encrypted backup: iteration count + salt + nonce + AES-GCM ciphertext. */

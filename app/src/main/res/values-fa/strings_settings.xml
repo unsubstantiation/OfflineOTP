@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">افزودن تاریخ به نام پرونده</string>
     <string name="settings_title_backup_ask">پرسیدن نام پرونده</string>
     <string name="settings_title_backup_location">محل پیش‌فرض ذخیره نسخه پشتیبان</string>
-    <string name="settings_title_backup_password">گذرواژه پرونده پشتیبان</string>
     <string name="settings_title_backup_broadcasts">پشتیبان گیری از Broadcasts</string>
     <string name="settings_title_openpgp_provider">ارائه دهنده OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">کلید رمزنگاری OpenPGP</string>
@@ -76,12 +75,8 @@
     <string name="settings_desc_backup_append_date">تاریخ و زمان فعلی را به نام پرونده پشتیبان پیشنهادی اضافه کن</string>
     <string name="settings_desc_backup_location">محل پیش‌فرض ذخیره نسخه پشتیبان را انتخاب کنید</string>
     <string name="settings_desc_backup_location_set">محل ذخیره نسخه پشتیبان انتخاب شده است</string>
-    <string name="settings_desc_backup_password">گذرواژه ای که برای رمزنگاری پشتیبان‌ها استفاده می‌شود را تنظیم کنید</string>
     <string name="settings_desc_auto_backup_password_enc">زمانی که موارد جدید افزوده، یا ویرایش شد
         اگر شرایط تنظیمات برآورده شود، یک نسخه پشتیبان رمزگذاری شده تازه ایجاد میکند</string>
-    <string name="settings_desc_auto_backup_requirements">برای فعال کردن این گزینه، محل پیش‌فرض ذخیره نسخه پشتیبان و
-        گذرواژه نسخه پشتیبان را تنظیم کنید</string>
-    <string name="settings_desc_backup_broadcasts">انتخاب کنید کدام نوع پشتیبان‌گیری بتواند توسط Broadcast های برنامه‌های سوم شخص اعمال شود</string>
     <string name="settings_desc_openpgp_verify">پشتیبان‌های رمزگذاری شده، فقط اگر با یک کلید معتبر امضا شده اند، بازنشانی شوند</string>
     <string name="settings_desc_special_features">تیک را بردارید تا قابلیت‌های ویژه دوباره غیرفعال شوند</string>
     <string name="settings_desc_clear_keystore">کلید رمزنگاری را از KeyStore حذف کن</string>

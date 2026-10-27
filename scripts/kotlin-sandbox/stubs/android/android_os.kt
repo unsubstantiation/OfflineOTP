@@ -11,8 +11,13 @@ interface IBinder
  * the "main thread" deterministically. No looper is created and no platform timing is exercised.
  */
 open class Handler(private val looper: Looper?) {
-    fun postDelayed(runnable: Runnable, delayMillis: Long): Boolean = true
-    fun removeCallbacks(runnable: Runnable) {}
+    /** Delayed work is recorded for explicit test delivery, never run automatically. */
+    val delayed = mutableListOf<Pair<Runnable, Long>>()
+    fun postDelayed(runnable: Runnable, delayMillis: Long): Boolean {
+        delayed.add(runnable to delayMillis)
+        return true
+    }
+    fun removeCallbacks(runnable: Runnable) { delayed.removeAll { it.first === runnable } }
 
     /** How often all pending callbacks were removed. */
     var removals = 0
@@ -20,6 +25,7 @@ open class Handler(private val looper: Looper?) {
 
     fun removeCallbacksAndMessages(token: Any?) {
         removals++
+        delayed.clear()
     }
 
     open fun post(runnable: Runnable): Boolean {

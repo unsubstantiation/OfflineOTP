@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Fitxategiaren izenari data erantsi</string>
     <string name="settings_title_backup_ask">Fitxategi-izena galdetu</string>
     <string name="settings_title_backup_location">Segurtasun-kopien defektuzko kokalekua</string>
-    <string name="settings_title_backup_password">Segurtasun-kopien pasahitza</string>
     <string name="settings_title_backup_broadcasts">Kanpotik eskatutako segurtasun-kopiak</string>
     <string name="settings_title_openpgp_provider">OpenPGP hornitzailea</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP zifratze-gakoa</string>
@@ -80,14 +79,8 @@
         uneko data eta ordua gehitu</string>
     <string name="settings_desc_backup_location">Aukeratu seguratsun kopien defektuzko kokalekua</string>
     <string name="settings_desc_backup_location_set">Segurtasun kopien kokalekua ondo aukeratu da</string>
-    <string name="settings_desc_backup_password">Segurtasun kopiak zifratzeko erabiliko den pasahitza
-        ezarri</string>
     <string name="settings_desc_auto_backup_password_enc">Ezarpenaren baldintzak betetzen badira,
         zifratutako segurtasun kopia bat sortuko da sarrerak sortu edo editatzean</string>
-    <string name="settings_desc_auto_backup_requirements">Ezarri segurtasun-kopiak gordetzeko defektuzko
-        kokalekua eta aukera hau aktibatzeko pasahitza</string>
-    <string name="settings_desc_backup_broadcasts">Aukeratu zein segurtasun kopia mota jarri daitezkeen
-        martxan hirugarrenen aplikazioetatik abiatuz</string>
     <string name="settings_desc_openpgp_verify">Zifratutako segurtasun kopiak baliozkoa den gako
         batekin sinatuta badaude barrik inportatuko dira</string>
     <string name="settings_desc_special_features">Desaktibatu aukera bereziak berriz desaktibatzeko</string>

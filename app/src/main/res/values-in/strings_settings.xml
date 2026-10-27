@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Bubuhkan tanggal ke nama berkas</string>
     <string name="settings_title_backup_ask">Tanya nama berkas</string>
     <string name="settings_title_backup_location">Lokasi pencadangan baku</string>
-    <string name="settings_title_backup_password">Kata sandi cadangan</string>
     <string name="settings_title_backup_broadcasts">Pencadangan Siar</string>
     <string name="settings_title_openpgp_provider">Penyedia OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Kunci enkripsi OpenPGP</string>
@@ -70,10 +69,7 @@
     <string name="settings_desc_backup_append_date">Tambahkan tanggal dan waktu sekarang ke nama berkas cadangan yang disarankan</string>
     <string name="settings_desc_backup_location">Pilih lokasi pencadangan baku</string>
     <string name="settings_desc_backup_location_set">Lokasi pencadangan telah dipilih</string>
-    <string name="settings_desc_backup_password">Atur kata sandi yang digunakan untuk mengenkripsi cadangan</string>
     <string name="settings_desc_auto_backup_password_enc">Membuat cadangan terenkripsi baru ketika entri baru ditambahkan atau disunting, jika Pengaturan memperbolehkannya</string>
-    <string name="settings_desc_auto_backup_requirements">Pilih lokasi pencadangan baku dan kata sandi untuk mengaktifkan opsi ini</string>
-    <string name="settings_desc_backup_broadcasts">Pilih tipe pencadangan yang dapat dipicu oleh aplikasi pihak ketiga menggunakan Siar</string>
     <string name="settings_desc_openpgp_verify">Cadangan yang terenkripsi hanya diimpor jika ditandatangani oleh kunci yang valid</string>
     <string name="settings_desc_special_features">Hapus centang untuk menonaktifkan fitur khusus lagi</string>
     <string name="settings_desc_clear_keystore">Hapus kunci enkripsi dari KeyStore</string>

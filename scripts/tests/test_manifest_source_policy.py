@@ -105,6 +105,21 @@ class ManifestSourcePolicyTest(unittest.TestCase):
                         self.assertTrue(domains <= excluded,
                                         f"{resource} does not exclude {sorted(domains - excluded)}")
 
+    def test_google_export_uri_has_its_own_narrow_view_filter(self):
+        manifest = ET.fromstring(MANIFEST.read_text(encoding="utf-8"))
+        android = "{http://schemas.android.com/apk/res/android}"
+        main = next(activity for activity in manifest.iter("activity")
+                    if activity.get(android + "name") == ".Activities.MainActivity")
+        migration = [intent for intent in main.findall("intent-filter")
+                     if any(data.get(android + "scheme") == "otpauth-migration"
+                            for data in intent.findall("data"))]
+        self.assertEqual(1, len(migration))
+        filters = migration[0].findall("data")
+        self.assertEqual(1, len(filters))
+        self.assertEqual("offline", filters[0].get(android + "host"))
+        self.assertIn("android.intent.action.VIEW", {
+            action.get(android + "name") for action in migration[0].findall("action")})
+
     def test_every_exported_otpauth_kind_can_be_opened(self):
         """The app builds otpauth:// links for all four kinds; ACTION_VIEW must accept each one.
 

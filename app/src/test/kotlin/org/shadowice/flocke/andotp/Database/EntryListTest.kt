@@ -59,6 +59,27 @@ class EntryListTest {
     }
 
     @Test
+    fun distinctBatchAppendIsAtomicAndAssignsUniqueIds() {
+        val list = EntryList()
+        val existing = entry("existing")
+        val first = entry("first")
+        val second = entry("second")
+        val duplicateExisting = entry("existing")
+        val duplicateFirst = entry("first")
+        try {
+            assertTrue(list.addEntry(existing))
+            assertFalse(list.addDistinctEntries(listOf(first, duplicateExisting)))
+            assertFalse(list.addDistinctEntries(listOf(first, duplicateFirst)))
+            assertEquals(listOf(existing), list.getEntries())
+            assertTrue(list.addDistinctEntries(listOf(first, second)))
+            assertEquals(listOf(existing, first, second), list.getEntries())
+            assertEquals(3, list.getEntries().map { it.getListId() }.toSet().size)
+        } finally {
+            listOf(existing, first, second, duplicateExisting, duplicateFirst).forEach { it.destroy() }
+        }
+    }
+
+    @Test
     fun issuerLookupIgnoresCaseAndSurroundingWhitespaceButNotBlankValues() {
         val list = populatedList()
         assertTrue(list.hasIssuer("  gItHuB  "))

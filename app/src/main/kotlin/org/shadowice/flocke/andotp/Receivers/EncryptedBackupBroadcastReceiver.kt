@@ -33,11 +33,13 @@ import androidx.work.WorkManager
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Tasks.EncryptedBackupWorker
 import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
+import org.shadowice.flocke.andotp.Utilities.PendingAutomaticBackup
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
 
 /**
- * Queues a password-encrypted backup via WorkManager when [ACTION] is received.
+ * Queues a pending legacy automatic-backup retry when [ACTION] is received.
  *
  * Manifest signature permission `CONTROL_VAULT` restricts callers to same-signer apps.
  */
@@ -64,6 +66,10 @@ open class EncryptedBackupBroadcastReceiver : BackupBroadcastReceiver() {
             return
         }
 
+        // Broadcasts can retry a real pending change, not manufacture unchanged snapshots. Login
+        // backup keys exist only in the unlocked process and are retried there instead.
+        if (LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled() ||
+                PendingAutomaticBackup.read(context) == null) return
         if (!settings.tryAcquireBroadcastBackupSlot()) return
         val password: String? = settings.getBackupPasswordEnc()
 

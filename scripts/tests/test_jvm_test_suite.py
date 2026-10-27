@@ -97,7 +97,7 @@ class JvmTestSuiteStructureTest(unittest.TestCase):
             used.update(re.findall(r"importorg\.junit\.Assume\.(\w+)", text))
         self.assertTrue(used, "no JUnit imports found in the suite")
         for name in sorted(used):
-            self.assertRegex(shim, rf"fun {name}\(", f"shim lacks Assert.{name}")
+            self.assertRegex(shim, rf"fun (?:<[^>]+>\s+)?{name}\(", f"shim lacks Assert.{name}")
 
     def test_no_test_touches_the_unmocked_android_runtime(self):
         """A JVM test must not call into android.jar: the host stubs throw 'not mocked'."""

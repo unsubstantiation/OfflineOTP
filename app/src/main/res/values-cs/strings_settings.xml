@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Přidat datum k názvu souboru</string>
     <string name="settings_title_backup_ask">Dotázat se na jméno souboru</string>
     <string name="settings_title_backup_location">Výchozí umístění zálohy</string>
-    <string name="settings_title_backup_password">Heslo pro zálohu</string>
     <string name="settings_title_backup_broadcasts">Příkazy k zálohování</string>
     <string name="settings_title_openpgp_provider">Poskytovatel OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP šifrovací klíč</string>
@@ -80,14 +79,8 @@
         názvu záložního souboru</string>
     <string name="settings_desc_backup_location">Zvolte výchozí umístění zálohy</string>
     <string name="settings_desc_backup_location_set">Umístění zálohy bylo vybráno</string>
-    <string name="settings_desc_backup_password">Nastaví heslo používané
-        k šifrování záloh</string>
     <string name="settings_desc_auto_backup_password_enc">Vytvoří novou šifrovanou zálohu při vytvoření či úpravě položek,
         pokud jsou splněny podmínky z nastavení</string>
-    <string name="settings_desc_auto_backup_requirements">Pro povolení této volby nastavte umístění zálohy
-        a heslo pro zálohu</string>
-    <string name="settings_desc_backup_broadcasts">Vyberte, které typy zálohování můžou být spuštěny pomocí
-        příkazů od aplikací třetí strany</string>
     <string name="settings_desc_openpgp_verify">Šifrované zálohy jsou importovány pouze tehdy,
         jsou-li podepsány platným klíčem</string>
     <string name="settings_desc_special_features">Zrušte zaškrtnutí políčka opětovné zakázání speciálních funkcí</string>

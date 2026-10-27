@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Inserir data ao nome do arquivo</string>
     <string name="settings_title_backup_ask">Pedir o nome do arquivo</string>
     <string name="settings_title_backup_location">Local padrão de backup</string>
-    <string name="settings_title_backup_password">Senha do backup</string>
     <string name="settings_title_backup_broadcasts">Backup de ativação remota</string>
     <string name="settings_title_openpgp_provider">Provedor OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Chave de criptografia OpenPGP</string>
@@ -78,14 +77,8 @@
     <string name="settings_desc_backup_append_date">Inserir a data e hora atuais ao         nome de backup sugerido</string>
     <string name="settings_desc_backup_location">Escolha um local padrão de backup</string>
     <string name="settings_desc_backup_location_set">O local de backup foi escolhido</string>
-    <string name="settings_desc_backup_password">Define a senha usada para criptografar os
-        backups</string>
     <string name="settings_desc_auto_backup_password_enc">Cria um novo backup criptografado quando novas
         entradas são adicionadas ou editadas, se as condições das configurações forem atendidas</string>
-    <string name="settings_desc_auto_backup_requirements">Defina um local padrão de backup e uma senha de backup
-        para habilitar esta opção</string>
-    <string name="settings_desc_backup_broadcasts">Selecione quais tipos de backup podem ser acionados por
-        aplicativos de terceiros usando ativação remota</string>
     <string name="settings_desc_openpgp_verify">Backups criptografados são importados apenas se eles são         assinados com uma chave válida</string>
     <string name="settings_desc_special_features">Desmarque a opção para desabilitar os recursos especiais novamente</string>
     <string name="settings_desc_clear_keystore">Deletar a chave de criptografia da KeyStore</string>

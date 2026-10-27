@@ -21,6 +21,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.ScanQRCodeFromFile
+import org.shadowice.flocke.andotp.Utilities.GoogleAuthenticatorMigration
+import org.shadowice.flocke.andotp.Utilities.MigrationParseResult
 import java.io.File
 import java.io.FileOutputStream
 
@@ -39,6 +41,35 @@ class QrCodeImportDeviceTest {
             val entry = Entry(requireNotNull(decoded))
             assertEquals("CCP:123456", entry.getLabel())
             assertEquals("3KJPWL4V4MSKDPD6", entry.getSecretEncoded())
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun googleAuthenticatorExportQrImageScansAndParses() {
+        // Synthetic migration QR: one TOTP account named alice, with a public three-byte seed.
+        val export = "otpauth-migration://offline?data=ChYKA%2BD7%2FxIFYWxpY2UaACAAKAAwADgAEAIYASAAKAA%3D"
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val file = writeQrPng(context.getCacheDir(), export)
+        try {
+            val decoded = scan(context, Uri.fromFile(file))
+            assertEquals(export, decoded)
+            val parsed = GoogleAuthenticatorMigration.parse(decoded)
+            assertTrue(parsed is MigrationParseResult.Success)
+            val payload = (parsed as MigrationParseResult.Success).payload
+            payload.use {
+                val values = payload.takeAccounts()
+                try {
+                    assertEquals(1, values.size)
+                    val entry = Entry(values[0])
+                    try {
+                        assertEquals("alice", entry.getLabel())
+                        assertEquals(Entry.OTPType.TOTP, entry.getType())
+                        assertEquals(6, entry.getDigits())
+                    } finally { entry.destroy() }
+                } finally { values.forEach { it.close() } }
+            }
         } finally {
             file.delete()
         }

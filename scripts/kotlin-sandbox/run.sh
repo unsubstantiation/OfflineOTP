@@ -65,6 +65,9 @@ APP_SOURCES=(
     "$KOTLIN_APP/Database/EntryList.kt"
     "$KOTLIN_APP/Utilities/DatabaseHelper.kt"
     "$KOTLIN_APP/Utilities/EncryptionHelper.kt"
+    "$KOTLIN_APP/Utilities/LoginBackupKey.kt"
+    "$KOTLIN_APP/Utilities/LoginBackupPolicy.kt"
+    "$KOTLIN_APP/Utilities/PendingAutomaticBackup.kt"
     "$KOTLIN_APP/Utilities/KeyStoreHelper.kt"
     "$KOTLIN_APP/Utilities/Settings.kt"
     "$KOTLIN_APP/Utilities/LocaleContextHelper.kt"
@@ -75,6 +78,16 @@ APP_SOURCES=(
     "$KOTLIN_APP/Utilities/NotificationHelper.kt"
     "$KOTLIN_APP/Utilities/ScanQRCodeFromFile.kt"
     "$KOTLIN_APP/Utilities/InputPolicy.kt"
+    "$KOTLIN_APP/Utilities/GoogleAuthenticatorMigration.kt"
+    "$KOTLIN_APP/Utilities/HardwareUnlockEnvelope.kt"
+    "$KOTLIN_APP/Utilities/HardwareUnlockStore.kt"
+    "$KOTLIN_APP/Utilities/HardwareFidoClient.kt"
+    "$KOTLIN_APP/Utilities/HardwareOathClient.kt"
+    "$KOTLIN_APP/Utilities/HardwareKeyDiscovery.kt"
+    "$KOTLIN_APP/Activities/HardwareKeyActivity.kt"
+    "$KOTLIN_APP/Activities/HardwareUnlockActivity.kt"
+    "$KOTLIN_APP/Utilities/PendingEntryImport.kt"
+    "$KOTLIN_APP/Utilities/PendingMigrationImport.kt"
     "$KOTLIN_APP/Utilities/AuthenticationResultPolicy.kt"
     "$KOTLIN_APP/Utilities/OpenPgpRecipientIds.kt"
     "$KOTLIN_APP/Utilities/OpenPgpPolicy.kt"
@@ -94,6 +107,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/Tasks/PGPBackupTask.kt"
     "$KOTLIN_APP/Tasks/PGPRestoreTask.kt"
     "$KOTLIN_APP/Tasks/EncryptedBackupTask.kt"
+    "$KOTLIN_APP/Tasks/LoginEncryptedBackupTask.kt"
     "$KOTLIN_APP/Tasks/EncryptedRestoreTask.kt"
     "$KOTLIN_APP/Tasks/PlainTextRestoreTask.kt"
     "$KOTLIN_APP/Tasks/ChangeEncryptionTask.kt"
@@ -173,6 +187,7 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/com/google/zxing/qrcode/*.kt
     "$SANDBOX"/stubs/com/mikepenz/aboutlibraries/*.kt
     "$SANDBOX/stubs/org/shadowice/flocke/andotp/R.kt"
+    "$SANDBOX"/stubs/com/yubico/yubikit/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/digest/*.kt

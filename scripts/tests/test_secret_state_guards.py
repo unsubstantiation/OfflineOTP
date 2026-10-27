@@ -21,6 +21,8 @@ SECRET_INPUTS = {
     "component_intro_authentication.xml": {"introPasswordEdit", "introPasswordConfirm"},
     "component_password.xml": {"passwordEntry", "passwordConfirm"},
     "content_authenticate.xml": {"passwordEdit"},
+    "activity_hardware_keys.xml": {"hardwarePassword"},
+    "activity_hardware_unlock.xml": {"hardwareUnlockPin"},
     "dialog_password_entry.xml": {"passwordEntry", "passwordConfirm"},
     "dialog_manual_entry.xml": {"manual_secret", "manual_secret_view"},
 }

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Добавяне на датата към името на файла</string>
     <string name="settings_title_backup_ask">Попитай за името на файла</string>
     <string name="settings_title_backup_location">Default backup location</string>
-    <string name="settings_title_backup_password">Парола за резервни копия</string>
     <string name="settings_title_backup_broadcasts">Резервная копия с помощта на външни приложения</string>
     <string name="settings_title_openpgp_provider">OpenPGP доставчик</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP криптиращ ключ</string>
@@ -80,14 +79,8 @@
          име на архивното копие</string>
     <string name="settings_desc_backup_location">Choose a default backup location</string>
     <string name="settings_desc_backup_location_set">Backup location has been chosen</string>
-    <string name="settings_desc_backup_password">Задайте паролата, която да се използва за криптиране на
-         резервните копия</string>
     <string name="settings_desc_auto_backup_password_enc">Създаване на ново криптирано резервно копие, когато новите
          записи се добавят или редактират, ако са изпълнени условията за настройките</string>
-    <string name="settings_desc_auto_backup_requirements">Set a default backup location and a
-        backup password to enable this option</string>
-    <string name="settings_desc_backup_broadcasts">Изберете какви типове резервни копия могат да бъдат запазени от
-         приложения на трети страни за създаване на резервно копие</string>
     <string name="settings_desc_openpgp_verify">Криптираните архиви може да се импортират само тогава, когато са
          подписан с валиден ключ</string>
     <string name="settings_desc_special_features">Премахнете отметката, за да деактивирате отново специалните функции</string>

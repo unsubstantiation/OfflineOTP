@@ -39,6 +39,7 @@ import org.shadowice.flocke.andotp.Activities.MainActivity
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
@@ -91,6 +92,7 @@ class AuthenticationFlowDeviceTest {
             }
 
             assertTrue("the correct PIN did not restore the vault session", awaitVaultKey())
+            assertNull("a PIN must not become a portable backup password", VaultSession.copyBackupKey())
             val main = DeviceTestSupport.awaitResumed<MainActivity>()
             assertNotNull("the main screen did not come back", main)
             instrumentation.runOnMainSync {
@@ -98,6 +100,36 @@ class AuthenticationFlowDeviceTest {
                 assertEquals("the entry list is not visible after unlocking", android.view.View.VISIBLE,
                     cards.visibility)
             }
+        } finally {
+            DeviceTestSupport.finishActivities()
+            cleanUp(context)
+        }
+    }
+
+    @Test
+    fun aPasswordUnlockProvidesASeparatePortableBackupKey() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        installPasswordVault(context, PASSWORD)
+        try {
+            DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            val prompt = DeviceTestSupport.awaitResumed<AuthenticateActivity>()
+            assertNotNull("the password prompt was not shown", prompt)
+            instrumentation.runOnMainSync {
+                requireNotNull(prompt!!.findViewById<EditText>(R.id.passwordEdit)).setText(PASSWORD)
+                requireNotNull(prompt.findViewById<Button>(R.id.buttonUnlock)).performClick()
+            }
+            assertTrue("the correct password did not unlock", awaitVaultKey())
+            val lease = VaultSession.copyBackupKey()
+            assertNotNull("the password unlock did not publish a backup key", lease)
+            lease!!.use {
+                val plaintext = "[]".toByteArray(Charsets.UTF_8)
+                val frame = EncryptedBackupHeader.parse(it.key.encrypt(plaintext))
+                val recoveryKey = EncryptionHelper.generateSymmetricKeyPBKDF2(PASSWORD,
+                    frame.getIterations(), frame.getSalt())
+                assertTrue(EncryptionHelper.decrypt(recoveryKey, frame.getEncrypted()).contentEquals(plaintext))
+            }
+            VaultSession.lock()
+            assertNull("locking retained the backup key", VaultSession.copyBackupKey())
         } finally {
             DeviceTestSupport.finishActivities()
             cleanUp(context)
@@ -170,6 +202,23 @@ class AuthenticationFlowDeviceTest {
         return key
     }
 
+    private fun installPasswordVault(context: Context, password: String) {
+        assumeTrue("a vault already exists; refusing to overwrite it", DatabaseHelper.canInitialize(context))
+        DeviceTestSupport.freshPreferences(context)
+        val settings = Settings(context)
+        val prepared = settings.prepareAuthCredentials(password)
+        val key = EncryptionHelper.generateSymmetricKey(prepared.key)
+        try {
+            assertTrue("password vault initialization failed", DatabaseHelper.changeVaultEncryption(context, null, key, true) { id ->
+                VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, Constants.EncryptionType.PASSWORD,
+                    Constants.AuthMethod.PASSWORD, prepared, true))
+            } is VaultWriteResult.Saved)
+        } finally {
+            prepared.destroy()
+        }
+        VaultSession.lock()
+    }
+
     private fun enableInactivityRelock(context: Context, seconds: Int) {
         android.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
             .putBoolean(context.getString(R.string.settings_key_auth_inactivity), true)
@@ -196,6 +245,7 @@ class AuthenticationFlowDeviceTest {
 
     private companion object {
         const val PIN = "1234"
+        const val PASSWORD = "correct horse battery staple"
         const val INACTIVITY_SECONDS = 4
     }
 }

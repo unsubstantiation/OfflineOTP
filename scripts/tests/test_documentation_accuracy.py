@@ -42,14 +42,16 @@ class DocumentationAccuracyTest(unittest.TestCase):
     def test_security_doc_distinguishes_external_and_qr_imports(self):
         document = text("docs/vault-security-hardening.md")
         activity = (KOTLIN / "Activities/MainActivity.kt").read_text(encoding="utf-8")
-        self.assertIn("external `ACTION_VIEW` OTP import requires confirmation", document)
-        self.assertIn("Scanned or file-imported QR codes are added directly", document)
+        self.assertIn("external `ACTION_VIEW` import requires confirmation", document)
+        self.assertIn("Standard scanned or file-imported QR accounts are added directly", document)
         self.assertIn("except that an existing issuer triggers a confirmation", document)
-        self.assertIn("Intent.ACTION_VIEW ->", activity)
-        self.assertIn(".setTitle(R.string.security_import_title)", activity)
+        self.assertIn("Google Authenticator exports always require batch confirmation", document)
+        external = activity.split("Intent.ACTION_VIEW ->", 1)[1].split("private fun importPreviewText", 1)[0]
+        self.assertIn("showImportConfirmation(entry, epoch, R.string.security_import_title", external)
+        self.assertIn("importPreviewText(entry)", external)
         self.assertIn("currentAdapter.hasIssuer(issuer)", activity)
         self.assertIn("showDuplicateIssuerConfirmation(entry, issuer)", activity)
-        self.assertIn("saveImportedQrEntry(entry)", activity)
+        self.assertIn("saveImportedEntry(entry, epoch, R.string.toast_invalid_qr_code)", activity)
 
     def test_security_doc_matches_the_source_backup_policy(self):
         document = text("docs/vault-security-hardening.md")

@@ -79,8 +79,8 @@ class EntryJsonTest {
     fun motpIgnoresAStoredPeriodBecauseItNeverDrivesMotpTiming() {
         // mOTP always rolls over on TokenCalculator.MOTP_STEP_SECONDS (Entry.getTokenStepSeconds), never
         // on the stored period; serialize() never writes one and the otpauth:// parser forces 30, so a
-        // "period" on an mOTP document can only come from a foreign/crafted file. It must not surface as
-        // a misleading "custom period" (Entry.hasNonDefaultPeriod/EntryViewHolder's custom-period row).
+        // "period" on an mOTP document can only come from a foreign/crafted file. The card shows the
+        // actual 10-second step, never this foreign value.
         success(JSONObject(
             """{"secret":"JBSWY3DPEHPK3PXP","label":"alice","type":"MOTP","pin":"1234","period":60}""")
         ) { value ->

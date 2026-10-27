@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Dodaj datę do nazwy pliku</string>
     <string name="settings_title_backup_ask">Pytaj o nazwę pliku</string>
     <string name="settings_title_backup_location">Domyślna lokalizacja kopii zapasowej</string>
-    <string name="settings_title_backup_password">Hasło kopii zapasowej</string>
     <string name="settings_title_backup_broadcasts">Nadawanie kopii zapasowej</string>
     <string name="settings_title_openpgp_provider">Dostawca OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Klucz szyfrujący OpenPGP</string>
@@ -77,12 +76,8 @@
     <string name="settings_desc_backup_append_date">Dodaj bieżącą datę i czas do proponowanej nazwy pliku kopii zapasowej</string>
     <string name="settings_desc_backup_location">Wybierz domyślną lokalizację kopii zapasowej</string>
     <string name="settings_desc_backup_location_set">Wybrano lokalizację kopii zapasowej</string>
-    <string name="settings_desc_backup_password">Ustaw hasło używane do szyfrowania kopii</string>
     <string name="settings_desc_auto_backup_password_enc">Tworzy nową zaszyfrowaną kopię zapasową po dodaniu
         lub edycji nowych wpisów, jeśli spełnione są warunki ustawień</string>
-    <string name="settings_desc_auto_backup_requirements">Ustaw domyślną lokalizację kopii zapasowej
-        i hasło kopii zapasowej, aby włączyć tę opcję</string>
-    <string name="settings_desc_backup_broadcasts">Wybierz typy kopii zapasowych, które mogą być wywoływane przez aplikacje innych firm poprzez nadawanie</string>
     <string name="settings_desc_openpgp_verify">Szyfrowane kopie mogą zostać zaimportowane tylko wtedy, gdy zostały podpisane Twoim kluczem</string>
     <string name="settings_desc_special_features">Odznacz, aby ponownie wyłączyć funkcje specjalne</string>
     <string name="settings_desc_clear_keystore">Usuń klucz kryptograficzny z KeyStore</string>

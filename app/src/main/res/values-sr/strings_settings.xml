@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Додати датум имену датотеке</string>
     <string name="settings_title_backup_ask">Тражи име датотеке</string>
     <string name="settings_title_backup_location">Подразумевана локација резервне копије</string>
-    <string name="settings_title_backup_password">Лозинка резервне копије</string>
     <string name="settings_title_backup_broadcasts">Резервна копија емитовања</string>
     <string name="settings_title_openpgp_provider">OpenPGP провајдер</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP кључ за шифровање</string>
@@ -78,14 +77,8 @@
         називом датотеке</string>
     <string name="settings_desc_backup_location">Изаберите подразумевану локацију резервне копије</string>
     <string name="settings_desc_backup_location_set">Локација за резервне копије је одабрана</string>
-    <string name="settings_desc_backup_password">Поставља лозинку која се користи за шифровање
-        резервних копија</string>
     <string name="settings_desc_auto_backup_password_enc">Ствара нову шифровану резервну копију када се додају
         или уреде нови уноси ако су испуњени услови подешавања</string>
-    <string name="settings_desc_auto_backup_requirements">Поставља подразумевану локацију и лозинку
-        за резервну копију</string>
-    <string name="settings_desc_backup_broadcasts">Изаберите које врсте резервних копија могу да покрећу
-        апликације независних произвођача помоћу емитовања</string>
     <string name="settings_desc_openpgp_verify">Шифроване резервне копије се увозе само ако су потписане важећим кључем</string>
     <string name="settings_desc_special_features">Уклоните ознаку да бисте онемогућили специјалне функције</string>
     <string name="settings_desc_clear_keystore">Брише кључ за шифровање из KeyStore</string>

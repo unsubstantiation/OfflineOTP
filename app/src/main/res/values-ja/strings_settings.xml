@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">日付をファイル名に追加</string>
     <string name="settings_title_backup_ask">ファイルを確認</string>
     <string name="settings_title_backup_location">既定のバックアップ保存先</string>
-    <string name="settings_title_backup_password">バックアップパスワード</string>
     <string name="settings_title_backup_broadcasts">バックアップブロードキャスト</string>
     <string name="settings_title_openpgp_provider">OpenPGP プロバイダ</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP 暗号化キー</string>
@@ -71,10 +70,7 @@
     <string name="settings_desc_backup_append_date">提案されたバックアップファイル名に現在の日付と時刻を追加する</string>
     <string name="settings_desc_backup_location">既定のバックアップ保存先を選択</string>
     <string name="settings_desc_backup_location_set">バックアップ保存先が選択されました</string>
-    <string name="settings_desc_backup_password">バックアップの暗号化に使用するパスワードを設定</string>
     <string name="settings_desc_auto_backup_password_enc">新しいエントリが追加された、または既存のエントリが編集された場合に、新しい暗号化バックアップを作成します</string>
-    <string name="settings_desc_auto_backup_requirements">このオプションを有効にするには、既定のバックアップ保存先とバックアップパスワードを設定してください</string>
-    <string name="settings_desc_backup_broadcasts">ブロードキャストを使用してサードパーティのアプリによってトリガーできるバックアップの種類を選択する</string>
     <string name="settings_desc_openpgp_verify">暗号化バックアップは、有効なキーで署名されている場合にのみインポートされます</string>
     <string name="settings_desc_special_features">特別機能を再び無効にする場合はチェックを外します</string>
     <string name="settings_desc_clear_keystore">キーストアからの暗号化キーを削除</string>

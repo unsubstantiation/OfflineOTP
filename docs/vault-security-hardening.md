@@ -11,7 +11,7 @@ The panic activity and encrypted-backup receiver require the app-owned
 
 A companion application must use the same signing identity and request this permission. An explicit package/component or a correct action string does not grant access. Independently signed Tasker/PanicKit installations and ordinary `adb shell am` commands are intentionally no longer authorized. There is no caller-name, Intent-extra, or user-toggle bypass. Introducing independently signed automation again requires a separately designed, revocable authorization mechanism.
 
-The launcher/import activity remains public for normal account import. An external `ACTION_VIEW` OTP import requires confirmation after vault authentication. Scanned or file-imported QR codes are added directly, except that an existing issuer triggers a confirmation; invalid input does not silently add entries. Internal credential/settings/backup activities remain unexported. Obscured touch events are rejected by the base vault activities (partially obscured events additionally on API 29+).
+The launcher/import activity remains public for account import. An external `ACTION_VIEW` import requires confirmation after vault authentication. Standard scanned or file-imported QR accounts are added directly, except that an existing issuer triggers a confirmation; Google Authenticator exports always require batch confirmation. Invalid input does not silently add entries. Pending confirmations are dismissed and their parsed entries wiped on lock or activity destruction. Confirmation and insertion recheck the originating session generation and live key under the mutation lock. Internal credential/settings/backup activities remain unexported. Obscured touch events are rejected by the base vault activities (partially obscured events additionally on API 29+).
 
 ## Bounded input and fail-closed results
 
@@ -35,6 +35,12 @@ JSON imports are all-or-nothing: malformed entries cannot produce a successful p
 
 Storage Access Framework output uses `content:` URIs; arbitrary external `file:` reads are rejected (private cache fixture files remain supported). Display-name metadata is optional, length-limited and sanitized. Null streams, provider exceptions and oversized PGP output fail rather than becoming successful partial exports. Byte limits do **not** impose a wall-clock timeout on a blocking provider.
 
+### Google Authenticator migration QR codes
+
+The separate `otpauth-migration://offline` handler accepts bounded base64/protobuf exports without a new dependency. It validates wire types, lengths, UTF-8, account parameters, version and batch indices. An optional account identifier is ignored; unrecognized fields and unsupported algorithms or types reject the QR instead of guessing. A future Google format change may require further review. Known TOTP accounts use a 30-second period; HOTP counters are preserved. Export batch IDs, sizes and versions help detect accidental mixing, but are not cryptographic authentication.
+
+Each QR is held only in the active session until every matching part is scanned; cancellation, lock or activity destruction closes owned secret arrays. A confirmation lists account names, and the complete set is saved in one vault mutation, skipping exact duplicates. A successful import follows the existing change-triggered backup policy. These best-effort memory measures cannot erase immutable QR strings, framework copies or user-supplied images. Google exports and screenshots contain plaintext secrets; users must protect and remove temporary images themselves. Verify codes before removing the original accounts.
+
 ## Session and credentials
 
 Vault keys are process-memory state, not Activity Intent/Bundle extras. Authentication/setup key handoffs are one-use and generation-bound. Process death requires reopening/authentication; it does not restore a serialized key.
@@ -56,13 +62,47 @@ Startup performs journal recovery **before selecting keys**. Uncommitted staged 
 
 The recovery copy contains old ciphertext, not a plaintext export or a raw key. It can require the previous password/key; it is not a portable backup or an automatic credential rollback. AtomicFile/read-back is not a guarantee against every filesystem, power-loss or hardware failure. Legacy SHA-256 verifier upgrades are auth-only, restricted to a successfully authenticated KeyStore-mode vault; they cannot rewrite a password vault's credentials without re-encryption.
 
+## Experimental hardware keys
+
+The OATH path reads codes from a connected compatible key and can explicitly copy a vault TOTP or
+HOTP secret to it. It checks for an existing matching hardware credential ID before the write and
+never deletes the app entry. A canceled or interrupted write may already have reached the key;
+HOTP calculation also advances its counter on the key. The user must inspect uncertain outcomes
+and not treat the app and key HOTP counters as synchronized. Key accounts are not included in
+app backups. OATH provisioning transmits the secret to the selected USB/NFC device; trust the key
+and the physical connection. An optional touch requirement depends on the key's support.
+
+For password-authenticated, password-encrypted vaults, enrollment requests a FIDO2 credential
+with user verification and PRF/hmac-secret. A locally generated salt selects the PRF input, and
+HMAC-SHA256 domain-separates its 32-byte output into an AES-GCM wrapping key. The authenticated
+header contains the version, bounded credential ID, salt and nonce; the preferences store contains
+only that header and the wrapped existing vault key, not the PRF output or app password. Unlock
+requires the registered credential and successful authenticated unwrap, then checks that the
+result actually opens the vault before a generation-bound, one-use key handoff. No key goes in an
+Intent. Metadata rekey clears the wrapper in the same preference commit; reset clears it before
+file deletion. One local key shortcut is supported at a time; uninstall/private-data loss removes
+it, and a non-exportable legacy Android Keystore key cannot be wrapped.
+
+The app password remains an alternative: this is **not mandatory two-factor protection**. A key
+unlock does not reveal the app password or derive its separate backup key. Change-triggered
+login-password backups remain pending until a subsequent password unlock. Workers discard late
+results on cancellation or session revocation; FIDO commands are also sent a cancellation signal.
+Cancellation cannot necessarily retract a hardware command already sent, and memory wiping is
+best-effort. USB/NFC permissions, key PIN attempt limits, firmware, Android lifecycle and real
+device behavior remain important. The native Nitrokey Pro OTP protocol is not implemented, and
+FIDO-only devices do not necessarily support OATH. See the README for setup and limitations.
+
 ## Backup lifecycle
 
 The source manifest opts out of platform cloud backup and device transfer with `allowBackup=false`, no backup agent registration, and explicit cloud/device-transfer/full-backup exclusions. The retained unregistered legacy agent registers no helpers and refuses restore callbacks; it cannot receive platform callbacks without being registered. Old platform restores are intentionally unsupported. Verify the merged, packaged manifest and behavior on target devices as release checks. Maintain and test portable password-encrypted or OpenPGP backups before upgrading or changing devices/signing identities.
 
-Automatic backups require a configured location, explicit opt-in, and a nonempty encrypted backup password. Broadcast backups additionally require KeyStore mode and the signature permission. Duplicate broadcasts are coalesced through unique WorkManager work and a one-minute enqueue throttle. Workers recheck configuration at execution time; export checks also cover cancellation, changed location/password/opt-in, and session revocation during an in-flight operation.
+Automatic backup is opt-in, requires a folder, and offers **New entries** or **Any edits**. It snapshots only after an eligible successful change, comparing canonical entry data to suppress no-op edits. Changed imports are included in either mode; HOTP counter changes are included in **Any edits**. Usage statistics and manual reordering do not trigger snapshots. A nonsecret pending marker is staged before the vault write and cleared after a completed export; its optional HMAC of the prior vault contents is keyed with a domain-separated vault key. It detects an interrupted uncommitted write without storing entries or passwords. A later unlock retries a pending committed change; multiple pending changes coalesce into the current vault. A reversion to the prior content can avoid a retry only when no older snapshot is in flight or completed in the meantime; a successful overlapping older export clears that optimization so the newer state is retried. If a legacy vault key is non-exportable, the vault key changes, or overlapping exports finish out of order, an ambiguous retry can create an extra snapshot. Preference-commit failures are reported where a UI callback exists; a failed durable marker or a crash between provider completion and marker clearing can prevent or duplicate a retry. Provider delivery and private preference updates are not one atomic transaction.
 
-Automatic exports request new UUID-named documents, even if the old date/time naming option is off, to avoid truncating a previous backup. Failed new documents are deleted best-effort. Storage providers are not atomic or inherently trustworthy: a failed user-selected export may leave partial data, and a hostile provider can ignore delete requests or retain bytes already received. Panic disables automatic backups, cancels pending unique work, revokes the session and performs the requested wipe under mutation locks; it cannot recall bytes already exported.
+For new installations, password login defaults to **Use app password for encrypted backups**. A successful password login or setup derives a separate 256-bit backup key with PBKDF2-HMAC-SHA1 (160,000 iterations and a fresh random 12-byte salt). The login password is not persisted. Only the derived key and salt are held in the unlocked session; key handoffs and task leases are generation- and credential-revision-bound, and owned byte arrays are cleared best-effort. A fresh 12-byte AES-GCM nonce is generated for each snapshot, with at most 65,536 encryptions under that session key; its random-nonce collision bound is approximately 2^-65. Exhausting the cap requires another password unlock. The existing `[iterations][salt][nonce + ciphertext/tag]` framing is retained and restores with the app password; manual password-encrypted exports use the same key when available, otherwise prompt for a password. PIN and device authentication never derive this backup key. Password-based vault and backup paths do not require Android KeyStore; older KeyStore-backed vaults continue to require it for access or migration.
+
+An existing separate backup password remains selected unless the user opts into login-password backups. That legacy automatic path stores its separate password encrypted with an Android KeyStore key; manual and OpenPGP backups remain available. A much older plaintext backup-password preference is normally migrated into KeyStore; if migration fails, it remains on the device and the legacy mode remains selected. Switching to app-password mode then asks for confirmation before removing that old stored copy; the user must retain the original password for old files. Restoring an encrypted file prompts for its actual password. Password changes affect future login-password backups only: old snapshots still require their original passwords and can retain removed accounts. A strong unique passphrase is important because anyone with an encrypted file can make offline guesses. Session memory, managed strings and provider buffers cannot be reliably erased, and a compromised device can expose secrets.
+
+Automatic exports request new UUID-named documents, even if the old date/time naming option is off. Completed backups are not pruned or overwritten; failed newly created documents are deleted best-effort. Overlapping exports can finish out of order, so a provider's last-modified ordering does not necessarily identify the newest vault state; inspect or test backups before choosing one to restore. Optional same-signature broadcasts only retry pending changes in the legacy separate-password/KeyStore-vault mode. Unique WorkManager work and a one-minute enqueue throttle coalesce requests; the worker rechecks configuration and pending state. Storage providers are not atomic or inherently trustworthy: a failed user-selected export may leave partial data, and a hostile provider can ignore delete requests or retain bytes already received. Panic disables automatic backups, cancels pending unique work, revokes the session and performs the requested wipe under mutation locks; it cannot recall bytes already exported.
 
 ## Regression coverage and remaining verification
 
@@ -81,6 +121,23 @@ The independent-UID `security-test-client` module and the larger interop suites 
 earlier revisions are not part of this checkout. IPC authorization is pinned by the
 signature-permission manifest policy checks; the remaining instrumentation suite still needs
 device execution.
+
+For the 2026-10-26 backup changes, local checks ran 170 Python tests (2 skipped) and passed 160 host
+JVM tests and 132 sandbox checks; 15 instrumentation sources compiled against stand-ins. These cover
+login-key framing, credential/session revocation, pending markers and fake-provider exports. The
+new password-unlock, setup, credential-change and private-file retry device tests have not been run
+on Android. Real provider behavior, process death and Gradle/AGP builds remain unverified.
+
+After the Google migration-import changes, 174 Python tests ran (2 skipped), 173 host JVM tests and
+135 sandbox checks passed, and 16 instrumentation sources compiled against stand-ins. The coverage
+includes multi-code collection, session cleanup, duplicate handling, invalid input and rejected
+writes. No Android instrumentation, Gradle build, lint or packaged-manifest inspection was run.
+
+The 2026-10-27 review passed 181 Python tests, 177 host JVM tests and 149 sandbox checks;
+16 instrumentation sources compiled against stand-ins but were not executed on Android. The hardware
+Kotlin sources also passed a frontend signature check against YubiKit 3.2.1 Java sources and an
+unofficial API 36 stub, using a temporary activity scaffold. These checks do not replace a Gradle
+build, lint, packaged-manifest inspection, physical-key interoperability or lifecycle testing.
 
 Local validation on 2026-10-22: the Python suite passed 113 tests (9 PyYAML-gated tests skipped),
 `scripts/run-jvm-tests.sh` passed 138 JVM tests, `scripts/kotlin-sandbox/run.sh` passed 102 checks,

@@ -13,7 +13,7 @@ Three defects fixed in one pass, each pinned here:
    ``customPeriodLayout``/``customPeriod`` row (alarm icon + bold label) and every translation
    ships ``format_custom_period`` (``"%d s"``), but no code bound them: the andOTP v0.4/v0.5
    wiring (``showCustomPeriod`` for ``hasNonDefaultPeriod()``) was lost upstream in v0.6.
-   ``EntryViewHolder.updateValues`` binds the row again.
+   ``EntryViewHolder.updateValues`` binds the row again using each entry's actual token step.
 
 3. **PIN setup showed the password confirmation warning.** ``IntroScreenActivity
    setupForPinInput`` assigned ``intro_slide3_warn_confirm_password`` instead of the PIN
@@ -104,12 +104,14 @@ class CustomPeriodCardLabelTest(unittest.TestCase):
         self.assertIn("R.id.customPeriodLayout", text)
         self.assertIn("R.id.customPeriod", text)
         self.assertIn("R.string.format_custom_period", text)
-        self.assertIn("entry.hasNonDefaultPeriod()", text,
-                      "the row is shown exactly for entries with a non-default period")
+        self.assertIn("entry.hasNonDefaultTokenStep()", text,
+                      "the row is shown for time-based entries whose actual step differs from 30s")
+        self.assertIn("entry.getTokenStepSeconds()", text,
+                      "the label must show the actual step, including mOTP's fixed 10 seconds")
         self.assertRegex(
             text,
-            r"if \(entry\.hasNonDefaultPeriod\(\)\) \{[^}]*customPeriodLayout\.visibility = View\.VISIBLE",
-            "a non-default period must reveal the custom-period row",
+            r"if \(entry\.hasNonDefaultTokenStep\(\)\) \{[^}]*customPeriodLayout\.visibility = View\.VISIBLE",
+            "a non-default token step must reveal the custom-period row",
         )
 
     def test_format_custom_period_is_no_longer_an_orphan_string(self):

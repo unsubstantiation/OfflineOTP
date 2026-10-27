@@ -45,6 +45,7 @@
     <!-- Menu -->
     <string name="menu_main_about">About</string>
     <string name="menu_main_backup">Backup</string>
+    <string name="menu_main_hardware">Hardware keys</string>
     <string name="menu_main_search">Search</string>
     <string name="menu_main_settings">Settings</string>
     <string name="menu_main_sort">Sort</string>
@@ -83,6 +84,24 @@
     <string name="toast_qr_format_error">Invalid QR code format</string>
     <string name="toast_qr_unsupported">QR code not supported</string>
     <string name="toast_qr_failed_to_generate">Could not generate QR code</string>
+
+    <!-- Google Authenticator export -->
+    <string name="google_import_title">Google Authenticator import</string>
+    <string name="google_import_progress">Scanned %1$d of %2$d QR codes. Scan or choose the next code from the same export.</string>
+    <string name="google_import_confirm">Import %1$d accounts from this export?</string>
+    <string name="google_import_duplicate_notice">Only import an export you trust. Accounts with matching OTP settings, names, and issuers will be skipped. Other accounts with an existing issuer will be added if you continue.</string>
+    <string name="google_import_unnamed">Unnamed account</string>
+    <string name="google_import_more">and %1$d more</string>
+    <string name="google_import_button">Import accounts</string>
+    <string name="google_import_finished">Imported %1$d accounts; skipped %2$d identical accounts.</string>
+    <string name="google_import_invalid">Invalid Google Authenticator export. No accounts from this code were imported.</string>
+    <string name="google_import_unsupported">This export contains an unsupported version, field, account type, algorithm, or digit count. No accounts from this code were imported.</string>
+    <string name="google_import_expected_qr">Choose another QR code from the same Google Authenticator export.</string>
+    <string name="google_import_already_scanned">This export QR code was already scanned.</string>
+    <string name="google_import_wrong_batch">This code belongs to a different export. Choose a code from the original export.</string>
+    <string name="google_import_too_many">This export has more accounts than the vault can import.</string>
+    <string name="google_import_scan_failed">Could not open the QR scanner.</string>
+    <string name="google_import_save_failed">Could not save the imported accounts. Check the vault and try again.</string>
 
     <!-- Errors -->
     <string name="error_invalid_secret">Invalid secret</string>

@@ -12,6 +12,8 @@ import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
+import org.shadowice.flocke.andotp.Utilities.PendingAutomaticBackup
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultReadResult
@@ -22,7 +24,7 @@ import java.util.function.BooleanSupplier
 
 import javax.crypto.SecretKey
 
-/** WorkManager worker that runs a broadcast-triggered password-encrypted backup. */
+/** WorkManager worker that retries a pending legacy password-encrypted backup. */
 open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         Worker(context, params) {
 
@@ -45,6 +47,10 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         val settings = Settings(context)
 
         if (isStopped() || !settings.isEncryptedBackupBroadcastEnabled()) return Result.failure()
+        // Login-derived credentials are never persisted for a detached worker. Such changes are
+        // retried only when the user unlocks the vault with the app password.
+        if (LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled())
+            return Result.failure()
         // Settings may have changed since the broadcast was received, so check again.
         // Never write a backup without a password.
         val password: String? = settings.getBackupPasswordEnc()
@@ -61,20 +67,40 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         try {
             val generation: Long
             val entries: ArrayList<Entry>
+            val marker: PendingAutomaticBackup.Marker
             synchronized(DatabaseHelper.DatabaseFileLock) {
                 if (isStopped() || !settings.isEncryptedBackupBroadcastEnabled()) return Result.failure()
+                marker = PendingAutomaticBackup.read(context) ?: return Result.success()
                 generation = VaultSession.generation()
                 val encryptionKey: SecretKey? = KeyStoreHelper.loadEncryptionKeyFromKeyStore(context, false)
                 val loaded = DatabaseHelper.readVault(context, encryptionKey)
-                if (loaded !is VaultReadResult.Loaded) return fail(context, R.string.backup_receiver_unexpected_error)
+                if (loaded !is VaultReadResult.Loaded || encryptionKey == null)
+                    return fail(context, R.string.backup_receiver_unexpected_error)
                 entries = loaded.takeEntries()
+                val digest = try {
+                    PendingAutomaticBackup.fingerprint(DatabaseHelper.entriesToString(entries), encryptionKey)
+                } catch (error: RuntimeException) {
+                    entries.forEach { it.destroy() }
+                    throw error
+                }
+                if (PendingAutomaticBackup.canDropReverted(context, marker, digest)) {
+                    entries.forEach { it.destroy() }
+                    PendingAutomaticBackup.complete(context, marker.token)
+                    return Result.success()
+                }
+                if (!PendingAutomaticBackup.claim(context, marker.token)) {
+                    entries.forEach { it.destroy() }
+                    return Result.success()
+                }
             }
             val result: BackupTaskResult
             try {
                 result = BroadcastBackupTask(context, entries, password,
                         BooleanSupplier { !isStopped() && VaultSession.isCurrent(generation) }).run()
+                if (result.success) PendingAutomaticBackup.complete(context, marker.token)
             } finally {
                 for (entry in entries) entry.destroy()
+                PendingAutomaticBackup.release(marker.token)
             }
 
             if (result.success) {

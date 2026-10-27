@@ -51,19 +51,25 @@ On 2026-10-22, with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
 
 - **OTP generation:** RFC 4226/6238 vectors for SHA-1/SHA-256/SHA-512, Steam and mOTP mapping,
   token formatting, previous-token selection, and refresh after a backwards clock change.
-- **Parsing and input bounds:** `InputPolicy`, `OtpUriParser`, `EntryJson`/`EntryJsonResult`,
-  bounded document reads and provider output, encrypted-backup framing, and the replicated
+- **Parsing and input bounds:** `InputPolicy`, `OtpUriParser`, Google Authenticator migration QR
+  parsing and batch/session ownership, `EntryJson`/`EntryJsonResult`, bounded document reads and
+  provider output, encrypted-backup framing, and the replicated
   `org.json`, Commons Codec Base32, and `android.net.Uri` subsets.
 - **Cryptography that a desktop JVM can run:** PBKDF2 against an independent derivation and the
   RFC 6070 vector, legacy SHA-256 key derivation, AES-GCM against the NIST vector, current and
-  legacy encrypted-backup round trips (including wrong-password/tamper rejection), and RSA
-  wrap/unwrap with a real generated key pair, including tampered blobs and wrong keys.
-- **Vault, session, and tasks:** typed vault outcomes and recovery decisions, one-use secrets and
-  generation-bound handoffs, task cancellation/ownership, settings and credential staging,
-  backup receivers, worker and unregistered agent, the panic responder, and screen-off/obscured-touch handling.
+  legacy encrypted-backup round trips (including wrong-password/tamper rejection), login-derived
+  backup keys and their shared nonce budget, hardware-unlock AES-GCM envelope tampering and bounds,
+  and RSA wrap/unwrap with a generated key pair.
+- **Vault, session, and tasks:** typed vault outcomes, generation- and revision-bound key handoffs,
+  task cancellation/ownership, backup retry markers, credential staging, backup receivers and the
+  unregistered agent, the panic responder, and screen-off/obscured-touch handling. A fake document
+  provider exercises login-password automatic/manual exports, failure cleanup and revocation.
+  In-memory preferences and a scripted key API check hardware-enrollment invalidation, duplicate
+  refusal and late-result cleanup, not actual device communication.
 - **UI and Java-visible shapes:** dialog and preference wiring, tags, about rows, entry-card
-  binding, and the retained task fragment. Names, descriptors, annotations, enum order, and
-  other ABI details are reflected from compiled classes where a class cannot be loaded.
+  binding, active-search refresh and import-confirmation cleanup, and the retained task fragment.
+  Names, descriptors, annotations, enum order, and other ABI details are reflected from compiled
+  classes where a class cannot be loaded.
 
 Some sources are fully executed; others are only compiled and shape-checked. The `PASS` lines
 name what each check actually exercises.

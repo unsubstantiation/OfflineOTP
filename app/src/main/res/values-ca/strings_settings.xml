@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Afegeix la data al nom del fitxer</string>
     <string name="settings_title_backup_ask">Demana el nom de fitxer</string>
     <string name="settings_title_backup_location">Localització per defecte per a les còpies de seguretat</string>
-    <string name="settings_title_backup_password">Contrasenya de la còpia de seguretat</string>
     <string name="settings_title_backup_broadcasts">Copia de seguretat de difusió</string>
     <string name="settings_title_openpgp_provider">Proveïdor d’OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clau de xifrat d\'OpenPGP</string>
@@ -80,14 +79,8 @@
         al fitxer de còpia de seguretat</string>
     <string name="settings_desc_backup_location">Tria una localització per defecte per a les còpies de seguretat</string>
     <string name="settings_desc_backup_location_set">S\'ha triat la localització per a les còpies de seguretat</string>
-    <string name="settings_desc_backup_password">Contrasenya que s\'usarà per a xifrar les
-        còpies de seguretat</string>
     <string name="settings_desc_auto_backup_password_enc">Crea una còpia de seguretat nova quan s\'afegeixin o
         editin entrades, si s\'hi compleixen les condicions</string>
-    <string name="settings_desc_auto_backup_requirements">Trieu una localització per defecte per a les còpies de seguretat i
-        una contrasenya per a activar aquesta opció</string>
-    <string name="settings_desc_backup_broadcasts">Escull quins tipus de copies de seguretat poden ser executades per
-        aplicaciones de tercers fent servir difusió</string>
     <string name="settings_desc_openpgp_verify">Només s\'importaran còpies xifrades si s\'han
         signat amb una clau vàlida</string>
     <string name="settings_desc_special_features">Desmarqueu per a deshabilitar les característiques especials</string>

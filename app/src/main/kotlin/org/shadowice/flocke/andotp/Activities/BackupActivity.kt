@@ -32,11 +32,13 @@ import org.shadowice.flocke.andotp.Dialogs.PasswordEntryDialog
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
 import org.shadowice.flocke.andotp.Tasks.EncryptedBackupTask
+import org.shadowice.flocke.andotp.Tasks.LoginEncryptedBackupTask
 import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
 import org.shadowice.flocke.andotp.Tasks.PGPBackupTask
 import org.shadowice.flocke.andotp.Tasks.PGPRestoreTask
 import org.shadowice.flocke.andotp.Tasks.PlainTextRestoreTask
 import org.shadowice.flocke.andotp.Tasks.TaskFailure
+import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Utilities.BackupHelper
 import org.shadowice.flocke.andotp.Utilities.BackupScreenOffPolicy
@@ -44,6 +46,8 @@ import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.Utilities.BoundedOutput
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupLease
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
 import org.shadowice.flocke.andotp.Utilities.OpenPgpAvailability
 import org.shadowice.flocke.andotp.Utilities.OpenPgpOutputPolicy
 import org.shadowice.flocke.andotp.Utilities.OpenPgpRecipientIds
@@ -845,8 +849,18 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     /** Adds the restored entries (replacing the current ones if selected) and saves the database. */
     private fun restoreEntries(text: String, finish: Boolean): Boolean {
         if (!canOperate()) return false
+        val app = getApplicationContext()
+        val callback = UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult> { outcome ->
+            val message = when (outcome) {
+                is TaskOutcome.Failure -> R.string.backup_toast_export_failed
+                is TaskOutcome.Value -> if (outcome.value.success) 0 else
+                    outcome.value.messageId.takeIf { it != 0 } ?: R.string.backup_toast_export_failed
+                is TaskOutcome.Cancelled -> 0
+            }
+            if (message != 0) Toast.makeText(app, message, Toast.LENGTH_LONG).show()
+        }
         val result = restoreOperation!!.restore(text, swReplace?.isChecked == true,
-            encryptionKey, VaultSession.generation(), BooleanSupplier { canOperate() })
+            encryptionKey, VaultSession.generation(), BooleanSupplier { canOperate() }, callback)
         if (result == VaultRestoreOperation.Result.SAVED) {
             reload = true
             notifyBackupState(R.string.backup_toast_import_success)
@@ -874,27 +888,22 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private fun doRestoreCrypt(uri: Uri?, oldFormat: Boolean) {
         if (!canOperate()) return
-        val password = settings!!.getBackupPasswordEnc()
-
-        if (password.isEmpty()) {
-            waitingForPassword = true
-            activePasswordDialog?.dismiss()
-            val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
-                settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-                PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
-                    waitingForPassword = false
-                    activePasswordDialog = null
-                    doRestoreCryptWithPassword(uri, newPassword, oldFormat)
-                }, PasswordEntryDialog.PasswordCanceledCallback {
-                    waitingForPassword = false
-                    activePasswordDialog = null
-                    discardActiveBackupDocument()
-                })
-            activePasswordDialog = pwDialog
-            pwDialog.show()
-        } else {
-            doRestoreCryptWithPassword(uri, password, oldFormat)
-        }
+        // Every file may have a different historical password, including after a password change.
+        waitingForPassword = true
+        activePasswordDialog?.dismiss()
+        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
+            settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
+            PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
+                waitingForPassword = false
+                activePasswordDialog = null
+                doRestoreCryptWithPassword(uri, newPassword, oldFormat)
+            }, PasswordEntryDialog.PasswordCanceledCallback {
+                waitingForPassword = false
+                activePasswordDialog = null
+                discardActiveBackupDocument()
+            })
+        activePasswordDialog = pwDialog
+        pwDialog.show()
     }
 
     private fun doRestoreCryptWithPassword(uri: Uri?, password: String, oldFormat: Boolean) {
@@ -907,7 +916,16 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private fun doBackupCrypt(uri: Uri?) {
         if (!canOperate()) return
-        val password = settings!!.getBackupPasswordEnc()
+        val loginMode = LoginBackupPolicy.usesLoginPassword(this)
+        if (loginMode) {
+            val lease = VaultSession.copyBackupKey()
+            if (lease != null) {
+                doBackupCryptWithLoginKey(uri, lease)
+                return
+            }
+        }
+        // If no login-derived key is available, ask rather than reading a legacy Keystore value.
+        val password = if (loginMode) "" else settings!!.getBackupPasswordEnc()
 
         if (password.isEmpty()) {
             waitingForPassword = true
@@ -927,6 +945,25 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             pwDialog.show()
         } else {
             doBackupCryptWithPassword(uri, password)
+        }
+    }
+
+    private fun doBackupCryptWithLoginKey(uri: Uri?, lease: LoginBackupLease) {
+        var task: LoginEncryptedBackupTask? = null
+        try {
+            if (!canOperate()) throw IllegalStateException("Vault session unavailable")
+            val entries = readOwnedEntries()
+            try {
+                task = LoginEncryptedBackupTask(this, entries, lease, {}, uri, automatic = false)
+                startBackgroundTask(task, BackupTaskResult.ResultType.BACKUP)
+            } finally {
+                entries.forEach { it.destroy() }
+            }
+        } catch (_: RuntimeException) {
+            task?.cancel()
+            lease.close()
+            discardActiveBackupDocument()
+            notifyBackupState(R.string.backup_toast_export_failed)
         }
     }
 
