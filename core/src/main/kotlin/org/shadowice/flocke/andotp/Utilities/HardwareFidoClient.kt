@@ -12,12 +12,12 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /** Offline CTAP2/WebAuthn PRF operations; no device-specific secret or password is persisted. */
-internal object HardwareFidoClient {
+object HardwareFidoClient {
     // A stable local-only RP ID. It is never resolved or contacted over the network.
     private const val RP_ID = "offlineotp.invalid"
     private val random = SecureRandom()
 
-    internal class Enrollment(val credentialId: ByteArray, val salt: ByteArray, val prf: ByteArray) : AutoCloseable {
+    class Enrollment(val credentialId: ByteArray, val salt: ByteArray, val prf: ByteArray) : AutoCloseable {
         override fun close() { prf.fill(0) }
         override fun toString(): String = "HardwareEnrollment(redacted)"
     }

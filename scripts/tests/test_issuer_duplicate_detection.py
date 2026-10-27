@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 STRINGS = ROOT / "app/src/main/res/values/strings_main.xml"
 
 
@@ -19,7 +20,7 @@ class IssuerDuplicateDetectionTest(unittest.TestCase):
                       "the pending parsed entry must be destroyed if the warning is cancelled")
 
     def test_issuer_matching_is_case_and_whitespace_insensitive_and_skips_empty_issuer(self):
-        entry_list = (APP / "Database/EntryList.kt").read_text(encoding="utf-8")
+        entry_list = (CORE / "Database/EntryList.kt").read_text(encoding="utf-8")
         adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
         self.assertIn("fun hasIssuer(issuer: String?): Boolean", entry_list)
         self.assertIn("if (candidate.isEmpty()) return false", entry_list)

@@ -45,8 +45,21 @@ fi
 mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" -name '*.kt' -print0 | sort -z)
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources found under $CORE_MAIN" >&2; exit 2; }
 
-# Deliberately NO stubs/android and NO stubs/androidx: this is the Android-free guarantee.
-THIRD_PARTY_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt)
+# Deliberately NO stubs/android and NO stubs/androidx: this is the Android-free guarantee. Only the
+# pure-JVM third-party stubs core declares (commons-codec, org.json, and the PC/SC-capable portable
+# yubikit core/oath/fido surface — never the yubikit android/nfc/usb transport stubs).
+YUBIKIT_CORE_STUBS=(
+    "$SANDBOX"/stubs/com/yubico/yubikit/core.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/commandstate.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/smartcard.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/oath.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/fidoclient.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/clientdata.kt
+    "$SANDBOX"/stubs/com/yubico/yubikit/webauthn.kt
+)
+THIRD_PARTY_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
+    "$SANDBOX"/stubs/org/json/*.kt
+    "${YUBIKIT_CORE_STUBS[@]}")
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 
 rm -rf "$OUT"

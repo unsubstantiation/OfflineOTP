@@ -13,7 +13,7 @@ import javax.crypto.spec.SecretKeySpec
  * A bounded, authenticated wrapper for an existing exportable vault key. A FIDO2 PRF output is
  * never stored. This is an alternative unlock path, not a second factor for password unlock.
  */
-internal object HardwareUnlockEnvelope {
+object HardwareUnlockEnvelope {
     const val SALT_BYTES = 32
     const val PRF_BYTES = 32
     private const val NONCE_BYTES = 12
@@ -23,7 +23,7 @@ internal object HardwareUnlockEnvelope {
     private val domain = "OfflineOTP hardware unlock key v1".toByteArray(StandardCharsets.UTF_8)
 
     /** Public request parameters. The credential ID and PRF salt are not secret. */
-    internal class Request internal constructor(val credentialId: ByteArray, val salt: ByteArray) {
+    class Request constructor(val credentialId: ByteArray, val salt: ByteArray) {
         override fun toString(): String = "HardwareUnlockRequest(redacted)"
     }
 

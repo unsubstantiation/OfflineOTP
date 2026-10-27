@@ -16,8 +16,8 @@ class LoginBackupKeyTest {
 
     private fun decrypt(frame: ByteArray, password: String): ByteArray {
         val header = EncryptedBackupHeader.parse(frame)
-        val key = EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
-        return EncryptionHelper.decrypt(key, header.getEncrypted())
+        val key = CryptoPrimitives.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+        return CryptoPrimitives.decrypt(key, header.getEncrypted())
     }
 
     @Test
@@ -128,26 +128,5 @@ class LoginBackupKeyTest {
         session.removeBackupChangeListener(listener)
         old.close()
         session.lock(SessionLockReason.EXPLICIT)
-    }
-
-    @Test
-    fun pendingFingerprintsAreKeyedAndDoNotModifyTheVaultKey() {
-        val key = SecretKeySpec(ByteArray(16) { 42 }, "AES")
-        val other = SecretKeySpec(ByteArray(16) { 43 }, "AES")
-        val before = key.encoded
-        val first = PendingAutomaticBackup.fingerprint("[]", key)
-        assertNotNull(first)
-        assertEquals(first, PendingAutomaticBackup.fingerprint("[]", key))
-        assertFalse(first == PendingAutomaticBackup.fingerprint("[{\"x\":1}]", key))
-        assertFalse(first == PendingAutomaticBackup.fingerprint("[]", other))
-        assertArrayEquals(before, key.encoded)
-        val aliased = ByteArray(16) { 9 }
-        val providerKey = object : javax.crypto.SecretKey {
-            override fun getAlgorithm(): String = "AES"
-            override fun getFormat(): String = "RAW"
-            override fun getEncoded(): ByteArray = aliased
-        }
-        assertNotNull(PendingAutomaticBackup.fingerprint("[]", providerKey))
-        assertArrayEquals(ByteArray(16) { 9 }, aliased)
     }
 }

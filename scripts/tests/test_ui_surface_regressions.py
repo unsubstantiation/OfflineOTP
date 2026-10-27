@@ -26,6 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APP_KOTLIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
 RES_VALUES = ROOT / "app/src/main/res/values"
 RES_LAYOUT = ROOT / "app/src/main/res/layout"
 
@@ -90,7 +91,7 @@ class ManualEntryEditSaveTest(unittest.TestCase):
             text, r"oldEntry!!\.set\w+\(",
             "the edit branches must mutate the entry through applyEdit's rollback wrapper",
         )
-        self.assertIn("fun applyEdit(mutate: (Entry) -> Unit)", (APP_KOTLIN / "Database/Entry.kt")
+        self.assertIn("fun applyEdit(mutate: (Entry) -> Unit)", (CORE_KOTLIN / "Database/Entry.kt")
                       .read_text(encoding="utf-8"))
 
 

@@ -97,26 +97,26 @@ object Constants {
 
     // Encryption algorithms and definitions
     internal const val ALGORITHM_SYMMETRIC = "AES/GCM/NoPadding"
-    internal const val ALGORITHM_ASYMMETRIC = "RSA/ECB/PKCS1Padding"
+    const val ALGORITHM_ASYMMETRIC = "RSA/ECB/PKCS1Padding"
 
-    internal const val ENCRYPTION_KEY_LENGTH = 16 // 128-bit AES key, wrapped by the KeyStore key pair
+    const val ENCRYPTION_KEY_LENGTH = 16 // 128-bit AES key, wrapped by the KeyStore key pair
     const val ENCRYPTION_IV_LENGTH = 12 // 96-bit GCM nonce, also the salt length of encrypted backups
 
     const val INT_LENGTH = 4 // Byte length of the PBKDF2 iteration count in encrypted backups
 
     // Global PBKDF2 settings
-    internal const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA1"
-    internal const val PBKDF2_LENGTH = 256 // PBKDF2 output in bits: auth splits it into two 128-bit halves, backup keys use all 32 bytes
-    internal const val PBKDF2_SALT_LENGTH = 16
+    const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA1"
+    const val PBKDF2_LENGTH = 256 // PBKDF2 output in bits: auth splits it into two 128-bit halves, backup keys use all 32 bytes
+    const val PBKDF2_SALT_LENGTH = 16
 
     // PBKDF2 settings for authentication
-    internal const val PBKDF2_TARGET_AUTH_TIME = 1000 // ms
-    internal const val PBKDF2_MIN_AUTH_ITERATIONS = 30000
-    internal const val PBKDF2_BENCHMARK_ITERATIONS = 50000
+    const val PBKDF2_TARGET_AUTH_TIME = 1000 // ms
+    const val PBKDF2_MIN_AUTH_ITERATIONS = 30000
+    const val PBKDF2_BENCHMARK_ITERATIONS = 50000
 
     // PBKDF2 settings for backups
-    internal const val PBKDF2_MIN_BACKUP_ITERATIONS = 140000
-    internal const val PBKDF2_MAX_BACKUP_ITERATIONS = 160000
+    const val PBKDF2_MIN_BACKUP_ITERATIONS = 140000
+    const val PBKDF2_MAX_BACKUP_ITERATIONS = 160000
 
     // Authentication
     const val AUTH_MIN_PIN_LENGTH = 4

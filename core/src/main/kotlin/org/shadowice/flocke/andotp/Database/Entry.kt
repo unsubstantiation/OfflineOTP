@@ -131,7 +131,7 @@ open class Entry {
     }
 
     /** Copies a validated account; the caller retains ownership of [value]. */
-    internal constructor(value: ValidatedOtp) {
+    constructor(value: ValidatedOtp) {
         initialize(value)
     }
 
@@ -485,7 +485,7 @@ open class Entry {
      * Updates the token using an explicit epoch-second timestamp [time], refreshing on both forward
      * and backward step changes so a future-step token never stays cached after a clock rollback.
      */
-    internal fun updateOTPAt(time: Long, updateNow: Boolean): Boolean {
+    fun updateOTPAt(time: Long, updateNow: Boolean): Boolean {
         val seed = secret ?: return false
         validate()
         if (type == OTPType.TOTP || type == OTPType.STEAM || type == OTPType.MOTP) {

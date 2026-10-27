@@ -42,7 +42,7 @@ class EntryList {
     }
 
     /** Adds a prevalidated batch only if no entry duplicates the list or another batch entry. */
-    @Synchronized internal fun addDistinctEntries(newEntries: Collection<Entry>): Boolean {
+    @Synchronized fun addDistinctEntries(newEntries: Collection<Entry>): Boolean {
         val seen = HashSet(entries)
         if (newEntries.any { !seen.add(it) }) return false
         for (entry in newEntries) {
