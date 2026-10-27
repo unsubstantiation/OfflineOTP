@@ -6,6 +6,8 @@ import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupKey
+import org.shadowice.flocke.andotp.Utilities.PendingAutomaticBackup
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
 import org.shadowice.flocke.andotp.Utilities.VaultSession
@@ -44,6 +46,16 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
                 else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, encryptionType, authMethod, credentials, true))
             }
             val success = write is VaultWriteResult.Saved
+            if (success) try { PendingAutomaticBackup.clear(settingsContext) } catch (_: RuntimeException) { }
+            if (success && authMethod == Constants.AuthMethod.PASSWORD && password != null && !isCanceled()) {
+                try {
+                    LoginBackupKey.derive(password).use { candidate ->
+                        if (!isCanceled()) VaultSession.offerBackupKey(candidate, taskGeneration())
+                    }
+                } catch (_: Exception) {
+                    // Setup remains valid; password-based automatic backups require a later unlock.
+                }
+            }
             return Result(success, if (success) key.getEncoded() else null, taskGeneration())
         } catch (error: Exception) {
             return Result(false, null, taskGeneration())

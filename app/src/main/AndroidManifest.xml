@@ -11,6 +11,9 @@
         android:protectionLevel="signature" />
 
     <uses-permission android:name="${applicationId}.permission.CONTROL_VAULT" />
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+    <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
         android:allowBackup="false"
@@ -42,6 +45,12 @@
                 <data android:scheme="otpauth" android:host="motp" />
             </intent-filter>
             <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="otpauth-migration" android:host="offline" />
+            </intent-filter>
+            <intent-filter>
                 <action android:name="org.shadowice.flocke.andotp.intent.SCAN_QR" />
                 <action android:name="org.shadowice.flocke.andotp.intent.IMPORT_QR" />
                 <action android:name="org.shadowice.flocke.andotp.intent.ENTER_DETAILS" />
@@ -58,6 +67,9 @@
             android:name=".Activities.AuthenticateActivity" android:exported="false"
             android:parentActivityName=".Activities.MainActivity"
             android:theme="@style/AppTheme.NoActionBar" />
+        <activity android:name=".Activities.HardwareKeyActivity" android:exported="false"
+            android:parentActivityName=".Activities.MainActivity" />
+        <activity android:name=".Activities.HardwareUnlockActivity" android:exported="false" />
         <activity
             android:name=".Activities.BackupActivity" android:exported="false"
             android:parentActivityName=".Activities.MainActivity"

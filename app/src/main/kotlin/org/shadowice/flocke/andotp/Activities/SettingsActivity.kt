@@ -39,6 +39,7 @@ import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper.EncryptionChangeResult
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
 import org.shadowice.flocke.andotp.Utilities.Settings
@@ -264,6 +265,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         fragment?.encryption?.value = newEncryptionType.name.lowercase(Locale.ROOT)
         fragment?.setEncryptionKey(newEncryptionKey)
+        fragment?.updateAutoBackup()
     }
 
     override fun onTaskResult(result: ChangeEncryptionTask.Result) {
@@ -432,12 +434,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 .show()
         }
 
-        /** Enables auto-backup only when a location and a backup password are set. */
+        /** Enables the selector only while the selected backup credentials and location are available. */
         fun updateAutoBackup() {
             val autoBackup = useAutoBackup ?: return
             autoBackup.isEnabled = BackupHelper.autoBackupType(getActivity()!!) == Constants.BackupType.ENCRYPTED
-            if (!autoBackup.isEnabled)
-                autoBackup.value = Constants.AutoBackup.OFF.toString().lowercase(Locale.ENGLISH)
 
             if (autoBackup.isEnabled) {
                 autoBackup.setSummary(R.string.settings_desc_auto_backup_password_enc)
@@ -550,6 +550,29 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 true
             }
 
+            val loginBackup = findPreference(getString(R.string.settings_key_auto_backup_use_login)) as? CheckBoxPreference
+            loginBackup?.isChecked = LoginBackupPolicy.usesLoginPassword(getActivity()!!)
+            loginBackup?.setOnPreferenceChangeListener { _, value ->
+                val oldKey = getString(R.string.settings_key_backup_password)
+                val oldPasswordPresent = !sharedPref.getString(oldKey, "").isNullOrEmpty()
+                if (value == true && oldPasswordPresent) {
+                    val activity = getActivity() ?: return@setOnPreferenceChangeListener false
+                    AlertDialog.Builder(activity)
+                        .setTitle(R.string.settings_dialog_title_remove_old_backup_password)
+                        .setMessage(R.string.settings_dialog_msg_remove_old_backup_password)
+                        .setPositiveButton(android.R.string.ok) { _, _ ->
+                            if (sharedPref.edit().remove(oldKey).commit()) {
+                                loginBackup.isChecked = true
+                                updateAutoBackup()
+                            } else {
+                                Toast.makeText(activity, R.string.settings_toast_remove_old_backup_password_failed, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        .setNegativeButton(android.R.string.cancel) { _, _ -> }
+                        .show()
+                    false
+                } else true
+            }
             useAutoBackup = findPreference(getString(R.string.settings_key_auto_backup_password_enc)) as? ListPreference
             updateAutoBackup()
 

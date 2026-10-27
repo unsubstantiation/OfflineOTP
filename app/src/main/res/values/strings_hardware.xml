@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
+    <string name="hardware_title">Hardware keys</string>
+    <string name="hardware_intro">Use a compatible OATH key for accounts, or a FIDO2 key for alternative vault unlock. Only accounts with supported parameters and names appear in the copy picker. Key-held accounts are not included in app backups. A key PIN is not your app password; repeated wrong PINs may lock the key. Support depends on the key and phone.</string>
+    <string name="hardware_password_hint">Key PIN or OATH password, if set</string>
+    <string name="hardware_list">Show accounts on key</string>
+    <string name="hardware_copy">Copy an app account to key</string>
+    <string name="hardware_enroll">Set up key vault unlock</string>
+    <string name="hardware_remove">Remove key vault unlock</string>
+    <string name="hardware_connect">Connect a compatible USB key or hold an NFC key to the phone. Keep it present and touch it if prompted.</string>
+    <string name="hardware_failed">The key operation failed or timed out. Check the key protocol and PIN or OATH password, then try again.</string>
+    <string name="hardware_empty">No OATH accounts found on this key.</string>
+    <string name="hardware_choose">Choose an account to copy to the key</string>
+    <string name="hardware_unnamed">Unnamed account</string>
+    <string name="hardware_no_candidates">No compatible TOTP or HOTP accounts are available to copy.</string>
+    <string name="hardware_copy_warning">This sends the secret over USB or NFC to the key and leaves the app copy intact. Use a trusted key and a private connection. Key-held accounts are not in app backups. HOTP counters advance separately; do not use both copies interchangeably.</string>
+    <string name="hardware_require_touch">Require touch for this account (supported keys only)</string>
+    <string name="hardware_copy_done">Account copied to key. Check that the codes work before removing the app copy.</string>
+    <string name="hardware_copy_uncertain">The copy may have completed before the connection ended. Check the key before retrying.</string>
+    <string name="hardware_enroll_warning">A FIDO2 key with user verification and PRF can unlock this password vault instead of the app password. This replaces any previously registered key. The password still works, so the key is not a required second factor. App-password automatic backups resume after password unlock. Changing the app password removes key unlock.</string>
+    <string name="hardware_enroll_password_only">Key unlock requires a password-encrypted vault with password authentication. Existing Keystore vaults remain supported but cannot use this shortcut.</string>
+    <string name="hardware_enroll_done">Key unlock was set up. Keep your app password and a verified backup.</string>
+    <string name="hardware_remove_confirm">Remove the key unlock shortcut? The app password and accounts on the hardware key are unchanged.</string>
+    <string name="hardware_remove_done">Key unlock shortcut removed.</string>
+    <string name="hardware_calculate">Calculate on key</string>
+    <string name="hardware_calculate_hotp">Calculating this HOTP code advances the counter on the hardware key. Continue?</string>
+    <string name="hardware_hotp_uncertain">The key counter may have advanced before the connection ended. Check the account before retrying.</string>
+    <string name="hardware_hotp_next">Generate next HOTP code</string>
+    <string name="hardware_expired">Expired — refresh the key to calculate another code</string>
+    <string name="hardware_unlock_button">Unlock with security key</string>
+    <string name="hardware_unlock_notice">Enter the key PIN, not the app password, if needed. Repeated wrong PINs may lock the key. Connect or tap your registered key; the app password remains available if the key is lost.</string>
+</resources>

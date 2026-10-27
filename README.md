@@ -15,12 +15,72 @@ installation additionally requires the same signing key.
 
 ## Features
 
-- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually (including by pasting an `otpauth://` URI). QR imports warn when the issuer is already present.
+- Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually. Google Authenticator export QR codes are supported, including multi-code exports.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Search and tag entries, and see per-tag entry counts. The UI uses the Dark Forest theme.
+- Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
+- Search the whole vault or filter by tags, and see per-tag entry counts. Clearing a search restores the selected tag filter. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
+
+## Hardware keys (experimental)
+
+Unlock the app and open **Hardware keys** from the main menu. The feature uses YubiKit 3.2.1 for
+USB and NFC. The phone must support the chosen connection; grant USB access when requested, or hold
+the key in the NFC field throughout the operation. If a system permission screen interrupts an
+operation, retry after granting access. Enter the key's OATH password or FIDO PIN in the field when
+required; these are separate from the OfflineOTP password.
+
+- **Key-held OTPs:** Show OATH accounts already on the key. Tap a code to copy it; touch-protected
+  accounts and HOTP require an explicit calculation. Generating HOTP advances the key's counter.
+  To provision a key, choose **Copy an app account to key**, select an existing TOTP/HOTP account,
+  and optionally require touch if the key supports it. The app copy remains. The operation refuses
+  an existing matching hardware ID rather than overwriting it. The picker omits unsupported digits
+  and counters, and names that cannot be represented safely in a 64-byte YKOATH ID; edit a copy if
+  needed. If a connection ends during a write, check the key before retrying; the result can be
+  uncertain. Steam and mOTP are not OATH accounts.
+- **Vault unlock:** For a vault using password authentication and password encryption, set up a
+  FIDO2 key that supports the PRF/hmac-secret extension and user verification (PIN or built-in
+  verification). One key is registered at a time; setting up another replaces it. On the login
+  screen choose the key or enter the app password. Changing the app password or vault encryption
+  removes the shortcut; an older non-exportable Android Keystore vault cannot use it. Removing the
+  shortcut removes the local wrapper, not the credential from the key.
+
+The key is an **alternative**, not a mandatory second factor. Keep the app password and a tested
+backup: key unlock stores a wrapped vault key locally and is lost with the app's private data, while
+backups remain password-protected. App-password automatic backups made after a key-only unlock
+remain pending until a password unlock supplies the backup key. Hardware-held accounts are not
+part of app backups. Copying an account sends its secret over USB or NFC to the chosen key; use a
+trusted device and a private connection. HOTP counters on the app and key advance independently.
+
+Compatibility depends on the key's actual protocols and firmware, not its brand. OATH accounts
+require a compatible OATH application; FIDO2 alone does not provide OATH. A Nitrokey with a suitable
+FIDO2 PRF implementation may work for vault unlock, but the separate Nitrokey Pro native OTP
+protocol is not implemented. Other FIDO2 keys may lack PRF, user verification or an applicable
+transport. No Android build, emulator or physical-key interoperability test was available for this
+implementation; verify on your devices before relying on it.
+
+## Importing from Google Authenticator
+
+1. In Google Authenticator, choose **Transfer accounts** → **Export accounts**, then select the
+   accounts to export.
+2. Unlock OfflineOTP, tap **+** → **Scan QR code**, and scan the export. You can also choose
+   **QR code from image**. If Google shows multiple codes, scan or select each code from the same
+   export when prompted; they can be scanned in any order.
+3. Review the account names and confirm the import. Entries with matching OTP settings, names and
+   issuers are skipped; other accounts with matching issuers can still be added. Check that the
+   imported codes work before removing anything from Google Authenticator. HOTP counters advance
+   independently on each device, so avoid using both copies interchangeably.
+
+The importer supports TOTP and HOTP, SHA1/SHA256/SHA512, six, seven or eight digits, and the exported
+HOTP counter. TOTP uses the format's 30-second default. Unsupported fields or parameters reject
+the QR rather than silently changing the codes. If the vault locks or the activity is destroyed before
+confirmation, start the export import again; unfinished batches are not saved.
+
+**Export QR codes and their images contain unencrypted account secrets.** Do not share them or
+upload them to a QR-decoding website; delete any temporary images you no longer need. Matching
+batch IDs help avoid mixing exports but do not authenticate the source. The format is not an
+officially published Google API and may change.
 
 ## Protecting and restoring your vault
 
@@ -30,10 +90,29 @@ KeyStore key. Export a portable backup and verify that it restores before changi
 reinstalling, clearing app data, or switching to a build signed with a different key. A signing
 key change requires uninstalling the old build and can erase its data.
 
-Automatic backup broadcasts are restricted to explicitly authorized companion apps signed with
-the same identity; ordinary shell commands and independently signed automation apps are not
-authorized. See [Vault security hardening](docs/vault-security-hardening.md) for the current
-behavior and limits.
+For automatic backups, choose a backup folder and enable **Automatic backup** in Settings. With
+password login, **Use app password for encrypted backups** uses that password for automatic and
+manual password-encrypted backups without storing the password. If the session key is unavailable,
+manual export asks for a password. A password-encrypted vault and this backup path do not require
+Android KeyStore; existing KeyStore-backed vaults still do. Choose **New entries** or **Any edits**;
+no-op edits do not create snapshots. Changed imports trigger backups in either mode; HOTP counter
+changes trigger them in **Any edits** mode. Usage statistics and manual reordering do not trigger
+backups. Automatic backup is off by default.
+
+Existing separate backup passwords remain selected for compatibility until explicitly changed.
+PIN and device authentication do not supply a login password for this mode; use a strong separate
+backup password or choose password login. OpenPGP backups use their selected recipients instead.
+Previously created backups keep their original passwords, and completed snapshots are not deleted
+automatically. Old snapshots can still contain accounts you later delete. Always test restoring
+backups and keep track of their passwords. Overlapping exports may finish out of order, so the
+provider's last-modified order does not always identify the newest vault state.
+
+A stolen backup permits offline password guessing. Use a strong, unique passphrase; no design can
+protect secrets completely on a compromised device or guarantee erasure of every memory copy.
+Interrupted automatic backups are retried after unlocking when possible; storage/provider failures
+and process crashes can prevent or occasionally duplicate an export. Optional same-signature backup
+broadcasts only retry pending legacy backups, not unchanged vaults. See
+[Vault security hardening](docs/vault-security-hardening.md) for details and limitations.
 
 ## Build
 
@@ -94,6 +173,7 @@ bash scripts/verify_reproducible_build.sh
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
+- [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
 - [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
 

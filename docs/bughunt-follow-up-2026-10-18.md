@@ -317,6 +317,9 @@ period, TOTP's period, HOTP's counter and the existing malformed-field rejection
 prior behaviour — pinned by the existing `period 0`/`period -1`/numeric-string tests, which exercise the
 default `TOTP` kind and are untouched by this change).
 
+A later fix displays mOTP's actual 10-second step and countdown on its card; foreign stored periods
+remain ignored and are never displayed as the rollover.
+
 **Regression coverage:** `EntryJsonTest.motpIgnoresAStoredPeriodBecauseItNeverDrivesMotpTiming` and
 `.nonMotpDocumentsIgnoreAStoredPin` (JVM suite), plus two new assertions in the sandbox's existing
 `"the mOTP PIN is stored, round-trips and defaults to empty in older documents"` check. Mutation-verified:

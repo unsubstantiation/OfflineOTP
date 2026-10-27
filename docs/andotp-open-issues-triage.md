@@ -477,7 +477,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   🆕 **GAP** — `yjotp://` scheme is not parsed; Yahoo Japan OTP needs manual entry or a scheme importer.
 - **#561** — Importing a Google Authenticator Export via QR  
   _enhancement, help wanted_  
-  🆕 **GAP** — No `otpauth-migration://` (Google Authenticator export QR) importer.
+  ✅ **IMPLEMENTED; DEVICE VERIFICATION PENDING** — Scanner and image imports support single- and multi-part `otpauth-migration://` exports, with batch confirmation and duplicate skipping.
 - **#613** — Delete picture of qr code after importing  
   _enhancement, maybe_  
   ❌ **APPLIES** — UX request; verify scanner behavior.
@@ -498,7 +498,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ✅ **FIXED** — Only the launcher/import activity is public; internal credential/settings/backup activities are unexported and IPC requires the signature permission.
 - **#698** — YubiKey storage option  
   _enhancement, help wanted_  
-  🆕 **GAP** — No YubiKey/hardware-key storage option.
+  ⚠️ **EXPERIMENTAL** — OATH account access/copy over USB and NFC is implemented but requires Android and physical-key verification.
 - **#701** — Add "numbers of backups to keep" for automatic-backups  
   _enhancement, help wanted_  
   🆕 **GAP** — Automatic backups create new UUID-named documents; no retention-count setting found (verify).
@@ -555,7 +555,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ✅ **FIXED** — QR imports warn before adding another account with a matching non-blank issuer; the user can still continue.
 - **#921** — Nitrokey/hardware keys support  
   _enhancement_  
-  🆕 **GAP** — No Nitrokey/hardware-key support.
+  ⚠️ **PARTIAL** — Experimental FIDO2 PRF unlock is protocol-based and may work with compatible Nitrokeys; Nitrokey Pro's separate native OTP protocol is not implemented. Physical-key verification remains open.
 - **#925** — [FR] Automatic deletion of backups  
   _enhancement_  
   🆕 **GAP** — No automatic deletion of old backups.
@@ -628,7 +628,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
    #804, #874, #881, #813.
 3. **Batch-add the ~80 missing brand thumbnails** — the largest concrete carry-over; consider the Simple Icons
    migration (#855) while doing it.
-4. **Triage the 🆕 gaps** as product decisions (DUO #808, GA-export import #561, yjotp #532, Garena #207, tag
+4. **Triage the 🆕 gaps** as product decisions (DUO #808, yjotp #532, Garena #207, tag
    rename #230, next-code preview #670, custom images #225, backup retention #701, share-sheet export
    #779, preferences export #648, AES+base64 export #980,
    NTP clock #914, paper backups #178, highlighting #784, automatic OpenPGP backups #531, backup deletion #925).

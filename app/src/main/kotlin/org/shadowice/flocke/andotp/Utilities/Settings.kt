@@ -314,7 +314,11 @@ open class Settings(private val context: Context) {
         credentials: PreparedCredentials?, initialize: Boolean
     ): Boolean {
         val editor = settings.edit()
-        if (transaction != null) editor.putString(DatabaseHelper.TRANSACTION_ID, transaction)
+        if (transaction != null) {
+            editor.putString(DatabaseHelper.TRANSACTION_ID, transaction)
+            // Existing hardware wrappers contain the previous vault key; require re-enrollment.
+            HardwareUnlockStore.clearOnVaultChange(editor)
+        }
         editor.putString(getResString(R.string.settings_key_encryption), type.name.lowercase(Locale.ROOT))
         if (auth != null) editor.putString(getResString(R.string.settings_key_auth), auth.name.lowercase(Locale.ROOT))
         if (credentials != null) {

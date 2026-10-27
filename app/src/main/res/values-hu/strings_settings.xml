@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Dátum hozzáfűzése a fájlnévhez</string>
     <string name="settings_title_backup_ask">Fájlnév bekérése</string>
     <string name="settings_title_backup_location">Biztonsági mentés alapértelmezett helye</string>
-    <string name="settings_title_backup_password">Biztonsági mentés jelszava</string>
     <string name="settings_title_backup_broadcasts">Továbbított biztonsági mentés</string>
     <string name="settings_title_openpgp_provider">OpenPGP szolgáltató</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP titkosítási kulcs</string>
@@ -81,14 +80,9 @@
         mentés javasolt nevéhez</string>
     <string name="settings_desc_backup_location">Válassza ki a biztonsági mentés alapértelmezett helyét</string>
     <string name="settings_desc_backup_location_set">A biztonsági mentés helye kiválasztva</string>
-    <string name="settings_desc_backup_password">Állítsa be a jelszót amit a biztonsági mentések titkosításához használ</string>
     <string name="settings_desc_auto_backup_password_enc">Új titkosított biztonsági mentést hoz létre, ha új
         bejegyzések kerülnek hozzáadásra, szerkesztésre, vagy ha a
         beállításokban megadott feltételek teljesülnek</string>
-    <string name="settings_desc_auto_backup_requirements">A beállítás engedélyezéséhez állítsa be a
-        biztonsági mentés alapértelmezett
-        helyét és jelszavát</string>
-    <string name="settings_desc_backup_broadcasts">Jelölje ki, hogy melyik biztonsági másolat típusokat indíthatja el a harmadik féltől származó alkalmazás a Broadcasts segítségével</string>
     <string name="settings_desc_openpgp_verify">A titkosított biztonsági másolatokat csak akkor lehet importálni, ha érvényes kulccsal írnak alá</string>
     <string name="settings_desc_special_features">Törölje a jelölést, hogy ismét kikapcsolja a speciális funkciókat</string>
     <string name="settings_desc_clear_keystore">Titkosítási kulcs törlése a KeyStore-ból</string>

@@ -47,8 +47,9 @@
     <string name="settings_title_backup_append_date">Append date and time</string>
     <string name="settings_title_backup_ask">Ask for filename</string>
     <string name="settings_title_backup_location">Default backup location</string>
-    <string name="settings_title_backup_password">Backup password</string>
+    <string name="settings_title_backup_password">Separate backup password</string>
     <string name="settings_title_auto_backup_password_enc">Automatic backup</string>
+    <string name="settings_title_auto_backup_use_login">Use app password for encrypted backups</string>
 
     <string name="settings_title_backup_broadcasts">Backup broadcasts</string>
     <string name="settings_title_openpgp_provider">OpenPGP provider</string>
@@ -89,13 +90,17 @@
     <string name="settings_desc_backup_ask">Ask for a filename when creating a backup</string>
     <string name="settings_desc_backup_location">Choose a default backup location</string>
     <string name="settings_desc_backup_location_set">Backup location has been chosen</string>
-    <string name="settings_desc_backup_password">Password used to encrypt the backups</string>
+    <string name="settings_desc_backup_password">Used when app-password mode is off. Storing this separate password
+        uses Android KeyStore. Leave empty to ask when exporting manually.</string>
 
     <string name="settings_desc_auto_backup_password_enc">Create a new encrypted backup after entries are added or
         edited</string>
-    <string name="settings_desc_auto_backup_requirements">Set a backup location and password to enable this option</string>
+    <string name="settings_desc_auto_backup_use_login">Password login only. Uses the app password without storing it.
+        Old backups still need their original password. Choose a strong passphrase; backups permit offline guessing.</string>
+    <string name="settings_desc_auto_backup_requirements">Choose a backup folder and unlock with the app password.
+        Alternatively, turn off app-password mode and set a separate backup password.</string>
 
-    <string name="settings_desc_backup_broadcasts">Allow apps signed with the same key to trigger encrypted backups</string>
+    <string name="settings_desc_backup_broadcasts">Allow same-signature apps to retry pending legacy backups</string>
 
     <string name="settings_desc_openpgp_key_encrypt">Comma-separated OpenPGP user IDs used to
         encrypt backups</string>
@@ -130,6 +135,11 @@
     <string name="settings_dialog_title_warning">Warning</string>
     <string name="settings_dialog_title_error">Error</string>
     <string name="settings_dialog_title_clear_keystore">Clear the KeyStore?</string>
+    <string name="settings_dialog_title_remove_old_backup_password">Remove the old stored backup password?</string>
+    <string name="settings_dialog_msg_remove_old_backup_password">An older version stored a separate backup password
+        on this device. Switching modes removes that stored copy. Older backups still need their original password;
+        make sure you know it before continuing.</string>
+    <string name="settings_toast_remove_old_backup_password_failed">Could not remove the old stored backup password.</string>
     <string name="settings_dialog_title_android_sync">Android cloud backup</string>
 
     <string name="settings_dialog_msg_encryption_change">OfflineOTP will change the database encryption. If it fails,

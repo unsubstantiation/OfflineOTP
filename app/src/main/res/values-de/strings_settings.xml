@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Datum an den Dateinamen anhängen</string>
     <string name="settings_title_backup_ask">Nach Dateinamen fragen</string>
     <string name="settings_title_backup_location">Standard-Sicherungsort</string>
-    <string name="settings_title_backup_password">Datensicherungs-Passwort</string>
     <string name="settings_title_backup_broadcasts">Broadcasts-Sicherungen</string>
     <string name="settings_title_openpgp_provider">OpenPGP Anbieter</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP Verschlüsselungs-Key</string>
@@ -75,12 +74,8 @@
     <string name="settings_desc_backup_append_date">Aktuelles Datum und die aktuelle Uhrzeit an den vorgeschlagenen Sicherungsdateinamen anhängen</string>
     <string name="settings_desc_backup_location">Wählen Sie eine Standard-Sicherungsort</string>
     <string name="settings_desc_backup_location_set">Sicherungsort wurde ausgewählt</string>
-    <string name="settings_desc_backup_password">Passwort festlegen, mit dem die Sicherungen verschlüsselt werden sollen</string>
     <string name="settings_desc_auto_backup_password_enc">Erstellt eine neue verschlüsselte Datensicherung bei
         Erstellung oder Bearbeitung von Einträgen, wenn Bedingungen erfüllt sind</string>
-    <string name="settings_desc_auto_backup_requirements">Legen Sie einen Standard-Sicherungsort fest und setzen sie ein
-        Sicherungspasswort, um diese Option zu aktivieren</string>
-    <string name="settings_desc_backup_broadcasts">Über Broadcasts auswählen, welche Sicherungstypen von Drittanbieteranwendungen ausgelöst werden können.</string>
     <string name="settings_desc_openpgp_verify">Verschlüsselte Sicherungen werden nur importiert,
         wenn sie mit einem gültigen Schlüssel signiert sind</string>
     <string name="settings_desc_special_features">Haken entfernen, um die speziellen Funktionen wieder zu deaktivieren</string>

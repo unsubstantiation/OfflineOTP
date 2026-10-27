@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Concatenar fecha al nombre del fichero</string>
     <string name="settings_title_backup_ask">Pedir nombre de fichero</string>
     <string name="settings_title_backup_location">Ubicación de copia de seguridad por defecto</string>
-    <string name="settings_title_backup_password">Contraseña de copia de seguridad</string>
     <string name="settings_title_backup_broadcasts">Copia de seguridad de difusión</string>
     <string name="settings_title_openpgp_provider">Proveedor de OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clave de encriptación OpenPGP</string>
@@ -79,14 +78,8 @@
         para el fichero de la copia de seguridad</string>
     <string name="settings_desc_backup_location">Elija una ubicación de copia de seguridad por defecto</string>
     <string name="settings_desc_backup_location_set">Se ha seleccionado la ubicación de la copia de seguridad</string>
-    <string name="settings_desc_backup_password">Establecer la contraseña usada para cifrar las
-        copias de seguridad</string>
     <string name="settings_desc_auto_backup_password_enc">Crea una nueva copia de seguridad cifrada cuando se añaden o editan nuevas entradas
         si se cumplen las condiciones de configuración</string>
-    <string name="settings_desc_auto_backup_requirements">Establecer una ubicación de copia de seguridad por defecto y una contraseña de copia de seguridad
-        para habilitar esta opción</string>
-    <string name="settings_desc_backup_broadcasts">Selecciona qué tipos de copias de seguridad pueden ser ejecutadas por
-        aplicaciones de terceros usando difusión</string>
     <string name="settings_desc_openpgp_verify">Las contraseñas de copias de seguridad cifradas sólo se importan
         si están firmadas con una clave válida</string>
     <string name="settings_desc_special_features">Desmarca para desactivar las funcionalidades especiales de nuevo</string>

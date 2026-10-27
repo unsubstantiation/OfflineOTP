@@ -27,6 +27,7 @@ import org.shadowice.flocke.andotp.Tasks.TaskFailure
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
+import org.shadowice.flocke.andotp.Utilities.HardwareUnlockStore
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 import org.shadowice.flocke.andotp.View.AutoFillable.AutoFillableTextInputEditText
 
@@ -48,6 +49,9 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     private var passwordLayout: TextInputLayout? = null
     private var passwordInput: AutoFillableTextInputEditText? = null
     private var unlockButton: Button? = null
+    private var hardwareButton: Button? = null
+    private var hardwarePending = false
+    private var hardwareGeneration = -1L
     private var unlockProgress: ProgressBar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,6 +150,20 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         unlockButton = button
         button.setOnClickListener(this)
         unlockProgress = requireNotNull(v.findViewById<ProgressBar>(R.id.unlockProgress))
+        val hardware = requireNotNull(v.findViewById<Button>(R.id.buttonHardwareUnlock))
+        hardwareButton = hardware
+        val allowed = getIntent()?.getBooleanExtra(Constants.EXTRA_AUTH_ALLOW_HARDWARE, false) == true &&
+            newEncryption.isNullOrEmpty() && authMethod == AuthMethod.PASSWORD &&
+            settings?.getEncryption() == Constants.EncryptionType.PASSWORD && HardwareUnlockStore.read(this) != null
+        hardware.visibility = if (allowed) View.VISIBLE else View.GONE
+        hardware.setOnClickListener {
+            if (!hardwarePending && allowed) {
+                clearPasswordInput()
+                hardwarePending = true
+                hardwareGeneration = VaultSession.generation()
+                startActivityForResult(Intent(this, HardwareUnlockActivity::class.java), Constants.INTENT_AUTH_HARDWARE)
+            }
+        }
     }
 
     override fun cancelTaskOnScreenOff(): Boolean {
@@ -169,8 +187,18 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         layout.isEnabled = !isTaskRunning
         passwordInput?.isEnabled = !isTaskRunning
         unlockButton?.isEnabled = !isTaskRunning
+        hardwareButton?.isEnabled = !isTaskRunning
         unlockButton?.visibility = if (isTaskRunning) View.INVISIBLE else View.VISIBLE
         unlockProgress?.visibility = if (isTaskRunning) View.VISIBLE else View.GONE
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == Constants.INTENT_AUTH_HARDWARE) {
+            val accepted = hardwarePending && resultCode == RESULT_OK && VaultSession.isCurrent(hardwareGeneration)
+            hardwarePending = false
+            if (accepted) finishWithResult(true, null, hardwareGeneration)
+        }
     }
 
     override fun onClick(view: View) {
@@ -262,6 +290,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     override fun onVaultLocked() {
+        hardwarePending = false
         cancelBackgroundTask()
         clearPasswordInput()
         finish()

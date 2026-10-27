@@ -2,6 +2,8 @@ package org.shadowice.flocke.andotp.Utilities
 
 import android.content.Context
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
+import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 
 import java.util.ArrayList
 import java.util.function.BooleanSupplier
@@ -18,6 +20,7 @@ class VaultRestoreOperation(context: Context) {
     }
 
     private val persistence: EntryPersistence = EntryPersistence(context)
+    private val settings: Settings = Settings(context.getApplicationContext())
 
     private fun authorized(key: SecretKey?, generation: Long, permitted: BooleanSupplier): Boolean {
         return permitted.getAsBoolean() && VaultSession.isCurrent(generation)
@@ -25,7 +28,11 @@ class VaultRestoreOperation(context: Context) {
     }
 
     fun restore(text: String, replace: Boolean, key: SecretKey?, generation: Long,
-                permitted: BooleanSupplier): Result {
+                permitted: BooleanSupplier): Result = restore(text, replace, key, generation, permitted, null)
+
+    fun restore(text: String, replace: Boolean, key: SecretKey?, generation: Long,
+                permitted: BooleanSupplier,
+                backupCallback: UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult>?): Result {
         val imported = ArrayList<Entry>()
         val current = ArrayList<Entry>()
         try {
@@ -61,7 +68,8 @@ class VaultRestoreOperation(context: Context) {
                 val merged = ArrayList<Entry>(imported)
                 merged.addAll(current)
                 if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
-                val write = persistence.save(merged, key, false, null)
+                // An import is a real entry change. The persistence layer suppresses no-op imports.
+                val write = persistence.save(merged, key, settings.getAutoBackupEncryptedPasswordsEnabled(), backupCallback)
                 return when (write) {
                     is VaultWriteResult.Saved -> Result.SAVED
                     is VaultWriteResult.RecoveryRequired -> Result.RECOVERY_REQUIRED

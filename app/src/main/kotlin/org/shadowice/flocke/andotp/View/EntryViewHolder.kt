@@ -168,11 +168,11 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             counterLayout.visibility = View.GONE
         }
 
-        // Show the custom-period row when the entry uses a non-default period.
-        if (entry.hasNonDefaultPeriod()) {
+        // Show the actual step when it differs from the global countdown (mOTP is always 10 s).
+        if (entry.hasNonDefaultTokenStep()) {
             customPeriodLayout.visibility = View.VISIBLE
             customPeriod.setText(
-                String.format(context.getString(R.string.format_custom_period), entry.getPeriod()))
+                String.format(context.getString(R.string.format_custom_period), entry.getTokenStepSeconds()))
         } else {
             customPeriodLayout.visibility = View.GONE
         }
@@ -256,7 +256,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
                 EntryThumbnail.getThumbnailGraphic(context, issuerText, labelText, thumbnailSize, entry.getThumbnail()))
         }
 
-        if (entry.isTimeBased() && (entry.hasNonDefaultPeriod() || settings.isShowIndividualTimeoutsEnabled())) {
+        if (entry.isTimeBased() && (entry.hasNonDefaultTokenStep() || settings.isShowIndividualTimeoutsEnabled())) {
             if (!this.tapToReveal || entry.isVisible()) {
                 progressBar.visibility = View.VISIBLE
                 updateProgress(entry)

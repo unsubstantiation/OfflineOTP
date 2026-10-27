@@ -40,6 +40,8 @@
 
     <string name="backup_toast_export_success">Backup created.</string>
     <string name="backup_toast_export_failed">Backup failed.</string>
+    <string name="backup_toast_auto_retry_not_saved">Could not save automatic backup retry state. Verify your backup.</string>
+    <string name="backup_toast_wait_password">Automatic backup is pending. Unlock with the app password to complete it.</string>
     <string name="backup_toast_import_success">Backup restored.</string>
     <string name="backup_toast_import_save_failed">Could not save the restored entries.</string>
     <string name="backup_toast_import_decryption_failed">Could not decrypt the backup.</string>

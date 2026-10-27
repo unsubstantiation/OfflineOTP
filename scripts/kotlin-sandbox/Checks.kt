@@ -8,6 +8,12 @@ import org.shadowice.flocke.andotp.Tasks.AuthenticationTask
 import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
 import org.shadowice.flocke.andotp.Tasks.ChangeCredentialsTask
 import org.shadowice.flocke.andotp.Tasks.EncryptedBackupTask
+import org.shadowice.flocke.andotp.Tasks.LoginEncryptedBackupTask
+import org.shadowice.flocke.andotp.Utilities.HardwareKeyDiscovery
+import org.shadowice.flocke.andotp.Utilities.HardwareFidoClient
+import org.shadowice.flocke.andotp.Utilities.HardwareOathClient
+import org.shadowice.flocke.andotp.Utilities.HardwareUnlockEnvelope
+import org.shadowice.flocke.andotp.Utilities.HardwareUnlockStore
 import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
 import org.shadowice.flocke.andotp.Tasks.FinishIntroTask
 import org.shadowice.flocke.andotp.Tasks.GenericBackupTask
@@ -23,6 +29,7 @@ import org.shadowice.flocke.andotp.Tasks.TaskStart
 import org.shadowice.flocke.andotp.Tasks.TaskState
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.EntryList
 import org.shadowice.flocke.andotp.Database.EntryJson
 import org.shadowice.flocke.andotp.Database.EntryJsonError
 import org.shadowice.flocke.andotp.Database.EntryJsonResult
@@ -35,8 +42,15 @@ import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 import org.shadowice.flocke.andotp.Utilities.NotificationHelper
 import org.shadowice.flocke.andotp.Utilities.ScanQRCodeFromFile
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
+import org.shadowice.flocke.andotp.Utilities.EntryPersistence
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupKey
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
+import org.shadowice.flocke.andotp.Utilities.MigrationBatchCollector
+import org.shadowice.flocke.andotp.Utilities.MigrationPayload
+import org.shadowice.flocke.andotp.Utilities.PendingMigrationImport
+import org.shadowice.flocke.andotp.Utilities.PendingAutomaticBackup
 import org.shadowice.flocke.andotp.Utilities.VaultReadError
 import org.shadowice.flocke.andotp.Utilities.VaultReadResult
 import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
@@ -1016,6 +1030,10 @@ private open class SettingsContext : Context() {
  * Context for the converted components: it reads the settings like [SettingsContext] and hands
  * out a recording notification manager, so a check can see which message was posted.
  */
+private class BackupSettingsContext(private val resolver: FakeResolver) : SettingsContext() {
+    override fun getContentResolver(): android.content.ContentResolver = resolver
+}
+
 private class ComponentContext : SettingsContext() {
     /** The notifications that were posted through this context. */
     val notifications = NotificationManager()
@@ -4578,6 +4596,217 @@ fun main() {
                 { "disabling must store the off value: ${fixture.stored(R.string.settings_key_auto_backup_password_enc)}" })
     }
 
+    check("login-key automatic backup writes portable files, preserves completed files and stops on revocation") {
+      withPoisonedTransaction {
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-login-backup").toFile()
+        val resolver = FakeResolver()
+        val context = BackupSettingsContext(resolver)
+        val fixture = SettingsFixture(context)
+        val treeUri = contentUri("tree", "backup")
+        val created = ArrayList<File>()
+        val deleted = ArrayList<File>()
+        val tree = object : DocumentFile() {
+            override fun getUri(): Uri = treeUri
+            override fun delete(): Boolean = false
+            override fun createFile(mimeType: String?, name: String?): DocumentFile {
+                val file = File(directory, requireNotNull(name))
+                created.add(file)
+                resolver.target = file
+                return object : DocumentFile() {
+                    override fun getUri(): Uri = contentUri("document", file.name)
+                    override fun delete(): Boolean { deleted.add(file); return file.delete() }
+                }
+            }
+        }
+        DocumentFile.treeFactory = { _, _ -> tree }
+        fixture.seed(R.string.settings_key_backup_location, treeUri.toString())
+        fixture.seed(R.string.settings_key_auth, "password")
+        fixture.seed(R.string.settings_key_auto_backup_password_enc, "all_edits")
+        fixture.seed(R.string.settings_key_auto_backup_use_login, true)
+        // Even an unreadable legacy preference must never be consulted in login mode.
+        fixture.seed(R.string.settings_key_backup_password_enc, "not-a-keystore-value")
+        val entries = arrayListOf(Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example"))
+        val password = "correct horse battery staple"
+        try {
+            VaultSession.lock()
+            val attempt = VaultSession.beginUnlock()
+            LoginBackupKey.derive(password).use { expect(VaultSession.offerBackupKey(it, attempt.generation), { "handoff failed" }) }
+            expect(VaultSession.activate(SecretKeySpec(ByteArray(32) { 7 }, "AES"), attempt.generation)
+                    is SessionCommandResult.Applied, { "session activation failed" })
+            expect(BackupHelper.autoBackupType(context) == Constants.BackupType.ENCRYPTED,
+                    { "login mode required an Android Keystore" })
+            drainMainThreadDeliveries()
+            fun runBackup(): Pair<BackupTaskResult, Boolean?> {
+                var finished: Boolean? = null
+                var outcome: TaskOutcome<BackupTaskResult>? = null
+                val task = LoginEncryptedBackupTask(context, entries, requireNotNull(VaultSession.copyBackupKey()),
+                    onFinished = { finished = it })
+                task.setOutcomeCallback { outcome = it }
+                task.execute()
+                awaitQueuedDelivery()
+                drainMainThreadDeliveries()
+                val value = outcome as? TaskOutcome.Value<BackupTaskResult>
+                    ?: throw AssertionError("automatic task did not return a value: $outcome")
+                return Pair(value.value, finished)
+            }
+            val first = runBackup()
+            expect(first.first.success && first.second == true && created.size == 1, { "first backup failed" })
+            val header = EncryptedBackupHeader.parse(created.single().readBytes())
+            val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+            val restored = String(EncryptionHelper.decrypt(backupKey, header.getEncrypted()), Charsets.UTF_8)
+            expect(restored.contains("alice"), { "login password could not restore snapshot" })
+
+            // A user-selected manual export uses the same session key even when auto mode is off.
+            val manual = File(directory, "manual.json.aes")
+            resolver.target = manual
+            fixture.seed(R.string.settings_key_auto_backup_password_enc, "off")
+            var manualOutcome: TaskOutcome<BackupTaskResult>? = null
+            val manualTask = LoginEncryptedBackupTask(context, entries, requireNotNull(VaultSession.copyBackupKey()),
+                onFinished = {}, uri = contentUri("document", "manual.json.aes"), automatic = false)
+            manualTask.setOutcomeCallback { manualOutcome = it }
+            manualTask.execute()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect((manualOutcome as? TaskOutcome.Value<BackupTaskResult>)?.value?.success == true,
+                    { "manual login-password export failed" })
+            val manualHeader = EncryptedBackupHeader.parse(manual.readBytes())
+            val manualKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, manualHeader.getIterations(), manualHeader.getSalt())
+            expect(String(EncryptionHelper.decrypt(manualKey, manualHeader.getEncrypted()), Charsets.UTF_8).contains("alice"),
+                    { "manual export did not use the app password" })
+            var defaultManualOutcome: TaskOutcome<BackupTaskResult>? = null
+            val defaultManualTask = LoginEncryptedBackupTask(context, entries, requireNotNull(VaultSession.copyBackupKey()),
+                onFinished = {}, automatic = false)
+            defaultManualTask.setOutcomeCallback { defaultManualOutcome = it }
+            defaultManualTask.execute()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect((defaultManualOutcome as? TaskOutcome.Value<BackupTaskResult>)?.value?.success == true && created.size == 2,
+                    { "manual export to the configured folder failed" })
+            fixture.seed(R.string.settings_key_auto_backup_password_enc, "all_edits")
+
+            resolver.failure = SecurityException("revoked grant")
+            val failed = runBackup()
+            expect(!failed.first.success && failed.second == false, { "provider failure reported success" })
+            expect(created.size == 3 && deleted == listOf(created[2]) && created[0].exists() && created[1].exists(),
+                    { "failed snapshot deleted a completed backup" })
+            resolver.failure = null
+
+            // Cancellation runs under the task callback lock. It must not wait for MutationLock.
+            val pending = PendingAutomaticBackup.stage(context, null).marker
+            expect(PendingAutomaticBackup.claim(context, pending.token), { "could not claim retry marker" })
+            val cancellationLease = requireNotNull(VaultSession.copyBackupKey())
+            val cancellationTask = LoginEncryptedBackupTask(context, entries, cancellationLease, onFinished = { success ->
+                if (success) PendingAutomaticBackup.complete(context, pending.token)
+                PendingAutomaticBackup.release(pending.token)
+            })
+            val cancelled = CountDownLatch(1)
+            synchronized(VaultSession.MutationLock) {
+                Thread { try { cancellationTask.cancel() } finally { cancelled.countDown() } }.start()
+                expect(cancelled.await(3, TimeUnit.SECONDS), { "cancellation acquired the vault mutation lock" })
+            }
+            expect(cancellationLease.key.copy() == null && PendingAutomaticBackup.read(context) == pending,
+                    { "cancellation lost the retry marker or retained key bytes" })
+            PendingAutomaticBackup.complete(context, pending.token)
+
+            val changedLease = requireNotNull(VaultSession.copyBackupKey())
+            var changedFinished: Boolean? = null
+            val changed = LoginEncryptedBackupTask(context, entries, changedLease, onFinished = { changedFinished = it })
+            changed.setOutcomeCallback { }
+            LoginBackupKey.derive("a different strong password").use {
+                expect(VaultSession.replaceBackupKeyWithoutNotification(it, VaultSession.generation()), { "password replacement failed" })
+            }
+            VaultSession.notifyBackupKeyChanged()
+            changed.execute()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect(changedFinished == false && changedLease.key.copy() == null && created.size == 3,
+                    { "replaced credentials retained or used an old backup-key copy" })
+
+            val staleLease = requireNotNull(VaultSession.copyBackupKey())
+            var staleFinished: Boolean? = null
+            val stale = LoginEncryptedBackupTask(context, entries, staleLease, onFinished = { staleFinished = it })
+            stale.setOutcomeCallback { }
+            VaultSession.lock()
+            stale.execute()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect(staleFinished == false && created.size == 3 && staleLease.key.copy() == null,
+                    { "revoked session wrote or retained its backup-key copy" })
+        } finally {
+            VaultSession.lock()
+            entries.forEach { it.destroy() }
+            DocumentFile.treeFactory = null
+            directory.deleteRecursively()
+        }
+      }
+    }
+
+    check("automatic backup password mode preserves legacy configuration and defaults new users to login") {
+        val fixture = SettingsFixture()
+        expect(LoginBackupPolicy.usesLoginPassword(fixture.context), { "new users should use the login password" })
+        fixture.seed(R.string.settings_key_backup_password_enc, "existing-encrypted-value")
+        expect(!LoginBackupPolicy.usesLoginPassword(fixture.context), { "legacy backup password must remain selected" })
+        fixture.seed(R.string.settings_key_auto_backup_use_login, true)
+        expect(LoginBackupPolicy.usesLoginPassword(fixture.context), { "explicit login mode must win" })
+        fixture.seed(R.string.settings_key_auto_backup_use_login, false)
+        expect(!LoginBackupPolicy.usesLoginPassword(fixture.context), { "explicit legacy mode must win" })
+        fixture.store.edit().remove(settingsKey(R.string.settings_key_auto_backup_use_login))
+            .remove(settingsKey(R.string.settings_key_backup_password_enc)).commit()
+        fixture.seed(R.string.settings_key_backup_password, "old-password")
+        expect(!LoginBackupPolicy.usesLoginPassword(fixture.context), { "unmigrated legacy credentials must not silently switch modes" })
+    }
+
+    check("automatic backup retry markers coalesce changes without storing entry data") {
+        val fixture = SettingsFixture()
+        val context = fixture.context
+        val key = SecretKeySpec(ByteArray(16) { 42 }, "AES")
+        val before = PendingAutomaticBackup.fingerprint("sensitive entry content", key)
+        val first = PendingAutomaticBackup.stage(context, before)
+        expect(first.durable && first.previous == null, { "first marker was not committed" })
+        val second = PendingAutomaticBackup.stage(context, PendingAutomaticBackup.fingerprint("new data", key))
+        expect(second.marker.before == before && second.previous == first.marker,
+                { "concurrent changes must retain the first pre-change fingerprint" })
+        expect(!fixture.store.getAll().toString().contains("sensitive entry content"), { "marker leaked entry data" })
+        PendingAutomaticBackup.rollback(context, second)
+        expect(PendingAutomaticBackup.read(context) == first.marker, { "failed save did not restore the prior marker" })
+        expect(PendingAutomaticBackup.claim(context, first.marker.token), { "older snapshot was not claimed" })
+        val newer = PendingAutomaticBackup.stage(context, PendingAutomaticBackup.fingerprint("new data", key))
+        expect(!PendingAutomaticBackup.canDropReverted(context, newer.marker, before),
+                { "reversion was dropped while an older snapshot could still finish" })
+        PendingAutomaticBackup.complete(context, first.marker.token)
+        PendingAutomaticBackup.release(first.marker.token)
+        val surviving = PendingAutomaticBackup.read(context)
+        expect(surviving?.token == newer.marker.token && surviving.before == null,
+                { "older successful backup must retain the newer change without its obsolete reversion digest" })
+        expect(!PendingAutomaticBackup.canDropReverted(context, requireNotNull(surviving), before),
+                { "reversion was dropped after an older snapshot completed" })
+        PendingAutomaticBackup.complete(context, newer.marker.token)
+        val last = PendingAutomaticBackup.stage(context, before)
+        expect(PendingAutomaticBackup.canDropReverted(context, last.marker, before),
+                { "unchanged pre-write state should not require a backup without overlapping work" })
+        expect(PendingAutomaticBackup.claim(context, last.marker.token), { "first task did not claim marker" })
+        expect(!PendingAutomaticBackup.claim(context, last.marker.token), { "a duplicate task claimed marker" })
+        PendingAutomaticBackup.release(last.marker.token)
+        expect(PendingAutomaticBackup.claim(context, last.marker.token), { "released marker could not be retried" })
+        PendingAutomaticBackup.release(last.marker.token)
+        PendingAutomaticBackup.complete(context, last.marker.token)
+        expect(PendingAutomaticBackup.read(context) == null, { "completed marker was not removed" })
+    }
+
+    check("backup notification failures cannot escape into vault mutation") {
+        val fixture = SettingsFixture()
+        val persistence = EntryPersistence(fixture.context)
+        val report = EntryPersistence::class.java.getDeclaredMethod("reportOutcome",
+            UiBasedBackgroundTask.OutcomeCallback::class.java, TaskOutcome::class.java).apply { isAccessible = true }
+        var calls = 0
+        val callback = UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult> {
+            calls++
+            throw IllegalStateException("synthetic UI failure")
+        }
+        report.invoke(persistence, callback, TaskOutcome.Failure<BackupTaskResult>(TaskFailure.UNEXPECTED_EXCEPTION))
+        expect(calls == 1, { "notification callback was not attempted" })
+    }
+
     check("credential staging derives the key/verifier split and refuses without consent") {
         val fixture = SettingsFixture()
         val settings = fixture.settings
@@ -5336,6 +5565,185 @@ fun main() {
         expectMethod(taskFragment, "void cancelTask()")
     }
 
+    check("import confirmations are dismissed on lock and reject a reopened session") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter)
+        val show = MainActivity::class.java.getDeclaredMethod("showDuplicateIssuerConfirmation",
+            Entry::class.java, String::class.java).apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val firstUnlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, firstUnlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            val stale = Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+            show.invoke(activity, stale, "Example")
+            val staleDialog = AlertDialog.Builder.lastCreated ?: throw AssertionError("no confirmation")
+            VaultSession.lock()
+            val reopen = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, reopen.generation) is SessionCommandResult.Applied, { "reopen" })
+            staleDialog.positiveButtonListener!!.onClick(staleDialog, DialogInterface.BUTTON_POSITIVE)
+            expect(stale.getSecret() == null && adapter.getEntries().isEmpty(),
+                { "a confirmation from an older session must not insert an entry" })
+            staleDialog.onDismissListener!!.onDismiss(staleDialog)
+
+            val pending = Entry("otpauth://totp/bob?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+            show.invoke(activity, pending, "Example")
+            val pendingDialog = AlertDialog.Builder.lastCreated ?: throw AssertionError("no second confirmation")
+            lockUi.invoke(activity)
+            expect(pending.getSecret() == null && pendingDialog.dismissals > 0,
+                { "lock cleanup must wipe and dismiss the pending import" })
+            pendingDialog.positiveButtonListener!!.onClick(pendingDialog, DialogInterface.BUTTON_POSITIVE)
+            expect(adapter.getEntries().isEmpty(), { "a dismissed confirmation must stay inert" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("Google export QR batches reject mixing and wipe confirmations on lock or cancel") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter)
+        val add = MainActivity::class.java.getDeclaredMethod("addQRCode", String::class.java).apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val collectorField = MainActivity::class.java.getDeclaredField("migrationCollector").apply { isAccessible = true }
+        val pendingField = MainActivity::class.java.getDeclaredField("pendingMigrationImport").apply { isAccessible = true }
+        val firstPart = "otpauth-migration://offline?data=CiIKCkhlbGxvId6tvu8SBWFsaWNlGgdFeGFtcGxlIAEoATACEAIYAiAAKLlg"
+        val secondPart = "otpauth-migration://offline?data=CioKFDEyMzQ1Njc4OTAxMjM0NTY3ODkwEgNib2IaB0V4YW1wbGUgASgBMAIQAhgCIAEouWA%3D"
+        val wrongPart = "otpauth-migration://offline?data=CioKFDEyMzQ1Njc4OTAxMjM0NTY3ODkwEgNib2IaB0V4YW1wbGUgASgBMAIQAhgCIAEoAw%3D%3D"
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val firstUnlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, firstUnlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            add.invoke(activity, firstPart)
+            val collector = collectorField.get(activity) as MigrationBatchCollector
+            expect(collector.received == 1 && collector.expected == 2, { "the first part did not start a batch" })
+            val oldProgress = AlertDialog.Builder.lastCreated ?: throw AssertionError("no progress dialog")
+            add.invoke(activity, firstPart)
+            add.invoke(activity, wrongPart)
+            expect(collector.received == 1, { "duplicate or foreign QR changed the batch" })
+            add.invoke(activity, secondPart)
+            expect(collectorField.get(activity) == null, { "complete batch was not transferred" })
+            val pending = pendingField.get(activity) as PendingMigrationImport
+            val field = PendingMigrationImport::class.java.getDeclaredField("owned").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            val entries = ArrayList(field.get(pending) as ArrayList<Entry>)
+            expect(entries.map { it.getLabel() } == listOf("alice", "bob"), { "batch order or labels changed" })
+            val confirmation = AlertDialog.Builder.lastCreated ?: throw AssertionError("no confirmation")
+            oldProgress.onDismissListener?.onDismiss(oldProgress)
+            expect(entries.all { it.getSecret() != null }, { "an old progress dismissal cleared a newer confirmation" })
+            VaultSession.lock()
+            lockUi.invoke(activity)
+            expect(entries.all { it.getSecret() == null } && confirmation.dismissals > 0,
+                { "lock did not clear the confirmation" })
+            val reopen = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, reopen.generation) is SessionCommandResult.Applied, { "reopen" })
+            adapter.encryptionKey = key
+            confirmation.positiveButtonListener!!.onClick(confirmation, DialogInterface.BUTTON_POSITIVE)
+            expect(adapter.getEntries().isEmpty(), { "stale confirmation inserted accounts" })
+
+            add.invoke(activity, firstPart)
+            val cancelled = collectorField.get(activity) as MigrationBatchCollector
+            val partsField = MigrationBatchCollector::class.java.getDeclaredField("parts").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            val parts = partsField.get(cancelled) as Map<Int, MigrationPayload>
+            val part = parts.values.single()
+            val ownedField = MigrationPayload::class.java.getDeclaredField("owned").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            val secretOwner = (ownedField.get(part) as ArrayList<ValidatedOtp>).single()
+            val progress = AlertDialog.Builder.lastCreated ?: throw AssertionError("no cancellation dialog")
+            progress.onDismissListener!!.onDismiss(progress)
+            expect(collectorField.get(activity) == null, { "cancel left the batch attached" })
+            val wiped = try { secretOwner.copySecret(); false } catch (_: IllegalStateException) { true }
+            expect(wiped, { "cancel did not close the buffered secret" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("batch import skips duplicates and rolls back rejected or invalid writes") {
+        val emptyFiles = java.nio.file.Files.createTempDirectory("offlineotp-batch-test").toFile()
+        val fixture = SettingsFixture(object : SettingsContext() {
+            override fun getFilesDir(): File = emptyFiles
+        })
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val list = EntriesCardAdapter::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(adapter) as EntryList
+        val existing = Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+        list.addEntry(existing)
+        val key = SecretKeySpec(ByteArray(32) { 5 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            val duplicate = Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example")
+            val result = withPoisonedTransaction { adapter.importEntries(arrayListOf(duplicate)) }
+            expect(result?.added == 0 && result.skipped == 1 && duplicate.getSecret() == null,
+                { "an identical account was not skipped and wiped" })
+            expect(existing.getSecret() != null && list.getEntries().size == 1, { "existing account changed" })
+            val valid = Entry("otpauth://totp/bob?secret=JBSWY3DPEHPK3PXP")
+            val invalid = Entry("otpauth://totp/carol?secret=JBSWY3DPEHPK3PXP").also { it.destroy() }
+            expectThrows(IllegalArgumentException::class.java) {
+                withPoisonedTransaction { adapter.importEntries(arrayListOf(valid, invalid)) }
+            }
+            expect(valid.getSecret() == null && list.getEntries().size == 1,
+                { "invalid input left a partial batch or an owned secret" })
+
+            // An unreadable/missing vault rejects the write; the pending account must not appear.
+            val unwritten = Entry("otpauth://totp/dave?secret=JBSWY3DPEHPK3PXP")
+            expect(adapter.importEntries(arrayListOf(unwritten)) == null, { "missing vault reported success" })
+            expect(unwritten.getSecret() == null && existing.getSecret() != null && list.getEntries().size == 1,
+                { "a rejected vault write left a partial import or destroyed an existing account" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+            emptyFiles.deleteRecursively()
+        }
+    }
+
+    check("the adapter keeps a live search across tag and sort refreshes") {
+        val fixture = SettingsFixture()
+        val tags = TagsAdapter(fixture.context, hashMapOf("work" to true, "home" to false))
+        val adapter = EntriesCardAdapter(fixture.context, tags)
+        val field = EntriesCardAdapter::class.java.getDeclaredField("entries").apply { isAccessible = true }
+        val entries = field.get(adapter) as EntryList
+        val first = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "alice-work",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("work"))
+        val second = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "alice-home",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("home"))
+        val third = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "bob",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("work"))
+        entries.addEntry(first)
+        entries.addEntry(second)
+        entries.addEntry(third)
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            adapter.filterByTags(listOf("work"))
+            expect(adapter.getItemCount() == 2, { "the initial tag projection" })
+            adapter.setSearchQuery("alice")
+            expect(adapter.getItemCount() == 2, { "search must include both matching entries" })
+            adapter.filterByTags(listOf("home"))
+            expect(adapter.getItemCount() == 2, { "changing tags must not discard the active search" })
+            third.setLabel("alice-new")
+            adapter.setSortMode(Constants.SortMode.LABEL)
+            expect(adapter.getItemCount() == 3, { "sort/entry refresh must rerun the active search" })
+            adapter.setSearchQuery("")
+            expect(adapter.getItemCount() == 1, { "clearing search must restore the selected tag" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
     check("the entry card binds the token, the labels, the tags, the counter and the custom period") {
         val fixture = SettingsFixture()
         // The thumbnail is switched off, so the check does not depend on the letter bitmap.
@@ -5414,9 +5822,20 @@ fun main() {
         // A counter based entry shows the counter instead of the progress bar.
         val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 42L, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
+        hotp.setPeriod(60) // a stored period is not a timed expiry for HOTP
         holder.updateValues(hotp, fixture.settings)
         expect(counterLayout.visibility == View.VISIBLE, { "the counter must be visible for a HOTP entry" })
         expect(counter.text.toString() == "42", { "the counter is wrong: ${counter.text}" })
+        expect(customPeriodLayout.visibility == View.GONE && progress.visibility == View.GONE,
+                { "HOTP must not show a timed countdown" })
+
+        // mOTP's stored period is 30, but it rolls over every 10 seconds and needs its own bar.
+        val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "", "motp", arrayListOf())
+        holder.updateValues(motp, fixture.settings)
+        expect(customPeriodLayout.visibility == View.VISIBLE && progress.visibility == View.VISIBLE,
+                { "mOTP must show its non-default countdown" })
+        expect(progress.max == 1000, { "mOTP progress must use its 10-second step" })
+        motp.destroy()
 
         // The restored custom-period row: a non-default period shows it, formatted with the
         // localized format_custom_period string (the fake context keeps the resource mapping).
@@ -6015,6 +6434,551 @@ fun main() {
                     { "${fragmentType.simpleName} no-arg constructor must be public" })
             val instance = noArg.newInstance()
             expect(instance != null, { "failed to instantiate ${fragmentType.simpleName}()" })
+        }
+    }
+
+    check("hardware discovery discards late worker results and releases owned inputs once") {
+        Handler.posted.clear()
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = throw UnsupportedOperationException("fake device")
+        }
+        val discovery = HardwareKeyDiscovery(android.app.Activity()) { true }
+        val started = CountDownLatch(1)
+        val unblock = CountDownLatch(1)
+        val released = AtomicInteger(0)
+        val canceled = AtomicInteger(0)
+        val discarded = AtomicInteger(0)
+        val completed = AtomicInteger(0)
+        try {
+            discovery.start(HardwareKeyDiscovery.Protocol.FIDO, { _, _ ->
+                started.countDown()
+                unblock.await(5, TimeUnit.SECONDS)
+                byteArrayOf(7)
+            }, { value -> value.fill(0); discarded.incrementAndGet() },
+                { released.incrementAndGet() }, { canceled.incrementAndGet() }) { _, _ -> completed.incrementAndGet() }
+            val callback = com.yubico.yubikit.android.YubiKitManager.usbCallback!!
+            callback(device)
+            expect(started.await(5, TimeUnit.SECONDS), { "fake worker never started" })
+            discovery.cancel()
+            discovery.cancel()
+            expect(canceled.get() == 1 && released.get() == 0, { "cancellation/release raced the worker" })
+            unblock.countDown()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect(discarded.get() == 1 && released.get() == 1 && completed.get() == 0,
+                { "late result was delivered or not cleaned up" })
+            callback(device)
+            expect(released.get() == 1, { "late device callback released twice" })
+        } finally {
+            unblock.countDown()
+            discovery.close()
+            Handler.posted.clear()
+        }
+    }
+
+    check("USB discovery remembers supported IDs for detach and rejects unrelated interfaces") {
+        val manager = android.hardware.usb.UsbManager()
+        val activity = object : android.app.Activity() {
+            override fun getSystemService(name: String): Any? =
+                if (name == Context.USB_SERVICE) manager else null
+        }
+        val discovery = HardwareKeyDiscovery(activity) { true }
+        val ccid = android.hardware.usb.UsbDevice(7, 8,
+            listOf(android.hardware.usb.UsbInterface(android.hardware.usb.UsbConstants.USB_CLASS_CSCID, 0, 2)))
+        val unrelated = android.hardware.usb.UsbDevice(9, 10,
+            listOf(android.hardware.usb.UsbInterface(android.hardware.usb.UsbConstants.USB_CLASS_HID, 1, 1)))
+        val fido = android.hardware.usb.UsbDevice(11, 12,
+            listOf(android.hardware.usb.UsbInterface(android.hardware.usb.UsbConstants.USB_CLASS_HID, 0, 2)))
+        try {
+            manager.deviceList = mapOf("ccid" to ccid, "unrelated" to unrelated, "fido" to fido)
+            discovery.start(HardwareKeyDiscovery.Protocol.OATH, { _, _ -> true }, {}, {}, {}) { _, _ -> }
+            val oathFilter = requireNotNull(com.yubico.yubikit.android.YubiKitManager.usbConfiguration?.filter)
+            expect(oathFilter.checkVendorProductIds(7, 8) && !oathFilter.checkVendorProductIds(9, 10) &&
+                !oathFilter.checkVendorProductIds(11, 12), { "OATH filter accepted the wrong interface" })
+            manager.deviceList = emptyMap()
+            expect(oathFilter.checkVendorProductIds(7, 8), { "detach lost the previously accepted ID" })
+            expect(oathFilter.checkUsbDevice(manager, ccid) && !oathFilter.checkUsbDevice(manager, unrelated),
+                { "USB descriptor check was not retained" })
+            manager.deviceList = mapOf("fido" to fido, "ccid" to ccid)
+            discovery.start(HardwareKeyDiscovery.Protocol.FIDO, { _, _ -> true }, {}, {}, {}) { _, _ -> }
+            val fidoFilter = requireNotNull(com.yubico.yubikit.android.YubiKitManager.usbConfiguration?.filter)
+            expect(fidoFilter.checkVendorProductIds(11, 12) && !fidoFilter.checkVendorProductIds(7, 8),
+                { "FIDO filter accepted the wrong interface" })
+        } finally { discovery.close() }
+    }
+
+    check("hardware discovery closes when authorization changes without an explicit cancel") {
+        Handler.posted.clear()
+        val valid = java.util.concurrent.atomic.AtomicBoolean(true)
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = throw UnsupportedOperationException("fake device")
+        }
+        val discovery = HardwareKeyDiscovery(android.app.Activity()) { valid.get() }
+        val started = CountDownLatch(1)
+        val unblock = CountDownLatch(1)
+        val released = AtomicInteger(0)
+        val discarded = AtomicInteger(0)
+        val failed = AtomicInteger(0)
+        try {
+            discovery.start(HardwareKeyDiscovery.Protocol.OATH, { _, _ ->
+                started.countDown()
+                unblock.await(5, TimeUnit.SECONDS)
+                byteArrayOf(1)
+            }, { it.fill(0); discarded.incrementAndGet() }, { released.incrementAndGet() }, {}) { _, success ->
+                if (!success) failed.incrementAndGet()
+            }
+            com.yubico.yubikit.android.YubiKitManager.usbCallback!!(device)
+            expect(started.await(5, TimeUnit.SECONDS), { "fake worker never started" })
+            valid.set(false)
+            unblock.countDown()
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect(released.get() == 1 && discarded.get() == 1 && failed.get() == 1,
+                { "stale result was not cleaned and closed" })
+            expect(com.yubico.yubikit.android.YubiKitManager.usbCallback == null, { "discovery remained active" })
+        } finally {
+            unblock.countDown()
+            discovery.close()
+            Handler.posted.clear()
+        }
+    }
+
+    check("OATH wrapper refuses duplicates and canceled writes or HOTP calculations in the fake backend") {
+        val fake = com.yubico.yubikit.oath.OathSandbox
+        fake.reset()
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = type.cast(
+                object : com.yubico.yubikit.core.smartcard.SmartCardConnection { override fun close() {} })!!
+        }
+        val entry = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 12L, 6, "Example", "alice",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        try {
+            expectThrows(IllegalStateException::class.java) { HardwareOathClient.copyToKey(device, null, entry, true) { false } }
+            expect(fake.writes == 0 && fake.lastData?.destroyed == true, { "canceled copy wrote or retained data" })
+            val duplicate = fake.lastData!!.id
+            fake.credentials = listOf(com.yubico.yubikit.oath.Credential(duplicate))
+            expectThrows(IllegalArgumentException::class.java) { HardwareOathClient.copyToKey(device, null, entry, true) { true } }
+            expect(fake.writes == 0 && fake.lastData?.destroyed == true, { "duplicate copy wrote or retained data" })
+            fake.credentials = emptyList()
+            HardwareOathClient.copyToKey(device, null, entry, true) { true }
+            expect(fake.writes == 1 && fake.lastTouch && fake.lastData?.destroyed == true,
+                { "copy did not forward touch or wipe owned data" })
+            expect(entry.getSecret()?.any { it != 0.toByte() } == true, { "copy damaged the app entry" })
+            val account = com.yubico.yubikit.oath.Credential(byteArrayOf(1), com.yubico.yubikit.oath.OathType.HOTP)
+            expectThrows(IllegalArgumentException::class.java) {
+                HardwareOathClient.calculate(device, null, "different-device", account) { true }
+            }
+            expectThrows(IllegalStateException::class.java) {
+                HardwareOathClient.calculate(device, null, "fake-device", account) { false }
+            }
+            expect(fake.calculations == 0, { "stale HOTP advanced" })
+            HardwareOathClient.calculate(device, null, "fake-device", account) { true }
+            expect(fake.calculations == 1, { "authorized HOTP did not calculate" })
+            fake.locked = true
+            expectThrows(IllegalArgumentException::class.java) { HardwareOathClient.copyToKey(device, null, entry, false) { true } }
+            expect(fake.writes == 1, { "locked key accepted a write" })
+            var checks = 0
+            expectThrows(IllegalStateException::class.java) {
+                HardwareOathClient.list(device, charArrayOf('1', '2', '3', '4')) { ++checks < 2 }
+            }
+            expect(fake.unlockCalls == 0, { "canceled operation tried the OATH password" })
+        } finally {
+            entry.destroy()
+            fake.reset()
+        }
+    }
+
+    check("OATH copies preserve period and names or reject ambiguous hardware IDs") {
+        val fake = com.yubico.yubikit.oath.OathSandbox
+        fake.reset()
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = type.cast(
+                object : com.yubico.yubikit.core.smartcard.SmartCardConnection { override fun close() {} })!!
+        }
+        val entries = mutableListOf<Entry>()
+        fun totp(period: Int, issuer: String, label: String): Entry =
+            Entry(Entry.OTPType.TOTP, ENTRY_SEED, period, 6, issuer, label,
+                TokenCalculator.HashAlgorithm.SHA1, arrayListOf()).also(entries::add)
+        fun copiedId(entry: Entry): String {
+            HardwareOathClient.copyToKey(device, null, entry, false) { true }
+            return String(requireNotNull(fake.lastData).id, Charsets.UTF_8)
+        }
+        try {
+            val idPattern = Regex("^((\\d+)/)?(([^:]+):)?(.+)$")
+            val examples = listOf(
+                Triple(totp(30, "60/Issuer", "alice"), "60/Issuer", "alice"),
+                Triple(totp(30, "", "60/alice"), "", "60/alice"),
+                Triple(totp(60, "60/Issuer", "alice"), "60/Issuer", "alice"),
+                Triple(totp(30, "", "alice"), "", "alice"),
+                Triple(totp(30, "Issuer", "name:alice"), "Issuer", "name:alice")
+            )
+            for ((entry, expectedIssuer, expectedAccount) in examples) {
+                val id = copiedId(entry)
+                val match = requireNotNull(idPattern.matchEntire(id))
+                val parsedPeriod = match.groupValues[2].ifEmpty { "30" }.toInt()
+                expect(parsedPeriod == entry.getPeriod() && match.groupValues[4] == expectedIssuer &&
+                    match.groupValues[5] == expectedAccount, { "OATH ID did not preserve its period and name" })
+            }
+            expect(copiedId(totp(30, "", "é".repeat(32))).toByteArray(Charsets.UTF_8).size == 64,
+                { "64-byte hardware ID was rejected" })
+            val tooLargeCounter = Entry(Entry.OTPType.HOTP, ENTRY_SEED, Int.MAX_VALUE.toLong() + 1, 6,
+                "", "alice", TokenCalculator.HashAlgorithm.SHA1, arrayListOf()).also(entries::add)
+            val unsupported = listOf(totp(30, "Issuer:Other", "alice"), totp(30, "", "issuer:alice"),
+                totp(60, "Issuer", "alice\nother"), totp(30, "", ""),
+                totp(30, "", "é".repeat(33)), totp(30, "", "a\u200fb"),
+                totp(30, "", "\ud800"), tooLargeCounter)
+            val writes = fake.writes
+            for (entry in unsupported) {
+                expect(!HardwareOathClient.canCopy(entry), { "ambiguous OATH ID was offered" })
+                expectThrows(IllegalArgumentException::class.java) {
+                    HardwareOathClient.copyToKey(device, null, entry, false) { true }
+                }
+            }
+            expect(fake.writes == writes, { "unsupported OATH ID reached the key" })
+        } finally {
+            entries.forEach { it.destroy() }
+            fake.reset()
+        }
+    }
+
+    check("hardware TOTP codes use both clock boundaries while HOTP does not expire") {
+        val totp = com.yubico.yubikit.oath.Credential(byteArrayOf(1), com.yubico.yubikit.oath.OathType.TOTP)
+        val hotp = com.yubico.yubikit.oath.Credential(byteArrayOf(2), com.yubico.yubikit.oath.OathType.HOTP)
+        val timed = HardwareOathClient.Account(totp, "123456", 2_000, 1_000)
+        val counter = HardwareOathClient.Account(hotp, "654321", Long.MAX_VALUE, 1_000)
+        val missing = HardwareOathClient.Account(totp, null, 2_000, 1_000)
+        expect(!timed.usableAt(999) && timed.usableAt(1_000) && timed.usableAt(1_999) && !timed.usableAt(2_000),
+            { "TOTP remained valid outside its interval" })
+        expect(counter.usableAt(999) && counter.usableAt(2_000) && !missing.usableAt(1_500),
+            { "HOTP or missing-code handling was wrong" })
+    }
+
+    check("OATH list and calculate preserve the hardware code validity interval") {
+        val fake = com.yubico.yubikit.oath.OathSandbox
+        fake.reset()
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = type.cast(
+                object : com.yubico.yubikit.core.smartcard.SmartCardConnection { override fun close() {} })!!
+        }
+        val totp = com.yubico.yubikit.oath.Credential(byteArrayOf(1), com.yubico.yubikit.oath.OathType.TOTP)
+        val hotp = com.yubico.yubikit.oath.Credential(byteArrayOf(2), com.yubico.yubikit.oath.OathType.HOTP)
+        try {
+            fake.codes = mapOf(totp to com.yubico.yubikit.oath.Code("123456", 1_000L, 2_000L), hotp to null)
+            val listed = HardwareOathClient.list(device, null) { true }.items
+            val timed = listed.single { it.credential === totp }
+            expect(!timed.usableAt(999) && timed.usableAt(1_000) && !timed.usableAt(2_000),
+                { "list dropped a code boundary" })
+            expect(!listed.single { it.credential === hotp }.usableAt(1_500), { "a null HOTP became usable" })
+            fake.calculatedCode = com.yubico.yubikit.oath.Code("654321", 3_000L, 4_000L)
+            val calculated = HardwareOathClient.calculate(device, null, "fake-device", totp) { true }
+            expect(!calculated.usableAt(2_999) && calculated.usableAt(3_000) && !calculated.usableAt(4_000),
+                { "calculate dropped a code boundary" })
+        } finally { fake.reset() }
+    }
+
+    check("FIDO adapter requests verified PRF bytes and rejects invalid or canceled results") {
+        val fake = com.yubico.yubikit.fido.client.FidoSandbox
+        val device = object : com.yubico.yubikit.core.YubiKeyDevice {
+            override fun <T> openConnection(type: Class<T>): T = throw UnsupportedOperationException("fake device")
+        }
+        val id = byteArrayOf(3, 1, 4, 1, 5)
+        val prf = ByteArray(32) { (it + 1).toByte() }
+        val registrationExtensions = com.yubico.yubikit.fido.webauthn.Extensions(mapOf("prf" to mapOf("enabled" to true)))
+        val assertionExtensions = com.yubico.yubikit.fido.webauthn.Extensions(mapOf("prf" to mapOf("results" to mapOf("first" to prf))))
+        fake.reset()
+        try {
+            fake.enrollment = com.yubico.yubikit.fido.webauthn.PublicKeyCredential(id, registrationExtensions)
+            fake.assertion = com.yubico.yubikit.fido.webauthn.PublicKeyCredential(id.clone(), assertionExtensions)
+            HardwareFidoClient.enroll(device, null, com.yubico.yubikit.core.application.CommandState()) { true }.use { result ->
+                expect(result.credentialId.contentEquals(id) && result.salt.size == 32 && result.prf === prf,
+                    { "enrollment did not return the scripted PRF bytes" })
+                val selection = fake.creationOptions!!.value["authenticatorSelection"] as Map<*, *>
+                val request = fake.requestOptions!!.value
+                expect(selection["userVerification"] == "required" && request["userVerification"] == "required" &&
+                    request["rpId"] == "offlineotp.invalid", { "FIDO options did not require user verification" })
+                expect(assertionExtensions.lastSerialization == com.yubico.yubikit.fido.webauthn.SerializationType.CBOR,
+                    { "PRF was converted to an immutable JSON string" })
+            }
+            expect(prf.all { it == 0.toByte() }, { "owned PRF bytes were not cleared" })
+
+            fake.reset()
+            fake.enrollment = com.yubico.yubikit.fido.webauthn.PublicKeyCredential(id, registrationExtensions)
+            var checks = 0
+            expectThrows(IllegalStateException::class.java) {
+                HardwareFidoClient.enroll(device, null, com.yubico.yubikit.core.application.CommandState()) { ++checks == 1 }
+            }
+            expect(fake.makeCalls == 1 && fake.assertionCalls == 0, { "canceled enrollment performed the assertion" })
+
+            val envelope = HardwareUnlockEnvelope.seal(id, ByteArray(32) { 7 }, ByteArray(32) { 8 }, ByteArray(16) { 9 })
+            val request = requireNotNull(HardwareUnlockEnvelope.request(envelope))
+            val badPrf = byteArrayOf(1, 2, 3)
+            fake.assertion = com.yubico.yubikit.fido.webauthn.PublicKeyCredential(id,
+                com.yubico.yubikit.fido.webauthn.Extensions(mapOf("prf" to mapOf("results" to mapOf("first" to badPrf)))))
+            expectThrows(IllegalStateException::class.java) {
+                HardwareFidoClient.calculate(device, request, null, com.yubico.yubikit.core.application.CommandState())
+            }
+            expect(badPrf.all { it == 0.toByte() }, { "invalid PRF bytes were not cleared" })
+            val wrongIdPrf = ByteArray(32) { 17 }
+            fake.assertion = com.yubico.yubikit.fido.webauthn.PublicKeyCredential(byteArrayOf(9),
+                com.yubico.yubikit.fido.webauthn.Extensions(mapOf("prf" to mapOf("results" to mapOf("first" to wrongIdPrf)))))
+            expectThrows(IllegalStateException::class.java) {
+                HardwareFidoClient.calculate(device, request, null, com.yubico.yubikit.core.application.CommandState())
+            }
+            expect(wrongIdPrf.all { it == 0.toByte() }, { "mismatched credential left PRF bytes uncleared" })
+        } finally { fake.reset() }
+    }
+
+    check("hardware account pickers sanitize directional and control characters") {
+        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val name = activity.javaClass.getDeclaredMethod("displayName", String::class.java, String::class.java)
+        name.isAccessible = true
+        val result = name.invoke(activity, "Example\u202e", "alice\n\u200fbob") as String
+        expect(result == "Example  / alice  bob", { "unsafe label characters were not sanitized" })
+        expect((name.invoke(activity, "", "") as String).isNotEmpty(), { "blank labels were not named" })
+    }
+
+    check("hardware TOTP display rechecks clock rollback and does not copy a stale code") {
+        Handler.posted.clear()
+        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val accountsView = android.widget.LinearLayout(activity)
+        val key = SecretKeySpec(ByteArray(16) { 73 }, "AES")
+        VaultSession.open(key)
+        val generation = VaultSession.generation()
+        val discovery = HardwareKeyDiscovery(activity) { VaultSession.isCurrent(generation) }
+        var now = 1_500L
+        fun setField(name: String, value: Any) {
+            activity.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
+        }
+        try {
+            setField("generation", generation)
+            setField("discovery", discovery)
+            setField("password", android.widget.EditText(activity))
+            setField("status", android.widget.TextView())
+            setField("accountsView", accountsView)
+            setField("clock", { now })
+            val handler = activity.javaClass.getDeclaredField("handler").apply { isAccessible = true }
+                .get(activity) as Handler
+            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(5),
+                com.yubico.yubikit.oath.OathType.TOTP, "Example", "alice")
+            val account = HardwareOathClient.Account(credential, "123456", 2_000, 1_000)
+            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account))
+            val render = activity.javaClass.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java)
+                .apply { isAccessible = true }
+            render.invoke(activity, accounts)
+            val button = accountsView.getChildAt(0) as android.widget.Button
+            expect(button.text.toString().contains("123456") && handler.delayed.single().second == 500L,
+                { "valid TOTP was not displayed with a bounded refresh" })
+            now = 999L
+            handler.delayed.removeAt(0).first.run()
+            expect(!button.text.toString().contains("123456"), { "clock rollback left a future code visible" })
+            now = 1_500L
+            button.performClick()
+            expect(com.yubico.yubikit.android.YubiKitManager.usbCallback != null,
+                { "a previously expired display copied its cached code instead of recalculating" })
+            discovery.cancel()
+            now = 999L
+            render.invoke(activity, accounts)
+            expect(!(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
+                { "code was shown before its validity window" })
+            now = 2_000L
+            render.invoke(activity, accounts)
+            expect(!(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
+                { "code was shown at its expiry boundary" })
+        } finally {
+            discovery.close()
+            VaultSession.lock()
+            Handler.posted.clear()
+        }
+    }
+
+    check("interrupted HOTP calculation discards the old displayed code and warns") {
+        Handler.posted.clear()
+        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val password = android.widget.EditText(activity)
+        val status = android.widget.TextView()
+        val accountsView = android.widget.LinearLayout(activity)
+        val key = SecretKeySpec(ByteArray(16) { 72 }, "AES")
+        VaultSession.open(key)
+        val generation = VaultSession.generation()
+        val discovery = HardwareKeyDiscovery(activity) { VaultSession.isCurrent(generation) }
+        fun setField(name: String, value: Any) {
+            activity.javaClass.getDeclaredField(name).apply { isAccessible = true }.set(activity, value)
+        }
+        try {
+            setField("generation", generation)
+            setField("discovery", discovery)
+            setField("password", password)
+            setField("status", status)
+            setField("accountsView", accountsView)
+            val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(4),
+                com.yubico.yubikit.oath.OathType.HOTP, "Example", "alice")
+            val account = HardwareOathClient.Account(credential, "123456", Long.MAX_VALUE)
+            val accounts = HardwareOathClient.Accounts("fake-device", listOf(account))
+            val render = activity.javaClass.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java)
+            render.isAccessible = true
+            render.invoke(activity, accounts)
+            expect(accountsView.childCount == 2 && (accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
+                { "fixture did not display the cached HOTP" })
+            val calculate = activity.javaClass.getDeclaredMethod("calculate", String::class.java, HardwareOathClient.Account::class.java)
+            calculate.isAccessible = true
+            calculate.invoke(activity, "fake-device", account)
+            expect(accountsView.childCount == 1 && !(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
+                { "an old HOTP remained available after a new calculation started" })
+            val progress = requireNotNull(AlertDialog.Builder.lastCreated)
+            // The stand-in records dismissal listeners but does not simulate Android dialog events.
+            progress.onDismissListener!!.onDismiss(progress)
+            expect(status.textResource == R.string.hardware_hotp_uncertain, { "interruption did not warn about the counter" })
+            expect(com.yubico.yubikit.android.YubiKitManager.usbCallback == null, { "cancel left discovery running" })
+        } finally {
+            discovery.close()
+            VaultSession.lock()
+            Handler.posted.clear()
+        }
+    }
+
+    check("hardware unlock enrollment is session-bound, verified, cancellable and invalidated with rekey") {
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_auth, "password")
+        fixture.seed(R.string.settings_key_encryption, "password")
+        val raw = ByteArray(16) { (0x80 + it).toByte() }
+        val prf = ByteArray(32) { (0x40 + it).toByte() }
+        val key = SecretKeySpec(raw, "AES")
+        val envelope = HardwareUnlockEnvelope.seal(ByteArray(32) { (it + 1).toByte() }, ByteArray(32) { 9 }, prf, raw)
+        try {
+            VaultSession.open(key)
+            val generation = VaultSession.generation()
+            withPoisonedTransaction {
+                expect(!HardwareUnlockStore.save(fixture.context, generation + 1, key, envelope, prf) { true },
+                    { "stale generation enrolled" })
+                expect(!HardwareUnlockStore.save(fixture.context, generation, SecretKeySpec(raw, "AES"), envelope, prf) { true },
+                    { "different key object enrolled" })
+                expect(!HardwareUnlockStore.save(fixture.context, generation, key, envelope, ByteArray(32)) { true },
+                    { "wrong PRF enrolled" })
+                var permissions = 0
+                expect(!HardwareUnlockStore.save(fixture.context, generation, key, envelope, prf) { ++permissions == 1 },
+                    { "late cancellation enrolled" })
+                expect(HardwareUnlockStore.read(fixture.context) == null, { "failed enrollments wrote a wrapper" })
+                expect(HardwareUnlockStore.save(fixture.context, generation, key, envelope, prf) { true },
+                    { "valid enrollment failed" })
+                expect(HardwareUnlockStore.read(fixture.context)?.contentEquals(envelope) == true,
+                    { "saved wrapper differs" })
+                val encoded = fixture.store.getString("internal_hardware_unlock_v1", null)!!
+                expect(!encoded.contains(java.util.Base64.getEncoder().encodeToString(raw)) &&
+                    !encoded.contains(java.util.Base64.getEncoder().encodeToString(prf)),
+                    { "unencrypted vault key or PRF was stored" })
+                fixture.settings.commitVaultSettings(null, Constants.EncryptionType.PASSWORD, null, null, false)
+                expect(HardwareUnlockStore.read(fixture.context) != null, { "auth-only metadata removed wrapper" })
+                val before = fixture.store.commitCount
+                expect(fixture.settings.commitVaultSettings("transaction", Constants.EncryptionType.PASSWORD, null, null, false),
+                    { "metadata transaction failed" })
+                expect(fixture.store.commitCount == before + 1 && HardwareUnlockStore.read(fixture.context) == null,
+                    { "rekey did not remove wrapper in the metadata commit" })
+                expect(HardwareUnlockStore.save(fixture.context, generation, key, envelope, prf) { true },
+                    { "second enrollment failed" })
+                expect(!HardwareUnlockStore.remove(fixture.context, generation + 1, key), { "stale session removed wrapper" })
+                VaultSession.lock()
+                expect(!HardwareUnlockStore.save(fixture.context, generation, key, envelope, prf) { true },
+                    { "locked session enrolled" })
+            }
+        } finally {
+            VaultSession.lock()
+            raw.fill(0)
+            prf.fill(0)
+        }
+    }
+
+    check("a key-only session retains pending login backups until password unlock") {
+      withPoisonedTransaction {
+        Handler.posted.clear()
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-hardware-backup").toFile()
+        val resolver = FakeResolver()
+        val context = BackupSettingsContext(resolver)
+        val fixture = SettingsFixture(context)
+        val treeUri = contentUri("tree", "hardware-backup")
+        val created = ArrayList<File>()
+        val tree = object : DocumentFile() {
+            override fun getUri(): Uri = treeUri
+            override fun delete(): Boolean = false
+            override fun createFile(mimeType: String?, name: String?): DocumentFile {
+                val target = File(directory, requireNotNull(name))
+                created.add(target)
+                resolver.target = target
+                return object : DocumentFile() {
+                    override fun getUri(): Uri = contentUri("document", target.name)
+                    override fun delete(): Boolean = target.delete()
+                }
+            }
+        }
+        DocumentFile.treeFactory = { _, _ -> tree }
+        fixture.seed(R.string.settings_key_backup_location, treeUri.toString())
+        fixture.seed(R.string.settings_key_auth, "password")
+        fixture.seed(R.string.settings_key_auto_backup_use_login, true)
+        fixture.seed(R.string.settings_key_auto_backup_password_enc, "all_edits")
+        val key = SecretKeySpec(ByteArray(16) { 81 }, "AES")
+        val entries = arrayListOf(Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP"))
+        val password = "a test password for a pending backup"
+        try {
+            VaultSession.open(key) // Equivalent to a hardware handoff: no login backup key.
+            val marker = PendingAutomaticBackup.stage(context, null).marker
+            val persistence = EntryPersistence(context)
+            val schedule = EntryPersistence::class.java.getDeclaredMethod("schedule", java.util.ArrayList::class.java,
+                PendingAutomaticBackup.Marker::class.java, UiBasedBackgroundTask.OutcomeCallback::class.java)
+            schedule.isAccessible = true
+            var outcome: TaskOutcome<BackupTaskResult>? = null
+            val callback = UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult> { outcome = it }
+            schedule.invoke(persistence, entries, marker, callback)
+            val waiting = (outcome as? TaskOutcome.Value<BackupTaskResult>)?.value
+            expect(waiting?.success == false && waiting.messageId == R.string.backup_toast_wait_password &&
+                PendingAutomaticBackup.read(context) == marker && created.isEmpty(),
+                { "hardware session failed to retain and explain the pending backup" })
+            expect(PendingAutomaticBackup.claim(context, marker.token), { "pending marker remained claimed" })
+            PendingAutomaticBackup.release(marker.token)
+
+            VaultSession.lock()
+            val attempt = VaultSession.beginUnlock()
+            LoginBackupKey.derive(password).use { expect(VaultSession.offerBackupKey(it, attempt.generation), { "backup key handoff failed" }) }
+            expect(VaultSession.activate(key, attempt.generation) is SessionCommandResult.Applied, { "password session failed" })
+            outcome = null
+            schedule.invoke(persistence, entries, marker, callback)
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect((outcome as? TaskOutcome.Value<BackupTaskResult>)?.value?.success == true &&
+                PendingAutomaticBackup.read(context) == null && created.size == 1,
+                { "password session did not finish the retained backup" })
+            val header = EncryptedBackupHeader.parse(created.single().readBytes())
+            val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+            expect(String(EncryptionHelper.decrypt(backupKey, header.getEncrypted()), Charsets.UTF_8).contains("alice"),
+                { "retained backup did not use the app password" })
+        } finally {
+            VaultSession.lock()
+            entries.forEach { it.destroy() }
+            DocumentFile.treeFactory = null
+            directory.deleteRecursively()
+            Handler.posted.clear()
+        }
+      }
+    }
+
+    check("reset invalidates hardware shortcut even if vault file deletion fails") {
+        val fixture = SettingsFixture()
+        val raw = ByteArray(16) { 77 }
+        val prf = ByteArray(32) { 78 }
+        val key = SecretKeySpec(raw, "AES")
+        fixture.seed(R.string.settings_key_auth, "password")
+        fixture.seed(R.string.settings_key_encryption, "password")
+        try {
+            VaultSession.open(key)
+            withPoisonedTransaction {
+                val envelope = HardwareUnlockEnvelope.seal(byteArrayOf(1), ByteArray(32), prf, raw)
+                expect(HardwareUnlockStore.save(fixture.context, VaultSession.generation(), key, envelope, prf) { true },
+                    { "setup enrollment failed" })
+                try { DatabaseHelper.wipeDatabase(fixture.context) } catch (_: UnsupportedOperationException) { }
+                expect(HardwareUnlockStore.read(fixture.context) == null, { "reset left the shortcut in preferences" })
+            }
+        } finally {
+            VaultSession.lock()
+            raw.fill(0)
+            prf.fill(0)
         }
     }
 

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Engadir data ao nome do ficheiro</string>
     <string name="settings_title_backup_ask">Preguntar polo nome do ficheiro</string>
     <string name="settings_title_backup_location">Localización por omisión</string>
-    <string name="settings_title_backup_password">Contrasinal da copia de seguranza</string>
     <string name="settings_title_backup_broadcasts">Respaldo Broadcasts</string>
     <string name="settings_title_openpgp_provider">Provedor OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Chave de cifrado OpenPGP</string>
@@ -80,14 +79,8 @@ a campos de contrasinal dentro da app</string>
         ficheiro de respaldo suxerido</string>
     <string name="settings_desc_backup_location">Escolle a localización por omisión</string>
     <string name="settings_desc_backup_location_set">Foi escollida a localización para a copia</string>
-    <string name="settings_desc_backup_password">Establecer o contrasinal para cifrar as
-        copias de apoio</string>
     <string name="settings_desc_auto_backup_password_enc">Crea unha nova copia de apoio cifrada cando
         se engaden novas entradas, ou se editan, se se dan as condicións</string>
-    <string name="settings_desc_auto_backup_requirements">Establece a localización por omisión para a copia
-e un contrasinal para activar esta opción</string>
-    <string name="settings_desc_backup_broadcasts">Escolle que tipos de copia se poden activar por
-         aplicacións de terceiros utilizando Broadcasts</string>
     <string name="settings_desc_openpgp_verify">As copias de apoio cifradas só se importan
         se están asinadas con unha chave válida</string>
     <string name="settings_desc_special_features">Desmarcar para desactivar as funcionalidades especiais</string>

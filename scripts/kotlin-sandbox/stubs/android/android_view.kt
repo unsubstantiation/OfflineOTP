@@ -180,6 +180,7 @@ open class ViewGroup : View() {
     }
 
     open fun getChildAt(index: Int): View = children[index]
+    open fun removeAllViews() { children.clear() }
 
     open val childCount: Int get() = children.size
 }

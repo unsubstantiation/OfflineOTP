@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">הוסף תאריך לשם הקובץ</string>
     <string name="settings_title_backup_ask">בקש שם קובץ</string>
     <string name="settings_title_backup_location">מיקום ברירת מחדל לגיבוי</string>
-    <string name="settings_title_backup_password">סיסמת גיבוי</string>
     <string name="settings_title_backup_broadcasts">שידורי גיבוי</string>
     <string name="settings_title_openpgp_provider">ספק OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">מפתח הצפנה OpenPGP</string>
@@ -80,14 +79,8 @@
          המוצע</string>
     <string name="settings_desc_backup_location">בחר מיקום ברירת מחדל לגיבוי</string>
     <string name="settings_desc_backup_location_set">נבחר מיקום גיבוי</string>
-    <string name="settings_desc_backup_password">הגדר את הסיסמה המשמשת להצפנת
-        הגיבויים</string>
     <string name="settings_desc_auto_backup_password_enc">יוצר גיבוי מוצפן חדש כאשר
         ערכים חדשים נוספים, או נערכים, אם מתקיימים תנאי ההגדרות</string>
-    <string name="settings_desc_auto_backup_requirements">הגדר מיקום ברירת מחדל לגיבוי
-        וסיסמת גיבוי כדי להפעיל אפשרות זו</string>
-    <string name="settings_desc_backup_broadcasts">בחר אילו סוגי גיבוי יכולים להיות מופעלים על ידי
-        אפליקציות צד שלישי באמצעות שידורים</string>
     <string name="settings_desc_openpgp_verify">גיבויים מוצפנים מיובאים רק אם הם
         חתומים באמצעות מפתח חוקי</string>
     <string name="settings_desc_special_features">בטל את הסימון כדי להשבית את התכונות המיוחדות בשנית</string>

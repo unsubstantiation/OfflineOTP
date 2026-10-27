@@ -37,6 +37,7 @@ import org.shadowice.flocke.andotp.Utilities.OtpParseResult
 import org.shadowice.flocke.andotp.Utilities.OtpUriParser
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.Tools
+import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
 
 import java.nio.charset.StandardCharsets
 import java.util.Objects
@@ -125,6 +126,19 @@ open class Entry {
         }
         val value = (result as OtpParseResult.Success).value
         try {
+            initialize(value)
+        } finally {
+            value.close()
+        }
+    }
+
+    /** Copies a validated account; the caller retains ownership of [value]. */
+    internal constructor(value: ValidatedOtp) {
+        initialize(value)
+    }
+
+    private fun initialize(value: ValidatedOtp) {
+        try {
             this.type = OTPType.valueOf(value.kind.name)
             this.secret = value.copySecret()
             this.period = value.period
@@ -139,8 +153,6 @@ open class Entry {
         } catch (error: RuntimeException) {
             destroy()
             throw error
-        } finally {
-            value.close()
         }
     }
 
@@ -282,7 +294,10 @@ open class Entry {
     }
 
     fun setType(type: OTPType) {
-        if (this.type != type) invalidateCachedToken()
+        if (this.type != type) {
+            invalidateCachedToken()
+            setColor(COLOR_DEFAULT)
+        }
         this.type = type
     }
 
@@ -390,7 +405,12 @@ open class Entry {
 
     fun getAlgorithm(): TokenCalculator.HashAlgorithm = algorithm
 
+    /** Legacy stored-period check; use [hasNonDefaultTokenStep] for countdown display. */
     fun hasNonDefaultPeriod(): Boolean = period != TokenCalculator.TOTP_DEFAULT_PERIOD
+
+    /** Whether the actual rollover differs from the global 30-second TOTP countdown. */
+    fun hasNonDefaultTokenStep(): Boolean =
+        isTimeBased() && getTokenStepSeconds() != TokenCalculator.TOTP_DEFAULT_PERIOD
 
     fun isVisible(): Boolean = visible
 
@@ -502,20 +522,19 @@ open class Entry {
         return false
     }
 
-    /**
-     * Returns true the first time the token is within [EXPIRY_TIME] seconds of expiring,
-     * switching the entry to [COLOR_RED]. [updateOTP] resets that color.
-     */
-    fun hasColorChanged(): Boolean {
-        if (color == COLOR_DEFAULT) {
-            val time = System.currentTimeMillis() / 1000
-            val step = getTokenStepSeconds()
-            if ((time % step) > (step - EXPIRY_TIME)) {
-                setColor(COLOR_RED)
-                return true
-            }
-        }
-        return false
+    /** Updates the expiry color; HOTP and the mOTP PIN placeholder do not expire. */
+    fun hasColorChanged(): Boolean = hasColorChangedAt(System.currentTimeMillis() / 1000)
+
+    /** Explicit time lets the expiry boundary be checked without waiting for the system clock. */
+    internal fun hasColorChangedAt(time: Long): Boolean {
+        val next = if (isTimeBased() && (type != OTPType.MOTP || pin.isNotEmpty())) {
+            val step = getTokenStepSeconds().toLong()
+            val remaining = step - Math.floorMod(time, step)
+            if (remaining <= EXPIRY_TIME) COLOR_RED else COLOR_DEFAULT
+        } else COLOR_DEFAULT
+        if (next == color) return false
+        setColor(next)
+        return true
     }
 
     /** Sets the thumbnail by exact, then by fuzzy issuer match. */

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Amestar la data al nome del ficheru</string>
     <string name="settings_title_backup_ask">Pidir un nome de ficheru</string>
     <string name="settings_title_backup_location">Allugamientu predetermináu de les copies</string>
-    <string name="settings_title_backup_password">Contraseña pa les copies de seguranza</string>
     <string name="settings_title_backup_broadcasts">Espardimientu de copies de seguranza</string>
     <string name="settings_title_openpgp_provider">Fornidor OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clave de cifráu OpenPGP</string>
@@ -85,16 +84,8 @@ d\'accesibilidá!</b></string>
         de seguranza</string>
     <string name="settings_desc_backup_location">Escueyi un allugamientu predetermináu pa copies de seguranza</string>
     <string name="settings_desc_backup_location_set">Escoyóse l\'allugamientu de les copies de seguranza</string>
-    <string name="settings_desc_backup_password">Afita la contraseña que s\'usa pa cifrar les
-        copies de seguranza</string>
     <string name="settings_desc_auto_backup_password_enc">Crea una copia de seguranza cifrada cuando
         s\'amiesten o editen entraes, si se cumplen les condiciones</string>
-    <string name="settings_desc_auto_backup_requirements">Afita un allugamientu y una contraseña
-        predeterminaos pa les copies de
-        seguranza p\'activar esta opción</string>
-    <string name="settings_desc_backup_broadcasts">Esbilla les tribes de copies de seguranza que
-        puen aicionase pente aplicaciones de
-        terceros col usu d\'Espardimientu</string>
     <string name="settings_desc_openpgp_verify">Les copies de seguranza cifraes namás s\'importen
         si tán roblaes con una clave válida</string>
     <string name="settings_desc_special_features">Toca pa volver desactivar les carauterístiques especiales</string>

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Προσθήκη ημερομηνίας στο όνομα αρχείου</string>
     <string name="settings_title_backup_ask">Ερώτηση για όνομα αρχείου</string>
     <string name="settings_title_backup_location">Προεπιλεγμένη τοποθεσία αντιγράφου ασφαλείας</string>
-    <string name="settings_title_backup_password">Κωδικός αντιγράφων</string>
     <string name="settings_title_backup_broadcasts">Αντίγραφο ασφαλείας Broadcasts</string>
     <string name="settings_title_openpgp_provider">Πάροχος OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Κλειδί κρυπτογράφησης OpenPGP</string>
@@ -80,14 +79,8 @@
         όνομα αρχείου αντιγράφου ασφαλείας</string>
     <string name="settings_desc_backup_location">Επιλέξτε μια προεπιλεγμένη θέση των αντιγράφων ασφαλείας</string>
     <string name="settings_desc_backup_location_set">Η τοποθεσία των αντιγράφων ασφαλείας δημιουργήθηκε</string>
-    <string name="settings_desc_backup_password">Ορισμός κωδικού που χρησιμοποιείται για την κρυπτογράφηση
-        αντιγράφων ασφαλείας</string>
     <string name="settings_desc_auto_backup_password_enc">Δημιουργία ενός νέου κρυπτογραφημένου αντιγράφου ασφαλείας όταν νέες
         εγγραφές προστίθενται ή επεξεργάζονται, εφόσον πληρούνται οι προϋποθέσεις</string>
-    <string name="settings_desc_auto_backup_requirements">Καθορίστε μια προεπιλεγμένη θέση δημιουργίας αντιγράφων ασφαλείας και ένα
-        εφεδρικό κωδικό για να ενεργοποιήσετε αυτήν την επιλογή</string>
-    <string name="settings_desc_backup_broadcasts">Επιλέξτε ποιοι τύποι αντιγράφων μπορούν να ενεργοποιηθούν από
-        εφαρμογές τρίτων που χρησιμοποιούν Broadcasts</string>
     <string name="settings_desc_openpgp_verify">Τα κρυπτογραφημένα αντίγραφα ασφαλείας εισάγονται μόνο αν είναι
         υπογεγραμμένα με έγκυρο κλειδί</string>
     <string name="settings_desc_special_features">Καταργήστε την επιλογή για να απενεργοποιήσετε ξανά τις ειδικές λειτουργίες</string>

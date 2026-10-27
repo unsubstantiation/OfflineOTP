@@ -354,9 +354,12 @@ object DatabaseHelper {
     fun wipeDatabase(context: Context) {
         VaultSession.lock(SessionLockReason.RESET)
         synchronized(DatabaseFileLock) {
+            // Invalidate the shortcut even if a subsequent file deletion fails partway through.
+            HardwareUnlockStore.clearAfterReset(context)
             for (name in arrayOf(Constants.FILENAME_DATABASE, Constants.FILENAME_DATABASE_BACKUP, PENDING_FILE)) {
                 FileHelper.delete(file(context, name))
             }
+            try { PendingAutomaticBackup.clear(context) } catch (_: RuntimeException) { }
             transactionPoisoned = false
         }
     }

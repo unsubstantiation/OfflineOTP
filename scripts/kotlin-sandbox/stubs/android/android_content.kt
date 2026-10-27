@@ -66,7 +66,8 @@ open class Context {
     /** The task classes keep only the application context; the checks substitute their own. */
     open fun getApplicationContext(): Context = this
     fun getAssets(): android.content.res.AssetManager = android.content.res.AssetManager()
-    fun getFilesDir(): java.io.File = java.io.File(".")
+    /** `open` so filesystem-refusal checks can use an isolated empty directory. */
+    open fun getFilesDir(): java.io.File = java.io.File(".")
     /** `open` so the storage checks can substitute a recording resolver for the inert default. */
     open fun getContentResolver(): ContentResolver = ContentResolver()
     /** `open` so the storage checks can supply their own private cache directory. */
@@ -84,6 +85,7 @@ open class Context {
         const val INPUT_METHOD_SERVICE = "input_method"
         const val NOTIFICATION_SERVICE = "notification"
         const val KEYGUARD_SERVICE = "keyguard"
+        const val USB_SERVICE = "usb"
     }
 }
 

@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">追加日期到文件名</string>
     <string name="settings_title_backup_ask">询问文件名</string>
     <string name="settings_title_backup_location">默认备份位置</string>
-    <string name="settings_title_backup_password">备份密码</string>
     <string name="settings_title_backup_broadcasts">备份广播</string>
     <string name="settings_title_openpgp_provider">OpenPGP 提供者</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP 加密密钥</string>
@@ -71,11 +70,7 @@
     <string name="settings_desc_backup_append_date">追加当前日期和时间到建议的备份文件名</string>
     <string name="settings_desc_backup_location">选择默认的备份位置</string>
     <string name="settings_desc_backup_location_set">已选择备份位置</string>
-    <string name="settings_desc_backup_password">设置用于加密备份的密码</string>
     <string name="settings_desc_auto_backup_password_enc">如果满足设置条件，新建或编辑条目时，同时新建一个加密备份。</string>
-    <string name="settings_desc_auto_backup_requirements">设置默认的备份位置和
-        备份密码以启用此选项</string>
-    <string name="settings_desc_backup_broadcasts">选择第三方应用可使用广播触发的备份类型</string>
     <string name="settings_desc_openpgp_verify">只导入包含有效签名密钥的加密备份</string>
     <string name="settings_desc_special_features">取消选中则重新禁用特别功能</string>
     <string name="settings_desc_clear_keystore">从密钥库中删除加密密钥</string>

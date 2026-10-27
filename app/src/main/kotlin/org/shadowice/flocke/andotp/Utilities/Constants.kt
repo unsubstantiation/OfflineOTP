@@ -76,12 +76,14 @@ object Constants {
     const val INTENT_BACKUP_OPEN_DOCUMENT_PLAIN = 209
 
     const val INTENT_SETTINGS_AUTHENTICATE = 300
+    const val INTENT_AUTH_HARDWARE = 400
     const val INTENT_SETTINGS_BACKUP_LOCATION = 301
 
     // Intent extras
     const val EXTRA_AUTH_PASSWORD_KEY = "password_key"
     const val EXTRA_AUTH_NEW_ENCRYPTION = "new_encryption"
     const val EXTRA_AUTH_MESSAGE = "message"
+    const val EXTRA_AUTH_ALLOW_HARDWARE = "allow_hardware_unlock"
 
     const val EXTRA_BACKUP_ENCRYPTION_KEY = "encryption_key"
     const val EXTRA_BACKUP_PENDING_ACTION = "backup_pending_action"

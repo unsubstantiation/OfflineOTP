@@ -20,6 +20,9 @@ class Uri internal constructor(
     private val parameters: List<Pair<String, String>> = emptyList()
 ) : android.os.Parcelable {
     override fun toString(): String = text ?: ""
+    // Android Uri equality compares its encoded representation, including separately parsed copies.
+    override fun equals(other: Any?): Boolean = other is Uri && toString() == other.toString()
+    override fun hashCode(): Int = toString().hashCode()
 
     fun getScheme(): String? = schemeValue
 

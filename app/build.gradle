@@ -92,6 +92,10 @@ dependencies {
     implementation "com.heinrichreimersoftware:material-intro:2.0.0"
     implementation("com.journeyapps:zxing-android-embedded:4.3.0") { transitive = false }
     implementation('com.google.zxing:core:3.5.4')
+    // USB/NFC security-key transports, OATH accounts, and FIDO2 PRF-based unlock.
+    implementation 'com.yubico.yubikit:android:3.2.1'
+    implementation 'com.yubico.yubikit:oath:3.2.1'
+    implementation 'com.yubico.yubikit:fido:3.2.1'
     implementation "me.zhanghai.android.materialprogressbar:library:1.6.1"
     implementation "com.github.open-keychain.open-keychain:openpgp-api:v5.8.2"
     implementation "com.leinardi.android:speed-dial:3.3.0"

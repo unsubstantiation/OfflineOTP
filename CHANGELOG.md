@@ -2,6 +2,18 @@
 
 #### Unreleased
 
+ * Experimental: Add USB/NFC OATH account access and FIDO2 PRF key-or-password vault unlock; Android and physical-key verification is still required
+ * Bugfix: Preserve TOTP periods when copying hardware accounts with numeric name prefixes, and reject ambiguous OATH IDs
+ * Bugfix: Discard stale hardware HOTP displays after an interrupted request, and recheck hardware TOTP validity after clock changes
+ * Bugfix: Preserve pending automatic-backup retries when overlapping snapshots and reverted edits race
+ * Feature: Import Google Authenticator export QR codes or images, including multi-code batches, with confirmation and duplicate skipping
+ * Security: Add password-login-derived encrypted backups without storing the app password or requiring Android KeyStore; preserve legacy separate-password and KeyStore-vault compatibility
+ * Improvement: Snapshot eligible entry changes, including imports, without exporting no-op edits; retain completed backups and retry interrupted changes after unlock when possible
+ * Improvement: Prompt for the actual password when restoring encrypted files, including snapshots made before a password change
+ * UI: Fall back to the updated English backup-setting explanations until their translations are revised
+ * Bugfix: Keep an active search applied after account, tag, or sort changes; clearing it restores the selected tags
+ * Bugfix: Show mOTP's 10-second countdown and actual import parameters, and highlight only genuinely expiring time-based codes
+ * Security: Dismiss and wipe pending URI/QR confirmations on lock or activity destruction; reject confirmations from an earlier vault session
  * Internal: Remove unreferenced external-storage probes
  * Internal: Use the OfflineOTP name for the Gradle project and test fixtures while preserving legacy Android identifiers for compatibility
  * Internal: Remove GitHub Actions workflows; run build and release checks separately

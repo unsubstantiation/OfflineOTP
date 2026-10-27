@@ -7,6 +7,7 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.BackupHelper
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
+import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 import java.util.ArrayList
@@ -54,9 +55,11 @@ open class EncryptedBackupTask : GenericBackupTask {
     protected override fun canWrite(): Boolean {
         if (isCanceled() || !permitted.getAsBoolean() || password == null || password.isEmpty()) return false
         if (mode == Mode.USER) return VaultSession.getKey() != null
+        if (LoginBackupPolicy.usesLoginPassword(applicationContext)) return false
         if (configuredLocation == null || !settings.isBackupLocationSet()
                 || configuredLocation != settings.getBackupLocation() || password != settings.getBackupPasswordEnc()) return false
         if (mode == Mode.BROADCAST) return settings.isEncryptedBackupBroadcastEnabled()
+                && settings.getAutoBackupEncryptedPasswordsEnabled()
                 && settings.getEncryption() == Constants.EncryptionType.KEYSTORE
         return VaultSession.getKey() != null && settings.getAutoBackupEncryptedPasswordsEnabled()
     }

@@ -18,6 +18,7 @@ class AlertDialog private constructor() : DialogInterface {
     val window: Window = Window()
     var shown = false
         private set
+    val isShowing: Boolean get() = shown && dismissals == 0
     var titleId = 0
         private set
     var message: CharSequence? = null
@@ -114,6 +115,8 @@ class AlertDialog private constructor() : DialogInterface {
             this.contentView = view
             return this
         }
+
+        fun setItems(items: Array<out CharSequence>, listener: DialogInterface.OnClickListener?): Builder = this
 
         fun setPositiveButton(textId: Int, listener: DialogInterface.OnClickListener?): Builder {
             this.positiveListener = listener
@@ -291,6 +294,8 @@ open class Activity : Context() {
         this.resultCode = resultCode
         this.resultData = data
     }
+
+    open fun setResult(resultCode: Int) = setResult(resultCode, null)
 
     open fun finish() {
         finishes++

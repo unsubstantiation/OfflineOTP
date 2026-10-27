@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Dosya adına tarihi ekleme</string>
     <string name="settings_title_backup_ask">Dosya adı için sor</string>
     <string name="settings_title_backup_location">Varsayılan yedekleme konumu</string>
-    <string name="settings_title_backup_password">Yedekleme şifresi</string>
     <string name="settings_title_backup_broadcasts">Yedek Yayınları (Broadcast)</string>
     <string name="settings_title_openpgp_provider">OpenPGP sağlayıcı</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP şifreleme anahtarı</string>
@@ -77,13 +76,8 @@
     <string name="settings_desc_backup_append_date">Önerilen yedek adına mevcut tarih ve saati ekleme</string>
     <string name="settings_desc_backup_location">Varsayılan yedekleme konumu seçin</string>
     <string name="settings_desc_backup_location_set">Yedekleme konumu seçildi</string>
-    <string name="settings_desc_backup_password">        Yedekleri şifrelemek için parola ayarların</string>
     <string name="settings_desc_auto_backup_password_enc">Yeni girişler eklendiğinde veya düzenlendiğinde,
         ayarlanan koşullar sağlanıyorsa yeni bir şifreli yedekleme oluşturur</string>
-    <string name="settings_desc_auto_backup_requirements">Bu özelliği aktifleştirmek için varsayılan yedekleme
-        konumu ve yedekleme parolası tanımlamalısınız</string>
-    <string name="settings_desc_backup_broadcasts">Hangi yedekleme tiplerinin Broadcast kullanan 3. parti uygulamalar
-ile yedeklenebileceğini seçin</string>
     <string name="settings_desc_openpgp_verify">Şifrelenmiş yedekler sadece uygun anahtar ile 
         onaylanırsa içe aktarılır</string>
     <string name="settings_desc_special_features">Özel içerikleri devre dışı bırakmak için onayı kaldırın</string>

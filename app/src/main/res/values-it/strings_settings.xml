@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Aggiungi la data al nome del file</string>
     <string name="settings_title_backup_ask">Chiedi un nome di file</string>
     <string name="settings_title_backup_location">Posizione di backup predefinita</string>
-    <string name="settings_title_backup_password">Imposta password di backup</string>
     <string name="settings_title_backup_broadcasts">Backup Broadcast</string>
     <string name="settings_title_openpgp_provider">Provider OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Chiave di crittografia OpenPGP</string>
@@ -80,14 +79,8 @@ sarà richiesta nuovamente l\'autenticazione</string>
         file di backup suggerito</string>
     <string name="settings_desc_backup_location">Scegli una posizione di backup predefinita</string>
     <string name="settings_desc_backup_location_set">La posizione di backup è stata scelta</string>
-    <string name="settings_desc_backup_password">Impostare la password utilizzata per crittografare i
-        backup</string>
     <string name="settings_desc_auto_backup_password_enc">Crea un nuovo backup cifrato quando vengono create nuove
 voci o editate, se le condizioni delle impostazioni sono configurate</string>
-    <string name="settings_desc_auto_backup_requirements">Imposta una posizione di backup predefinita ed una
-        password di backup per attivare questa opzione</string>
-    <string name="settings_desc_backup_broadcasts">Seleziona quali tipi di backup possono essere
-        attivati da app di terze parti tramite Broadcast</string>
     <string name="settings_desc_openpgp_verify">I backup crittografati verranno importati solo se
         firmati con una chiave valida</string>
     <string name="settings_desc_special_features">Deselezionare per disattivare nuovamente le funzionalità speciali</string>

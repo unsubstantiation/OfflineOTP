@@ -44,6 +44,8 @@ import org.shadowice.flocke.andotp.View.ItemTouchHelper.ItemTouchHelperAdapter
 
 import java.util.ArrayList
 import java.util.HashMap
+import java.util.Collections
+import java.util.IdentityHashMap
 import java.util.function.BiConsumer
 import java.util.function.Consumer
 
@@ -114,6 +116,58 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         }
     }
 
+    internal data class BatchImportResult(val added: Int, val skipped: Int)
+
+    /**
+     * Consumes [incoming], skips identical entries, and commits the whole batch in one vault write.
+     * Returns null on failure; no partial batch is inserted into the in-memory list.
+     */
+    internal fun importEntries(incoming: ArrayList<Entry>): BatchImportResult? {
+        val retained = Collections.newSetFromMap(IdentityHashMap<Entry, Boolean>())
+        try {
+            synchronized(VaultSession.MutationLock) {
+                val proposed = entries.getEntries()
+                retained.addAll(proposed) // Never destroy an entry already owned by the adapter.
+                val key = encryptionKey
+                if (key == null || VaultSession.getKey() !== key) return null
+                val seen = Collections.newSetFromMap(IdentityHashMap<Entry, Boolean>())
+                val distinct = HashSet(proposed)
+                val accepted = ArrayList<Entry>()
+                var skipped = 0
+                for (entry in incoming) {
+                    if (!seen.add(entry)) throw IllegalArgumentException("Repeated entry instance")
+                    entry.validate()
+                    if (!distinct.add(entry)) {
+                        skipped++
+                    } else {
+                        if (proposed.size >= InputPolicy.MAX_ENTRIES) return null
+                        proposed.add(entry)
+                        accepted.add(entry)
+                    }
+                }
+                if (accepted.isEmpty()) return BatchImportResult(0, skipped)
+                val now = System.currentTimeMillis()
+                accepted.forEach { it.updateOTP(false); it.setLastUsed(now) }
+                val write = persistence.save(proposed, key, settings.getAutoBackupEncryptedPasswordsEnabled(),
+                    UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
+                if (write !is VaultWriteResult.Saved) {
+                    if (write is VaultWriteResult.RecoveryRequired) loadEntries()
+                    return null
+                }
+                if (!entries.addDistinctEntries(accepted)) {
+                    // The committed vault is authoritative if the in-memory list unexpectedly changed.
+                    return if (loadEntries()) BatchImportResult(accepted.size, skipped) else null
+                }
+                retained.addAll(accepted)
+                updateTagsFilter()
+                entriesChanged(RecyclerView.NO_POSITION)
+                return BatchImportResult(accepted.size, skipped)
+            }
+        } finally {
+            incoming.forEach { if (!retained.contains(it)) it.destroy() }
+        }
+    }
+
     /** Maps a position in the displayed list to the position in the persisted list. */
     private fun getRealIndex(displayPosition: Int): Int = presentation.sourceIndex(displayPosition)
 
@@ -154,6 +208,12 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 Toast.makeText(context, R.string.backup_toast_import_save_failed, Toast.LENGTH_LONG).show()
             }
         }
+    }
+
+    /** Retries a previously committed change whose automatic backup did not finish. */
+    fun retryPendingAutomaticBackup() {
+        persistence.retryPending(encryptionKey,
+            UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
     }
 
     private fun handleBackupOutcome(outcome: TaskOutcome<BackupTaskResult>) {
@@ -216,12 +276,24 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         }
     }
 
-    /** Shows only the entries matching the given tags. */
+    /** Updates the tag selection; an active search continues to cover the whole vault. */
     fun filterByTags(tags: List<String>) {
         clearFilter()
         presentation.filterByTags(tags, settings.getNoTagsToggle(), settings.getTagFunctionality())
 
         notifyDataSetChanged()
+    }
+
+    /** Searches asynchronously, or restores the selected tag projection when the query is empty. */
+    fun setSearchQuery(query: String) {
+        presentation.setSearch(query, settings.getSearchValues())
+        if (query.isEmpty()) {
+            clearFilter()
+            presentation.refreshTags(settings.getNoTagsToggle(), settings.getTagFunctionality())
+            notifyDataSetChanged()
+        } else {
+            getFilter().filter(query)
+        }
     }
 
     /** Refreshes all time-based tokens; the view is only notified when something changed. */
@@ -240,7 +312,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                     color_changed = cardVisible && e.hasColorChanged()
 
                 change = change || item_changed || color_changed ||
-                        (cardVisible && (e.hasNonDefaultPeriod() || settings.isShowIndividualTimeoutsEnabled()))
+                        (cardVisible && (e.hasNonDefaultTokenStep() || settings.isShowIndividualTimeoutsEnabled()))
             }
         }
 

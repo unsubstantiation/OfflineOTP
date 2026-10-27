@@ -111,7 +111,10 @@ open class TextView : View() {
     open fun setText(text: CharSequence?) {
         textValue = text
     }
-    fun setText(resource: Int) {}
+    /** Last resource passed to the integer setter, without resolving Android resources. */
+    var textResource: Int = 0
+        private set
+    fun setText(resource: Int) { textResource = resource }
     fun setHint(resource: Int) {
         hint = "res:$resource"
     }
@@ -365,8 +368,13 @@ open class CompoundButton : TextView() {
     fun interface OnCheckedChangeListener { fun onCheckedChanged(buttonView: CompoundButton, isChecked: Boolean) }
     fun setOnCheckedChangeListener(listener: OnCheckedChangeListener?) {}
 }
-class CheckBox : CompoundButton()
-class Button : TextView() {
+class CheckBox : CompoundButton {
+    constructor() : super()
+    constructor(context: Context) : super()
+}
+class Button : TextView {
+    constructor() : super()
+    constructor(context: Context) : super()
     /** The compound drawables that were set, as (left, top, right, bottom) resource ids. */
     var compoundDrawables: IntArray = intArrayOf(0, 0, 0, 0)
         private set

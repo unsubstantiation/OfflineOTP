@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="@dimen/activity_margin_xlarge">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hardware_intro" />
+        <EditText
+            android:id="@+id/hardwarePassword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/hardware_password_hint"
+            android:inputType="textPassword"
+            android:maxLength="1024"
+            android:saveEnabled="false"
+            android:importantForAutofill="no" />
+        <Button
+            android:id="@+id/hardwareList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hardware_list" />
+        <Button
+            android:id="@+id/hardwareCopy"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hardware_copy" />
+        <Button
+            android:id="@+id/hardwareEnroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hardware_enroll" />
+        <Button
+            android:id="@+id/hardwareRemove"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/hardware_remove" />
+        <TextView
+            android:id="@+id/hardwareStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:accessibilityLiveRegion="polite" />
+        <LinearLayout
+            android:id="@+id/hardwareAccounts"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+    </LinearLayout>
+</ScrollView>

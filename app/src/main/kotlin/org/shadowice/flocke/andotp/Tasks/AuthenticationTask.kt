@@ -6,10 +6,14 @@ import android.util.Log
 
 import org.apache.commons.codec.binary.Hex
 import org.apache.commons.codec.digest.DigestUtils
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper.PBKDF2Credentials
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.Utilities.LoginBackupKey
+import org.shadowice.flocke.andotp.Utilities.SessionState
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.VaultSession
 
 import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
@@ -36,6 +40,21 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
         }
     }
 
+    /** Derive a separate, session-only backup key after a real password unlock, never for a PIN. */
+    private fun offerLoginBackupKey() {
+        val password = plainPassword ?: return
+        if (isCanceled() || settings.getAuthMethod() != Constants.AuthMethod.PASSWORD ||
+                VaultSession.snapshot() !is SessionState.Unlocking) return
+        try {
+            LoginBackupKey.derive(password).use { candidate ->
+                if (!isCanceled()) VaultSession.offerBackupKey(candidate, taskGeneration())
+            }
+        } catch (_: Exception) {
+            // Authentication can still succeed. Automatic backup remains unavailable until a
+            // password unlock successfully derives its key; never fall back to a weaker key.
+        }
+    }
+
     /** Verifies legacy SHA-256 credentials and attempts a PBKDF2 upgrade. */
     private fun upgradeAuthentication(): AuthenticationOutcome {
         val hashedPassword = String(Hex.encodeHex(DigestUtils.sha256(plainPassword)))
@@ -52,6 +71,7 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
             return AuthenticationOutcome.Rejected(AuthenticationError.LEGACY_MIGRATION_FAILED)
         else {
             try {
+                offerLoginBackupKey()
                 return AuthenticationOutcome.verified(key, taskGeneration())
             } finally {
                 Arrays.fill(key, 0.toByte())
@@ -67,7 +87,10 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
             val derived = EncryptionHelper.generatePBKDF2Credentials(plainPassword, settings.getSalt(), settings.getIterations())
             credentials = derived
             passwordArray = Base64.decode(existingAuthCredentials, Base64.URL_SAFE)
-            if (MessageDigest.isEqual(passwordArray, derived.password)) return AuthenticationOutcome.verified(derived.key, taskGeneration())
+            if (MessageDigest.isEqual(passwordArray, derived.password)) {
+                offerLoginBackupKey()
+                return AuthenticationOutcome.verified(derived.key, taskGeneration())
+            }
             return AuthenticationOutcome.Rejected(AuthenticationError.DENIED)
         } catch (error: NoSuchAlgorithmException) {
             Log.e("AuthenticationTask", "Problem decoding password")

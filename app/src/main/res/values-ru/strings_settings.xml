@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Добавить дату к имени файла</string>
     <string name="settings_title_backup_ask">Спрашивать об имени файла</string>
     <string name="settings_title_backup_location">Место по умолчанию для резервного копирования</string>
-    <string name="settings_title_backup_password">Пароль для резервной копии</string>
     <string name="settings_title_backup_broadcasts">Резервная копия с помощью стороннего приложения</string>
     <string name="settings_title_openpgp_provider">Провайдер OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Ключ шифрования OpenPGP</string>
@@ -71,11 +70,7 @@
     <string name="settings_desc_backup_append_date">Добавить текущую дату и время к предлагаемому названию резервной копии</string>
     <string name="settings_desc_backup_location">Выберите место по умолчанию для резервного копирования</string>
     <string name="settings_desc_backup_location_set">Место по умолчанию для резервного копирования было выбрано</string>
-    <string name="settings_desc_backup_password">Установить пароль для шифрования резервных копий</string>
     <string name="settings_desc_auto_backup_password_enc">Создаёт новую зашифрованную резервную копию при добавлении или изменении записей, если соблюдены условия</string>
-    <string name="settings_desc_auto_backup_requirements">Установите место по умолчанию для резервного копирования и пароль для резервной копии, чтобы включить эту функцию</string>
-    <string name="settings_desc_backup_broadcasts">Выберите, какие типы резервных копий могут быть сохранены
-сторонними приложениями резервного копирования</string>
     <string name="settings_desc_openpgp_verify">Зашифрованные резервные копии можно импортировать, только если они подписаны действительным ключом</string>
     <string name="settings_desc_special_features">Снимите флажок для отключения специальных возможностей</string>
     <string name="settings_desc_clear_keystore">Удалить ключ шифрования из хранилища ключей</string>

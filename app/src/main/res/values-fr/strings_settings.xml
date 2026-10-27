@@ -39,7 +39,6 @@
     <string name="settings_title_backup_append_date">Ajouter la date au nom de fichier</string>
     <string name="settings_title_backup_ask">Demander le nom du fichier</string>
     <string name="settings_title_backup_location">Emplacement de sauvegarde par défaut</string>
-    <string name="settings_title_backup_password">Mot de passe de sauvegarde</string>
     <string name="settings_title_backup_broadcasts">Sauvegardes par diffusion</string>
     <string name="settings_title_openpgp_provider">Fournisseur OpenPGP</string>
     <string name="settings_title_openpgp_key_encrypt">Clé de chiffrement OpenPGP</string>
@@ -76,12 +75,8 @@
     <string name="settings_desc_backup_append_date">Ajouter la date et l\'heure au nom de fichier de sauvegarde proposé</string>
     <string name="settings_desc_backup_location">Choisissez un emplacement de sauvegarde par défaut</string>
     <string name="settings_desc_backup_location_set">L\'emplacement de la sauvegarde a été choisi</string>
-    <string name="settings_desc_backup_password">Configurer le mot de passe utilisé pour chiffrer les sauvegardes</string>
     <string name="settings_desc_auto_backup_password_enc">Crée une nouvelle sauvegarde chiffrée lorsque de nouvelles entrées
     sont ajoutées ou modifiées, si les conditions paramétrées sont remplies</string>
-    <string name="settings_desc_auto_backup_requirements">Définir un emplacement de sauvegarde par défaut et un
-        mot de passe de sauvegarde pour activer cette option</string>
-    <string name="settings_desc_backup_broadcasts">Sélectionner quelles types de sauvegardes peuvent être appelés pas les applications tiers en utilisant la diffusion</string>
     <string name="settings_desc_openpgp_verify">Les sauvegardes chiffrées ne sont restaurées que lorsqu\'elles sont signées avec une clé valide</string>
     <string name="settings_desc_special_features">Décochez pour désactiver les fonctionnalités spéciales</string>
     <string name="settings_desc_clear_keystore">Supprimer la clé de chiffrement depuis le KeyStore</string>
