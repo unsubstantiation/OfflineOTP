@@ -89,6 +89,23 @@ tasks.register('writeDependencyInventory') {
         coreKotlinTooling.each { configuration ->
             record("kotlin-tooling:core:${configuration.name}", configuration)
         }
+        // The desktop Swing leaf has the same JVM-library shape as :core (no Android variants).
+        // It adds no third-party dependency of its own, but its classpaths still carry :core and
+        // its transitive api inputs, so record them rather than leave the module invisible.
+        def desktop = project(':desktop')
+        ['compileClasspath', 'runtimeClasspath', 'testCompileClasspath', 'testRuntimeClasspath'].each { name ->
+            record("desktop:$name", desktop.configurations.getByName(name))
+        }
+        def desktopKotlinTooling = desktop.configurations.findAll { configuration ->
+            configuration.canBeResolved && (configuration.name.startsWith('kotlinCompiler')
+                    || configuration.name.startsWith('kotlinBuildTools'))
+        }.sort { it.name }
+        if (!desktopKotlinTooling.any { it.name == 'kotlinCompilerClasspath' }) {
+            throw new GradleException("Missing Kotlin compiler configuration for :desktop; review inventory coverage")
+        }
+        desktopKotlinTooling.each { configuration ->
+            record("kotlin-tooling:desktop:${configuration.name}", configuration)
+        }
         def destination = report.get().asFile
         destination.parentFile.mkdirs()
         destination.setText(lines.join('\n') + '\n', 'UTF-8')

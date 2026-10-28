@@ -1,3 +1,4 @@
 rootProject.name = "OfflineOTP"
 include ":app"
 include ":core"
+include ":desktop"

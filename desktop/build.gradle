@@ -1,0 +1,36 @@
+// Desktop Swing client. Pure-JVM: it depends on the Android-free :core and never references
+// android.* or androidx.*. The kotlin-sandbox desktop compile (no Android stubs on the classpath)
+// and a Python source guard enforce that boundary. Swing/AWT are JDK java.desktop modules, not
+// third-party dependencies, so this module declares no UI library of its own.
+apply plugin: 'org.jetbrains.kotlin.jvm'
+apply plugin: 'java-library'
+apply plugin: 'application'
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = JavaVersion.VERSION_1_8
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    }
+}
+
+application {
+    // Top-level main() in desktop/Main.kt compiles to the MainKt entry class.
+    mainClass = 'org.shadowice.flocke.andotp.desktop.MainKt'
+}
+
+dependencies {
+    implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
+        version { strictly '2.4.21' }
+    }
+
+    // All domain, OTP, parser, session and hardware logic comes from the shared module. Core's api
+    // dependencies (org.json and the portable yubikit surface) arrive transitively; this leaf
+    // application adds no third-party library directly in the seed.
+    implementation project(':core')
+
+    testImplementation 'junit:junit:4.13.2'
+}

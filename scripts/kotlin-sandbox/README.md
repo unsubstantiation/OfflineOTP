@@ -49,6 +49,11 @@ The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists 
   third-party stubs that `core/build.gradle` declares) and runs the core JVM tests.
 - `scripts/run-jvm-tests.sh` runs the JVM unit tests under both `app/src/test/kotlin` and
   `core/src/test/kotlin`.
+- `scripts/kotlin-sandbox/compile-desktop.sh` is the desktop Swing gate: it compiles `:core` first
+  with no Android stubs, then compiles `desktop/src/main` and `desktop/src/test` against core's
+  output using only the JDK's `java.desktop` (Swing/AWT) module, and runs the desktop tests
+  headless (`-Djava.awt.headless=true`). The heavyweight `JFrame` shell is compile-verified only;
+  the headless-safe table model is what executes here.
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 
