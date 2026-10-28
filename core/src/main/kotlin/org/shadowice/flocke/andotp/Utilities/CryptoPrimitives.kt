@@ -1,11 +1,14 @@
 package org.shadowice.flocke.andotp.Utilities
 
+import java.nio.charset.StandardCharsets
 import java.security.InvalidAlgorithmParameterException
 import java.security.InvalidKeyException
+import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.security.SecureRandom
 import java.security.spec.InvalidKeySpecException
 import java.util.Arrays
+import java.util.Random
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
 import javax.crypto.IllegalBlockSizeException
@@ -124,5 +127,25 @@ object CryptoPrimitives {
         val encrypted = Arrays.copyOfRange(cipherText, Constants.ENCRYPTION_IV_LENGTH, cipherText.size)
 
         return decrypt(secretKey, IvParameterSpec(iv), encrypted)
+    }
+
+    /** Legacy key derivation (plain SHA-256 of the password) for old-format encrypted backups. */
+    @JvmStatic
+    @Throws(NoSuchAlgorithmException::class)
+    fun generateSymmetricKeyFromPassword(password: String): SecretKey {
+        val sha = MessageDigest.getInstance("SHA-256")
+
+        return SecretKeySpec(sha.digest(password.toByteArray(StandardCharsets.UTF_8)), "AES")
+    }
+
+    /**
+     * Selects the PBKDF2 iteration count for a new password backup, uniformly across the configured
+     * backup range. The random source and bounds match the Android implementation exactly.
+     */
+    @JvmStatic
+    fun generateRandomIterations(): Int {
+        val rand = Random()
+        return rand.nextInt((Constants.PBKDF2_MAX_BACKUP_ITERATIONS - Constants.PBKDF2_MIN_BACKUP_ITERATIONS) + 1) +
+                Constants.PBKDF2_MIN_BACKUP_ITERATIONS
     }
 }

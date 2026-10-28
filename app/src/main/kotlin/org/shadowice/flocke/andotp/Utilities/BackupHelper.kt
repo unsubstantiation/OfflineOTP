@@ -7,8 +7,6 @@ import androidx.documentfile.provider.DocumentFile
 
 import org.shadowice.flocke.andotp.R
 
-import java.nio.ByteBuffer
-import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.function.BooleanSupplier
 
@@ -90,19 +88,8 @@ object BackupHelper {
                      permitted: BooleanSupplier): Boolean {
         return try {
             if (password == null || password.isEmpty() || !permitted.getAsBoolean()) return false
-            val iter = EncryptionHelper.generateRandomIterations()
-            val salt = EncryptionHelper.generateRandom(Constants.ENCRYPTION_IV_LENGTH)
-
-            val key = EncryptionHelper.generateSymmetricKeyPBKDF2(password, iter, salt)
-            val encrypted = EncryptionHelper.encrypt(key, plain.toByteArray(StandardCharsets.UTF_8))
-
-            val iterBytes = ByteBuffer.allocate(Constants.INT_LENGTH).putInt(iter).array()
-            val data = ByteArray(Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH + encrypted.size)
-
-            System.arraycopy(iterBytes, 0, data, 0, Constants.INT_LENGTH)
-            System.arraycopy(salt, 0, data, Constants.INT_LENGTH, Constants.ENCRYPTION_IV_LENGTH)
-            System.arraycopy(encrypted, 0, data, Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH, encrypted.size)
-
+            // Framing and key derivation live in core EncryptedBackupCodec; only document I/O stays here.
+            val data = EncryptedBackupCodec.seal(password, plain)
             StorageAccessHelper.saveFile(context, uri, data, permitted)
         } catch (error: Exception) {
             // Never log passwords or document contents.

@@ -4,13 +4,8 @@ import android.content.Context
 import android.net.Uri
 
 import org.shadowice.flocke.andotp.R
-import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
-import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
 import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
-
-import java.nio.charset.StandardCharsets
-
-import javax.crypto.SecretKey
 
 /** Reads a password-encrypted backup, in the current or in the legacy format. */
 open class EncryptedRestoreTask(context: Context, uri: Uri?, private val password: String, private val oldFormat: Boolean) :
@@ -29,31 +24,9 @@ open class EncryptedRestoreTask(context: Context, uri: Uri?, private val passwor
                 return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
             }
 
-            decryptedString = if (oldFormat) {
-                // Legacy format: AES-GCM data only, key derived as SHA-256 of the password
-                val key: SecretKey = EncryptionHelper.generateSymmetricKeyFromPassword(password)
-                val decrypted = EncryptionHelper.decrypt(key, data)
-                try {
-                    String(decrypted, StandardCharsets.UTF_8)
-                } finally {
-                    decrypted.fill(0)
-                }
-            } else {
-                // Current format: [iteration count][salt][nonce + ciphertext]
-                val header = EncryptedBackupHeader.parse(data)
-                val key: SecretKey = EncryptionHelper.generateSymmetricKeyPBKDF2(
-                        password, header.getIterations(), header.getSalt())
-                if (isCanceled()) {
-                    return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
-                }
-
-                val decrypted = EncryptionHelper.decrypt(key, header.getEncrypted())
-                try {
-                    String(decrypted, StandardCharsets.UTF_8)
-                } finally {
-                    decrypted.fill(0)
-                }
-            }
+            // Framing, key derivation (PBKDF2 current format; SHA-256 legacy) and AES-GCM all live
+            // in the core codec; this task only owns document loading, cancellation and results.
+            decryptedString = EncryptedBackupCodec.open(password, data, oldFormat)
         } catch (error: Exception) {
             success = false
             error.printStackTrace()
