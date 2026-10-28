@@ -46,6 +46,24 @@ class DesktopVaultStateTest {
     }
 
     @Test
+    fun replaceKeepsTheManualPositionAndRowIdentity() {
+        val state = state()
+        val first = entry("Issuer A", "alice")
+        val second = entry("Issuer B", "bob")
+        state.add(first)
+        state.add(second)
+        val originalId = first.getListId()
+
+        val replacement = entry("Issuer A", "alice-renamed")
+        assertTrue(state.replace(first, replacement))
+
+        // The edited entry stays first instead of being appended, and keeps the old list id.
+        assertEquals(0, state.snapshot().indexOf(replacement))
+        assertEquals(originalId, replacement.getListId())
+        assertEquals("bob", state.snapshot()[1].getLabel())
+    }
+
+    @Test
     fun searchNarrowsTheProjectionAndABlankQueryRestoresIt() {
         val state = state()
         state.add(entry("GitHub", "alice"))

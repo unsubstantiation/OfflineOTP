@@ -5,6 +5,7 @@ import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 import org.shadowice.flocke.andotp.desktop.control.DesktopVaultState
 import org.shadowice.flocke.andotp.desktop.control.EntryEditor
+import org.shadowice.flocke.andotp.desktop.control.HardwareKeyManager
 import org.shadowice.flocke.andotp.desktop.control.TokenTicker
 import org.shadowice.flocke.andotp.desktop.control.VaultController
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
@@ -37,7 +38,7 @@ import javax.swing.WindowConstants
 object MainWindow {
     const val TITLE = "OfflineOTP"
 
-    fun createFrame(controller: VaultController): JFrame {
+    fun createFrame(controller: VaultController, hardware: HardwareKeyManager): JFrame {
         val table = JTable(EntryTableModel(EntryListPresentation(EntryList()).apply {
             showReorderedEntries()
         }))
@@ -137,8 +138,14 @@ object MainWindow {
                     }
                     val existing = unlocked.presentation.get(row)
                     EntryDialog.prompt(frame, existing)?.let { replacement ->
-                        editor?.replace(existing, replacement)
-                        (table.model as EntryTableModel).refresh()
+                        if (editor?.replace(existing, replacement) == true) {
+                            (table.model as EntryTableModel).refresh()
+                            setStatus("Entry updated")
+                        } else {
+                            JOptionPane.showMessageDialog(frame,
+                                "The entry could not be saved to the vault.",
+                                TITLE, JOptionPane.ERROR_MESSAGE)
+                        }
                     }
                 }
             })
@@ -146,9 +153,18 @@ object MainWindow {
                 addActionListener {
                     val unlocked = requireUnlocked() ?: return@addActionListener
                     val row = table.selectedRow
-                    if (row >= 0 && editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
+                    if (row < 0) {
+                        JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
+                            JOptionPane.WARNING_MESSAGE)
+                        return@addActionListener
+                    }
+                    if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
                         (table.model as EntryTableModel).refresh()
                         setStatus("Entry deleted")
+                    } else {
+                        JOptionPane.showMessageDialog(frame,
+                            "The entry could not be deleted from the vault.",
+                            TITLE, JOptionPane.ERROR_MESSAGE)
                     }
                 }
             })
@@ -210,6 +226,27 @@ object MainWindow {
                     }
                 })
             })
+            add(JMenu("Hardware").apply {
+                add(JMenuItem("Security key…").apply {
+                    addActionListener {
+                        val unlocked = requireUnlocked() ?: return@addActionListener
+                        HardwareKeyDialog.show(frame, hardware, unlocked)
+                    }
+                })
+                add(JMenuItem("Unlock with security key…").apply {
+                    addActionListener {
+                        if (!hardware.isEnrolled()) {
+                            JOptionPane.showMessageDialog(frame,
+                                "No hardware unlock is enrolled for this vault directory.",
+                                TITLE, JOptionPane.INFORMATION_MESSAGE)
+                            return@addActionListener
+                        }
+                        HardwareKeyDialog.requestUnlock(frame, hardware) { key ->
+                            accept(controller.unlockWithKey(key))
+                        }
+                    }
+                })
+            })
         }
 
         val top = JPanel(BorderLayout()).apply {
@@ -225,6 +262,12 @@ object MainWindow {
         frame = JFrame(TITLE).apply {
             jMenuBar = menuBar
             defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
+            addWindowListener(object : java.awt.event.WindowAdapter() {
+                override fun windowClosing(event: java.awt.event.WindowEvent) {
+                    ticker?.close()
+                    hardware.close()
+                }
+            })
             contentPane = JPanel(BorderLayout()).apply {
                 add(top, BorderLayout.NORTH)
                 add(content, BorderLayout.CENTER)

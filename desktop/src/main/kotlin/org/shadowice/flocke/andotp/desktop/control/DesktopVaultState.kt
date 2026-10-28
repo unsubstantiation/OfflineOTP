@@ -24,6 +24,9 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
 
     /** Replaces the list contents after an unlock or restore and resets the projection. */
     fun load(loaded: ArrayList<Entry>) {
+        // A restore discards every previously loaded entry; zeroize its owned seeds (Android
+        // parity) before dropping the references.
+        entries.getEntries().forEach { it.destroy() }
         entries.updateEntries(loaded, true)
         presentation.showReorderedEntries()
     }
@@ -35,14 +38,17 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         return added
     }
 
-    /** Replaces [existing] with [replacement], preserving the manual order position. */
+    /** Replaces [existing] with [replacement], preserving the manual order position and list id. */
     fun replace(existing: Entry, replacement: Entry): Boolean {
         val index = entries.indexOf(existing)
         if (index < 0) return false
-        entries.removeEntry(index)
-        entries.addEntry(replacement)
-        presentation.showReorderedEntries()
-        return true
+        val replaced = entries.replaceEntry(index, replacement)
+        if (replaced) {
+            // The old instance leaves the list for good; wipe the seed it still owns.
+            existing.destroy()
+            presentation.showReorderedEntries()
+        }
+        return replaced
     }
 
     /** Removes the entry at the source-list position and returns it for cleanup. */
@@ -50,6 +56,7 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         if (position < 0 || position >= entries.getEntries().size) return null
         val removed = entries.getEntry(position)
         entries.removeEntry(position)
+        removed.destroy()
         presentation.showReorderedEntries()
         return removed
     }

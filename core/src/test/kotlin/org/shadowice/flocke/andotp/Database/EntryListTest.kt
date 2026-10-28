@@ -117,6 +117,30 @@ class EntryListTest {
     }
 
     @Test
+    fun replaceEntrySwapsInPlaceAndKeepsTheListId() {
+        val list = EntryList()
+        val a = entry("a")
+        val b = entry("b")
+        val c = entry("c")
+        list.addEntry(a)
+        list.addEntry(b)
+        list.addEntry(c)
+        val originalId = b.getListId()
+
+        val edited = entry("b-edited")
+        assertTrue(list.replaceEntry(1, edited))
+
+        assertEquals(listOf("a", "b-edited", "c"), list.getEntries().map { it.getLabel() })
+        assertEquals(1, list.indexOf(edited))
+        assertEquals(originalId, edited.getListId())
+        assertEquals(-1, list.indexOf(b))
+
+        // Out-of-bounds positions fail closed without touching the list.
+        assertFalse(list.replaceEntry(9, entry("d")))
+        assertEquals(3, list.getEntries().size)
+    }
+
+    @Test
     fun getEntriesReturnsACopy() {
         val list = populatedList()
         val copy = list.getEntries()

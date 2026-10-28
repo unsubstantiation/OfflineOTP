@@ -17,8 +17,17 @@ import java.util.UUID
  * adapter. Writes go to a unique sibling staging file, are force-synced, then promoted with an
  * atomic move (with a non-atomic fallback on file systems that reject it) and re-read for
  * verification, so a crash or failed promotion never leaves a half-written vault.
+ *
+ * Existence deliberately checks only [target]: android.util.AtomicFile also reports a sibling
+ * `.bak` from its own crash recovery, but this store never writes one — promotion plus the
+ * post-write verification replaces that mechanism. A crash can only leave unique `.new-<uuid>`
+ * staging files, which the constructor sweeps and which [delete] also removes.
  */
 class NioAtomicFileStore(private val target: File) : AtomicByteStore {
+
+    init {
+        sweepStagingFiles()
+    }
 
     override fun exists(): Boolean = target.exists()
 
@@ -57,6 +66,11 @@ class NioAtomicFileStore(private val target: File) : AtomicByteStore {
 
     override fun delete() {
         target.delete()
+        sweepStagingFiles()
+    }
+
+    /** Removes staging files left by a process that crashed before promoting its write. */
+    private fun sweepStagingFiles() {
         target.parentFile?.listFiles { file -> file.name.startsWith(target.name + STAGING_SUFFIX) }
             ?.forEach { it.delete() }
     }

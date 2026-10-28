@@ -1,18 +1,20 @@
 /*
- * Compile-only stand-ins for the PGPainless high-level encryption API.
+ * Compile-only stand-ins for the PGPainless 2.x high-level encryption API. In 2.0.4 recipients are
+ * BC OpenPGPCertificate handles and the options object is scoped to a PGPainless api instance.
  */
 package org.pgpainless.encryption_signing
 
-import org.bouncycastle.openpgp.PGPPublicKeyRing
+import org.bouncycastle.openpgp.api.OpenPGPCertificate
+import org.pgpainless.PGPainless
 import java.io.OutputStream
 
-open class EncryptionOptions protected constructor() {
-    fun addRecipient(certificate: PGPPublicKeyRing): EncryptionOptions =
+open class EncryptionOptions protected constructor(@Suppress("unused") private val api: PGPainless) {
+    fun addRecipient(certificate: OpenPGPCertificate): EncryptionOptions =
         throw NotImplementedError("sandbox stub; real PGPainless runs under Gradle")
 
     companion object {
         @JvmStatic
-        fun encryptCommunications(): EncryptionOptions =
+        fun encryptCommunications(api: PGPainless): EncryptionOptions =
             throw NotImplementedError("sandbox stub; real PGPainless runs under Gradle")
     }
 }

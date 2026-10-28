@@ -93,13 +93,25 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("org.hid4java", build)  # the exclusion must be declared explicitly
         gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
         self.assertIn("stubs/com/yubico/yubikit/desktop", gate)
-        self.assertTrue((SANDBOX / "stubs/com/yubico/yubikit/desktop/PcscManager.kt").is_file())
+        # yubikit 3.2.1 places the PC/SC classes in the desktop.pcsc sub-package.
+        self.assertTrue(
+            (SANDBOX / "stubs/com/yubico/yubikit/desktop/pcsc/PcscManager.kt").is_file())
+        self.assertFalse(
+            (SANDBOX / "stubs/com/yubico/yubikit/desktop/PcscManager.kt").exists())
+        # The real PcscManager is not Closeable, so neither the adapter nor the stub may call close().
+        stub = (SANDBOX / "stubs/com/yubico/yubikit/desktop/pcsc/PcscManager.kt").read_text(
+            encoding="utf-8")
+        self.assertNotIn("AutoCloseable", stub)
+        self.assertNotIn("manager.close", discovery)
 
     def test_qr_decoder_uses_zxing_core_without_android_integration(self):
         decoder = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/qr/"
                    "ZxingQrDecoder.kt").read_text(encoding="utf-8")
         self.assertIn("class ZxingQrDecoder : QrImageDecoder", decoder)
-        self.assertIn("ImageIO.read", decoder)
+        # Bounded ImageReader flow replaces the unbounded ImageIO.read so header dimensions
+        # are validated before any pixel allocation (inJustDecodeBounds parity).
+        self.assertIn("ImageIO.createImageInputStream", decoder)
+        self.assertIn("ImageIO.getImageReaders", decoder)
         self.assertIn("InputPolicy.validImage", decoder)
         self.assertIn("TRY_HARDER", decoder)
         self.assertNotIn("integration.android", decoder)
@@ -117,8 +129,25 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         adapter = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/openpgp/"
                    "PgpainlessOpenPgpPort.kt").read_text(encoding="utf-8")
         self.assertIn("class PgpainlessOpenPgpPort : OpenPgpPort", adapter)
-        self.assertIn("PGPainless.encryptAndOrSign()", adapter)
-        self.assertIn("PGPainless.decryptAndOrVerify()", adapter)
+        # PGPainless 2.x: instance builders replace the deprecated static encrypt/decrypt entry
+        # points, and PasswordProtector no longer exists.
+        self.assertIn("PGPainless.getInstance()", adapter)
+        self.assertIn("generateMessage()", adapter)
+        self.assertIn("processMessage()", adapter)
+        self.assertIn("org.pgpainless.key.parsing.KeyRingReader", adapter)
+        self.assertIn("SecretKeyRingProtector.unlockAnyKeyWith", adapter)
+        self.assertIn("Passphrase.fromPassword", adapter)
+        # The removed/deprecated symbols must not be referenced by imports or calls (comments may
+        # still explain the migration away from them).
+        self.assertNotIn("import org.pgpainless.key.protection.PasswordProtector", adapter)
+        self.assertNotIn("PasswordProtector.", adapter)
+        self.assertNotIn("PGPainless.encryptAndOrSign", adapter)
+        self.assertNotIn("PGPainless.decryptAndOrVerify", adapter)
+        self.assertNotIn("org.pgpainless.key.reading", adapter)
+        self.assertTrue(
+            (SANDBOX / "stubs/org/pgpainless/key/parsing/KeyRingReader.kt").is_file())
+        self.assertFalse(
+            (SANDBOX / "stubs/org/pgpainless/key/reading").exists())
         build = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
         self.assertIn("org.pgpainless:pgpainless-core", build)
         # The sandbox gate compiles the adapter against narrow stubs, never the real jar.
@@ -186,12 +215,47 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("Constants.FILENAME_DATABASE_BACKUP", factory)
 
     def test_headless_packages_stay_swing_free(self):
-        """All domain logic must run headless; only the ui package touches Swing/AWT."""
+        """All domain logic must run headless; only the ui package touches Swing/heavyweight AWT."""
+        # java.awt.image types (e.g. BufferedImage) are headless-safe under java.awt.headless=true;
+        # Swing and AWT peer/top-level components would create heavyweight peers and are forbidden.
+        forbidden = ("javax.swing", "java.awt.peer", "java.awt.Frame", "java.awt.Dialog",
+                     "java.awt.Window", "java.awt.Panel", "java.awt.Canvas")
         for package in ("storage", "control", "hardware", "qr", "openpgp"):
             for path in (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop" / package).rglob("*.kt"):
                 text = path.read_text(encoding="utf-8")
-                self.assertNotIn("javax.swing", text, f"{path.name} must stay Swing-free")
-                self.assertNotIn("java.awt", text, f"{path.name} must stay AWT-free")
+                for token in forbidden:
+                    self.assertNotIn(token, text, f"{path.name} must stay headless ({token})")
+
+    def test_hardware_stack_is_wired_into_the_swing_shell(self):
+        """The previously dead hardware/key-wrap stack is reachable from production UI."""
+        control = DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/control"
+        manager = (control / "HardwareKeyManager.kt").read_text(encoding="utf-8")
+        self.assertIn("class HardwareKeyManager", manager)
+        # Headless logic must not drag Swing into the control package.
+        self.assertNotIn("javax.swing", manager)
+        self.assertIn("HardwareOathClient", manager)
+        self.assertIn("HardwareFidoClient", manager)
+        self.assertIn("HardwareUnlockEnvelope", manager)
+        # The PIN buffer handed in for one operation is wiped on every exit path.
+        self.assertIn("pin?.fill(' ')", manager)
+
+        window = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui/MainWindow.kt")\
+            .read_text(encoding="utf-8")
+        self.assertIn('JMenu("Hardware")', window)
+        self.assertIn("HardwareKeyDialog.show", window)
+        self.assertIn("HardwareKeyDialog.requestUnlock", window)
+        self.assertIn("controller.unlockWithKey", window)
+
+        dialog = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui/"
+                  "HardwareKeyDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("SwingWorker", dialog)
+        self.assertIn("CancelToken", dialog)
+        # The PC/SC discovery and envelope store are assembled in the entry point, not tests only.
+        main = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/Main.kt").read_text(
+            encoding="utf-8")
+        self.assertIn("PcscHardwareDiscovery()", main)
+        self.assertIn("DesktopHardwareUnlockStore(", main)
+        self.assertIn("HardwareKeyManager(", main)
 
     def test_golden_interop_fixtures_are_wired_into_the_gate(self):
         resources = ROOT / "desktop/src/test/resources/golden"
