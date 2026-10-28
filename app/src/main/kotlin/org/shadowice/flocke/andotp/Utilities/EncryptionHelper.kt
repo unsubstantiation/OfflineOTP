@@ -27,19 +27,16 @@ import android.content.Context
 
 import java.io.File
 import java.io.IOException
-import java.nio.charset.StandardCharsets
 import java.security.GeneralSecurityException
 import java.security.InvalidAlgorithmParameterException
 import java.security.InvalidKeyException
 import java.security.KeyPair
-import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.SecureRandom
 import java.security.spec.InvalidKeySpecException
 import java.util.Arrays
-import java.util.Random
 import java.util.function.BooleanSupplier
 import javax.crypto.BadPaddingException
 import javax.crypto.Cipher
@@ -145,13 +142,9 @@ object EncryptionHelper {
         }
     }
 
-    /** Random iteration count for new encrypted backups, so not all backups share one value. */
+    /** Random iteration count for new encrypted backups, so not all backups share one value. Pure-JVM implementation lives in [CryptoPrimitives]. */
     @JvmStatic
-    fun generateRandomIterations(): Int {
-        val rand = Random()
-        return rand.nextInt((Constants.PBKDF2_MAX_BACKUP_ITERATIONS - Constants.PBKDF2_MIN_BACKUP_ITERATIONS) + 1) +
-                Constants.PBKDF2_MIN_BACKUP_ITERATIONS
-    }
+    fun generateRandomIterations(): Int = CryptoPrimitives.generateRandomIterations()
 
     /** Returns [length] random bytes from [SecureRandom]. Pure-JVM implementation lives in [CryptoPrimitives]. */
     @JvmStatic
@@ -203,14 +196,11 @@ object EncryptionHelper {
     fun generateSymmetricKeyPBKDF2(password: String?, iter: Int, salt: ByteArray?): SecretKey =
         CryptoPrimitives.generateSymmetricKeyPBKDF2(password, iter, salt)
 
-    /** Legacy key derivation (plain SHA-256 of the password) for old-format encrypted backups. */
+    /** Legacy key derivation (plain SHA-256 of the password) for old-format encrypted backups. Pure-JVM implementation lives in [CryptoPrimitives]. */
     @JvmStatic
     @Throws(NoSuchAlgorithmException::class)
-    fun generateSymmetricKeyFromPassword(password: String): SecretKey {
-        val sha = MessageDigest.getInstance("SHA-256")
-
-        return SecretKeySpec(sha.digest(password.toByteArray(StandardCharsets.UTF_8)), "AES")
-    }
+    fun generateSymmetricKeyFromPassword(password: String): SecretKey =
+        CryptoPrimitives.generateSymmetricKeyFromPassword(password)
 
     /** Encrypts with an explicit nonce and the 128-bit GCM tag used by existing vault/backup files. */
     @JvmStatic

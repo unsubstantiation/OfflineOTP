@@ -12,6 +12,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 BACKUP_HELPER = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/BackupHelper.kt"
 STORAGE = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/StorageAccessHelper.kt"
+# The encrypted-backup framing was extracted into the Android-free :core codec so the desktop
+# client produces byte-identical backups; the framing guard therefore follows it there.
+BACKUP_CODEC = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptedBackupCodec.kt"
 
 
 class BackupHelperGuardTest(unittest.TestCase):
@@ -44,14 +47,21 @@ class BackupHelperGuardTest(unittest.TestCase):
             "EncryptionHelper.tryEncryptionChange(context, oldEncryptionKey, newEncryptionType, "
             "newKeyMaterial, this) { !isCanceled() }", change)
 
+    def test_backup_helper_delegates_framing_to_core_codec(self):
+        """BackupHelper owns only document I/O; byte framing is delegated to the shared codec."""
+        self.assertIn("EncryptedBackupCodec.seal(password, plain)", self.text)
+        self.assertNotIn("ByteBuffer", self.text,
+                         "framing must live in the core codec, not be rebuilt in BackupHelper")
+
     def test_encrypted_backup_framing(self):
         """The framed layout is iteration count, then salt, then the AES-GCM output."""
-        self.assertIn("ByteBuffer.allocate(Constants.INT_LENGTH).putInt(iter)", self.text)
-        self.assertIn("System.arraycopy(salt, 0, data, Constants.INT_LENGTH, Constants.ENCRYPTION_IV_LENGTH)",
-                      self.text)
+        codec = BACKUP_CODEC.read_text(encoding="utf-8")
         self.assertIn(
-            "System.arraycopy(encrypted, 0, data, Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH, "
-            "encrypted.size)", self.text)
+            ".allocate(Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH + encrypted.size)",
+            codec)
+        self.assertIn(".putInt(iter)", codec)
+        self.assertIn(".put(salt)", codec)
+        self.assertIn(".put(encrypted)", codec)
 
 
 class StorageAccessHelperGuardTest(unittest.TestCase):

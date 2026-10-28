@@ -25,8 +25,8 @@ package org.shadowice.flocke.andotp.Utilities
 import android.content.Context
 import android.preference.PreferenceManager
 
-import org.json.JSONArray
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.VaultJson
 
 import java.io.File
 import java.io.IOException
@@ -364,41 +364,22 @@ object DatabaseHelper {
         }
     }
 
-    /** Bounded all-or-nothing writer: any per-entry failure becomes a corrupt-vault result. */
+    /** Bounded all-or-nothing writer: any per-entry failure becomes a corrupt-vault result. The
+     *  portable encoding lives in core [VaultJson]; only the legacy exception translation stays here. */
     @JvmStatic
-    fun entriesToString(entries: ArrayList<Entry>?): String {
-        if (entries == null || entries.size > InputPolicy.MAX_ENTRIES)
-            throw IllegalArgumentException("Too many entries")
-        val json = JSONArray()
+    fun entriesToString(entries: ArrayList<Entry>?): String =
         try {
-            for (entry in entries) {
-                entry.validate()
-                json.put(entry.toJSON())
-            }
-            return json.toString()
-        } catch (error: Exception) {
+            VaultJson.entriesToString(entries)
+        } catch (error: VaultJson.MalformedVaultException) {
             throw VaultException.create(Status.CORRUPT)
         }
-    }
 
-    /** All-or-nothing parser. Never return a prefix of a malformed backup. */
+    /** All-or-nothing parser. Never return a prefix of a malformed backup. Delegates to core [VaultJson]. */
     @JvmStatic
-    fun stringToEntries(data: String?): ArrayList<Entry> {
-        val entries = ArrayList<Entry>()
+    fun stringToEntries(data: String?): ArrayList<Entry> =
         try {
-            if (data == null || data.length > BoundedInputReader.MAX_DOCUMENT_BYTES)
-                throw IllegalArgumentException()
-            InputPolicy.jsonDepth(data)
-            val tokener = org.json.JSONTokener(data)
-            val parsed = tokener.nextValue()
-            if (parsed !is JSONArray || tokener.nextClean() != '\u0000')
-                throw IllegalArgumentException("Invalid JSON document")
-            if (parsed.length() > InputPolicy.MAX_ENTRIES) throw IllegalArgumentException()
-            for (index in 0 until parsed.length()) entries.add(Entry(parsed.getJSONObject(index)))
-            return entries
-        } catch (error: Exception) {
-            for (entry in entries) entry.destroy()
+            VaultJson.stringToEntries(data)
+        } catch (error: VaultJson.MalformedVaultException) {
             throw VaultException.create(Status.CORRUPT)
         }
-    }
 }
