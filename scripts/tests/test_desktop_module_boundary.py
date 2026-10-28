@@ -28,8 +28,19 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
                         offenders.append(f"{path.relative_to(ROOT)}:{idx} {imported}")
         self.assertEqual([], offenders, "desktop sources must not import android.* or androidx.*")
 
-    def test_desktop_uses_only_jdk_and_the_project_core(self):
-        """No direct third-party dependency: domain logic comes from :core, the UI from java.desktop."""
+    def test_desktop_uses_only_allowed_packages(self):
+        """Domain logic comes from :core and the UI from java.desktop; third-party imports are
+        restricted to the libraries explicitly declared in desktop/build.gradle (allowlist)."""
+        allowed = (
+            "kotlin", "java", "javax",
+            "org.shadowice.flocke.andotp",
+            # Embedded OpenPGP engine (pgpainless-core plus its BouncyCastle transitives).
+            "org.pgpainless", "org.bouncycastle",
+            # PC/SC security-key discovery via the yubikit desktop module (smartcardio only).
+            "com.yubico",
+            # QR image decoding through zxing-core (no camera/screen-capture integration).
+            "com.google.zxing",
+        )
         offenders = []
         for path in DESKTOP_MAIN.rglob("*.kt"):
             for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
@@ -37,12 +48,88 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
                 if not stripped.startswith("import "):
                     continue
                 imported = stripped[len("import "):].split()[0].strip(".")
-                if imported.startswith(("kotlin", "java", "javax")):
-                    continue
-                if imported.startswith("org.shadowice.flocke.andotp"):
+                if imported.startswith(allowed):
                     continue
                 offenders.append(f"{path.relative_to(ROOT)}:{idx} {imported}")
-        self.assertEqual([], offenders, "desktop may only use the JDK and the project's own packages")
+        self.assertEqual([], offenders, "desktop imported a package outside the declared allowlist")
+
+    def test_core_never_imports_a_desktop_library(self):
+        """Desktop-only libraries must stay behind core port interfaces."""
+        offenders = []
+        for path in (ROOT / "core/src/main/kotlin").rglob("*.kt"):
+            for idx, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                stripped = line.strip()
+                if stripped.startswith((
+                    "import org.pgpainless", "import org.bouncycastle",
+                    "import com.yubico.yubikit.desktop",
+                )):
+                    offenders.append(f"{path.relative_to(ROOT)}:{idx} {stripped}")
+        self.assertEqual([], offenders)
+
+    def test_hardware_ports_are_implemented_without_hid(self):
+        """Key wrapping and hardware-unlock storage have desktop adapters; PC/SC excludes HID."""
+        rsa = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+               "RsaKeyWrapPort.kt").read_text(encoding="utf-8")
+        self.assertIn("class RsaKeyWrapPort", rsa)
+        self.assertIn(": KeyWrapPort", rsa)
+        # Same RSA/ECB/PKCS1Padding transformation as the Android KeyStore wrapper, via Constants.
+        self.assertIn("Constants.ALGORITHM_ASYMMETRIC", rsa)
+
+        hw_store = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+                    "DesktopHardwareUnlockStore.kt").read_text(encoding="utf-8")
+        self.assertIn(": HardwareUnlockStoragePort", hw_store)
+        self.assertIn("HardwareUnlockEnvelope.request", hw_store)
+
+        discovery = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/hardware/"
+                     "PcscHardwareDiscovery.kt").read_text(encoding="utf-8")
+        self.assertIn("TerminalFactory.getDefault()", discovery)
+        # No raw-HID library may be referenced from source; the PC/SC path uses smartcardio only.
+        self.assertFalse(
+            any(line.strip().startswith("import ") and "hid4java" in line
+                for line in discovery.splitlines()))
+
+        build = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("com.yubico.yubikit:desktop", build)
+        self.assertIn("org.hid4java", build)  # the exclusion must be declared explicitly
+        gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
+        self.assertIn("stubs/com/yubico/yubikit/desktop", gate)
+        self.assertTrue((SANDBOX / "stubs/com/yubico/yubikit/desktop/PcscManager.kt").is_file())
+
+    def test_qr_decoder_uses_zxing_core_without_android_integration(self):
+        decoder = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/qr/"
+                   "ZxingQrDecoder.kt").read_text(encoding="utf-8")
+        self.assertIn("class ZxingQrDecoder : QrImageDecoder", decoder)
+        self.assertIn("ImageIO.read", decoder)
+        self.assertIn("InputPolicy.validImage", decoder)
+        self.assertIn("TRY_HARDER", decoder)
+        self.assertNotIn("integration.android", decoder)
+        build = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("com.google.zxing:core", build)
+        # The desktop gate reuses the pure-JVM zxing stubs but excludes the android integration.
+        gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
+        self.assertIn('not -path "*/integration/*"', gate)
+        # The portable router lives in core and never references zxing.
+        core_router = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/"
+                       "Utilities/QrImport.kt").read_text(encoding="utf-8")
+        self.assertNotIn("com.google.zxing", core_router)
+
+    def test_openpgp_adapter_implements_the_core_port_and_is_declared(self):
+        adapter = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/openpgp/"
+                   "PgpainlessOpenPgpPort.kt").read_text(encoding="utf-8")
+        self.assertIn("class PgpainlessOpenPgpPort : OpenPgpPort", adapter)
+        self.assertIn("PGPainless.encryptAndOrSign()", adapter)
+        self.assertIn("PGPainless.decryptAndOrVerify()", adapter)
+        build = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("org.pgpainless:pgpainless-core", build)
+        # The sandbox gate compiles the adapter against narrow stubs, never the real jar.
+        gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
+        self.assertIn("stubs/org/pgpainless", gate)
+        self.assertIn("stubs/org/bouncycastle", gate)
+        for stub in (
+            SANDBOX / "stubs/org/pgpainless/PGPainless.kt",
+            SANDBOX / "stubs/org/bouncycastle/openpgp/PGPKeyRings.kt",
+        ):
+            self.assertTrue(stub.is_file(), f"missing desktop compile stub: {stub.name}")
 
     def test_gradle_wiring_present_and_depends_on_core(self):
         settings = (ROOT / "settings.gradle").read_text(encoding="utf-8")
@@ -75,6 +162,45 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("java.awt.headless=true", text)
         # The gate compiles core before desktop and never puts an android stub on the classpath.
         self.assertNotIn("stubs/android", text)
+
+    def test_storage_adapters_implement_the_core_ports(self):
+        """The desktop file and settings adapters are swappable implementations of core ports."""
+        nio = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+               "NioAtomicFileStore.kt").read_text(encoding="utf-8")
+        self.assertIn("class NioAtomicFileStore", nio)
+        self.assertIn(": AtomicByteStore", nio)
+        # The desktop adapter must reproduce the Android AtomicFile durability steps.
+        self.assertIn("ATOMIC_MOVE", nio)
+        self.assertIn("fd.sync()", nio)
+
+        settings = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+                    "DesktopSettings.kt").read_text(encoding="utf-8")
+        self.assertIn("class DesktopSettings", settings)
+        self.assertIn(": KeyValueSettings", settings)
+
+        factory = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+                   "DesktopStorage.kt").read_text(encoding="utf-8")
+        self.assertIn("PasswordVault(", factory)
+        # The same on-disk filenames the Android vault uses.
+        self.assertIn("Constants.FILENAME_DATABASE", factory)
+        self.assertIn("Constants.FILENAME_DATABASE_BACKUP", factory)
+
+    def test_headless_packages_stay_swing_free(self):
+        """All domain logic must run headless; only the ui package touches Swing/AWT."""
+        for package in ("storage", "control", "hardware", "qr", "openpgp"):
+            for path in (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop" / package).rglob("*.kt"):
+                text = path.read_text(encoding="utf-8")
+                self.assertNotIn("javax.swing", text, f"{path.name} must stay Swing-free")
+                self.assertNotIn("java.awt", text, f"{path.name} must stay AWT-free")
+
+    def test_golden_interop_fixtures_are_wired_into_the_gate(self):
+        resources = ROOT / "desktop/src/test/resources/golden"
+        for name in ("secrets.dat", "vault.properties", "otp_accounts.json.aes",
+                     "legacy-otp_accounts.json.aes", "expected-vault.json", "README.md"):
+            self.assertTrue((resources / name).is_file(), f"missing golden fixture: {name}")
+        # The no-Gradle gate must mirror Gradle's test-resources classpath.
+        gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
+        self.assertIn("desktop/src/test/resources", gate)
 
 
 if __name__ == "__main__":

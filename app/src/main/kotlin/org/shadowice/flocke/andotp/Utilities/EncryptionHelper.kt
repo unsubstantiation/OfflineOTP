@@ -50,7 +50,9 @@ import javax.crypto.spec.SecretKeySpec
 
 /** Cryptographic helpers: AES-GCM encryption, PBKDF2 derivation, and KeyStore RSA key wrapping. */
 object EncryptionHelper {
-    /** PBKDF2-derived authentication password hash and symmetric encryption key. */
+    /** PBKDF2-derived authentication password hash and symmetric encryption key. The portable
+     *  derivation lives on [CryptoPrimitives]; this nested type keeps the app's pinned Java shape
+     *  (public no-arg constructor with two mutable byte-array fields). */
     open class PBKDF2Credentials {
         @JvmField
         var password: ByteArray = ByteArray(0)
@@ -150,37 +152,16 @@ object EncryptionHelper {
     @JvmStatic
     fun generateRandom(length: Int): ByteArray = CryptoPrimitives.generateRandom(length)
 
-    /** Derives a PBKDF2 output and splits it into [PBKDF2Credentials.password] and [PBKDF2Credentials.key]. */
+    /** Derives a PBKDF2 output and splits it into [PBKDF2Credentials.password] and [PBKDF2Credentials.key].
+     *  The portable derivation lives in [CryptoPrimitives]; the nested return type keeps callers unchanged. */
     @JvmStatic
     @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
     fun generatePBKDF2Credentials(password: String?, salt: ByteArray?, iter: Int): PBKDF2Credentials {
-        if (password == null || password.length > InputPolicy.MAX_TEXT_CHARS || salt == null
-            || salt.size < 8 || iter < 1 || iter > 20000000)
-            throw IllegalArgumentException("Invalid credential parameters")
-        val secretKeyFactory = SecretKeyFactory.getInstance(Constants.PBKDF2_ALGORITHM)
-        val passwordChars = password.toCharArray()
-        val keySpec: PBEKeySpec
-        try {
-            keySpec = PBEKeySpec(passwordChars, salt, iter, Constants.PBKDF2_LENGTH)
-        } finally {
-            Arrays.fill(passwordChars, '\u0000')
+        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, iter)
+        return PBKDF2Credentials().apply {
+            this.password = derived.password
+            this.key = derived.key
         }
-
-        val array: ByteArray
-        try {
-            array = secretKeyFactory.generateSecret(keySpec).encoded
-        } finally {
-            keySpec.clearPassword()
-        }
-
-        val halfPoint = array.size / 2
-
-        val credentials = PBKDF2Credentials()
-        credentials.password = Arrays.copyOfRange(array, halfPoint, array.size)
-        credentials.key = Arrays.copyOfRange(array, 0, halfPoint)
-
-        Arrays.fill(array, 0.toByte())
-        return credentials
     }
 
     /** Wraps raw bytes in an AES [SecretKey]. */
