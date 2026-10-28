@@ -22,15 +22,59 @@ application {
     mainClass = 'org.shadowice.flocke.andotp.desktop.MainKt'
 }
 
+// Reproducible distribution archives: strip zip timestamps and order entries deterministically so
+// independent builds (see scripts/packaging/verify-desktop-build.sh) compare byte-for-byte.
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+// Native installer/app image through the JDK's jpackage (requires a full JDK 17+, not a JRE). The
+// task is skipped when the running JDK has no jpackage, which keeps older toolchains working; the
+// packaging README documents how release builds invoke it.
+tasks.register('packageDesktop', Exec) {
+    dependsOn 'installDist'
+    group = 'distribution'
+    description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
+
+    def jpackage = new File(System.getProperty('java.home'), 'bin/jpackage')
+    executable = jpackage.absolutePath
+    args = [
+        '--type', 'app-image',
+        '--name', 'OfflineOTP',
+        '--input', layout.buildDirectory.dir('install/desktop/lib').get().asFile.absolutePath,
+        '--main-jar', "${project.name}.jar",
+        '--main-class', 'org.shadowice.flocke.andotp.desktop.MainKt',
+        '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
+    ]
+    onlyIf { jpackage.canExecute() }
+    doFirst { layout.buildDirectory.dir('release').get().asFile.mkdirs() }
+}
+
 dependencies {
     implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
         version { strictly '2.4.21' }
     }
 
     // All domain, OTP, parser, session and hardware logic comes from the shared module. Core's api
-    // dependencies (org.json and the portable yubikit surface) arrive transitively; this leaf
-    // application adds no third-party library directly in the seed.
+    // dependencies (org.json and the portable yubikit surface) arrive transitively.
     implementation project(':core')
+
+    // Embedded OpenPGP engine for .json.gpg backups; the Android build instead talks to an
+    // external OpenPGP provider, but both produce standard RFC 4880 messages. BouncyCastle
+    // (bcprov/bcpg/bcutil-jdk18on) and slf4j-api arrive transitively.
+    implementation 'org.pgpainless:pgpainless-core:2.0.4'
+
+    // PC/SC security-key support through the yubikit desktop module. Raw HID is intentionally
+    // excluded: OfflineOTP only uses javax.smartcardio (CCID) transports, never hid4java. The
+    // portable core/oath/fido modules arrive through :core; this adds only the PC/SC discovery.
+    implementation('com.yubico.yubikit:desktop:3.2.1') {
+        exclude group: 'org.hid4java', module: 'hid4java'
+    }
+
+    // QR image-file import (zxing core only; no camera or screen capture). Same version the
+    // Android app uses, so decode behavior matches across platforms.
+    implementation 'com.google.zxing:core:3.5.4'
 
     testImplementation 'junit:junit:4.13.2'
 }

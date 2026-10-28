@@ -17,6 +17,8 @@ CORE_MAIN="$ROOT/core/src/main/kotlin"
 CORE_TEST="$ROOT/core/src/test/kotlin"
 DESKTOP_MAIN="$ROOT/desktop/src/main/kotlin"
 DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"
+# Gradle puts src/test/resources on the test classpath automatically; the no-Gradle gate mirrors it.
+DESKTOP_RESOURCES="$ROOT/desktop/src/test/resources"
 OUT="${KOTLIN_DESKTOP_OUT:-$ROOT/reports/kotlin-sandbox/desktop}"
 
 KOTLINC="${KOTLINC:-$(command -v kotlinc-jvm || command -v kotlinc || true)}"
@@ -62,6 +64,19 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" -name '*.kt' -print0 | sort -z)
 mapfile -d '' DESKTOP_SOURCES < <(find "$DESKTOP_MAIN" "$DESKTOP_TEST" -name '*.kt' -print0 | sort -z)
+# Desktop-only third-party compile stubs (PGPainless/BouncyCastle and the yubikit PC/SC module).
+# Phase 1 (core) never sees these: core speaks library-neutral ports and the portable yubikit
+# core/oath/fido stubs it already owns; only desktop references the PGPainless and PC/SC adapters.
+DESKTOP_STUBS=()
+# zxing's integration/android stub pulls in android types, so only the pure-JVM core surface is
+# included here; the desktop QR adapter uses ImageIO rather than any Android bitmap type.
+ZXING_STUBS=()
+mapfile -d '' ZXING_STUBS < <(find "$SANDBOX/stubs/com/google/zxing" \
+    -name '*.kt' -not -path "*/integration/*" -print0 2>/dev/null | sort -z)
+mapfile -d '' DESKTOP_STUBS < <(find "$SANDBOX/stubs/org/pgpainless" "$SANDBOX/stubs/org/bouncycastle" \
+    "$SANDBOX/stubs/com/yubico/yubikit/desktop" "$SANDBOX/stubs/javax/smartcardio" \
+    -name '*.kt' -print0 2>/dev/null | sort -z)
+DESKTOP_STUBS+=("${ZXING_STUBS[@]}")
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources under $CORE_MAIN" >&2; exit 2; }
 [[ ${#DESKTOP_SOURCES[@]} -gt 0 ]] || { echo "no desktop sources under $DESKTOP_MAIN" >&2; exit 2; }
 
@@ -76,8 +91,8 @@ echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
 
 echo "phase 2: desktop (${#DESKTOP_SOURCES[@]} files, Swing/AWT from the JDK)"
 "$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
-    "${DESKTOP_SOURCES[@]}" "${JUNIT_SHIM[@]}" \
+    "${DESKTOP_SOURCES[@]}" "${DESKTOP_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT/desktop"
 
 echo "headless desktop tests:"
-"$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/desktop:$OUT/core:$STDLIB" JvmTestRunnerKt "$OUT/desktop"
+"$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/desktop:$OUT/core:$DESKTOP_RESOURCES:$STDLIB" JvmTestRunnerKt "$OUT/desktop"

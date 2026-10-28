@@ -29,6 +29,15 @@ import javax.crypto.spec.SecretKeySpec
  * so derived keys and ciphertext bytes are byte-identical to the previous implementation.
  */
 object CryptoPrimitives {
+    /** PBKDF2-derived authentication verifier ([password], upper half) and vault key ([key], lower half). */
+    open class PBKDF2Credentials {
+        @JvmField
+        var password: ByteArray = ByteArray(0)
+
+        @JvmField
+        var key: ByteArray = ByteArray(0)
+    }
+
     /** Returns [length] random bytes from [SecureRandom]. */
     @JvmStatic
     fun generateRandom(length: Int): ByteArray {
@@ -68,6 +77,44 @@ object CryptoPrimitives {
         } finally {
             Arrays.fill(raw, 0.toByte())
         }
+    }
+
+    /**
+     * Derives a 256-bit PBKDF2 output and splits it into [PBKDF2Credentials.key] (lower 128 bits,
+     * the AES vault key) and [PBKDF2Credentials.password] (upper 128 bits, the stored verifier).
+     * Same parameter bounds and byte ordering as the Android factory, so credentials are
+     * interchangeable across platforms.
+     */
+    @JvmStatic
+    @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
+    fun generatePBKDF2Credentials(password: String?, salt: ByteArray?, iter: Int): PBKDF2Credentials {
+        if (password == null || password.length > InputPolicy.MAX_TEXT_CHARS || salt == null
+            || salt.size < 8 || iter < 1 || iter > 20000000)
+            throw IllegalArgumentException("Invalid credential parameters")
+        val secretKeyFactory = SecretKeyFactory.getInstance(Constants.PBKDF2_ALGORITHM)
+        val passwordChars = password.toCharArray()
+        val keySpec: PBEKeySpec
+        try {
+            keySpec = PBEKeySpec(passwordChars, salt, iter, Constants.PBKDF2_LENGTH)
+        } finally {
+            Arrays.fill(passwordChars, '\u0000')
+        }
+
+        val array: ByteArray
+        try {
+            array = secretKeyFactory.generateSecret(keySpec).encoded
+        } finally {
+            keySpec.clearPassword()
+        }
+
+        val halfPoint = array.size / 2
+
+        val credentials = PBKDF2Credentials()
+        credentials.password = Arrays.copyOfRange(array, halfPoint, array.size)
+        credentials.key = Arrays.copyOfRange(array, 0, halfPoint)
+
+        Arrays.fill(array, 0.toByte())
+        return credentials
     }
 
     /** Encrypts with an explicit nonce and the 128-bit GCM tag used by existing vault/backup files. */
