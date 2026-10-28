@@ -15,6 +15,7 @@ import java.io.ByteArrayInputStream
 import java.util.EnumMap
 import java.util.Vector
 import javax.imageio.ImageIO
+import javax.imageio.ImageReader
 
 /**
  * [QrImageDecoder] backed by zxing-core over a JDK `ImageIO` bitmap. It reproduces the Android
@@ -32,8 +33,9 @@ class ZxingQrDecoder : QrImageDecoder {
     override fun decode(imageBytes: ByteArray): String? {
         if (imageBytes.isEmpty() || imageBytes.size > BoundedInputReader.MAX_DOCUMENT_BYTES) return null
 
-        val image = ImageIO.read(ByteArrayInputStream(imageBytes)) ?: return null
-        if (!InputPolicy.validImage(image.width, image.height)) return null
+        // Read the header dimensions first and reject oversize images before the full bitmap is
+        // decoded, matching Android's inJustDecodeBounds pre-check in ScanQRCodeFromFile.
+        val image = readBoundedImage(imageBytes) ?: return null
 
         val width = image.width
         val height = image.height
@@ -61,6 +63,31 @@ class ZxingQrDecoder : QrImageDecoder {
             reader.decode(bitmap, harder).getText()
         } catch (error: ReaderException) {
             null
+        }
+    }
+
+    /**
+     * Resolves the image through an [ImageReader] so the declared pixel dimensions are available
+     * from the header before any pixel allocation. An unsupported or malformed container, or one
+     * whose dimensions fail [InputPolicy.validImage], returns null rather than consuming memory.
+     */
+    private fun readBoundedImage(imageBytes: ByteArray): java.awt.image.BufferedImage? {
+        val stream = ImageIO.createImageInputStream(ByteArrayInputStream(imageBytes)) ?: return null
+        val readers: Iterator<ImageReader> = ImageIO.getImageReaders(stream)
+        if (!readers.hasNext()) {
+            stream.close()
+            return null
+        }
+        val reader = readers.next()
+        return try {
+            reader.input = stream
+            if (!InputPolicy.validImage(reader.getWidth(0), reader.getHeight(0))) return null
+            reader.read(0)?.takeIf { InputPolicy.validImage(it.width, it.height) }
+        } catch (_: Exception) {
+            null
+        } finally {
+            runCatching { reader.dispose() }
+            runCatching { stream.close() }
         }
     }
 }

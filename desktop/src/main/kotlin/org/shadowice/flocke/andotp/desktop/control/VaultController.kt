@@ -38,6 +38,16 @@ class VaultController(private val vault: PasswordVault) {
         is PasswordVault.Open.Failed -> Session.Error(mapRead(outcome.error))
     }
 
+    /**
+     * Opens the vault from a hardware-derived key (FIDO2 PRF envelope). The key never touches the
+     * settings verifier; GCM authentication is the access check, exactly as on Android's
+     * hardware-unlock path.
+     */
+    fun unlockWithKey(key: SecretKey): Session = when (val outcome = vault.openWithKey(key)) {
+        is PasswordVault.Open.Unlocked -> Session.Loaded(outcome.entries, outcome.key)
+        is PasswordVault.Open.Failed -> Session.Error(mapRead(outcome.error))
+    }
+
     fun save(key: SecretKey, entries: ArrayList<Entry>): Boolean =
         vault.save(key, entries) is VaultWriteResult.Saved
 

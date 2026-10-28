@@ -1,22 +1,21 @@
 /*
- * Compile-only stand-in for PGPainless' secret key protection surface. See the BouncyCastle stub
- * header: the real library is declared in desktop/build.gradle and only the sandbox lacks it.
+ * Compile-only stand-in for PGPainless' secret key protection surface. In 2.0.4 the old
+ * PasswordProtector class is gone: callers build a protector from an org.pgpainless.util.Passphrase
+ * through the companion factories below (unlockAnyKeyWith for one passphrase over every key,
+ * unprotectedKeys for unencrypted secret keys).
  */
 package org.pgpainless.key.protection
 
-import org.bouncycastle.openpgp.PGPSecretKeyRing
+import org.pgpainless.util.Passphrase
 
-interface SecretKeyRingProtector
-
-class PasswordProtector private constructor() : SecretKeyRingProtector {
-    class Builder {
-        fun withPassphrase(passphrase: CharArray): SecretKeyRingProtector =
-            throw NotImplementedError("sandbox stub; real PGPainless runs under Gradle")
-    }
-
+interface SecretKeyRingProtector {
     companion object {
         @JvmStatic
-        fun forKey(keys: PGPSecretKeyRing): Builder =
+        fun unprotectedKeys(): SecretKeyRingProtector =
+            throw NotImplementedError("sandbox stub; real PGPainless runs under Gradle")
+
+        @JvmStatic
+        fun unlockAnyKeyWith(passphrase: Passphrase): SecretKeyRingProtector =
             throw NotImplementedError("sandbox stub; real PGPainless runs under Gradle")
     }
 }

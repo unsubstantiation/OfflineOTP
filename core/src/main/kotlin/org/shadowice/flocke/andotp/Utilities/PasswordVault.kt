@@ -95,6 +95,29 @@ class PasswordVault(
         }
     }
 
+    /**
+     * Opens the vault with an already-derived [key], the hardware-unlock counterpart of [open]:
+     * no password verification is possible, so GCM authentication alone gates access. The error
+     * categories match [open] so callers map them identically. The key is never stored here.
+     */
+    fun openWithKey(key: SecretKey): Open {
+        if (!vaultFile.exists()) return Open.Failed(VaultReadError.MISSING)
+
+        var plain: ByteArray? = null
+        return try {
+            plain = CryptoPrimitives.decrypt(key, vaultFile.read())
+            Open.Unlocked(VaultJson.stringToEntries(String(plain, StandardCharsets.UTF_8)), key)
+        } catch (error: BadPaddingException) {
+            Open.Failed(VaultReadError.AUTHENTICATION_FAILED)
+        } catch (error: IOException) {
+            Open.Failed(VaultReadError.IO_FAILURE)
+        } catch (error: Exception) {
+            Open.Failed(VaultReadError.CORRUPT)
+        } finally {
+            plain?.let { Arrays.fill(it, 0.toByte()) }
+        }
+    }
+
     /** Serializes [entries], encrypts them under [key] and promotes the vault atomically. */
     fun save(key: SecretKey, entries: ArrayList<Entry>?): VaultWriteResult {
         return try {

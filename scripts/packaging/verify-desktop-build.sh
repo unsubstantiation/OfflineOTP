@@ -43,3 +43,28 @@ done
 cmp "$report/run-1/desktop-dist.zip" "$report/run-2/desktop-dist.zip"
 diff -u "$report/run-1/SHA256SUMS" "$report/run-2/SHA256SUMS"
 printf 'Independent desktop distributions are byte-identical.\n' | tee "$report/result.txt"
+
+# Optional native packaging smoke test. jpackage ships only with full JDKs (never a JRE), so this
+# stays skipped on stripped toolchains instead of failing the gate. On a release host it builds the
+# app image from the first distribution and verifies the launcher and full dependency set exist.
+jpackage_bin="$(dirname "$(readlink -f "$(command -v java)")")/jpackage"
+if [[ ! -x "$jpackage_bin" ]]; then
+    printf 'jpackage unavailable: skipping native app-image smoke test.\n' | tee -a "$report/result.txt"
+    exit 0
+fi
+
+app_image="$report/app-image"
+rm -rf "$app_image"
+(
+    cd "$work/source-1"
+    ./gradlew --no-daemon packageDesktop
+) 2>&1 | tee "$report/packageDesktop.log"
+test -d "$work/source-1/desktop/build/release/OfflineOTP"
+test -x "$work/source-1/desktop/build/release/OfflineOTP/OfflineOTP" \
+    -o -f "$work/source-1/desktop/build/release/OfflineOTP/OfflineOTP.exe"
+# The app image must bundle the application jar plus every declared runtime dependency.
+app_lib="$work/source-1/desktop/build/release/OfflineOTP/lib"
+for jar in desktop.jar pgpainless-core bcpg-jdk18on bcprov-jdk18on core.jar; do
+    ls "$app_lib" | grep -q "$jar" || { echo "missing runtime jar: $jar" >&2; exit 1; }
+done
+printf 'jpackage app-image smoke test passed.\n' | tee -a "$report/result.txt"

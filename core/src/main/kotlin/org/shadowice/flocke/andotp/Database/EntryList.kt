@@ -72,6 +72,17 @@ class EntryList {
         entries.removeAt(pos)
     }
 
+    /**
+     * Replaces the entry at [pos] in place, transferring the existing list id to [newEntry] so the
+     * manual order and row identity survive an edit. Returns false when [pos] is out of bounds.
+     */
+    @Synchronized fun replaceEntry(pos: Int, newEntry: Entry): Boolean {
+        if (pos < 0 || pos >= entries.size) return false
+        newEntry.setListId(entries[pos].getListId())
+        entries[pos] = newEntry
+        return true
+    }
+
     /** Position of the entry, or -1 if it is not in the list. */
     @Synchronized fun indexOf(e: Entry): Int = entries.indexOf(e)
 
