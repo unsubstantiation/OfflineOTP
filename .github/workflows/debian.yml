@@ -19,7 +19,9 @@ jobs:
       - name: Install build prerequisites
         run: |
           apt-get update
-          apt-get install -y --no-install-recommends ca-certificates curl git unzip zip libstdc++6 \
+          # binutils: jpackage's jlink step strips native libraries with objcopy, which is absent
+          # from debian:bookworm-slim and otherwise fails the app-image build.
+          apt-get install -y --no-install-recommends ca-certificates curl git unzip zip binutils libstdc++6 \
             libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
