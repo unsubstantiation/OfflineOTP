@@ -30,6 +30,7 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 import org.shadowice.flocke.andotp.View.EntriesCardAdapter
@@ -78,6 +79,9 @@ object ManualEntryDialog {
         val issuerInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_issuer))
         val labelInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_label))
         val secretInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_secret))
+        val sshPublicInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_public))
+        val sshPublicLayout = requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_public))
+        sshPublicInput.isSaveEnabled = false
         secretInput.isSaveEnabled = false
         val secretView = requireNotNull(inputView.findViewById<TextView>(R.id.manual_secret_view))
         secretView.isSaveEnabled = false
@@ -111,7 +115,22 @@ object ManualEntryDialog {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
 
-                if (type == Entry.OTPType.STEAM) {
+                val ssh = type == Entry.OTPType.SSH_KEY
+                val nonOtp = type == Entry.OTPType.NOTE || ssh
+                secretInput.setHint(when (type) {
+                    Entry.OTPType.NOTE -> R.string.hint_secure_note
+                    Entry.OTPType.SSH_KEY -> R.string.hint_ssh_private
+                    else -> R.string.hint_secret
+                })
+                sshPublicLayout.visibility = if (ssh) View.VISIBLE else View.GONE
+                otpUriInput.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
+                applyOtpUriButton.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
+                if (nonOtp) {
+                    counterLayout.visibility = View.GONE
+                    periodLayout.visibility = View.GONE
+                    expandButton.visibility = View.GONE
+                    expandLayout.visibility = View.GONE
+                } else if (type == Entry.OTPType.STEAM) {
                     counterLayout.visibility = View.GONE
                     periodLayout.visibility = View.VISIBLE
                     expandButton.visibility = View.VISIBLE
@@ -259,6 +278,7 @@ object ManualEntryDialog {
         dialog.setOnDismissListener {
             if (activeDialog === dialog) activeDialog = null
             secretInput.setText("")
+            sshPublicInput.setText("")
             secretView.setText("")
             otpUriInput.setText("")
         }
@@ -272,12 +292,15 @@ object ManualEntryDialog {
                 return@setOnClickListener
             }
             try {
-                // Strip whitespace from the secret
-                val secret = secretInput.text?.toString()?.replace("\\s+".toRegex(), "") ?: ""
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
+                val rawSecret = secretInput.text?.toString() ?: ""
+                // Notes must retain spaces and newlines verbatim.
+                val secret = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY)
+                    rawSecret else rawSecret.replace("\\s+".toRegex(), "")
 
                 // Only validate the typed secret for new entries; editing keeps the existing secret.
-                if (isNewEntry && !Entry.validateSecret(secret, type)) {
+                if (isNewEntry && type != Entry.OTPType.NOTE && type != Entry.OTPType.SSH_KEY &&
+                        !Entry.validateSecret(secret, type)) {
                     secretInput.setError(callingActivity.getString(R.string.error_invalid_secret))
                     return@setOnClickListener
                 }
@@ -290,12 +313,43 @@ object ManualEntryDialog {
 
                 val algorithm = algorithmInput.getSelectedItem() as? TokenCalculator.HashAlgorithm
                     ?: TokenCalculator.HashAlgorithm.SHA1
-                val digits = java.lang.Integer.parseInt(digitsInput.text?.toString() ?: "0")
+                val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
+                    else java.lang.Integer.parseInt(digitsInput.text?.toString() ?: "0")
 
                 val issuer = issuerInput.text?.toString() ?: ""
                 val label = labelInput.text?.toString() ?: ""
 
-                if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
+                if (type == Entry.OTPType.SSH_KEY) {
+                    val publicKey = sshPublicInput.text?.toString() ?: ""
+                    if (label.isBlank()) throw IllegalArgumentException("An SSH key needs a title")
+                    if (isNewEntry) {
+                        adapter.addEntry(Entry.sshKey(publicKey, secret, issuer, label, tagsAdapter.getActiveTags()))
+                    } else {
+                        oldEntry!!.applyEdit { edited ->
+                            edited.setLabel(label)
+                            edited.setIssuer(issuer, true)
+                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                            edited.setSshKeys(publicKey, secret)
+                        }
+                        updateCallback?.onUpdate()
+                    }
+                    callingActivity.refreshTags()
+                } else if (type == Entry.OTPType.NOTE) {
+                    InputPolicy.note(secret)
+                    if (label.isBlank()) throw IllegalArgumentException("A note needs a title")
+                    if (isNewEntry) {
+                        adapter.addEntry(Entry(type, secret, issuer, label, tagsAdapter.getActiveTags()))
+                    } else {
+                        oldEntry!!.applyEdit { edited ->
+                            edited.setLabel(label)
+                            edited.setIssuer(issuer, true)
+                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                            edited.setNote(secret)
+                        }
+                        updateCallback?.onUpdate()
+                    }
+                    callingActivity.refreshTags()
+                } else if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
                     val period = java.lang.Integer.parseInt(periodInput.text?.toString() ?: "0")
 
                     if (isNewEntry) {
@@ -391,6 +445,22 @@ object ManualEntryDialog {
             override fun onTextChanged(charSequence: CharSequence?, i: Int, i1: Int, i2: Int) {}
 
             override fun afterTextChanged(editable: Editable?) {
+                if (typeInput.getSelectedItem() == Entry.OTPType.SSH_KEY) {
+                    positiveButton.isEnabled = !labelInput.text.isNullOrBlank() && try {
+                        SshKeyMaterial.encode(sshPublicInput.text?.toString() ?: "",
+                            secretInput.text?.toString() ?: "").fill(0)
+                        true
+                    } catch (_: IllegalArgumentException) { false }
+                    return
+                }
+                if (typeInput.getSelectedItem() == Entry.OTPType.NOTE) {
+                    val note = secretInput.text?.toString() ?: ""
+                    positiveButton.isEnabled = !labelInput.text.isNullOrBlank() && try {
+                        InputPolicy.note(note)
+                        true
+                    } catch (_: IllegalArgumentException) { false }
+                    return
+                }
                 if ((TextUtils.isEmpty(labelInput.text) && TextUtils.isEmpty(issuerInput.text)) ||
                         (TextUtils.isEmpty(secretInput.text) && isNewEntry) ||
                         !isNonZeroIntegerInput(digitsInput)) {
@@ -426,6 +496,7 @@ object ManualEntryDialog {
         labelInput.addTextChangedListener(watcher)
         issuerInput.addTextChangedListener(watcher)
         secretInput.addTextChangedListener(watcher)
+        sshPublicInput.addTextChangedListener(watcher)
         periodInput.addTextChangedListener(watcher)
         digitsInput.addTextChangedListener(watcher)
         counterInput.addTextChangedListener(watcher)
@@ -438,7 +509,8 @@ object ManualEntryDialog {
             typeInput.setSelection(typeAdapter.getPosition(oldType))
             issuerInput.setText(oldEntry.getIssuer())
             labelInput.setText(oldEntry.getLabel())
-            secretView.setText(oldEntry.getSecretEncoded())
+            if (oldType != Entry.OTPType.NOTE && oldType != Entry.OTPType.SSH_KEY)
+                secretView.setText(oldEntry.getSecretEncoded())
             digitsInput.setText(String.format(Locale.ENGLISH, "%d", oldEntry.getDigits()))
             algorithmInput.setSelection(algorithmAdapter.getPosition(oldEntry.getAlgorithm()))
 
@@ -467,9 +539,20 @@ object ManualEntryDialog {
                 .getColorForState(secretInput.drawableState,
                     ContextCompat.getColor(callingActivity, R.color.colorPrimary)))
 
+            if (oldType == Entry.OTPType.NOTE || oldType == Entry.OTPType.SSH_KEY) {
+                secretView.visibility = View.GONE
+                secretInput.visibility = View.VISIBLE
+                secretInput.isEnabled = true
+                if (oldType == Entry.OTPType.SSH_KEY) {
+                    val keys = oldEntry.getSshKeys()
+                    secretInput.setText(keys.privateKey)
+                    sshPublicInput.setText(keys.publicKey)
+                    sshPublicLayout.visibility = View.VISIBLE
+                } else secretInput.setText(oldEntry.getNote())
+            }
             typeInput.isEnabled = false
             algorithmInput.isEnabled = false
-            digitsInput.isEnabled = oldType != Entry.OTPType.STEAM
+            digitsInput.isEnabled = oldType != Entry.OTPType.STEAM && oldType != Entry.OTPType.NOTE && oldType != Entry.OTPType.SSH_KEY
             periodInput.isEnabled = oldType != Entry.OTPType.STEAM
         }
     }

@@ -49,6 +49,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private val thumbnailImg: ImageView
     private val menuButton: ImageButton
     private val copyButton: ImageButton
+    private val privacyButton: ImageButton
+    private var detailsVisible = false
     private val value: TextView
     private val valuePrev: TextView
     private val label: TextView
@@ -76,6 +78,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
 
         menuButton = requireNotNull(v.findViewById<ImageButton>(R.id.menuButton))
         copyButton = requireNotNull(v.findViewById<ImageButton>(R.id.copyButton))
+        privacyButton = requireNotNull(v.findViewById<ImageButton>(R.id.privacyButton))
         val invisibleImg = requireNotNull(v.findViewById<ImageView>(R.id.coverImg))
 
         // Style the buttons in the current theme colors
@@ -99,6 +102,10 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     }
 
     private fun setupOnClickListeners(menuButton: ImageButton, copyButton: ImageButton) {
+        privacyButton.setOnClickListener {
+            cancelPendingClicks()
+            adapterPositionSafeCallback(true) { callback, position -> callback.onPrivacyClicked(position) }
+        }
         menuButton.setOnClickListener { view ->
             adapterPositionSafeCallback { callback, adapterPosition ->
                 callback.onMenuButtonClicked(view, adapterPosition)
@@ -148,10 +155,10 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     }
 
     /** Runs the callback with the clicked position, if the view holder is still bound. */
-    private fun adapterPositionSafeCallback(safeCallback: AdapterPositionSafeCallbackConsumer) {
+    private fun adapterPositionSafeCallback(allowHidden: Boolean = false, safeCallback: AdapterPositionSafeCallbackConsumer) {
         val clickedPosition = adapterPosition
         val current = callback
-        if (current != null && clickedPosition != RecyclerView.NO_POSITION) {
+        if ((allowHidden || detailsVisible) && current != null && clickedPosition != RecyclerView.NO_POSITION) {
             safeCallback.accept(current, clickedPosition)
         }
     }
@@ -160,6 +167,35 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
      *  The caller-owned [Settings] is supplied by the adapter to avoid creating a fresh
      *  instance (and its migration check) on every bind. */
     fun updateValues(entry: Entry, settings: Settings) {
+        detailsVisible = entry.areDetailsVisible()
+        privacyButton.setImageResource(if (detailsVisible) R.drawable.ic_visibility_invisible else R.drawable.ic_visibility_visible)
+        privacyButton.contentDescription = context.getString(if (detailsVisible) R.string.privacy_hide else R.string.privacy_reveal)
+        menuButton.visibility = if (detailsVisible) View.VISIBLE else View.GONE
+        copyButton.visibility = if (detailsVisible) View.VISIBLE else View.GONE
+        if (!detailsVisible) {
+            progressAnimator?.cancel()
+            progressAnimator = null
+            label.setText(entry.privacyTitle())
+            value.setText("")
+            value.tag = null
+            valuePrev.setText("")
+            tags.setText("")
+            counter.setText("")
+            customPeriod.setText("")
+            thumbnailImg.setImageDrawable(null)
+            valueLayout.visibility = View.GONE
+            coverLayout.visibility = View.GONE
+            valuePrev.visibility = View.GONE
+            tags.visibility = View.GONE
+            counterLayout.visibility = View.GONE
+            customPeriodLayout.visibility = View.GONE
+            thumbnailFrame.visibility = View.GONE
+            progressBar.visibility = View.GONE
+            return
+        }
+        // Recycled holders may previously have displayed a hidden entry.
+        valueLayout.visibility = if (!tapToReveal || entry.isVisible()) View.VISIBLE else View.GONE
+        coverLayout.visibility = if (tapToReveal && !entry.isVisible()) View.VISIBLE else View.GONE
 
         if (entry.getType() == Entry.OTPType.HOTP) {
             counterLayout.visibility = View.VISIBLE
@@ -177,7 +213,11 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             customPeriodLayout.visibility = View.GONE
         }
 
-        val tokenFormatted = Tools.formatToken(entry.getCurrentOTP(), settings.getTokenSplitGroupSize())
+        val tokenFormatted = when {
+            entry.isNote() -> context.getString(R.string.secure_note_hidden)
+            entry.isSshKey() -> context.getString(R.string.ssh_key_hidden)
+            else -> Tools.formatToken(entry.getCurrentOTP(), settings.getTokenSplitGroupSize())
+        }
 
         val issuerText = entry.getIssuer()
         val labelText = entry.getLabel()
@@ -373,6 +413,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         fun onMoveEventStart()
         fun onMoveEventStop()
 
+        fun onPrivacyClicked(position: Int)
         fun onMenuButtonClicked(parentView: View, position: Int)
         fun onCopyButtonClicked(text: String, position: Int)
 

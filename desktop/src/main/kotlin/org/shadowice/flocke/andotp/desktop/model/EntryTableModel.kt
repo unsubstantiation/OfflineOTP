@@ -14,13 +14,17 @@ import javax.swing.table.AbstractTableModel
  * in the UI shell. The token column reads the cached OTP and renders blank until the entry's token
  * has been calculated; the model never starts timers or computes tokens itself.
  */
-class EntryTableModel(private val presentation: EntryListPresentation) : AbstractTableModel() {
+class EntryTableModel(
+    private val presentation: EntryListPresentation,
+    private val changeVisibility: (Entry, Boolean) -> Unit = { _, _ -> }
+) : AbstractTableModel() {
 
     enum class Column(val title: String) {
         ISSUER("Issuer"),
         LABEL("Label"),
         TYPE("Type"),
         TOKEN("Token"),
+        SHOW("Show"),
     }
 
     override fun getRowCount(): Int = presentation.size()
@@ -31,12 +35,32 @@ class EntryTableModel(private val presentation: EntryListPresentation) : Abstrac
 
     override fun getValueAt(rowIndex: Int, columnIndex: Int): Any? {
         val entry = presentation.get(rowIndex)
-        return when (columnAt(columnIndex)) {
+        val column = columnAt(columnIndex)
+        if (column == Column.SHOW) return entry.areDetailsVisible()
+        if (!entry.areDetailsVisible()) return if (column == Column.LABEL) entry.privacyTitle() else ""
+        return when (column) {
             Column.ISSUER -> entry.getIssuer()
             Column.LABEL -> entry.getLabel()
             Column.TYPE -> entry.getType().name
             // Cached token only; a null value means no token has been generated for this step yet.
-            Column.TOKEN -> entry.getCurrentOTP().orEmpty()
+            Column.TOKEN -> when {
+                entry.isNote() -> "[Note hidden]"
+                entry.isSshKey() -> "[SSH keys hidden]"
+                else -> entry.getCurrentOTP().orEmpty()
+            }
+            Column.SHOW -> entry.areDetailsVisible()
+        }
+    }
+
+    override fun getColumnClass(columnIndex: Int): Class<*> =
+        if (columnAt(columnIndex) == Column.SHOW) java.lang.Boolean::class.java else String::class.java
+
+    override fun isCellEditable(rowIndex: Int, columnIndex: Int): Boolean = columnAt(columnIndex) == Column.SHOW
+
+    override fun setValueAt(value: Any?, rowIndex: Int, columnIndex: Int) {
+        if (columnAt(columnIndex) == Column.SHOW && value is Boolean) {
+            changeVisibility(presentation.get(rowIndex), value)
+            fireTableRowsUpdated(rowIndex, rowIndex)
         }
     }
 

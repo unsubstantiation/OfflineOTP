@@ -12,6 +12,10 @@ import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
 import java.awt.BorderLayout
 import java.awt.Dimension
+import java.awt.Toolkit
+import java.awt.datatransfer.StringSelection
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
 import javax.swing.JButton
 import javax.swing.JFrame
 import javax.swing.JLabel
@@ -20,6 +24,7 @@ import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
 import javax.swing.JPanel
+import javax.swing.JPopupMenu
 import javax.swing.JScrollPane
 import javax.swing.JTable
 import javax.swing.JTextField
@@ -73,7 +78,19 @@ object MainWindow {
             state = unlocked
             editor = EntryEditor(controller, unlocked)
             coordinator = BackupCoordinator(controller, unlocked)
-            table.model = EntryTableModel(unlocked.presentation)
+            table.model = EntryTableModel(unlocked.presentation) { entry, visible ->
+                if (editor?.setDetailsVisible(entry, visible) != true) {
+                    // Do not leave the old revealed row painted behind a modal error dialog.
+                    table.paintImmediately(table.visibleRect)
+                    JOptionPane.showMessageDialog(frame,
+                        "The visibility choice could not be saved. This entry is hidden now, but its previous saved state may return after restart.",
+                        TITLE, JOptionPane.ERROR_MESSAGE)
+                }
+            }
+            table.columnModel.getColumn(EntryTableModel.Column.SHOW.ordinal).apply {
+                preferredWidth = 55
+                maxWidth = 70
+            }
             search.text = ""
 
             ticker?.close()
@@ -94,6 +111,76 @@ object MainWindow {
             JOptionPane.showMessageDialog(frame, "Open a vault first.", TITLE,
                 JOptionPane.WARNING_MESSAGE)
             null
+        }
+
+        /** Places the selected entry's current token on the clipboard, Android copy parity:
+         *  last-used/frequency are updated and the vault re-persisted before any clipboard write. */
+        fun copySelectedToken() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) {
+                JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
+                    JOptionPane.WARNING_MESSAGE)
+                return
+            }
+            val entry = (table.model as EntryTableModel).entryAt(row)
+            if (!entry.areDetailsVisible()) return
+            val result = if (entry.isSshKey()) {
+                val keys = entry.getSshKeys()
+                val choices = ArrayList<String>()
+                if (keys.publicKey.isNotBlank()) choices.add("Public key")
+                if (keys.privateKey.isNotBlank()) choices.add("Private key")
+                val choice = JOptionPane.showOptionDialog(frame, "Choose which SSH key to copy.", TITLE,
+                    JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, choices.toTypedArray(), null)
+                if (choice !in choices.indices) return
+                editor?.copySshKey(entry, choices[choice] == "Private key")
+            } else editor?.copyToken(entry)
+            when (result) {
+                is EntryEditor.TokenCopyResult.Copied -> {
+                    Toolkit.getDefaultToolkit().systemClipboard
+                        .setContents(StringSelection(result.token), null)
+                    (table.model as? EntryTableModel)?.refresh()
+                    setStatus(when {
+                        entry.isSshKey() -> "SSH key copied to the clipboard"
+                        entry.isNote() -> "Note copied to the clipboard"
+                        else -> "Token copied to the clipboard"
+                    })
+                }
+                EntryEditor.TokenCopyResult.Unavailable ->
+                    JOptionPane.showMessageDialog(frame,
+                        "No token is available for that entry yet.",
+                        TITLE, JOptionPane.INFORMATION_MESSAGE)
+                EntryEditor.TokenCopyResult.PersistenceFailed ->
+                    JOptionPane.showMessageDialog(frame,
+                        "The item was not copied: the vault could not be written.",
+                        TITLE, JOptionPane.ERROR_MESSAGE)
+                null -> Unit
+            }
+        }
+
+        /** Desktop counterpart of the Android counter chip: explicit HOTP counter advance. */
+        fun advanceSelectedHotp() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) {
+                JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
+                    JOptionPane.WARNING_MESSAGE)
+                return
+            }
+            val entry = (table.model as EntryTableModel).entryAt(row)
+            if (!entry.isCounterBased()) {
+                JOptionPane.showMessageDialog(frame, "Only HOTP entries have a counter to advance.",
+                    TITLE, JOptionPane.INFORMATION_MESSAGE)
+                return
+            }
+            if (editor?.advanceHotp(entry) == true) {
+                (table.model as? EntryTableModel)?.refresh()
+                setStatus("HOTP counter advanced")
+            } else {
+                JOptionPane.showMessageDialog(frame,
+                    "The HOTP counter could not be advanced, or the vault could not be written.",
+                    TITLE, JOptionPane.ERROR_MESSAGE)
+            }
         }
 
         val toolbar = JToolBar().apply {
@@ -121,7 +208,8 @@ object MainWindow {
                             (table.model as EntryTableModel).refresh()
                             setStatus("Entry added")
                         } else {
-                            JOptionPane.showMessageDialog(frame, "An equal entry already exists.",
+                            entry.destroy()
+                            JOptionPane.showMessageDialog(frame, "The entry already exists or could not be saved.",
                                 TITLE, JOptionPane.WARNING_MESSAGE)
                         }
                     }
@@ -137,11 +225,13 @@ object MainWindow {
                         return@addActionListener
                     }
                     val existing = unlocked.presentation.get(row)
+                    if (!existing.areDetailsVisible()) return@addActionListener
                     EntryDialog.prompt(frame, existing)?.let { replacement ->
                         if (editor?.replace(existing, replacement) == true) {
                             (table.model as EntryTableModel).refresh()
                             setStatus("Entry updated")
                         } else {
+                            replacement.destroy()
                             JOptionPane.showMessageDialog(frame,
                                 "The entry could not be saved to the vault.",
                                 TITLE, JOptionPane.ERROR_MESSAGE)
@@ -168,7 +258,48 @@ object MainWindow {
                     }
                 }
             })
+            add(JButton("Copy token / note / key").apply {
+                toolTipText = "Copy the selected item (or double-click its row); choose an SSH key explicitly"
+                addActionListener { copySelectedToken() }
+            })
         }
+
+        // Right-click context menu; the HOTP counter item only appears for counter-based entries.
+        val rowMenu = JPopupMenu().apply {
+            add(JMenuItem("Copy token / note / key").apply { addActionListener { copySelectedToken() } })
+            addSeparator()
+            add(JMenuItem("Advance HOTP counter").apply {
+                addActionListener { advanceSelectedHotp() }
+            })
+        }
+        table.addMouseListener(object : MouseAdapter() {
+            override fun mouseClicked(event: MouseEvent) {
+                if (event.clickCount == 2 && event.button == MouseEvent.BUTTON1) {
+                    val row = table.rowAtPoint(event.point)
+                    if (row >= 0 && table.columnAtPoint(event.point) != EntryTableModel.Column.SHOW.ordinal) {
+                        table.setRowSelectionInterval(row, row)
+                        copySelectedToken()
+                    }
+                }
+            }
+
+            override fun mousePressed(event: MouseEvent) = showRowMenu(event)
+            override fun mouseReleased(event: MouseEvent) = showRowMenu(event)
+
+            private fun showRowMenu(event: MouseEvent) {
+                if (!event.isPopupTrigger) return
+                val row = table.rowAtPoint(event.point)
+                if (row < 0) return
+                table.setRowSelectionInterval(row, row)
+                rowMenu.components.forEach { component ->
+                    if (component is JMenuItem && component.text == "Advance HOTP counter") {
+                        component.isVisible =
+                            (table.model as EntryTableModel).entryAt(row).isCounterBased()
+                    }
+                }
+                rowMenu.show(table, event.x, event.y)
+            }
+        })
 
         search.toolTipText = "Search issuer, label or tags"
         search.document.addDocumentListener(object : SimpleDocumentListener {

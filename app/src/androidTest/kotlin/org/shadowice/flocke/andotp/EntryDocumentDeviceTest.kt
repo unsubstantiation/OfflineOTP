@@ -24,6 +24,26 @@ class EntryDocumentDeviceTest {
         "alice", TokenCalculator.HashAlgorithm.SHA1, ArrayList(listOf("work")))
 
     @Test
+    fun sshKeyPairRoundTripsThroughAndroidJson() {
+        val privateKey = "-----BEGIN OPENSSH PRIVATE KEY-----\n" + "x".repeat(5000) + "\n-----END OPENSSH PRIVATE KEY-----\n"
+        val original = Entry.sshKey("ssh-ed25519 public\n", privateKey, "", "Server", arrayListOf())
+        val restored = Entry(original.toJSON())
+        assertEquals(Entry.OTPType.SSH_KEY, restored.getType())
+        assertEquals("ssh-ed25519 public\n", restored.getSshKeys().publicKey)
+        assertEquals(privateKey, restored.getSshKeys().privateKey)
+        assertTrue(!restored.updateOTP(false))
+    }
+
+    @Test
+    fun secureNoteRoundTripsThroughAndroidJson() {
+        val original = Entry(Entry.OTPType.NOTE, "private key\nwith spaces 🔐", "", "Recovery", arrayListOf())
+        val restored = Entry(original.toJSON())
+        assertEquals(Entry.OTPType.NOTE, restored.getType())
+        assertEquals("private key\nwith spaces 🔐", restored.getNote())
+        assertTrue(!restored.updateOTP(false))
+    }
+
+    @Test
     fun totpUriRoundTripsThroughTheUriStringSerializer() {
         val original = totp()
         val uri = original.toUriString()

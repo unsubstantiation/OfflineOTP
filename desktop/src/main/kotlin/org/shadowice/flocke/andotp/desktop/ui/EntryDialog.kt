@@ -10,6 +10,8 @@ import javax.swing.JLabel
 import javax.swing.JOptionPane
 import javax.swing.JPanel
 import javax.swing.JTextField
+import javax.swing.JTextArea
+import javax.swing.JScrollPane
 
 /**
  * Modal add/edit entry form. Heavyweight and compile-only in the sandbox: all validation lives in
@@ -28,7 +30,12 @@ object EntryDialog {
     fun prompt(parent: JFrame, existing: Entry? = null): Entry? {
         val issuer = JTextField(existing?.getIssuer().orEmpty(), 24)
         val label = JTextField(existing?.getLabel().orEmpty(), 24)
-        val secret = JTextField("", 24)
+        val sshKeys = existing?.takeIf { it.isSshKey() }?.getSshKeys()
+        val secret = JTextArea(if (sshKeys != null) sshKeys.privateKey
+            else existing?.takeIf { it.isNote() }?.getNote().orEmpty(), 3, 24)
+        val publicKey = JTextArea(sshKeys?.publicKey.orEmpty(), 3, 24)
+        val publicKeyLabel = JLabel("SSH public key (optional)")
+        val secretLabel = JLabel("Secret (Base32)")
         val type = JComboBox(Entry.OTPType.entries.toTypedArray()).apply {
             selectedItem = existing?.getType() ?: Entry.OTPType.TOTP
             // Android keeps the OTP type fixed on edit; a switch would rebuild the entry and drop
@@ -57,14 +64,23 @@ object EntryDialog {
             }
             val steam = selected == Entry.OTPType.STEAM
             val motp = selected == Entry.OTPType.MOTP
+            val note = selected == Entry.OTPType.NOTE
+            val ssh = selected == Entry.OTPType.SSH_KEY
+            secretLabel.text = when {
+                note -> "Note (up to 200 characters; label is title)"
+                ssh -> "SSH private key (optional)"
+                else -> "Secret (Base32)"
+            }
+            publicKey.isEnabled = ssh
+            publicKeyLabel.isEnabled = ssh
             // A fresh Steam entry always uses the fixed 5-digit/SHA1 contract.
             if (steam && existing == null) {
                 digits.text = TokenCalculator.STEAM_DEFAULT_DIGITS.toString()
                 periodOrCounter.text = TokenCalculator.TOTP_DEFAULT_PERIOD.toString()
             }
-            digits.isEnabled = !steam && !motp
-            periodOrCounter.isEnabled = !steam && !motp
-            algorithm.isEnabled = !steam && !motp
+            digits.isEnabled = !steam && !motp && !note && !ssh
+            periodOrCounter.isEnabled = !steam && !motp && !note && !ssh
+            algorithm.isEnabled = !steam && !motp && !note && !ssh
             pin.isEnabled = motp
             pinLabel.isEnabled = motp
         }
@@ -74,7 +90,8 @@ object EntryDialog {
         val panel = JPanel(GridLayout(0, 2, 6, 6)).apply {
             add(JLabel("Issuer")); add(issuer)
             add(JLabel("Label")); add(label)
-            add(JLabel("Secret (Base32)")); add(secret)
+            add(secretLabel); add(JScrollPane(secret))
+            add(publicKeyLabel); add(JScrollPane(publicKey))
             add(JLabel("Type")); add(type)
             add(JLabel("Digits")); add(digits)
             add(timingLabel); add(periodOrCounter)
@@ -86,16 +103,22 @@ object EntryDialog {
             val choice = JOptionPane.showConfirmDialog(
                 parent, panel, if (existing == null) "Add entry" else "Edit entry",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
-            if (choice != JOptionPane.OK_OPTION) return null
+            if (choice != JOptionPane.OK_OPTION) {
+                secret.text = ""
+                publicKey.text = ""
+                pin.text = ""
+                return null
+            }
 
             val built = try {
                 buildEntry(
                     type.selectedItem as Entry.OTPType,
                     issuer.text, label.text,
-                    secret.text.ifEmpty { existing?.getSecretEncoded() },
+                    if (type.selectedItem == Entry.OTPType.NOTE || type.selectedItem == Entry.OTPType.SSH_KEY) secret.text
+                    else secret.text.ifEmpty { existing?.getSecretEncoded() },
                     digits.text, periodOrCounter.text,
                     TokenCalculator.HashAlgorithm.valueOf(algorithm.selectedItem as String),
-                    pin.text).also { replacement ->
+                    pin.text, publicKey.text).also { replacement ->
                     // No tag/usage editors on desktop: keep the metadata the form cannot show.
                     if (existing != null) preserveEditMetadata(existing, replacement)
                 }
@@ -104,11 +127,17 @@ object EntryDialog {
                     "Invalid entry", JOptionPane.ERROR_MESSAGE)
                 null
             }
-            if (built != null) return built
+            if (built != null) {
+                secret.text = ""
+                publicKey.text = ""
+                pin.text = ""
+                return built
+            }
         }
     }
 
     private fun preserveEditMetadata(existing: Entry, replacement: Entry) {
+        replacement.setDetailsVisible(existing.areDetailsVisible())
         replacement.setTags(ArrayList(existing.getTags()))
         replacement.setLastUsed(existing.getLastUsed())
         replacement.setUsedFrequency(existing.getUsedFrequency())
@@ -117,11 +146,13 @@ object EntryDialog {
     private fun buildEntry(
         type: Entry.OTPType, issuer: String, label: String, secret: String?,
         digitsText: String, timingText: String, algorithm: TokenCalculator.HashAlgorithm,
-        pinText: String
+        pinText: String, publicKeyText: String
     ): Entry {
-        val digits = digitsText.toIntOrNull()
-            ?: throw IllegalArgumentException("Digits must be a number")
+        val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
+            else digitsText.toIntOrNull() ?: throw IllegalArgumentException("Digits must be a number")
         return when (type) {
+            Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, arrayListOf())
+            Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf())
             Entry.OTPType.HOTP -> {
                 val counter = timingText.toLongOrNull()
                     ?: throw IllegalArgumentException("HOTP counter must be a number")

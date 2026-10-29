@@ -2,6 +2,18 @@
 
 #### Unreleased
 
+ * Feature: Remember per-entry hide/reveal choices for OTPs, notes and SSH keys on Android and desktop; entries default to hidden, and encrypted backups retain the choice
+
+ * Feature: Store SSH public and/or private key text in one encrypted Android or desktop vault entry, with separate copy choices and encrypted-backup support; older releases cannot read these entries
+
+ * Feature: Add standalone encrypted notes (up to 200 Unicode characters) on Android and desktop, with copy/edit and portable encrypted backups; older releases cannot read vaults or backups containing notes
+
+ * Feature: Add a pure-JVM Swing desktop client (`:desktop`) over the shared Android-free `:core` engine, using the same vault and backup file formats with byte-identical golden fixtures; vault data lives in `~/.offlineotp`
+ * Desktop: Create/open password vaults, add/edit/delete entries, search, and show refreshing TOTP/HOTP/Steam/mOTP tokens; copy a token via toolbar button, row double-click or context menu (copy records last-used and usage frequency), with explicit HOTP counter advancement and a guard at the counter ceiling
+ * Desktop: Import QR image files, including multi-part Google Authenticator exports with duplicate-issuer confirmation, bounded file reads and rollback on failed writes; no camera or screen capture
+ * Desktop: Save and restore password-encrypted and OpenPGP (PGPainless 2.x) backups; legacy headerless SHA-256 backups restore only behind an explicit opt-in
+ * Desktop: Experimental PC/SC-only USB security-key support (no raw HID or NFC): OATH account list/calculate/copy-to-key and FIDO2 PRF enroll/unlock through cancellable background jobs, with typed no-key/cancel/failure results, PIN zeroization on every path and no provider error text surfaced
+ * Internal: Extract vault, parser, backup and hardware-key protocol layers into the shared `:core` module behind ports, with headless desktop tests, reproducible `:desktop:distZip` packaging and an optional jpackage app-image smoke test
  * Experimental: Add USB/NFC OATH account access and FIDO2 PRF key-or-password vault unlock; Android and physical-key verification is still required
  * Bugfix: Preserve TOTP periods when copying hardware accounts with numeric name prefixes, and reject ambiguous OATH IDs
  * Bugfix: Discard stale hardware HOTP displays after an interrupted request, and recheck hardware TOTP validity after clock changes

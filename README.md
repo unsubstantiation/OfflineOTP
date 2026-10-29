@@ -7,6 +7,11 @@ OfflineOTP is a source-available Android authenticator for time-based (TOTP), co
 is a Kotlin rewrite of the upstream andOTP project with hardened vault, backup, and IPC handling.
 The current build is `versionName 0.9.0.1` (versionCode 39).
 
+A pure-JVM **desktop client** (Swing) lives in the `:desktop` Gradle module and shares the
+Android-free `:core` engine and password-backup codec. Use exported backups to transfer accounts
+between distributions; copying an Android app-data vault is not a substitute for a backup. See
+[Desktop client](#desktop-client) for its scope and build instructions.
+
 The Android application ID and Kotlin namespace intentionally remain
 `org.shadowice.flocke.andotp`; changing the application ID would create a separate installation
 rather than update an existing one. Legacy notification channel IDs and intent/broadcast action
@@ -19,6 +24,7 @@ installation additionally requires the same signing key.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
+- Store standalone secure notes of up to 200 Unicode characters and SSH public/private key text in the encrypted vault.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
 - Search the whole vault or filter by tags, and see per-tag entry counts. Clearing a search restores the selected tag filter. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
@@ -59,6 +65,89 @@ FIDO2 PRF implementation may work for vault unlock, but the separate Nitrokey Pr
 protocol is not implemented. Other FIDO2 keys may lack PRF, user verification or an applicable
 transport. No Android build, emulator or physical-key interoperability test was available for this
 implementation; verify on your devices before relying on it.
+
+## Desktop client
+
+The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reuses the shared
+`:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
+all portable logic stays headless and unit-tested; Swing is only a thin shell. The desktop vault
+directory is `~/.offlineotp`.
+
+Features:
+
+- Create and open a local password-encrypted vault; add, edit and delete entries, search the vault, and watch tokens refresh each second.
+- Copy a token with the **Copy token** button, a row double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
+- Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
+- Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless legacy SHA-256 format is restorable behind an explicit opt-in and is never newly written. All file reads are bounded.
+- Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
+- Deliberately out of desktop v1 scope: NFC, camera, screen capture, tag/settings editors, inactivity lock, and password change.
+
+### Secure notes
+
+To add a standalone note, choose **Enter details** on Android or **Add entry** on desktop, then
+select `NOTE` as the type. Use the label as its title and enter 1–200 Unicode characters in the
+secret field; spaces and newlines are preserved. Notes are hidden in the list. Open **Edit** to
+view or change one, or use the copy action to place it on the clipboard. Clipboard contents may be
+visible to other applications or clipboard history. Notes are not OTPs, cannot be exported as OTP
+QR codes, and are not sent to hardware keys. They are included in encrypted vaults and backups.
+
+Both distributions must be updated to a version that supports notes before transferring a backup
+containing them. Older versions cannot read the new `NOTE` entry type and reject such a vault or
+backup; keep an independently tested backup before upgrading or transferring. Existing OTP-only
+files retain their previous format when entries are hidden.
+
+### Hiding entry details
+
+Each Android card has an eye button; the desktop list has a **Show** checkbox. New entries and
+older entries without a saved choice start hidden. A hidden row displays only its title (or issuer
+if the title is blank) and its toggle; reveal it before copying or editing. Each choice is saved in
+the encrypted vault and included in portable backups, so a revealed entry remains revealed after a
+restart or restore. Older releases ignore this choice and may show details; do not rely on it when
+opening a backup in an older app. If a visibility change cannot be saved, the entry stays hidden
+for the current session, but its previously saved state may return after restart.
+
+This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
+titles, searches and other app screens may still expose information. Android's separate screenshot
+blocking setting offers additional protection; the Swing desktop has no equivalent portable
+screenshot-blocking guarantee.
+
+### SSH key entries
+
+To store SSH keys, choose **Enter details** on Android or **Add entry** on desktop, then select
+`SSH_KEY`. Give the entry a label and paste a public key, a private key, or both in their separate
+multiline fields. Each field is limited to 32 KiB of UTF-8 text, independently of the note limit.
+Whitespace and line breaks entered in the fields are preserved. Open **Edit** to view or change
+keys; the list hides their contents. The copy action asks which key to copy, even if only one is
+present. Clipboard contents may be visible to other applications or clipboard history.
+
+The app stores the text as entered: it does **not** validate keys, check that the two keys match,
+generate keys, or provide an SSH agent. Encrypted private-key files remain encrypted with their
+original passphrase; the passphrase is not managed by this entry. SSH keys are included in vaults
+and encrypted backups but cannot be exported as OTP QR codes or copied to an OATH hardware key.
+Both Android and desktop must be updated to a version that understands `SSH_KEY` before restoring
+such backups. Older versions reject them; keep a separately tested backup before transferring.
+
+### Transferring backups
+
+Password-encrypted `.json.aes` backups use the same framing, password derivation and entry JSON on
+Android (both flavors) and desktop. Export on one device, transfer the file securely, and restore
+on the other using the original backup password. For pre-0.6.3 andOTP backups, select the legacy
+restore option. Desktop restore **replaces** the current vault; Android offers merge or replace.
+Keep a separate, tested backup before restoring. Desktop rejects backups containing duplicate
+account identities (even when their tags or usage metadata differ) rather than silently dropping
+one. HOTP counters in different copies do not sync. Hardware-key-held accounts and local device
+settings are not included.
+
+OpenPGP backups use the same entry JSON and standard OpenPGP encryption, but provider and key
+compatibility must be tested on the actual devices. Desktop exports are encrypted but **unsigned**;
+Android's optional signature verification will reject them when enabled. Desktop currently does not
+verify OpenPGP signatures, including those on Android exports. Do not treat an OpenPGP restore on
+desktop as proof of who created it. Password backups are the simpler interchange path.
+
+Verification limits: the offline sandbox compiles every desktop source against narrow stubs and
+runs the headless suite under `java.awt.headless=true`, but Gradle builds, real PC/SC keys,
+jpackage packaging and lint require a networked host with a full JDK. See
+[Desktop packaging and release](scripts/packaging/README.md).
 
 ## Importing from Google Authenticator
 
@@ -124,6 +213,14 @@ compile SDK 36, build-tools 36.0.0). Build the fdroid and play APKs in debug and
   :app:assemblePlayDebug :app:assemblePlayRelease
 ```
 
+Build the desktop distribution (platform-independent zip with launcher scripts and dependency
+jars) or a native jpackage app image, on a full JDK 17+ with network access:
+
+```sh
+./gradlew --no-daemon :desktop:distZip
+./gradlew --no-daemon packageDesktop
+```
+
 ## Testing
 
 Run the source guards and Gradle wrapper checks:
@@ -147,7 +244,19 @@ For instrumentation tests, use a disposable connected emulator or device:
 ```
 
 The [Kotlin sandbox](scripts/kotlin-sandbox/README.md) provides partial host checks without an
-Android SDK; it does not replace Gradle builds, lint, or device tests.
+Android SDK; it does not replace Gradle builds, lint, or device tests. The desktop module has its
+own headless gate, which compiles every desktop source against compile-only stubs and runs the
+desktop suite under `java.awt.headless=true`:
+
+```sh
+bash scripts/kotlin-sandbox/bootstrap-toolchain.sh   # one-time, needs pypi and npm access
+bash scripts/kotlin-sandbox/compile-desktop.sh
+```
+
+The deterministic vault/backup fixtures can be checked with
+`bash scripts/packaging/generate-golden-fixtures.sh`; the desktop suite also pins a real desktop
+export for the Android instrumentation test. The reproducible desktop packaging check is
+`bash scripts/packaging/verify-desktop-build.sh` on a networked full-JDK host.
 
 ## Build verification
 
@@ -169,6 +278,7 @@ bash scripts/verify_reproducible_build.sh
 ## Documentation
 
 - [Changelog](CHANGELOG.md) — release history.
+- [Desktop packaging and release](scripts/packaging/README.md) — desktop distributions, jpackage, reproducible builds and sandbox verification.
 - [Vault security hardening](docs/vault-security-hardening.md) — storage, session, backup, and IPC behavior.
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.

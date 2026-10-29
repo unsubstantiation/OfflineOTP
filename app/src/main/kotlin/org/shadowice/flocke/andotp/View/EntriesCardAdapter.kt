@@ -65,6 +65,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private val dialogs: EntryActionDialogs = EntryActionDialogs(context, settings)
     private var callback: Callback? = null
     private var activeQrDialog: AlertDialog? = null
+    private var activeSshCopyDialog: AlertDialog? = null
     private var activePopupMenu: PopupMenu? = null
 
     /** The key the entries are encrypted with; null while the vault is locked. */
@@ -238,6 +239,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         ManualEntryDialog.dismissActive()
         activeQrDialog?.dismiss()
         activeQrDialog = null
+        activeSshCopyDialog?.dismiss()
+        activeSshCopyDialog = null
         activePopupMenu?.dismiss()
         activePopupMenu = null
     }
@@ -371,6 +374,22 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 callback?.onMoveEventStop()
             }
 
+            override fun onPrivacyClicked(position: Int) {
+                synchronized(VaultSession.MutationLock) {
+                    val key = encryptionKey
+                    if (key == null || VaultSession.getKey() !== key || !validDisplayedPosition(position)) return
+                    val entry = presentation.get(position)
+                    entry.setDetailsVisible(!entry.areDetailsVisible())
+                    val result = persistence.save(entries.getEntries(), key, settings.getAutoBackupEncryptedPasswordsEnabled(),
+                        UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
+                    if (result !is VaultWriteResult.Saved) {
+                        entry.setDetailsVisible(false)
+                        Toast.makeText(context, R.string.privacy_save_failed, Toast.LENGTH_LONG).show()
+                    }
+                    notifyEntryChanged(entry)
+                }
+            }
+
             override fun onMenuButtonClicked(parentView: View, position: Int) {
                 showPopupMenu(parentView, position)
             }
@@ -469,13 +488,56 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     private fun copyHandler(position: Int, text: String, dropToBackground: Boolean) {
         if (!validDisplayedPosition(position)) return
-        val otp = text.ifEmpty { presentation.get(position).getCurrentOTP() ?: "" }
+        val selected = presentation.get(position)
+        if (selected.isSshKey()) {
+            chooseSshKeyToCopy(position, dropToBackground)
+            return
+        }
+        val otp = if (selected.isNote()) selected.getNote()
+            else text.ifEmpty { selected.getCurrentOTP() ?: "" }
         if (otp.isEmpty()) return
         Tools.copyToClipboard(context, otp)
         updateLastUsedAndFrequency(position, getRealIndex(position))
         if (dropToBackground) {
             (context as? MainActivity)?.moveTaskToBack(true)
         }
+    }
+
+    /** Explicitly choose one field; do not retain key text in a pending dialog callback. */
+    private fun chooseSshKeyToCopy(position: Int, dropToBackground: Boolean) {
+        showActionDialog(position, BiConsumer { target, entry ->
+            val keys = entry.getSshKeys()
+            val choices = ArrayList<Boolean>() // false = public, true = private
+            val labels = ArrayList<String>()
+            if (keys.publicKey.isNotBlank()) {
+                choices.add(false)
+                labels.add(context.getString(R.string.ssh_public_key))
+            }
+            if (keys.privateKey.isNotBlank()) {
+                choices.add(true)
+                labels.add(context.getString(R.string.ssh_private_key))
+            }
+            activeSshCopyDialog?.dismiss()
+            val dialog = AlertDialog.Builder(context)
+                .setTitle(R.string.choose_ssh_key_to_copy)
+                .setItems(labels.toTypedArray()) { _, index ->
+                    if (index in choices.indices) withTarget(target, Consumer { actual ->
+                        if (!actual.isSshKey()) return@Consumer
+                        val current = actual.getSshKeys()
+                        val value = if (choices[index]) current.privateKey else current.publicKey
+                        if (value.isBlank()) return@Consumer
+                        val currentPos = presentation.indexOf(actual)
+                        val currentIndex = entries.indexOf(actual)
+                        if (!EntryIndexGuard.isValid(currentIndex, entries.getEntries().size)) return@Consumer
+                        Tools.copyToClipboard(context, value)
+                        updateLastUsedAndFrequency(currentPos, currentIndex)
+                        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+                    })
+                }.create()
+            activeSshCopyDialog = dialog
+            dialog.setOnDismissListener { if (activeSshCopyDialog === dialog) activeSshCopyDialog = null }
+            dialog.show()
+        })
     }
 
     private fun cardTapToRevealHandler(position: Int) {
@@ -553,7 +615,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         synchronized(VaultSession.MutationLock) {
             if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return
             val entry = target.resolve(entries, VaultSession.generation())
-            if (entry != null) command.accept(entry)
+            if (entry != null && entry.areDetailsVisible()) command.accept(entry)
         }
     }
 
@@ -694,7 +756,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
-        if (!validDisplayedPosition(pos)) return
+        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey()) return
         val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
@@ -740,6 +802,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
+        if (popupEntry.isNote() || popupEntry.isSshKey()) {
+            popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
+        }
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
@@ -747,7 +813,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
         popup.setOnMenuItemClickListener(PopupMenu.OnMenuItemClickListener { item ->
             if (!VaultSession.isCurrent(popupGeneration) ||
-                    encryptionKey == null ||
+                    encryptionKey == null || !popupEntry.areDetailsVisible() ||
                     VaultSession.getKey() !== encryptionKey) {
                 return@OnMenuItemClickListener false
             }

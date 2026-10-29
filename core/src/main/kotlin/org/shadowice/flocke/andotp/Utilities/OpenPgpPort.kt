@@ -5,8 +5,8 @@ import java.security.GeneralSecurityException
 
 /**
  * Platform port for OpenPGP encryption and decryption. The Android app reaches an external
- * OpenPGP provider through intents, while the desktop client embeds PGPainless; both speak the
- * standard RFC 4880 message format, so a `.json.gpg` produced on one platform opens on the other.
+ * OpenPGP provider through intents, while the desktop client embeds PGPainless. Both target
+ * standard OpenPGP messages, but key/provider support and signature policy can affect interchange.
  *
  * Key material crosses this boundary as opaque, standard-format byte blocks (an armored or binary
  * public certificate for recipients, a secret key ring for decryption), so no third-party PGP type
@@ -53,6 +53,7 @@ object OpenPgpBackupCodec {
 
         val message = port.encrypt(plainBytes, recipientKeyBlocks)
         require(message.isNotEmpty()) { "OpenPGP provider returned no output" }
+        require(message.size <= BoundedInputReader.MAX_DOCUMENT_BYTES) { "OpenPGP message exceeds size limit" }
         return message
     }
 

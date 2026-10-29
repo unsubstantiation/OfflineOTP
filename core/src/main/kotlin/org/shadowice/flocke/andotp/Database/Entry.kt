@@ -30,6 +30,7 @@ import org.json.JSONObject
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpParseResult
 import org.shadowice.flocke.andotp.Utilities.OtpUriParser
 import org.shadowice.flocke.andotp.Utilities.ThumbnailCatalog
@@ -44,7 +45,7 @@ import java.util.Objects
 open class Entry {
     /** Supported OTP types. */
     enum class OTPType {
-        TOTP, HOTP, MOTP, STEAM
+        TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY
     }
 
     private var type: OTPType = OTPType.TOTP
@@ -58,6 +59,8 @@ open class Entry {
     private var currentOTP: String? = null
     private var prevOTP: String? = null
     private var visible = false
+    // Separate from Android's temporary tap-to-reveal state; persisted with the entry.
+    private var detailsVisible = false
     private var hideTask: Runnable? = null
     private var last_update = 0L
     private var hasUpdatedTimeToken = false
@@ -106,6 +109,7 @@ open class Entry {
     constructor(type: OTPType, secret: String, issuer: String?, label: String?,
                 tags: MutableList<String>) {
         this.type = type
+        if (type == OTPType.NOTE) InputPolicy.note(secret)
         this.secret = secret.toByteArray(StandardCharsets.UTF_8)
         this.issuer = issuer ?: ""
         this.label = label ?: ""
@@ -175,6 +179,7 @@ open class Entry {
             this.thumbnailName = ThumbnailCatalog.normalizeName(value.thumbnailName)
             this.last_used = value.lastUsed
             this.used_frequency = value.usedFrequency
+            this.detailsVisible = value.detailsVisible
             this.pin = value.pin
             validate()
         } catch (error: RuntimeException) {
@@ -192,9 +197,18 @@ open class Entry {
     @Suppress("SENSELESS_COMPARISON")
     fun validate() {
         val seed = secret
-        if (seed == null || seed.isEmpty() || seed.size > InputPolicy.MAX_SECRET_BYTES)
+        val maxSecret = if (type == OTPType.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        if (seed == null || seed.isEmpty() || seed.size > maxSecret)
             throw IllegalArgumentException("Invalid entry")
         InputPolicy.tokenParameters(period, digits, counter)
+        if (type == OTPType.NOTE) {
+            InputPolicy.noteFromBytes(seed)
+            require(label.isNotBlank()) { "A note needs a title" }
+        }
+        if (type == OTPType.SSH_KEY) {
+            SshKeyMaterial.decode(seed)
+            require(label.isNotBlank()) { "An SSH key needs a title" }
+        }
         if (type == OTPType.STEAM && digits != TokenCalculator.STEAM_DEFAULT_DIGITS)
             throw IllegalArgumentException("Invalid Steam digits")
         InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
@@ -235,7 +249,8 @@ open class Entry {
         lastUsed = getLastUsed(),
         usedFrequency = getUsedFrequency(),
         tags = tags,
-        pin = getPin()
+        pin = getPin(),
+        detailsVisible = detailsVisible
     )
 
     /**
@@ -243,11 +258,13 @@ open class Entry {
      * `%20`, never `+`) keeps this Android-free and byte-compatible with the [OtpUriParser] rules.
      */
     fun toUriString(): String {
+        require(type != OTPType.NOTE && type != OTPType.SSH_KEY) { "This entry cannot be exported as an OTP URI" }
         val typeName = when (type) {
             OTPType.TOTP -> "totp"
             OTPType.HOTP -> "hotp"
             OTPType.STEAM -> "steam"
             OTPType.MOTP -> "motp"
+            OTPType.NOTE, OTPType.SSH_KEY -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
         }
 
         val query = LinkedHashMap<String, String>()
@@ -318,6 +335,34 @@ open class Entry {
             setColor(COLOR_DEFAULT)
         }
         this.type = type
+    }
+
+    fun isNote(): Boolean = type == OTPType.NOTE
+    fun isSshKey(): Boolean = type == OTPType.SSH_KEY
+
+    /** Keys are only exposed on an explicit edit or copy action; never via OTP calculation. */
+    fun getSshKeys(): SshKeyMaterial.Keys {
+        require(isSshKey()) { "Not an SSH key entry" }
+        return SshKeyMaterial.decode(ownedSecret())
+    }
+
+    fun setSshKeys(publicKey: String, privateKey: String) {
+        require(isSshKey()) { "Not an SSH key entry" }
+        val encoded = SshKeyMaterial.encode(publicKey, privateKey)
+        try { setSecret(encoded) } finally { encoded.fill(0) }
+    }
+
+    /** Explicit access only: notes are never calculated or displayed as OTPs. */
+    fun getNote(): String {
+        require(isNote()) { "Not a note" }
+        return InputPolicy.noteFromBytes(ownedSecret())
+    }
+
+    fun setNote(value: String) {
+        require(isNote()) { "Not a note" }
+        InputPolicy.note(value)
+        val bytes = value.toByteArray(StandardCharsets.UTF_8)
+        try { setSecret(bytes) } finally { bytes.fill(0) }
     }
 
     fun getSecret(): ByteArray? = secret?.clone()
@@ -406,6 +451,7 @@ open class Entry {
         val previousCounter = counter
         val previousTags = ArrayList(tags)
         val previousThumbnail = thumbnailName
+        val previousSecret = secret?.clone()
         try {
             mutate(this)
             validate()
@@ -417,9 +463,12 @@ open class Entry {
             setCounter(previousCounter)
             setTags(previousTags)
             setLabel(previousLabel)
+            setSecret(previousSecret)
             setIssuer(previousIssuer, false)
             thumbnailName = previousThumbnail
             throw error
+        } finally {
+            previousSecret?.fill(0)
         }
     }
 
@@ -431,6 +480,13 @@ open class Entry {
     /** Whether the actual rollover differs from the global 30-second TOTP countdown. */
     fun hasNonDefaultTokenStep(): Boolean =
         isTimeBased() && getTokenStepSeconds() != TokenCalculator.TOTP_DEFAULT_PERIOD
+
+    /** Persistent privacy setting, independent of the temporary Android tap-to-reveal setting. */
+    fun areDetailsVisible(): Boolean = detailsVisible
+    fun setDetailsVisible(value: Boolean) { detailsVisible = value }
+
+    /** Title shown when all other fields are concealed. */
+    fun privacyTitle(): String = label.ifBlank { issuer }
 
     fun isVisible(): Boolean = visible
 
@@ -457,6 +513,13 @@ open class Entry {
     }
 
     fun getCurrentOTP(): String? = currentOTP
+
+    /**
+     * True when a real token is cached and safe to put on the clipboard. The mOTP no-PIN
+     * placeholder is explicitly excluded: it is a UI prompt, not a one-time password.
+     */
+    fun hasCopyableToken(): Boolean =
+        !currentOTP.isNullOrEmpty() && currentOTP != MOTP_NO_PIN_CODE
 
     fun getPrevOTP(): String? = prevOTP
 
@@ -596,6 +659,26 @@ open class Entry {
     fun getColor(): Int = color
 
     companion object {
+        /** Creates one vault entry for a public and/or private SSH key. */
+        @JvmStatic
+        fun sshKey(publicKey: String, privateKey: String, issuer: String, label: String,
+                   tags: MutableList<String>): Entry {
+            val value = Entry()
+            try {
+                value.type = OTPType.SSH_KEY
+                value.secret = SshKeyMaterial.encode(publicKey, privateKey)
+                value.issuer = issuer
+                value.label = label
+                value.tags = ArrayList(tags)
+                value.setThumbnailFromIssuer(issuer)
+                value.validate()
+                return value
+            } catch (error: RuntimeException) {
+                value.destroy()
+                throw error
+            }
+        }
+
         // Token placeholder shown while an mOTP entry has no PIN
         private const val MOTP_NO_PIN_CODE = "PINREQ"
         private const val COLOR_DEFAULT = 0

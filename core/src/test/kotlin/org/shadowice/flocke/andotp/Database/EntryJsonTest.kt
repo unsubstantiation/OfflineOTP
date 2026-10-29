@@ -38,6 +38,33 @@ class EntryJsonTest {
             "last_used":0,"used_frequency":0,"tags":[]}""")
 
     @Test
+    fun privacyChoiceDefaultsHiddenAndOnlyBooleanTrueReveals() {
+        success(minimalDocument()) { assertFalse(it.detailsVisible) }
+        for (value in listOf(false, "true", 1, JSONObject.NULL)) {
+            success(minimalDocument().put("details_visible", value)) { assertFalse(it.detailsVisible) }
+        }
+        success(minimalDocument().put("details_visible", true)) { assertTrue(it.detailsVisible) }
+    }
+
+    @Test
+    fun privacyChoiceRoundTripsForEveryEntryKind() {
+        val entries = listOf(
+            Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "Issuer", "OTP", org.shadowice.flocke.andotp.Utilities.TokenCalculator.HashAlgorithm.SHA1, arrayListOf()),
+            Entry(Entry.OTPType.NOTE, "secret", "", "Note", arrayListOf()),
+            Entry.sshKey("public", "private", "", "SSH", arrayListOf())
+        )
+        for (entry in entries) {
+            assertFalse(entry.areDetailsVisible())
+            assertFalse(entry.toJSON().has("details_visible"))
+            assertFalse(Entry(entry.toJSON()).areDetailsVisible())
+            entry.setDetailsVisible(true)
+            assertTrue(Entry(entry.toJSON()).areDetailsVisible())
+            entry.setDetailsVisible(false)
+            assertFalse(Entry(entry.toJSON()).areDetailsVisible())
+        }
+    }
+
+    @Test
     fun parsesAMinimalDocument() {
         success(minimalDocument()) { value ->
             assertEquals(OtpKind.TOTP, value.kind)

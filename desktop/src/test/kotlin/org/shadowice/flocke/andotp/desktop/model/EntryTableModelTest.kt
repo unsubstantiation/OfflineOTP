@@ -27,7 +27,7 @@ class EntryTableModelTest {
     ): Entry = Entry(
         type, "JBSWY3DPEHPK3PXP", 30, 6, issuer, label,
         TokenCalculator.HashAlgorithm.SHA1, ArrayList()
-    )
+    ).apply { setDetailsVisible(true) }
 
     private fun presentationWith(vararg entries: Entry): EntryListPresentation {
         val list = EntryList()
@@ -40,11 +40,12 @@ class EntryTableModelTest {
         val model = EntryTableModel(presentationWith())
 
         assertEquals(0, model.rowCount)
-        assertEquals(4, model.columnCount)
+        assertEquals(5, model.columnCount)
         assertEquals("Issuer", model.getColumnName(0))
         assertEquals("Label", model.getColumnName(1))
         assertEquals("Type", model.getColumnName(2))
         assertEquals("Token", model.getColumnName(3))
+        assertEquals("Show", model.getColumnName(4))
     }
 
     @Test
@@ -84,6 +85,44 @@ class EntryTableModelTest {
         assertEquals("a TOTP token at step 1 is six digits", 6, token.length)
         assertTrue("token must be numeric", token.all { it.isDigit() })
         assertTrue(totp === model.entryAt(0))
+    }
+
+    @Test
+    fun sshKeysAreNotShownInTheTable() {
+        val key = Entry.sshKey("public text", "private text", "", "Server", arrayListOf())
+        key.setDetailsVisible(true)
+        val model = EntryTableModel(presentationWith(key))
+        assertEquals("SSH_KEY", model.getValueAt(0, 2))
+        assertEquals("[SSH keys hidden]", model.getValueAt(0, 3))
+    }
+
+    @Test
+    fun noteContentsAreNotShownInTheTable() {
+        val note = Entry(Entry.OTPType.NOTE, "a secret recovery key", "", "Recovery", arrayListOf())
+        note.setDetailsVisible(true)
+        val model = EntryTableModel(presentationWith(note))
+        assertEquals("NOTE", model.getValueAt(0, 2))
+        assertEquals("[Note hidden]", model.getValueAt(0, 3))
+    }
+
+    @Test
+    fun hiddenRowsExposeOnlyTitleAndToggleForEveryKind() {
+        val otp = entry("Account", "Issuer").apply { setDetailsVisible(false); updateOTPAt(59L, true) }
+        val note = Entry(Entry.OTPType.NOTE, "secret", "", "Note", arrayListOf())
+        val key = Entry.sshKey("public", "private", "", "Server", arrayListOf())
+        for (item in listOf(otp, note, key)) {
+            val model = EntryTableModel(presentationWith(item)) { e, visible -> e.setDetailsVisible(visible) }
+            assertEquals("", model.getValueAt(0, 0))
+            assertEquals(item.privacyTitle(), model.getValueAt(0, 1))
+            assertEquals("", model.getValueAt(0, 2))
+            assertEquals("", model.getValueAt(0, 3))
+            assertEquals(false, model.getValueAt(0, 4))
+            assertTrue(model.isCellEditable(0, 4))
+            model.setValueAt(true, 0, 4)
+            assertEquals(true, model.getValueAt(0, 4))
+            model.setValueAt(false, 0, 4)
+            assertEquals("", model.getValueAt(0, 3))
+        }
     }
 
     @Test

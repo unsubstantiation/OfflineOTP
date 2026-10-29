@@ -294,6 +294,7 @@ open class GridView(context: Context) : AbsListView(context) {
 }
 
 open class ImageView(context: Context) : View() {
+    fun setImageResource(id: Int) {}
     private var imageDrawable: android.graphics.drawable.Drawable? = null
 
     /**

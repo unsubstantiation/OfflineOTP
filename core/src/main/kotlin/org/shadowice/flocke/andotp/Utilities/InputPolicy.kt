@@ -9,6 +9,41 @@ object InputPolicy {
     const val MAX_TAGS = 32
     const val MAX_TAG_CHARS = 128
     const val MAX_SECRET_BYTES = 2048
+    const val MAX_NOTE_CHARACTERS = 200
+
+    /** Notes are non-empty, valid Unicode, bounded in Unicode code points (not UTF-16 units). */
+    @JvmStatic
+    fun note(value: String) {
+        require(value.isNotEmpty() && value.codePointCount(0, value.length) <= MAX_NOTE_CHARACTERS) {
+            "Note must contain 1 to 200 characters"
+        }
+        var i = 0
+        while (i < value.length) {
+            val c = value[i]
+            if (Character.isHighSurrogate(c)) {
+                require(i + 1 < value.length && Character.isLowSurrogate(value[i + 1])) { "Invalid note text" }
+                i += 2
+            } else {
+                require(!Character.isLowSurrogate(c)) { "Invalid note text" }
+                i++
+            }
+        }
+    }
+
+    /** Reject malformed UTF-8 rather than silently changing an imported secret note. */
+    @JvmStatic
+    fun noteFromBytes(bytes: ByteArray): String {
+        val value = try {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (error: java.nio.charset.CharacterCodingException) {
+            throw IllegalArgumentException("Invalid note text", error)
+        }
+        note(value)
+        return value
+    }
     const val MAX_PERIOD_SECONDS = 86400
     const val MAX_IMAGE_DIMENSION = 8192
     const val MAX_IMAGE_PIXELS = 4_000_000L

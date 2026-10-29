@@ -69,11 +69,7 @@ class BackupCoordinator(
     /** Restores a password backup (current or legacy framing) and persists the imported entries. */
     @Throws(GeneralSecurityException::class, IOException::class)
     fun restoreEncrypted(password: String, data: ByteArray, oldFormat: Boolean = false): Int {
-        val entries = VaultJson.stringToEntries(
-            EncryptedBackupCodec.open(password, data, oldFormat))
-        state.load(entries)
-        check(controller.save(state.key, state.snapshot())) { "Vault persistence failed" }
-        return entries.size
+        return restoreDocument(EncryptedBackupCodec.open(password, data, oldFormat))
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)
@@ -82,11 +78,26 @@ class BackupCoordinator(
 
     @Throws(GeneralSecurityException::class, IOException::class)
     fun restoreOpenPgp(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): Int {
-        val document = OpenPgpBackupCodec.open(pgpPort, message, secretKeyBlock, passphrase)
+        return restoreDocument(OpenPgpBackupCodec.open(pgpPort, message, secretKeyBlock, passphrase))
+    }
+
+    /** Save before replacing the live state; a failed restore must not discard the current entries. */
+    private fun restoreDocument(document: String): Int {
         val entries = VaultJson.stringToEntries(document)
-        state.load(entries)
-        check(controller.save(state.key, state.snapshot())) { "Vault persistence failed" }
-        return entries.size
+        var installed = false
+        try {
+            // Android also rejects an empty import rather than replacing a vault with it.
+            require(entries.isNotEmpty()) { "Backup contains no entries" }
+            // EntryList treats equal account identities as one entry. Reject ambiguous backups
+            // rather than report success and silently drop their distinct metadata on the next save.
+            require(entries.toHashSet().size == entries.size) { "Backup contains duplicate accounts" }
+            check(controller.save(state.key, entries)) { "Vault persistence failed" }
+            state.load(entries)
+            installed = true
+            return entries.size
+        } finally {
+            if (!installed) entries.forEach { it.destroy() }
+        }
     }
 
     /** True while a multi-part Google export is waiting for more QR images. */
