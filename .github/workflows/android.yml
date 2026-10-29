@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -23,7 +24,19 @@ jobs:
         with:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Build F-Droid debug APK
-        run: ./gradlew --no-daemon :app:assembleFdroidDebug
+        shell: bash
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon --stacktrace --console=plain :app:assembleFdroidDebug 2>&1 | tee gradle-build.log
+      - name: Report Gradle failure
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tail -c 50000 gradle-build.log > gradle-tail.log || true
+          { echo '## Android gradle tail'; echo '```'; cat gradle-tail.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -f body="$(printf 'android gradle tail\n```\n'; cat gradle-tail.log; printf '\n```\n')" >/dev/null || true
       - name: Prepare APK and checksums
         shell: bash
         run: |

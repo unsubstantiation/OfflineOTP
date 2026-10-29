@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -22,11 +23,22 @@ jobs:
       - name: Build Windows app image
         shell: pwsh
         run: |
-          .\gradlew.bat --no-daemon :desktop:packageDesktop
+          .\gradlew.bat --no-daemon --stacktrace --console=plain :desktop:packageDesktop 2>&1 | Tee-Object -FilePath gradle-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'desktop/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
             throw 'jpackage did not produce the Windows launcher'
           }
+      - name: Report Gradle failure
+        if: failure()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if (-not (Test-Path gradle-build.log)) { exit 0 }
+          $tail = (Get-Content gradle-build.log -Tail 400) -join "`n"
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Windows gradle tail`n`n``````n$tail`n``````"
+          @{ body = "windows gradle tail`n```n$tail`n```" } | ConvertTo-Json | Out-File -Encoding utf8 body.json
+          gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --input body.json
       - name: Archive app image and checksum
         shell: pwsh
         run: |
