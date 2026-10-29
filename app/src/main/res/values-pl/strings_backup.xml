@@ -40,8 +40,6 @@
         jeśli nie chcesz wprowadzać go za każdym razem podczas tworzenia kopii zapasowej.</string>
     <string name="backup_label_pgp">Kopia zapasowa będzie przechowywana zaszyfrowana przy użyciu klucza PGP
         określonego w ustawieniach. Szyfrowanie będzie obsługiwane przez aplikację innego dostawcy.</string>
-    <string name="backup_check_restore_old">Przywrócenie starego formatu kopii zapasowej (utworzonego przy użyciu wersji andOTP
-        przed 0.6.3)</string>
     <string name="backup_button_backup">Utwórz kopię zapasową</string>
     <string name="backup_button_restore">Przywróć kopię zapasową</string>
     <string-array name="backup_list_type_names">

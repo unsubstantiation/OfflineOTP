@@ -40,8 +40,6 @@
         不想每次创建备份时都必须输入这个密码。</string>
     <string name="backup_label_pgp">备份将使用你在设置中指定的
         PGP密钥进行加密存储。加密将由第三方应用程序处理。</string>
-    <string name="backup_check_restore_old">还原旧的备份格式 (使用 0.63 版本之前的 andOTP
-         创建)</string>
     <string name="backup_button_backup">创建备份</string>
     <string name="backup_button_restore">还原备份</string>
     <string-array name="backup_list_type_names">

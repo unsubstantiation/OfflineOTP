@@ -177,12 +177,6 @@ object EncryptionHelper {
     fun generateSymmetricKeyPBKDF2(password: String?, iter: Int, salt: ByteArray?): SecretKey =
         CryptoPrimitives.generateSymmetricKeyPBKDF2(password, iter, salt)
 
-    /** Legacy key derivation (plain SHA-256 of the password) for old-format encrypted backups. Pure-JVM implementation lives in [CryptoPrimitives]. */
-    @JvmStatic
-    @Throws(NoSuchAlgorithmException::class)
-    fun generateSymmetricKeyFromPassword(password: String): SecretKey =
-        CryptoPrimitives.generateSymmetricKeyFromPassword(password)
-
     /** Encrypts with an explicit nonce and the 128-bit GCM tag used by existing vault/backup files. */
     @JvmStatic
     @Throws(NoSuchPaddingException::class, NoSuchAlgorithmException::class, InvalidAlgorithmParameterException::class,

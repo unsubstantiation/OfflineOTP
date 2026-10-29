@@ -109,7 +109,7 @@ Automatic exports request new UUID-named documents, even if the old date/time na
 The Python suite checks the signature-bound manifest policy, backup-disable policy, source
 exclusion rules, build-input provenance, and independent-build comparison logic. The host JVM
 suite covers input/header limits, parser/document rules, crypto derivation and wrapping, portable
-AES-GCM (NIST vector), and current/legacy encrypted-backup round trips and tamper rejection. The
+AES-GCM (NIST vector), and current-format encrypted-backup round trips and tamper rejection. The
 sandbox checks process-session handoffs against stand-ins. Instrumentation sources cover platform
 paths: app context and private storage, `IntroScreenActivity` launch, RFC TOTP/HOTP vectors, entry URI/document round
 trips, Android AES-GCM tamper rejection, a real generated QR image for the reported CCP URI, an

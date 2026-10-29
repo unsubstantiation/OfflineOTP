@@ -12,7 +12,6 @@ import android.view.View
 import android.view.ViewStub
 import android.widget.AdapterView
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.ProgressBar
 import android.widget.Spinner
 import android.widget.TextView
@@ -89,7 +88,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var txtBackupLabel: TextView? = null
     private var txtBackupWarning: TextView? = null
     private var swReplace: SwitchMaterial? = null
-    private var chkOldFormat: CheckBox? = null
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
     private var activePasswordDialog: PasswordEntryDialog? = null
@@ -177,7 +175,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         txtBackupLabel = requireNotNull(v.findViewById<TextView>(R.id.backupLabel))
         txtBackupWarning = requireNotNull(v.findViewById<TextView>(R.id.backupErrorLabel))
         swReplace = requireNotNull(v.findViewById<SwitchMaterial>(R.id.backup_replace))
-        chkOldFormat = requireNotNull(v.findViewById<CheckBox>(R.id.restoreOldCrypt))
         progressBackup = requireNotNull(v.findViewById<ProgressBar>(R.id.progressBarBackup))
         progressRestore = requireNotNull(v.findViewById<ProgressBar>(R.id.progressBarRestore))
 
@@ -218,10 +215,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         btnRestore?.setOnClickListener {
             when (backupType) {
                 Constants.BackupType.ENCRYPTED ->
-                    if (chkOldFormat?.isChecked == true)
-                        showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT_OLD)
-                    else
-                        showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+                    showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
                 Constants.BackupType.OPEN_PGP ->
                     showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
                 Constants.BackupType.UNAVAILABLE -> Unit
@@ -251,14 +245,12 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             Constants.BackupType.ENCRYPTED -> {
                 releaseOpenPgpService()
                 txtBackupLabel?.setText(R.string.backup_label_crypt)
-                chkOldFormat?.visibility = View.VISIBLE
                 txtBackupWarning?.visibility = View.GONE
                 btnBackup?.isEnabled = true
                 btnRestore?.isEnabled = true
             }
             Constants.BackupType.OPEN_PGP -> {
                 txtBackupLabel?.setText(R.string.backup_label_pgp)
-                chkOldFormat?.visibility = View.GONE
                 pgpEncryptionUserIDs = OpenPgpRecipientIds.parse(settings!!.getOpenPGPEncryptionUserIDs())
                 val provider = settings!!.getOpenPGPProvider().trim()
                 if (provider.isEmpty()) {
@@ -439,7 +431,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private fun backupTypeForPickerRequest(requestCode: Int): Constants.BackupType? = when (requestCode) {
         Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
-        Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT_OLD,
         Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> Constants.BackupType.ENCRYPTED
         Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
         Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> Constants.BackupType.OPEN_PGP
@@ -470,8 +461,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         pendingResumeUri = null
         pendingResumeReplace = false
         when (requestCode) {
-            Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT -> doRestoreCrypt(uri, false)
-            Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT_OLD -> doRestoreCrypt(uri, true)
+            Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT -> doRestoreCrypt(uri)
             Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP -> restoreEncryptedWithPGP(uri, null)
             Constants.INTENT_BACKUP_OPEN_DOCUMENT_PLAIN -> restorePlainText(uri)
             Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> doBackupCrypt(uri)
@@ -709,7 +699,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         spBackupTypeView?.isEnabled = !running
         btnBackup?.isEnabled = !running
         btnRestore?.isEnabled = !running
-        chkOldFormat?.isEnabled = !running
         swReplace?.isEnabled = !running
         btnRestorePlainText?.isEnabled = !running
         if (!running && backupType == Constants.BackupType.OPEN_PGP) {
@@ -749,11 +738,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
         if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
             if (intent != null) {
-                doRestoreCrypt(intent.data, false)
-            }
-        } else if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT_OLD && resultCode == RESULT_OK) {
-            if (intent != null) {
-                doRestoreCrypt(intent.data, true)
+                doRestoreCrypt(intent.data)
             }
         } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
             if (intent != null) {
@@ -886,7 +871,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     /* Encrypted backup functions */
 
-    private fun doRestoreCrypt(uri: Uri?, oldFormat: Boolean) {
+    private fun doRestoreCrypt(uri: Uri?) {
         if (!canOperate()) return
         // Every file may have a different historical password, including after a password change.
         waitingForPassword = true
@@ -896,7 +881,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
                 waitingForPassword = false
                 activePasswordDialog = null
-                doRestoreCryptWithPassword(uri, newPassword, oldFormat)
+                doRestoreCryptWithPassword(uri, newPassword)
             }, PasswordEntryDialog.PasswordCanceledCallback {
                 waitingForPassword = false
                 activePasswordDialog = null
@@ -906,11 +891,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         pwDialog.show()
     }
 
-    private fun doRestoreCryptWithPassword(uri: Uri?, password: String, oldFormat: Boolean) {
+    private fun doRestoreCryptWithPassword(uri: Uri?, password: String) {
         if (!canOperate()) return
         // ACTION_OPEN_DOCUMENT returns a SAF content URI. It remains usable for cloud and work
         // profile providers even when legacy shared external storage is not mounted.
-        val task = EncryptedRestoreTask(this, uri, password, oldFormat)
+        val task = EncryptedRestoreTask(this, uri, password)
         startBackgroundTask(task, BackupTaskResult.ResultType.RESTORE)
     }
 

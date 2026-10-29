@@ -199,7 +199,7 @@ class EntryEditorAndBackupTest {
         val coordinator = BackupCoordinator(controller, state)
         assertEquals(4, coordinator.restoreEncrypted(password, EncryptedBackupCodec.seal(password, document)))
         val exported = coordinator.encryptedBackup(password)
-        val imported = VaultJson.stringToEntries(EncryptedBackupCodec.open(password, exported, false))
+        val imported = VaultJson.stringToEntries(EncryptedBackupCodec.open(password, exported))
         val reopened = (controller.openVault(password) as VaultController.Session.Loaded).entries
         for (entries in listOf(imported, reopened)) {
             assertEquals(4, entries.size)
@@ -433,17 +433,6 @@ class EntryEditorAndBackupTest {
         coordinator.cancelMigrationImport()
         assertFalse(coordinator.migrationInProgress())
         assertEquals(0, state.snapshot().size)
-    }
-
-    @Test
-    fun coordinatorRestoresTheLegacyHeaderlessBackupFormat() {
-        val (_, controller, state) = harness()
-        val coordinator = BackupCoordinator(controller, state, pgpPort = ReversingPgpPort())
-        val legacy = javaClass.getResourceAsStream("/golden/legacy-otp_accounts.json.aes")!!.readBytes()
-
-        val count = coordinator.restoreEncrypted("golden-interop-password", legacy, oldFormat = true)
-        assertEquals(2, count)
-        assertEquals(2, state.snapshot().size)
     }
 
     /** Returns fixed decoded text once per image, like scanning successive image files. */

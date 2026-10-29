@@ -35,7 +35,6 @@
     <string name="backup_label_type">बैकअप प्रकार: </string>
     <string name="backup_label_crypt">बैकअप को एईएस 256-बिट एन्क्रिप्शन का उपयोग करके कस्टम पासवर्ड के साथ एन्क्रिप्ट किया जाएगा। यदि आप बैकअप बनाते समय इसे हर बार दर्ज नहीं करना चाहते हैं तो आप सेटिंग्स में एक डिफ़ॉल्ट पासवर्ड सेट कर सकते हैं।</string>
     <string name="backup_label_pgp">बैकअप आप सेटिंग्स में निर्दिष्ट PGP कुंजी का उपयोग कर एन्क्रिप्टेड संग्रहीत किया जाएगा। एन्क्रिप्शन को 3 पार्टी ऐप द्वारा नियंत्रित किया जाएगा।</string>
-    <string name="backup_check_restore_old">पुराने बैकअप प्रारूप को पुनर्स्थापित करें (0.6.3 से पहले एंडओटीपी संस्करण के साथ बनाया गया)</string>
     <string name="backup_button_backup">बैकअप बनाएँ</string>
     <string name="backup_button_restore">बैकअप बहाल करें</string>
     <string-array name="backup_list_type_names">

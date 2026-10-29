@@ -8,7 +8,7 @@
  *
  * Usage: GoldenFixturesGeneratorKt <source-resources-dir> <output-dir>
  *   source-resources-dir holds the canonical expected-vault.json (the shared plaintext)
- *   output-dir receives the five fixture files, overwriting any previous copy
+ *   output-dir receives the generator's fixture files, overwriting any previous copy
  */
 package org.shadowice.flocke.andotp.packaging
 
@@ -66,12 +66,6 @@ fun main(args: Array<String>) {
         .put(backupCipher)
         .array()
     write(output.resolve("otp_accounts.json.aes"), backup)
-
-    // Legacy headerless frame: nonce-prefixed AES-GCM under the plain SHA-256 of the password.
-    val legacyNonce = byteRange(0x40, 12)
-    val legacyKey = CryptoPrimitives.generateSymmetricKeyFromPassword(PASSWORD)
-    val legacy = legacyNonce + CryptoPrimitives.encrypt(legacyKey, IvParameterSpec(legacyNonce), plaintext)
-    write(output.resolve("legacy-otp_accounts.json.aes"), legacy)
 
     // The JSON document is the source of truth for the plaintext shared by all three blobs.
     write(output.resolve("expected-vault.json"), plaintext)

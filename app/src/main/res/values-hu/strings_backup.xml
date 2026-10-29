@@ -50,8 +50,6 @@
         amikor biztonsági mentést hoz létre.</string>
     <string name="backup_label_pgp">A biztonsági mentés a beállításokban megadott PGP-kulccsal lesz titkosítva.
         A titkosítást egy harmadik féltől származó alkalmazás fogja biztosítani.</string>
-    <string name="backup_check_restore_old">Régi formátumú biztonsági mentés helyreállítása (az andOTP
-        0.6.3-as vagy régebbi verziójával készült)</string>
     <string name="backup_button_backup">Biztonsági mentés létrehozása</string>
     <string name="backup_button_restore">Biztonsági mentés visszaállítása</string>
     <string-array name="backup_list_type_names">

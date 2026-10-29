@@ -4,13 +4,10 @@ import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 
-import java.awt.GridLayout
 import java.io.File
-import javax.swing.JCheckBox
 import javax.swing.JFileChooser
 import javax.swing.JFrame
 import javax.swing.JOptionPane
-import javax.swing.JPanel
 import javax.swing.filechooser.FileNameExtensionFilter
 
 /**
@@ -35,18 +32,11 @@ object BackupDialogs {
     fun restoreEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
         val source = chooseFile(parent, "Open encrypted backup", false, null, "aes") ?: return
         val password = PasswordDialog.prompt(parent, "Backup password") ?: return
-        // The headerless legacy SHA-256 frame is still readable but never newly written; expose it
-        // behind an explicit checkbox so the default path stays the current framed format.
-        val legacy = JCheckBox("Legacy format (headerless backup from older andOTP versions)")
-        val panel = JPanel(GridLayout(0, 1)).apply {
-            add(javax.swing.JLabel("Restore replaces all entries in the current vault."))
-            add(legacy)
-        }
-        if (JOptionPane.showConfirmDialog(parent, panel, "Restore options",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return
+        if (JOptionPane.showConfirmDialog(parent,
+                "Restore replaces all entries in the current vault. Continue?", "Restore encrypted backup",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
         try {
-            val count = coordinator.restoreEncrypted(
-                password, readBounded(parent, source) ?: return, legacy.isSelected)
+            val count = coordinator.restoreEncrypted(password, readBounded(parent, source) ?: return)
             showResult(parent, "Restored $count entr${if (count == 1) "y" else "ies"}")
         } catch (error: Exception) {
             showError(parent, error)

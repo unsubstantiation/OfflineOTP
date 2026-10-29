@@ -40,8 +40,6 @@
         δεν θέλετε να τον εισάγετε κάθε φορά που δημιουργείτε ένα αντίγραφο ασφαλείας.</string>
     <string name="backup_label_pgp">Το αντίγραφο ασφαλείας θα αποθηκευτεί κρυπτογραφημένο χρησιμοποιώντας το κλειδί PGP εσείς
          καθορίζεται στις ρυθμίσεις. Η κρυπτογράφηση θα χρησιμοποιηθεί από μια εφαρμογή τρίτου μέρους.</string>
-    <string name="backup_check_restore_old">Επαναφορά παλιάς μορφής αντιγράφου ασφαλείας (δημιουργήθηκε με έκδοση andOTP
-        πριν από 0.6.3)</string>
     <string name="backup_button_backup">Δημιουργία αντιγράφου ασφαλείας</string>
     <string name="backup_button_restore">Επαναφορά αντιγράφου</string>
     <string-array name="backup_list_type_names">

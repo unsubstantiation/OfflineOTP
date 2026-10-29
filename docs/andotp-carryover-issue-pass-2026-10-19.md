@@ -118,7 +118,7 @@ a real-device, provider, or accessibility check before they can be claimed fully
 success does not prove behavior on a vendor ROM or external document provider:
 
 * **#208** Back-key/gesture authentication flow — exercise cancellation, recents, and relock on device.
-* **#376, #976** Restore paths — test legacy encrypted and plaintext backups end-to-end, including cloud documents.
+* **#376, #976** Restore paths — test current-format encrypted and legacy plaintext backups end-to-end, including cloud documents.
 * **#406** Obscured-touch crash — retest with the BitWarden safe dialog.
 * **#498** TalkBack — verify focus order and overlay dismissal on-device.
 * **#533, #736, #948** — test Files/SAF providers, missing-provider behavior, and screen-off/home during export/import; the emulator activity-launch fixture does not exercise an external provider.
@@ -139,7 +139,7 @@ vendor hardware or external providers:
 
 | Report(s) | Added/expanded coverage | Boundary |
 | --- | --- | --- |
-| #376 | Host JUnit NIST AES-GCM vector plus current-format PBKDF2 backup framing, legacy SHA-256 backup compatibility, wrong-password and tamper rejection; sandbox test writes through `BackupHelper` to a fake `content:` provider and reads it back. | A fake resolver does not prove Google Drive behavior. |
+| #376 | Host JUnit NIST AES-GCM vector plus current-format PBKDF2 backup framing, wrong-password and tamper rejection; sandbox test writes through `BackupHelper` to a fake `content:` provider and reads it back. | A fake resolver does not prove Google Drive behavior. |
 | #533, #865, #895 | Fake content-provider writer/read round trip, plus a fake SAF tree test that verifies automatic backups request new unique Drive-compatible documents; permission checks and invalid-password refusal are covered. | Files/Drive/Work Profile grants still need provider/device verification. |
 | #847, #879 | Instrumentation round-trip using a unique AndroidKeyStore RSA alias; lookup after deletion is asserted not to regenerate a key. | Pixel 4 / MIUI behavior is not represented by the CI emulator KeyStore. |
 | #892 | Device test generates a PNG with the exact reported CCP `otpauth://` URI, decodes it through `ScanQRCodeFromFile`, and parses the resulting account; malformed image input is also rejected. | Tests ZXing and Android BitmapFactory, not the specific third-party camera/scanner app. |
@@ -222,7 +222,7 @@ Actions UI at 4096 characters, which had hidden every failure after the first tw
 | Report(s) | Automated coverage | Boundary |
 | --- | --- | --- |
 | #208 | `AuthenticationFlowDeviceTest.aCancelledUnlockPromptCannotRevealTheVault` launches the locked app, presses Back on the prompt, and asserts the session key is gone and `MainActivity` is finishing (its `finishAndRemoveTask()` fail-closed path). `theConfiguredPinStillUnlocksTheVault` proves the same flow still unlocks with the right PIN, so "never unlock" cannot pass. | The device-credential (`Keyguard`) variant is Android's own UI and is not scripted. |
-| #376 | `BackupRestoreDeviceTest` restores a current-format PBKDF2/AES-GCM backup and a legacy SHA-256-keyed backup through `EncryptedRestoreTask`, with distinct outcomes for a wrong password, a truncated frame, and a missing document on the real Android crypto and bounded-read stack. | Fixtures are app-private cache documents; the SAF provider is a provider/device gate. |
+| #376 | `BackupRestoreDeviceTest` restores a current-format PBKDF2/AES-GCM backup through `EncryptedRestoreTask`, with distinct outcomes for a wrong password, a truncated frame, and a missing document on the real Android crypto and bounded-read stack. | Fixtures are app-private cache documents; the SAF provider is a provider/device gate. |
 | #976 | `PlainTextRestoreTask` restores a legacy plain-text document and rejects malformed UTF-8/JSON with `backup_toast_plaintext_invalid`. | Same cache-document boundary. |
 | #406 | `ObscuredTouchDeviceTest` builds real `MotionEvent`s through the public 14-argument `obtain(...)` overload: an `FLAG_WINDOW_IS_OBSCURED` (and, from API 29, `FLAG_WINDOW_IS_PARTIALLY_OBSCURED`) tap is not delivered, while the same unobscured tap reaches a click listener. | Reproduces the system's obscured-touch flag, not the BitWarden app itself. |
 | #712 | `AuthenticationFlowDeviceTest.backgroundTimeCountsTowardsTheInactivityRelock` activates a session, covers the screen with another activity, waits past a four-second timeout, and returns: the session is revoked and the prompt reappears. | Emulator pause/resume, not a physical screen-off or deep-sleep cycle. |

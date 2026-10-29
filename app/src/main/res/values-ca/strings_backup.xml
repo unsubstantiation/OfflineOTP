@@ -50,8 +50,6 @@
          voleu haver d\'escriure-la cada vegada que creeu una còpia de seguretat.</string>
     <string name="backup_label_pgp">La còpia de seguretat s\'emmagatzemarà fent ús de la clau PGP que vau especificar
         en la configuració. L\'encriptació serà gestionada per una altra aplicació.</string>
-    <string name="backup_check_restore_old">Restaura una còpia de seguretat de format antic (creat amb una
-         versió anterior a la 0.6.3)</string>
     <string name="backup_button_backup">Crea una còpia de seguretat</string>
     <string name="backup_button_restore">Restaura còpia de seguretat</string>
     <string-array name="backup_list_type_names">

@@ -41,7 +41,7 @@ if [[ "${1:-}" == "--write" ]]; then
 fi
 
 status=0
-for fixture in expected-vault.json secrets.dat vault.properties otp_accounts.json.aes legacy-otp_accounts.json.aes; do
+for fixture in expected-vault.json secrets.dat vault.properties otp_accounts.json.aes; do
     if cmp -s "$work/out/$fixture" "$golden/$fixture"; then
         echo "MATCH  $fixture"
     else

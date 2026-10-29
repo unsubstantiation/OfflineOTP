@@ -294,7 +294,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
     def test_golden_interop_fixtures_are_wired_into_the_gate(self):
         resources = ROOT / "desktop/src/test/resources/golden"
         for name in ("secrets.dat", "vault.properties", "otp_accounts.json.aes",
-                     "legacy-otp_accounts.json.aes", "expected-vault.json", "README.md"):
+                     "expected-vault.json", "README.md"):
             self.assertTrue((resources / name).is_file(), f"missing golden fixture: {name}")
         # The no-Gradle gate must mirror Gradle's test-resources classpath.
         gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")

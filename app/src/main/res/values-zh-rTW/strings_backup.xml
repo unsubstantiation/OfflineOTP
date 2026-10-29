@@ -36,7 +36,6 @@
     <string name="backup_label_type">備份類型: </string>
     <string name="backup_label_crypt">備份將使用AES 256以及自定義密碼加密儲存。 如果您不想在每次創建備份時都輸入密碼，則可以在設置中設定預設密碼。</string>
     <string name="backup_label_pgp">備份將使用你在設置中指定的PGP密鑰進行加密存儲。 加密將由第三方應用程序處理。</string>
-    <string name="backup_check_restore_old">還原舊的備份格式(使用版本0.6.3之前的andOTP創建)</string>
     <string name="backup_button_backup">建立備份</string>
     <string name="backup_button_restore">還原備份</string>
     <string-array name="backup_list_type_names">

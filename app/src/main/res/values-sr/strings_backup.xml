@@ -49,7 +49,6 @@
 користећи АЕС 256-битну енкрипцију. Можете да поставите подразумевану лозинку у подешавањима
 ако не желите да је унесете сваки пут када креирате резервну копију.</string>
     <string name="backup_label_pgp">Резервна копија ће бити сачувана шифрирана помоћу PGP кључа ког сте навели у подешавањима. Шифрирање ће управљати спољња апликација.</string>
-    <string name="backup_check_restore_old">Вратите стари резервни формат (креиран са andOTP верзијом пре 0.6.3)</string>
     <string name="backup_button_backup">Направите резервну копију</string>
     <string name="backup_button_restore">Вратити из резервне копије</string>
     <string-array name="backup_list_type_names">

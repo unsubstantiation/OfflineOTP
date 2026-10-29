@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Removal: Drop restoring legacy headerless andOTP backups on Android and desktop; files created before andOTP 0.6.3 must be opened and re-exported with an older release
+
  * Build: Add separate Android debug, Windows and Debian app-image GitHub workflows with downloadable artifacts and checksums
 
  * Build: Make those workflows build end to end: hold the YubiKit Android transport at 3.1.0 (`compileSdk 36`), build the desktop client for JVM 11 (PGPainless 2.x), use YubiKit's javax-free `PcscManager()` constructor (`java.smartcardio` is not a `java.se` module), and install `binutils` so jpackage can link the Debian app image
@@ -15,7 +17,7 @@
  * Feature: Add a pure-JVM Swing desktop client (`:desktop`) over the shared Android-free `:core` engine, using the same vault and backup file formats with byte-identical golden fixtures; vault data lives in `~/.offlineotp`
  * Desktop: Create/open password vaults, add/edit/delete entries, search, and show refreshing TOTP/HOTP/Steam/mOTP tokens; copy a token via toolbar button, row double-click or context menu (copy records last-used and usage frequency), with explicit HOTP counter advancement and a guard at the counter ceiling
  * Desktop: Import QR image files, including multi-part Google Authenticator exports with duplicate-issuer confirmation, bounded file reads and rollback on failed writes; no camera or screen capture
- * Desktop: Save and restore password-encrypted and OpenPGP (PGPainless 2.x) backups; legacy headerless SHA-256 backups restore only behind an explicit opt-in
+ * Desktop: Save and restore password-encrypted and OpenPGP (PGPainless 2.x) backups
  * Desktop: Experimental PC/SC-only USB security-key support (no raw HID or NFC): OATH account list/calculate/copy-to-key and FIDO2 PRF enroll/unlock through cancellable background jobs, with typed no-key/cancel/failure results, PIN zeroization on every path and no provider error text surfaced
  * Internal: Extract vault, parser, backup and hardware-key protocol layers into the shared `:core` module behind ports, with headless desktop tests, reproducible `:desktop:distZip` packaging and an optional jpackage app-image smoke test
  * Experimental: Add USB/NFC OATH account access and FIDO2 PRF key-or-password vault unlock; Android and physical-key verification is still required

@@ -35,7 +35,6 @@
     <string name="backup_label_type">Typ zálohy: </string>
     <string name="backup_label_crypt">Záloha bude uložená v súbore zašifrovanom heslom použitím algoritmu AES 256-bit. Môžete si nastaviť predvolené heslo v nastaveniach ak ho nechcete zadávať zakaždým, keď vytvárate zálohu.</string>
     <string name="backup_label_pgp">Záloha bude uložená v súbore zašifrovanom heslom použitím vášho PGP kľúča zadaného v nastaveniach. Šifrovanie bude prevádzkované aplikáciou tretej strany.</string>
-    <string name="backup_check_restore_old">Obnoviť zálohu v starom formáte (vytvorenú s verziou andOTP staršou ako 0.6.3)</string>
     <string name="backup_button_backup">Vytvoriť zálohu</string>
     <string name="backup_button_restore">Obnoviť zálohu</string>
     <string-array name="backup_list_type_names">

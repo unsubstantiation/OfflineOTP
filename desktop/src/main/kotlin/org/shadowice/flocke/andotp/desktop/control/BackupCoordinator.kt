@@ -66,10 +66,10 @@ class BackupCoordinator(
     fun encryptedBackup(password: String): ByteArray =
         EncryptedBackupCodec.seal(password, VaultJson.entriesToString(state.snapshot()))
 
-    /** Restores a password backup (current or legacy framing) and persists the imported entries. */
+    /** Restores a password backup and persists the imported entries. */
     @Throws(GeneralSecurityException::class, IOException::class)
-    fun restoreEncrypted(password: String, data: ByteArray, oldFormat: Boolean = false): Int {
-        return restoreDocument(EncryptedBackupCodec.open(password, data, oldFormat))
+    fun restoreEncrypted(password: String, data: ByteArray): Int {
+        return restoreDocument(EncryptedBackupCodec.open(password, data))
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)

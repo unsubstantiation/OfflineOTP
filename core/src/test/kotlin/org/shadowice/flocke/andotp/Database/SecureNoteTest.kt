@@ -17,7 +17,7 @@ class SecureNoteTest {
         val original = note(text)
         val document = VaultJson.entriesToString(listOf(original))
         val blob = EncryptedBackupCodec.seal("password", document)
-        val restored = VaultJson.stringToEntries(EncryptedBackupCodec.open("password", blob, false)).single()
+        val restored = VaultJson.stringToEntries(EncryptedBackupCodec.open("password", blob)).single()
         assertEquals(Entry.OTPType.NOTE, restored.getType())
         assertEquals(text, restored.getNote())
         assertEquals(listOf("private"), restored.getTags())

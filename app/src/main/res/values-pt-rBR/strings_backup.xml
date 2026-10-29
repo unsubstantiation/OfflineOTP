@@ -40,8 +40,6 @@
         configurações se não quiser digitar todas as vezes que criar um backup.</string>
     <string name="backup_label_pgp">O backup será armazenado de forma criptografada usando a chave PGP
         indicada nas configurações. A criptografia será administrada por outro aplicativo.</string>
-    <string name="backup_check_restore_old">Restaurar formato de backup antigo (criado com uma versão do andOTP
-        anterior à 0.6.3)</string>
     <string name="backup_button_backup">Criar backup</string>
     <string name="backup_button_restore">Restaurar backup</string>
     <string-array name="backup_list_type_names">

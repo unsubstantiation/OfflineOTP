@@ -49,8 +49,6 @@ olursa gözükmekte</string>
         uygulama ayarlarından varsayılan bir parola tanımlayabilirsiniz.</string>
     <string name="backup_label_pgp">Yedek eğer ayarlarda tanımladıysanız PGP anahtarı ile şifrelenecek.
         Şifreleme işlemi 3. parti bir uygulama ile gerçekleştirilecek.</string>
-    <string name="backup_check_restore_old">Eski biçimdeki yedeği geri yükle (AndOTP 0.6.3 veya daha
-         eski bir sürümle alınmış yedek)</string>
     <string name="backup_button_backup">Yedek oluştur</string>
     <string name="backup_button_restore">Yedeği geri yükle</string>
     <string-array name="backup_list_type_names">

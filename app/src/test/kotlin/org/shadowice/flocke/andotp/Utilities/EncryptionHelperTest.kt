@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2026 unsubstantiation (fairuniversal.com)
  *
- * JVM vectors for PBKDF2, AES-GCM, random generation, legacy key derivation and RSA paths.
+ * JVM vectors for PBKDF2, AES-GCM, random generation and RSA paths.
  * The public IvParameterSpec overload is retained for compatibility, but normalizes to the
  * portable GCMParameterSpec contract internally so the same vectors run on Android and JCA.
  */
@@ -68,14 +68,6 @@ class EncryptionHelperTest {
     }
 
     @Test
-    fun legacyKeyDerivationIsPlainSha256() {
-        val expected = java.security.MessageDigest.getInstance("SHA-256")
-            .digest("password".toByteArray(Charsets.UTF_8))
-        val key = EncryptionHelper.generateSymmetricKeyFromPassword("password")
-        assertArrayEquals(expected, key.encoded)
-    }
-
-    @Test
     fun symmetricKeyWrapsRawBytes() {
         val raw = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
         val key = EncryptionHelper.generateSymmetricKey(raw)
@@ -120,7 +112,7 @@ class EncryptionHelperTest {
     }
 
     @Test
-    fun encryptedBackupFrameRoundTripsCurrentAndLegacyFormats() {
+    fun encryptedBackupFrameRoundTripsCurrentFormat() {
         val password = "backup password ! with punctuation"
         val plaintext = "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"label\":\"alice\"}]"
             .toByteArray(StandardCharsets.UTF_8)
@@ -137,11 +129,6 @@ class EncryptionHelperTest {
         assertArrayEquals(plaintext, EncryptionHelper.decrypt(
             EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt()),
             header.getEncrypted()))
-
-        // Historical encrypted backups stored nonce + GCM body without the current PBKDF2 header.
-        val legacyKey = EncryptionHelper.generateSymmetricKeyFromPassword(password)
-        val legacyFrame = EncryptionHelper.encrypt(legacyKey, plaintext)
-        assertArrayEquals(plaintext, EncryptionHelper.decrypt(legacyKey, legacyFrame))
 
         val tampered = framed.copyOf().apply { this[lastIndex] = (this[lastIndex].toInt() xor 1).toByte() }
         try {
