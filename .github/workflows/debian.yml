@@ -31,7 +31,7 @@ jobs:
         run: |
           set -o pipefail
           set -u
-          ./gradlew --no-daemon --stacktrace --console=plain :desktop:packageDesktop 2>&1 | tee gradle-build.log
+          ./gradlew --no-daemon --console=plain :desktop:packageDesktop 2>&1 | tee gradle-build.log
           status=$?
           test -x desktop/build/release/OfflineOTP/bin/OfflineOTP
       - name: Report Gradle failure
@@ -40,7 +40,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tail -c 40000 gradle-build.log | base64 -w0 > tail.b64 || true
+          grep -v -E '^[[:space:]]+at ' gradle-build.log | tail -c 20000 | base64 -w0 > tail.b64 || true
           printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
           curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \

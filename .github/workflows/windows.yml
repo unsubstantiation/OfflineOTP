@@ -23,7 +23,7 @@ jobs:
       - name: Build Windows app image
         shell: pwsh
         run: |
-          .\gradlew.bat --no-daemon --stacktrace --console=plain :desktop:packageDesktop 2>&1 | Tee-Object -FilePath gradle-build.log
+          .\gradlew.bat --no-daemon --console=plain :desktop:packageDesktop 2>&1 | Tee-Object -FilePath gradle-build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if (-not (Test-Path 'desktop/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
             throw 'jpackage did not produce the Windows launcher'
@@ -35,7 +35,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if (-not (Test-Path gradle-build.log)) { exit 0 }
-          $tail = (Get-Content gradle-build.log -Tail 400 -Encoding UTF8) -join "`n"
+          $tail = ((Get-Content gradle-build.log -Encoding UTF8) | Where-Object { $_ -notmatch '^\s+at ' }) -join "`n"
           $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($tail))
           [IO.File]::WriteAllText("$PWD/body.json", '{"body":"' + $b64 + '"}')
           curl.exe -sS -X POST -H "Authorization: Bearer $env:GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary "@body.json" "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
