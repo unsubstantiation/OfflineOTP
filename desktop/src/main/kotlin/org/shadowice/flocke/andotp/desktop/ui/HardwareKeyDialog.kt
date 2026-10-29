@@ -7,7 +7,6 @@ import org.shadowice.flocke.andotp.desktop.control.HardwareKeyManager
 
 import java.awt.BorderLayout
 import java.awt.Dimension
-import java.awt.FlowLayout
 import java.awt.GridLayout
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
@@ -46,7 +45,10 @@ object HardwareKeyDialog {
         val tableModel = object : DefaultTableModel(arrayOf("Account", "Type", "Code"), 0) {
             override fun isCellEditable(row: Int, column: Int) = false
         }
-        val table = JTable(tableModel)
+        val table = JTable(tableModel).apply {
+            rowHeight = 28
+            fillsViewportHeight = true
+        }
         var deviceId = ""
 
         fun pinChars(): CharArray? {
@@ -185,7 +187,7 @@ object HardwareKeyDialog {
         tick.addActionListener { renderAccounts(tableModel, accounts) }
         tick.start()
 
-        val buttons = JPanel(FlowLayout(FlowLayout.LEFT)).apply {
+        val buttons = JPanel(GridLayout(2, 3, 8, 8)).apply {
             add(listButton); add(calculateButton); add(copyCodeButton)
             add(copyEntryButton); add(enrollButton); add(removeButton)
         }
@@ -193,7 +195,7 @@ object HardwareKeyDialog {
             add(JLabel("Key PIN (blank if none)")); add(pin)
         }
         dialog.contentPane = JPanel(BorderLayout(6, 6)).apply {
-            border = BorderFactory.createEmptyBorder(8, 8, 8, 8)
+            border = BorderFactory.createEmptyBorder(16, 16, 16, 16)
             add(form, BorderLayout.NORTH)
             add(JScrollPane(table), BorderLayout.CENTER)
             add(buttons, BorderLayout.SOUTH)

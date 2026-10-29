@@ -5,8 +5,15 @@ import android.graphics.Canvas
 
 /** Bounds/draw-only stand-in for the vector thumbnail rendering the resolved Java sources do. */
 abstract class Drawable {
+    /** Bounds are recorded for compile-only drawable inspection, not rasterization. */
+    val bounds: android.graphics.Rect = android.graphics.Rect()
     open fun draw(canvas: Canvas?) {}
-    open fun setBounds(left: Int, top: Int, right: Int, bottom: Int) {}
+    open fun setBounds(left: Int, top: Int, right: Int, bottom: Int) {
+        bounds.left = left
+        bounds.top = top
+        bounds.right = right
+        bounds.bottom = bottom
+    }
     open fun getMinimumWidth(): Int = 1
     open fun getMinimumHeight(): Int = 1
     open fun getIntrinsicWidth(): Int = 1

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Framework AlertDialog does not apply AppCompat's tint to abc_dialog_material_background.
+     Keep the same inset/shape, but bake in the actual Dark Forest surface. -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetLeft="16dp"
+    android:insetTop="16dp"
+    android:insetRight="16dp"
+    android:insetBottom="16dp">
+    <shape android:shape="rectangle">
+        <corners android:radius="@dimen/forest_dialog_corner_radius" />
+        <solid android:color="@color/forest_surface_elevated" />
+    </shape>
+</inset>

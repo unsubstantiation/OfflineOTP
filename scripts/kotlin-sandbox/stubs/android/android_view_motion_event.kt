@@ -58,6 +58,17 @@ open class MotionEvent {
         const val FLAG_WINDOW_IS_OBSCURED = 0x00000200
         const val FLAG_WINDOW_IS_PARTIALLY_OBSCURED = 0x00000400
 
+        /** Compile-only shorthand used by device touch tests; this stub does not dispatch events. */
+        @JvmStatic
+        fun obtain(downTime: Long, eventTime: Long, action: Int, x: Float, y: Float,
+                   metaState: Int): MotionEvent {
+            val event = MotionEvent()
+            event.actionValue = action
+            event.xValue = x
+            event.yValue = y
+            return event
+        }
+
         /**
          * Mirrors the public `MotionEvent.obtain(...)` overload that takes the flag word. The
          * stand-in records the action, the first pointer and the flags; the rest is ignored.

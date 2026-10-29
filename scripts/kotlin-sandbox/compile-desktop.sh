@@ -7,8 +7,8 @@
 #   phase 2 compiles the desktop Swing sources and tests against core's compiled output and the
 #   JDK's java.desktop module (Swing/AWT need no stub and no third-party UI library).
 # A desktop source that imports android.* or reaches for an undeclared library fails to compile.
-# Tests run headless (-Djava.awt.headless=true): the model layer is headless-safe, while the JFrame
-# shell (MainWindow) is only compiled here because creating a heavyweight peer needs a display.
+# Tests run headless (-Djava.awt.headless=true): lightweight Swing components and models execute,
+# while opt-in JFrame/dialog display tests are skipped because heavyweight peers need a display.
 set -euo pipefail
 
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

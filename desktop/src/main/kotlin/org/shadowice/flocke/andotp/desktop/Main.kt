@@ -5,6 +5,7 @@ import org.shadowice.flocke.andotp.desktop.control.VaultController
 import org.shadowice.flocke.andotp.desktop.hardware.PcscHardwareDiscovery
 import org.shadowice.flocke.andotp.desktop.storage.DesktopHardwareUnlockStore
 import org.shadowice.flocke.andotp.desktop.storage.DesktopStorage
+import org.shadowice.flocke.andotp.desktop.ui.ForestTheme
 import org.shadowice.flocke.andotp.desktop.ui.MainWindow
 
 import javax.swing.JOptionPane
@@ -29,7 +30,9 @@ fun main() {
         if (java.awt.GraphicsEnvironment.isHeadless()) {
             System.err.println(message)
         } else {
-            SwingUtilities.invokeLater {
+            // Wait for the modal error to close before exiting, and use the same theme as the app.
+            SwingUtilities.invokeAndWait {
+                ForestTheme.install()
                 JOptionPane.showMessageDialog(null, message, MainWindow.TITLE, JOptionPane.ERROR_MESSAGE)
             }
         }

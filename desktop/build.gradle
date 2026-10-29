@@ -32,6 +32,12 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
+// Display tests are opt-in: ordinary CI/headless runs must never launch interactive windows.
+// Pass -Dofflineotp.uiTests=true to Gradle on a machine with a real or virtual display.
+tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
+    systemProperty 'offlineotp.uiTests', System.getProperty('offlineotp.uiTests', 'false')
+}
+
 // Native installer/app image through the JDK's jpackage (requires a full JDK 17+, not a JRE). The
 // task is skipped when the running JDK has no jpackage, which keeps older toolchains working; the
 // packaging README documents how release builds invoke it.

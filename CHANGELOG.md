@@ -2,7 +2,19 @@
 
 #### Unreleased
 
+ * UI: Show both issuer and label on hidden Android and desktop entries while keeping their protected details concealed; Android's Hide issuer preference still applies
+
+ * Desktop UI: Match Android's Dark Forest palette with entry cards, themed controls and dialogs, direct note/SSH/QR add actions, and keyboard-accessible visibility and row menus
+
+ * Desktop: Keep the selected card across token refreshes and preserve an active search after entry changes or imports
+
+ * UI: Apply the Dark Forest palette to Android dialogs, dropdowns and add-menu labels, and improve setup and text contrast
+
+ * UI: Add direct Android **+** menu actions for secure notes and SSH keys, with a scrollable menu on smaller screens
+
  * Removal: Drop restoring legacy headerless andOTP backups on Android and desktop; files created before andOTP 0.6.3 must be opened and re-exported with an older release
+
+ * Build: Update artifact uploads to v7.0.2 and Android setup to v4.0.4 (Node 24), retaining full commit-SHA pins and the existing Android command-line tools version
 
  * Build: Add separate Android debug, Windows and Debian app-image GitHub workflows with downloadable artifacts and checksums
 

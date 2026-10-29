@@ -17,11 +17,13 @@
     <!-- Woodland Typography, Dividers & Muted Earthy Tones -->
     <color name="forest_text_primary">#E6F0E8</color>
     <color name="forest_text_secondary">#A3BCA9</color>
-    <color name="forest_text_hint">#6E8A75</color>
-    <color name="forest_on_primary">#FFFFFF</color>
+    <!-- Hints remain distinct from body text, but readable on elevated/variant surfaces. -->
+    <color name="forest_text_hint">#92AC97</color>
+    <color name="forest_on_primary">#0D1711</color>
     <color name="forest_on_secondary">#0D1711</color>
     <color name="forest_divider">#2B4434</color>
     <color name="forest_ripple">#3381C784</color>
+    <color name="forest_scrim">#AA0A110D</color>
     <color name="forest_earth_muted">#8D7B68</color>
     <color name="forest_thumbnail_background">#C8D8CC</color>
 
@@ -31,15 +33,19 @@
     <color name="github_dark">#81C784</color>
     <color name="github_light">#81C784</color>
 
-    <color name="warning_red">#EF5350</color>
+    <color name="warning_red">#FF8A80</color>
 
     <color name="black">#0A110D</color>
 
     <color name="dark_thumbnail_background">#C8D8CC</color>
     <color name="fab_small_label_background">#21372A</color>
 
-    <color name="expiring_red_light">#FF6E6E</color>
-    <color name="expiring_red_dark">#FF6E6E</color>
+    <color name="expiring_red_light">#FF8A80</color>
+    <color name="expiring_red_dark">#FF8A80</color>
+
+    <!-- SpeedDial's library defaults are gray-on-white; use readable forest labels instead. -->
+    <color name="sd_label_text_color">@color/forest_text_primary</color>
+    <color name="sd_label_background_color">@color/forest_surface_elevated</color>
 
     <!-- AboutLibraries Colors (14.x & legacy compatibility) -->
     <color name="about_libraries_card">#1A2C21</color>

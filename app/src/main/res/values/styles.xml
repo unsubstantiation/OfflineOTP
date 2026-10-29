@@ -53,14 +53,22 @@
         <item name="android:windowLightStatusBar">false</item>
 
         <!-- Typography & Control Tints -->
-        <item name="android:textColorPrimary">@color/forest_text_primary</item>
-        <item name="android:textColorSecondary">@color/forest_text_secondary</item>
+        <item name="android:textColorPrimary">@color/forest_text_primary_selector</item>
+        <!-- Platform TextView and dropdown styles use this separate disabled-state color. -->
+        <item name="android:textColorPrimaryDisableOnly">@color/forest_text_primary_selector</item>
+        <item name="android:textColorSecondary">@color/forest_text_secondary_selector</item>
         <item name="android:textColorTertiary">@color/forest_text_hint</item>
         <item name="android:textColorHint">@color/forest_text_hint</item>
         <item name="android:textColorLink">@color/colorAccent</item>
+        <item name="android:textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorControlNormal">@color/forest_text_secondary</item>
         <item name="colorControlActivated">@color/colorAccent</item>
         <item name="colorControlHighlight">@color/forest_ripple</item>
+        <item name="android:colorControlNormal">@color/forest_text_secondary</item>
+        <item name="android:colorControlActivated">@color/colorAccent</item>
+        <item name="android:colorControlHighlight">@color/forest_ripple</item>
         <item name="android:listDivider">@color/forest_divider</item>
 
         <!-- OfflineOTP Custom Theme Attributes -->
@@ -74,6 +82,15 @@
         <item name="android:alertDialogTheme">@style/DialogTheme</item>
         <item name="materialAlertDialogTheme">@style/ThemeOverlay.OfflineOTP.DarkForest.MaterialAlertDialog</item>
         <item name="actionBarPopupTheme">@style/Theme.OfflineOTP.DarkForest.PopupOverlay</item>
+
+        <!-- Framework widgets can load drawables without AppCompat's tint manager. -->
+        <item name="android:spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="android:popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="android:listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="actionOverflowMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu.Overflow</item>
 
         <item name="colorGithub">@color/github_dark</item>
         <item name="thumbnailBackground">@color/forest_thumbnail_background</item>
@@ -120,7 +137,8 @@
         <item name="colorPrimary">@color/forest_appbar</item>
         <item name="colorPrimaryDark">@color/colorPrimaryDark</item>
         <item name="colorAccent">@color/colorAccent</item>
-        <item name="android:textColorPrimary">@color/forest_on_primary</item>
+        <!-- The app bar is dark; colorOnPrimary is for the brighter green primary color. -->
+        <item name="android:textColorPrimary">@color/forest_text_primary</item>
         <item name="android:textColorSecondary">@color/forest_text_secondary</item>
         <item name="actionBarPopupTheme">@style/Theme.OfflineOTP.DarkForest.PopupOverlay</item>
     </style>
@@ -128,10 +146,19 @@
     <style name="Theme.OfflineOTP.DarkForest.PopupOverlay" parent="ThemeOverlay.MaterialComponents.Dark">
         <item name="android:colorBackground">@color/forest_surface_elevated</item>
         <item name="colorBackgroundFloating">@color/forest_surface_elevated</item>
+        <item name="android:colorBackgroundFloating">@color/forest_surface_elevated</item>
         <item name="colorSurface">@color/forest_surface_elevated</item>
         <item name="colorOnSurface">@color/forest_text_primary</item>
-        <item name="android:textColorPrimary">@color/forest_text_primary</item>
-        <item name="android:textColorSecondary">@color/forest_text_secondary</item>
+        <item name="android:textColorPrimary">@color/forest_text_primary_selector</item>
+        <!-- Platform TextView and dropdown styles use this separate disabled-state color. -->
+        <item name="android:textColorPrimaryDisableOnly">@color/forest_text_primary_selector</item>
+        <item name="android:textColorSecondary">@color/forest_text_secondary_selector</item>
+        <item name="android:textColorHint">@color/forest_text_hint</item>
+        <item name="android:popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="android:listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="actionOverflowMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu.Overflow</item>
     </style>
 
     <style name="Theme.OfflineOTP.DarkForest.Dialog" parent="Theme.MaterialComponents.Dialog.MinWidth.Bridge">
@@ -148,15 +175,38 @@
         <item name="colorOnSecondary">@color/forest_on_secondary</item>
         <item name="colorOnBackground">@color/forest_text_primary</item>
         <item name="colorOnSurface">@color/forest_text_primary</item>
+        <item name="colorOnPrimarySurface">@color/forest_text_primary</item>
+        <item name="colorError">@color/warning_red</item>
+        <item name="colorOnError">@color/forest_on_primary</item>
+        <item name="windowBackground">@color/forest_surface_elevated</item>
+        <!-- The framework does not tint AppCompat's white dialog drawable. -->
+        <item name="android:windowBackground">@drawable/forest_dialog_background</item>
         <item name="android:colorBackground">@color/forest_surface_elevated</item>
         <item name="colorBackgroundFloating">@color/forest_surface_elevated</item>
         <item name="android:colorBackgroundFloating">@color/forest_surface_elevated</item>
-        <item name="android:textColorPrimary">@color/forest_text_primary</item>
-        <item name="android:textColorSecondary">@color/forest_text_secondary</item>
+        <item name="android:textColorPrimary">@color/forest_text_primary_selector</item>
+        <!-- Platform TextView and dropdown styles use this separate disabled-state color. -->
+        <item name="android:textColorPrimaryDisableOnly">@color/forest_text_primary_selector</item>
+        <item name="android:textColorSecondary">@color/forest_text_secondary_selector</item>
+        <item name="android:textColorTertiary">@color/forest_text_hint</item>
         <item name="android:textColorHint">@color/forest_text_hint</item>
+        <item name="android:textColorLink">@color/colorAccent</item>
+        <item name="android:textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorControlNormal">@color/forest_text_secondary</item>
         <item name="colorControlActivated">@color/colorAccent</item>
         <item name="colorControlHighlight">@color/forest_ripple</item>
+        <item name="android:colorControlNormal">@color/forest_text_secondary</item>
+        <item name="android:colorControlActivated">@color/colorAccent</item>
+        <item name="android:colorControlHighlight">@color/forest_ripple</item>
+        <item name="android:spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="android:popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="android:listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="actionOverflowMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu.Overflow</item>
         <item name="thumbnailBackground">@color/forest_thumbnail_background</item>
         <item name="colorExpiring">@color/expiring_red_dark</item>
         <item name="elevationOverlayEnabled">false</item>
@@ -170,9 +220,33 @@
         <item name="android:colorBackground">@color/forest_surface_elevated</item>
         <item name="colorBackgroundFloating">@color/forest_surface_elevated</item>
         <item name="android:colorBackgroundFloating">@color/forest_surface_elevated</item>
-        <item name="android:textColorPrimary">@color/forest_text_primary</item>
-        <item name="android:textColorSecondary">@color/forest_text_secondary</item>
+        <item name="android:textColorPrimary">@color/forest_text_primary_selector</item>
+        <!-- Platform TextView and dropdown styles use this separate disabled-state color. -->
+        <item name="android:textColorPrimaryDisableOnly">@color/forest_text_primary_selector</item>
+        <item name="android:textColorSecondary">@color/forest_text_secondary_selector</item>
+        <item name="android:textColorHint">@color/forest_text_hint</item>
+        <item name="android:textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="colorControlNormal">@color/forest_text_secondary</item>
+        <item name="colorControlActivated">@color/colorAccent</item>
         <item name="elevationOverlayEnabled">false</item>
+    </style>
+
+    <!-- These backgrounds are already dark when loaded by either Android or AppCompat. -->
+    <style name="Widget.OfflineOTP.DarkForest.Spinner" parent="Widget.AppCompat.Spinner">
+        <item name="android:popupBackground">@drawable/forest_popup_background</item>
+    </style>
+
+    <style name="Widget.OfflineOTP.DarkForest.PopupMenu" parent="Widget.AppCompat.PopupMenu">
+        <item name="android:popupBackground">@drawable/forest_popup_background</item>
+    </style>
+
+    <style name="Widget.OfflineOTP.DarkForest.PopupMenu.Overflow" parent="Widget.AppCompat.PopupMenu.Overflow">
+        <item name="android:popupBackground">@drawable/forest_popup_background</item>
+    </style>
+
+    <style name="Widget.OfflineOTP.DarkForest.ListPopupWindow" parent="Widget.AppCompat.ListPopupWindow">
+        <item name="android:popupBackground">@drawable/forest_popup_background</item>
     </style>
 
     <!-- Homemade Dark Forest Widget Styles -->
@@ -284,14 +358,38 @@
         <item name="colorOnSecondary">@color/forest_on_secondary</item>
         <item name="colorOnBackground">@color/forest_text_primary</item>
         <item name="colorOnSurface">@color/forest_text_primary</item>
+        <item name="colorError">@color/warning_red</item>
+        <item name="colorOnError">@color/forest_on_primary</item>
         <item name="android:windowBackground">@color/forest_background</item>
         <item name="android:colorBackground">@color/forest_background</item>
-        <item name="android:textColorPrimary">@color/forest_text_primary</item>
-        <item name="android:textColorSecondary">@color/forest_text_secondary</item>
+        <item name="colorBackgroundFloating">@color/forest_surface_elevated</item>
+        <item name="android:colorBackgroundFloating">@color/forest_surface_elevated</item>
+        <item name="android:textColorPrimary">@color/forest_text_primary_selector</item>
+        <!-- Platform TextView and dropdown styles use this separate disabled-state color. -->
+        <item name="android:textColorPrimaryDisableOnly">@color/forest_text_primary_selector</item>
+        <item name="android:textColorSecondary">@color/forest_text_secondary_selector</item>
         <item name="android:textColorHint">@color/forest_text_hint</item>
+        <item name="android:textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="textColorAlertDialogListItem">@color/forest_text_primary_selector</item>
+        <item name="android:colorAccent">@color/colorAccent</item>
         <item name="colorControlNormal">@color/forest_text_secondary</item>
         <item name="colorControlActivated">@color/colorAccent</item>
         <item name="colorControlHighlight">@color/forest_ripple</item>
+        <item name="android:colorControlNormal">@color/forest_text_secondary</item>
+        <item name="android:colorControlActivated">@color/colorAccent</item>
+        <item name="android:colorControlHighlight">@color/forest_ripple</item>
+        <item name="dialogTheme">@style/DialogTheme</item>
+        <item name="android:dialogTheme">@style/DialogTheme</item>
+        <item name="alertDialogTheme">@style/DialogTheme</item>
+        <item name="android:alertDialogTheme">@style/DialogTheme</item>
+        <item name="materialAlertDialogTheme">@style/ThemeOverlay.OfflineOTP.DarkForest.MaterialAlertDialog</item>
+        <item name="android:spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="spinnerStyle">@style/Widget.OfflineOTP.DarkForest.Spinner</item>
+        <item name="android:popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="popupMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu</item>
+        <item name="android:listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="listPopupWindowStyle">@style/Widget.OfflineOTP.DarkForest.ListPopupWindow</item>
+        <item name="actionOverflowMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu.Overflow</item>
         <item name="navigationBarColor">@color/forest_background_deep</item>
         <item name="android:navigationBarColor">@color/forest_background_deep</item>
     </style>

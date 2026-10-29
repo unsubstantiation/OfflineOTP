@@ -178,6 +178,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         restore = read(ANDROID_TEST / "BackupRestoreDeviceTest.kt")
         for needle in (
             "currentEncryptedBackupIsRestored",
+            "aHeaderlessPre063EncryptedBackupIsRejected",
             "aWrongPasswordIsRejected",
             "aTruncatedEncryptedBackupIsRejected",
             "aMissingDocumentFailsWithoutCrashing",

@@ -22,6 +22,13 @@ open class View(suppliedContext: Context? = null) {
     var contentDescription: CharSequence? = null
     var alpha: Float = 1.0f
     var translationX: Float = 0.0f
+    /** A recording-only observer; writable to simulate replacement when a view attaches. */
+    var viewTreeObserver: ViewTreeObserver = ViewTreeObserver()
+    var scrollX: Int = 0
+        private set
+    var scrollY: Int = 0
+        private set
+    fun scrollTo(x: Int, y: Int) { scrollX = x; scrollY = y }
     /** The platform getter is final; the stand-in is writable so checks can size a fake view. */
     var width: Int = 0
     /** The platform getter is final; the stand-in is writable so checks can size a fake view. */
@@ -94,6 +101,9 @@ open class View(suppliedContext: Context? = null) {
         location[1] = 0
     }
 
+    /** Compile-only instrumentation surface; the host stub has no clipping or screen coordinates. */
+    open fun getGlobalVisibleRect(rect: android.graphics.Rect): Boolean = false
+
     open fun requestFocus(): Boolean = true
     open fun requestLayout() {}
     open fun setBackgroundColor(color: Int) {}
@@ -141,6 +151,24 @@ open class View(suppliedContext: Context? = null) {
         const val IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS = 4
         const val IMPORTANT_FOR_AUTOFILL_NO = 2
         const val IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS = 8
+    }
+}
+
+/** Recording-only global layout dispatch; no Android measurement or layout is simulated. */
+class ViewTreeObserver {
+    fun interface OnGlobalLayoutListener { fun onGlobalLayout() }
+    private val listeners = LinkedHashSet<OnGlobalLayoutListener>()
+    var isAlive: Boolean = true
+        private set
+    val listenerCount: Int get() = listeners.size
+    fun addOnGlobalLayoutListener(listener: OnGlobalLayoutListener) { listeners.add(listener) }
+    fun removeOnGlobalLayoutListener(listener: OnGlobalLayoutListener) { listeners.remove(listener) }
+    fun dispatchOnGlobalLayout() { listeners.toList().forEach { it.onGlobalLayout() } }
+    /** Models only listener transfer, not an Android attach or layout pass. */
+    fun transferTo(replacement: ViewTreeObserver) {
+        replacement.listeners.addAll(listeners)
+        listeners.clear()
+        isAlive = false
     }
 }
 

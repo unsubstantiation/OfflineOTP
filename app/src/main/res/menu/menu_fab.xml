@@ -5,6 +5,14 @@
         android:title="@string/button_enter_details"
         android:icon="@drawable/ic_edit_white" />
     <item
+        android:id="@+id/fabAddSecureNote"
+        android:title="@string/button_add_secure_note"
+        android:icon="@drawable/ic_note_white" />
+    <item
+        android:id="@+id/fabAddSshKey"
+        android:title="@string/button_add_ssh_key"
+        android:icon="@drawable/ic_key_white" />
+    <item
         android:id="@+id/fabScanQRFromImage"
         android:title="@string/button_qr_from_image"
         android:icon="@drawable/ic_image_white" />

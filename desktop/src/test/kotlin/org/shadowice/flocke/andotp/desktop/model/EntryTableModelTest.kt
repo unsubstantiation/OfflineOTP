@@ -106,23 +106,63 @@ class EntryTableModelTest {
     }
 
     @Test
-    fun hiddenRowsExposeOnlyTitleAndToggleForEveryKind() {
-        val otp = entry("Account", "Issuer").apply { setDetailsVisible(false); updateOTPAt(59L, true) }
-        val note = Entry(Entry.OTPType.NOTE, "secret", "", "Note", arrayListOf())
-        val key = Entry.sshKey("public", "private", "", "Server", arrayListOf())
-        for (item in listOf(otp, note, key)) {
-            val model = EntryTableModel(presentationWith(item)) { e, visible -> e.setDetailsVisible(visible) }
-            assertEquals("", model.getValueAt(0, 0))
-            assertEquals(item.privacyTitle(), model.getValueAt(0, 1))
-            assertEquals("", model.getValueAt(0, 2))
-            assertEquals("", model.getValueAt(0, 3))
-            assertEquals(false, model.getValueAt(0, 4))
-            assertTrue(model.isCellEditable(0, 4))
-            model.setValueAt(true, 0, 4)
-            assertEquals(true, model.getValueAt(0, 4))
-            model.setValueAt(false, 0, 4)
-            assertEquals("", model.getValueAt(0, 3))
+    fun hiddenRowsExposeIssuerAndLabelButNotTypeOrContentForEveryKind() {
+        val totp = entry("Account", "Issuer").apply { setDetailsVisible(false); updateOTPAt(59L, true) }
+        val hotp = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 7L, 6, "Bank", "Counter",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("private tag")).apply { updateOTPAt(59L, true) }
+        val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "Mobile", "Phone", arrayListOf())
+        val steam = Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 30, 5, "Steam", "Player",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf()).apply { updateOTPAt(59L, true) }
+        val note = Entry(Entry.OTPType.NOTE, "secret note", "Notes", "Recovery", arrayListOf())
+        val key = Entry.sshKey("public key", "private key", "Servers", "Host", arrayListOf())
+        val issuerOnly = entry("", "Issuer only").apply { setDetailsVisible(false) }
+        val labelOnly = entry("Label only", "").apply { setDetailsVisible(false) }
+        val unnamed = entry("", "").apply { setDetailsVisible(false) }
+        val entries = listOf(totp, hotp, motp, steam, note, key, issuerOnly, labelOnly, unnamed)
+        try {
+            for (item in entries) {
+                val model = EntryTableModel(presentationWith(item)) { e, visible -> e.setDetailsVisible(visible) }
+                fun assertHidden() {
+                    assertEquals(item.getIssuer(), model.getValueAt(0, 0))
+                    assertEquals(item.getLabel(), model.getValueAt(0, 1))
+                    assertEquals("", model.getValueAt(0, 2))
+                    assertEquals("", model.getValueAt(0, 3))
+                    assertEquals(false, model.getValueAt(0, 4))
+                }
+                assertHidden()
+                assertTrue(model.isCellEditable(0, 4))
+                model.setValueAt(true, 0, 4)
+                assertEquals(true, model.getValueAt(0, 4))
+                assertEquals(item.getIssuer(), model.getValueAt(0, 0))
+                assertEquals(item.getLabel(), model.getValueAt(0, 1))
+                assertEquals(item.getType().name, model.getValueAt(0, 2))
+                if (item.isNote()) assertEquals("[Note hidden]", model.getValueAt(0, 3))
+                if (item.isSshKey()) assertEquals("[SSH keys hidden]", model.getValueAt(0, 3))
+                model.setValueAt(false, 0, 4)
+                assertHidden()
+            }
+        } finally {
+            entries.forEach { it.destroy() }
         }
+    }
+
+    @Test
+    fun valueOnlyRefreshUpdatesTheCurrentRowsWithoutAFullProjectionReset() {
+        val model = EntryTableModel(presentationWith(entry("a", "A"), entry("b", "B")))
+        val events = mutableListOf<TableModelEvent>()
+        model.addTableModelListener { events.add(it) }
+
+        model.refreshValues()
+
+        assertEquals(1, events.size)
+        assertEquals(TableModelEvent.UPDATE, events[0].type)
+        assertEquals(0, events[0].firstRow)
+        assertEquals(1, events[0].lastRow)
+        val empty = EntryTableModel(presentationWith())
+        var emptyEvents = 0
+        empty.addTableModelListener { emptyEvents++ }
+        empty.refreshValues()
+        assertEquals(0, emptyEvents)
     }
 
     @Test

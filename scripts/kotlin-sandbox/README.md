@@ -52,8 +52,10 @@ The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists 
 - `scripts/kotlin-sandbox/compile-desktop.sh` is the desktop Swing gate: it compiles `:core` first
   with no Android stubs, then compiles `desktop/src/main` and `desktop/src/test` against core's
   output using only the JDK's `java.desktop` (Swing/AWT) module, and runs the desktop tests
-  headless (`-Djava.awt.headless=true`). The heavyweight `JFrame` shell is compile-verified only;
-  the headless-safe table model is what executes here.
+  headless (`-Djava.awt.headless=true`). Lightweight Swing theme, card, and table-model tests run
+  here; heavyweight `JFrame` display tests are skipped. On a host with a display and Gradle, run
+  `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'` for the
+  opt-in window, dialog, menu, visibility, search and clipboard checks.
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 
@@ -69,10 +71,10 @@ On 2026-10-22, with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
   provider output, encrypted-backup framing, and the replicated
   `org.json`, Commons Codec Base32, and `android.net.Uri` subsets.
 - **Cryptography that a desktop JVM can run:** PBKDF2 against an independent derivation and the
-  RFC 6070 vector, legacy SHA-256 key derivation, AES-GCM against the NIST vector, current and
-  legacy encrypted-backup round trips (including wrong-password/tamper rejection), login-derived
-  backup keys and their shared nonce budget, hardware-unlock AES-GCM envelope tampering and bounds,
-  and RSA wrap/unwrap with a generated key pair.
+  RFC 6070 vector, AES-GCM against the NIST vector, current encrypted-backup round trips (including
+  wrong-password/tamper rejection) and rejection of headerless backups, login-derived backup keys and
+  their shared nonce budget, hardware-unlock AES-GCM envelope tampering and bounds, and RSA
+  wrap/unwrap with a generated key pair.
 - **Vault, session, and tasks:** typed vault outcomes, generation- and revision-bound key handoffs,
   task cancellation/ownership, backup retry markers, credential staging, backup receivers and the
   unregistered agent, the panic responder, and screen-off/obscured-touch handling. A fake document
@@ -80,7 +82,8 @@ On 2026-10-22, with Kotlin 2.4.21 and Temurin 25.0.2: 102 sandbox checks passed,
   In-memory preferences and a scripted key API check hardware-enrollment invalidation, duplicate
   refusal and late-result cleanup, not actual device communication.
 - **UI and Java-visible shapes:** dialog and preference wiring, tags, about rows, entry-card
-  binding, active-search refresh and import-confirmation cleanup, and the retained task fragment.
+  binding (including hidden issuer/label formatting, issuer preference and action redaction),
+  active-search refresh and import-confirmation cleanup, and the retained task fragment.
   Names, descriptors, annotations, enum order, and other ABI details are reflected from compiled
   classes where a class cannot be loaded.
 

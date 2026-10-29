@@ -66,6 +66,24 @@ class LoginBackupWiringTest(unittest.TestCase):
         self.assertIn("settings_dialog_msg_remove_old_backup_password", settings)
         self.assertIn("sharedPref.edit().remove(oldKey).commit()", settings)
 
+    def test_pre_063_encrypted_restore_option_stays_removed(self):
+        backup = source("Activities/BackupActivity.kt")
+        layout = (ROOT / "app/src/main/res/layout/content_backup.xml").read_text(encoding="utf-8")
+        self.assertNotIn("restoreOldCrypt", backup)
+        self.assertNotIn("restoreOldCrypt", layout)
+        self.assertNotIn("oldFormat", backup)
+        for strings in (ROOT / "app/src/main/res").glob("values*/strings_backup.xml"):
+            self.assertNotIn("backup_check_restore_old", strings.read_text(encoding="utf-8"), str(strings))
+
+        self.assertNotIn("oldFormat", source("Tasks/EncryptedRestoreTask.kt"))
+        self.assertNotIn("oldFormat", core_source("Utilities/EncryptedBackupCodec.kt"))
+        desktop = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
+        dialog = (desktop / "ui/BackupDialogs.kt").read_text(encoding="utf-8")
+        coordinator = (desktop / "control/BackupCoordinator.kt").read_text(encoding="utf-8")
+        self.assertNotIn("Legacy format (headerless", dialog)
+        self.assertNotIn("oldFormat", dialog)
+        self.assertNotIn("oldFormat", coordinator)
+
     def test_broadcasts_cannot_create_a_snapshot_without_a_pending_change(self):
         receiver = source("Receivers/EncryptedBackupBroadcastReceiver.kt")
         self.assertLess(receiver.index("PendingAutomaticBackup.read(context) == null"),

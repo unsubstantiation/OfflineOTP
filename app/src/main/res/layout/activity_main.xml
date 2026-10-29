@@ -17,7 +17,7 @@
 
         <RelativeLayout
             android:gravity="top"
-            android:background="?attr/colorPrimary"
+            android:background="@color/forest_appbar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content">
 
@@ -26,7 +26,7 @@
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
-                android:background="?attr/colorPrimary"
+                android:background="@color/forest_appbar"
                 app:navigationIcon="?homeAsUpIndicator"
                 app:popupTheme="?attr/actionBarPopupTheme" />
 
@@ -90,17 +90,34 @@
         android:id="@+id/speedDialOverlay"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="@color/forest_scrim"
         android:contentDescription="@string/button_close_menu"
         android:clickable="true"
         android:focusable="true"
         android:importantForAccessibility="yes" />
 
-    <com.leinardi.android.speeddial.SpeedDialView
-        android:id="@+id/speedDial"
+    <!-- Keep every add action reachable when the expanded menu is taller than the screen.
+         The wrapper must be above the overlay, and retain the speed dial's snackbar behavior. -->
+    <ScrollView
+        android:id="@+id/speedDialScroll"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        app:sdMainFabClosedSrc="@drawable/ic_add_white"
-        app:sdOverlayLayout="@id/speedDialOverlay" />
+        android:elevation="@dimen/sd_open_elevation"
+        android:fillViewport="false"
+        android:scrollbars="vertical"
+        android:fadeScrollbars="false"
+        app:layout_behavior="com.leinardi.android.speeddial.SpeedDialView$SnackbarBehavior">
+
+        <com.leinardi.android.speeddial.SpeedDialView
+            android:id="@+id/speedDial"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:sdMainFabClosedSrc="@drawable/ic_add_white"
+            app:sdMainFabClosedIconColor="@color/forest_on_secondary"
+            app:sdMainFabOpenedIconColor="@color/forest_on_secondary"
+            app:sdOverlayLayout="@id/speedDialOverlay" />
+
+    </ScrollView>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

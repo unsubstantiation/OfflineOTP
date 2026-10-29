@@ -1,5 +1,6 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
@@ -10,45 +11,43 @@ import org.shadowice.flocke.andotp.desktop.control.TokenTicker
 import org.shadowice.flocke.andotp.desktop.control.VaultController
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
-import java.awt.BorderLayout
 import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.datatransfer.StringSelection
+import java.awt.event.ActionEvent
+import java.awt.event.InputEvent
+import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import javax.swing.AbstractAction
 import javax.swing.JButton
+import javax.swing.JComponent
 import javax.swing.JFrame
-import javax.swing.JLabel
 import javax.swing.JMenu
 import javax.swing.JMenuBar
 import javax.swing.JMenuItem
 import javax.swing.JOptionPane
-import javax.swing.JPanel
 import javax.swing.JPopupMenu
-import javax.swing.JScrollPane
 import javax.swing.JTable
-import javax.swing.JTextField
-import javax.swing.JToolBar
-import javax.swing.SwingConstants
+import javax.swing.KeyStroke
 import javax.swing.WindowConstants
 
 /**
- * Builds the top-level Swing window.
- *
- * Heavyweight by construction: call only on the event dispatch thread with a display. The frame is
- * deliberately thin — vault, entry, backup and timer logic lives in headless `:core`/control
- * classes; this shell wires menus, a search field and the table model to them. Opening a vault
- * prompts for a password, builds a [DesktopVaultState] and starts the one-second [TokenTicker].
+ * Builds the top-level Swing window on the event dispatch thread. The shared Windows/Debian shell
+ * presents the privacy-aware table model as Dark Forest cards; vault, entry, backup and timer
+ * behavior remains in the headless core/control classes.
  */
 object MainWindow {
     const val TITLE = "OfflineOTP"
 
     fun createFrame(controller: VaultController, hardware: HardwareKeyManager): JFrame {
+        ForestTheme.install()
         val table = JTable(EntryTableModel(EntryListPresentation(EntryList()).apply {
             showReorderedEntries()
         }))
-        val status = JLabel(" ", SwingConstants.LEFT)
-        val search = JTextField(20)
+        EntryCards.configure(table)
+        val screen = MainScreen(table, JButton("Copy token / note / key"))
+        val search = screen.search
 
         lateinit var frame: JFrame
         var state: DesktopVaultState? = null
@@ -57,7 +56,7 @@ object MainWindow {
         var editor: EntryEditor? = null
 
         fun setStatus(message: String) {
-            status.text = message
+            screen.status.text = message
         }
 
         fun showError(failure: VaultController.Failure) {
@@ -87,15 +86,12 @@ object MainWindow {
                         TITLE, JOptionPane.ERROR_MESSAGE)
                 }
             }
-            table.columnModel.getColumn(EntryTableModel.Column.SHOW.ordinal).apply {
-                preferredWidth = 55
-                maxWidth = 70
-            }
             search.text = ""
-
+            screen.setUnlocked(true)
             ticker?.close()
             ticker = TokenTicker(SwingScheduler(), unlocked) {
-                (table.model as? EntryTableModel)?.refresh()
+                // A tick changes cached values, not the projection. Preserve the selected row.
+                (table.model as? EntryTableModel)?.refreshValues()
             }.also { it.start() }
             setStatus("${session.entries.size} entries unlocked")
         }
@@ -113,16 +109,22 @@ object MainWindow {
             null
         }
 
-        /** Places the selected entry's current token on the clipboard, Android copy parity:
-         *  last-used/frequency are updated and the vault re-persisted before any clipboard write. */
+        // Mutations rebuild the shared projection. Reapply an active search before repainting.
+        fun refreshProjection(unlocked: DesktopVaultState) {
+            unlocked.applySearch(search.text)
+            (table.model as? EntryTableModel)?.refresh()
+        }
+
+        /** Persist usage before writing the selected entry's token/note/key to the clipboard. */
         fun copySelectedToken() {
             requireUnlocked() ?: return
-            val row = table.selectedRow
-            if (row < 0) {
+            val viewRow = table.selectedRow
+            if (viewRow < 0) {
                 JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
                     JOptionPane.WARNING_MESSAGE)
                 return
             }
+            val row = table.convertRowIndexToModel(viewRow)
             val entry = (table.model as EntryTableModel).entryAt(row)
             if (!entry.areDetailsVisible()) return
             val result = if (entry.isSshKey()) {
@@ -147,12 +149,10 @@ object MainWindow {
                     })
                 }
                 EntryEditor.TokenCopyResult.Unavailable ->
-                    JOptionPane.showMessageDialog(frame,
-                        "No token is available for that entry yet.",
+                    JOptionPane.showMessageDialog(frame, "No token is available for that entry yet.",
                         TITLE, JOptionPane.INFORMATION_MESSAGE)
                 EntryEditor.TokenCopyResult.PersistenceFailed ->
-                    JOptionPane.showMessageDialog(frame,
-                        "The item was not copied: the vault could not be written.",
+                    JOptionPane.showMessageDialog(frame, "The item was not copied: the vault could not be written.",
                         TITLE, JOptionPane.ERROR_MESSAGE)
                 null -> Unit
             }
@@ -161,20 +161,20 @@ object MainWindow {
         /** Desktop counterpart of the Android counter chip: explicit HOTP counter advance. */
         fun advanceSelectedHotp() {
             requireUnlocked() ?: return
-            val row = table.selectedRow
-            if (row < 0) {
+            val viewRow = table.selectedRow
+            if (viewRow < 0) {
                 JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
                     JOptionPane.WARNING_MESSAGE)
                 return
             }
-            val entry = (table.model as EntryTableModel).entryAt(row)
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
             if (!entry.isCounterBased()) {
                 JOptionPane.showMessageDialog(frame, "Only HOTP entries have a counter to advance.",
                     TITLE, JOptionPane.INFORMATION_MESSAGE)
                 return
             }
             if (editor?.advanceHotp(entry) == true) {
-                (table.model as? EntryTableModel)?.refresh()
+                (table.model as? EntryTableModel)?.refreshValues()
                 setStatus("HOTP counter advanced")
             } else {
                 JOptionPane.showMessageDialog(frame,
@@ -183,125 +183,139 @@ object MainWindow {
             }
         }
 
-        val toolbar = JToolBar().apply {
-            isFloatable = false
-            add(JButton("New vault…").apply {
-                addActionListener {
-                    PasswordDialog.prompt(frame, "Create a new vault")?.let {
-                        accept(controller.createVault(it))
-                    }
+        fun addEntry(type: Entry.OTPType) {
+            val unlocked = requireUnlocked() ?: return
+            EntryDialog.prompt(frame, initialType = type)?.let { entry ->
+                if (editor?.add(entry) == true) {
+                    refreshProjection(unlocked)
+                    setStatus("Entry added")
+                } else {
+                    entry.destroy()
+                    JOptionPane.showMessageDialog(frame, "The entry already exists or could not be saved.",
+                        TITLE, JOptionPane.WARNING_MESSAGE)
                 }
-            })
-            add(JButton("Open vault…").apply {
-                addActionListener {
-                    PasswordDialog.prompt(frame, "Open vault")?.let {
-                        accept(controller.openVault(it))
-                    }
-                }
-            })
-            add(JButton("Add entry…").apply {
-                addActionListener {
-                    val unlocked = requireUnlocked() ?: return@addActionListener
-                    EntryDialog.prompt(frame)?.let { entry ->
-                        if (editor?.add(entry) == true) {
-                            unlocked.presentation.showReorderedEntries()
-                            (table.model as EntryTableModel).refresh()
-                            setStatus("Entry added")
-                        } else {
-                            entry.destroy()
-                            JOptionPane.showMessageDialog(frame, "The entry already exists or could not be saved.",
-                                TITLE, JOptionPane.WARNING_MESSAGE)
-                        }
-                    }
-                }
-            })
-            add(JButton("Edit…").apply {
-                addActionListener {
-                    val unlocked = requireUnlocked() ?: return@addActionListener
-                    val row = table.selectedRow
-                    if (row < 0) {
-                        JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
-                            JOptionPane.WARNING_MESSAGE)
-                        return@addActionListener
-                    }
-                    val existing = unlocked.presentation.get(row)
-                    if (!existing.areDetailsVisible()) return@addActionListener
-                    EntryDialog.prompt(frame, existing)?.let { replacement ->
-                        if (editor?.replace(existing, replacement) == true) {
-                            (table.model as EntryTableModel).refresh()
-                            setStatus("Entry updated")
-                        } else {
-                            replacement.destroy()
-                            JOptionPane.showMessageDialog(frame,
-                                "The entry could not be saved to the vault.",
-                                TITLE, JOptionPane.ERROR_MESSAGE)
-                        }
-                    }
-                }
-            })
-            add(JButton("Delete").apply {
-                addActionListener {
-                    val unlocked = requireUnlocked() ?: return@addActionListener
-                    val row = table.selectedRow
-                    if (row < 0) {
-                        JOptionPane.showMessageDialog(frame, "Select an entry first.", TITLE,
-                            JOptionPane.WARNING_MESSAGE)
-                        return@addActionListener
-                    }
-                    if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
-                        (table.model as EntryTableModel).refresh()
-                        setStatus("Entry deleted")
-                    } else {
-                        JOptionPane.showMessageDialog(frame,
-                            "The entry could not be deleted from the vault.",
-                            TITLE, JOptionPane.ERROR_MESSAGE)
-                    }
-                }
-            })
-            add(JButton("Copy token / note / key").apply {
-                toolTipText = "Copy the selected item (or double-click its row); choose an SSH key explicitly"
-                addActionListener { copySelectedToken() }
-            })
+            }
         }
 
-        // Right-click context menu; the HOTP counter item only appears for counter-based entries.
+        fun importQrImage() {
+            val unlocked = requireUnlocked() ?: return
+            val active = coordinator ?: return
+            BackupDialogs.importQrImage(frame, active)
+            refreshProjection(unlocked)
+        }
+
+        screen.newVaultButton.addActionListener {
+            PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
+        }
+        screen.openVaultButton.addActionListener {
+            PasswordDialog.prompt(frame, "Open vault")?.let { accept(controller.openVault(it)) }
+        }
+        val addMenu = JPopupMenu().apply {
+            add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
+            add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
+            add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
+            addSeparator()
+            add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
+        }
+        screen.addButton.addActionListener {
+            if (requireUnlocked() != null) {
+                // Keep the wider menu aligned to the right edge of the action button.
+                addMenu.show(screen.addButton, screen.addButton.width - addMenu.preferredSize.width,
+                    screen.addButton.height)
+            }
+        }
+        screen.editButton.addActionListener {
+            val unlocked = requireUnlocked() ?: return@addActionListener
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return@addActionListener
+            val existing = unlocked.presentation.get(table.convertRowIndexToModel(viewRow))
+            if (!existing.areDetailsVisible()) return@addActionListener
+            EntryDialog.prompt(frame, existing)?.let { replacement ->
+                if (editor?.replace(existing, replacement) == true) {
+                    refreshProjection(unlocked)
+                    setStatus("Entry updated")
+                } else {
+                    replacement.destroy()
+                    JOptionPane.showMessageDialog(frame, "The entry could not be saved to the vault.",
+                        TITLE, JOptionPane.ERROR_MESSAGE)
+                }
+            }
+        }
+        screen.deleteButton.addActionListener {
+            val unlocked = requireUnlocked() ?: return@addActionListener
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return@addActionListener
+            val row = table.convertRowIndexToModel(viewRow)
+            if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
+                refreshProjection(unlocked)
+                setStatus("Entry deleted")
+            } else {
+                JOptionPane.showMessageDialog(frame, "The entry could not be deleted from the vault.",
+                    TITLE, JOptionPane.ERROR_MESSAGE)
+            }
+        }
+        screen.copyButton.addActionListener { copySelectedToken() }
+
+        // Right-click or the keyboard context-menu key opens the same row actions.
+        val counterDivider = JPopupMenu.Separator()
         val rowMenu = JPopupMenu().apply {
             add(JMenuItem("Copy token / note / key").apply { addActionListener { copySelectedToken() } })
-            addSeparator()
-            add(JMenuItem("Advance HOTP counter").apply {
-                addActionListener { advanceSelectedHotp() }
-            })
+            add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
+            add(JMenuItem("Delete").apply { addActionListener { screen.deleteButton.doClick() } })
+            add(counterDivider)
+            add(JMenuItem("Advance HOTP counter").apply { addActionListener { advanceSelectedHotp() } })
+        }
+        fun showRowMenu(viewRow: Int, x: Int, y: Int) {
+            if (viewRow !in 0 until table.rowCount) return
+            table.setRowSelectionInterval(viewRow, viewRow)
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
+            counterDivider.isVisible = entry.isCounterBased()
+            rowMenu.components.forEach { component ->
+                if (component is JMenuItem) when (component.text) {
+                    "Copy token / note / key", "Edit…" -> component.isEnabled = entry.areDetailsVisible()
+                    "Advance HOTP counter" -> {
+                        component.isVisible = entry.isCounterBased()
+                        component.isEnabled = entry.areDetailsVisible()
+                    }
+                }
+            }
+            rowMenu.show(table, x, y)
         }
         table.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(event: MouseEvent) {
                 if (event.clickCount == 2 && event.button == MouseEvent.BUTTON1) {
                     val row = table.rowAtPoint(event.point)
-                    if (row >= 0 && table.columnAtPoint(event.point) != EntryTableModel.Column.SHOW.ordinal) {
+                    val viewColumn = table.columnAtPoint(event.point)
+                    if (row >= 0 && viewColumn >= 0 &&
+                        table.convertColumnIndexToModel(viewColumn) != EntryTableModel.Column.SHOW.ordinal) {
                         table.setRowSelectionInterval(row, row)
                         copySelectedToken()
                     }
                 }
             }
 
-            override fun mousePressed(event: MouseEvent) = showRowMenu(event)
-            override fun mouseReleased(event: MouseEvent) = showRowMenu(event)
+            override fun mousePressed(event: MouseEvent) = maybeShowRowMenu(event)
+            override fun mouseReleased(event: MouseEvent) = maybeShowRowMenu(event)
 
-            private fun showRowMenu(event: MouseEvent) {
-                if (!event.isPopupTrigger) return
-                val row = table.rowAtPoint(event.point)
-                if (row < 0) return
-                table.setRowSelectionInterval(row, row)
-                rowMenu.components.forEach { component ->
-                    if (component is JMenuItem && component.text == "Advance HOTP counter") {
-                        component.isVisible =
-                            (table.model as EntryTableModel).entryAt(row).isCounterBased()
-                    }
+            private fun maybeShowRowMenu(event: MouseEvent) {
+                if (event.isPopupTrigger) showRowMenu(table.rowAtPoint(event.point), event.x, event.y)
+            }
+        })
+        val rowMenuAction = "showEntryMenu"
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).apply {
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_CONTEXT_MENU, 0), rowMenuAction)
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_F10, InputEvent.SHIFT_DOWN_MASK), rowMenuAction)
+        }
+        table.actionMap.put(rowMenuAction, object : AbstractAction() {
+            override fun actionPerformed(event: ActionEvent) {
+                val row = table.selectedRow
+                if (row >= 0) {
+                    val bounds = table.getCellRect(row, 0, true)
+                    showRowMenu(row, bounds.x + 16, bounds.y + bounds.height)
                 }
-                rowMenu.show(table, event.x, event.y)
             }
         })
 
-        search.toolTipText = "Search issuer, label or tags"
         search.document.addDocumentListener(object : SimpleDocumentListener {
             override fun update() {
                 state?.applySearch(search.text)
@@ -311,29 +325,13 @@ object MainWindow {
 
         val menuBar = JMenuBar().apply {
             add(JMenu("Vault").apply {
-                add(JMenuItem("New vault…").apply {
-                    addActionListener {
-                        PasswordDialog.prompt(frame, "Create a new vault")?.let {
-                            accept(controller.createVault(it))
-                        }
-                    }
-                })
-                add(JMenuItem("Open vault…").apply {
-                    addActionListener {
-                        PasswordDialog.prompt(frame, "Open vault")?.let {
-                            accept(controller.openVault(it))
-                        }
-                    }
-                })
+                mnemonic = KeyEvent.VK_V
+                add(JMenuItem("New vault…").apply { addActionListener { screen.newVaultButton.doClick() } })
+                add(JMenuItem("Open vault…").apply { addActionListener { screen.openVaultButton.doClick() } })
             })
             add(JMenu("Tools").apply {
-                add(JMenuItem("Import QR image…").apply {
-                    addActionListener {
-                        val active = coordinator ?: return@addActionListener
-                        BackupDialogs.importQrImage(frame, active)
-                        (table.model as? EntryTableModel)?.refresh()
-                    }
-                })
+                mnemonic = KeyEvent.VK_T
+                add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Encrypted backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })
@@ -341,7 +339,7 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreEncryptedBackup(frame, it)
-                            (table.model as EntryTableModel).refresh()
+                            state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }
                 })
@@ -352,12 +350,13 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreOpenPgp(frame, it)
-                            (table.model as EntryTableModel).refresh()
+                            state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }
                 })
             })
             add(JMenu("Hardware").apply {
+                mnemonic = KeyEvent.VK_H
                 add(JMenuItem("Security key…").apply {
                     addActionListener {
                         val unlocked = requireUnlocked() ?: return@addActionListener
@@ -380,16 +379,6 @@ object MainWindow {
             })
         }
 
-        val top = JPanel(BorderLayout()).apply {
-            add(JLabel(" Search: "), BorderLayout.WEST)
-            add(search, BorderLayout.CENTER)
-        }
-        val content = JPanel(BorderLayout()).apply {
-            add(toolbar, BorderLayout.NORTH)
-            add(JScrollPane(table), BorderLayout.CENTER)
-            add(status, BorderLayout.SOUTH)
-        }
-
         frame = JFrame(TITLE).apply {
             jMenuBar = menuBar
             defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
@@ -399,11 +388,8 @@ object MainWindow {
                     hardware.close()
                 }
             })
-            contentPane = JPanel(BorderLayout()).apply {
-                add(top, BorderLayout.NORTH)
-                add(content, BorderLayout.CENTER)
-            }
-            minimumSize = Dimension(720, 420)
+            contentPane = screen.panel
+            minimumSize = Dimension(720, 520)
             pack()
             setLocationRelativeTo(null)
         }
