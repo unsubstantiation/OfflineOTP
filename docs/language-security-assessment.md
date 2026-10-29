@@ -2,8 +2,8 @@
 
 > **Historical assessment.** This reviews the 2026-10-14 baseline
 > (`be039203c2baa104a559e3a62beff96b70819881`). The app main sources are now fully Kotlin; see
-> the root [README](../README.md) for current build and test commands. GitHub Actions workflows
-> have since been removed. Findings, risks and recommendations below describe that baseline, not
+> the root [README](../README.md) for current build and test commands. Findings, risks and
+> recommendations below describe that baseline, not
 > necessarily current behavior. The linked source files have since changed; see the
 > [vault security record](vault-security-hardening.md) for implemented hardening and limits.
 

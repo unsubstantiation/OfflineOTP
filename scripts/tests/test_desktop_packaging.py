@@ -53,7 +53,7 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertIn("distZip", readme)
 
     def test_ci_script_runs_the_headless_gates_and_a_real_gradle_distribution(self):
-        # The repository forbids checked-in workflow files; external/repo-level CI calls this.
+        # The script remains useful for local and external CI runs.
         self.assertTrue(os.access(CI_SCRIPT, os.X_OK), "CI script must be executable")
         for gate in (
             "scripts/kotlin-sandbox/compile-core.sh",
@@ -66,8 +66,7 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertIn("bootstrap-toolchain.sh", self.ci)
         # The desktop CI must not pretend the Android SDK build runs there.
         self.assertNotIn("assembleFdroidRelease", self.ci)
-        self.assertFalse(list((ROOT / ".github/workflows").glob("*.yml")))
-        self.assertFalse(list((ROOT / ".github/workflows").glob("*.yaml")))
+        self.assertIn("bin/jpackage.exe", self.build)
 
 
 if __name__ == "__main__":

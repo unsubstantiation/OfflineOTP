@@ -37,7 +37,8 @@ tasks.register('packageDesktop', Exec) {
     group = 'distribution'
     description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
 
-    def jpackage = new File(System.getProperty('java.home'), 'bin/jpackage')
+    def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows')
+    def jpackage = new File(System.getProperty('java.home'), isWindows ? 'bin/jpackage.exe' : 'bin/jpackage')
     executable = jpackage.absolutePath
     args = [
         '--type', 'app-image',

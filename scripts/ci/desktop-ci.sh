@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 #
 # Continuous-integration entry point for the desktop Swing client and the shared :core module.
-# This repository deliberately keeps GitHub Actions workflows out of the tree (see
-# scripts/tests/test_no_github_automation.py); repo-level or external CI invokes this script on a
-# full JDK 17+ host with network access instead.
+# Run this script on a full JDK 17+ host with network access. The separate GitHub workflows
+# build platform-specific artifacts and do not replace this verification suite.
 #
 # It runs the same no-Android-SDK gates as local development plus a real Gradle distribution
 # build that resolves the PGPainless, zxing and yubikit PC/SC dependencies from Maven Central.
