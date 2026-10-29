@@ -37,7 +37,9 @@ class HardwareKeyWiringTest(unittest.TestCase):
 
     def test_pinned_sdk_and_main_unlock_only(self):
         gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
-        for module in ("android", "oath", "fido"):
+        # The Android transport stays on 3.1.0 (minCompileSdk 36); see the comment in app/build.gradle.
+        self.assertIn("com.yubico.yubikit:android:3.1.0", gradle)
+        for module in ("oath", "fido"):
             self.assertIn(f"com.yubico.yubikit:{module}:3.2.1", gradle)
         main = source("Activities/MainActivity.kt")
         settings = source("Activities/SettingsActivity.kt")

@@ -31,8 +31,9 @@ installation additionally requires the same signing key.
 
 ## Hardware keys (experimental)
 
-Unlock the app and open **Hardware keys** from the main menu. The feature uses YubiKit 3.2.1 for
-USB and NFC. The phone must support the chosen connection; grant USB access when requested, or hold
+Unlock the app and open **Hardware keys** from the main menu. The feature uses YubiKit 3.2.1, with
+the USB/NFC transport held at 3.1.0 (the newest release that accepts the pinned `compileSdk 36`),
+for USB and NFC. The phone must support the chosen connection; grant USB access when requested, or hold
 the key in the NFC field throughout the operation. If a system permission screen interrupts an
 operation, retry after granting access. Enter the key's OATH password or FIDO PIN in the field when
 required; these are separate from the OfflineOTP password.
@@ -264,6 +265,11 @@ Three GitHub Actions workflows build on pushes to `master`, pull requests, or ma
 Download their artifacts from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip,
 and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
 signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
+
+Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
+clients build for JVM 11 because the embedded PGPainless 2.x engine declares a JVM 11 requirement,
+and the Android USB/NFC transport stays on YubiKit 3.1.0 because 3.2.x targets `compileSdk 37`
+while AGP 8.13.2 supports 36; the JVM YubiKit modules remain on 3.2.1.
 
 The APK uses the runner's ephemeral debug key and the `.dev` application ID. Different runs can
 have different signing keys, so updating may require uninstalling the previous debug build, which

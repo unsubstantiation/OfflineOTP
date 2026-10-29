@@ -6,14 +6,17 @@ apply plugin: 'org.jetbrains.kotlin.jvm'
 apply plugin: 'java-library'
 apply plugin: 'application'
 
+// 11, not the 1.8 used by the Android app and :core: the embedded OpenPGP engine
+// (org.pgpainless:pgpainless-core) publishes a JVM 11 runtime requirement, and Gradle refuses to
+// resolve it for a JVM 8 consumer. The packaging toolchain is JDK 17 either way.
 java {
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = JavaVersion.VERSION_1_8
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
 }
 
 kotlin {
     compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
 }
 

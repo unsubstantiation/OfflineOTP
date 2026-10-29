@@ -82,7 +82,14 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
 
         discovery = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/hardware/"
                      "PcscHardwareDiscovery.kt").read_text(encoding="utf-8")
-        self.assertIn("TerminalFactory.getDefault()", discovery)
+        self.assertIn("PcscManager()", discovery)
+        # javax.smartcardio is not aggregated by the java.se module, so the Kotlin JVM compiler
+        # cannot resolve it; no desktop source may import it, and the javax-free yubikit default
+        # constructor has to be the entry point.
+        for source in DESKTOP_MAIN.rglob("*.kt"):
+            for line in source.read_text(encoding="utf-8").splitlines():
+                self.assertFalse(line.strip().startswith("import ") and "smartcardio" in line,
+                                 f"{source} must not import javax.smartcardio")
         # No raw-HID library may be referenced from source; the PC/SC path uses smartcardio only.
         self.assertFalse(
             any(line.strip().startswith("import ") and "hid4java" in line
