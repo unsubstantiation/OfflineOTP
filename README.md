@@ -260,8 +260,18 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## Build verification
 
-No GitHub Actions workflows are configured. Builds, lint, device tests and release publishing
-must be run separately. The dependency inventory can be generated locally:
+Three GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch.
+Download their artifacts from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip,
+and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
+signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
+
+The APK uses the runner's ephemeral debug key and the `.dev` application ID. Different runs can
+have different signing keys, so updating may require uninstalling the previous debug build, which
+erases its vault. Export and verify a portable backup first. Desktop app images are unsigned,
+require a compatible system with a graphical environment, and are not native installers.
+
+For lint, device tests and release publishing, use the separate checks above. The dependency
+inventory can be generated locally:
 
 ```sh
 ./gradlew --no-daemon :writeDependencyInventory

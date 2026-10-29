@@ -32,10 +32,11 @@ scripts/packaging/verify-desktop-build.sh
 
 ## Continuous integration
 
-The repository keeps checked-in GitHub Actions workflows out of the tree (enforced by
-`scripts/tests/test_no_github_automation.py`). Repo-level or external CI invokes
-`scripts/ci/desktop-ci.sh`, which runs the sandbox gates, the Python guards and a real
-`:desktop:distZip` build on a full JDK with network access.
+The Windows and Debian GitHub workflows build separate x64 jpackage app images and upload them
+as workflow artifacts with SHA-256 checksums. Debian builds inside a Debian 12 container. The Android
+workflow produces an F-Droid debug APK, not a signed production release. These workflows do not
+publish releases or perform device tests. The images are unsigned and are not `.msi` or `.deb`
+installers. `scripts/ci/desktop-ci.sh` remains available for the broader sandbox and desktop gates.
 
 ## What the no-network sandbox verifies instead
 

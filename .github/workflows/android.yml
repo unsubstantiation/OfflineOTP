@@ -1,0 +1,39 @@
+name: Android build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Build F-Droid debug APK
+        run: ./gradlew --no-daemon :app:assembleFdroidDebug
+      - name: Prepare APK and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk artifacts/OfflineOTP-fdroid-debug.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs artifacts/OfflineOTP-fdroid-debug.apk > artifacts/signing-certificate.txt
+          (cd artifacts && sha256sum OfflineOTP-fdroid-debug.apk > SHA256SUMS.txt)
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: OfflineOTP-android-debug
+          path: artifacts/
+          if-no-files-found: error

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Build: Add separate Android debug, Windows and Debian app-image GitHub workflows with downloadable artifacts and checksums
+
  * Feature: Remember per-entry hide/reveal choices for OTPs, notes and SSH keys on Android and desktop; entries default to hidden, and encrypted backups retain the choice
 
  * Feature: Store SSH public and/or private key text in one encrypted Android or desktop vault entry, with separate copy choices and encrypted-backup support; older releases cannot read these entries

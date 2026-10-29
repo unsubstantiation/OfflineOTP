@@ -1,0 +1,41 @@
+name: Windows build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build Windows app image
+        shell: pwsh
+        run: |
+          .\gradlew.bat --no-daemon :desktop:packageDesktop
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path 'desktop/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
+            throw 'jpackage did not produce the Windows launcher'
+          }
+      - name: Archive app image and checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts | Out-Null
+          Compress-Archive -Path desktop/build/release/OfflineOTP -DestinationPath artifacts/OfflineOTP-windows-x64.zip
+          $hash = (Get-FileHash artifacts/OfflineOTP-windows-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText("$PWD/artifacts/SHA256SUMS.txt", "$hash  OfflineOTP-windows-x64.zip`n")
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: OfflineOTP-windows-x64
+          path: artifacts/
+          if-no-files-found: error
