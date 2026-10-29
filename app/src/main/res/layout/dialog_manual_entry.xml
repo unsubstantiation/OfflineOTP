@@ -129,11 +129,38 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:fontFamily="@font/droid_sans_mono_slashed"
-                android:inputType="textMultiLine"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:importantForAutofill="no"
                 android:saveEnabled="false"
                 android:maxLines="3"
                 android:hint="@string/hint_secret" />
 
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/manual_layout_ssh_public"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ssh_public" />
+
+            <EditText
+                android:id="@+id/manual_ssh_public"
+                android:layout_weight="7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:inputType="textMultiLine|textNoSuggestions"
+                android:importantForAutofill="no"
+                android:saveEnabled="false"
+                android:maxLines="5"
+                android:hint="@string/hint_ssh_public" />
         </LinearLayout>
 
         <LinearLayout

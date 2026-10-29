@@ -39,6 +39,10 @@ android {
     buildFeatures {
         dataBinding = true
     }
+    // Instrumentation and desktop tests consume the very same pinned interop vectors.
+    sourceSets {
+        androidTest.resources.srcDir '../desktop/src/test/resources'
+    }
     flavorDimensions 'market'
     productFlavors {
         fdroid {

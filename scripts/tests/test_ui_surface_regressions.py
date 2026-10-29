@@ -43,7 +43,12 @@ class ManualEntryEditSaveTest(unittest.TestCase):
     def test_secret_validation_is_gated_on_new_entries(self):
         text = self.DIALOG.read_text(encoding="utf-8")
         self.assertIn(
-            "if (isNewEntry && !Entry.validateSecret(secret, type))",
+            "if (isNewEntry && type != Entry.OTPType.NOTE && type != Entry.OTPType.SSH_KEY &&",
+            text,
+            "OTP validation must exclude non-OTP entries",
+        )
+        self.assertIn(
+            "!Entry.validateSecret(secret, type))",
             text,
             "the typed secret must only be validated when the entry is new",
         )
@@ -73,11 +78,11 @@ class ManualEntryEditSaveTest(unittest.TestCase):
 
     def test_edit_branches_keep_updating_the_old_entry(self):
         text = self.DIALOG.read_text(encoding="utf-8")
-        self.assertEqual(3, text.count("oldEntry!!.applyEdit"),
+        self.assertEqual(5, text.count("oldEntry!!.applyEdit"),
                          "every type branch must keep its edit path")
-        self.assertEqual(3, text.count("edited.setIssuer(issuer, true)"),
+        self.assertEqual(5, text.count("edited.setIssuer(issuer, true)"),
                          "every type branch must still apply the typed issuer")
-        self.assertEqual(3, text.count("updateCallback?.onUpdate()"),
+        self.assertEqual(5, text.count("updateCallback?.onUpdate()"),
                          "every type branch must report the edit to the callback")
 
     def test_edit_branches_go_through_the_rollback_wrapper(self):

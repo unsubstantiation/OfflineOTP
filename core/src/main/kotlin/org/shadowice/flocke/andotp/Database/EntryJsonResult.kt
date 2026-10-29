@@ -3,6 +3,7 @@ package org.shadowice.flocke.andotp.Database
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 
 import java.util.Collections
 
@@ -47,10 +48,12 @@ class ValidatedEntry private constructor(
     val usedFrequency: Long,
     tags: List<String>,
     /** The mOTP PIN, empty for every other kind and for documents written before it was stored. */
-    val pin: String
+    val pin: String,
+    val detailsVisible: Boolean
 ) : AutoCloseable {
     private val seed: ByteArray = secret.also {
-        require(it.isNotEmpty() && it.size <= InputPolicy.MAX_SECRET_BYTES)
+        val limit = if (kind == OtpKind.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        require(it.isNotEmpty() && it.size <= limit)
     }.copyOf()
     val tags: List<String> = Collections.unmodifiableList(ArrayList(tags))
     private var closed = false
@@ -59,6 +62,14 @@ class ValidatedEntry private constructor(
         try {
             // Validate owned snapshots, not mutable caller storage after copying it.
             InputPolicy.tokenParameters(period, digits, counter)
+            if (kind == OtpKind.SSH_KEY) {
+                SshKeyMaterial.decode(seed)
+                require(label.isNotBlank())
+            }
+            if (kind == OtpKind.NOTE) {
+                InputPolicy.noteFromBytes(seed)
+                require(label.isNotBlank())
+            }
             require(kind != OtpKind.STEAM || digits == 5)
             InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
             InputPolicy.text(label, InputPolicy.MAX_TEXT_CHARS)
@@ -91,8 +102,8 @@ class ValidatedEntry private constructor(
         internal fun create(
             kind: OtpKind, secret: ByteArray, period: Int, digits: Int, counter: Long,
             issuer: String, label: String, algorithm: OtpHashAlgorithm, thumbnailName: String?,
-            lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String
+            lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String, detailsVisible: Boolean
         ): ValidatedEntry = ValidatedEntry(kind, secret, period, digits, counter, issuer, label,
-            algorithm, thumbnailName, lastUsed, usedFrequency, tags, pin)
+            algorithm, thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible)
     }
 }

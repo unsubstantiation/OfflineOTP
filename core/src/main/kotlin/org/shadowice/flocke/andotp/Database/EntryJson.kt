@@ -7,6 +7,7 @@ import org.json.JSONObject
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 
 import java.util.Locale
@@ -31,6 +32,7 @@ object EntryJson {
     private const val JSON_LAST_USED = "last_used"
     private const val JSON_USED_FREQUENCY = "used_frequency"
     private const val JSON_PIN = "pin"
+    private const val JSON_DETAILS_VISIBLE = "details_visible"
 
     private const val DEFAULT_PERIOD = TokenCalculator.TOTP_DEFAULT_PERIOD
     private val INTEGER_TEXT = Regex("-?[0-9]+")
@@ -48,12 +50,25 @@ object EntryJson {
 
     private fun parsed(json: JSONObject): ValidatedEntry {
         if (!json.has(JSON_SECRET)) reject(EntryJsonError.MISSING_SECRET)
-        val seed = decodeBase32Secret(text(json, JSON_SECRET)) ?: reject(EntryJsonError.INVALID_SECRET)
+        val kind = if (json.has(JSON_TYPE)) kind(json) else OtpKind.TOTP
+        val limit = if (kind == OtpKind.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        val seed = decodeBase32Secret(text(json, JSON_SECRET), limit) ?: reject(EntryJsonError.INVALID_SECRET)
         try {
             val label = text(json, JSON_LABEL)
             // Older backups did not store the issuer separately.
             val issuer = if (json.has(JSON_ISSUER)) text(json, JSON_ISSUER) else ""
-            val kind = if (json.has(JSON_TYPE)) kind(json) else OtpKind.TOTP
+            if (kind == OtpKind.SSH_KEY) {
+                try { SshKeyMaterial.decode(seed) } catch (_: IllegalArgumentException) {
+                    reject(EntryJsonError.INVALID_TEXT)
+                }
+                if (label.isBlank()) reject(EntryJsonError.INVALID_TEXT)
+            }
+            if (kind == OtpKind.NOTE) {
+                try { InputPolicy.noteFromBytes(seed) } catch (_: IllegalArgumentException) {
+                    reject(EntryJsonError.INVALID_TEXT)
+                }
+                if (label.isBlank()) reject(EntryJsonError.INVALID_TEXT)
+            }
             // mOTP always rolls over on TokenCalculator.MOTP_STEP_SECONDS (see Entry.getTokenStepSeconds);
             // the stored period never drives its timing, so a period field on an mOTP document (never
             // written by serialize(), never produced by the otpauth:// parser) is ignored rather than
@@ -70,11 +85,13 @@ object EntryJson {
             val thumbnailName = thumbnailName(json)
             val lastUsed = usage(json, JSON_LAST_USED)
             val usedFrequency = usage(json, JSON_USED_FREQUENCY)
+            // Missing, malformed or unrecognized values are hidden, not revealed.
+            val detailsVisible = json.opt(JSON_DETAILS_VISIBLE) == true
             // Absent on non-mOTP documents and older mOTP documents; defaults to empty. Also forced
             // empty for every non-mOTP kind, matching the field serialize() only ever writes for mOTP.
             val pin = if (kind == OtpKind.MOTP && json.has(JSON_PIN)) text(json, JSON_PIN) else ""
 
-            if (seed.isEmpty() || seed.size > InputPolicy.MAX_SECRET_BYTES) reject(EntryJsonError.INVALID_SECRET)
+            if (seed.isEmpty() || seed.size > limit) reject(EntryJsonError.INVALID_SECRET)
             try {
                 InputPolicy.tokenParameters(period, digits, counter)
             } catch (invalid: IllegalArgumentException) {
@@ -89,7 +106,7 @@ object EntryJson {
             for (tag in tags) bounded(tag, InputPolicy.MAX_TAG_CHARS)
 
             return ValidatedEntry.create(kind, seed, period, digits, counter, issuer, label, algorithm,
-                thumbnailName, lastUsed, usedFrequency, tags, pin)
+                thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible)
         } catch (invalid: Rejected) {
             seed.fill(0)
             throw invalid
@@ -105,10 +122,12 @@ object EntryJson {
      * fixtures and the JSON round-trip test compare the serialized text.
      */
     @JvmStatic
+    @JvmOverloads
     @Throws(JSONException::class)
     fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, digits: Int,
                   period: Int, counter: Long, algorithm: OtpHashAlgorithm, thumbnailName: String,
-                  lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String): JSONObject {
+                  lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String,
+                  detailsVisible: Boolean = false): JSONObject {
         val jsonObj = JSONObject()
         jsonObj.put(JSON_SECRET, String(Base32().encode(secret)))
         jsonObj.put(JSON_ISSUER, issuer)
@@ -137,6 +156,8 @@ object EntryJson {
             tagsArray.put(tag)
         }
         jsonObj.put(JSON_TAGS, tagsArray)
+        // Preserve legacy bytes for the default (concealed) state.
+        if (detailsVisible) jsonObj.put(JSON_DETAILS_VISIBLE, true)
 
         return jsonObj
     }
@@ -146,8 +167,11 @@ object EntryJson {
      * the text is not a usable seed. Shared with [Entry]'s manual-entry path and its secret check.
      */
     @JvmStatic
-    fun decodeBase32Secret(encoded: String?): ByteArray? {
-        if (encoded == null || encoded.length > InputPolicy.MAX_SECRET_BYTES * 2) return null
+    fun decodeBase32Secret(encoded: String?): ByteArray? =
+        decodeBase32Secret(encoded, InputPolicy.MAX_SECRET_BYTES)
+
+    private fun decodeBase32Secret(encoded: String?, limit: Int): ByteArray? {
+        if (encoded == null || encoded.length > limit * 2) return null
         val normalized = encoded.uppercase(Locale.ROOT)
         if (!BASE32_TEXT.matches(normalized)) return null
         val codec = Base32()
@@ -192,6 +216,8 @@ object EntryJson {
             "HOTP" -> OtpKind.HOTP
             "MOTP" -> OtpKind.MOTP
             "STEAM" -> OtpKind.STEAM
+            "NOTE" -> OtpKind.NOTE
+            "SSH_KEY" -> OtpKind.SSH_KEY
             else -> reject(EntryJsonError.UNSUPPORTED_TYPE)
         }
     }

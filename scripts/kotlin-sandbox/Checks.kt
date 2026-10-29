@@ -1790,7 +1790,7 @@ fun main() {
         val entry = Entry::class.java
         expect(Modifier.isPublic(entry.modifiers), { "Entry is not public" })
         expect(!Modifier.isFinal(entry.modifiers), { "Entry must stay extendable like the Java class" })
-        expect(Entry.OTPType.values().map { it.name } == listOf("TOTP", "HOTP", "MOTP", "STEAM"),
+        expect(Entry.OTPType.values().map { it.name } == listOf("TOTP", "HOTP", "MOTP", "STEAM", "NOTE", "SSH_KEY"),
                 { "OTPType constants changed" })
         expect(Entry.COLOR_RED == 1, { "COLOR_RED" })
 
@@ -5788,6 +5788,7 @@ fun main() {
         root.children[R.id.cardProgressBar] = progress
         root.children[R.id.menuButton] = menu
         root.children[R.id.copyButton] = copy
+        root.children[R.id.privacyButton] = ImageButton(context)
         root.children[R.id.coverImg] = cover
 
         val holder = withPoisonedTransaction { EntryViewHolder(context, root, false) }
@@ -5796,6 +5797,7 @@ fun main() {
         val entry = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
         entry.updateOTP(true)
+        entry.setDetailsVisible(true)
         holder.updateValues(entry, fixture.settings)
         withPoisonedTransaction { holder.updateValues(entry) }
 
@@ -5822,6 +5824,7 @@ fun main() {
         // A counter based entry shows the counter instead of the progress bar.
         val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 42L, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
+        hotp.setDetailsVisible(true)
         hotp.setPeriod(60) // a stored period is not a timed expiry for HOTP
         holder.updateValues(hotp, fixture.settings)
         expect(counterLayout.visibility == View.VISIBLE, { "the counter must be visible for a HOTP entry" })
@@ -5831,6 +5834,7 @@ fun main() {
 
         // mOTP's stored period is 30, but it rolls over every 10 seconds and needs its own bar.
         val motp = Entry(Entry.OTPType.MOTP, "0001020304050607", "", "motp", arrayListOf())
+        motp.setDetailsVisible(true)
         holder.updateValues(motp, fixture.settings)
         expect(customPeriodLayout.visibility == View.VISIBLE && progress.visibility == View.VISIBLE,
                 { "mOTP must show its non-default countdown" })
@@ -5841,11 +5845,23 @@ fun main() {
         // localized format_custom_period string (the fake context keeps the resource mapping).
         val custom = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 45, 6, "", "label",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("tag1", "tag2"))
+        custom.setDetailsVisible(true)
         holder.updateValues(custom, fixture.settings)
         expect(customPeriodLayout.visibility == View.VISIBLE,
                 { "the custom period must be visible for a non-default period" })
         expect(customPeriod.text.toString() == "key:" + R.string.format_custom_period,
                 { "the custom period text is wrong: ${customPeriod.text}" })
+        custom.setDetailsVisible(false)
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString() == "label" && value.tag == null && value.text.toString().isEmpty(),
+                { "hidden card retained visible token data" })
+        expect(listOf(valueLayout, coverLayout, counterLayout, customPeriodLayout, thumbnailFrame,
+                tags, progress, menu, copy).all { it.visibility == View.GONE },
+                { "hidden card retained an extra view" })
+        custom.setDetailsVisible(true)
+        holder.updateValues(custom, fixture.settings)
+        expect(valueLayout.visibility == View.VISIBLE && menu.visibility == View.VISIBLE,
+                { "recycled hidden card did not restore visible state" })
     }
 
     check("the retained task fragment starts, hands over and cancels the task") {

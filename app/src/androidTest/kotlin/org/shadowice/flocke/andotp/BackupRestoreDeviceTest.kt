@@ -34,7 +34,10 @@ import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
 import org.shadowice.flocke.andotp.Tasks.PlainTextRestoreTask
 import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
+import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.VaultJson
 import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import java.io.File
 import java.nio.ByteBuffer
@@ -61,6 +64,91 @@ class BackupRestoreDeviceTest {
         DeviceTestSupport.finishActivities()
         InstrumentationRegistry.getInstrumentation().waitForIdleSync()
     }
+
+    @Test
+    fun sharedDesktopInteropVectorsRestoreThroughAndroidTask() {
+        val expected = String(golden("expected-vault.json"), StandardCharsets.UTF_8)
+        for ((name, legacy) in listOf("otp_accounts.json.aes" to false,
+                "desktop-export.json.aes" to false, "legacy-otp_accounts.json.aes" to true)) {
+            val file = writeDocument(golden(name))
+            try {
+                val result = restoreEncrypted(file, "golden-interop-password", legacy)
+                assertTrue("shared backup did not restore: $name", result.success)
+                assertEquals(expected, result.payload)
+                val entries = VaultJson.stringToEntries(result.payload)
+                assertEquals(2, entries.size)
+                assertEquals("Golden Issuer", entries[0].getIssuer())
+                assertEquals(9L, entries[1].getCounter())
+            } finally {
+                file.delete()
+            }
+        }
+    }
+
+    @Test
+    fun desktopPrivacyExportRestoresChoicesThroughAndroidTask() {
+        val file = writeDocument(golden("desktop-privacy-export.json.aes"))
+        try {
+            val result = restoreEncrypted(file, "golden-interop-password", false)
+            assertTrue(result.success)
+            val entries = VaultJson.stringToEntries(result.payload)
+            assertEquals(listOf(true, false, false, true), entries.map { it.areDetailsVisible() })
+            assertEquals(listOf(Entry.OTPType.TOTP, Entry.OTPType.HOTP, Entry.OTPType.NOTE, Entry.OTPType.SSH_KEY),
+                entries.map { it.getType() })
+        } finally { file.delete() }
+    }
+
+    @Test
+    fun desktopSshExportRestoresThroughAndroidTask() {
+        val file = writeDocument(golden("desktop-ssh-export.json.aes"))
+        try {
+            val result = restoreEncrypted(file, "golden-interop-password", false)
+            assertTrue(result.success)
+            val entries = VaultJson.stringToEntries(result.payload)
+            assertEquals(3, entries.size)
+            val keys = entries[2].getSshKeys()
+            assertEquals("ssh-ed25519 example test@example\n", keys.publicKey)
+            assertEquals("-----BEGIN OPENSSH PRIVATE KEY-----\n" + "X".repeat(5000) +
+                "\n-----END OPENSSH PRIVATE KEY-----\n", keys.privateKey)
+            assertEquals("SSH server", entries[2].getLabel())
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun desktopNoteExportRestoresThroughAndroidTask() {
+        val file = writeDocument(golden("desktop-note-export.json.aes"))
+        try {
+            val result = restoreEncrypted(file, "golden-interop-password", false)
+            assertTrue(result.success)
+            val entries = VaultJson.stringToEntries(result.payload)
+            assertEquals(3, entries.size)
+            assertEquals("Recovery", entries[2].getLabel())
+            assertEquals("recovery key\nspaces 🔐", entries[2].getNote())
+            assertEquals(listOf("private"), entries[2].getTags())
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun androidCryptoProviderProducesAFileReadableByTheSharedDesktopCodec() {
+        val expected = String(golden("expected-vault.json"), StandardCharsets.UTF_8)
+        // Android BackupHelper and the desktop coordinator both call this codec. This checks the
+        // Android crypto provider, not SAF writes or an actual desktop process.
+        val encoded = EncryptedBackupCodec.seal(PASSWORD, expected)
+        val decoded = EncryptedBackupCodec.open(PASSWORD, encoded, false)
+        assertEquals(expected, decoded)
+        val entries = VaultJson.stringToEntries(decoded)
+        assertEquals(2, entries.size)
+        assertEquals("Counter Service", entries[1].getIssuer())
+        assertEquals(9L, entries[1].getCounter())
+    }
+
+    private fun golden(name: String): ByteArray =
+        requireNotNull(javaClass.getResourceAsStream("/golden/$name")) { "Missing interop fixture: $name" }
+            .use { it.readBytes() }
 
     @Test
     fun currentEncryptedBackupIsRestored() {

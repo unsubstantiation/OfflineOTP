@@ -9,6 +9,7 @@ import org.pgpainless.encryption_signing.ProducerOptions
 import org.pgpainless.key.parsing.KeyRingReader
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
+import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 
 import java.io.ByteArrayInputStream
@@ -18,8 +19,8 @@ import java.security.GeneralSecurityException
 
 /**
  * [OpenPgpPort] backed by the embedded PGPainless 2.x library (BouncyCastle underneath). It speaks
- * standard OpenPGP, so the messages it produces are the same `.json.gpg` documents an Android
- * OpenKeychain-backed install writes, and vice versa.
+ * standard OpenPGP with the shared backup JSON. Interchange also depends on the Android provider,
+ * key capabilities and signature policy; desktop does not sign exports or verify signatures.
  *
  * Key material is passed as standard-format byte blocks (armored or binary), keeping every
  * BouncyCastle type inside this adapter. The class is compile-verified in the no-network sandbox
@@ -70,18 +71,9 @@ class PgpainlessOpenPgpPort : OpenPgpPort {
         }
         val options = ConsumerOptions(api).addDecryptionKey(key, protector)
 
-        val output = ByteArrayOutputStream()
-        api.processMessage()
+        return api.processMessage()
             .onInputStream(ByteArrayInputStream(message))
             .withOptions(options)
-            .use { stream ->
-                val buffer = ByteArray(8192)
-                while (true) {
-                    val count = stream.read(buffer)
-                    if (count == -1) break
-                    output.write(buffer, 0, count)
-                }
-            }
-        return output.toByteArray()
+            .use { stream -> BoundedInputReader.read(stream, BoundedInputReader.MAX_DOCUMENT_BYTES) }
     }
 }

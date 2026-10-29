@@ -8,6 +8,15 @@
     <!-- Buttons -->
     <string name="button_cancel">Cancel</string>
     <string name="button_enter_details">Enter details</string>
+    <string name="hint_secure_note">Secure note (1–200 characters); use Label as the title</string>
+    <string name="secure_note_hidden">Secure note (hidden)</string>
+    <string name="ssh_key_hidden">SSH keys (hidden)</string>
+    <string name="label_ssh_public">SSH public key</string>
+    <string name="hint_ssh_public">Public key (optional)</string>
+    <string name="hint_ssh_private">Private key (optional); use Label as the title</string>
+    <string name="choose_ssh_key_to_copy">Choose which SSH key to copy</string>
+    <string name="ssh_public_key">Public key</string>
+    <string name="ssh_private_key">Private key</string>
     <string name="button_scan_qr">Scan QR code</string>
     <string name="button_save">Save</string>
     <string name="button_new_tag">New tag</string>
@@ -147,4 +156,7 @@
 
     <!-- Empty List Text -->
     <string name="empty_list_view_text">Add an account with the \"+\" button.</string>
+    <string name="privacy_reveal">Reveal entry details</string>
+    <string name="privacy_hide">Hide entry details</string>
+    <string name="privacy_save_failed">Visibility could not be saved. This entry is hidden now, but its saved state may return after restart.</string>
 </resources>

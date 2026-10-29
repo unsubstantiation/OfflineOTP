@@ -101,6 +101,22 @@ class OpenPgpBackupCodecTest {
     }
 
     @Test
+    fun oversizedProviderOutputCannotProduceAnUnrestorableBackup() {
+        val port = object : OpenPgpPort {
+            override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>) =
+                ByteArray(BoundedInputReader.MAX_DOCUMENT_BYTES + 1)
+            override fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?) =
+                ByteArray(0)
+        }
+        try {
+            OpenPgpBackupCodec.seal(port, json, listOf(byteArrayOf(1)))
+            throw AssertionError("oversized OpenPGP output accepted")
+        } catch (expected: IllegalArgumentException) {
+            // A produced backup must fit the same input limit as restore.
+        }
+    }
+
+    @Test
     fun providerFailuresPropagateWithTheirDocumentedTypes() {
         val failing = object : OpenPgpPort {
             override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray =

@@ -202,6 +202,16 @@
                         </LinearLayout>
 
                         <ImageButton
+                            android:id="@+id/privacyButton"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:layout_gravity="center_vertical"
+                            android:padding="12dp"
+                            android:background="?android:attr/selectableItemBackground"
+                            android:contentDescription="@string/privacy_reveal"
+                            app:srcCompat="@drawable/ic_visibility_visible" />
+
+                        <ImageButton
                             android:id="@+id/copyButton"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"

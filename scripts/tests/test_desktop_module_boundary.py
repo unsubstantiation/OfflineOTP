@@ -257,6 +257,33 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("DesktopHardwareUnlockStore(", main)
         self.assertIn("HardwareKeyManager(", main)
 
+    def test_token_copy_logic_is_headless_with_clipboard_only_in_the_swing_shell(self):
+        editor = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/control"
+                  / "EntryEditor.kt").read_text(encoding="utf-8")
+        self.assertIn("fun copyToken(entry: Entry)", editor)
+        self.assertIn("fun advanceHotp(entry: Entry): Boolean", editor)
+        self.assertIn("TokenCopyResult", editor)
+        # Usage metadata mirrors the Android copy path; clipboard/AWT must not leak into control.
+        self.assertIn("setLastUsed", editor)
+        self.assertIn("setUsedFrequency", editor)
+        self.assertNotIn("javax.swing", editor)
+        self.assertNotIn("java.awt", editor)
+
+        entry = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database"
+                 / "Entry.kt").read_text(encoding="utf-8")
+        self.assertIn("fun hasCopyableToken()", entry)
+        self.assertIn("MOTP_NO_PIN_CODE", entry)
+
+        window = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui"
+                  / "MainWindow.kt").read_text(encoding="utf-8")
+        self.assertIn('JButton("Copy token / note / key")', window)
+        self.assertIn("copySelectedToken()", window)
+        self.assertIn("Advance HOTP counter", window)
+        self.assertIn("StringSelection", window)
+        # Double-click and the row context menu both reach the same action.
+        self.assertIn("mouseClicked", window)
+        self.assertIn("JPopupMenu", window)
+
     def test_golden_interop_fixtures_are_wired_into_the_gate(self):
         resources = ROOT / "desktop/src/test/resources/golden"
         for name in ("secrets.dat", "vault.properties", "otp_accounts.json.aes",

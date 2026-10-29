@@ -54,9 +54,9 @@ class ManualEntryAndDialogFixTest(unittest.TestCase):
             "app/src/main/kotlin/org/shadowice/flocke/andotp/Dialogs/ManualEntryDialog.kt"
         )
         self.assertEqual(
-            3,
+            5,
             text.count("callingActivity.refreshTags()"),
-            "TOTP/STEAM, HOTP, and MOTP branches must all refresh the tag drawer",
+            "OTP, note and SSH key branches must all refresh the tag drawer",
         )
         self.assertIn("type == Entry.OTPType.MOTP", text)
         self.assertIn("InputPolicy.MAX_SECRET_BYTES", text)

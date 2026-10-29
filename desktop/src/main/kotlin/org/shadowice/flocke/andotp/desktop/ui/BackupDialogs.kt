@@ -38,7 +38,10 @@ object BackupDialogs {
         // The headerless legacy SHA-256 frame is still readable but never newly written; expose it
         // behind an explicit checkbox so the default path stays the current framed format.
         val legacy = JCheckBox("Legacy format (headerless backup from older andOTP versions)")
-        val panel = JPanel(GridLayout(0, 1)).apply { add(legacy) }
+        val panel = JPanel(GridLayout(0, 1)).apply {
+            add(javax.swing.JLabel("Restore replaces all entries in the current vault."))
+            add(legacy)
+        }
         if (JOptionPane.showConfirmDialog(parent, panel, "Restore options",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return
         try {
@@ -67,12 +70,15 @@ object BackupDialogs {
     fun restoreOpenPgp(parent: JFrame, coordinator: BackupCoordinator) {
         val message = chooseFile(parent, "Open OpenPGP backup", false, null, "gpg", "asc", "pgp") ?: return
         val secretKey = chooseFile(parent, "Select secret key", false, null, "asc", "gpg", "pgp") ?: return
-        val passphrase = PasswordDialog.prompt(parent, "Secret key passphrase (blank if unprotected)")
+        val passphrase = PasswordDialog.prompt(parent, "Secret key passphrase (blank if unprotected)") ?: return
+        if (JOptionPane.showConfirmDialog(parent,
+                "Restore replaces all entries in the current vault. Continue?", "Restore OpenPGP backup",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
         try {
             val count = coordinator.restoreOpenPgp(
                 readBounded(parent, message) ?: return,
                 readBounded(parent, secretKey) ?: return,
-                passphrase?.toCharArray())
+                passphrase.takeIf { it.isNotEmpty() }?.toCharArray())
             showResult(parent, "Restored $count entr${if (count == 1) "y" else "ies"}")
         } catch (error: Exception) {
             showError(parent, error)
