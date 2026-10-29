@@ -8,6 +8,8 @@
     <!-- Buttons -->
     <string name="button_cancel">Cancel</string>
     <string name="button_enter_details">Enter details</string>
+    <string name="button_add_secure_note">Add secure note</string>
+    <string name="button_add_ssh_key">Add SSH key</string>
     <string name="hint_secure_note">Secure note (1–200 characters); use Label as the title</string>
     <string name="secure_note_hidden">Secure note (hidden)</string>
     <string name="ssh_key_hidden">SSH keys (hidden)</string>
@@ -77,7 +79,7 @@
     <string name="button_card_options_format">More options for %1$s</string>
     <string name="button_card_copy">Copy token</string>
     <string name="button_card_copy_format">Copy %1$s token</string>
-    <string name="button_add">Add new account</string>
+    <string name="button_add">Add entry</string>
     <string name="button_close_menu">Close menu</string>
 
     <!-- Toast messages -->

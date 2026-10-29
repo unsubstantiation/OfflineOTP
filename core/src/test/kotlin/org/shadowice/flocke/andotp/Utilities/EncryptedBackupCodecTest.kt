@@ -12,7 +12,12 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
+import java.security.MessageDigest
+import javax.crypto.Cipher
+import javax.crypto.spec.GCMParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 class EncryptedBackupCodecTest {
 
@@ -93,5 +98,44 @@ class EncryptedBackupCodecTest {
         } catch (expected: IllegalArgumentException) {
             // EncryptedBackupHeader framing guard
         }
+    }
+
+    @Test
+    fun headerlessSha256BackupWithOutOfRangePrefixIsRejected() {
+        val blob = headerlessBackup(0x40414243)
+        try {
+            EncryptedBackupCodec.open(password, blob)
+            throw AssertionError("headerless backup accepted")
+        } catch (expected: IllegalArgumentException) {
+            // A typical nonce does not contain a valid framed-backup iteration count.
+        }
+    }
+
+    @Test
+    fun headerlessSha256BackupIsRejectedEvenWhenItsNonceLooksLikeAHeader() {
+        val blob = headerlessBackup(1_000)
+        assertEquals(1_000, EncryptedBackupHeader.parse(blob).getIterations())
+        try {
+            EncryptedBackupCodec.open(password, blob)
+            throw AssertionError("headerless backup accepted")
+        } catch (expected: GeneralSecurityException) {
+            // A plausible iteration count passes framing, but must not trigger a legacy fallback.
+        }
+    }
+
+    /** Creates a valid pre-0.6.3 frame only for negative tests, independently of the codec. */
+    private fun headerlessBackup(noncePrefix: Int): ByteArray {
+        val nonce = ByteBuffer.allocate(12).putInt(noncePrefix).putLong(0x1020304050607080L).array()
+        val key = SecretKeySpec(MessageDigest.getInstance("SHA-256")
+            .digest(password.toByteArray(Charsets.UTF_8)), "AES")
+        val encrypt = Cipher.getInstance("AES/GCM/NoPadding")
+        encrypt.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
+        val ciphertext = encrypt.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+
+        // Verify that this is an authentic legacy ciphertext, not merely malformed random bytes.
+        val decrypt = Cipher.getInstance("AES/GCM/NoPadding")
+        decrypt.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
+        assertEquals(plaintext, String(decrypt.doFinal(ciphertext), Charsets.UTF_8))
+        return nonce + ciphertext
     }
 }

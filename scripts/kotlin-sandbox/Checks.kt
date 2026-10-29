@@ -131,9 +131,15 @@ import android.content.ClipDescription
 import android.content.ClipboardManager
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.widget.Button
+import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Spinner
 import android.widget.TextView
+import com.github.aakira.expandablelayout.ExpandableLinearLayout
+import com.leinardi.android.speeddial.SpeedDialView
 import android.widget.Toast
 import android.widget.Filterable
 import android.widget.FrameLayout
@@ -1202,6 +1208,63 @@ private class CardRoot : View() {
 
     @Suppress("UNCHECKED_CAST")
     override fun <T : View> findViewById(id: Int): T? = children[id] as T?
+}
+
+/** Scripted activity views for the manual editor and the speed dial's layout callback. */
+private class ManualDialogHost : MainActivity() {
+    val container = FrameLayout(this)
+    val scroll = ScrollView(this)
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : View> findViewById(id: Int): T? = when (id) {
+        R.id.main_content -> container as T?
+        R.id.speedDialScroll -> scroll as T?
+        else -> null
+    }
+}
+
+/** A manually assembled editor layout; it does not emulate XML inflation or view layout. */
+private class ManualDialogRoot(host: Context) : View() {
+    val type = Spinner(host)
+    val otpUri = EditText(host)
+    val applyUri = Button(host)
+    val issuer = EditText(host)
+    val label = EditText(host)
+    val secret = EditText(host)
+    val sshPublic = EditText(host)
+    val sshLayout = LinearLayout(host)
+    val secretView = TextView()
+    val counter = EditText(host)
+    val period = EditText(host)
+    val digits = EditText(host)
+    val counterLayout = LinearLayout(host)
+    val periodLayout = LinearLayout(host)
+    val algorithm = Spinner(host)
+    val tags = Button(host)
+    val expandButton = Button(host)
+    val expandLayout = ExpandableLinearLayout(host)
+    init {
+        sshLayout.visibility = View.GONE
+        counterLayout.visibility = View.GONE
+        secretView.visibility = View.GONE
+    }
+    private val children = mapOf(
+        R.id.manual_type to type, R.id.manual_otp_uri to otpUri, R.id.manual_apply_otp_uri to applyUri,
+        R.id.manual_issuer to issuer, R.id.manual_label to label, R.id.manual_secret to secret,
+        R.id.manual_ssh_public to sshPublic, R.id.manual_layout_ssh_public to sshLayout,
+        R.id.manual_secret_view to secretView, R.id.manual_counter to counter, R.id.manual_period to period,
+        R.id.manual_digits to digits, R.id.manual_layout_counter to counterLayout,
+        R.id.manual_layout_period to periodLayout, R.id.manual_algorithm to algorithm, R.id.manual_tags to tags,
+        R.id.dialog_expand_button to expandButton, R.id.dialog_expand_layout to expandLayout)
+
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : View> findViewById(id: Int): T? = children[id] as T?
+
+    /** The spinner stub records selection but does not deliver Android's selection callback. */
+    fun deliverSelection() {
+        type.onItemSelectedListener!!.onItemSelected(type, null, type.selectedItemPosition,
+            type.selectedItemPosition.toLong())
+    }
 }
 
 /** A layout stub that inflates the check's scripted root instead of a real layout. */
@@ -2653,6 +2716,55 @@ fun main() {
             expect(!BackupHelper.backupToFile(context, uri, password, plaintext, denied), { "denied backup succeeded" })
             expect(denied.asked == 1, { "backup permission was not checked first" })
             expect(resolver.calls.size == callsBeforeReject, { "a refused backup reached the provider" })
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
+    check("Android encrypted restore accepts framed backups and rejects headerless SHA-256 backups") {
+        val directory = java.nio.file.Files.createTempDirectory("offlineotp-restore-formats").toFile()
+        try {
+            val resolver = FakeResolver()
+            val context = FakeStorageContext(resolver, File(directory, "cache"))
+            val uri = contentUri("document", "accounts.json.aes")
+            val password = "fixture password"
+            val plaintext = "[{\"secret\":\"JBSWY3DPEHPK3PXP\",\"label\":\"alice\"}]"
+            val iterations = 1_000 // A supported historical PBKDF2 count, below today's writer range.
+            val salt = ByteArray(12) { (it + 1).toByte() }
+            val nonce = ByteArray(12) { (it + 21).toByte() }
+            val key = EncryptionHelper.generateSymmetricKeyPBKDF2(password, iterations, salt)
+            val ciphertext = EncryptionHelper.encrypt(key, javax.crypto.spec.IvParameterSpec(nonce),
+                    plaintext.toByteArray(StandardCharsets.UTF_8))
+            val current = ByteBuffer.allocate(4 + salt.size + nonce.size + ciphertext.size)
+                .putInt(iterations).put(salt).put(nonce).put(ciphertext).array()
+
+            fun restore(data: ByteArray): BackupTaskResult {
+                resolver.input = ByteArrayInputStream(data)
+                return withPoisonedTransaction {
+                    object : EncryptedRestoreTask(context, uri, password) {
+                        fun runNow(): BackupTaskResult = doInBackground()
+                    }.runNow()
+                }
+            }
+
+            val restored = restore(current)
+            expect(restored.success && restored.payload == plaintext,
+                    { "supported framed backup failed to restore" })
+
+            // Produce an authentic pre-0.6.3 frame only as a negative test. Its nonce happens to
+            // start with a valid current-format iteration count, so it passes the framing guard.
+            val oldNonce = ByteBuffer.allocate(12).putInt(iterations).putLong(0x1020304050607080L).array()
+            val oldKey = SecretKeySpec(MessageDigest.getInstance("SHA-256")
+                .digest(password.toByteArray(StandardCharsets.UTF_8)), "AES")
+            val oldCipher = Cipher.getInstance("AES/GCM/NoPadding")
+            oldCipher.init(Cipher.ENCRYPT_MODE, oldKey, javax.crypto.spec.GCMParameterSpec(128, oldNonce))
+            val headerless = oldNonce + oldCipher.doFinal(plaintext.toByteArray(StandardCharsets.UTF_8))
+            expect(EncryptedBackupHeader.parse(headerless).getIterations() == iterations,
+                    { "negative fixture did not reach the authentication step" })
+            val rejected = restore(headerless)
+            expect(!rejected.success && rejected.payload == null &&
+                    rejected.messageId == R.string.backup_toast_import_decryption_failed,
+                    { "headerless backup did not fail safely" })
         } finally {
             directory.deleteRecursively()
         }
@@ -5405,6 +5517,141 @@ fun main() {
                 { "the screen was not finished: ${activity.finishes}" })
     }
 
+    check("direct note and SSH editors preselect and validate the existing fields") {
+        val fixture = SettingsFixture()
+        val host = ManualDialogHost()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+
+        fun open(type: Entry.OTPType? = null, old: Entry? = null,
+                 callback: ManualEntryDialog.UpdateCallback? = null): Pair<ManualDialogRoot, AlertDialog> {
+            val root = ManualDialogRoot(host)
+            LayoutInflater.layoutProvider = { resource, _, _ ->
+                expect(resource == R.layout.dialog_manual_entry, { "unexpected editor layout" })
+                root
+            }
+            try {
+                if (old != null) ManualEntryDialog.show(host, fixture.settings, adapter, old, callback)
+                else if (type != null) ManualEntryDialog.showNew(host, fixture.settings, adapter, type)
+                else ManualEntryDialog.show(host, fixture.settings, adapter)
+            } finally {
+                LayoutInflater.layoutProvider = null
+            }
+            return root to requireNotNull(AlertDialog.Builder.lastCreated)
+        }
+
+        fun close(root: ManualDialogRoot, dialog: AlertDialog) {
+            ManualEntryDialog.dismissActive()
+            expect(!dialog.isShowing, { "the active editor was not dismissed" })
+            // The stub does not dispatch platform dismiss events; deliver the recorded callback.
+            dialog.onDismissListener!!.onDismiss(dialog)
+            expect(root.secret.text.toString().isEmpty() && root.sshPublic.text.toString().isEmpty() &&
+                root.otpUri.text.toString().isEmpty(), { "dismissal did not wipe the editor fields" })
+        }
+
+        val (note, noteDialog) = open(Entry.OTPType.NOTE)
+        expect(note.type.getSelectedItem() == Entry.OTPType.NOTE, { "note type was not selected" })
+        note.deliverSelection()
+        val noteSave = requireNotNull(noteDialog.getButton(AlertDialog.BUTTON_POSITIVE))
+        expect(note.otpUri.visibility == View.GONE && note.applyUri.visibility == View.GONE &&
+            note.sshLayout.visibility == View.GONE && note.expandButton.visibility == View.GONE &&
+            note.secret.hint == "res:${R.string.hint_secure_note}", { "note fields were not configured" })
+        expect(!noteSave.isEnabled, { "an empty note was accepted" })
+        note.label.setText("Recovery note")
+        note.label.dispatchAfterTextChanged()
+        note.secret.setText("🔐".repeat(200))
+        note.secret.dispatchAfterTextChanged()
+        expect(noteSave.isEnabled, { "200 Unicode code points should be accepted" })
+        note.secret.setText("🔐".repeat(201))
+        note.secret.dispatchAfterTextChanged()
+        expect(!noteSave.isEnabled, { "201 Unicode code points should be rejected" })
+        // The spinner remains usable: switching types still runs the ordinary field configuration.
+        note.type.setSelection(Entry.OTPType.TOTP.ordinal)
+        note.deliverSelection()
+        expect(note.otpUri.visibility == View.VISIBLE && note.expandButton.visibility == View.VISIBLE,
+            { "switching back to OTP did not restore its fields" })
+        close(note, noteDialog)
+
+        val (ssh, sshDialog) = open(Entry.OTPType.SSH_KEY)
+        expect(ssh.type.getSelectedItem() == Entry.OTPType.SSH_KEY, { "SSH type was not selected" })
+        ssh.deliverSelection()
+        val sshSave = requireNotNull(sshDialog.getButton(AlertDialog.BUTTON_POSITIVE))
+        expect(ssh.otpUri.visibility == View.GONE && ssh.sshLayout.visibility == View.VISIBLE &&
+            ssh.secret.hint == "res:${R.string.hint_ssh_private}", { "SSH fields were not configured" })
+        ssh.label.setText("Laptop")
+        ssh.label.dispatchAfterTextChanged()
+        expect(!sshSave.isEnabled, { "SSH entries need at least one key" })
+        ssh.sshPublic.setText("ssh-ed25519 example\n")
+        ssh.sshPublic.dispatchAfterTextChanged()
+        expect(sshSave.isEnabled, { "a public-only key should be accepted" })
+        ssh.sshPublic.setText("x".repeat(32 * 1024 + 1))
+        ssh.sshPublic.dispatchAfterTextChanged()
+        expect(!sshSave.isEnabled, { "the SSH key byte limit was not enforced" })
+        close(ssh, sshDialog)
+
+        val (manual, manualDialog) = open()
+        expect(manual.type.getSelectedItem() == Entry.OTPType.TOTP,
+            { "ordinary manual entry no longer defaults to TOTP" })
+        close(manual, manualDialog)
+
+        val old = Entry(Entry.OTPType.NOTE, "existing\nnote", "", "Title", arrayListOf())
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        try {
+            var updates = 0
+            val (edit, editDialog) = open(old = old, callback = ManualEntryDialog.UpdateCallback { updates++ })
+            expect(edit.type.getSelectedItem() == Entry.OTPType.NOTE && !edit.type.isEnabled &&
+                edit.secret.text.toString() == "existing\nnote", { "editing an existing note changed" })
+            edit.deliverSelection()
+            edit.secret.setText("edited\nnote")
+            edit.secret.dispatchAfterTextChanged()
+            val save = requireNotNull(editDialog.getButton(AlertDialog.BUTTON_POSITIVE))
+            expect(save.isEnabled && save.performClick(), { "the existing note could not be saved" })
+            expect(old.getNote() == "edited\nnote" && updates == 1 && !editDialog.isShowing,
+                { "edit Save did not update the original entry" })
+            close(edit, editDialog)
+        } finally {
+            old.destroy()
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("expanded add menu anchors once after layout and ignores closed menus") {
+        val host = ManualDialogHost()
+        val dial = SpeedDialView(host)
+        val prepare = MainActivity::class.java.getDeclaredMethod("prepareExpandedSpeedDial",
+            SpeedDialView::class.java).apply { isAccessible = true }
+        dial.height = 342
+        dial.open()
+        prepare.invoke(host, dial)
+        expect(host.scroll.viewTreeObserver.listenerCount == 1, { "layout callback not registered" })
+        host.scroll.viewTreeObserver.dispatchOnGlobalLayout()
+        expect(host.scroll.scrollY == 342 && host.scroll.viewTreeObserver.listenerCount == 0,
+            { "the expanded menu was not positioned or its callback was retained" })
+        dial.close()
+        host.scroll.scrollTo(0, 0)
+        prepare.invoke(host, dial)
+        host.scroll.viewTreeObserver.dispatchOnGlobalLayout()
+        expect(host.scroll.scrollY == 0 && host.scroll.viewTreeObserver.listenerCount == 0,
+            { "a closed menu was repositioned" })
+
+        // Android can transfer listeners from a pre-attach observer to a new one. The callback
+        // must remove itself from the new observer or it would reset every user scroll.
+        dial.open()
+        prepare.invoke(host, dial)
+        val original = host.scroll.viewTreeObserver
+        val attached = android.view.ViewTreeObserver()
+        original.transferTo(attached)
+        host.scroll.viewTreeObserver = attached
+        attached.dispatchOnGlobalLayout()
+        expect(attached.listenerCount == 0 && host.scroll.scrollY == 342,
+            { "the transferred layout listener was retained" })
+        host.scroll.scrollTo(0, 1)
+        attached.dispatchOnGlobalLayout()
+        expect(host.scroll.scrollY == 1, { "a later layout reset the user's scroll" })
+    }
+
     check("the about screens keep their Java-visible API shapes") {
         val base = BaseAboutFragment::class.java
         val flavor = AboutFragment::class.java
@@ -5471,6 +5718,7 @@ fun main() {
                 { "the ManualEntryDialog object is missing INSTANCE" })
         expectMethod(manual, "static void show(MainActivity,Settings,EntriesCardAdapter)")
         expectMethod(manual, "static void show(MainActivity,Settings,EntriesCardAdapter,Entry,UpdateCallback)")
+        expectMethod(manual, "static void showNew(MainActivity,Settings,EntriesCardAdapter,OTPType)")
         expect(ManualEntryDialog.UpdateCallback::class.java.isInterface,
                 { "the manual entry callback is no longer an interface" })
 
@@ -5762,6 +6010,7 @@ fun main() {
         val progress = MaterialProgressBar(context)
         val menu = ImageButton(context)
         val copy = ImageButton(context)
+        val privacy = ImageButton(context)
         val cover = ImageView(context)
         val icon = android.graphics.drawable.BitmapDrawable(null, null)
         menu.setImageDrawable(icon)
@@ -5783,7 +6032,7 @@ fun main() {
         root.children[R.id.cardProgressBar] = progress
         root.children[R.id.menuButton] = menu
         root.children[R.id.copyButton] = copy
-        root.children[R.id.privacyButton] = ImageButton(context)
+        root.children[R.id.privacyButton] = privacy
         root.children[R.id.coverImg] = cover
 
         val holder = withPoisonedTransaction { EntryViewHolder(context, root, false) }
@@ -5857,6 +6106,99 @@ fun main() {
         holder.updateValues(custom, fixture.settings)
         expect(valueLayout.visibility == View.VISIBLE && menu.visibility == View.VISIBLE,
                 { "recycled hidden card did not restore visible state" })
+
+        // Hidden cards use the same formatted identity as revealed cards on every layout, while
+        // clearing values left in a recycled holder (including the previous token and action tag).
+        custom.setIssuer("Issuer", false)
+        custom.updateOTPAt(90L, true)
+        fixture.seed(R.string.settings_key_show_prev_token, true)
+        for (layout in listOf("compact", "default", "full")) {
+            fixture.seed(R.string.settings_key_card_layout, layout)
+            val expected = if (layout == "full") "Issuer\nlabel" else "Issuer\u00a0-\u00a0label"
+            custom.setDetailsVisible(true)
+            holder.updateValues(custom, fixture.settings)
+            expect(label.text.toString() == expected && value.tag == custom.getCurrentOTP(),
+                { "$layout revealed identity/token: ${label.text}" })
+            expect(valuePrev.visibility == View.VISIBLE && !valuePrev.text.isNullOrEmpty(),
+                { "$layout did not populate the previous token for the recycling check" })
+            custom.setDetailsVisible(false)
+            holder.updateValues(custom, fixture.settings)
+            expect(label.text.toString() == expected, { "$layout hidden identity: ${label.text}" })
+            val styled = label.text as android.text.Spanned
+            val bold = styled.getSpans(0, "Issuer".length, android.text.style.StyleSpan::class.java)
+                .firstOrNull { it.getStyle() == android.graphics.Typeface.BOLD }
+            expect(bold != null && styled.getSpanStart(bold) == 0 && styled.getSpanEnd(bold) == "Issuer".length,
+                { "$layout hidden issuer was not bold" })
+            expect(listOf(value, valuePrev, tags, counter, customPeriod).all { it.text.toString().isEmpty() } &&
+                value.tag == null && thumbnail.getDrawable() == null,
+                { "$layout hidden card retained protected data" })
+            expect(listOf(valueLayout, coverLayout, valuePrev, tags, counterLayout, customPeriodLayout,
+                thumbnailFrame, progress, menu, copy).all { it.visibility == View.GONE },
+                { "$layout hidden card retained a protected view" })
+        }
+
+        // A corrupt layout preference must not leave the previous token in a recycled hidden card,
+        // even if identity formatting itself fails before the adapter can finish the bind.
+        custom.setDetailsVisible(true)
+        holder.updateValues(custom, fixture.settings)
+        fixture.seed(R.string.settings_key_card_layout, "invalid")
+        custom.setDetailsVisible(false)
+        expectThrows(IllegalArgumentException::class.java) { holder.updateValues(custom, fixture.settings) }
+        expect(value.tag == null && value.text.toString().isEmpty() && valueLayout.visibility == View.GONE,
+            { "a formatting failure exposed a stale token" })
+        fixture.seed(R.string.settings_key_card_layout, "full")
+
+        custom.setLabel("")
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString() == "Issuer", { "issuer-only entry lost or duplicated its identity" })
+        fixture.seed(R.string.settings_key_hide_issuer, true)
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString().isEmpty(), { "hide-issuer preference leaked an issuer-only entry" })
+        custom.setLabel("label")
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString() == "label", { "hide-issuer preference was ignored on a hidden entry" })
+        custom.setDetailsVisible(true)
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString() == "label", { "hide-issuer preference changed when revealed" })
+        fixture.seed(R.string.settings_key_hide_issuer, false)
+        custom.setIssuer("", false)
+        custom.setDetailsVisible(false)
+        holder.updateValues(custom, fixture.settings)
+        expect(label.text.toString() == "label", { "label-only entry lost its identity" })
+
+        val note = Entry(Entry.OTPType.NOTE, "private note content", "Notes", "Recovery", arrayListOf())
+        val ssh = Entry.sshKey("public key", "private key", "Servers", "Host", arrayListOf())
+        for ((item, identity) in listOf(note to "Notes\nRecovery", ssh to "Servers\nHost")) {
+            holder.updateValues(item, fixture.settings)
+            expect(label.text.toString() == identity && value.text.toString().isEmpty() && value.tag == null,
+                { "hidden note/key identity or secret redaction failed" })
+        }
+        note.destroy()
+        ssh.destroy()
+
+        // Even synthetic clicks on hidden buttons/cards are blocked, while the eye remains usable.
+        var protectedActions = 0
+        var visibilityActions = 0
+        holder.setCallback(object : EntryViewHolder.Callback {
+            override fun onMoveEventStart() = Unit
+            override fun onMoveEventStop() = Unit
+            override fun onPrivacyClicked(position: Int) { visibilityActions++ }
+            override fun onMenuButtonClicked(parentView: View, position: Int) { protectedActions++ }
+            override fun onCopyButtonClicked(text: String, position: Int) { protectedActions++ }
+            override fun onCardSingleClicked(position: Int, text: String) { protectedActions++ }
+            override fun onCardDoubleClicked(position: Int, text: String) { protectedActions++ }
+            override fun onCounterClicked(position: Int) { protectedActions++ }
+            override fun onCounterLongPressed(position: Int) { protectedActions++ }
+        })
+        menu.performClick(); copy.performClick(); counterLayout.performClick(); counterLayout.performLongClick()
+        card.performClick(); card.performClick(); privacy.performClick()
+        expect(protectedActions == 0 && visibilityActions == 1, { "hidden card accepted a protected action" })
+        custom.setDetailsVisible(true)
+        holder.updateValues(custom, fixture.settings)
+        menu.performClick(); copy.performClick(); counterLayout.performClick()
+        expect(protectedActions == 3, { "revealed card did not restore its actions" })
+        holder.cancelPendingClicks()
+        entry.destroy(); hotp.destroy(); custom.destroy()
     }
 
     check("the retained task fragment starts, hands over and cancels the task") {

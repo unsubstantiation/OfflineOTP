@@ -42,7 +42,12 @@ open class IntroActivity : androidx.appcompat.app.AppCompatActivity() {
 
     fun getCount(): Int = addedSlides.size
 
-
+    /** Compile-only presentation APIs; the stand-in does not animate or render slides. */
+    fun getBackground(position: Int): Int = 0
+    fun goToSlide(position: Int): Boolean {
+        currentSlidePosition = position
+        return true
+    }
 
     fun addOnNavigationBlockedListener(listener: OnNavigationBlockedListener) {
         navigationBlockedListeners.add(listener)

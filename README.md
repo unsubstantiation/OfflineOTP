@@ -28,7 +28,7 @@ installation additionally requires the same signing key.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
 - Search the whole vault or filter by tags, and see per-tag entry counts. Clearing a search restores the selected tag filter. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
-- Show a bundled brand logo per account, resolved from the issuer name and editable per entry; unknown issuers get a letter tile.
+- On Android, show a bundled brand logo per account, resolved from the issuer name and editable per entry; unknown issuers get a letter tile. Desktop cards use letter tiles.
 
 ## Brand logos
 
@@ -87,12 +87,14 @@ implementation; verify on your devices before relying on it.
 The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reuses the shared
 `:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
 all portable logic stays headless and unit-tested; Swing is only a thin shell. The desktop vault
-directory is `~/.offlineotp`.
+directory is `~/.offlineotp`. Windows and Debian share Android's Dark Forest palette, with an
+app bar, entry cards, dark controls and dialogs. Desktop cards use letter tiles rather than
+Android's bundled issuer logos; native window decorations may still differ by platform.
 
 Features:
 
-- Create and open a local password-encrypted vault; add, edit and delete entries, search the vault, and watch tokens refresh each second.
-- Copy a token with the **Copy token** button, a row double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
+- Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
+- Copy a token with the **Copy token / note / key** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
 - Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
@@ -100,9 +102,11 @@ Features:
 
 ### Secure notes
 
-To add a standalone note, choose **Enter details** on Android or **Add entry** on desktop, then
-select `NOTE` as the type. Use the label as its title and enter 1–200 Unicode characters in the
-secret field; spaces and newlines are preserved. Notes are hidden in the list. Open **Edit** to
+On Android, tap **+** → **Add secure note**. On desktop, choose **Add entry** → **Add secure note**.
+On smaller Android screens, scroll the **+** menu to see all actions. Android's **Enter details** and
+desktop's **Enter account details** also offer the type selector. Use the label as the note title and
+enter 1–200 Unicode characters in
+the secret field; spaces and newlines are preserved. Notes are hidden in the list. Open **Edit** to
 view or change one, or use the copy action to place it on the clipboard. Clipboard contents may be
 visible to other applications or clipboard history. Notes are not OTPs, cannot be exported as OTP
 QR codes, and are not sent to hardware keys. They are included in encrypted vaults and backups.
@@ -114,13 +118,16 @@ files retain their previous format when entries are hidden.
 
 ### Hiding entry details
 
-Each Android card has an eye button; the desktop list has a **Show** checkbox. New entries and
-older entries without a saved choice start hidden. A hidden row displays only its title (or issuer
-if the title is blank) and its toggle; reveal it before copying or editing. Each choice is saved in
-the encrypted vault and included in portable backups, so a revealed entry remains revealed after a
-restart or restore. Older releases ignore this choice and may show details; do not rely on it when
-opening a backup in an older app. If a visibility change cannot be saved, the entry stays hidden
-for the current session, but its previously saved state may return after restart.
+Each Android card has an eye button; the desktop card has a **Show** checkbox. On desktop, select
+a card and press Space to toggle it; right-click or press Shift+F10 for the card menu. New entries and
+older entries without a saved choice start hidden. A hidden row still displays its issuer and label,
+but not its token, type, tags, counter, note contents or SSH keys; reveal it before copying or
+editing. On Android, the separate **Hide issuer** setting also applies to hidden rows (an entry with
+no label will then have no identity text). Each choice is saved in the encrypted vault and included
+in portable backups, so a revealed entry remains revealed after a restart or restore. Older releases
+ignore this choice and may show details; do not rely on it when opening a backup in an older app.
+If a visibility change cannot be saved, the entry stays hidden for the current session, but its
+previously saved state may return after restart.
 
 This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
 titles, searches and other app screens may still expose information. Android's separate screenshot
@@ -129,9 +136,9 @@ screenshot-blocking guarantee.
 
 ### SSH key entries
 
-To store SSH keys, choose **Enter details** on Android or **Add entry** on desktop, then select
-`SSH_KEY`. Give the entry a label and paste a public key, a private key, or both in their separate
-multiline fields. Each field is limited to 32 KiB of UTF-8 text, independently of the note limit.
+On Android, tap **+** → **Add SSH key**. On desktop, choose **Add entry** → **Add SSH key**.
+Give the entry a label and paste a public key, a private key, or both in their separate multiline
+fields. Each field is limited to 32 KiB of UTF-8 text, independently of the note limit.
 Whitespace and line breaks entered in the fields are preserved. Open **Edit** to view or change
 keys; the list hides their contents. The copy action asks which key to copy, even if only one is
 present. Clipboard contents may be visible to other applications or clipboard history.
@@ -163,9 +170,11 @@ verify OpenPGP signatures, including those on Android exports. Do not treat an O
 desktop as proof of who created it. Password backups are the simpler interchange path.
 
 Verification limits: the offline sandbox compiles every desktop source against narrow stubs and
-runs the headless suite under `java.awt.headless=true`, but Gradle builds, real PC/SC keys,
-jpackage packaging and lint require a networked host with a full JDK. See
-[Desktop packaging and release](scripts/packaging/README.md).
+runs the headless suite under `java.awt.headless=true`, including lightweight Swing theme and
+privacy checks. Display tests are opt-in on a host with a real or virtual display:
+`./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'`.
+Gradle builds, real PC/SC keys, jpackage packaging and lint require a networked host with a full
+JDK. See [Desktop packaging and release](scripts/packaging/README.md).
 
 ## Importing from Google Authenticator
 

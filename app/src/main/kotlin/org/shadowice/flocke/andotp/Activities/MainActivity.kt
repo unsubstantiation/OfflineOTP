@@ -16,6 +16,7 @@ import android.view.KeyEvent
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewTreeObserver
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.LinearInterpolator
@@ -23,6 +24,7 @@ import android.widget.AdapterView
 import android.widget.CheckedTextView
 import android.widget.ListView
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 
@@ -252,6 +254,26 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         actionButton.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null)
     }
 
+    /** Anchor the main FAB at the bottom after expansion; shorter screens can scroll to the rest. */
+    private fun prepareExpandedSpeedDial(dial: SpeedDialView) {
+        val scroll = findViewById<ScrollView>(R.id.speedDialScroll) ?: return
+        val observer = scroll.viewTreeObserver
+        observer.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                // A detached view's observer can be replaced when it attaches, transferring
+                // this listener. Remove it from the current observer as well as the original.
+                val currentObserver = scroll.viewTreeObserver
+                if (currentObserver.isAlive) currentObserver.removeOnGlobalLayoutListener(this)
+                if (observer !== currentObserver && observer.isAlive)
+                    observer.removeOnGlobalLayoutListener(this)
+                if (dial.isOpen()) {
+                    scroll.scrollTo(0, dial.height)
+                    focusFirstSpeedDialAction(dial)
+                }
+            }
+        })
+    }
+
     private fun restoreSortMode() {
         val currentAdapter = adapter
         val callback = touchHelperCallback
@@ -356,6 +378,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 scanQRCode()
             else if (actionId == R.id.fabEnterDetails)
                 ManualEntryDialog.show(this, settings!!, adapter!!)
+            else if (actionId == R.id.fabAddSecureNote)
+                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.NOTE)
+            else if (actionId == R.id.fabAddSshKey)
+                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabScanQRFromImage)
                 showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
 
@@ -374,12 +400,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     dial.getMainFab().contentDescription = getString(R.string.button_add)
                 }
                 setSpeedDialAccessibility(isOpen)
-                if (isOpen) focusFirstSpeedDialAction(dial)
+                if (isOpen) prepareExpandedSpeedDial(dial)
             }
         })
         // SpeedDialView may restore its expanded state before this listener is installed.
         setSpeedDialAccessibility(dial.isOpen())
-        if (dial.isOpen()) focusFirstSpeedDialAction(dial)
+        if (dial.isOpen()) prepareExpandedSpeedDial(dial)
 
         progressBar = requireNotNull(findViewById<ProgressBar>(R.id.progressBar))
         emptyListView = requireNotNull(findViewById<TextView>(R.id.emptyListView))

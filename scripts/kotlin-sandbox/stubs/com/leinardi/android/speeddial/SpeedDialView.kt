@@ -14,6 +14,8 @@ class SpeedDialActionItem(private val id: Int) {
 class FabWithLabelView : View() {
     private val fab = View()
     fun getFab(): View = fab
+    /** Compile-only label surface; the library creates a CardView on Android. */
+    fun getLabelBackground(): View = View()
 }
 
 /** The floating action button menu of the main screen. */
@@ -56,6 +58,10 @@ open class SpeedDialView(context: Context) : ViewGroup() {
     fun isOpen(): Boolean = open
 
     fun open() {
+        open = true
+    }
+
+    fun open(animate: Boolean) {
         open = true
     }
 

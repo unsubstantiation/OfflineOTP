@@ -58,10 +58,22 @@ object ManualEntryDialog {
         show(callingActivity, settings, adapter, null, null)
     }
 
+    /** Opens the new-entry dialog with [type] selected, using the same editor and validation. */
+    @JvmStatic
+    fun showNew(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
+                type: Entry.OTPType) {
+        showEditor(callingActivity, settings, adapter, null, null, type)
+    }
+
     /** Opens the dialog for a new entry, or to edit [oldEntry] if it is not null. */
     @JvmStatic
     fun show(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
              oldEntry: Entry?, updateCallback: UpdateCallback?) {
+        showEditor(callingActivity, settings, adapter, oldEntry, updateCallback, null)
+    }
+
+    private fun showEditor(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
+                           oldEntry: Entry?, updateCallback: UpdateCallback?, initialType: Entry.OTPType?) {
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true)
         val isNewEntry = oldEntry == null
 
@@ -187,6 +199,8 @@ object ManualEntryDialog {
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
+        if (isNewEntry && initialType != null)
+            typeInput.setSelection(typeAdapter.getPosition(initialType))
 
         val allTags = adapter.getTags()
         val tagsHashMap = HashMap<String, Boolean?>()

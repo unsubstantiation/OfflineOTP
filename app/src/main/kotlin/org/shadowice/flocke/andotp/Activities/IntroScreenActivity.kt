@@ -120,7 +120,7 @@ open class IntroScreenActivity : IntroActivity() {
         addSlide(SimpleSlide.Builder()
             .title(R.string.intro_slide1_title)
             .description(R.string.intro_slide1_desc)
-            .background(R.color.colorPrimary)
+            .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
             .canGoBackward(false)
             .scrollable(false)
@@ -128,7 +128,7 @@ open class IntroScreenActivity : IntroActivity() {
         )
 
         addSlide(FragmentSlide.Builder()
-            .background(R.color.colorPrimary)
+            .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
             .fragment(encryption)
             .build()
@@ -138,21 +138,21 @@ open class IntroScreenActivity : IntroActivity() {
         authentication.setSlidePos(authSlideIndex)
 
         addSlide(FragmentSlide.Builder()
-            .background(R.color.colorPrimary)
+            .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
             .fragment(authentication)
             .build()
         )
 
         addSlide(FragmentSlide.Builder()
-            .background(R.color.colorPrimary)
+            .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
             .fragment(sync)
             .build()
         )
 
         addSlide(FragmentSlide.Builder()
-            .background(R.color.colorPrimary)
+            .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
             .fragment(finished)
             .build()
@@ -632,7 +632,7 @@ open class IntroScreenActivity : IntroActivity() {
             } else {
                 warnings.visibility = View.VISIBLE
                 val animator = ObjectAnimator.ofInt(warnings, "backgroundColor",
-                    Color.TRANSPARENT, getResources().getColor(R.color.colorAccent), Color.TRANSPARENT)
+                    Color.TRANSPARENT, getResources().getColor(R.color.forest_surface_variant), Color.TRANSPARENT)
                 animator.setDuration(500)
                 animator.setRepeatCount(0)
                 animator.setInterpolator(AccelerateDecelerateInterpolator())

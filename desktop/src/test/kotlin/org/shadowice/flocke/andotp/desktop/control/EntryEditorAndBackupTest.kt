@@ -13,16 +13,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.VaultJson
+import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.CryptoPrimitives
 import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 import org.shadowice.flocke.andotp.Utilities.QrImageDecoder
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.desktop.storage.DesktopStorage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
 import java.nio.file.Files
+import java.security.GeneralSecurityException
+import java.security.MessageDigest
 import java.util.ArrayList
 import java.util.Base64
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.SecretKeySpec
 
 class EntryEditorAndBackupTest {
 
@@ -106,6 +114,36 @@ class EntryEditorAndBackupTest {
         val imported = coordinator.restoreEncrypted(password, blob)
         assertEquals(1, imported)
         assertEquals("Issuer", state.snapshot()[0].getIssuer())
+    }
+
+    @Test
+    fun headerlessPre063BackupIsRejectedWithoutChangingTheVault() {
+        val (dir, controller, state) = harness()
+        assertTrue(EntryEditor(controller, state).add(entry("Existing", "alice")))
+        val before = VaultJson.entriesToString(state.snapshot())
+        val vaultFile = File(dir, Constants.FILENAME_DATABASE)
+        val beforeBytes = vaultFile.readBytes()
+        val document = VaultJson.entriesToString(listOf(entry("Old backup", "bob")))
+
+        // This is a valid legacy SHA-256/AES-GCM frame, but its nonce starts with a plausible
+        // current-format iteration count; rejecting it must not depend only on the header guard.
+        val nonce = ByteBuffer.allocate(12).putInt(1_000).putLong(0x1020304050607080L).array()
+        val key = SecretKeySpec(MessageDigest.getInstance("SHA-256")
+            .digest(password.toByteArray(Charsets.UTF_8)), "AES")
+        val headerless = nonce + CryptoPrimitives.encrypt(key, IvParameterSpec(nonce),
+            document.toByteArray(Charsets.UTF_8))
+        assertEquals(1_000, EncryptedBackupHeader.parse(headerless).getIterations())
+        try {
+            BackupCoordinator(controller, state).restoreEncrypted(password, headerless)
+            throw AssertionError("headerless backup accepted")
+        } catch (expected: GeneralSecurityException) {
+            // Authentication as a current-format backup must fail; there is no legacy fallback.
+        }
+
+        assertEquals(before, VaultJson.entriesToString(state.snapshot()))
+        assertTrue("a failed restore rewrote the vault", beforeBytes.contentEquals(vaultFile.readBytes()))
+        val reopened = controller.openVault(password) as VaultController.Session.Loaded
+        assertEquals(before, VaultJson.entriesToString(reopened.entries))
     }
 
     @Test

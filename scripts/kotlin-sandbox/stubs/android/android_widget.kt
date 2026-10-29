@@ -119,6 +119,10 @@ open class TextView : View() {
         hint = "res:$resource"
     }
 
+    /** Compile-only text colors; the stand-in does not resolve Android theme attributes. */
+    val currentTextColor: Int get() = textColorValue
+    val currentHintTextColor: Int get() = 0
+
     /** The platform colours the text through a colour state list. */
     fun getTextColors(): ColorStateList = ColorStateList(textColorValue)
 
@@ -129,6 +133,11 @@ open class TextView : View() {
 
     fun addTextChangedListener(watcher: TextWatcher) {
         textWatchers.add(watcher)
+    }
+
+    /** Deliver the callback explicitly in host tests; setText does not emulate platform events. */
+    fun dispatchAfterTextChanged() {
+        textWatchers.forEach { it.afterTextChanged(text as? Editable) }
     }
 
     /** Records the listener; the editor-action checks call the converted helper directly. */
@@ -343,6 +352,9 @@ open class FrameLayout(context: Context) : android.view.ViewGroup() {
     }
 }
 
+/** Recording-only scroll container; real measuring, clipping and touch dispatch need a device. */
+open class ScrollView(context: Context) : android.view.ViewGroup()
+
 /** Inert linear layout; the converted about screens only look children up and add extras. */
 open class LinearLayout(context: Context) : android.view.ViewGroup() {
     /** The orientation of the layout. */
@@ -416,4 +428,6 @@ open class Spinner(context: Context) : AdapterView<Any?>() {
 
     fun getSelectedItem(): Any? = adapter?.getItem(selectedItemPosition)
 
+    /** The device test inspects the platform popup drawable; no popup is rendered here. */
+    fun getPopupBackground(): android.graphics.drawable.Drawable? = null
 }

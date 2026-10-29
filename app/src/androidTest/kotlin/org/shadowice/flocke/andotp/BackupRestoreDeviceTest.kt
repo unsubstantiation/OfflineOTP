@@ -4,8 +4,8 @@
  * On-device restore coverage for the two backup reports in issue #39:
  *
  *  - #376 "Cannot restore encrypted backup": the current [iteration][salt][nonce+ciphertext]
- *    frame is decoded through the task that the backup screen runs, with distinct outcomes for a
- *    wrong password, a truncated document and a missing document.
+ *    frame is decoded through the task that the backup screen runs; wrong passwords, truncated
+ *    documents, missing documents, and pre-0.6.3 headerless backups are rejected.
  *  - #976 "Cannot restore Plain-text backup": a legacy unencrypted JSON document is read through
  *    the bounded document reader and the strict UTF-8 decoder, and malformed input is refused.
  *
@@ -37,13 +37,16 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.VaultJson
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import java.io.File
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import javax.crypto.spec.IvParameterSpec
 
 @RunWith(AndroidJUnit4::class)
 class BackupRestoreDeviceTest {
@@ -156,6 +159,26 @@ class BackupRestoreDeviceTest {
             assertTrue("the current encrypted backup was not restored", result.success)
             assertEquals(document, result.payload)
             assertEquals(BackupTaskResult.ResultType.RESTORE, result.resultType)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
+    fun aHeaderlessPre063EncryptedBackupIsRejected() {
+        // A valid old SHA-256/AES-GCM frame with a nonce that also looks like a current header.
+        val nonce = ByteBuffer.allocate(12).putInt(1_000).putLong(0x1020304050607080L).array()
+        val key = EncryptionHelper.generateSymmetricKey(MessageDigest.getInstance("SHA-256")
+            .digest(PASSWORD.toByteArray(StandardCharsets.UTF_8)))
+        val headerless = nonce + EncryptionHelper.encrypt(key, IvParameterSpec(nonce),
+            document.toByteArray(StandardCharsets.UTF_8))
+        assertEquals(1_000, EncryptedBackupHeader.parse(headerless).getIterations())
+        val file = writeDocument(headerless)
+        try {
+            val result = restoreEncrypted(file, PASSWORD)
+            assertFalse("a headerless backup was accepted", result.success)
+            assertTrue(result.payload == null)
+            assertEquals(R.string.backup_toast_import_decryption_failed, result.messageId)
         } finally {
             file.delete()
         }

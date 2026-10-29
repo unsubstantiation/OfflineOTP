@@ -59,6 +59,9 @@ class AlertDialog private constructor() : DialogInterface {
 
     fun getButton(which: Int): android.widget.Button? = buttons[which]
 
+    /** Compile-only dialog lookup; the actual platform searches the dialog window. */
+    fun <T : View> findViewById(id: Int): T? = contentView?.findViewById(id)
+
     companion object {
         const val BUTTON_POSITIVE = -1
         const val BUTTON_NEGATIVE = -2
@@ -85,12 +88,16 @@ class AlertDialog private constructor() : DialogInterface {
         cancelled = true
     }
 
+    /** Compile-only access to framework alert choice lists. */
+    fun getListView(): android.widget.ListView? = null
+
     class Builder(private val context: Context) {
         private var titleId = 0
         private var messageId = 0
         private var message: CharSequence? = null
         private var contentView: View? = null
         private var positiveListener: DialogInterface.OnClickListener? = null
+        private var hasPositiveButton = false
         private var negativeListener: DialogInterface.OnClickListener? = null
         private var neutralListener: DialogInterface.OnClickListener? = null
         private var cancelable: Boolean = true
@@ -120,11 +127,13 @@ class AlertDialog private constructor() : DialogInterface {
 
         fun setPositiveButton(textId: Int, listener: DialogInterface.OnClickListener?): Builder {
             this.positiveListener = listener
+            hasPositiveButton = true
             return this
         }
 
         fun setPositiveButton(text: CharSequence?, listener: DialogInterface.OnClickListener?): Builder {
             this.positiveListener = listener
+            hasPositiveButton = true
             return this
         }
 
@@ -170,6 +179,7 @@ class AlertDialog private constructor() : DialogInterface {
             dialog.message = message
             dialog.contentView = contentView
             dialog.positiveButtonListener = positiveListener
+            if (hasPositiveButton) dialog.buttons[BUTTON_POSITIVE] = android.widget.Button(context)
             dialog.negativeButtonListener = negativeListener
             dialog.neutralButtonListener = neutralListener
             dialog.cancelable = cancelable

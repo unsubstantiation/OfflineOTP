@@ -163,7 +163,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         }
     }
 
-    /** Fills the card with the entry's token, labels, tags and counter.
+    /** Fills the card with its issuer and label, and protected details when visible.
      *  The caller-owned [Settings] is supplied by the adapter to avoid creating a fresh
      *  instance (and its migration check) on every bind. */
     fun updateValues(entry: Entry, settings: Settings) {
@@ -175,7 +175,6 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         if (!detailsVisible) {
             progressAnimator?.cancel()
             progressAnimator = null
-            label.setText(entry.privacyTitle())
             value.setText("")
             value.tag = null
             valuePrev.setText("")
@@ -191,8 +190,11 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             customPeriodLayout.visibility = View.GONE
             thumbnailFrame.visibility = View.GONE
             progressBar.visibility = View.GONE
-            return
         }
+        // Clear recycled sensitive state before reading preferences to format the public identity.
+        bindIdentity(entry, settings)
+        if (!detailsVisible) return
+
         // Recycled holders may previously have displayed a hidden entry.
         valueLayout.visibility = if (!tapToReveal || entry.isVisible()) View.VISIBLE else View.GONE
         coverLayout.visibility = if (tapToReveal && !entry.isVisible()) View.VISIBLE else View.GONE
@@ -218,44 +220,6 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             entry.isSshKey() -> context.getString(R.string.ssh_key_hidden)
             else -> Tools.formatToken(entry.getCurrentOTP(), settings.getTokenSplitGroupSize())
         }
-
-        val issuerText = entry.getIssuer()
-        val labelText = entry.getLabel()
-
-        var contentHint = ""
-
-        val labelBuilder = SpannableStringBuilder()
-
-        if (!TextUtils.isEmpty(issuerText) && !settings.isHideIssuerEnabled()) {
-            labelBuilder.append(issuerText)
-
-            labelBuilder.setSpan(StyleSpan(Typeface.BOLD), 0, issuerText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
-
-            contentHint = issuerText
-        }
-
-        if (!TextUtils.isEmpty(issuerText) && !TextUtils.isEmpty(labelText) && !settings.isHideIssuerEnabled()) {
-            var separatorText = " - " //   = non-breaking space
-
-            if (settings.getCardLayout() == Constants.CardLayouts.FULL)
-                separatorText = "\n"
-
-            labelBuilder.append(separatorText)
-
-            contentHint = issuerText + " - " + labelText
-        }
-
-        if (!TextUtils.isEmpty(labelText)) {
-            labelBuilder.append(labelText)
-
-            if (TextUtils.isEmpty(issuerText) || settings.isHideIssuerEnabled())
-                contentHint = labelText
-        }
-
-        label.setText(labelBuilder)
-
-        copyButton.contentDescription = context.getString(R.string.button_card_copy_format, contentHint)
-        menuButton.contentDescription = context.getString(R.string.button_card_options_format, contentHint)
 
         value.setText(tokenFormatted)
         // save the unformatted token to the tag of this TextView for copy/paste
@@ -293,7 +257,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         val thumbnailSize = settings.getThumbnailSize()
         if (settings.getThumbnailVisible()) {
             thumbnailImg.setImageBitmap(
-                EntryThumbnail.getThumbnailGraphic(context, issuerText, labelText, thumbnailSize,
+                EntryThumbnail.getThumbnailGraphic(context, entry.getIssuer(), entry.getLabel(), thumbnailSize,
                     EntryThumbnail.EntryThumbnails.fromName(entry.getThumbnailName())))
         }
 
@@ -317,6 +281,47 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
                 coverLayout.visibility = View.VISIBLE
             }
         }
+    }
+
+    /** Uses the same issuer/label formatting and Hide issuer preference in both privacy states. */
+    private fun bindIdentity(entry: Entry, settings: Settings) {
+        val issuerText = entry.getIssuer()
+        val labelText = entry.getLabel()
+        val showIssuer = !TextUtils.isEmpty(issuerText) && !settings.isHideIssuerEnabled()
+
+        var contentHint = ""
+        val labelBuilder = SpannableStringBuilder()
+
+        if (showIssuer) {
+            labelBuilder.append(issuerText)
+
+            labelBuilder.setSpan(StyleSpan(Typeface.BOLD), 0, issuerText.length, Spannable.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+            contentHint = issuerText
+        }
+
+        if (showIssuer && !TextUtils.isEmpty(labelText)) {
+            var separatorText = " - " //   = non-breaking space
+
+            if (settings.getCardLayout() == Constants.CardLayouts.FULL)
+                separatorText = "\n"
+
+            labelBuilder.append(separatorText)
+
+            contentHint = issuerText + " - " + labelText
+        }
+
+        if (!TextUtils.isEmpty(labelText)) {
+            labelBuilder.append(labelText)
+
+            if (!showIssuer)
+                contentHint = labelText
+        }
+
+        label.setText(labelBuilder)
+
+        copyButton.contentDescription = context.getString(R.string.button_card_copy_format, contentHint)
+        menuButton.contentDescription = context.getString(R.string.button_card_options_format, contentHint)
     }
 
     /** Compatibility overload for callers that do not own a Settings instance. */

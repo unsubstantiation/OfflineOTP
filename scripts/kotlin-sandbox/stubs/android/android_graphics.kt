@@ -34,6 +34,9 @@ class Bitmap(private val width: Int = 1, private val height: Int = 1, private va
     fun getWidth(): Int = width
     fun getHeight(): Int = height
     fun isRecycled(): Boolean = recycled
+    /** No pixels are rendered by the sandbox; the instrumentation suite requires a device. */
+    fun getPixel(x: Int, y: Int): Int = 0
+
     fun recycle() {
         recycled = true
     }

@@ -16,6 +16,8 @@ class AssetManager {
 open class Resources {
     fun obtainTypedArray(id: Int): TypedArray = TypedArray()
     fun getValue(id: Int, value: android.util.TypedValue, resolveRefs: Boolean) {}
+    /** Compile-only name lookup; no Android resource table is loaded in the sandbox. */
+    fun getIdentifier(name: String, defType: String, defPackage: String): Int = 0
 
     /** Resolves to the id itself so checks can tell which dimension was read. */
     fun getDimensionPixelSize(id: Int): Int = id

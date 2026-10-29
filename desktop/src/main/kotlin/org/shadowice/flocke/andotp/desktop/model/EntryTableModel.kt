@@ -37,7 +37,8 @@ class EntryTableModel(
         val entry = presentation.get(rowIndex)
         val column = columnAt(columnIndex)
         if (column == Column.SHOW) return entry.areDetailsVisible()
-        if (!entry.areDetailsVisible()) return if (column == Column.LABEL) entry.privacyTitle() else ""
+        // Issuer and label identify a hidden entry; type and token remain redacted.
+        if (!entry.areDetailsVisible() && (column == Column.TYPE || column == Column.TOKEN)) return ""
         return when (column) {
             Column.ISSUER -> entry.getIssuer()
             Column.LABEL -> entry.getLabel()
@@ -70,6 +71,11 @@ class EntryTableModel(
     /** Re-reads the projection after a sort/search/refresh and notifies any bound [javax.swing.JTable]. */
     fun refresh() {
         fireTableDataChanged()
+    }
+
+    /** A timer tick updates cached values only; do not clear the user's row selection every second. */
+    fun refreshValues() {
+        if (rowCount > 0) fireTableRowsUpdated(0, rowCount - 1)
     }
 
     private fun columnAt(column: Int): Column = Column.entries[column]

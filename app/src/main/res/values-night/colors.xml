@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- SpeedDial supplies its own night-qualified defaults, which otherwise win over the
+         app's unqualified overrides when Android is in night mode. -->
+    <color name="sd_label_text_color">@color/forest_text_primary</color>
+    <color name="sd_label_background_color">@color/forest_surface_elevated</color>
+</resources>

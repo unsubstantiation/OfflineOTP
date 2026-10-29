@@ -485,7 +485,7 @@ open class Entry {
     fun areDetailsVisible(): Boolean = detailsVisible
     fun setDetailsVisible(value: Boolean) { detailsVisible = value }
 
-    /** Title shown when all other fields are concealed. */
+    /** A single short identity, preferring the label and falling back to the issuer. */
     fun privacyTitle(): String = label.ifBlank { issuer }
 
     fun isVisible(): Boolean = visible
