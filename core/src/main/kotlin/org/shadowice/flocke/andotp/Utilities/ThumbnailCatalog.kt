@@ -435,7 +435,53 @@ object ThumbnailCatalog {
         "Surfshark",
         "MyAnimeList",
         "FetLife",
-        "TeamPasswordManager"
+        "TeamPasswordManager",
+        "Oracle",
+        "Veeqo",
+        "Netcup",
+        "Netlify",
+        "PhpMyAdmin",
+        "GoogleCloud",
+        "AlibabaCloud",
+        "Vercel",
+        "Render",
+        "Akamai",
+        "FlyIo",
+        "Railway",
+        "Supabase",
+        "Firebase",
+        "Chase",
+        "BankOfAmerica",
+        "WellsFargo",
+        "AmericanExpress",
+        "HSBC",
+        "Revolut",
+        "Monzo",
+        "N26",
+        "Wise",
+        "Barclays",
+        "Verizon",
+        "Vodafone",
+        "Orange",
+        "DeutscheTelekom",
+        "Notion",
+        "Jira",
+        "Shopify",
+        "Fiverr",
+        "HubSpot",
+        "ClickUp",
+        "Linear",
+        "Datadog",
+        "PagerDuty",
+        "RiotGames",
+        "GOG",
+        "Fortnite",
+        "Enpass",
+        "KeePassXC",
+        "NordVPN",
+        "ExpressVPN",
+        "Mullvad",
+        "Tailscale"
     )
 
     /** Stored-name lookup, tolerating an unknown or null name by falling back to [DEFAULT_NAME]. */
@@ -444,11 +490,42 @@ object ThumbnailCatalog {
 
     /** Exact name, then first whole-word match in declaration order, then the default. */
     @JvmStatic
-    fun resolveName(issuer: String): String = exactName(issuer) ?: fuzzyName(issuer) ?: DEFAULT_NAME
+    fun resolveName(issuer: String): String =
+        exactName(issuer) ?: aliasName(issuer) ?: fuzzyName(issuer) ?: DEFAULT_NAME
 
-    /** Exact name lookup ignoring case (not whitespace). Mirrors the enum helper of the same intent. */
-    private fun exactName(value: String?): String? =
-        NAMES.firstOrNull { it.equals(value, ignoreCase = true) }
+    /**
+     * Issuer spellings that are the same brand but share no spelling with the persisted name, so
+     * neither the exact nor the whole-word match finds them. Keep this list to unambiguous
+     * abbreviations and renames; everything else is handled by [exactName]'s punctuation folding.
+     */
+    private val ALIASES: Map<String, String> = mapOf(
+        "1password" to "OnePassword",
+        "aws" to "AmazonWebServices",
+        "azure" to "Microsoft",
+        "microsoftazure" to "Microsoft",
+        "gcp" to "GoogleCloud",
+        "do" to "DigitalOcean",
+        "tuta" to "Tutanota",
+    )
+
+    /**
+     * Exact lookup ignoring case *and* punctuation/spacing, then the [ALIASES] table. Folding
+     * punctuation is what lets the brand spelling match the persisted name: issuers say
+     * "Login.gov", "Battle.net", "GOV.UK" and "T-Mobile", while the catalog stores `LoginGov`,
+     * `BattleNet`, `GovUK` and (for the new brands) `TMobile`-free names.
+     */
+    private fun exactName(value: String?): String? {
+        if (value == null) return null
+        NAMES.firstOrNull { it.equals(value, ignoreCase = true) }?.let { return it }
+        val folded = fold(value)
+        if (folded.isEmpty()) return null
+        return NAMES.firstOrNull { fold(it) == folded }
+    }
+
+    private fun aliasName(value: String): String? = ALIASES[fold(value)]
+
+    /** Lowercase letters and digits only, so punctuation and spacing cannot break a match. */
+    private fun fold(value: String): String = value.lowercase().filter { it.isLetterOrDigit() }
 
     /** First whole-word match, ignoring case, in declaration order. */
     private fun fuzzyName(value: String): String? {

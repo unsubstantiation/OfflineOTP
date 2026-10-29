@@ -28,6 +28,21 @@ installation additionally requires the same signing key.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
 - Search the whole vault or filter by tags, and see per-tag entry counts. Clearing a search restores the selected tag filter. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
+- Show a bundled brand logo per account, resolved from the issuer name and editable per entry; unknown issuers get a letter tile.
+
+## Brand logos
+
+Each account shows a logo chosen from its issuer name when the app creates or imports it. A match
+ignores capitalisation, punctuation and spacing, so `Login.gov`, `login.gov`, `GOV.UK` and
+`digital ocean` reach the same marks as `LoginGov`, `GovUK` and `DigitalOcean`, and a few
+unambiguous abbreviations are recognised (`AWS`, `Azure`, `GCP`, `1Password`, `Tuta`). Other
+issuers show a letter tile until you pick a logo from the entry's **Edit** menu. Saving an edit
+re-resolves the logo from the issuer name, so a hand-picked logo for an unknown brand returns to
+the letter tile.
+
+The marks are bundled from Simple Icons and similar CC0/public-domain collections, with the source
+noted in each `app/src/main/res/drawable/thumb_*.xml` file. Every brand remains the trademark of
+its owner; the logos identify the service an account belongs to and imply no endorsement.
 
 ## Hardware keys (experimental)
 

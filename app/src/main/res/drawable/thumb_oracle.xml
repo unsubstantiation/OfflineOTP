@@ -1,0 +1,19 @@
+<!-- Adapted from the CC0 (public domain) gilbarbara/logos "oracle" wordmark: the slanted "O"
+     glyph with its counter punched out (evenOdd), i.e. Oracle's monogram. Brand mark remains a
+     trademark of Oracle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="96"
+        android:viewportHeight="96">
+    <group
+        android:translateX="33.8822"
+        android:translateY="27.6446"
+        android:scaleX="0.659601"
+        android:scaleY="0.659601">
+        <path
+            android:fillColor="#C74634"
+            android:fillType="evenOdd"
+            android:pathData="M32.9694209,66.5590894 C14.7693798,66.5590894 9.23705556e-14,51.8266442 9.23705556e-14,33.6215597 C9.23705556e-14,15.4164336 14.7693798,0.631391222 32.9694209,0.631391222 L71.2892929,0.631391222 C89.4943774,0.631391222 104.253246,15.4164336 104.253246,33.6215597 C104.253246,51.8266442 89.4943774,66.5590894 71.2892929,66.5590894 L32.9694209,66.5590894 L32.9694209,66.5590894 Z M70.4368936,54.9309781 C82.2283308,54.9309781 91.7781116,45.4074876 91.7781116,33.6215597 C91.7781116,21.8355819 82.2283308,12.2595108 70.4368936,12.2595108 L33.8163525,12.2595108 C22.030383,12.2595108 12.4751261,21.8355819 12.4751261,33.6215597 C12.4751261,45.4074876 22.030383,54.9309781 33.8163525,54.9309781 L70.4368936,54.9309781 L70.4368936,54.9309781 Z" />
+    </group>
+</vector>
