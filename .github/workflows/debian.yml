@@ -40,9 +40,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          tail -c 50000 gradle-build.log > gradle-tail.log || true
-          { echo '## Debian gradle tail'; echo '```'; cat gradle-tail.log; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" -f body="$(printf 'debian gradle tail\n```\n'; cat gradle-tail.log; printf '\n```\n')" >/dev/null || true
+          tail -c 40000 gradle-build.log | base64 -w0 > tail.b64 || true
+          printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
+          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --data-binary @body.json || true
       - name: Archive app image and checksum
         shell: bash
         run: |

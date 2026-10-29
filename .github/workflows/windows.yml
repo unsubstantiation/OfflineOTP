@@ -35,10 +35,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           if (-not (Test-Path gradle-build.log)) { exit 0 }
-          $tail = (Get-Content gradle-build.log -Tail 400) -join "`n"
-          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "## Windows gradle tail`n`n``````n$tail`n``````"
-          @{ body = "windows gradle tail`n```n$tail`n```" } | ConvertTo-Json | Out-File -Encoding utf8 body.json
-          gh api -X POST "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" --input body.json
+          $tail = (Get-Content gradle-build.log -Tail 400 -Encoding UTF8) -join "`n"
+          $b64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($tail))
+          [IO.File]::WriteAllText("$PWD/body.json", '{"body":"' + $b64 + '"}')
+          curl.exe -sS -X POST -H "Authorization: Bearer $env:GH_TOKEN" -H "Accept: application/vnd.github+json" --data-binary "@body.json" "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
       - name: Archive app image and checksum
         shell: pwsh
         run: |
