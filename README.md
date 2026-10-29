@@ -266,6 +266,11 @@ Download their artifacts from the workflow run: an F-Droid debug APK, a Windows 
 and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
 signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
 
+Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
+clients build for JVM 11 because the embedded PGPainless 2.x engine declares a JVM 11 requirement,
+and the Android USB/NFC transport stays on YubiKit 3.1.0 because 3.2.x targets `compileSdk 37`
+while AGP 8.13.2 supports 36; the JVM YubiKit modules remain on 3.2.1.
+
 The APK uses the runner's ephemeral debug key and the `.dev` application ID. Different runs can
 have different signing keys, so updating may require uninstalling the previous debug build, which
 erases its vault. Export and verify a portable backup first. Desktop app images are unsigned,

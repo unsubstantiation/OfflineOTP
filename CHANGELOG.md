@@ -4,6 +4,8 @@
 
  * Build: Add separate Android debug, Windows and Debian app-image GitHub workflows with downloadable artifacts and checksums
 
+ * Build: Make those workflows build end to end: hold the YubiKit Android transport at 3.1.0 (`compileSdk 36`), build the desktop client for JVM 11 (PGPainless 2.x), use YubiKit's javax-free `PcscManager()` constructor (`java.smartcardio` is not a `java.se` module), and install `binutils` so jpackage can link the Debian app image
+
  * Feature: Remember per-entry hide/reveal choices for OTPs, notes and SSH keys on Android and desktop; entries default to hidden, and encrypted backups retain the choice
 
  * Feature: Store SSH public and/or private key text in one encrypted Android or desktop vault entry, with separate copy choices and encrypted-backup support; older releases cannot read these entries

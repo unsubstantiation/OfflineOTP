@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   build:
@@ -19,7 +18,7 @@ jobs:
       - name: Install build prerequisites
         run: |
           apt-get update
-          # binutils: jpackage's jlink step strips native libraries with objcopy, which is absent
+          # binutils: jpackage's jlink step strips native libraries with objcopy, which is missing
           # from debian:bookworm-slim and otherwise fails the app-image build.
           apt-get install -y --no-install-recommends ca-certificates curl git unzip zip binutils libstdc++6 \
             libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1
@@ -31,36 +30,9 @@ jobs:
       - name: Build Debian app image
         shell: bash
         run: |
-          set -o pipefail
-          set -u
-          ./gradlew --no-daemon --console=plain :desktop:packageDesktop 2>&1 | tee gradle-build.log
-          status=$?
+          set -euo pipefail
+          ./gradlew --no-daemon :desktop:packageDesktop
           test -x desktop/build/release/OfflineOTP/bin/OfflineOTP
-      - name: Probe JDK
-        if: failure()
-        shell: bash
-        run: |
-          {
-            java --describe-module java.se 2>&1 | grep -iE "smartcard|requires transitive" | head -5
-            DJ=$(find / -name 'desktop-3.2.1.jar' 2>/dev/null | head -1)
-            javap -classpath "$DJ" 'com.yubico.yubikit.desktop.pcsc.PcscManager$PcscDevices' 2>&1 | head -10
-          } > probe.txt 2>&1 || true
-          grep -v -E '^[[:space:]]+at ' probe.txt | tail -c 4000 | base64 -w0 > tail.b64
-          printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
-          curl -sS -X POST -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-            --data-binary @body.json || true
-      - name: Report Gradle failure
-        if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          grep -v -E '^[[:space:]]+at ' gradle-build.log | tail -c 20000 | base64 -w0 > tail.b64 || true
-          printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
-          curl -sS -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
-            --data-binary @body.json || true
       - name: Archive app image and checksum
         shell: bash
         run: |
