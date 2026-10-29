@@ -21,7 +21,15 @@ TOKEN_FORMAT_FILE = CORE_UTIL / "TokenFormat.kt"
 def enum_constant_names():
     text = ENUM_FILE.read_text(encoding="utf-8")
     block = re.search(r"enum class EntryThumbnails.*?\{(.*?)\n        \}", text, re.S).group(1)
-    return re.findall(r"^\s*([A-Z][A-Za-z0-9_]*)\(R\.", block, re.M)
+    # Deliberately matches a lowercase first letter too: three constants were once declared as
+    # `netcup`, `netlify` and `phpMyAdmin`, which every [A-Z]-anchored guard silently skipped.
+    return re.findall(r"^\s*([A-Za-z][A-Za-z0-9_]*)\(R\.", block, re.M)
+
+
+def referenced_drawables():
+    text = ENUM_FILE.read_text(encoding="utf-8")
+    block = re.search(r"enum class EntryThumbnails.*?\{(.*?)\n        \}", text, re.S).group(1)
+    return re.findall(r"R\.drawable\.([a-z0-9_]+)", block)
 
 
 def catalog_names():
@@ -31,6 +39,18 @@ def catalog_names():
 
 
 class ThumbnailCatalogTest(unittest.TestCase):
+    def test_enum_constants_are_pascal_case(self):
+        lowercased = [name for name in enum_constant_names() if not name[0].isupper()]
+        self.assertEqual([], lowercased,
+                         "enum constant names are persisted in vaults via ThumbnailCatalog; a "
+                         "lowercase name cannot match its catalog entry")
+
+    def test_every_thumbnail_drawable_is_reachable(self):
+        referenced = set(referenced_drawables())
+        bundled = {path.stem for path in (ROOT / "app/src/main/res/drawable").glob("thumb_*.xml")}
+        self.assertEqual(set(), bundled - referenced,
+                         "thumb_* drawables that no enum constant can select")
+
     def test_catalog_matches_the_resource_enum_in_order(self):
         enum_names = enum_constant_names()
         catalog = catalog_names()

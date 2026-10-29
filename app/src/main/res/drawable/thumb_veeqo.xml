@@ -1,0 +1,21 @@
+<!-- Veeqo badge: the rounded-square "V" mark from Veeqo's lockup, re-drawn dark-on-light so it
+     stays legible in a small square tile. Shape derived from the veeqo.svg in the Apache-2.0
+     aden-hive/hive repository; the Veeqo brand mark remains a trademark of Veeqo Ltd. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+        android:width="200dp"
+        android:height="200dp"
+        android:viewportWidth="96"
+        android:viewportHeight="96">
+    <group
+        android:translateX="19.4400"
+        android:translateY="19.6400"
+        android:scaleX="0.397219"
+        android:scaleY="0.397219">
+        <path
+            android:fillColor="#2E3A43"
+            android:pathData="M 157.9,0.5 L 44.900000000000006,0.5 C 20.5,0.5 0.7,20.3 0.7,44.7 L 0.7,157.7 C 0.7,182.1 20.5,201.89999999999998 44.900000000000006,201.89999999999998 L 157.9,201.89999999999998 C 182.3,201.89999999999998 202.10000000000002,182.09999999999997 202.10000000000002,157.7 L 202.10000000000002,44.69999999999999 C 202.10000000000002,20.29999999999999 182.3,0.4999999999999858 157.90000000000003,0.4999999999999858" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M 163.20000000000005,144.3 C 163.20000000000005,151.20000000000002 154.90000000000003,154.60000000000002 150.10000000000005,149.70000000000002 L 52.8,52.5 C 48.0,47.7 51.4,39.4 58.199999999999996,39.4 L 151.7,39.4 C 158.0,39.4 163.1,44.5 163.1,50.8 L 163.1,144.3 L 163.20000000000005,144.3" />
+    </group>
+</vector>

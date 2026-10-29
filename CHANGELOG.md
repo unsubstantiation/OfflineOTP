@@ -8,6 +8,12 @@
 
  * Build: Make those workflows build end to end: hold the YubiKit Android transport at 3.1.0 (`compileSdk 36`), build the desktop client for JVM 11 (PGPainless 2.x), use YubiKit's javax-free `PcscManager()` constructor (`java.smartcardio` is not a `java.se` module), and install `binutils` so jpackage can link the Debian app image
 
+ * Feature: Add 46 brand logos (Oracle, Veeqo, cloud, banking, telecom, SaaS, gaming, password-manager and VPN services), and reach three logos that shipped without an enum entry
+
+ * Bugfix: Match a brand logo for issuer spellings that differ only in punctuation or spacing, so "Login.gov", "login.gov", "GOV.UK", "Battle.net", "digital ocean" and similar resolve to their icon instead of the letter tile; add a small alias table for unambiguous abbreviations (AWS, Azure, GCP, 1Password, Tuta)
+
+ * Bugfix: Give Netcup, Netlify and phpMyAdmin capitals in their thumbnail names; the lowercase declarations never matched the persisted catalog names, so no entry could select those logos
+
  * Feature: Remember per-entry hide/reveal choices for OTPs, notes and SSH keys on Android and desktop; entries default to hidden, and encrypted backups retain the choice
 
  * Feature: Store SSH public and/or private key text in one encrypted Android or desktop vault entry, with separate copy choices and encrypted-backup support; older releases cannot read these entries
