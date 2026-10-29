@@ -34,6 +34,23 @@ jobs:
           ./gradlew --no-daemon --console=plain :desktop:packageDesktop 2>&1 | tee gradle-build.log
           status=$?
           test -x desktop/build/release/OfflineOTP/bin/OfflineOTP
+      - name: Probe JDK
+        if: failure()
+        shell: bash
+        run: |
+          {
+            java -version 2>&1
+            java --list-modules 2>&1 | grep -i smartcard || echo NO_SMARTCARD_MODULE
+            printf 'public class T { Object o = javax.smartcardio.TerminalFactory.getDefault(); }\n' > T.java
+            javac -d /tmp/o1 T.java && echo JAVAC_PLAIN_OK || echo JAVAC_PLAIN_FAIL
+            javac --release 11 -d /tmp/o2 T.java && echo JAVAC_RELEASE11_OK || echo JAVAC_RELEASE11_FAIL
+            ./gradlew --no-daemon --console=plain :desktop:compileKotlin --info 2>&1               | grep -i -E "jdk-release|jvm-target|jdk-home|jdkhome|smartcard|error:" | head -40
+          } > probe.txt 2>&1 || true
+          grep -v -E '^[[:space:]]+at ' probe.txt | tail -c 20000 | base64 -w0 > tail.b64
+          printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
+          curl -sS -X POST -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+            --data-binary @body.json || true
       - name: Report Gradle failure
         if: failure()
         shell: bash
