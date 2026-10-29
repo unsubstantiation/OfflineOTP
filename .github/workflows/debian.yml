@@ -39,18 +39,27 @@ jobs:
         shell: bash
         run: |
           {
-            echo "=== list modules"
-            java --list-modules 2>&1 | grep -E "java\.se|smartcard|java\.desktop" || true
-            echo "=== kotlin args"
-            ./gradlew --no-daemon --console=plain :desktop:compileKotlin --info 2>&1 \
-              | grep -E "^\[KOTLIN\]|jdk-release|jvm-target|no-jdk" | head -40
-            echo "=== yubikit desktop jar"
-            JAR=$(find ~/.gradle/caches -name 'desktop-3.2.1.jar' 2>/dev/null | head -1)
-            echo "$JAR"
-            unzip -l "$JAR" 2>/dev/null | grep -E "module-info|pcsc" | head -20
-            javap -classpath "$JAR" com.yubico.yubikit.desktop.pcsc.PcscManager 2>&1 | head -20
-            echo "=== compile a kotlin-free check of the toolchain"
-            ls /__t/Java_Temurin-Hotspot_jdk/17.0.21-9/x64/jmods 2>/dev/null | head -5 || echo NO_JMODS
+            export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")}"
+            echo "JAVA_HOME=$JAVA_HOME"
+            KC=$(find / -name 'kotlin-compiler-embeddable-*.jar' 2>/dev/null | head -1)
+            STD=$(find / -name 'kotlin-stdlib-2*.jar' 2>/dev/null | head -1)
+            echo "KC=$KC"; echo "STD=$STD"
+            mkdir -p /tmp/kt && cat > /tmp/kt/T.kt <<'EOF'
+          import javax.smartcardio.TerminalFactory
+          class T { fun f() = TerminalFactory.getDefault() }
+          EOF
+            for opts in "" "-jdk-release 11" "-jvm-target 17"; do
+              echo "== opts: [$opts]"
+              java -cp "$KC" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -jdk-home "$JAVA_HOME" $opts \
+                -classpath "$STD" /tmp/kt/T.kt -d /tmp/kt/out 2>&1 | tail -4
+            done
+            echo "== what the gradle kotlin task passes"
+            ./gradlew --no-daemon --console=plain :desktop:compileKotlin --debug 2>&1 \
+              | grep -oE "\-(Xjdk-release|jvm-target|jdk-home|no-jdk)[= ][^ ,\"]*" | sort | uniq -c | head -20
+            echo "== yubikit desktop jar"
+            DJ=$(find / -name 'desktop-3.2.1.jar' 2>/dev/null | head -1)
+            echo "$DJ"
+            javap -classpath "$DJ" com.yubico.yubikit.desktop.pcsc.PcscManager 2>&1 | head -20
           } > probe.txt 2>&1 || true
           grep -v -E '^[[:space:]]+at ' probe.txt | tail -c 20000 | base64 -w0 > tail.b64
           printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
