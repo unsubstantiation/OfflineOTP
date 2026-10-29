@@ -39,29 +39,11 @@ jobs:
         shell: bash
         run: |
           {
-            export JAVA_HOME="${JAVA_HOME:-$(dirname "$(dirname "$(readlink -f "$(command -v java)")")")}"
-            echo "JAVA_HOME=$JAVA_HOME"
-            KC=$(find / -name 'kotlin-compiler-embeddable-*.jar' 2>/dev/null | head -1)
-            STD=$(find / -name 'kotlin-stdlib-2*.jar' 2>/dev/null | head -1)
-            echo "KC=$KC"; echo "STD=$STD"
-            mkdir -p /tmp/kt && cat > /tmp/kt/T.kt <<'EOF'
-          import javax.smartcardio.TerminalFactory
-          class T { fun f() = TerminalFactory.getDefault() }
-          EOF
-            for opts in "" "-jdk-release 11" "-jvm-target 17"; do
-              echo "== opts: [$opts]"
-              java -cp "$KC" org.jetbrains.kotlin.cli.jvm.K2JVMCompiler -no-stdlib -jdk-home "$JAVA_HOME" $opts \
-                -classpath "$STD" /tmp/kt/T.kt -d /tmp/kt/out 2>&1 | tail -4
-            done
-            echo "== what the gradle kotlin task passes"
-            ./gradlew --no-daemon --console=plain :desktop:compileKotlin --debug 2>&1 \
-              | grep -oE "\-(Xjdk-release|jvm-target|jdk-home|no-jdk)[= ][^ ,\"]*" | sort | uniq -c | head -20
-            echo "== yubikit desktop jar"
+            java --describe-module java.se 2>&1 | grep -iE "smartcard|requires transitive" | head -5
             DJ=$(find / -name 'desktop-3.2.1.jar' 2>/dev/null | head -1)
-            echo "$DJ"
-            javap -classpath "$DJ" com.yubico.yubikit.desktop.pcsc.PcscManager 2>&1 | head -20
+            javap -classpath "$DJ" 'com.yubico.yubikit.desktop.pcsc.PcscManager$PcscDevices' 2>&1 | head -10
           } > probe.txt 2>&1 || true
-          grep -v -E '^[[:space:]]+at ' probe.txt | tail -c 20000 | base64 -w0 > tail.b64
+          grep -v -E '^[[:space:]]+at ' probe.txt | tail -c 4000 | base64 -w0 > tail.b64
           printf '{"body":"%s"}' "$(cat tail.b64)" > body.json
           curl -sS -X POST -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
