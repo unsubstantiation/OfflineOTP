@@ -4022,9 +4022,9 @@ fun main() {
         expect(constructorParameters(AuthenticationTask::class.java, 4) ==
                 listOf(Context::class.java, BOOLEAN_TYPE, String::class.java, String::class.java),
                 { "AuthenticationTask(Context,boolean,String,String) changed" })
-        expect(constructorParameters(EncryptedRestoreTask::class.java, 4) ==
-                listOf(Context::class.java, Uri::class.java, String::class.java, BOOLEAN_TYPE),
-                { "EncryptedRestoreTask(Context,Uri,String,boolean) changed" })
+        expect(constructorParameters(EncryptedRestoreTask::class.java, 3) ==
+                listOf(Context::class.java, Uri::class.java, String::class.java),
+                { "EncryptedRestoreTask(Context,Uri,String) changed" })
         expect(constructorParameters(PGPRestoreTask::class.java, 3) ==
                 listOf(Context::class.java, Uri::class.java, Intent::class.java),
                 { "PGPRestoreTask(Context,Uri,Intent) changed" })
@@ -4114,12 +4114,7 @@ fun main() {
                 { "the minimum accepted backup parameters were rejected" })
     }
 
-    check("legacy SHA-256 key derivation and raw byte wrapping are unchanged") {
-        expect(hex(EncryptionHelper.generateSymmetricKeyFromPassword("").encoded) ==
-                "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", { "SHA-256 empty-password key" })
-        expect(hex(EncryptionHelper.generateSymmetricKeyFromPassword("password").encoded) ==
-                "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8", { "SHA-256 password key" })
-        expect(EncryptionHelper.generateSymmetricKeyFromPassword("password").algorithm == "AES", { "legacy key algorithm" })
+    check("raw byte key wrapping is unchanged") {
         expect(EncryptionHelper.generateSymmetricKey(ByteArray(16) { 7 }).encoded.contentEquals(ByteArray(16) { 7 }),
                 { "generateSymmetricKey must wrap the given bytes" })
     }

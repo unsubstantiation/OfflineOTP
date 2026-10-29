@@ -41,7 +41,6 @@
     <string name="backup_label_type">Тип резервной копии: </string>
     <string name="backup_label_crypt">Резервная копия будет храниться зашифрованной алгоритмом AES 256 бит с использованием указанного пользователем пароля. Вы можете установить пароль по умолчанию в настройках, если не хотите вводить его каждый раз при создании резервной копии.</string>
     <string name="backup_label_pgp">Резервная копия будет храниться в зашифрованном виде с использованием ключа PGP, который вы указали в настройках. Шифрование будет выполнять стороннее приложение.</string>
-    <string name="backup_check_restore_old">Восстановить старый формат резервной копии (созданный версией andOTP до 0.6.3)</string>
     <string name="backup_button_backup">Создать копию</string>
     <string name="backup_button_restore">Восстановить из копии</string>
     <string-array name="backup_list_type_names">

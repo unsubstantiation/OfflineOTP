@@ -36,7 +36,6 @@ Broadcast Backup پشتیبانی نمی‌شود</string>
     <string name="backup_label_type">نوع پشتیبان: </string>
     <string name="backup_label_crypt">پشتیبان به صورت رمزگذاری شده با یک رمز عبور شخصی با استفاده از رمزگذاری ۲۵۶-بیتی AES ذخیره می‌شود. اگر نمی‌خواهید که هر بار برای پشتیبان‌گیری رمزعبور را وارد کنید، می‌توانید یک رمز عبور پیشفرض در تنظیمات قرار دهید.</string>
     <string name="backup_label_pgp">پشتیبان به صورت رمزگذاری شده با یک کلید PGP ذخیره می‌شود که شما در تنظیمات قراردادید. رمزگذاری با استفاده از یک برنامه خارجی انجام می‌شود.</string>
-    <string name="backup_check_restore_old">بازگردانی پشتیبان با ساختار قدیمی (ساخته شده با یک andOTP با نسخه قدیمی‌تر از ۰.۶.۳)</string>
     <string name="backup_button_backup">ساخت پشتیبان</string>
     <string name="backup_button_restore">بازگردانی پشتیبان</string>
     <string-array name="backup_list_type_names">

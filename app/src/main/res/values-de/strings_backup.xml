@@ -38,7 +38,6 @@
     <string name="backup_label_type">Sicherungstyp: </string>
     <string name="backup_label_crypt">Die Sicherung wird verschlüsselt mit einem selbst erstellten Passwort mit AES 256-bit Verschlüsselung. Sie können einen Standard Passwort einstellen wenn sie nicht möchten, denn jedes mal einzugeben bei der Sicherung.</string>
     <string name="backup_label_pgp">Die Sicherung wird mit einem PGP-Schüssel gespeichert, den sie in der Einstellung angegeben haben. Die Verschlüsselung wird von einen Drittanbieter-App benutzt.</string>
-    <string name="backup_check_restore_old">Alte Sicherungformat widerherstellen (erstellt mit der andOTP Version unter 0.6.3)</string>
     <string name="backup_button_backup">Sicherung erstellen</string>
     <string name="backup_button_restore">Sicherung wiederherstellen</string>
     <string-array name="backup_list_type_names">

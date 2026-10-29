@@ -50,8 +50,6 @@
         idazten eze ibiltzeko, ezarpenetan defektuzko pasahitz bat ezarri dezakezu.</string>
     <string name="backup_label_pgp">Babeskpopia ezarpenetan zehaztutako PGP gakoa erabiliz
         zifratuta gordeko da. Zifratzea beste aplikazio batek egingo du.</string>
-    <string name="backup_check_restore_old">Berrezarri babeskopien formatu zaharra (andOTP 0.6.3 baino
-        zaharragoarekin sortua)</string>
     <string name="backup_button_backup">Sortu babeskopia</string>
     <string name="backup_button_restore">Berrezarri babeskopia</string>
     <string-array name="backup_list_type_names">

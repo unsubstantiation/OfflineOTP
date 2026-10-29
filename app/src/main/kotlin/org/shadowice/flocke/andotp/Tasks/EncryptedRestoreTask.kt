@@ -7,8 +7,8 @@ import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
 import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
 
-/** Reads a password-encrypted backup, in the current or in the legacy format. */
-open class EncryptedRestoreTask(context: Context, uri: Uri?, private val password: String, private val oldFormat: Boolean) :
+/** Reads a password-encrypted backup. */
+open class EncryptedRestoreTask(context: Context, uri: Uri?, private val password: String) :
         GenericRestoreTask(context, uri) {
 
     protected override fun doInBackground(): BackupTaskResult {
@@ -24,9 +24,9 @@ open class EncryptedRestoreTask(context: Context, uri: Uri?, private val passwor
                 return BackupTaskResult.failure(BackupTaskResult.ResultType.RESTORE, R.string.backup_toast_import_decryption_failed)
             }
 
-            // Framing, key derivation (PBKDF2 current format; SHA-256 legacy) and AES-GCM all live
-            // in the core codec; this task only owns document loading, cancellation and results.
-            decryptedString = EncryptedBackupCodec.open(password, data, oldFormat)
+            // Framing, PBKDF2 key derivation and AES-GCM all live in the core codec; this task
+            // only owns document loading, cancellation and results.
+            decryptedString = EncryptedBackupCodec.open(password, data)
         } catch (error: Exception) {
             success = false
             error.printStackTrace()

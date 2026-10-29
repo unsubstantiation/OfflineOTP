@@ -1,9 +1,7 @@
 package org.shadowice.flocke.andotp.Utilities
 
-import java.nio.charset.StandardCharsets
 import java.security.InvalidAlgorithmParameterException
 import java.security.InvalidKeyException
-import java.security.MessageDigest
 import java.security.NoSuchAlgorithmException
 import java.security.SecureRandom
 import java.security.spec.InvalidKeySpecException
@@ -174,15 +172,6 @@ object CryptoPrimitives {
         val encrypted = Arrays.copyOfRange(cipherText, Constants.ENCRYPTION_IV_LENGTH, cipherText.size)
 
         return decrypt(secretKey, IvParameterSpec(iv), encrypted)
-    }
-
-    /** Legacy key derivation (plain SHA-256 of the password) for old-format encrypted backups. */
-    @JvmStatic
-    @Throws(NoSuchAlgorithmException::class)
-    fun generateSymmetricKeyFromPassword(password: String): SecretKey {
-        val sha = MessageDigest.getInstance("SHA-256")
-
-        return SecretKeySpec(sha.digest(password.toByteArray(StandardCharsets.UTF_8)), "AES")
     }
 
     /**

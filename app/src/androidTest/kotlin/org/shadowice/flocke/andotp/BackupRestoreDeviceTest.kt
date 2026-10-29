@@ -4,9 +4,8 @@
  * On-device restore coverage for the two backup reports in issue #39:
  *
  *  - #376 "Cannot restore encrypted backup": the current [iteration][salt][nonce+ciphertext]
- *    frame and the legacy SHA-256-keyed frame are both decoded through the task that the backup
- *    screen runs, with distinct outcomes for a wrong password, a truncated document and a missing
- *    document.
+ *    frame is decoded through the task that the backup screen runs, with distinct outcomes for a
+ *    wrong password, a truncated document and a missing document.
  *  - #976 "Cannot restore Plain-text backup": a legacy unencrypted JSON document is read through
  *    the bounded document reader and the strict UTF-8 decoder, and malformed input is refused.
  *
@@ -68,11 +67,10 @@ class BackupRestoreDeviceTest {
     @Test
     fun sharedDesktopInteropVectorsRestoreThroughAndroidTask() {
         val expected = String(golden("expected-vault.json"), StandardCharsets.UTF_8)
-        for ((name, legacy) in listOf("otp_accounts.json.aes" to false,
-                "desktop-export.json.aes" to false, "legacy-otp_accounts.json.aes" to true)) {
+        for (name in listOf("otp_accounts.json.aes", "desktop-export.json.aes")) {
             val file = writeDocument(golden(name))
             try {
-                val result = restoreEncrypted(file, "golden-interop-password", legacy)
+                val result = restoreEncrypted(file, "golden-interop-password")
                 assertTrue("shared backup did not restore: $name", result.success)
                 assertEquals(expected, result.payload)
                 val entries = VaultJson.stringToEntries(result.payload)
@@ -89,7 +87,7 @@ class BackupRestoreDeviceTest {
     fun desktopPrivacyExportRestoresChoicesThroughAndroidTask() {
         val file = writeDocument(golden("desktop-privacy-export.json.aes"))
         try {
-            val result = restoreEncrypted(file, "golden-interop-password", false)
+            val result = restoreEncrypted(file, "golden-interop-password")
             assertTrue(result.success)
             val entries = VaultJson.stringToEntries(result.payload)
             assertEquals(listOf(true, false, false, true), entries.map { it.areDetailsVisible() })
@@ -102,7 +100,7 @@ class BackupRestoreDeviceTest {
     fun desktopSshExportRestoresThroughAndroidTask() {
         val file = writeDocument(golden("desktop-ssh-export.json.aes"))
         try {
-            val result = restoreEncrypted(file, "golden-interop-password", false)
+            val result = restoreEncrypted(file, "golden-interop-password")
             assertTrue(result.success)
             val entries = VaultJson.stringToEntries(result.payload)
             assertEquals(3, entries.size)
@@ -120,7 +118,7 @@ class BackupRestoreDeviceTest {
     fun desktopNoteExportRestoresThroughAndroidTask() {
         val file = writeDocument(golden("desktop-note-export.json.aes"))
         try {
-            val result = restoreEncrypted(file, "golden-interop-password", false)
+            val result = restoreEncrypted(file, "golden-interop-password")
             assertTrue(result.success)
             val entries = VaultJson.stringToEntries(result.payload)
             assertEquals(3, entries.size)
@@ -138,7 +136,7 @@ class BackupRestoreDeviceTest {
         // Android BackupHelper and the desktop coordinator both call this codec. This checks the
         // Android crypto provider, not SAF writes or an actual desktop process.
         val encoded = EncryptedBackupCodec.seal(PASSWORD, expected)
-        val decoded = EncryptedBackupCodec.open(PASSWORD, encoded, false)
+        val decoded = EncryptedBackupCodec.open(PASSWORD, encoded)
         assertEquals(expected, decoded)
         val entries = VaultJson.stringToEntries(decoded)
         assertEquals(2, entries.size)
@@ -154,7 +152,7 @@ class BackupRestoreDeviceTest {
     fun currentEncryptedBackupIsRestored() {
         val file = writeDocument(currentEncryptedFrame(PASSWORD, document))
         try {
-            val result = restoreEncrypted(file, PASSWORD, oldFormat = false)
+            val result = restoreEncrypted(file, PASSWORD)
             assertTrue("the current encrypted backup was not restored", result.success)
             assertEquals(document, result.payload)
             assertEquals(BackupTaskResult.ResultType.RESTORE, result.resultType)
@@ -164,22 +162,10 @@ class BackupRestoreDeviceTest {
     }
 
     @Test
-    fun legacyEncryptedBackupIsRestored() {
-        val file = writeDocument(legacyEncryptedFrame(PASSWORD, document))
-        try {
-            val result = restoreEncrypted(file, PASSWORD, oldFormat = true)
-            assertTrue("the legacy encrypted backup was not restored", result.success)
-            assertEquals(document, result.payload)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
     fun aWrongPasswordIsRejected() {
         val file = writeDocument(currentEncryptedFrame(PASSWORD, document))
         try {
-            val result = restoreEncrypted(file, "not the password", oldFormat = false)
+            val result = restoreEncrypted(file, "not the password")
             assertFalse("a wrong password decrypted the backup", result.success)
             assertEquals(R.string.backup_toast_import_decryption_failed, result.messageId)
         } finally {
@@ -192,7 +178,7 @@ class BackupRestoreDeviceTest {
         val frame = currentEncryptedFrame(PASSWORD, document)
         val file = writeDocument(frame.copyOf(8))
         try {
-            val result = restoreEncrypted(file, PASSWORD, oldFormat = false)
+            val result = restoreEncrypted(file, PASSWORD)
             assertFalse("a truncated backup was accepted", result.success)
             assertEquals(R.string.backup_toast_import_decryption_failed, result.messageId)
         } finally {
@@ -203,7 +189,7 @@ class BackupRestoreDeviceTest {
     @Test
     fun aMissingDocumentFailsWithoutCrashing() {
         val missing = File(context.getCacheDir(), "issue-376-missing-${UUID.randomUUID()}.json.aes")
-        val result = restoreEncrypted(missing, PASSWORD, oldFormat = false)
+        val result = restoreEncrypted(missing, PASSWORD)
         assertFalse("a missing document reported success", result.success)
         assertEquals(R.string.backup_toast_import_decryption_failed, result.messageId)
     }
@@ -234,8 +220,8 @@ class BackupRestoreDeviceTest {
         }
     }
 
-    private fun restoreEncrypted(file: File, password: String, oldFormat: Boolean): BackupTaskResult {
-        val outcome = runTask(EncryptedRestoreTask(context, Uri.fromFile(file), password, oldFormat))
+    private fun restoreEncrypted(file: File, password: String): BackupTaskResult {
+        val outcome = runTask(EncryptedRestoreTask(context, Uri.fromFile(file), password))
         return valueOf(outcome, "encrypted restore")
     }
 
@@ -249,11 +235,6 @@ class BackupRestoreDeviceTest {
         System.arraycopy(salt, 0, data, Constants.INT_LENGTH, salt.size)
         System.arraycopy(encrypted, 0, data, Constants.INT_LENGTH + salt.size, encrypted.size)
         return data
-    }
-
-    private fun legacyEncryptedFrame(password: String, payload: String): ByteArray {
-        val key = EncryptionHelper.generateSymmetricKeyFromPassword(password)
-        return EncryptionHelper.encrypt(key, payload.toByteArray(StandardCharsets.UTF_8))
     }
 
     private fun writeDocument(bytes: ByteArray): File {

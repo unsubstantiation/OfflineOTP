@@ -49,8 +49,6 @@
         non queres ter que escribilo cada vez que fas unha copia de apoio.</string>
     <string name="backup_label_pgp">A copia de apoio vaise gardar cifrada utilizando a chave PGP que
         indiques nos axustes. O cifrado será realizado por unha app de terceiros.</string>
-    <string name="backup_check_restore_old">Restablecer copia co formato antigo (creado cunha versión andOTP
-        anterior a 0.6.3)</string>
     <string name="backup_button_backup">Crear copia de apoio</string>
     <string name="backup_button_restore">Restablecer copia de apoio</string>
     <string-array name="backup_list_type_names">

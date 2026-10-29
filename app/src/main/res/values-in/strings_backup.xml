@@ -35,7 +35,6 @@
     <string name="backup_label_type">Tipe pencadangan: </string>
     <string name="backup_label_crypt">Cadangan akan disimpan terenkripsi dengan kata sandi menggunakan enkripsi AES 256-bit. Anda bisa menentukan kata sandi baku di Pengaturan jika Anda tidak ingin memasukkannya setiap kali Anda membuat cadangan.</string>
     <string name="backup_label_pgp">Cadangan akan disimpan terenkripsi menggunakan kunci PGP (PGP key) yang Anda tentukan di Pengaturan. Enkripsi akan ditangani oleh aplikasi pihak ketiga.</string>
-    <string name="backup_check_restore_old">Mengembalikan cadangan format lama (dibuat dengan andOTP versi sebelum 0.6.3)</string>
     <string name="backup_button_backup">Membuat cadangan</string>
     <string name="backup_button_restore">Mengembalikan cadangan</string>
     <string-array name="backup_list_type_names">

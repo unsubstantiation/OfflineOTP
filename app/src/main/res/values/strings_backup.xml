@@ -62,7 +62,6 @@
     <string name="backup_label_pgp">The backup is encrypted with the OpenPGP key selected in Settings,
         using a separate OpenPGP app.</string>
 
-    <string name="backup_check_restore_old">Restore legacy andOTP backup (created before 0.6.3)</string>
 
     <string name="backup_button_backup">Create backup</string>
     <string name="backup_button_restore">Restore backup</string>

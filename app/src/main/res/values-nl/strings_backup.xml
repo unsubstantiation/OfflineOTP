@@ -35,8 +35,6 @@
     <string name="backup_label_type">Back-up type: </string>
     <string name="backup_label_crypt">De back-up wordt versleuteld opgeslagen met een aangepast wachtwoord met behulp van AES 256-bit encryptie. U kunt een standaard wachtwoord instellen in de instellingen als u het niet elke keer in wil voeren als u een back-up maakt.</string>
     <string name="backup_label_pgp">De back-up wordt versleuteld opgeslagen met behulp van de PGP-sleutel die u hebt opgegeven in de instellingen. De encryptie wordt behandeld door een app van een derde partij.</string>
-    <string name="backup_check_restore_old">Herstel back-up in oud formaat (gemaakt met een andOTP versie
-        voor 0.6.3)</string>
     <string name="backup_button_backup">Back-up maken</string>
     <string name="backup_button_restore">Back-up terugzetten</string>
     <string-array name="backup_list_type_names">

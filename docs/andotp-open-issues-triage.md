@@ -59,7 +59,7 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ⚠️ **VERIFY** — Auth flow retained; vault keys are process-memory state and locking revokes the session. Confirm the Back key can no longer skip the unlock screen.
 - **#376** — Cannot restore encrypted backup  
   _bug, help wanted_  
-  ⚠️ **VERIFY** — Restore path rewritten with distinct outcomes for missing file / missing key / auth failure / corrupt data / I/O. Test legacy encrypted backups end-to-end.
+  ⚠️ **VERIFY** — Restore path rewritten with distinct outcomes for missing file / missing key / auth failure / corrupt data / I/O. Test encrypted backups end-to-end.
 - **#406** — Crash when clicking away BitWarden safe dialog  
   _bug, help wanted, update-required_  
   ⚠️ **VERIFY** — AutoFillable views retained; obscured-touch events are now rejected on base vault activities. Retest with the BitWarden safe dialog.

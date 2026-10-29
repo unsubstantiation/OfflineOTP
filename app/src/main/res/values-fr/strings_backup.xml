@@ -40,8 +40,6 @@
         ne voulez pas avoir à le saisir chaque fois que vous créez une sauvegarde.</string>
     <string name="backup_label_pgp">La sauvegarde sera stockée chiffrée à l\'aide de la clé PGP que vous
         avez spécifiée dans les paramètres. Le chiffrement sera géré par une application tierce.</string>
-    <string name="backup_check_restore_old">Restaurer l\'ancien format de sauvegarde (créé avec une version andOTP
-        avant la 0.6.3)</string>
     <string name="backup_button_backup">Créer une sauvegarde</string>
     <string name="backup_button_restore">Restaurer une sauvegarde</string>
     <string-array name="backup_list_type_names">

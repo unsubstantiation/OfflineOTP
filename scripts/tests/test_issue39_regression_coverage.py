@@ -53,7 +53,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         crypto = read(TEST / "Utilities/EncryptionHelperTest.kt")
         sandbox = read(ROOT / "scripts/kotlin-sandbox/Checks.kt")
         self.assertIn("aesGcmUsesTheNistVector", crypto)
-        self.assertIn("encryptedBackupFrameRoundTripsCurrentAndLegacyFormats", crypto)
+        self.assertIn("encryptedBackupFrameRoundTripsCurrentFormat", crypto)
         self.assertIn("encrypted backups round-trip through the SAF writer", sandbox)
         self.assertIn("wrong passwords/tampering", sandbox)
 
@@ -178,7 +178,6 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         restore = read(ANDROID_TEST / "BackupRestoreDeviceTest.kt")
         for needle in (
             "currentEncryptedBackupIsRestored",
-            "legacyEncryptedBackupIsRestored",
             "aWrongPasswordIsRejected",
             "aTruncatedEncryptedBackupIsRejected",
             "aMissingDocumentFailsWithoutCrashing",

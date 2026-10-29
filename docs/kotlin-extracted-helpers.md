@@ -224,7 +224,7 @@ Fifteenth batch (crypto and KeyStore helpers):
   `EncryptionChangeCallback` types keep their JVM names, and every checked exception keeps its
   `@Throws` declaration.
 - The sandbox **executes** the platform-free half of `EncryptionHelper` (PBKDF2 vectors and bounds,
-  the legacy SHA-256 key, symmetric key generation, the RSA helpers, the iteration/benchmark bounds
+  symmetric key generation, the RSA helpers, the iteration/benchmark bounds
   and the GCM framing guard) and reflects the whole `KeyStoreHelper` surface. The AES-GCM provider
   calls and every AndroidKeyStore path need a device, so a new instrumentation test
   (`KotlinCryptoInteropTest`) plus the existing security suites carry them.
@@ -972,8 +972,8 @@ that matter:
 - **Formats and algorithms are untouched.** AES-GCM with the same transformation, 12-byte nonce,
   nonce-prefixed framing and 128-bit tag; RSA/ECB/PKCS1Padding wrapping through `SecretKeyWrapper`;
   PBKDF2WithHmacSHA1 with the same constants (30,000 minimum and 50,000 benchmark iterations for
-  authentication, 140,000–160,000 randomly chosen for each new backup) and the same plain SHA-256
-  derivation for the legacy backup format; the same URL-safe Base64 storage strings. Nothing in
+  authentication, 140,000–160,000 randomly chosen for each new backup); the same URL-safe Base64
+  storage strings. Nothing in
   these formats changed with the conversion.
 - **Guard order in the staged re-encryption is load-bearing and preserved:** permission and live
   session key (`VaultSession.getKey() !== oldKey`, reference identity) are checked before the vault
@@ -1205,10 +1205,10 @@ checks after the twentieth batch:
   the Python guards.
 - The converted crypto helpers: PBKDF2 derivation cross-checked against an independent
   `PBKDF2WithHmacSHA1` split and the RFC 6070 vector, both derivation bound sets with their accepted
-  boundaries, the legacy SHA-256 key against known digests, `generateSymmetricKey`, the RSA
+  boundaries, `generateSymmetricKey`, the RSA
   encrypt/decrypt helpers against a real JVM key pair, the random/iteration/benchmark bounds, and the
   framed reader's pre-provider refusal of `null` and every frame shorter than nonce plus tag. The
-  2026-10-22 issue #39 follow-up now runs the NIST AES-GCM vector plus current/legacy backup frame,
+  2026-10-22 issue #39 follow-up runs the NIST AES-GCM vector plus the current-format backup frame,
   wrong-password and tamper checks on this JDK by translating the retained `IvParameterSpec` API
   to `GCMParameterSpec(128, nonce)`. `EncryptionHelper` cannot be reflected here at all because its
   declared methods mention the Java-only `Constants.EncryptionType`; the static surface, throws

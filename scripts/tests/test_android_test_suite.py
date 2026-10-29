@@ -90,8 +90,8 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
             .read_text(encoding="utf-8")
         self.assertRegex(host_text, r"fun aesGcmUsesTheNistVector",
                          "the portable JCA NIST vector is missing from the host suite")
-        self.assertRegex(host_text, r"fun encryptedBackupFrameRoundTripsCurrentAndLegacyFormats",
-                         "current/legacy backup round trips are missing from the host suite")
+        self.assertRegex(host_text, r"fun encryptedBackupFrameRoundTripsCurrentFormat",
+                         "the current-format backup round trip is missing from the host suite")
 
         device_text = APPLICATION_TEST.read_text(encoding="utf-8")
         self.assertIn("AEADBadTagException", device_text,

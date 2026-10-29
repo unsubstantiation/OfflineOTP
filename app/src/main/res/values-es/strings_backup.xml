@@ -47,8 +47,6 @@
         no quiere tener que introducirla cada vez que cree una copia de seguridad.</string>
     <string name="backup_label_pgp">La copia de seguridad se almacenará cifrada usando la clave PGP que
         especificaste en la configuración. El cifrado será manejado por una aplicación de terceros.</string>
-    <string name="backup_check_restore_old">Restaurar antiguo formato de copia de seguridad (creado con una versión andOTP
-        anterior a 0.6.3)</string>
     <string name="backup_button_backup">Crear copia de seguridad</string>
     <string name="backup_button_restore">Restaurar copia de seguridad</string>
     <string-array name="backup_list_type_names">

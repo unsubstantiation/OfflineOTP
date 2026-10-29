@@ -7,10 +7,10 @@ import java.nio.charset.StandardCharsets
  * Password-encrypted backup framing, shared by the Android app and the desktop client so an
  * encrypted backup produced on either platform is byte-compatible.
  *
- * Current format (matching the historical writer):
+ * Format (matching the historical writer):
  * `[4-byte big-endian PBKDF2 iterations][12-byte salt][12-byte GCM nonce][ciphertext][16-byte tag]`,
- * parsed by [EncryptedBackupHeader]. The legacy format is AES-GCM data with no header and a key
- * derived as the plain SHA-256 of the password; it remains readable but is never newly written.
+ * parsed by [EncryptedBackupHeader]. The pre-0.6.3 andOTP headerless SHA-256 format is not
+ * supported.
  *
  * All key derivation and AES-GCM work is delegated to [CryptoPrimitives]; this object only owns the
  * iteration/salt selection and the byte layout. It performs no file I/O and has no Android types.
@@ -41,21 +41,16 @@ object EncryptedBackupCodec {
     }
 
     /**
-     * Decrypts a password backup. [oldFormat] selects the legacy header-less SHA-256 key path.
-     * A wrong password or tampered bytes surface as the underlying JCA exception (for example
-     * `BadPaddingException`); truncated framing throws `IllegalArgumentException`.
+     * Decrypts a password backup. A wrong password or tampered bytes surface as the underlying JCA
+     * exception (for example `BadPaddingException`); truncated framing throws
+     * `IllegalArgumentException`.
      */
     @JvmStatic
-    fun open(password: String, data: ByteArray, oldFormat: Boolean): String {
-        val decrypted = if (oldFormat) {
-            val key = CryptoPrimitives.generateSymmetricKeyFromPassword(password)
-            CryptoPrimitives.decrypt(key, data)
-        } else {
-            val header = EncryptedBackupHeader.parse(data)
-            val key = CryptoPrimitives.generateSymmetricKeyPBKDF2(
-                password, header.getIterations(), header.getSalt())
-            CryptoPrimitives.decrypt(key, header.getEncrypted())
-        }
+    fun open(password: String, data: ByteArray): String {
+        val header = EncryptedBackupHeader.parse(data)
+        val key = CryptoPrimitives.generateSymmetricKeyPBKDF2(
+            password, header.getIterations(), header.getSalt())
+        val decrypted = CryptoPrimitives.decrypt(key, header.getEncrypted())
         try {
             return String(decrypted, StandardCharsets.UTF_8)
         } finally {

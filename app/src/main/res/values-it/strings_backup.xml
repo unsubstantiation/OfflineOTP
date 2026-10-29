@@ -50,8 +50,6 @@
         non vuoi doverla inserire ogni volta che crei un backup.</string>
     <string name="backup_label_pgp">Il backup verrà salvato crittografato utilizzando la chiave PGP che hai
         specificato nelle impostazioni. La crittografia sarà gestita da un\'app di terze parti.</string>
-    <string name="backup_check_restore_old">Ripristina il vecchio formato di backup (creato con una versione di andOTP
-        precedente alla 0.6.3)</string>
     <string name="backup_button_backup">Crea backup</string>
     <string name="backup_button_restore">Ripristina backup</string>
     <string-array name="backup_list_type_names">

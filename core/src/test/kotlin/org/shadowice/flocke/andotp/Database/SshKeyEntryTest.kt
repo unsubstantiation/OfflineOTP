@@ -21,7 +21,7 @@ class SshKeyEntryTest {
             val original = entry(pub, priv)
             val json = VaultJson.entriesToString(listOf(original))
             val backup = EncryptedBackupCodec.seal("test-password", json)
-            val restored = VaultJson.stringToEntries(EncryptedBackupCodec.open("test-password", backup, false)).single()
+            val restored = VaultJson.stringToEntries(EncryptedBackupCodec.open("test-password", backup)).single()
             assertEquals(Entry.OTPType.SSH_KEY, restored.getType())
             assertEquals(pub, restored.getSshKeys().publicKey)
             assertEquals(priv, restored.getSshKeys().privateKey)

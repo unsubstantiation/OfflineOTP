@@ -108,15 +108,6 @@
 
         </RelativeLayout>
 
-        <CheckBox
-            android:id="@+id/restoreOldCrypt"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginHorizontal="@dimen/activity_margin"
-            android:layout_marginBottom="@dimen/activity_margin"
-            android:text="@string/backup_check_restore_old"
-            android:visibility="gone" />
-
         <Button
             android:id="@+id/buttonRestore"
             android:layout_width="wrap_content"

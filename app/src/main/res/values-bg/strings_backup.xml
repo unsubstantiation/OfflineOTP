@@ -48,8 +48,6 @@
         don\'t want to have to enter it every time you create a backup.</string>
     <string name="backup_label_pgp">The backup will be stored encrypted using the PGP key you
         specified in the settings. The encryption will be handled by a 3rd party app.</string>
-    <string name="backup_check_restore_old">Restore old backup format (created with an andOTP version
-        before 0.6.3)</string>
     <string name="backup_button_backup">Create backup</string>
     <string name="backup_button_restore">Restore backup</string>
     <string-array name="backup_list_type_names">

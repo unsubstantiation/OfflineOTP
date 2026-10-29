@@ -33,10 +33,9 @@ class ProjectBrandingTest(unittest.TestCase):
         self.assertEqual(LEGACY_PACKAGE, manifest.get("package"))
         self.assertEqual(LEGACY_PACKAGE, policy["package"])
 
-    def test_upstream_attribution_and_legacy_backup_are_not_rebranded(self):
+    def test_upstream_attribution_is_not_rebranded(self):
         self.assertIn("andOTP", resource("strings_about.xml", "about_label_main_developer"))
         self.assertIn("andOTP", resource("strings_about.xml", "about_label_developer"))
-        self.assertIn("andOTP", resource("strings_backup.xml", "backup_check_restore_old"))
 
 
 if __name__ == "__main__":

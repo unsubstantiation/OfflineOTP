@@ -78,7 +78,7 @@ Features:
 - Create and open a local password-encrypted vault; add, edit and delete entries, search the vault, and watch tokens refresh each second.
 - Copy a token with the **Copy token** button, a row double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
-- Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless legacy SHA-256 format is restorable behind an explicit opt-in and is never newly written. All file reads are bounded.
+- Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
 - Deliberately out of desktop v1 scope: NFC, camera, screen capture, tag/settings editors, inactivity lock, and password change.
 
@@ -131,8 +131,10 @@ such backups. Older versions reject them; keep a separately tested backup before
 
 Password-encrypted `.json.aes` backups use the same framing, password derivation and entry JSON on
 Android (both flavors) and desktop. Export on one device, transfer the file securely, and restore
-on the other using the original backup password. For pre-0.6.3 andOTP backups, select the legacy
-restore option. Desktop restore **replaces** the current vault; Android offers merge or replace.
+on the other using the original backup password. Restoring a backup created before andOTP 0.6.3
+(the headerless SHA-256 format) is no longer supported on either platform: open such a file with an
+older release that still reads it, then export a new backup. Desktop restore **replaces** the
+current vault; Android offers merge or replace.
 Keep a separate, tested backup before restoring. Desktop rejects backups containing duplicate
 account identities (even when their tags or usage metadata differ) rather than silently dropping
 one. HOTP counters in different copies do not sync. Hardware-key-held accounts and local device
