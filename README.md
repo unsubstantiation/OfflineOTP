@@ -31,9 +31,9 @@ installation additionally requires the same signing key.
 
 ## Hardware keys (experimental)
 
-Unlock the app and open **Hardware keys** from the main menu. The feature uses YubiKit 3.2.1 (USB/NFC transport
-3.1.0, which is the newest release compatible with the pinned compileSdk 36) for
-USB and NFC. The phone must support the chosen connection; grant USB access when requested, or hold
+Unlock the app and open **Hardware keys** from the main menu. The feature uses YubiKit 3.2.1, with
+the USB/NFC transport held at 3.1.0 (the newest release that accepts the pinned `compileSdk 36`),
+for USB and NFC. The phone must support the chosen connection; grant USB access when requested, or hold
 the key in the NFC field throughout the operation. If a system permission screen interrupts an
 operation, retry after granting access. Enter the key's OATH password or FIDO PIN in the field when
 required; these are separate from the OfflineOTP password.
