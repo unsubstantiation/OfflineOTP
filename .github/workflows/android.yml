@@ -24,16 +24,27 @@ jobs:
           # Keep the v3 default SDK tools while updating the action runtime.
           cmdline-tools-version: '12266719'
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Verify Gradle wrapper inputs
+        run: python3 scripts/check_build_inputs.py
       - name: Build F-Droid debug APK
         run: ./gradlew --no-daemon :app:assembleFdroidDebug
-      - name: Prepare APK and checksums
+      - name: Inspect APK and prepare provenance
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
           cp app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk artifacts/OfflineOTP-fdroid-debug.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs artifacts/OfflineOTP-fdroid-debug.apk > artifacts/signing-certificate.txt
-          (cd artifacts && sha256sum OfflineOTP-fdroid-debug.apk > SHA256SUMS.txt)
+          apkanalyzer manifest print artifacts/OfflineOTP-fdroid-debug.apk > artifacts/AndroidManifest.xml
+          python3 scripts/check_debug_manifest.py artifacts/AndroidManifest.xml
+          {
+            printf 'Variant: fdroidDebug (debuggable; not for production)\n'
+            printf 'Checked-out commit: %s\n' "$(git rev-parse HEAD)"
+            printf 'Workflow run: %s/%s/actions/runs/%s/attempts/%s\n' \
+              "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf 'Manifest checks are not a malware scan or an independent attestation.\n'
+          } > artifacts/build-provenance.txt
+          (cd artifacts && sha256sum OfflineOTP-fdroid-debug.apk AndroidManifest.xml signing-certificate.txt build-provenance.txt > SHA256SUMS.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OfflineOTP-android-debug

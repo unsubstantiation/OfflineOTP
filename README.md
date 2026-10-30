@@ -317,18 +317,23 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 Three GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch.
 Download their artifacts from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip,
-and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
-signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
+and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; new Android artifacts also
+include signing-certificate details, the packaged manifest and the source commit/workflow run. The
+Android workflow checks the packaged debug manifest against a permission allowlist, including no
+`INTERNET` permission, but this is **not** a malware scan or independent attestation. The workflows
+do **not** publish GitHub releases or run device tests. See [Android download warnings](docs/android-download-warnings.md)
+for how to investigate an alert and verify the affected file.
 
 Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
 clients build for JVM 11 because the embedded PGPainless 2.x engine declares a JVM 11 requirement,
 and the Android USB/NFC transport stays on YubiKit 3.1.0 because 3.2.x targets `compileSdk 37`
 while AGP 8.13.2 supports 36; the JVM YubiKit modules remain on 3.2.1.
 
-The APK uses the runner's ephemeral debug key and the `.dev` application ID. Different runs can
-have different signing keys, so updating may require uninstalling the previous debug build, which
-erases its vault. Export and verify a portable backup first. Desktop app images are unsigned,
-require a compatible system with a graphical environment, and are not native installers.
+The APK is debuggable and intended for testing, not production. It uses the runner's ephemeral debug
+key and the `.dev` application ID. Different runs can have different signing keys, so updating may
+require uninstalling the previous debug build, which erases its vault. Export and verify a portable
+backup first. Desktop app images are unsigned, require a compatible system with a graphical
+environment, and are not native installers.
 
 For lint, device tests and release publishing, use the separate checks above. The dependency
 inventory can be generated locally:
@@ -348,6 +353,7 @@ bash scripts/verify_reproducible_build.sh
 ## Documentation
 
 - [Changelog](CHANGELOG.md) — release history.
+- [Android download warnings](docs/android-download-warnings.md) — identify a warning, trace an artifact and request review.
 - [Desktop packaging and release](scripts/packaging/README.md) — desktop distributions, jpackage, reproducible builds and sandbox verification.
 - [Vault security hardening](docs/vault-security-hardening.md) — storage, session, backup, and IPC behavior.
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
