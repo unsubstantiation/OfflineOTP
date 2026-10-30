@@ -434,14 +434,14 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
 
     /**
      * Colors the token text with the theme's "expiring" color when [color] is
-     * [Entry.COLOR_RED], and with the secondary text color otherwise.
+     * [Entry.COLOR_RED], and with the theme's amber OTP color otherwise.
      */
     fun updateColor(color: Int) {
         val textColor: Int
         if (color == Entry.COLOR_RED) {
             textColor = Tools.getThemeColor(context, R.attr.colorExpiring)
         } else {
-            textColor = Tools.getThemeColor(context, android.R.attr.textColorSecondary)
+            textColor = Tools.getThemeColor(context, R.attr.colorOtp)
         }
 
         value.setTextColor(textColor)

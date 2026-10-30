@@ -36,6 +36,8 @@ class DesktopDarkForestThemeTest(unittest.TestCase):
             "DIVIDER": "forest_divider",
             "WARNING": "warning_red",
             "THUMBNAIL": "forest_thumbnail_background",
+            "OTP_AMBER": "forest_otp_amber",
+            "OTP_AMBER_MUTED": "forest_otp_amber_muted",
         }
         for desktop, mobile in pairs.items():
             with self.subTest(desktop=desktop, android=mobile):

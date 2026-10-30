@@ -8,6 +8,8 @@ import java.awt.Font
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.Insets
+import java.awt.LinearGradientPaint
+import java.awt.Paint
 import java.awt.Rectangle
 import java.awt.RenderingHints
 import javax.swing.AbstractButton
@@ -52,8 +54,53 @@ object ForestTheme {
     val WARNING = ColorUIResource(0xFF, 0x8A, 0x80)
     val THUMBNAIL = ColorUIResource(0xC8, 0xD8, 0xCC)
 
+    /** OTP digits: warm amber that keeps AA contrast on every forest surface (>= 6.3:1). */
+    val OTP_AMBER = ColorUIResource(0xFF, 0xC8, 0x57)
+
+    /** Muted amber for the countdown track and secondary amber accents. */
+    val OTP_AMBER_MUTED = ColorUIResource(0x7A, 0x5C, 0x22)
+
+    /** Soft drop shadow under the entry cards; alpha matters, so this is a plain color. */
+    val CARD_SHADOW = Color(0, 0, 0, 0x52)
+
     private const val PRIMARY_BUTTON = "offlineotp.primaryButton"
     private var installed = false
+
+    /** Straight-line blend, [ratio] 0 returns [from] and 1 returns [to]. */
+    fun mix(from: Color, to: Color, ratio: Float): Color {
+        val r = ratio.coerceIn(0f, 1f)
+        return Color(
+            (from.red + (to.red - from.red) * r).toInt().coerceIn(0, 255),
+            (from.green + (to.green - from.green) * r).toInt().coerceIn(0, 255),
+            (from.blue + (to.blue - from.blue) * r).toInt().coerceIn(0, 255)
+        )
+    }
+
+    /**
+     * Card face: a subtle top-lit vertical gradient that lifts on rollover and glows on selection,
+     * instead of the flat fill the cards used before. Painted per repaint, so a pointer moving over
+     * the list reads as motion without an animation timer.
+     */
+    fun cardPaint(height: Int, hovered: Boolean, selected: Boolean): Paint {
+        val base = when {
+            selected -> SURFACE_VARIANT
+            hovered -> mix(SURFACE, SURFACE_VARIANT, 0.45f)
+            else -> SURFACE
+        }
+        val top = mix(base, ACCENT, if (hovered || selected) 0.07f else 0.04f)
+        val bottom = mix(base, BACKGROUND_DEEP, 0.22f)
+        return LinearGradientPaint(
+            0f, 0f, 0f, maxOf(height, 1).toFloat(),
+            floatArrayOf(0f, 1f), arrayOf<Color>(top, bottom)
+        )
+    }
+
+    /** Border color for a card: brighter while hovered or selected. */
+    fun cardBorder(hovered: Boolean, selected: Boolean): Color = when {
+        selected -> mix(DIVIDER, OTP_AMBER, 0.55f)
+        hovered -> mix(DIVIDER, ACCENT, 0.45f)
+        else -> DIVIDER
+    }
 
     fun install() {
         if (installed && UIManager.getLookAndFeel() is MetalLookAndFeel &&

@@ -26,6 +26,10 @@
     <color name="forest_scrim">#AA0A110D</color>
     <color name="forest_earth_muted">#8D7B68</color>
     <color name="forest_thumbnail_background">#C8D8CC</color>
+    <!-- OTP digits: warm amber, >= 6:1 against every forest surface. -->
+    <color name="forest_otp_amber">#FFC857</color>
+    <!-- Muted amber for the token countdown track. -->
+    <color name="forest_otp_amber_muted">#7A5C22</color>
 
     <!-- App Semantic & Legacy Color Tokens -->
     <color name="divider">#2B4434</color>

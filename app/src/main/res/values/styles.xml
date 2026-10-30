@@ -12,6 +12,8 @@
 
     <attr name="colorExpiring" format="color|reference" />
 
+    <attr name="colorOtp" format="color|reference" />
+
     <!-- ============================================================================
          Unified Homemade Dark Forest Theme (Theme.OfflineOTP.DarkForest)
          ============================================================================ -->
@@ -95,6 +97,7 @@
         <item name="colorGithub">@color/github_dark</item>
         <item name="thumbnailBackground">@color/forest_thumbnail_background</item>
         <item name="colorExpiring">@color/expiring_red_dark</item>
+        <item name="colorOtp">@color/forest_otp_amber</item>
 
         <item name="elevationOverlayEnabled">false</item>
         <item name="elevationOverlayColor">@color/forest_text_primary</item>
@@ -209,6 +212,7 @@
         <item name="actionOverflowMenuStyle">@style/Widget.OfflineOTP.DarkForest.PopupMenu.Overflow</item>
         <item name="thumbnailBackground">@color/forest_thumbnail_background</item>
         <item name="colorExpiring">@color/expiring_red_dark</item>
+        <item name="colorOtp">@color/forest_otp_amber</item>
         <item name="elevationOverlayEnabled">false</item>
     </style>
 

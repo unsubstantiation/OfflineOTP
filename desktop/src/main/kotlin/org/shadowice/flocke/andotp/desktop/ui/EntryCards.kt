@@ -1,5 +1,6 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
 import java.awt.BasicStroke
@@ -13,7 +14,12 @@ import java.awt.GridLayout
 import java.awt.RenderingHints
 import java.awt.event.ActionEvent
 import java.awt.event.KeyEvent
+import java.awt.event.MouseAdapter
+import java.awt.event.MouseEvent
+import java.awt.geom.RoundRectangle2D
+import java.awt.image.BufferedImage
 import java.util.Locale
+import java.util.WeakHashMap
 import javax.swing.AbstractAction
 import javax.swing.BorderFactory
 import javax.swing.DefaultCellEditor
@@ -32,6 +38,11 @@ import javax.swing.table.TableCellRenderer
  * remains a Swing checkbox/editor rather than a painted hit target, so mouse, keyboard and assistive
  * technology can operate it. Other columns remain in the model for actions and accessibility; the
  * card renderer reads only redacted model values and, for revealed entries, their tags.
+ *
+ * The cards prefer the same bundled issuer artwork the Android app shows (see [IssuerIcons]) and
+ * fall back to a generated letter tile, so Debian and Windows match the phone. Their face lifts on
+ * rollover and a per-repaint ring counts down the current token step, which makes the one-second
+ * token refresh visible without adding another timer.
  */
 internal object EntryCards {
     fun configure(table: JTable) {
@@ -83,7 +94,46 @@ internal object EntryCards {
                 model.setValueAt(model.getValueAt(row, column) != true, row, column)
             }
         })
+
+        CardHover.track(table)
     }
+}
+
+/** Which view row the pointer is over, so a card can lift without an animation timer. */
+private object CardHover {
+    private val rows = WeakHashMap<JTable, Int>()
+
+    fun rowOf(table: JTable): Int = rows[table] ?: -1
+
+    fun track(table: JTable) {
+        fun update(row: Int) {
+            val previous = rows[table] ?: -1
+            if (previous == row) return
+            rows[table] = row
+            // Repaint only the two cards whose face changed, not the whole visible list.
+            for (changed in intArrayOf(previous, row)) {
+                if (changed in 0 until table.rowCount) table.repaint(table.getCellRect(changed, 0, true))
+            }
+        }
+        table.addMouseMotionListener(object : MouseAdapter() {
+            override fun mouseMoved(event: MouseEvent) = update(table.rowAtPoint(event.point))
+        })
+        table.addMouseListener(object : MouseAdapter() {
+            override fun mouseExited(event: MouseEvent) = update(-1)
+        })
+    }
+}
+
+/** Seconds before the end of a step at which Android (and these cards) warn about expiry. */
+private const val EXPIRING_SECONDS = 8L
+
+/**
+ * Clock seam for the countdown ring and expiry color. Painting must never mutate the entries (the
+ * Android adapter updates them from its tick instead), so the remaining seconds are derived from
+ * the wall clock here; tests pin the time rather than waiting for a real boundary.
+ */
+internal object CardClock {
+    var nowSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
 }
 
 /** Left section of a card, reused by JTable's renderer for all rows. */
@@ -93,6 +143,7 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
     private val title = JLabel()
     private val detail = JLabel()
     private var selected = false
+    private var hovered = false
 
     init {
         isOpaque = false
@@ -106,7 +157,6 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         add(labels, BorderLayout.CENTER)
         // Account labels are untrusted input; never let a leading <html> enable Swing HTML/URLs.
         listOf(value, title, detail).forEach { it.putClientProperty("html.disable", true) }
-        value.font = Font(Font.SANS_SERIF, Font.BOLD, 21)
         title.font = Font(Font.SANS_SERIF, Font.PLAIN, 14)
         detail.font = Font(Font.SANS_SERIF, Font.PLAIN, 12)
     }
@@ -115,18 +165,33 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         table: JTable, unused: Any?, isSelected: Boolean, hasFocus: Boolean, row: Int, column: Int
     ): Component {
         selected = isSelected
+        hovered = CardHover.rowOf(table) == row
         val model = table.model as EntryTableModel
         val modelRow = table.convertRowIndexToModel(row)
         fun text(col: EntryTableModel.Column): String = model.getValueAt(modelRow, col.ordinal) as String
         val shown = model.getValueAt(modelRow, EntryTableModel.Column.SHOW.ordinal) == true
+        val entry = model.entryAt(modelRow)
         val issuer = text(EntryTableModel.Column.ISSUER)
         val label = text(EntryTableModel.Column.LABEL)
         val type = text(EntryTableModel.Column.TYPE)
         val token = text(EntryTableModel.Column.TOKEN)
+        val placeholder = shown && token.trimStart().startsWith("[")
+        val secondsLeft = if (shown && !placeholder) secondsRemaining(entry) else null
+        val expiring = secondsLeft != null && secondsLeft <= EXPIRING_SECONDS
 
         value.text = if (shown) token.ifBlank { "Waiting for code…" } else "Hidden"
-        value.font = Font(Font.SANS_SERIF, Font.BOLD, if (shown && token.startsWith("[")) 15 else 21)
-        value.foreground = if (shown) ForestTheme.TEXT_PRIMARY else ForestTheme.TEXT_HINT
+        value.font = when {
+            // Digits use a monospaced face so a one-second refresh never reflows the row.
+            shown && !placeholder -> Font(Font.MONOSPACED, Font.BOLD, 22)
+            shown -> Font(Font.SANS_SERIF, Font.BOLD, 15)
+            else -> Font(Font.SANS_SERIF, Font.BOLD, 21)
+        }
+        value.foreground = when {
+            !shown -> ForestTheme.TEXT_HINT
+            placeholder -> ForestTheme.TEXT_SECONDARY
+            expiring -> ForestTheme.WARNING
+            else -> ForestTheme.OTP_AMBER
+        }
         title.text = listOf(issuer, label).filter { it.isNotBlank() }.joinToString(" – ")
             .ifBlank { "Unnamed entry" }
         title.foreground = ForestTheme.TEXT_PRIMARY
@@ -138,49 +203,92 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
                 "NOTE" -> "Secure note"
                 else -> type
             }
-            val tags = model.entryAt(modelRow).getTags()
+            val tags = entry.getTags()
             if (tags.isEmpty()) kind else "$kind · ${tags.joinToString(", ")}"
         } else ""
         detail.foreground = ForestTheme.TEXT_SECONDARY
+
+        // The stored thumbnail name is what the Android app shows for this entry; unknown names
+        // (and "Default") keep the generated letter tile.
+        avatar.artwork = IssuerIcons.artwork(entry.getThumbnailName())
         avatar.initial = initial(if (shown) issuer.ifBlank { label } else label.ifBlank { issuer })
+        avatar.remaining = secondsLeft?.let { (it.toFloat() / stepSeconds(entry)).coerceIn(0f, 1f) } ?: -1f
+        avatar.expiring = expiring
         getAccessibleContext().accessibleName = listOf(value.text, title.text, detail.text)
             .filter { it.isNotBlank() }.joinToString(", ")
         return this
     }
 
     override fun paintComponent(graphics: Graphics) {
-        paintCardHalf(graphics, width, height, selected, left = true)
+        paintCardHalf(graphics, width, height, selected, hovered, left = true)
         super.paintComponent(graphics)
     }
 
     private fun initial(text: String): String = text.trim().takeIf { it.isNotEmpty() }
         ?.let { String(Character.toChars(it.codePointAt(0))).uppercase(Locale.ROOT) } ?: "•"
+
+    private fun stepSeconds(entry: Entry): Float = entry.getTokenStepSeconds().coerceAtLeast(1).toFloat()
+
+    /** Seconds left in the current step, or null for entries that do not expire on a clock. */
+    private fun secondsRemaining(entry: Entry): Long? {
+        if (!entry.isTimeBased()) return null
+        val step = entry.getTokenStepSeconds().coerceAtLeast(1).toLong()
+        return step - CardClock.nowSeconds() % step
+    }
 }
 
+/**
+ * Issuer mark: the bundled brand artwork on the light tile Android uses, or the generated letter
+ * tile when no artwork exists. A thin ring shows how much of the current step is left and turns
+ * amber-to-red inside the last seconds before the code changes.
+ */
 private class CardAvatar : JComponent() {
     var initial: String = "•"
+    var artwork: BufferedImage? = null
+    var remaining: Float = -1f
+    var expiring: Boolean = false
 
     override fun paintComponent(graphics: Graphics) {
         val g = graphics.create() as Graphics2D
         try {
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-            val size = minOf(width, height, 56)
-            val x = (width - size) / 2
-            val y = (height - size) / 2
+            val outer = minOf(width, height, 56)
+            val tile = outer - 8
+            val x = (width - tile) / 2
+            val y = (height - tile) / 2
             g.color = ForestTheme.THUMBNAIL
-            g.fillRoundRect(x, y, size, size, 8, 8)
-            g.color = ForestTheme.APP_BAR
-            g.font = Font(Font.SANS_SERIF, Font.BOLD, 22)
-            val metrics = g.fontMetrics
-            g.drawString(initial, x + (size - metrics.stringWidth(initial)) / 2,
-                y + (size - metrics.height) / 2 + metrics.ascent)
-        } finally { g.dispose() }
+            g.fillRoundRect(x, y, tile, tile, 10, 10)
+            val mark = artwork
+            if (mark != null) {
+                g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR)
+                g.drawImage(mark, x + 4, y + 4, tile - 8, tile - 8, null)
+            } else {
+                g.color = ForestTheme.APP_BAR
+                g.font = Font(Font.SANS_SERIF, Font.BOLD, 20)
+                val metrics = g.fontMetrics
+                g.drawString(initial, x + (tile - metrics.stringWidth(initial)) / 2,
+                    y + (tile - metrics.height) / 2 + metrics.ascent)
+            }
+            if (remaining in 0f..1f) {
+                val ring = tile + 6
+                val ringX = x - 3
+                val ringY = y - 3
+                g.stroke = BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                g.color = ForestTheme.OTP_AMBER_MUTED
+                g.drawArc(ringX, ringY, ring, ring, 90, -360)
+                g.color = if (expiring) ForestTheme.WARNING else ForestTheme.OTP_AMBER
+                g.drawArc(ringX, ringY, ring, ring, 90, -(360 * remaining).toInt().coerceAtMost(-1))
+            }
+        } finally {
+            g.dispose()
+        }
     }
 }
 
 /** Right card section is a genuine checkbox for both rendering and editing. */
 private class CardCheckBox : JCheckBox("Show") {
     var rowSelected: Boolean = false
+    var rowHovered: Boolean = false
 
     init {
         isOpaque = false
@@ -190,7 +298,7 @@ private class CardCheckBox : JCheckBox("Show") {
     }
 
     override fun paintComponent(graphics: Graphics) {
-        paintCardHalf(graphics, width, height, rowSelected, left = false)
+        paintCardHalf(graphics, width, height, rowSelected, rowHovered, left = false)
         super.paintComponent(graphics)
     }
 }
@@ -202,7 +310,9 @@ private class ShowRenderer : TableCellRenderer {
     ): Component = checkBox.apply {
         this.isSelected = value == true
         rowSelected = isSelected
+        rowHovered = CardHover.rowOf(table) == row
         isEnabled = table.isEnabled
+        foreground = if (rowSelected || rowHovered) ForestTheme.OTP_AMBER else ForestTheme.TEXT_PRIMARY
     }
 }
 
@@ -213,19 +323,34 @@ private class ShowEditor : DefaultCellEditor(CardCheckBox()) {
         .apply { rowSelected = isSelected }
 }
 
-/** Draw each half with only its outer corners rounded, forming one uninterrupted card. */
-private fun paintCardHalf(graphics: Graphics, width: Int, height: Int, selected: Boolean, left: Boolean) {
+/**
+ * Draw each half with only its outer corners rounded, forming one uninterrupted card: a soft
+ * shadow, a top-lit gradient that lifts on hover, and an amber edge on the selected row.
+ */
+private fun paintCardHalf(
+    graphics: Graphics, width: Int, height: Int, selected: Boolean, hovered: Boolean, left: Boolean
+) {
     val g = graphics.create() as Graphics2D
     try {
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
-        g.color = if (selected) ForestTheme.SURFACE_VARIANT else ForestTheme.SURFACE
-        val radius = 8
-        if (left) g.fillRoundRect(0, 0, width + radius, height, radius, radius)
-        else g.fillRoundRect(-radius, 0, width + radius, height, radius, radius)
+        val radius = 12
+        g.color = ForestTheme.CARD_SHADOW
+        g.fill(halfShape(width, height - 4, radius, left, 4))
+        g.paint = ForestTheme.cardPaint(height, hovered, selected)
+        g.fill(halfShape(width, height, radius, left, 0))
         if (selected && left) {
-            g.color = ForestTheme.ACCENT
+            g.color = ForestTheme.OTP_AMBER
             g.stroke = BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-            g.drawLine(2, 12, 2, (height - 12).coerceAtLeast(12))
+            g.drawLine(2, 14, 2, (height - 14).coerceAtLeast(14))
         }
-    } finally { g.dispose() }
+    } finally {
+        g.dispose()
+    }
 }
+
+/** One half of the card body; the seam side runs past the component so no inner edge appears. */
+private fun halfShape(width: Int, height: Int, radius: Int, left: Boolean, offsetY: Int): RoundRectangle2D.Float =
+    if (left) RoundRectangle2D.Float(0f, offsetY.toFloat(), (width + radius).toFloat(), height.toFloat(),
+        radius * 2f, radius * 2f)
+    else RoundRectangle2D.Float(-radius.toFloat(), offsetY.toFloat(), (width + radius).toFloat(), height.toFloat(),
+        radius * 2f, radius * 2f)

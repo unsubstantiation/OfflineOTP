@@ -40,6 +40,9 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
             "com.yubico",
             # QR image decoding through zxing-core (no camera/screen-capture integration).
             "com.google.zxing",
+            # JDK java.xml: the bundled Android vector drawables are parsed with the platform DOM
+            # and SAX (hardened against DTDs/external entities), not with a new dependency.
+            "org.w3c.dom", "org.xml.sax",
         )
         offenders = []
         for path in DESKTOP_MAIN.rglob("*.kt"):

@@ -12,11 +12,12 @@ object R {
     }
     object attr {
         const val colorExpiring = 0x7f020000
-        const val dialogPreferenceStyle = 0x7f020001
-        const val dialogTheme = 0x7f020002
-        const val navigationBarColor = 0x7f020003
-        const val textColorSecondary = 0x7f020004
-        const val thumbnailBackground = 0x7f020005
+        const val colorOtp = 0x7f020001
+        const val dialogPreferenceStyle = 0x7f020002
+        const val dialogTheme = 0x7f020003
+        const val navigationBarColor = 0x7f020004
+        const val textColorSecondary = 0x7f020005
+        const val thumbnailBackground = 0x7f020006
     }
     object color {
         const val colorPrimary = 0x7f030000

@@ -4,6 +4,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
@@ -13,6 +14,7 @@ import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
 import java.awt.Color
 import java.awt.Component
+import java.awt.Font
 import java.awt.Container
 import java.awt.event.ActionEvent
 import java.awt.image.BufferedImage
@@ -119,8 +121,70 @@ class ForestThemeTest {
             assertTrue("disabled/hint text on $surface", contrast(ForestTheme.TEXT_HINT, surface) >= 4.5)
             assertTrue("warning text on $surface", contrast(ForestTheme.WARNING, surface) >= 4.5)
         }
+        for (surface in listOf(ForestTheme.SURFACE, ForestTheme.SURFACE_ELEVATED, ForestTheme.SURFACE_VARIANT)) {
+            assertTrue("OTP digits on $surface", contrast(ForestTheme.OTP_AMBER, surface) >= 4.5)
+        }
         assertTrue(contrast(ForestTheme.ON_PRIMARY, ForestTheme.ACCENT) >= 4.5)
         assertTrue(contrast(ForestTheme.TEXT_PRIMARY, ForestTheme.APP_BAR) >= 4.5)
+    }
+
+    @Test
+    fun otpDigitsAreAmberAndOnlyWarnWhileTheCodeIsAboutToChange() = onEdt {
+        ForestTheme.install()
+        val entry = otp("GitHub", "account@example.com", true)
+        val hidden = otp("Hidden brand", "hidden account", false)
+        val table = JTable(model(entry, hidden))
+        EntryCards.configure(table)
+        val previousClock = CardClock.nowSeconds
+        try {
+            // 30-second step: 60s is a fresh code, 89s leaves one second.
+            CardClock.nowSeconds = { 60L }
+            val fresh = codeLabel(table)
+            assertEquals(ForestTheme.OTP_AMBER, fresh.foreground)
+            assertEquals("digits use a monospaced face so the tick never reflows",
+                Font.MONOSPACED, fresh.font.family)
+
+            CardClock.nowSeconds = { 89L }
+            assertEquals(ForestTheme.WARNING, codeLabel(table).foreground)
+
+            CardClock.nowSeconds = { 60L }
+            val concealed = labels(card(table, 1)).first { it.text == "Hidden" }
+            assertEquals(ForestTheme.TEXT_HINT, concealed.foreground)
+            assertFalse(labels(card(table, 1)).any { it.text == hidden.getCurrentOTP() })
+        } finally {
+            CardClock.nowSeconds = previousClock
+        }
+    }
+
+    @Test
+    fun cardsShowTheBundledIssuerMarkWhenTheClasspathHasIt() {
+        ForestTheme.install()
+        val table = JTable(model(otp("GitHub", "account", true), otp("Unknown brand", "account", true)))
+        EntryCards.configure(table)
+        // Without the packaged artwork (source-only sandbox) every card falls back to a letter tile.
+        assumeTrue(IssuerIcons.artwork("GitHub") != null)
+        val brandTile = avatarPixels(card(table, 0))
+        val letterTile = avatarPixels(card(table, 1))
+        assertFalse("a brand mark paints more than its letter tile", brandTile == letterTile)
+        assertTrue("the letter tile still shows the generated initial", letterTile.isNotEmpty())
+    }
+
+    /** The rendered token label; placeholder and identity labels never share its amber color. */
+    private fun codeLabel(table: JTable): JLabel =
+        labels(card(table, 0)).first { it.foreground == ForestTheme.OTP_AMBER ||
+            it.foreground == ForestTheme.WARNING }
+
+    /** Paints the card's avatar component so the artwork (if any) can be compared pixel-wise. */
+    private fun avatarPixels(card: Component): List<Int> {
+        val avatar = components(card).first { it.javaClass.simpleName == "CardAvatar" }
+        val image = BufferedImage(maxOf(avatar.width, 56), maxOf(avatar.height, 56), BufferedImage.TYPE_INT_ARGB)
+        val graphics = image.createGraphics()
+        try {
+            avatar.paint(graphics)
+        } finally {
+            graphics.dispose()
+        }
+        return (0 until image.width).flatMap { x -> (0 until image.height).map { y -> image.getRGB(x, y) } }
     }
 
     @Test

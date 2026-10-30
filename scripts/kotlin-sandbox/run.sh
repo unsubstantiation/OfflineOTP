@@ -79,6 +79,7 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/ScreenTimerController.kt"
     "$KOTLIN_CORE/Utilities/SecurityPorts.kt"
     "$KOTLIN_CORE/Utilities/SessionContracts.kt"
+    "$KOTLIN_CORE/Utilities/ThumbnailAssets.kt"
     "$KOTLIN_CORE/Utilities/ThumbnailCatalog.kt"
     "$KOTLIN_CORE/Utilities/TokenCalculator.kt"
     "$KOTLIN_CORE/Utilities/TokenFormat.kt"
