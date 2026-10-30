@@ -13,7 +13,7 @@ import java.util.HashMap
  * Search covers the selected category (or the whole vault without a category); when empty, tags apply.
  */
 class EntryListPresentation(private val source: EntryList) {
-    enum class Category { OTP, NOTES, SSH_KEYS, PASSWORDS }
+    enum class Category { OTP, NOTES, SSH_KEYS, PASSWORDS, EMAILS }
     private var category: Category? = null
 
     private fun matches(entry: Entry, selected: Category?): Boolean = when (selected) {
@@ -22,6 +22,7 @@ class EntryListPresentation(private val source: EntryList) {
         Category.NOTES -> entry.isNote()
         Category.SSH_KEYS -> entry.isSshKey()
         Category.PASSWORDS -> entry.isPassword() || entry.isPasswordArchive()
+        Category.EMAILS -> entry.isEmail()
     }
 
     /** Invalidates in-flight searches; caller then refreshes its current tag/search projection. */

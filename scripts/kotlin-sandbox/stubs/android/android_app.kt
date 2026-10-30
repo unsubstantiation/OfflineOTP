@@ -80,6 +80,9 @@ class AlertDialog private constructor() : DialogInterface {
         onDismissListener = listener
     }
 
+    fun interface OnShowListener { fun onShow(dialog: DialogInterface?) }
+    fun setOnShowListener(listener: OnShowListener?) {}
+
     /** The dialog was cancelled. */
     var cancelled = false
         private set
@@ -124,6 +127,8 @@ class AlertDialog private constructor() : DialogInterface {
         }
 
         fun setItems(items: Array<out CharSequence>, listener: DialogInterface.OnClickListener?): Builder = this
+        fun setMultiChoiceItems(items: Array<out CharSequence>, checkedItems: BooleanArray,
+                                listener: DialogInterface.OnMultiChoiceClickListener?): Builder = this
 
         fun setPositiveButton(textId: Int, listener: DialogInterface.OnClickListener?): Builder {
             this.positiveListener = listener

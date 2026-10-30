@@ -9,7 +9,7 @@ enum class OtpParseError {
     INVALID_PARAMETERS, INVALID_ALGORITHM, TEXT_TOO_LONG, TOO_MANY_TAGS
 }
 
-enum class OtpKind { TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE }
+enum class OtpKind { TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE, EMAIL }
 enum class OtpHashAlgorithm { SHA1, SHA256, SHA512 }
 
 /** Closed result of parsing an `otpauth://` URI. */

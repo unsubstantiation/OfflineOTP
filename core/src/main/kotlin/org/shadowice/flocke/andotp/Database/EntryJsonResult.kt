@@ -5,6 +5,7 @@ import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 
 import java.util.Collections
 
@@ -56,6 +57,7 @@ class ValidatedEntry private constructor(
         val limit = when (kind) {
             OtpKind.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
             OtpKind.PASSWORD, OtpKind.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            OtpKind.EMAIL -> EmailMaterial.MAX_BYTES
             else -> InputPolicy.MAX_SECRET_BYTES
         }
         require(it.isNotEmpty() && it.size <= limit)
@@ -72,6 +74,7 @@ class ValidatedEntry private constructor(
                 require(label.isNotBlank())
             }
             if (kind == OtpKind.PASSWORD) PasswordMaterial.decode(seed)
+            if (kind == OtpKind.EMAIL) EmailMaterial.decode(seed)
             if (kind == OtpKind.PASSWORD || kind == OtpKind.PASSWORD_ARCHIVE) require(label.isNotBlank())
             if (kind == OtpKind.NOTE) {
                 InputPolicy.noteFromBytes(seed)
