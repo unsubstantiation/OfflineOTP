@@ -151,7 +151,7 @@ object MainWindow {
             }
             val row = table.convertRowIndexToModel(viewRow)
             val entry = (table.model as EntryTableModel).entryAt(row)
-            if (!entry.areDetailsVisible()) return
+            if (!entry.areDetailsVisible() || entry.isEmail()) return
             val result = if (entry.isPassword()) {
                 editor?.copyPassword(entry)
             } else if (entry.isPasswordArchive()) {
@@ -307,7 +307,7 @@ object MainWindow {
             if (viewRow < 0) return@addActionListener
             val existing = unlocked.presentation.get(table.convertRowIndexToModel(viewRow))
             if (!existing.areDetailsVisible()) return@addActionListener
-            if (existing.isPassword() || existing.isPasswordArchive()) return@addActionListener
+            if (existing.isPassword() || existing.isPasswordArchive() || existing.isEmail()) return@addActionListener
             EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getAllTags())?.let { replacement ->
                 if (editor?.replace(existing, replacement) == true) {
                     refreshProjection(unlocked)
@@ -369,8 +369,8 @@ object MainWindow {
             counterDivider.isVisible = entry.isCounterBased()
             rowMenu.components.forEach { component ->
                 if (component is JMenuItem) when (component.text) {
-                    "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive()
-                    "Edit…" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPassword() && !entry.isPasswordArchive()
+                    "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive() && !entry.isEmail()
+                    "Edit…" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPassword() && !entry.isPasswordArchive() && !entry.isEmail()
                     "Tags…" -> component.isEnabled = entry.areDetailsVisible()
                     "View password details…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
                     "Export password file…" -> { component.isVisible = entry.isPasswordArchive(); component.isEnabled = entry.areDetailsVisible() }

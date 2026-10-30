@@ -264,8 +264,8 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         val model = table.model as? EntryTableModel
         val hasSelection = unlocked && model != null && modelRow in 0 until model.rowCount
         val visible = hasSelection && model!!.getValueAt(modelRow, EntryTableModel.Column.SHOW.ordinal) == true
-        copyButton.isEnabled = visible && !model!!.entryAt(modelRow).isPasswordArchive()
-        editButton.isEnabled = visible && !model!!.entryAt(modelRow).isPassword() && !model.entryAt(modelRow).isPasswordArchive()
+        copyButton.isEnabled = visible && !model!!.entryAt(modelRow).isPasswordArchive() && !model.entryAt(modelRow).isEmail()
+        editButton.isEnabled = visible && !model!!.entryAt(modelRow).isPassword() && !model.entryAt(modelRow).isPasswordArchive() && !model.entryAt(modelRow).isEmail()
         tagsButton.isEnabled = visible
         deleteButton.isEnabled = hasSelection
     }

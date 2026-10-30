@@ -37,6 +37,10 @@ object EntryDialog {
     fun prompt(parent: JFrame, existing: Entry? = null,
                initialType: Entry.OTPType = Entry.OTPType.TOTP,
                knownTags: List<String> = emptyList()): Entry? {
+        // Email entries contain structured account credentials and are managed through the
+        // FairEmail-compatible import/export flow, not this OTP-only editor.
+        if (existing?.isEmail() == true) return null
+
         val issuer = JTextField(existing?.getIssuer().orEmpty(), 24)
         val label = JTextField(existing?.getLabel().orEmpty(), 24)
         val sshKeys = existing?.takeIf { it.isSshKey() }?.getSshKeys()
@@ -48,8 +52,11 @@ object EntryDialog {
         val publicKeyLabel = JLabel("SSH public key (optional)")
         val secretLabel = JLabel("Secret (Base32)")
         val typeLabel = JLabel("Type")
-        val type = JComboBox(Entry.OTPType.entries.filter { it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE }.toTypedArray()).apply {
-            selectedItem = existing?.getType() ?: initialType
+        val type = JComboBox(Entry.OTPType.entries.filter {
+            it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && it != Entry.OTPType.EMAIL
+        }.toTypedArray()).apply {
+            selectedItem = existing?.getType() ?: initialType.takeUnless { it == Entry.OTPType.EMAIL }
+                ?: Entry.OTPType.TOTP
             // Android keeps the OTP type fixed on edit; a switch would rebuild the entry and drop
             // type-only fields (the mOTP PIN, the Steam digit contract).
             isEnabled = existing == null
@@ -239,6 +246,7 @@ object EntryDialog {
             else digitsText.toIntOrNull() ?: throw IllegalArgumentException("Digits must be a number")
         return when (type) {
             Entry.OTPType.PASSWORD, Entry.OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("Use password import")
+            Entry.OTPType.EMAIL -> throw IllegalArgumentException("Email entries must be managed through FairEmail import/export")
             Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, arrayListOf())
             Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf())
             Entry.OTPType.HOTP -> {
