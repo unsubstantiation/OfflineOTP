@@ -3,7 +3,8 @@ name: Android build
 on:
   workflow_dispatch:
   push:
-    branches: [master]
+    # Temporary session-branch trigger for the consented artifact investigation.
+    branches: [master, arena/8c70f5c8-offlineotp]
   pull_request:
 
 permissions:
@@ -53,7 +54,7 @@ jobs:
 
   investigate-draft:
     # Temporary, consented one-time investigation. Never runs on PRs or master.
-    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/arena/8c70f5c8-offlineotp' }}
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/arena/8c70f5c8-offlineotp' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
