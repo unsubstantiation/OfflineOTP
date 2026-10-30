@@ -7,6 +7,7 @@
  */
 package org.shadowice.flocke.andotp.desktop.control
 
+import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -86,6 +87,78 @@ class EntryEditorAndBackupTest {
             assertFalse(note.areDetailsVisible())
         } finally { assertTrue(dir.setWritable(true, false)) }
         assertTrue((controller.openVault(password) as VaultController.Session.Loaded).entries[1].areDetailsVisible())
+    }
+
+    @Test
+    fun passwordImportIsAtomicAndPreservesTheOriginalFile() {
+        val (dir, controller, state) = harness()
+        val editor = EntryEditor(controller, state)
+        val csv = "name,url,username,password,note\r\nSite,https://example.test,alice,secret,note\r\n".toByteArray()
+        val individual = org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(csv, "file.csv",
+            org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.INDIVIDUAL)
+        assertEquals(1, editor.importEntries(individual))
+        val duplicate = org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(csv, "file.csv",
+            org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.INDIVIDUAL)
+        assertEquals(0, editor.importEntries(duplicate))
+        val archive = org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(csv, "file.csv",
+            org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.ARCHIVE)
+        assertEquals(1, editor.importEntries(archive))
+        val reopened = VaultController(DesktopStorage.open(dir)).openVault(password) as VaultController.Session.Loaded
+        assertEquals("secret", reopened.entries[0].getPasswordFields().value("password"))
+        assertTrue(csv.contentEquals(reopened.entries[1].exportPasswordArchive()))
+        assertEquals(EntryEditor.TokenCopyResult.Unavailable, editor.copyPassword(state.snapshot()[0]))
+        assertTrue(editor.setDetailsVisible(state.snapshot()[0], true))
+        assertEquals("secret", (editor.copyPassword(state.snapshot()[0]) as EntryEditor.TokenCopyResult.Copied).token)
+        val vaultFile = File(dir, Constants.FILENAME_DATABASE)
+        assertFalse(String(vaultFile.readBytes(), Charsets.ISO_8859_1).contains("secret"))
+        assertTrue(dir.setWritable(false, false))
+        try {
+            val more = org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(
+                "name,url,username,password\nother,https://other.test,bob,newsecret\n".toByteArray(),
+                "other.csv", org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.INDIVIDUAL)
+            assertEquals(null, editor.importEntries(more))
+            assertEquals(2, state.snapshot().size)
+        } finally { assertTrue(dir.setWritable(true, false)) }
+    }
+
+    @Test
+    fun tagEditsPersistForAllKindsAndRollbackOnFailure() {
+        val (dir, controller, state) = harness()
+        val editor = EntryEditor(controller, state)
+        val csv = "name,url,username,password\nsite,https://example.test,alice,secret\n".toByteArray()
+        val items = listOf(entry("Issuer", "OTP"),
+            Entry(Entry.OTPType.NOTE, "note", "", "Note", arrayListOf()),
+            Entry.sshKey("public", "private", "", "Key", arrayListOf()),
+            org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(csv, "p.csv",
+                org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.INDIVIDUAL).single(),
+            org.shadowice.flocke.andotp.Utilities.PasswordImport.prepare(csv, "p.csv",
+                org.shadowice.flocke.andotp.Utilities.PasswordImport.Mode.ARCHIVE).single())
+        for (item in items) {
+            assertTrue(editor.add(item))
+            assertFalse(editor.setTags(item, listOf("work"))) // concealed entries cannot be edited
+            assertTrue(editor.setDetailsVisible(item, true))
+            assertTrue(editor.setTags(item, listOf("work", "東京,team")))
+        }
+        val reopened = controller.openVault(password) as VaultController.Session.Loaded
+        assertTrue(reopened.entries.all { it.getTags() == listOf("work", "東京,team") })
+        assertArrayEquals(csv, reopened.entries.first { it.isPasswordArchive() }.exportPasswordArchive())
+        assertFalse(editor.setTags(entry("Issuer", "OTP").apply { setDetailsVisible(true) }, listOf("foreign")))
+        val backup = BackupCoordinator(controller, state).encryptedBackup(password)
+        val restored = VaultJson.stringToEntries(EncryptedBackupCodec.open(password, backup))
+        assertTrue(restored.all { it.getTags() == listOf("work", "東京,team") })
+        assertArrayEquals(csv, restored.first { it.isPasswordArchive() }.exportPasswordArchive())
+        state.applyTagFilter(listOf("work"), false)
+        assertEquals(5, state.presentation.size())
+        assertFalse(editor.setTags(items[0], listOf("x".repeat(129))))
+        assertEquals(listOf("work", "東京,team"), items[0].getTags())
+        assertTrue(dir.setWritable(false, false))
+        try {
+            assertFalse(editor.setTags(items[0], listOf("must roll back")))
+            assertEquals(listOf("work", "東京,team"), items[0].getTags())
+            assertEquals(5, state.presentation.size())
+        } finally { assertTrue(dir.setWritable(true, false)) }
+        assertEquals(listOf("work", "東京,team"),
+            (controller.openVault(password) as VaultController.Session.Loaded).entries[0].getTags())
     }
 
     @Test

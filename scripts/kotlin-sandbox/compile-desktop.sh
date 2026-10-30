@@ -17,8 +17,8 @@ CORE_MAIN="$ROOT/core/src/main/kotlin"
 CORE_TEST="$ROOT/core/src/test/kotlin"
 DESKTOP_MAIN="$ROOT/desktop/src/main/kotlin"
 DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"
-# Gradle puts src/test/resources on the test classpath automatically; the no-Gradle gate mirrors it.
-DESKTOP_RESOURCES="$ROOT/desktop/src/test/resources"
+# Gradle puts both main and test resources on the test classpath; mirror that here.
+DESKTOP_RESOURCES="$ROOT/desktop/src/main/resources:$ROOT/desktop/src/test/resources"
 OUT="${KOTLIN_DESKTOP_OUT:-$ROOT/reports/kotlin-sandbox/desktop}"
 
 KOTLINC="${KOTLINC:-$(command -v kotlinc-jvm || command -v kotlinc || true)}"

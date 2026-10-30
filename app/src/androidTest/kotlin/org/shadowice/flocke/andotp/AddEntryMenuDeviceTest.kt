@@ -51,7 +51,7 @@ class AddEntryMenuDeviceTest {
         onMain {
             val dial = dial(activity)
             assertEquals(setOf(R.id.fabEnterDetails, R.id.fabAddSecureNote, R.id.fabAddSshKey,
-                R.id.fabScanQRFromImage, R.id.fabScanQR), dial.getActionItems().map { it.getId() }.toSet())
+                R.id.fabScanQRFromImage, R.id.fabScanQR, R.id.fabImportPasswords), dial.getActionItems().map { it.getId() }.toSet())
             for (id in listOf(R.id.fabAddSecureNote, R.id.fabAddSshKey))
                 assertTrue("the add action needs an accessibility label",
                     !action(activity, id).contentDescription.isNullOrBlank())
@@ -224,16 +224,16 @@ class AddEntryMenuDeviceTest {
         }
 
         // Keyboard/accessibility focus must be able to bring every action into the viewport.
-        for (id in listOf(R.id.fabScanQR, R.id.fabScanQRFromImage, R.id.fabAddSshKey,
+        for (id in listOf(R.id.fabScanQR, R.id.fabScanQRFromImage, R.id.fabImportPasswords, R.id.fabAddSshKey,
                           R.id.fabAddSecureNote, R.id.fabEnterDetails)) {
             onMain { assertTrue("action $id could not receive focus", action(activity, id).requestFocus()) }
             awaitUi("action $id did not scroll into view") { isUsablyVisible(action(activity, id)) }
             onMain { assertUsablyVisible(action(activity, id)) }
         }
 
-        // At the top of the scroll, tap SSH through the actual view hierarchy (not performClick),
-        // so an overlay accidentally drawn above the scroll container will fail this test.
-        onMain { scroll(activity).scrollTo(0, 0) }
+        // Bring SSH into view, then tap through the real hierarchy rather than performClick.
+        onMain { action(activity, R.id.fabAddSshKey).requestFocus() }
+        awaitUi("SSH action did not scroll into view") { isUsablyVisible(action(activity, R.id.fabAddSshKey)) }
         idle()
         onMain {
             val sshButton = action(activity, R.id.fabAddSshKey)

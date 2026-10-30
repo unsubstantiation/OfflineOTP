@@ -46,7 +46,7 @@ object MainWindow {
             showReorderedEntries()
         }))
         EntryCards.configure(table)
-        val screen = MainScreen(table, JButton("Copy token / note / key"))
+        val screen = MainScreen(table, JButton("Copy selected"))
         val search = screen.search
 
         lateinit var frame: JFrame
@@ -54,6 +54,7 @@ object MainWindow {
         var ticker: TokenTicker? = null
         var coordinator: BackupCoordinator? = null
         var editor: EntryEditor? = null
+        var updatingTagChoices = false
 
         fun setStatus(message: String) {
             screen.status.text = message
@@ -72,8 +73,30 @@ object MainWindow {
             JOptionPane.showMessageDialog(frame, message, TITLE, JOptionPane.ERROR_MESSAGE)
         }
 
+        /** Rebuild from the actual vault after imports, edits and restores. */
+        fun refreshTagChoices(unlocked: DesktopVaultState, reset: Boolean = false) {
+            val previous = if (reset) null else screen.tagFilter.selectedItem as? TagChoice
+            val counts = unlocked.entryList.getTagCounts()
+            val untagged = unlocked.snapshot().count { it.getTags().isEmpty() }
+            val choices = arrayListOf(TagChoice(TagChoice.Kind.ALL), TagChoice(TagChoice.Kind.UNTAGGED, count = untagged))
+            counts.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { name ->
+                choices.add(TagChoice(TagChoice.Kind.TAG, name, counts.getValue(name)))
+            }
+            val selected = previous?.let { old -> choices.firstOrNull { it.sameFilter(old) } } ?: choices.first()
+            updatingTagChoices = true
+            try {
+                screen.tagFilter.model = javax.swing.DefaultComboBoxModel(choices.toTypedArray())
+                screen.tagFilter.selectedItem = selected
+            } finally { updatingTagChoices = false }
+            if (reset || (previous != null && !selected.sameFilter(previous)))
+                unlocked.applyTagFilter(emptyList(), false)
+        }
+
         fun bind(session: VaultController.Session.Loaded) {
-            val unlocked = DesktopVaultState(session.key).apply { load(session.entries) }
+            val unlocked = DesktopVaultState(session.key).apply {
+                presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                load(session.entries)
+            }
             state = unlocked
             editor = EntryEditor(controller, unlocked)
             coordinator = BackupCoordinator(controller, unlocked)
@@ -86,6 +109,7 @@ object MainWindow {
                         TITLE, JOptionPane.ERROR_MESSAGE)
                 }
             }
+            refreshTagChoices(unlocked, reset = true)
             search.text = ""
             screen.setUnlocked(true)
             ticker?.close()
@@ -111,6 +135,7 @@ object MainWindow {
 
         // Mutations rebuild the shared projection. Reapply an active search before repainting.
         fun refreshProjection(unlocked: DesktopVaultState) {
+            refreshTagChoices(unlocked)
             unlocked.applySearch(search.text)
             (table.model as? EntryTableModel)?.refresh()
         }
@@ -127,7 +152,12 @@ object MainWindow {
             val row = table.convertRowIndexToModel(viewRow)
             val entry = (table.model as EntryTableModel).entryAt(row)
             if (!entry.areDetailsVisible()) return
-            val result = if (entry.isSshKey()) {
+            val result = if (entry.isPassword()) {
+                editor?.copyPassword(entry)
+            } else if (entry.isPasswordArchive()) {
+                PasswordImportDialogs.export(frame, entry)
+                return
+            } else if (entry.isSshKey()) {
                 val keys = entry.getSshKeys()
                 val choices = ArrayList<String>()
                 if (keys.publicKey.isNotBlank()) choices.add("Public key")
@@ -143,6 +173,7 @@ object MainWindow {
                         .setContents(StringSelection(result.token), null)
                     (table.model as? EntryTableModel)?.refresh()
                     setStatus(when {
+                        entry.isPassword() -> "Password copied to the clipboard"
                         entry.isSshKey() -> "SSH key copied to the clipboard"
                         entry.isNote() -> "Note copied to the clipboard"
                         else -> "Token copied to the clipboard"
@@ -185,8 +216,9 @@ object MainWindow {
 
         fun addEntry(type: Entry.OTPType) {
             val unlocked = requireUnlocked() ?: return
-            EntryDialog.prompt(frame, initialType = type)?.let { entry ->
+            EntryDialog.prompt(frame, initialType = type, knownTags = unlocked.entryList.getAllTags())?.let { entry ->
                 if (editor?.add(entry) == true) {
+                    screen.categories.selectedIndex = when { entry.isNote() -> 1; entry.isSshKey() -> 2; else -> 0 }
                     refreshProjection(unlocked)
                     setStatus("Entry added")
                 } else {
@@ -204,6 +236,50 @@ object MainWindow {
             refreshProjection(unlocked)
         }
 
+        screen.tagFilter.addActionListener {
+            if (!updatingTagChoices) state?.let { unlocked ->
+                val choice = screen.tagFilter.selectedItem as? TagChoice ?: return@let
+                when (choice.kind) {
+                    TagChoice.Kind.ALL -> unlocked.applyTagFilter(emptyList(), false)
+                    TagChoice.Kind.UNTAGGED -> unlocked.applyTagFilter(emptyList(), true)
+                    TagChoice.Kind.TAG -> unlocked.applyTagFilter(listOf(choice.tag), false)
+                }
+                (table.model as? EntryTableModel)?.refresh()
+            }
+        }
+
+        screen.categories.addChangeListener {
+            state?.let { unlocked ->
+                unlocked.presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun importPasswords() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (PasswordImportDialogs.import(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.PASSWORDS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun showPasswordDetails() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+            PasswordImportDialogs.showDetails(frame, entry)
+        }
+
+        fun exportPasswordFile() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+            PasswordImportDialogs.export(frame, entry)
+        }
+
         screen.newVaultButton.addActionListener {
             PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
         }
@@ -214,6 +290,7 @@ object MainWindow {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
+            add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
         }
@@ -230,13 +307,30 @@ object MainWindow {
             if (viewRow < 0) return@addActionListener
             val existing = unlocked.presentation.get(table.convertRowIndexToModel(viewRow))
             if (!existing.areDetailsVisible()) return@addActionListener
-            EntryDialog.prompt(frame, existing)?.let { replacement ->
+            if (existing.isPassword() || existing.isPasswordArchive()) return@addActionListener
+            EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getAllTags())?.let { replacement ->
                 if (editor?.replace(existing, replacement) == true) {
                     refreshProjection(unlocked)
                     setStatus("Entry updated")
                 } else {
                     replacement.destroy()
                     JOptionPane.showMessageDialog(frame, "The entry could not be saved to the vault.",
+                        TITLE, JOptionPane.ERROR_MESSAGE)
+                }
+            }
+        }
+        screen.tagsButton.addActionListener {
+            val unlocked = requireUnlocked() ?: return@addActionListener
+            val row = table.selectedRow
+            if (row < 0) return@addActionListener
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+            if (!entry.areDetailsVisible()) return@addActionListener
+            TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getAllTags())?.let { tags ->
+                if (editor?.setTags(entry, tags) == true) {
+                    refreshProjection(unlocked)
+                    setStatus("Tags updated")
+                } else {
+                    JOptionPane.showMessageDialog(frame, "Tags could not be saved; the original tags were retained.",
                         TITLE, JOptionPane.ERROR_MESSAGE)
                 }
             }
@@ -259,8 +353,11 @@ object MainWindow {
         // Right-click or the keyboard context-menu key opens the same row actions.
         val counterDivider = JPopupMenu.Separator()
         val rowMenu = JPopupMenu().apply {
-            add(JMenuItem("Copy token / note / key").apply { addActionListener { copySelectedToken() } })
+            add(JMenuItem("Copy selected").apply { addActionListener { copySelectedToken() } })
             add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
+            add(JMenuItem("Tags…").apply { addActionListener { screen.tagsButton.doClick() } })
+            add(JMenuItem("View password details…").apply { addActionListener { showPasswordDetails() } })
+            add(JMenuItem("Export password file…").apply { addActionListener { exportPasswordFile() } })
             add(JMenuItem("Delete").apply { addActionListener { screen.deleteButton.doClick() } })
             add(counterDivider)
             add(JMenuItem("Advance HOTP counter").apply { addActionListener { advanceSelectedHotp() } })
@@ -272,7 +369,11 @@ object MainWindow {
             counterDivider.isVisible = entry.isCounterBased()
             rowMenu.components.forEach { component ->
                 if (component is JMenuItem) when (component.text) {
-                    "Copy token / note / key", "Edit…" -> component.isEnabled = entry.areDetailsVisible()
+                    "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive()
+                    "Edit…" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPassword() && !entry.isPasswordArchive()
+                    "Tags…" -> component.isEnabled = entry.areDetailsVisible()
+                    "View password details…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
+                    "Export password file…" -> { component.isVisible = entry.isPasswordArchive(); component.isEnabled = entry.areDetailsVisible() }
                     "Advance HOTP counter" -> {
                         component.isVisible = entry.isCounterBased()
                         component.isEnabled = entry.areDetailsVisible()
@@ -332,6 +433,8 @@ object MainWindow {
             add(JMenu("Tools").apply {
                 mnemonic = KeyEvent.VK_T
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
+                add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
+                add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
                 add(JMenuItem("Encrypted backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })
@@ -380,6 +483,7 @@ object MainWindow {
         }
 
         frame = JFrame(TITLE).apply {
+            iconImage = DesktopIcon.load()
             jMenuBar = menuBar
             defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
             addWindowListener(object : java.awt.event.WindowAdapter() {

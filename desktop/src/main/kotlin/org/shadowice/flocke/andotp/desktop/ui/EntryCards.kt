@@ -31,7 +31,7 @@ import javax.swing.table.TableCellRenderer
  * Presents the existing privacy-aware table model as Android-inspired cards. The real Show cell
  * remains a Swing checkbox/editor rather than a painted hit target, so mouse, keyboard and assistive
  * technology can operate it. Other columns remain in the model for actions and accessibility; the
- * card renderer reads only their already-redacted display values, never secrets from Entry itself.
+ * card renderer reads only redacted model values and, for revealed entries, their tags.
  */
 internal object EntryCards {
     fun configure(table: JTable) {
@@ -130,10 +130,16 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         title.text = listOf(issuer, label).filter { it.isNotBlank() }.joinToString(" – ")
             .ifBlank { "Unnamed entry" }
         title.foreground = ForestTheme.TEXT_PRIMARY
-        detail.text = if (shown) when (type) {
-            "SSH_KEY" -> "SSH key"
-            "NOTE" -> "Secure note"
-            else -> type
+        detail.text = if (shown) {
+            val kind = when (type) {
+                "PASSWORD" -> "Password"
+                "PASSWORD_ARCHIVE" -> "Password file"
+                "SSH_KEY" -> "SSH key"
+                "NOTE" -> "Secure note"
+                else -> type
+            }
+            val tags = model.entryAt(modelRow).getTags()
+            if (tags.isEmpty()) kind else "$kind · ${tags.joinToString(", ")}"
         } else ""
         detail.foreground = ForestTheme.TEXT_SECONDARY
         avatar.initial = initial(if (shown) issuer.ifBlank { label } else label.ifBlank { issuer })

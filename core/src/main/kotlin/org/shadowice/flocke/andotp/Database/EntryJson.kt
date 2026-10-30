@@ -5,6 +5,7 @@ import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
@@ -51,7 +52,11 @@ object EntryJson {
     private fun parsed(json: JSONObject): ValidatedEntry {
         if (!json.has(JSON_SECRET)) reject(EntryJsonError.MISSING_SECRET)
         val kind = if (json.has(JSON_TYPE)) kind(json) else OtpKind.TOTP
-        val limit = if (kind == OtpKind.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        val limit = when (kind) {
+            OtpKind.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
+            OtpKind.PASSWORD, OtpKind.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            else -> InputPolicy.MAX_SECRET_BYTES
+        }
         val seed = decodeBase32Secret(text(json, JSON_SECRET), limit) ?: reject(EntryJsonError.INVALID_SECRET)
         try {
             val label = text(json, JSON_LABEL)
@@ -63,6 +68,10 @@ object EntryJson {
                 }
                 if (label.isBlank()) reject(EntryJsonError.INVALID_TEXT)
             }
+            if (kind == OtpKind.PASSWORD) {
+                try { PasswordMaterial.decode(seed) } catch (_: IllegalArgumentException) { reject(EntryJsonError.INVALID_TEXT) }
+            }
+            if ((kind == OtpKind.PASSWORD || kind == OtpKind.PASSWORD_ARCHIVE) && label.isBlank()) reject(EntryJsonError.INVALID_TEXT)
             if (kind == OtpKind.NOTE) {
                 try { InputPolicy.noteFromBytes(seed) } catch (_: IllegalArgumentException) {
                     reject(EntryJsonError.INVALID_TEXT)
@@ -218,6 +227,8 @@ object EntryJson {
             "STEAM" -> OtpKind.STEAM
             "NOTE" -> OtpKind.NOTE
             "SSH_KEY" -> OtpKind.SSH_KEY
+            "PASSWORD" -> OtpKind.PASSWORD
+            "PASSWORD_ARCHIVE" -> OtpKind.PASSWORD_ARCHIVE
             else -> reject(EntryJsonError.UNSUPPORTED_TYPE)
         }
     }

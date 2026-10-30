@@ -17,6 +17,11 @@ import javax.crypto.SecretKey
 class DesktopVaultState(val key: SecretKey, private val entries: EntryList = EntryList()) {
 
     val entryList: EntryList get() = entries
+    private var query = ""
+    private var searchIncludes = DEFAULT_INCLUDES
+    private var selectedTags: List<String> = emptyList()
+    private var includeUntagged = false
+    private var tagMode = Constants.TagFunctionality.OR
 
     val presentation: EntryListPresentation = EntryListPresentation(entries).apply {
         showReorderedEntries()
@@ -28,13 +33,13 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         // parity) before dropping the references.
         entries.getEntries().forEach { it.destroy() }
         entries.updateEntries(loaded, true)
-        presentation.showReorderedEntries()
+        refreshProjection()
     }
 
     /** Adds a new entry; returns false when an equal entry already exists. */
     fun add(entry: Entry): Boolean {
         val added = entries.addEntry(entry)
-        if (added) presentation.showReorderedEntries()
+        if (added) refreshProjection()
         return added
     }
 
@@ -46,7 +51,7 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         if (replaced) {
             // The old instance leaves the list for good; wipe the seed it still owns.
             existing.destroy()
-            presentation.showReorderedEntries()
+            refreshProjection()
         }
         return replaced
     }
@@ -57,31 +62,42 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         val removed = entries.getEntry(position)
         entries.removeEntry(position)
         removed.destroy()
-        presentation.showReorderedEntries()
+        refreshProjection()
         return removed
     }
 
     fun snapshot(): ArrayList<Entry> = entries.getEntries()
 
-    /** Runs the core set-search/search/publish sequence; a blank query restores the full list. */
-    fun applySearch(query: String,
-                    includes: List<Constants.SearchIncludes> = DEFAULT_INCLUDES) {
-        presentation.setSearch(query, includes)
-        presentation.publishSearch(presentation.search(query, includes))
+    /** Search and tag filters compose within the selected category. */
+    fun applySearch(query: String, includes: List<Constants.SearchIncludes> = DEFAULT_INCLUDES) {
+        this.query = query
+        this.searchIncludes = includes.toList()
+        refreshProjection()
     }
 
-    /**
-     * Filters the projection by tag selection. The core filter treats an empty selection as
-     * "match nothing", so an empty filter (with noTags unset) restores the full projection instead.
-     */
+    /** Empty selection without untagged means all entries; otherwise select tags and/or tagless. */
     fun applyTagFilter(selected: List<String>, noTags: Boolean,
                        functionality: Constants.TagFunctionality = Constants.TagFunctionality.OR) {
-        if (selected.isEmpty() && !noTags) {
-            presentation.showReorderedEntries()
-        } else {
-            // filterByTags already selects the tags and refreshes the projection.
-            presentation.filterByTags(selected, noTags, functionality)
+        selectedTags = selected.toList()
+        includeUntagged = noTags
+        tagMode = functionality
+        refreshProjection()
+    }
+
+    /** Reapply both filters after a mutation or tab change without destroying borrowed entries. */
+    fun refreshProjection() {
+        presentation.setSearch(query, searchIncludes)
+        val result = presentation.search(query, searchIncludes)
+        if (selectedTags.isNotEmpty() || includeUntagged) {
+            result.entries?.removeAll { entry ->
+                val tags = entry.getTags()
+                val tagMatch = if (selectedTags.isEmpty()) false
+                    else if (tagMode == Constants.TagFunctionality.AND) tags.containsAll(selectedTags)
+                    else selectedTags.any { it in tags }
+                !tagMatch && !(includeUntagged && tags.isEmpty())
+            }
         }
+        presentation.publishSearch(result)
     }
 
     /**

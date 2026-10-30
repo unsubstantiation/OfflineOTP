@@ -132,9 +132,9 @@ class ManifestSourcePolicyTest(unittest.TestCase):
         enum_body = re.search(r"enum class OTPType \{([^}]*)\}", entry).group(1)
         kinds = {name.strip().lower() for name in enum_body.split(",") if name.strip()}
         self.assertIn("note", kinds)
-        self.assertIn('type != OTPType.NOTE && type != OTPType.SSH_KEY', entry)
+        self.assertIn('require(isTimeBased() || isCounterBased())', entry)
         self.assertIn("ssh_key", kinds)
-        kinds.difference_update({"note", "ssh_key"})  # These never produce otpauth links.
+        kinds.difference_update({"note", "ssh_key", "password", "password_archive"})  # These never produce otpauth links.
         self.assertGreaterEqual(len(kinds), 4, "the OTP types could not be read from Entry.kt")
 
         manifest = ET.fromstring(MANIFEST.read_text(encoding="utf-8").replace(

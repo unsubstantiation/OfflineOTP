@@ -18,16 +18,29 @@ import java.awt.RenderingHints
 import javax.swing.BorderFactory
 import javax.swing.Icon
 import javax.swing.JButton
+import javax.swing.JComboBox
 import javax.swing.JLabel
 import javax.swing.JPanel
 import javax.swing.JScrollPane
 import javax.swing.JTable
+import javax.swing.JTabbedPane
 import javax.swing.JTextField
 import javax.swing.SwingConstants
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.event.TableModelListener
 import javax.swing.table.TableModel
+
+/** A tag name remains separate from its label/count, so special names never collide with All. */
+internal data class TagChoice(val kind: Kind, val tag: String = "", val count: Int = 0) {
+    enum class Kind { ALL, UNTAGGED, TAG }
+    override fun toString(): String = when (kind) {
+        Kind.ALL -> "All tags"
+        Kind.UNTAGGED -> "Untagged ($count)"
+        Kind.TAG -> "$tag ($count)"
+    }
+    fun sameFilter(other: TagChoice): Boolean = kind == other.kind && tag == other.tag
+}
 
 /** Lightweight main-window content, separated from JFrame so its layout can be checked headlessly. */
 internal class MainScreen(val table: JTable, val copyButton: JButton) {
@@ -38,6 +51,18 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
     val addButton = JButton("+  Add entry")
     val editButton = JButton("Edit…")
     val deleteButton = JButton("Delete")
+    val tagsButton = JButton("Tags…")
+    val tagFilter = JComboBox<TagChoice>().apply {
+        renderer = PlainTagRenderer()
+        prototypeDisplayValue = TagChoice(TagChoice.Kind.TAG, "Example tag", 9999)
+        addItem(TagChoice(TagChoice.Kind.ALL))
+        accessibleContext.accessibleName = "Filter by tag"
+        toolTipText = "Filter the selected tab by a tag or show untagged entries"
+    }
+    val categories = JTabbedPane().apply {
+        listOf("OTP", "Notes", "SSH Keys", "Passwords").forEach { addTab(it, JPanel()) }
+        preferredSize = Dimension(400, 40)
+    }
     val panel: JPanel
 
     private val count = JLabel()
@@ -50,7 +75,7 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
 
     init {
         ForestTheme.makePrimary(addButton)
-        addButton.toolTipText = "Add an account, secure note, SSH key or QR image"
+        addButton.toolTipText = "Add an account, secure note, SSH key, password file or QR image"
         copyButton.toolTipText = "Copy the selected item (or double-click its row); choose an SSH key explicitly"
         search.toolTipText = "Search issuer, label or tags"
         search.accessibleContext.accessibleName = "Search entries"
@@ -106,10 +131,16 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
             isOpaque = false
             add(searchLabel, BorderLayout.WEST)
             add(search, BorderLayout.CENTER)
+            add(JPanel(BorderLayout(8, 0)).apply {
+                isOpaque = false
+                border = BorderFactory.createEmptyBorder(0, 12, 0, 0)
+                add(JLabel("Tag").apply { labelFor = tagFilter; foreground = ForestTheme.TEXT_SECONDARY }, BorderLayout.WEST)
+                add(tagFilter, BorderLayout.CENTER)
+            }, BorderLayout.EAST)
         }
         val selectionActions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
             isOpaque = false
-            add(copyButton); add(editButton); add(deleteButton)
+            add(copyButton); add(editButton); add(tagsButton); add(deleteButton)
         }
         val controls = JPanel(java.awt.GridBagLayout()).apply {
             isOpaque = false
@@ -121,8 +152,9 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
                 })
             }
             addRow(heading, 0, 16)
-            addRow(searchRow, 1, 12)
-            addRow(selectionActions, 2, 14)
+            addRow(categories, 1, 12)
+            addRow(searchRow, 2, 12)
+            addRow(selectionActions, 3, 14)
         }
 
         val scroll = JScrollPane(table).apply {
@@ -182,6 +214,8 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
             refreshState()
         }
         table.selectionModel.addListSelectionListener { refreshActions() }
+        categories.addChangeListener { refreshState() }
+        tagFilter.addActionListener { refreshState() }
         search.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(event: DocumentEvent) = refreshState()
             override fun removeUpdate(event: DocumentEvent) = refreshState()
@@ -203,18 +237,24 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
                 emptyTitle.text = "Your vault is locked"
                 emptyDescription.text = "Open a vault or create a new one to get started."
             }
-            search.text.isNotEmpty() -> {
+            search.text.isNotEmpty() || (tagFilter.selectedItem as? TagChoice)?.kind != TagChoice.Kind.ALL -> {
                 emptyTitle.text = "No matching entries"
                 emptyDescription.text = "Try another search."
             }
             else -> {
                 emptyTitle.text = "No entries yet"
-                emptyDescription.text = "Add an account, secure note, or SSH key to get started."
+                emptyDescription.text = when (categories.selectedIndex) {
+                    0 -> "Add an OTP account to get started."
+                    1 -> "Add a secure note to get started."
+                    2 -> "Add an SSH key to get started."
+                    else -> "Import a browser password file to get started."
+                }
             }
         }
         bodyLayout.show(body, if (unlocked && rows > 0) "entries" else "empty")
         addButton.isEnabled = unlocked
         search.isEnabled = unlocked
+        tagFilter.isEnabled = unlocked
         refreshActions()
     }
 
@@ -224,8 +264,9 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         val model = table.model as? EntryTableModel
         val hasSelection = unlocked && model != null && modelRow in 0 until model.rowCount
         val visible = hasSelection && model!!.getValueAt(modelRow, EntryTableModel.Column.SHOW.ordinal) == true
-        copyButton.isEnabled = visible
-        editButton.isEnabled = visible
+        copyButton.isEnabled = visible && !model!!.entryAt(modelRow).isPasswordArchive()
+        editButton.isEnabled = visible && !model!!.entryAt(modelRow).isPassword() && !model.entryAt(modelRow).isPasswordArchive()
+        tagsButton.isEnabled = visible
         deleteButton.isEnabled = hasSelection
     }
 }

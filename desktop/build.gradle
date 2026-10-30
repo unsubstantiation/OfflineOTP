@@ -57,6 +57,14 @@ tasks.register('packageDesktop', Exec) {
         '--main-class', 'org.shadowice.flocke.andotp.desktop.MainKt',
         '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
     ]
+    // jpackage requires a platform-specific icon format. Other platforms keep their default.
+    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    def icon = isWindows ? file('packaging/offlineotp.ico') :
+        (osName.contains('linux') ? file('src/main/resources/offlineotp.png') : null)
+    if (icon != null) {
+        inputs.file(icon)
+        args '--icon', icon.absolutePath
+    }
     onlyIf { jpackage.canExecute() }
     doFirst { layout.buildDirectory.dir('release').get().asFile.mkdirs() }
 }

@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.Database
 
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
@@ -52,7 +53,11 @@ class ValidatedEntry private constructor(
     val detailsVisible: Boolean
 ) : AutoCloseable {
     private val seed: ByteArray = secret.also {
-        val limit = if (kind == OtpKind.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        val limit = when (kind) {
+            OtpKind.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
+            OtpKind.PASSWORD, OtpKind.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            else -> InputPolicy.MAX_SECRET_BYTES
+        }
         require(it.isNotEmpty() && it.size <= limit)
     }.copyOf()
     val tags: List<String> = Collections.unmodifiableList(ArrayList(tags))
@@ -66,6 +71,8 @@ class ValidatedEntry private constructor(
                 SshKeyMaterial.decode(seed)
                 require(label.isNotBlank())
             }
+            if (kind == OtpKind.PASSWORD) PasswordMaterial.decode(seed)
+            if (kind == OtpKind.PASSWORD || kind == OtpKind.PASSWORD_ARCHIVE) require(label.isNotBlank())
             if (kind == OtpKind.NOTE) {
                 InputPolicy.noteFromBytes(seed)
                 require(label.isNotBlank())

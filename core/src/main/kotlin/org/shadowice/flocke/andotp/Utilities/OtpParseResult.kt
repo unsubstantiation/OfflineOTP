@@ -9,7 +9,7 @@ enum class OtpParseError {
     INVALID_PARAMETERS, INVALID_ALGORITHM, TEXT_TOO_LONG, TOO_MANY_TAGS
 }
 
-enum class OtpKind { TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY }
+enum class OtpKind { TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE }
 enum class OtpHashAlgorithm { SHA1, SHA256, SHA512 }
 
 /** Closed result of parsing an `otpauth://` URI. */
@@ -45,7 +45,7 @@ class ValidatedOtp private constructor(
     init {
         try {
             // A standalone note is never an otpauth URI or a validated OTP.
-            require(kind != OtpKind.NOTE && kind != OtpKind.SSH_KEY)
+            require(kind in listOf(OtpKind.TOTP, OtpKind.HOTP, OtpKind.MOTP, OtpKind.STEAM))
             // Validate owned snapshots, not mutable caller storage after copying it.
             require(kind != OtpKind.MOTP || (seed.size % 2 == 0 && seed.all {
                 val c = it.toInt()

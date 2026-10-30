@@ -28,6 +28,8 @@ import org.apache.commons.codec.binary.Hex
 import org.json.JSONException
 import org.json.JSONObject
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
+import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
@@ -45,7 +47,7 @@ import java.util.Objects
 open class Entry {
     /** Supported OTP types. */
     enum class OTPType {
-        TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY
+        TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE
     }
 
     private var type: OTPType = OTPType.TOTP
@@ -197,7 +199,11 @@ open class Entry {
     @Suppress("SENSELESS_COMPARISON")
     fun validate() {
         val seed = secret
-        val maxSecret = if (type == OTPType.SSH_KEY) SshKeyMaterial.MAX_ENCODED_BYTES else InputPolicy.MAX_SECRET_BYTES
+        val maxSecret = when (type) {
+            OTPType.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
+            OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            else -> InputPolicy.MAX_SECRET_BYTES
+        }
         if (seed == null || seed.isEmpty() || seed.size > maxSecret)
             throw IllegalArgumentException("Invalid entry")
         InputPolicy.tokenParameters(period, digits, counter)
@@ -209,6 +215,8 @@ open class Entry {
             SshKeyMaterial.decode(seed)
             require(label.isNotBlank()) { "An SSH key needs a title" }
         }
+        if (type == OTPType.PASSWORD) PasswordMaterial.decode(seed)
+        if (type == OTPType.PASSWORD || type == OTPType.PASSWORD_ARCHIVE) require(label.isNotBlank())
         if (type == OTPType.STEAM && digits != TokenCalculator.STEAM_DEFAULT_DIGITS)
             throw IllegalArgumentException("Invalid Steam digits")
         InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
@@ -258,13 +266,13 @@ open class Entry {
      * `%20`, never `+`) keeps this Android-free and byte-compatible with the [OtpUriParser] rules.
      */
     fun toUriString(): String {
-        require(type != OTPType.NOTE && type != OTPType.SSH_KEY) { "This entry cannot be exported as an OTP URI" }
+        require(isTimeBased() || isCounterBased()) { "This entry cannot be exported as an OTP URI" }
         val typeName = when (type) {
             OTPType.TOTP -> "totp"
             OTPType.HOTP -> "hotp"
             OTPType.STEAM -> "steam"
             OTPType.MOTP -> "motp"
-            OTPType.NOTE, OTPType.SSH_KEY -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
+            OTPType.NOTE, OTPType.SSH_KEY, OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
         }
 
         val query = LinkedHashMap<String, String>()
@@ -339,6 +347,19 @@ open class Entry {
 
     fun isNote(): Boolean = type == OTPType.NOTE
     fun isSshKey(): Boolean = type == OTPType.SSH_KEY
+    fun isPassword(): Boolean = type == OTPType.PASSWORD
+    fun isPasswordArchive(): Boolean = type == OTPType.PASSWORD_ARCHIVE
+
+    fun getPasswordFields(): PasswordMaterial.Fields {
+        require(isPassword())
+        return PasswordMaterial.decode(ownedSecret())
+    }
+
+    /** The exact imported bytes, only for explicit plaintext export. Caller must wipe them. */
+    fun exportPasswordArchive(): ByteArray {
+        require(isPasswordArchive())
+        return ownedSecret().copyOf()
+    }
 
     /** Keys are only exposed on an explicit edit or copy action; never via OTP calculation. */
     fun getSshKeys(): SshKeyMaterial.Keys {
@@ -366,6 +387,9 @@ open class Entry {
     }
 
     fun getSecret(): ByteArray? = secret?.clone()
+
+    /** Size only, for enforcing import budgets without copying secret bytes. */
+    fun getSecretSize(): Int = secret?.size ?: 0
 
     /** The secret as stored/displayed: Base32, or the raw secret for mOTP. */
     fun getSecretEncoded(): String {
@@ -550,6 +574,7 @@ open class Entry {
      */
     fun updateOTPAt(time: Long, updateNow: Boolean): Boolean {
         val seed = secret ?: return false
+        if (!isTimeBased() && !isCounterBased()) return false
         validate()
         if (type == OTPType.TOTP || type == OTPType.STEAM || type == OTPType.MOTP) {
             val counter = time / getTokenStepSeconds()
@@ -659,6 +684,42 @@ open class Entry {
     fun getColor(): Int = color
 
     companion object {
+        /** Imports a browser row while retaining all original columns inside the encrypted vault. */
+        @JvmStatic
+        fun password(columns: List<String>, row: BrowserPasswordCsv.Row): Entry {
+            val material = PasswordMaterial.encode(columns, row)
+            val value = Entry()
+            try {
+                val fields = PasswordMaterial.decode(material)
+                val issuer = fields.value("name").ifBlank { fields.value("title") }.ifBlank { fields.value("url") }
+                val username = fields.value("username")
+                value.type = OTPType.PASSWORD
+                value.secret = material.copyOf()
+                value.issuer = issuer
+                value.label = username.ifBlank { "Password" }
+                value.setThumbnailFromIssuer(issuer)
+                value.validate()
+                return value
+            } catch (error: RuntimeException) {
+                value.destroy()
+                throw error
+            } finally { material.fill(0) }
+        }
+
+        /** The payload is the original file, byte for byte; it is encrypted with the vault. */
+        @JvmStatic
+        fun passwordArchive(filename: String, data: ByteArray): Entry {
+            require(data.isNotEmpty() && data.size <= PasswordMaterial.MAX_BYTES)
+            val value = Entry()
+            try {
+                value.type = OTPType.PASSWORD_ARCHIVE
+                value.secret = data.copyOf()
+                value.label = filename
+                value.validate()
+                return value
+            } catch (error: RuntimeException) { value.destroy(); throw error }
+        }
+
         /** Creates one vault entry for a public and/or private SSH key. */
         @JvmStatic
         fun sshKey(publicKey: String, privateKey: String, issuer: String, label: String,

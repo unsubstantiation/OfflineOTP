@@ -66,6 +66,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private var callback: Callback? = null
     private var activeQrDialog: AlertDialog? = null
     private var activeSshCopyDialog: AlertDialog? = null
+    private var activePasswordDialog: AlertDialog? = null
     private var activePopupMenu: PopupMenu? = null
 
     /** The key the entries are encrypted with; null while the vault is locked. */
@@ -111,6 +112,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         }
         if (added) {
             saveAndRefresh(settings.getAutoBackupEncryptedPasswordsEnabled())
+            (context as? MainActivity)?.showEntryCategory(e)
         } else {
             e.destroy()
             Toast.makeText(context, R.string.toast_entry_exists, Toast.LENGTH_LONG).show()
@@ -162,6 +164,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 retained.addAll(accepted)
                 updateTagsFilter()
                 entriesChanged(RecyclerView.NO_POSITION)
+                (context as? MainActivity)?.showEntryCategory(accepted.first())
                 return BatchImportResult(accepted.size, skipped)
             }
         } finally {
@@ -241,6 +244,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         activeQrDialog = null
         activeSshCopyDialog?.dismiss()
         activeSshCopyDialog = null
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
         activePopupMenu?.dismiss()
         activePopupMenu = null
     }
@@ -285,6 +290,48 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         presentation.filterByTags(tags, settings.getNoTagsToggle(), settings.getTagFunctionality())
 
         notifyDataSetChanged()
+    }
+
+    fun setCategory(category: EntryListPresentation.Category) {
+        clearFilter()
+        presentation.setCategory(category)
+        presentation.refreshTags(settings.getNoTagsToggle(), settings.getTagFunctionality())
+        notifyDataSetChanged()
+    }
+
+    fun canExportPasswordArchive(entry: Entry, generation: Long): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            return VaultSession.isCurrent(generation) && encryptionKey != null && VaultSession.getKey() === encryptionKey &&
+                entries.getEntries().any { it === entry } && entry.areDetailsVisible() && entry.isPasswordArchive()
+        }
+    }
+
+    private fun archiveDigest(entry: Entry): String {
+        val bytes = entry.exportPasswordArchive()
+        return try { java.security.MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) } }
+        finally { bytes.fill(0) }
+    }
+
+    fun passwordArchiveDigest(entry: Entry, generation: Long): String? {
+        synchronized(VaultSession.MutationLock) {
+            return if (canExportPasswordArchive(entry, generation)) archiveDigest(entry) else null
+        }
+    }
+
+    fun findPasswordArchive(name: String, digest: String): Entry? {
+        synchronized(VaultSession.MutationLock) {
+            val generation = VaultSession.generation()
+            return entries.getEntries().firstOrNull { it.getLabel() == name &&
+                canExportPasswordArchive(it, generation) && archiveDigest(it) == digest }
+        }
+    }
+
+    /** Copies an archive only if the same entry and session are still authorized. */
+    fun passwordArchiveForExport(entry: Entry, generation: Long): ByteArray? {
+        synchronized(VaultSession.MutationLock) {
+            if (!canExportPasswordArchive(entry, generation)) return null
+            return entry.exportPasswordArchive()
+        }
     }
 
     /** Searches asynchronously, or restores the selected tag projection when the query is empty. */
@@ -489,11 +536,13 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private fun copyHandler(position: Int, text: String, dropToBackground: Boolean) {
         if (!validDisplayedPosition(position)) return
         val selected = presentation.get(position)
+        if (selected.isPasswordArchive()) return
         if (selected.isSshKey()) {
             chooseSshKeyToCopy(position, dropToBackground)
             return
         }
-        val otp = if (selected.isNote()) selected.getNote()
+        val otp = if (selected.isPassword()) selected.getPasswordFields().value("password")
+            else if (selected.isNote()) selected.getNote()
             else text.ifEmpty { selected.getCurrentOTP() ?: "" }
         if (otp.isEmpty()) return
         Tools.copyToClipboard(context, otp)
@@ -664,10 +713,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         return true
     }
 
-    /** Swaps two entries after a drag (only in the unsorted, unfiltered view). */
+    /** Swaps two entries within the selected tab, only in the unsorted, unfiltered view. */
     override fun onItemMove(fromPosition: Int, toPosition: Int): Boolean {
-        if (presentation.canDrag()) {
-            entries.swapEntries(fromPosition, toPosition)
+        if (presentation.canDrag() && validDisplayedPosition(fromPosition) && validDisplayedPosition(toPosition)) {
+            entries.swapEntries(presentation.sourceIndex(fromPosition), presentation.sourceIndex(toPosition))
 
             presentation.showReorderedEntries()
             notifyItemMoved(fromPosition, toPosition)
@@ -756,7 +805,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
-        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey()) return
+        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey() || presentation.get(pos).isPassword() || presentation.get(pos).isPasswordArchive()) return
         val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
@@ -802,10 +851,16 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
-        if (popupEntry.isNote() || popupEntry.isSshKey()) {
+        if (popupEntry.isNote() || popupEntry.isSshKey() || popupEntry.isPassword() || popupEntry.isPasswordArchive()) {
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
         }
+        if (popupEntry.isPassword() || popupEntry.isPasswordArchive())
+            popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
+        if (popupEntry.isPasswordArchive())
+            popup.getMenu().findItem(R.id.menu_popup_export_password_file)?.setVisible(true)
+        if (popupEntry.isPassword())
+            popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(true)
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
@@ -819,7 +874,25 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             }
             val id = item.getItemId()
 
-            if (id == R.id.menu_popup_edit) {
+            if (id == R.id.menu_popup_password_details) {
+                withTarget(popupTarget, Consumer { actual ->
+                    if (!actual.isPassword()) return@Consumer
+                    val fields = actual.getPasswordFields()
+                    val text = fields.columns().indices.joinToString("\n\n") { "${fields.columns()[it]}: ${fields.valueAt(it)}" }
+                    activePasswordDialog?.dismiss()
+                    val dialog = AlertDialog.Builder(context).setTitle(R.string.password_details)
+                        .setMessage(text).setPositiveButton(android.R.string.ok, null).create()
+                    activePasswordDialog = dialog
+                    dialog.setOnDismissListener { if (activePasswordDialog === dialog) activePasswordDialog = null }
+                    dialog.show()
+                })
+                true
+            } else if (id == R.id.menu_popup_export_password_file) {
+                withTarget(popupTarget, Consumer { actual ->
+                    (context as? MainActivity)?.requestPasswordArchiveExport(actual)
+                })
+                true
+            } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
                     val hostActivity = context as? MainActivity ?: return@Consumer
                     ManualEntryDialog.show(hostActivity, settings, this, actual,

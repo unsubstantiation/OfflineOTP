@@ -8,6 +8,7 @@ import java.awt.GridBagConstraints
 import java.awt.GridBagLayout
 import java.awt.Insets
 import javax.swing.BorderFactory
+import javax.swing.JButton
 import javax.swing.JComboBox
 import javax.swing.JComponent
 import javax.swing.JDialog
@@ -29,13 +30,13 @@ import javax.swing.SwingUtilities
  *  - all OTP types plus secure notes and SSH keys are offered for new entries;
  *  - the type is fixed while editing, so a Steam/mOTP entry can never be silently rebuilt as TOTP;
  *  - Steam locks digits/period/algorithm to its contract and mOTP exposes an optional PIN field;
- *  - tags, last-used and usage frequency have no desktop editors and are carried over on edit
- *    rather than reset, matching the Android in-place edit contract.
+ *  - tags can be chosen during add/edit; last-used and usage frequency survive edits.
  */
 object EntryDialog {
 
     fun prompt(parent: JFrame, existing: Entry? = null,
-               initialType: Entry.OTPType = Entry.OTPType.TOTP): Entry? {
+               initialType: Entry.OTPType = Entry.OTPType.TOTP,
+               knownTags: List<String> = emptyList()): Entry? {
         val issuer = JTextField(existing?.getIssuer().orEmpty(), 24)
         val label = JTextField(existing?.getLabel().orEmpty(), 24)
         val sshKeys = existing?.takeIf { it.isSshKey() }?.getSshKeys()
@@ -47,7 +48,7 @@ object EntryDialog {
         val publicKeyLabel = JLabel("SSH public key (optional)")
         val secretLabel = JLabel("Secret (Base32)")
         val typeLabel = JLabel("Type")
-        val type = JComboBox(Entry.OTPType.entries.toTypedArray()).apply {
+        val type = JComboBox(Entry.OTPType.entries.filter { it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE }.toTypedArray()).apply {
             selectedItem = existing?.getType() ?: initialType
             // Android keeps the OTP type fixed on edit; a switch would rebuild the entry and drop
             // type-only fields (the mOTP PIN, the Steam digit contract).
@@ -63,6 +64,22 @@ object EntryDialog {
         val algorithm = JComboBox(
             TokenCalculator.HashAlgorithm.entries.map { it.name }.toTypedArray()).apply {
             selectedItem = (existing?.getAlgorithm() ?: TokenCalculator.HashAlgorithm.SHA1).name
+        }
+        var selectedTags = existing?.getTags()?.toList().orEmpty()
+        val tagsLabel = JLabel("Tags")
+        val tagsSummary = JLabel().apply { putClientProperty("html.disable", true) }
+        fun refreshTagsSummary() { tagsSummary.text = if (selectedTags.isEmpty()) "None" else selectedTags.joinToString(", ") }
+        refreshTagsSummary()
+        val tagsButton = JButton("Choose tags…").apply {
+            addActionListener {
+                val owner = SwingUtilities.getWindowAncestor(this) ?: parent
+                TagDialog.prompt(owner, selectedTags, knownTags)?.let { selectedTags = it; refreshTagsSummary() }
+            }
+        }
+        val tagsControl = JPanel(java.awt.BorderLayout(8, 0)).apply {
+            isOpaque = false
+            add(tagsSummary, java.awt.BorderLayout.CENTER)
+            add(tagsButton, java.awt.BorderLayout.EAST)
         }
         val pinLabel = JLabel("mOTP PIN (optional)")
         val pin = JTextField(
@@ -98,6 +115,7 @@ object EntryDialog {
             row(6, timingLabel, periodOrCounter)
             row(7, algorithmLabel, algorithm)
             row(8, pinLabel, pin)
+            row(9, tagsLabel, tagsControl, tagsButton)
         }
         val formScroll = JScrollPane(panel).apply {
             border = BorderFactory.createEmptyBorder()
@@ -175,16 +193,22 @@ object EntryDialog {
             }
 
             val built = try {
-                buildEntry(
+                val replacement = buildEntry(
                     type.selectedItem as Entry.OTPType,
                     issuer.text, label.text,
                     if (type.selectedItem == Entry.OTPType.NOTE || type.selectedItem == Entry.OTPType.SSH_KEY) secret.text
                     else secret.text.ifEmpty { existing?.getSecretEncoded() },
                     digits.text, periodOrCounter.text,
                     TokenCalculator.HashAlgorithm.valueOf(algorithm.selectedItem as String),
-                    pin.text, publicKey.text).also { replacement ->
-                    // No tag/usage editors on desktop: keep the metadata the form cannot show.
+                    pin.text, publicKey.text)
+                try {
                     if (existing != null) preserveEditMetadata(existing, replacement)
+                    replacement.setTags(ArrayList(selectedTags))
+                    replacement.validate()
+                    replacement
+                } catch (error: RuntimeException) {
+                    replacement.destroy()
+                    throw error
                 }
             } catch (error: IllegalArgumentException) {
                 JOptionPane.showMessageDialog(parent, error.message ?: "Invalid entry",
@@ -202,7 +226,6 @@ object EntryDialog {
 
     private fun preserveEditMetadata(existing: Entry, replacement: Entry) {
         replacement.setDetailsVisible(existing.areDetailsVisible())
-        replacement.setTags(ArrayList(existing.getTags()))
         replacement.setLastUsed(existing.getLastUsed())
         replacement.setUsedFrequency(existing.getUsedFrequency())
     }
@@ -215,6 +238,7 @@ object EntryDialog {
         val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
             else digitsText.toIntOrNull() ?: throw IllegalArgumentException("Digits must be a number")
         return when (type) {
+            Entry.OTPType.PASSWORD, Entry.OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("Use password import")
             Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, arrayListOf())
             Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf())
             Entry.OTPType.HOTP -> {

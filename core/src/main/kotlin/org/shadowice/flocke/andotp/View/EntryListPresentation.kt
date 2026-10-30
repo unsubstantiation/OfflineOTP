@@ -10,9 +10,23 @@ import java.util.HashMap
 /**
  * Display-only projection over a borrowed EntryList. No Context, views, session authority or I/O.
  * Entries are borrowed, not copied/owned: clearing this projection must never destroy them.
- * Search covers the whole vault; when it is empty, the tag selection determines the projection.
+ * Search covers the selected category (or the whole vault without a category); when empty, tags apply.
  */
 class EntryListPresentation(private val source: EntryList) {
+    enum class Category { OTP, NOTES, SSH_KEYS, PASSWORDS }
+    private var category: Category? = null
+
+    private fun matches(entry: Entry, selected: Category?): Boolean = when (selected) {
+        null -> true
+        Category.OTP -> entry.isTimeBased() || entry.isCounterBased()
+        Category.NOTES -> entry.isNote()
+        Category.SSH_KEYS -> entry.isSshKey()
+        Category.PASSWORDS -> entry.isPassword() || entry.isPasswordArchive()
+    }
+
+    /** Invalidates in-flight searches; caller then refreshes its current tag/search projection. */
+    @Synchronized fun setCategory(value: Category?) { category = value; revision++ }
+
     private var displayed: ArrayList<Entry> = ArrayList()
     private var tags: MutableList<String> = ArrayList()
     private var sortMode: Constants.SortMode = Constants.SortMode.UNSORTED
@@ -61,10 +75,11 @@ class EntryListPresentation(private val source: EntryList) {
 
     /** Rebuilds the active projection after entry, tag, or sort changes. */
     @Synchronized fun refreshTags(noTags: Boolean, functionality: Constants.TagFunctionality) {
-        displayed = if (searchQuery.isEmpty())
+        val candidates = if (searchQuery.isEmpty())
             source.getEntriesFilteredByTags(tags, noTags, functionality, sortMode)
         else
             source.getFilteredEntries(searchQuery, searchIncludes, sortMode)
+        displayed = ArrayList(candidates.filter { matches(it, category) })
         revision++
     }
 
@@ -78,11 +93,12 @@ class EntryListPresentation(private val source: EntryList) {
     }
 
     @Synchronized fun canDrag(): Boolean {
-        return sortMode == Constants.SortMode.UNSORTED && source.isEqual(displayed)
+        return sortMode == Constants.SortMode.UNSORTED && searchQuery.isEmpty() &&
+            source.getEntries().filter { matches(it, category) } == displayed
     }
 
     @Synchronized fun showReorderedEntries() {
-        displayed = source.getEntries()
+        displayed = ArrayList(source.getEntries().filter { matches(it, category) })
         revision++
     }
 
@@ -105,14 +121,16 @@ class EntryListPresentation(private val source: EntryList) {
     fun search(constraint: CharSequence?, includes: List<Constants.SearchIncludes>): SearchResult {
         val version: Long
         val mode: Constants.SortMode
+        val selected: Category?
         synchronized(this) {
             version = revision
             mode = sortMode
+            selected = category
         }
         // Do not hold the presentation monitor during collection work.
         val query = constraint?.toString().orEmpty()
         val fields = includes.distinct().sortedBy { it.ordinal }
-        val matches = source.getFilteredEntries(query, fields, mode)
+        val matches = ArrayList(source.getFilteredEntries(query, fields, mode).filter { matches(it, selected) })
         return SearchResult(this, version, matches, query, fields)
     }
 

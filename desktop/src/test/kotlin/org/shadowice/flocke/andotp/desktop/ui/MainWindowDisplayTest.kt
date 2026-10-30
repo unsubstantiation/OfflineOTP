@@ -106,6 +106,10 @@ class MainWindowDisplayTest {
                 isVisible = true
             }
         }
+        edt {
+            val icon = frame.iconImage as java.awt.image.BufferedImage
+            assertEquals(DesktopIcon.load().getRGB(128, 128), icon.getRGB(128, 128))
+        }
         return Fixture(directory, controller, hardware, frame)
     }
 
@@ -164,6 +168,62 @@ class MainWindowDisplayTest {
     }
 
     @Test
+    fun tagDialogAndFilterWorkWithSearchOnADisplay() {
+        val fixture = fixture()
+        try {
+            open(fixture)
+            edt {
+                val table = table(fixture.frame)
+                table.setRowSelectionInterval(0, 0)
+                assertFalse(button(fixture.frame, "Tags…").isEnabled)
+                (table.model as EntryTableModel).setValueAt(true, 0, EntryTableModel.Column.SHOW.ordinal)
+                assertTrue(button(fixture.frame, "Tags…").isEnabled)
+            }
+            SwingUtilities.invokeLater { button(fixture.frame, "Tags…").doClick() }
+            await("tag dialog") { dialog("Edit tags") != null }
+            edt {
+                val modal = dialog("Edit tags")!!
+                val panel = components(modal).filterIsInstance<TagEditorPanel>().single()
+                panel.input.editor.item = "team, 東京"
+                optionButton(modal, "ok", "OK").doClick()
+            }
+            await("tag saved") {
+                components(fixture.frame).filterIsInstance<JComboBox<*>>()
+                    .any { combo -> (0 until combo.itemCount).any { (combo.getItemAt(it) as? TagChoice)?.tag == "team, 東京" } }
+            }
+            edt {
+                val combo = components(fixture.frame).filterIsInstance<JComboBox<*>>()
+                    .first { it.accessibleContext.accessibleName == "Filter by tag" }
+                combo.selectedIndex = (0 until combo.itemCount).first { (combo.getItemAt(it) as? TagChoice)?.tag == "team, 東京" }
+                assertEquals(1, table(fixture.frame).rowCount)
+                val search = components(fixture.frame).filterIsInstance<JTextField>()
+                    .first { it.accessibleContext.accessibleName == "Search entries" }
+                search.text = "not present"
+                assertEquals(0, table(fixture.frame).rowCount)
+                search.text = ""
+                assertEquals(1, table(fixture.frame).rowCount)
+                table(fixture.frame).setRowSelectionInterval(0, 0)
+            }
+            SwingUtilities.invokeLater { button(fixture.frame, "Tags…").doClick() }
+            await("tag dialog reopened") { dialog("Edit tags") != null }
+            edt {
+                val modal = dialog("Edit tags")!!
+                val panel = components(modal).filterIsInstance<TagEditorPanel>().single()
+                panel.list.setSelectedIndex(0)
+                panel.removeButton.doClick()
+                optionButton(modal, "ok", "OK").doClick()
+            }
+            await("filter reset after last tag removed") {
+                table(fixture.frame).rowCount == 2 && components(fixture.frame)
+                    .filterIsInstance<JComboBox<*>>().first { it.accessibleContext.accessibleName == "Filter by tag" }
+                    .selectedIndex == 0
+            }
+            val reopened = fixture.controller.openVault(password) as VaultController.Session.Loaded
+            assertTrue(reopened.entries.all { it.getTags().isEmpty() })
+        } finally { close(fixture) }
+    }
+
+    @Test
     fun frameCardsVisibilitySearchCopyAndTickerWorkOnADisplay() {
         val fixture = fixture()
         try {
@@ -210,7 +270,7 @@ class MainWindowDisplayTest {
             Thread.sleep(1300)
             edt {
                 assertEquals(0, table(fixture.frame).selectedRow)
-                assertTrue(button(fixture.frame, "Copy token / note / key").isEnabled)
+                assertTrue(button(fixture.frame, "Copy selected").isEnabled)
             }
             val reopened = fixture.controller.openVault(password) as VaultController.Session.Loaded
             assertTrue(reopened.entries[0].areDetailsVisible())
@@ -223,7 +283,7 @@ class MainWindowDisplayTest {
                 val table = table(fixture.frame)
                 assertEquals("Hidden, Private issuer – Hidden account", card(table, 0).accessibleContext.accessibleName)
                 assertEquals("", (table.model as EntryTableModel).getValueAt(0, EntryTableModel.Column.TOKEN.ordinal))
-                assertFalse(button(fixture.frame, "Copy token / note / key").isEnabled)
+                assertFalse(button(fixture.frame, "Copy selected").isEnabled)
             }
             robot.keyPress(KeyEvent.VK_SPACE); robot.keyRelease(KeyEvent.VK_SPACE)
             await("keyboard reveal") { (table(fixture.frame).model as EntryTableModel).getValueAt(0, 4) == true }
@@ -239,14 +299,14 @@ class MainWindowDisplayTest {
             edt {
                 val popup = MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<JPopupMenu>().last()
                 assertTrue(popup.components.filterIsInstance<JMenuItem>()
-                    .any { it.text == "Copy token / note / key" && it.isEnabled })
+                    .any { it.text == "Copy selected" && it.isEnabled })
                 MenuSelectionManager.defaultManager().clearSelectedPath()
             }
 
             await("generated token") {
                 ((table(fixture.frame).model as EntryTableModel).getValueAt(0, 3) as String).isNotBlank()
             }
-            edt { button(fixture.frame, "Copy token / note / key").doClick() }
+            edt { button(fixture.frame, "Copy selected").doClick() }
             val copied = Toolkit.getDefaultToolkit().systemClipboard.getData(DataFlavor.stringFlavor) as String
             assertEquals(6, copied.length)
             assertTrue(copied.all { it.isDigit() })
@@ -339,7 +399,7 @@ class MainWindowDisplayTest {
                 optionButton(key, "ok", "OK").doClick()
             }
             await("key form dismissed") { dialog("Add SSH key") == null }
-            edt { assertEquals(1, table(fixture.frame).rowCount) } // search still filters out the key
+            edt { assertEquals(0, table(fixture.frame).rowCount) } // SSH tab retains the active search
             val loaded = fixture.controller.openVault(password) as VaultController.Session.Loaded
             assertEquals(4, loaded.entries.size)
             val savedNote = loaded.entries.first { it.isNote() }
@@ -350,7 +410,11 @@ class MainWindowDisplayTest {
             assertFalse(savedNote.areDetailsVisible())
             assertFalse(savedKey.areDetailsVisible())
             edt { search.text = "" }
-            await("full list restored") { table(fixture.frame).rowCount == 4 }
+            await("SSH list restored") { table(fixture.frame).rowCount == 1 }
+            edt { components(fixture.frame).filterIsInstance<javax.swing.JTabbedPane>().first().selectedIndex = 0 }
+            await("OTP list restored") { table(fixture.frame).rowCount == 2 }
+            edt { components(fixture.frame).filterIsInstance<javax.swing.JTabbedPane>().first().selectedIndex = 1 }
+            await("note list restored") { table(fixture.frame).rowCount == 1 }
         } finally { close(fixture) }
     }
 

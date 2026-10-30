@@ -38,6 +38,15 @@ def main():
                        ('fastlane/metadata/android/en-US/images/icon.png', 512)]:
         save(art, ROOT / path, size)
 
+    # Desktop uses the same artwork both as a Swing classpath resource and in jpackage.
+    # Windows needs an ICO with multiple resolutions; Linux jpackage accepts the PNG.
+    desktop_icon = ROOT / 'desktop/src/main/resources/offlineotp.png'
+    save(art, desktop_icon, 256)
+    ico = ROOT / 'desktop/packaging/offlineotp.ico'
+    ico.parent.mkdir(parents=True, exist_ok=True)
+    art.resize((256, 256), Image.Resampling.LANCZOS).save(
+        ico, format='ICO', sizes=[(size, size) for size in (16, 24, 32, 48, 64, 128, 256)])
+
     # 108dp canvas: the approved image occupies the central 72dp. Reflected
     # forest continues to the edges; only the OS launcher supplies a mask.
     tile = art.resize((288, 288), Image.Resampling.LANCZOS)
