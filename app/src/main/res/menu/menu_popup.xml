@@ -24,6 +24,11 @@
         android:visible="false" />
 
     <item
+        android:id="@+id/menu_popup_email_details"
+        android:title="@string/email_show_details"
+        android:visible="false" />
+
+    <item
         android:id="@+id/menu_popup_export_password_file"
         android:title="@string/password_export"
         android:visible="false" />

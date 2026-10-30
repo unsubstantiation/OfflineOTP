@@ -50,7 +50,8 @@ class Toast private constructor(private val resId: Int, private val text: CharSe
     }
 }
 
-open class TextView : View() {
+open class TextView() : View() {
+    constructor(context: Context) : this()
     /**
      * The text of the view.
      *

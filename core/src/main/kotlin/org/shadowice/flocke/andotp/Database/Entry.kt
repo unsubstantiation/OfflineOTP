@@ -33,6 +33,7 @@ import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpParseResult
 import org.shadowice.flocke.andotp.Utilities.OtpUriParser
 import org.shadowice.flocke.andotp.Utilities.ThumbnailCatalog
@@ -43,11 +44,11 @@ import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
 import java.nio.charset.StandardCharsets
 import java.util.Objects
 
-/** One OTP entry: its secret, type and display/sort metadata, serialized to JSON and otpauth:// URIs. */
+/** One vault item (OTP or other secret type), serialized to the encrypted JSON vault format. */
 open class Entry {
-    /** Supported OTP types. */
+    /** Supported vault item types. */
     enum class OTPType {
-        TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE
+        TOTP, HOTP, MOTP, STEAM, NOTE, SSH_KEY, PASSWORD, PASSWORD_ARCHIVE, EMAIL
     }
 
     private var type: OTPType = OTPType.TOTP
@@ -202,6 +203,7 @@ open class Entry {
         val maxSecret = when (type) {
             OTPType.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
             OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            OTPType.EMAIL -> EmailMaterial.MAX_BYTES
             else -> InputPolicy.MAX_SECRET_BYTES
         }
         if (seed == null || seed.isEmpty() || seed.size > maxSecret)
@@ -217,6 +219,7 @@ open class Entry {
         }
         if (type == OTPType.PASSWORD) PasswordMaterial.decode(seed)
         if (type == OTPType.PASSWORD || type == OTPType.PASSWORD_ARCHIVE) require(label.isNotBlank())
+        if (type == OTPType.EMAIL) EmailMaterial.decode(seed)
         if (type == OTPType.STEAM && digits != TokenCalculator.STEAM_DEFAULT_DIGITS)
             throw IllegalArgumentException("Invalid Steam digits")
         InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
@@ -272,7 +275,7 @@ open class Entry {
             OTPType.HOTP -> "hotp"
             OTPType.STEAM -> "steam"
             OTPType.MOTP -> "motp"
-            OTPType.NOTE, OTPType.SSH_KEY, OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
+            OTPType.NOTE, OTPType.SSH_KEY, OTPType.PASSWORD, OTPType.PASSWORD_ARCHIVE, OTPType.EMAIL -> throw IllegalArgumentException("This entry cannot be exported as an OTP URI")
         }
 
         val query = LinkedHashMap<String, String>()
@@ -349,6 +352,12 @@ open class Entry {
     fun isSshKey(): Boolean = type == OTPType.SSH_KEY
     fun isPassword(): Boolean = type == OTPType.PASSWORD
     fun isPasswordArchive(): Boolean = type == OTPType.PASSWORD_ARCHIVE
+    fun isEmail(): Boolean = type == OTPType.EMAIL
+
+    fun getEmailAccount(): EmailMaterial.Account {
+        require(isEmail()) { "Not an email entry" }
+        return EmailMaterial.decode(ownedSecret())
+    }
 
     fun getPasswordFields(): PasswordMaterial.Fields {
         require(isPassword())
@@ -718,6 +727,27 @@ open class Entry {
                 value.validate()
                 return value
             } catch (error: RuntimeException) { value.destroy(); throw error }
+        }
+
+        /** Creates one encrypted Email entry, carrying the complete FairEmail account and identity. */
+        @JvmStatic
+        fun email(account: org.json.JSONObject, identity: org.json.JSONObject,
+                  identities: List<org.json.JSONObject> = listOf(identity), tags: MutableList<String> = ArrayList()): Entry {
+            val material = EmailMaterial.encode(account, identities)
+            val value = Entry()
+            try {
+                value.type = OTPType.EMAIL
+                value.secret = material.copyOf()
+                value.issuer = identity.optString("email").orEmpty()
+                value.label = account.optString("name").orEmpty().ifBlank { value.issuer }
+                value.tags = ArrayList(tags)
+                value.setThumbnailFromIssuer(value.issuer)
+                value.validate()
+                return value
+            } catch (error: RuntimeException) {
+                value.destroy()
+                throw error
+            } finally { material.fill(0) }
         }
 
         /** Creates one vault entry for a public and/or private SSH key. */

@@ -9,6 +9,7 @@ import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 
 import java.util.Locale
@@ -55,6 +56,7 @@ object EntryJson {
         val limit = when (kind) {
             OtpKind.SSH_KEY -> SshKeyMaterial.MAX_ENCODED_BYTES
             OtpKind.PASSWORD, OtpKind.PASSWORD_ARCHIVE -> PasswordMaterial.MAX_BYTES
+            OtpKind.EMAIL -> EmailMaterial.MAX_BYTES
             else -> InputPolicy.MAX_SECRET_BYTES
         }
         val seed = decodeBase32Secret(text(json, JSON_SECRET), limit) ?: reject(EntryJsonError.INVALID_SECRET)
@@ -70,6 +72,9 @@ object EntryJson {
             }
             if (kind == OtpKind.PASSWORD) {
                 try { PasswordMaterial.decode(seed) } catch (_: IllegalArgumentException) { reject(EntryJsonError.INVALID_TEXT) }
+            }
+            if (kind == OtpKind.EMAIL) {
+                try { EmailMaterial.decode(seed) } catch (_: Exception) { reject(EntryJsonError.INVALID_TEXT) }
             }
             if ((kind == OtpKind.PASSWORD || kind == OtpKind.PASSWORD_ARCHIVE) && label.isBlank()) reject(EntryJsonError.INVALID_TEXT)
             if (kind == OtpKind.NOTE) {
@@ -229,6 +234,7 @@ object EntryJson {
             "SSH_KEY" -> OtpKind.SSH_KEY
             "PASSWORD" -> OtpKind.PASSWORD
             "PASSWORD_ARCHIVE" -> OtpKind.PASSWORD_ARCHIVE
+            "EMAIL" -> OtpKind.EMAIL
             else -> reject(EntryJsonError.UNSUPPORTED_TYPE)
         }
     }

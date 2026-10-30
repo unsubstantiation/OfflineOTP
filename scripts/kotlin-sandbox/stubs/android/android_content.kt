@@ -332,6 +332,10 @@ interface DialogInterface {
         fun onClick(dialog: DialogInterface, which: Int)
     }
 
+    fun interface OnMultiChoiceClickListener {
+        fun onClick(dialog: DialogInterface, which: Int, isChecked: Boolean)
+    }
+
     companion object {
         const val BUTTON_NEGATIVE = -2
         const val BUTTON_POSITIVE = -1

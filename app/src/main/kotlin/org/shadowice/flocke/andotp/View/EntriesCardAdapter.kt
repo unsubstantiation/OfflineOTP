@@ -67,6 +67,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private var activeQrDialog: AlertDialog? = null
     private var activeSshCopyDialog: AlertDialog? = null
     private var activePasswordDialog: AlertDialog? = null
+    private var activeEmailDialog: AlertDialog? = null
     private var activePopupMenu: PopupMenu? = null
 
     /** The key the entries are encrypted with; null while the vault is locked. */
@@ -246,6 +247,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         activeSshCopyDialog = null
         activePasswordDialog?.dismiss()
         activePasswordDialog = null
+        activeEmailDialog?.dismiss()
+        activeEmailDialog = null
         activePopupMenu?.dismiss()
         activePopupMenu = null
     }
@@ -536,7 +539,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private fun copyHandler(position: Int, text: String, dropToBackground: Boolean) {
         if (!validDisplayedPosition(position)) return
         val selected = presentation.get(position)
-        if (selected.isPasswordArchive()) return
+        if (selected.isPasswordArchive() || selected.isEmail()) return
         if (selected.isSshKey()) {
             chooseSshKeyToCopy(position, dropToBackground)
             return
@@ -805,7 +808,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
-        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey() || presentation.get(pos).isPassword() || presentation.get(pos).isPasswordArchive()) return
+        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey() || presentation.get(pos).isPassword() || presentation.get(pos).isPasswordArchive() || presentation.get(pos).isEmail()) return
         val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
@@ -851,16 +854,18 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
-        if (popupEntry.isNote() || popupEntry.isSshKey() || popupEntry.isPassword() || popupEntry.isPasswordArchive()) {
+        if (popupEntry.isNote() || popupEntry.isSshKey() || popupEntry.isPassword() || popupEntry.isPasswordArchive() || popupEntry.isEmail()) {
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
         }
-        if (popupEntry.isPassword() || popupEntry.isPasswordArchive())
+        if (popupEntry.isPassword() || popupEntry.isPasswordArchive() || popupEntry.isEmail())
             popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
         if (popupEntry.isPasswordArchive())
             popup.getMenu().findItem(R.id.menu_popup_export_password_file)?.setVisible(true)
         if (popupEntry.isPassword())
             popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(true)
+        if (popupEntry.isEmail())
+            popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(true)
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
@@ -874,7 +879,38 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             }
             val id = item.getItemId()
 
-            if (id == R.id.menu_popup_password_details) {
+            if (id == R.id.menu_popup_email_details) {
+                withTarget(popupTarget, Consumer { actual ->
+                    if (!actual.isEmail()) return@Consumer
+                    val value = actual.getEmailAccount()
+                    fun line(json: org.json.JSONObject, key: String): String = json.optString(key, "").orEmpty()
+                    fun server(title: String, json: org.json.JSONObject): String = buildString {
+                        append(title).append('\n')
+                        append("Host: ").append(line(json, "host")).append('\n')
+                        append("Port: ").append(json.optInt("port")).append(" · Encryption: ").append(json.optInt("encryption")).append('\n')
+                        append("Auth type: ").append(json.optInt("auth_type")).append('\n')
+                        append("Username: ").append(line(json, "user")).append('\n')
+                        append("Password: ").append(line(json, "password"))
+                        for (key in listOf("provider", "realm", "fingerprint", "insecure"))
+                            if (json.has(key)) append('\n').append(key).append(": ").append(line(json, key))
+                    }
+                    val details = buildString {
+                        append("Account: ").append(line(value.account, "name")).append('\n')
+                        append("Address: ").append(line(value.identity, "email")).append("\n\n")
+                        append(server(if (value.account.optInt("protocol") == 1) "Incoming (POP)" else "Incoming (IMAP)", value.account))
+                        value.identities.forEachIndexed { index, identity ->
+                            append("\n\n").append(server("Outgoing SMTP" + if (index == 0) "" else " #${index + 1}", identity))
+                        }
+                    }
+                    activeEmailDialog?.dismiss()
+                    val dialog = AlertDialog.Builder(context).setTitle(R.string.email_show_details)
+                        .setMessage(details).setPositiveButton(android.R.string.ok, null).create()
+                    activeEmailDialog = dialog
+                    dialog.setOnDismissListener { if (activeEmailDialog === dialog) activeEmailDialog = null }
+                    dialog.show()
+                })
+                true
+            } else if (id == R.id.menu_popup_password_details) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (!actual.isPassword()) return@Consumer
                     val fields = actual.getPasswordFields()

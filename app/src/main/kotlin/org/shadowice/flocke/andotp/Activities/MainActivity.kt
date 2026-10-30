@@ -48,15 +48,17 @@ import com.leinardi.android.speeddial.SpeedDialView
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Dialogs.HideableDialog
 import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
+import org.shadowice.flocke.andotp.Dialogs.EmailEntryDialog
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.Constants.EncryptionType
 import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
 import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
-import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
 import org.shadowice.flocke.andotp.Utilities.PasswordImport
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
+import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
@@ -192,6 +194,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     override fun onVaultLocked() {
+        emailExportPending?.fill(0)
+        emailExportPending = null
+        emailExportGeneration = -1L
+        emailImportBytes?.fill(0)
+        emailImportBytes = null
+        emailImportPrompt?.dismiss()
+        emailImportPrompt = null
+        emailExportSelectionDialog?.dismiss()
+        emailExportSelectionDialog = null
         authenticationPending = false
         introPending = false
         requireAuthentication = true
@@ -210,6 +221,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (adapter != null) {
             launchPendingBackupActionIfReady()
             resumePasswordOperation()
+            resumeEmailImport()
         }
     }
 
@@ -400,6 +412,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabImportPasswords)
                 choosePasswordImport()
+            else if (actionId == R.id.fabAddEmail)
+                EmailEntryDialog.show(this) { entry -> adapter?.addEntry(entry) }
+            else if (actionId == R.id.fabImportEmail)
+                chooseEmailImport()
+            else if (actionId == R.id.fabExportEmail)
+                chooseEmailExport()
             else if (actionId == R.id.fabScanQRFromImage)
                 showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
 
@@ -439,7 +457,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val cardAdapter = EntriesCardAdapter(this, drawerAdapter)
         adapter = cardAdapter
         val categories = requireNotNull(findViewById<TabLayout>(R.id.entry_categories))
-        listOf(R.string.tab_otp, R.string.tab_notes, R.string.tab_ssh_keys, R.string.tab_passwords)
+        listOf(R.string.tab_otp, R.string.tab_notes, R.string.tab_ssh_keys, R.string.tab_passwords, R.string.tab_email)
             .forEach { categories.addTab(categories.newTab().setText(getString(it))) }
         categories.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
@@ -787,6 +805,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 }
                 afterAuthentication()
             }
+        } else if (requestCode == Constants.INTENT_MAIN_EMAIL_IMPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") {
+                emailImportPendingUri = intent.data
+                resumeEmailImport()
+            }
+        } else if (requestCode == Constants.INTENT_MAIN_EMAIL_EXPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") saveEmailExport(intent.data!!)
+            else { emailExportPending?.fill(0); emailExportPending = null; emailExportGeneration = -1L }
         } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_IMPORT) {
             if (resultCode == RESULT_OK && passwordImportMode != null && intent?.data?.getScheme() == "content") {
                 passwordPendingUri = intent.data
@@ -1237,12 +1263,140 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     fun showEntryCategory(entry: Entry) {
         val category = when {
+            entry.isEmail() -> EntryListPresentation.Category.EMAILS
             entry.isPassword() || entry.isPasswordArchive() -> EntryListPresentation.Category.PASSWORDS
             entry.isNote() -> EntryListPresentation.Category.NOTES
             entry.isSshKey() -> EntryListPresentation.Category.SSH_KEYS
             else -> EntryListPresentation.Category.OTP
         }
         findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
+    }
+
+    private fun chooseEmailImport() {
+        if (VaultSession.getKey() == null) return
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try { startActivityForResult(intent, Constants.INTENT_MAIN_EMAIL_IMPORT) }
+        catch (_: Exception) { Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun chooseEmailExport() {
+        val emailEntries = adapter?.getEntries()?.filter { it.isEmail() } ?: emptyList()
+        if (emailEntries.isEmpty()) {
+            Toast.makeText(this, R.string.email_export_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        val selectionGeneration = VaultSession.generation()
+        val selected = BooleanArray(emailEntries.size)
+        val labels = emailEntries.map { "${it.getLabel()} (${it.getIssuer()})" }.toTypedArray()
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.email_export_select)
+            .setMessage(R.string.email_export_warning)
+            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
+            .setPositiveButton(R.string.email_export) { _, _ ->
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
+                val chosen = emailEntries.filterIndexed { index, _ -> selected[index] }
+                if (chosen.isEmpty()) return@setPositiveButton
+                val accounts = try { chosen.map { it.getEmailAccount() } }
+                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                val file = try { EmailMaterial.exportBackup(accounts) }
+                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/json").putExtra(Intent.EXTRA_TITLE, "fairemail-accounts.json")
+                try {
+                    emailExportPending = file
+                    emailExportGeneration = VaultSession.generation()
+                    startActivityForResult(uriIntent, Constants.INTENT_MAIN_EMAIL_EXPORT)
+                } catch (_: Exception) {
+                    file.fill(0); emailExportPending = null; emailExportGeneration = -1L
+                    Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).create()
+        emailExportSelectionDialog = dialog
+        dialog.setOnDismissListener { if (emailExportSelectionDialog === dialog) emailExportSelectionDialog = null }
+        dialog.show()
+    }
+
+    private var emailExportPending: ByteArray? = null
+    private var emailExportGeneration: Long = -1L
+    private var emailImportPendingUri: Uri? = null
+    private var emailImportPrompt: AlertDialog? = null
+    private var emailImportBytes: ByteArray? = null
+    private var emailExportSelectionDialog: AlertDialog? = null
+
+    private fun resumeEmailImport() {
+        val uri = emailImportPendingUri ?: return
+        val current = adapter ?: return
+        if (authenticationPending || introPending || VaultSession.getKey() == null ||
+            current.encryptionKey !== VaultSession.getKey() || inactivityRelockExpired()) return
+        emailImportPendingUri = null
+        importEmailDocument(uri)
+    }
+
+    private fun importEmailDocument(uri: Uri) {
+        val bytes = try {
+            getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, 8 * 1024 * 1024) }
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        try {
+            importEmailBytes(bytes, null)
+            bytes.fill(0)
+        } catch (_: Exception) {
+            // FairEmail's normal export can be password encrypted. Prompt only when a plain/gzip
+            // import did not parse; password widgets are transient and never saved in view state.
+            val password = android.widget.EditText(this).apply {
+                isSaveEnabled = false
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+            }
+            emailImportBytes = bytes
+            val dialog = AlertDialog.Builder(this).setTitle(R.string.email_backup_password)
+                .setView(password)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    try { importEmailBytes(bytes, password.text.toString()) }
+                    catch (_: Exception) { Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show() }
+                }.setNegativeButton(android.R.string.cancel, null)
+                .create()
+            emailImportPrompt = dialog
+            dialog.setOnDismissListener {
+                password.setText("")
+                bytes.fill(0)
+                if (emailImportBytes === bytes) emailImportBytes = null
+                if (emailImportPrompt === dialog) emailImportPrompt = null
+            }
+            dialog.show()
+        }
+    }
+
+    private fun importEmailBytes(bytes: ByteArray, password: String?) {
+        val incoming = ArrayList<Entry>()
+        try {
+            for (account in EmailMaterial.importBackup(bytes, password))
+                incoming.add(Entry.email(account.account, account.identity, account.identities))
+            val result = adapter?.importEntries(incoming)
+            if (result == null) throw IllegalStateException("Vault unavailable")
+            Toast.makeText(this, R.string.email_import_success, Toast.LENGTH_LONG).show()
+            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
+        } catch (error: Exception) {
+            incoming.forEach { it.destroy() }
+            throw error
+        }
+    }
+
+    private fun saveEmailExport(uri: Uri) {
+        val bytes = emailExportPending ?: return
+        emailExportPending = null
+        val generation = emailExportGeneration
+        emailExportGeneration = -1L
+        val authorized = VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+        val saved = authorized && try {
+            StorageAccessHelper.saveFile(this, uri, bytes, java.util.function.BooleanSupplier {
+                VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+            })
+        } catch (_: Exception) { false }
+        bytes.fill(0)
+        if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
+        Toast.makeText(this, if (saved) R.string.email_export_success else R.string.email_export_failed, Toast.LENGTH_LONG).show()
     }
 
     private fun choosePasswordImport() {
