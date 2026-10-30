@@ -12,6 +12,8 @@ permissions:
 
 jobs:
   build:
+    # The real build already passed; only repeat the investigation on this temporary branch.
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/arena/8c70f5c8-offlineotp' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -79,5 +81,6 @@ jobs:
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends clamav clamav-freshclam
           sudo systemctl stop clamav-freshclam.service || true
+          sudo sed -i 's/^MaxAttempts .*/MaxAttempts 1/' /etc/clamav/freshclam.conf
       - name: Scan the existing ZIP and APK with ClamAV
         run: bash scripts/ci/investigate-draft-android.sh scan

@@ -95,17 +95,20 @@ PY
     fi
     ;;
   scan)
-    db="$work/clamdb"
-    mkdir -p "$db"
-    cat > "$work/freshclam.conf" <<EOF
-DatabaseDirectory $db
-DatabaseOwner runner
-DatabaseMirror database.clamav.net
-Checks 1
-MaxAttempts 1
-EOF
-    if ! freshclam --config-file="$work/freshclam.conf" --stdout > "$work/freshclam.log" 2>&1; then
-      echo '::error title=ClamAV unavailable::Signature update failed; no antivirus verdict was obtained.'
+    # Ubuntu's AppArmor profile only permits the packaged configuration and database path.
+    # Use them on this disposable runner rather than weakening its security policy.
+    db=/var/lib/clamav
+    if ! sudo freshclam --stdout > "$work/freshclam.log" 2>&1; then
+      python3 - "$work/freshclam.log" <<'PY'
+from pathlib import Path
+import re
+import sys
+lines = Path(sys.argv[1]).read_text(encoding='utf-8', errors='replace').splitlines()
+lines = [line for line in lines if 'ERROR:' in line or 'WARNING:' in line][-8:]
+text = '; '.join(re.sub(r'https?://\S+', '[database mirror]', line) for line in lines)
+text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+print('::error title=ClamAV unavailable::Signature update failed; no antivirus verdict was obtained. ' + text[:2500])
+PY
       exit 1
     fi
     if ! compgen -G "$db/main.c[vl]d" > /dev/null || ! compgen -G "$db/daily.c[vl]d" > /dev/null; then
@@ -114,6 +117,22 @@ EOF
     fi
     version=$(clamscan --database="$db" --version)
     echo "::notice title=ClamAV version::$version"
+    # Verify that the engine recognizes the harmless standard antivirus test pattern.
+    python3 - "$work/eicar-test.txt" <<'PY'
+from pathlib import Path
+import sys
+Path(sys.argv[1]).write_text('X5O!P%' + '@AP[4\\PZX54(P^)7CC)7}' + '$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*', encoding='ascii')
+PY
+    set +e
+    clamscan --database="$db" "$work/eicar-test.txt" > "$work/eicar.log" 2>&1
+    control_result=$?
+    set -e
+    rm -f "$work/eicar-test.txt"
+    if [[ "$control_result" != 1 ]] || ! grep -q 'FOUND' "$work/eicar.log"; then
+      echo '::error title=ClamAV self-test::The scanner did not detect the standard harmless test pattern; no antivirus verdict was obtained.'
+      exit 1
+    fi
+    echo '::notice title=ClamAV self-test::The scanner detected the harmless EICAR test pattern.'
     set +e
     clamscan --database="$db" --scan-archive=yes --alert-exceeds-max=yes --alert-encrypted=yes \
       --max-filesize=100M --max-scansize=500M --max-files=20000 --max-recursion=20 \
