@@ -171,7 +171,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         privacyButton.setImageResource(if (detailsVisible) R.drawable.ic_visibility_invisible else R.drawable.ic_visibility_visible)
         privacyButton.contentDescription = context.getString(if (detailsVisible) R.string.privacy_hide else R.string.privacy_reveal)
         menuButton.visibility = if (detailsVisible) View.VISIBLE else View.GONE
-        copyButton.visibility = if (detailsVisible) View.VISIBLE else View.GONE
+        copyButton.visibility = if (detailsVisible && !entry.isPasswordArchive()) View.VISIBLE else View.GONE
         if (!detailsVisible) {
             progressAnimator?.cancel()
             progressAnimator = null
@@ -216,6 +216,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         }
 
         val tokenFormatted = when {
+            entry.isPassword() -> context.getString(R.string.password_hidden)
+            entry.isPasswordArchive() -> context.getString(R.string.password_file_hidden)
             entry.isNote() -> context.getString(R.string.secure_note_hidden)
             entry.isSshKey() -> context.getString(R.string.ssh_key_hidden)
             else -> Tools.formatToken(entry.getCurrentOTP(), settings.getTokenSplitGroupSize())

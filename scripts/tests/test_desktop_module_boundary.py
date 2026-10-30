@@ -283,7 +283,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
 
         window = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui"
                   / "MainWindow.kt").read_text(encoding="utf-8")
-        self.assertIn('JButton("Copy token / note / key")', window)
+        self.assertIn('JButton("Copy selected")', window)
         self.assertIn("copySelectedToken()", window)
         self.assertIn("Advance HOTP counter", window)
         self.assertIn("StringSelection", window)

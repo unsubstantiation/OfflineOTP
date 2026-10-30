@@ -5,6 +5,7 @@ real JDK 17+ host with network access, so these structural checks keep their wir
 drifting and pin the CI workflow that actually executes the headless gates.
 """
 import os
+import struct
 import unittest
 from pathlib import Path
 
@@ -34,6 +35,24 @@ class DesktopPackagingTest(unittest.TestCase):
         self.assertIn("--type', 'app-image'", self.build)
         # A JRE without jpackage must skip the task instead of breaking other builds.
         self.assertIn("onlyIf { jpackage.canExecute() }", self.build)
+
+    def test_desktop_icons_match_branding_and_package_configuration(self):
+        png = (ROOT / 'desktop/src/main/resources/offlineotp.png').read_bytes()
+        self.assertEqual((ROOT / 'assets/logo.png').read_bytes(), png)
+        ico = (ROOT / 'desktop/packaging/offlineotp.ico').read_bytes()
+        reserved, kind, count = struct.unpack_from('<HHH', ico)
+        self.assertEqual((0, 1), (reserved, kind))
+        images = {}
+        for index in range(count):
+            width, height, _, _, _, _, length, offset = struct.unpack_from('<BBBBHHII', ico, 6 + 16 * index)
+            images[(width or 256, height or 256)] = ico[offset:offset + length]
+        self.assertEqual({(size, size) for size in (16, 24, 32, 48, 64, 128, 256)}, set(images))
+        for data in images.values():
+            self.assertTrue(data.startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertEqual(png, images[(256, 256)])
+        self.assertIn("file('packaging/offlineotp.ico')", self.build)
+        self.assertIn("file('src/main/resources/offlineotp.png')", self.build)
+        self.assertIn("args '--icon', icon.absolutePath", self.build)
 
     def test_reproducibility_script_builds_twice_independently_and_compares(self):
         self.assertIn(":desktop:distZip", self.script)

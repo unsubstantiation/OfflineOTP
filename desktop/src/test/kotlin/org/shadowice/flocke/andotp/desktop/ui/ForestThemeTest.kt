@@ -165,6 +165,17 @@ class ForestThemeTest {
     }
 
     @Test
+    fun entryCardsOnlyShowTagsForRevealedEntries() = onEdt {
+        ForestTheme.install()
+        val entry = otp("Issuer", "Account", false).apply { setTags(arrayListOf("private, tag")) }
+        val table = JTable(model(entry))
+        EntryCards.configure(table)
+        assertFalse(labels(card(table, 0)).any { it.text.contains("private, tag") })
+        (table.model as EntryTableModel).setValueAt(true, 0, EntryTableModel.Column.SHOW.ordinal)
+        assertTrue(labels(card(table, 0)).any { it.text.contains("private, tag") })
+    }
+
+    @Test
     fun hiddenCardsWithMissingIdentityPartsDoNotDuplicateTheIssuerOrAddSeparators() = onEdt {
         ForestTheme.install()
         val table = JTable(model(otp("Issuer only", "", false), otp("", "Label only", false),
@@ -206,6 +217,7 @@ class ForestThemeTest {
         screen.setUnlocked(true)
         table.setRowSelectionInterval(0, 0)
         assertFalse(screen.copyButton.isEnabled)
+        assertFalse(screen.tagsButton.isEnabled)
         assertTrue(screen.deleteButton.isEnabled)
         assertEquals("Hidden, Issuer – Account", card(table, 0).accessibleContext.accessibleName)
         assertEquals("Hidden, Issuer – Account",
@@ -216,6 +228,7 @@ class ForestThemeTest {
         toggle.actionPerformed(ActionEvent(table, ActionEvent.ACTION_PERFORMED, "toggle"))
         assertTrue(entry.areDetailsVisible())
         assertTrue(screen.copyButton.isEnabled)
+        assertTrue(screen.tagsButton.isEnabled)
         assertTrue(card(table, 0).accessibleContext.accessibleName.contains("Issuer – Account"))
         assertTrue(card(table, 0).accessibleContext.accessibleName.contains(entry.getCurrentOTP().orEmpty()))
         model.refreshValues()

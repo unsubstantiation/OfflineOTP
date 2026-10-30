@@ -12,13 +12,14 @@ APP = "{http://schemas.android.com/apk/res-auto}"
 
 
 class AddEntryMenuTest(unittest.TestCase):
-    def test_all_five_actions_have_distinct_icons_and_accessible_titles(self):
+    def test_all_actions_have_distinct_icons_and_accessible_titles(self):
         menu = ET.parse(RES / "menu/menu_fab.xml").getroot()
         actions = {item.attrib[ANDROID + "id"]: item for item in menu.findall("item")}
         expected = {
             "@+id/fabEnterDetails": ("button_enter_details", "ic_edit_white"),
             "@+id/fabAddSecureNote": ("button_add_secure_note", "ic_note_white"),
             "@+id/fabAddSshKey": ("button_add_ssh_key", "ic_key_white"),
+            "@+id/fabImportPasswords": ("password_import", "ic_password_import_white"),
             "@+id/fabScanQRFromImage": ("button_qr_from_image", "ic_image_white"),
             "@+id/fabScanQR": ("button_scan_qr", "ic_camera_white"),
         }
@@ -44,6 +45,7 @@ class AddEntryMenuTest(unittest.TestCase):
         for action_id, target in {
             "fabAddSecureNote": r"ManualEntryDialog\.showNew\([^\n]*Entry\.OTPType\.NOTE\)",
             "fabAddSshKey": r"ManualEntryDialog\.showNew\([^\n]*Entry\.OTPType\.SSH_KEY\)",
+            "fabImportPasswords": r"choosePasswordImport\(\)",
             "fabEnterDetails": r"ManualEntryDialog\.show\(this, settings!!, adapter!!\)",
             "fabScanQR": r"scanQRCode\(\)",
             "fabScanQRFromImage": r"showOpenFileSelector\(Constants\.INTENT_MAIN_QR_OPEN_IMAGE\)",

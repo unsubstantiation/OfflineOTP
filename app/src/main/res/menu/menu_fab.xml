@@ -13,6 +13,10 @@
         android:title="@string/button_add_ssh_key"
         android:icon="@drawable/ic_key_white" />
     <item
+        android:id="@+id/fabImportPasswords"
+        android:title="@string/password_import"
+        android:icon="@drawable/ic_password_import_white" />
+    <item
         android:id="@+id/fabScanQRFromImage"
         android:title="@string/button_qr_from_image"
         android:icon="@drawable/ic_image_white" />

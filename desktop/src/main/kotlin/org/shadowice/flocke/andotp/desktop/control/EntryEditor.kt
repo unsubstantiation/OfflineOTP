@@ -13,7 +13,9 @@ class EntryEditor(
 ) {
     /** Outcome of a clipboard copy request; the Swing shell only touches the clipboard on [Copied]. */
     sealed class TokenCopyResult {
-        data class Copied(val token: String) : TokenCopyResult()
+        data class Copied(val token: String) : TokenCopyResult() {
+            override fun toString(): String = "TokenCopyResult.Copied(redacted)"
+        }
         /** No real token is cached yet, or the entry shows the mOTP no-PIN placeholder. */
         object Unavailable : TokenCopyResult()
         /** The usage metadata was updated in memory but the vault write failed. */
@@ -35,6 +37,53 @@ class EntryEditor(
         proposed.add(entry)
         if (!controller.save(state.key, proposed)) return false
         return state.add(entry)
+    }
+
+    /** Saves a deduplicated batch once before publishing it to the UI. Consumes incoming entries. */
+    fun importEntries(incoming: List<Entry>): Int? {
+        val proposed = state.snapshot()
+        val seen = HashSet(proposed)
+        val accepted = ArrayList<Entry>()
+        try {
+            for (entry in incoming) {
+                entry.validate()
+                if (seen.add(entry)) { proposed.add(entry); accepted.add(entry) }
+            }
+            if (accepted.isEmpty()) return 0
+            if (proposed.size > org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES ||
+                !controller.save(state.key, proposed)) return null
+            for (entry in accepted) check(state.add(entry))
+            return accepted.size
+        } finally {
+            // Only entries published into the state are retained.
+            val owned = state.snapshot()
+            incoming.forEach { entry -> if (owned.none { it === entry }) entry.destroy() }
+        }
+    }
+
+    /** Persist tag edits atomically; a failed validation or write restores the live tags. */
+    fun setTags(entry: Entry, tags: List<String>): Boolean {
+        if (!entry.areDetailsVisible() || state.snapshot().none { it === entry }) return false
+        val previous = ArrayList(entry.getTags())
+        try {
+            entry.setTags(ArrayList(tags))
+            entry.validate()
+            if (!persist()) {
+                entry.setTags(previous)
+                return false
+            }
+        } catch (_: IllegalArgumentException) {
+            entry.setTags(previous)
+            return false
+        }
+        state.refreshProjection()
+        return true
+    }
+
+    fun copyPassword(entry: Entry): TokenCopyResult {
+        if (!entry.areDetailsVisible() || !entry.isPassword()) return TokenCopyResult.Unavailable
+        val password = entry.getPasswordFields().value("password")
+        return if (password.isEmpty()) TokenCopyResult.Unavailable else recordCopy(entry, password)
     }
 
     fun replace(existing: Entry, replacement: Entry): Boolean {

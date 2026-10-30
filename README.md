@@ -24,9 +24,9 @@ installation additionally requires the same signing key.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Store standalone secure notes of up to 200 Unicode characters and SSH public/private key text in the encrypted vault.
+- Store standalone secure notes, SSH keys, and browser-exported passwords in the encrypted vault; browse them in separate OTP, Notes, SSH Keys and Passwords tabs.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
-- Search the whole vault or filter by tags, and see per-tag entry counts. Clearing a search restores the selected tag filter. The UI uses the Dark Forest theme.
+- Search within the selected tab or filter by tags, and see per-tag entry counts. On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme.
 - Stay offline: the app declares no `INTERNET` permission.
 - On Android, show a bundled brand logo per account, resolved from the issuer name and editable per entry; unknown issuers get a letter tile. Desktop cards use letter tiles.
 
@@ -94,11 +94,12 @@ Android's bundled issuer logos; native window decorations may still differ by pl
 Features:
 
 - Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
-- Copy a token with the **Copy token / note / key** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
+- Assign tags to any revealed entry using **Tags…**, or choose tags when adding or editing an account, note, or SSH key. Use the **Tag** dropdown to show all, untagged, or one tag; it works alongside search within each tab. Counts include entries across all tabs. Tag names in the dropdown are visible even when their entries are hidden. Tags are saved in the encrypted vault and included in backups.
+- Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
 - Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
-- Deliberately out of desktop v1 scope: NFC, camera, screen capture, tag/settings editors, inactivity lock, and password change.
+- Deliberately out of desktop v1 scope: NFC, camera, screen capture, settings editor, inactivity lock, and password change.
 
 ### Secure notes
 
@@ -115,6 +116,33 @@ Both distributions must be updated to a version that supports notes before trans
 containing them. Older versions cannot read the new `NOTE` entry type and reject such a vault or
 backup; keep an independently tested backup before upgrading or transferring. Existing OTP-only
 files retain their previous format when entries are hidden.
+
+### Browser password imports
+
+Export passwords from Chrome, Firefox or Safari as a **UTF-8 CSV** file, then choose **+ → Import
+passwords** on Android or **Add entry → Import passwords** on desktop. Choose either:
+
+- **Individual passwords:** the CSV is parsed into separate vault entries. Source columns, including
+  notes and Safari OTPAuth fields, are retained in each entry; reveal a card to copy the password or
+  use its menu to view its fields. Identical entries are skipped. Individual entries cannot yet be
+  edited or exported as a browser CSV; delete an outdated entry and reimport to change it.
+- **Keep original file:** the file is stored byte-for-byte as a single encrypted vault entry without
+  parsing or converting it. Reveal it and use **Export password file** in its menu to save the
+  original bytes for import into another program. This option accepts any file up to the limit.
+
+Files are limited to 4 MiB; individual imports are limited to 2,000 rows and an 8 MiB combined decoded payload, and the whole vault is
+limited to 2,000 entries and its existing document-size bound. Individual imports reject malformed
+CSV; both modes reject oversized files or failed vault writes without committing a partial batch.
+CSV support requires the browser's standard
+headers, including URL, username and password; files with unsupported headers are rejected.
+
+**Browser exports and exported archive files are plaintext.** Anyone who can read the file can read
+its passwords. Transfer them securely and remove unneeded plaintext copies. Passwords and archives
+are encrypted in the vault and included in encrypted backups; revealing details or copying a password
+can expose it to observers, other applications or clipboard history. These new entry types are not
+readable by older app versions: update both devices before transferring backups, and keep an
+independently tested backup. Browser OTPAuth values are retained as password metadata, not imported
+as OTP accounts.
 
 ### Hiding entry details
 

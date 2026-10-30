@@ -44,6 +44,12 @@
 
         </RelativeLayout>
 
+        <com.google.android.material.tabs.TabLayout
+            android:id="@+id/entry_categories"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:tabMode="scrollable" />
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <RelativeLayout

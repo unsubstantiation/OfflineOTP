@@ -157,8 +157,25 @@
     <string name="shortcut_name_enter_details">Enter details</string>
 
     <!-- Empty List Text -->
-    <string name="empty_list_view_text">Add an account with the \"+\" button.</string>
+    <string name="empty_list_view_text">No entries in this tab. Use the \"+\" button to add or import.</string>
     <string name="privacy_reveal">Reveal entry details</string>
     <string name="privacy_hide">Hide entry details</string>
     <string name="privacy_save_failed">Visibility could not be saved. This entry is hidden now, but its saved state may return after restart.</string>
+    <string name="tab_otp">OTP</string>
+    <string name="tab_notes">Notes</string>
+    <string name="tab_ssh_keys">SSH Keys</string>
+    <string name="tab_passwords">Passwords</string>
+    <string name="password_import">Import passwords…</string>
+    <string name="password_import_prompt">Browser exports contain unencrypted passwords. Save individual passwords or keep the original file unchanged for later export?</string>
+    <string name="password_import_individual">Individual passwords</string>
+    <string name="password_import_archive">Keep original file</string>
+    <string name="password_import_failed">Import failed. Check the CSV format, vault capacity and 4 MiB file limit. Nothing was imported.</string>
+    <string name="password_import_success">Password import complete. Identical entries were skipped.</string>
+    <string name="password_hidden">[Password hidden]</string>
+    <string name="password_file_hidden">[Password file]</string>
+    <string name="password_details">View password details…</string>
+    <string name="password_export">Export password file…</string>
+    <string name="password_export_warning">The exported file is plaintext. Anyone with access to it can read its passwords. Continue?</string>
+    <string name="password_export_success">Password file exported. Protect or delete the plaintext copy securely.</string>
+    <string name="password_export_failed">The password file could not be exported.</string>
 </resources>

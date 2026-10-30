@@ -41,6 +41,7 @@ import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 import com.google.zxing.integration.android.IntentIntegrator
+import com.google.android.material.tabs.TabLayout
 import com.leinardi.android.speeddial.FabWithLabelView
 import com.leinardi.android.speeddial.SpeedDialView
 
@@ -53,6 +54,10 @@ import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.Constants.EncryptionType
 import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
 import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
+import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
+import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
+import org.shadowice.flocke.andotp.Utilities.PasswordImport
+import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
 import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
 import org.shadowice.flocke.andotp.Utilities.HandlerTimerScheduler
@@ -87,6 +92,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private var adapter: EntriesCardAdapter? = null
     private var speedDial: SpeedDialView? = null
+    private var passwordImportMode: PasswordImport.Mode? = null
+    private var passwordExportName: String? = null
+    private var passwordExportDigest: String? = null
+    private var passwordPendingUri: Uri? = null
     private var sortMenu: MenuItem? = null
     private var searchMenu: MenuItem? = null
     private var touchHelperCallback: SimpleItemTouchHelperCallback? = null
@@ -198,7 +207,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (VaultSession.getKey() == null || isFinishing()) return
         adapter?.retryPendingAutomaticBackup()
         checkAutomaticTime()
-        if (adapter != null) launchPendingBackupActionIfReady()
+        if (adapter != null) {
+            launchPendingBackupActionIfReady()
+            resumePasswordOperation()
+        }
     }
 
     /** Reopens a picker-selected operation only after MainActivity has re-established the vault. */
@@ -315,6 +327,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         super.onCreate(savedInstanceState)
 
         if (savedInstanceState != null) {
+            passwordImportMode = PasswordImport.Mode.entries.getOrNull(savedInstanceState.getInt("password_mode", -1))
+            passwordExportName = savedInstanceState.getString("password_export_name")
+            passwordExportDigest = savedInstanceState.getString("password_export_digest")
+            passwordPendingUri = savedInstanceState.getParcelable("password_pending_uri")
             pendingBackupActionCode = savedInstanceState.getInt(STATE_PENDING_BACKUP_ACTION, INVALID_BACKUP_ACTION)
                 .takeIf { it != INVALID_BACKUP_ACTION }
             pendingBackupUri = savedInstanceState.getParcelable(STATE_PENDING_BACKUP_URI)
@@ -382,6 +398,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.NOTE)
             else if (actionId == R.id.fabAddSshKey)
                 ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
+            else if (actionId == R.id.fabImportPasswords)
+                choosePasswordImport()
             else if (actionId == R.id.fabScanQRFromImage)
                 showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
 
@@ -420,6 +438,20 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         tagsDrawerAdapter = drawerAdapter
         val cardAdapter = EntriesCardAdapter(this, drawerAdapter)
         adapter = cardAdapter
+        val categories = requireNotNull(findViewById<TabLayout>(R.id.entry_categories))
+        listOf(R.string.tab_otp, R.string.tab_notes, R.string.tab_ssh_keys, R.string.tab_passwords)
+            .forEach { categories.addTab(categories.newTab().setText(getString(it))) }
+        categories.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
+            override fun onTabSelected(tab: TabLayout.Tab) {
+                val category = EntryListPresentation.Category.entries.getOrNull(tab.position) ?: return
+                cardAdapter.setCategory(category)
+            }
+            override fun onTabUnselected(tab: TabLayout.Tab) = Unit
+            override fun onTabReselected(tab: TabLayout.Tab) = Unit
+        })
+        val selectedCategory = savedInstanceState?.getInt("entry_category", 0) ?: 0
+        categories.getTabAt(selectedCategory)?.select()
+        cardAdapter.setCategory(EntryListPresentation.Category.entries.getOrElse(selectedCategory) { EntryListPresentation.Category.OTP })
         cardAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
             override fun onChanged() {
                 super.onChanged()
@@ -625,6 +657,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         startUpdater()
         launchPendingBackupActionIfReady()
+        resumePasswordOperation()
     }
 
     public override fun onPause() {
@@ -642,6 +675,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
         outState.putString("filterString", filterString)
+        outState.putInt("entry_category", findViewById<TabLayout>(R.id.entry_categories)?.selectedTabPosition ?: 0)
+        outState.putInt("password_mode", passwordImportMode?.ordinal ?: -1)
+        outState.putString("password_export_name", passwordExportName)
+        outState.putString("password_export_digest", passwordExportDigest)
+        outState.putParcelable("password_pending_uri", passwordPendingUri)
         outState.putInt(STATE_PENDING_BACKUP_ACTION, pendingBackupActionCode ?: INVALID_BACKUP_ACTION)
         outState.putParcelable(STATE_PENDING_BACKUP_URI, pendingBackupUri)
         outState.putBoolean(STATE_PENDING_BACKUP_REPLACE, pendingBackupReplace)
@@ -748,6 +786,23 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     if (authKey != null) Arrays.fill(authKey, 0)
                 }
                 afterAuthentication()
+            }
+        } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_IMPORT) {
+            if (resultCode == RESULT_OK && passwordImportMode != null && intent?.data?.getScheme() == "content") {
+                passwordPendingUri = intent.data
+                resumePasswordOperation()
+            } else {
+                passwordImportMode = null
+            }
+        } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_EXPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content" &&
+                passwordExportName != null && passwordExportDigest != null) {
+                passwordPendingUri = intent.data
+                resumePasswordOperation()
+            } else {
+                if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") StorageAccessHelper.deleteContentFile(this, intent.data)
+                passwordExportName = null
+                passwordExportDigest = null
             }
         } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE) {
             val wasAwaiting = awaitingMigrationQr
@@ -1180,6 +1235,104 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         adapter?.updateTimeBasedTokens()
     }
 
+    fun showEntryCategory(entry: Entry) {
+        val category = when {
+            entry.isPassword() || entry.isPasswordArchive() -> EntryListPresentation.Category.PASSWORDS
+            entry.isNote() -> EntryListPresentation.Category.NOTES
+            entry.isSshKey() -> EntryListPresentation.Category.SSH_KEYS
+            else -> EntryListPresentation.Category.OTP
+        }
+        findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
+    }
+
+    private fun choosePasswordImport() {
+        if (VaultSession.getKey() == null) return
+        val generation = VaultSession.generation()
+        AlertDialog.Builder(this).setTitle(R.string.password_import_prompt)
+            .setItems(arrayOf(getString(R.string.password_import_individual), getString(R.string.password_import_archive))) { _, index ->
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@setItems
+                passwordExportName = null
+                passwordExportDigest = null
+                passwordImportMode = if (index == 0) PasswordImport.Mode.INDIVIDUAL else PasswordImport.Mode.ARCHIVE
+                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+                try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_IMPORT) }
+                catch (_: Exception) {
+                    passwordImportMode = null
+                    Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    /** A picker may outlive a lock/recreation. Only resume after a fresh vault unlock. */
+    private fun resumePasswordOperation() {
+        val uri = passwordPendingUri ?: return
+        val current = adapter ?: return
+        if (authenticationPending || introPending || VaultSession.getKey() == null ||
+            current.encryptionKey !== VaultSession.getKey() || inactivityRelockExpired()) return
+        passwordPendingUri = null
+        val mode = passwordImportMode
+        if (mode != null) {
+            passwordImportMode = null
+            importPasswordDocument(uri, mode)
+            return
+        }
+        val name = passwordExportName
+        val digest = passwordExportDigest
+        passwordExportName = null
+        passwordExportDigest = null
+        val generation = VaultSession.generation()
+        val entry = if (name != null && digest != null) current.findPasswordArchive(name, digest) else null
+        val bytes = if (entry != null) current.passwordArchiveForExport(entry, generation) else null
+        val saved = if (bytes == null) false else try {
+            StorageAccessHelper.saveFile(this, uri, bytes, java.util.function.BooleanSupplier {
+                !inactivityRelockExpired() && current.canExportPasswordArchive(entry!!, generation)
+            })
+        } finally { bytes.fill(0) }
+        if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
+        Toast.makeText(this, if (saved) R.string.password_export_success else R.string.password_export_failed, Toast.LENGTH_LONG).show()
+    }
+
+    private fun importPasswordDocument(uri: Uri?, mode: PasswordImport.Mode) {
+        var bytes: ByteArray? = null
+        try {
+            bytes = getContentResolver().openInputStream(uri!!).use {
+                BoundedInputReader.read(it, BrowserPasswordCsv.MAX_FILE_BYTES)
+            }
+            val filename = StorageAccessHelper.getContentFileName(this, uri).ifBlank { "passwords.csv" }
+            val incoming = PasswordImport.prepare(bytes, filename, mode)
+            val outcome = adapter?.importEntries(incoming) ?: run {
+                incoming.forEach { it.destroy() }
+                throw IllegalStateException()
+            }
+            Toast.makeText(this, R.string.password_import_success, Toast.LENGTH_LONG).show()
+            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
+        } finally { bytes?.fill(0) }
+    }
+
+    /** Called only from a revealed archive's action menu. */
+    fun requestPasswordArchiveExport(entry: Entry) {
+        val generation = VaultSession.generation()
+        if (adapter?.canExportPasswordArchive(entry, generation) != true) return
+        AlertDialog.Builder(this).setTitle(R.string.password_export).setMessage(R.string.password_export_warning)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (adapter?.canExportPasswordArchive(entry, generation) != true) return@setPositiveButton
+                val digest = adapter?.passwordArchiveDigest(entry, generation) ?: return@setPositiveButton
+                passwordImportMode = null
+                passwordExportName = entry.getLabel()
+                passwordExportDigest = digest
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("text/csv").putExtra(Intent.EXTRA_TITLE, entry.getLabel())
+                try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_EXPORT) }
+                catch (_: Exception) {
+                    passwordExportName = null
+                    passwordExportDigest = null
+                    Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
     @Suppress("SameParameterValue")
     private fun showOpenFileSelector(intentId: Int): Boolean {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -1561,7 +1714,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         ProcessLifecycleOwner.get().lifecycle.removeObserver(processObserver)
         adapter?.lockEntries()
         screenTimers?.close()
-        if (isFinishing()) VaultSession.lock()
+        if (isFinishing()) {
+            if (passwordExportDigest != null && passwordPendingUri != null)
+                StorageAccessHelper.deleteContentFile(this, passwordPendingUri)
+            VaultSession.lock()
+        }
         super.onDestroy()
     }
 

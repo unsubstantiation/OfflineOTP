@@ -18,6 +18,15 @@ The desktop client is a pure-JVM Swing application. Two Gradle outputs matter fo
 - Dependencies resolve from Maven Central: `pgpainless-core` (with BouncyCastle), zxing-core and
   the yubikit PC/SC module (with raw-HID `hid4java` excluded).
 
+## Application icons
+
+The Swing window loads its icon from `desktop/src/main/resources/offlineotp.png`, which is also
+used by jpackage on Linux. Windows jpackage uses `desktop/packaging/offlineotp.ico`, containing
+multiple sizes for Explorer and the launcher. Both are generated from the same approved artwork
+as the Android icons; regenerate them with `python scripts/branding/generate_icons.py` (Pillow
+required). The app images are portable archives, not system-installed desktop entries; Linux
+menu or dock integration depends on the desktop environment and how the app is launched.
+
 ## Reproducible builds
 
 `verify-desktop-build.sh` builds `:desktop:distZip` twice from independent source trees and

@@ -65,6 +65,8 @@ object Constants {
     const val INTENT_MAIN_BACKUP = 102
     const val INTENT_MAIN_INTRO = 103
     const val INTENT_MAIN_QR_OPEN_IMAGE = 104
+    const val INTENT_MAIN_PASSWORD_IMPORT = 105
+    const val INTENT_MAIN_PASSWORD_EXPORT = 106
 
     const val INTENT_BACKUP_OPEN_DOCUMENT_CRYPT = 202
     const val INTENT_BACKUP_SAVE_DOCUMENT_CRYPT = 203

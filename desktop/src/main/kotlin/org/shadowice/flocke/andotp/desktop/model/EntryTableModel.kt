@@ -45,6 +45,8 @@ class EntryTableModel(
             Column.TYPE -> entry.getType().name
             // Cached token only; a null value means no token has been generated for this step yet.
             Column.TOKEN -> when {
+                entry.isPassword() -> "[Password hidden]"
+                entry.isPasswordArchive() -> "[Password file]"
                 entry.isNote() -> "[Note hidden]"
                 entry.isSshKey() -> "[SSH keys hidden]"
                 else -> entry.getCurrentOTP().orEmpty()

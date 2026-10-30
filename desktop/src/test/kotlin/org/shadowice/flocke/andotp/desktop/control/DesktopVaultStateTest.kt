@@ -14,6 +14,8 @@ import org.junit.Test
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
+import org.shadowice.flocke.andotp.Utilities.PasswordImport
+import org.shadowice.flocke.andotp.View.EntryListPresentation
 import javax.crypto.KeyGenerator
 import java.util.ArrayList
 
@@ -95,6 +97,65 @@ class DesktopVaultStateTest {
 
         state.applyTagFilter(emptyList(), false)
         assertEquals(2, state.presentation.size())
+    }
+
+    @Test
+    fun tagSearchAndCategoryComposeAcrossMutations() {
+        val state = state()
+        val first = entry("Service", "alice").apply { setTags(arrayListOf("work", "東京")) }
+        val second = entry("Service", "bob").apply { setTags(arrayListOf("personal")) }
+        val noTags = entry("Service", "charlie")
+        val note = Entry(Entry.OTPType.NOTE, "body", "", "alice note", arrayListOf("work"))
+        listOf(first, second, noTags, note).forEach { state.add(it) }
+        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyTagFilter(listOf("work"), false)
+        state.applySearch("alice")
+        assertEquals(1, state.presentation.size())
+        assertEquals("alice", state.presentation.get(0).getLabel())
+        state.applySearch("bob")
+        assertEquals(0, state.presentation.size())
+        state.applySearch("")
+        assertEquals(1, state.presentation.size())
+        // New and removed rows do not drop the active filter.
+        val third = entry("Service", "dave").apply { setTags(arrayListOf("work")) }
+        state.add(third)
+        assertEquals(2, state.presentation.size())
+        state.removeAt(state.snapshot().indexOf(third))
+        assertEquals(1, state.presentation.size())
+        state.presentation.setCategory(EntryListPresentation.Category.NOTES)
+        state.refreshProjection()
+        assertEquals("alice note", state.presentation.get(0).getLabel())
+        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyTagFilter(emptyList(), true)
+        assertEquals(1, state.presentation.size())
+        assertEquals("charlie", state.presentation.get(0).getLabel())
+        state.applyTagFilter(listOf("work", "東京"), false, Constants.TagFunctionality.AND)
+        assertEquals(1, state.presentation.size())
+        state.applyTagFilter(emptyList(), false)
+        assertEquals(3, state.presentation.size())
+    }
+
+    @Test
+    fun sameTagFiltersEveryCategoryIncludingBothPasswordKinds() {
+        val state = state()
+        val csv = "name,url,username,password\nsite,https://example.test,alice,secret\n".toByteArray()
+        val items = listOf(entry("", "OTP"),
+            Entry(Entry.OTPType.NOTE, "note", "", "Note", arrayListOf()),
+            Entry.sshKey("public", "private", "", "Key", arrayListOf()),
+            PasswordImport.prepare(csv, "p.csv", PasswordImport.Mode.INDIVIDUAL).single(),
+            PasswordImport.prepare(csv, "p.csv", PasswordImport.Mode.ARCHIVE).single())
+        items.forEach { it.setTags(arrayListOf("shared")); assertTrue(state.add(it)) }
+        state.applyTagFilter(listOf("shared"), false)
+        for ((category, count) in listOf(EntryListPresentation.Category.OTP to 1,
+            EntryListPresentation.Category.NOTES to 1, EntryListPresentation.Category.SSH_KEYS to 1,
+            EntryListPresentation.Category.PASSWORDS to 2)) {
+            state.presentation.setCategory(category)
+            state.refreshProjection()
+            assertEquals(count, state.presentation.size())
+            state.applySearch("shared")
+            assertEquals(count, state.presentation.size())
+            state.applySearch("")
+        }
     }
 
     @Test

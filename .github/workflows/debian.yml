@@ -33,6 +33,7 @@ jobs:
           set -euo pipefail
           ./gradlew --no-daemon :desktop:packageDesktop
           test -x desktop/build/release/OfflineOTP/bin/OfflineOTP
+          cmp desktop/src/main/resources/offlineotp.png desktop/build/release/OfflineOTP/lib/OfflineOTP.png
       - name: Archive app image and checksum
         shell: bash
         run: |

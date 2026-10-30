@@ -2,6 +2,12 @@
 
 #### Unreleased
 
+ * Desktop: Add tag assignment for all entry types and a tag filter that works with search and tabs; preserve tags in the encrypted vault and backups.
+
+ * Passwords: Import Chrome, Firefox and Safari CSV credentials individually or preserve the original file for later plaintext export; separate OTP, notes, SSH keys and passwords into tabs. New password entry types require an updated app to read vaults and backups.
+
+ * Desktop: Use the OfflineOTP forest-lock logo for the Windows and Linux app images and Swing window
+
  * UI: Show both issuer and label on hidden Android and desktop entries while keeping their protected details concealed; Android's Hide issuer preference still applies
 
  * Desktop UI: Match Android's Dark Forest palette with entry cards, themed controls and dialogs, direct note/SSH/QR add actions, and keyboard-accessible visibility and row menus
