@@ -63,3 +63,26 @@ Only submit the public build under investigation, never an OTP vault, exported b
 account credentials or private logs. Scanner results can change, and even no detections do not prove
 a file is safe. Do not republish or declare the warning resolved until the exact artifact and vendor
 verdict have been investigated.
+
+## Investigation: v2026-10-29 draft ZIP
+
+This record applies only to the draft `OfflineOTP-android-debug.zip` with SHA-256
+`b3a675fb7197d059969acfd7d8d91cdc8185eea47916ddd2be4e119cbf554aa4`, not later builds.
+The user reported a Firefox malware warning. GitHub's recorded digest for this draft asset matched
+its Android Actions artifact from [run 40967999372](https://github.com/unsubstantiation/OfflineOTP/actions/runs/40967999372),
+built from commit `0086701f39f1cae1ad302b2902fe91ce7b2b4fa1`.
+
+A [read-only investigation run](https://github.com/unsubstantiation/OfflineOTP/actions/runs/40993381448)
+retrieved that Actions artifact from GitHub, checked its ZIP digest against the draft asset's digest,
+and inspected it without installing or executing the app. The contained APK's SHA-256 was
+`bd1682e2f0e369fb421e04aa2b5b78ca567919c003f76da19143b7687c39f78f`. Its signature verified,
+and the signer certificate's SHA-256 was
+`3b9bdd459954654e962a174b2ca086b67267f49c328ecf3c15cbae741a6c4e40`; these matched the metadata
+bundled with the same artifact, not an independent trusted publisher record. The packaged manifest
+identified the app as debuggable, disabled platform backup, and declared no `INTERNET` permission.
+
+ClamAV 1.5.4, with signature database 28168 dated 2026-10-29, scanned the ZIP and APK with **no
+reported detections**. The engine also detected the standard harmless EICAR test pattern. No file was
+submitted to an external scanning service. This single scan and the manifest checks cannot prove the
+APK is safe or determine why Firefox/Google Safe Browsing flagged it. The warning remains unresolved;
+keep the release in draft pending further review.
