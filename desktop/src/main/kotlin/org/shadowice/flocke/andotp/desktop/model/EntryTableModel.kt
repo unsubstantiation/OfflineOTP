@@ -42,9 +42,11 @@ class EntryTableModel(
         return when (column) {
             Column.ISSUER -> entry.getIssuer()
             Column.LABEL -> entry.getLabel()
-            Column.TYPE -> entry.getType().name
+            Column.TYPE -> if (entry.isEmail()) "Email" else entry.getType().name
+            // Email credentials are not OTPs; never route them through token presentation.
             // Cached token only; a null value means no token has been generated for this step yet.
             Column.TOKEN -> when {
+                entry.isEmail() -> "[Email account]"
                 entry.isPassword() -> "[Password hidden]"
                 entry.isPasswordArchive() -> "[Password file]"
                 entry.isNote() -> "[Note hidden]"

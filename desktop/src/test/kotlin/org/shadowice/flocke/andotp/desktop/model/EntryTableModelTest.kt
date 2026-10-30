@@ -12,6 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 
@@ -94,6 +95,30 @@ class EntryTableModelTest {
         val model = EntryTableModel(presentationWith(key))
         assertEquals("SSH_KEY", model.getValueAt(0, 2))
         assertEquals("[SSH keys hidden]", model.getValueAt(0, 3))
+    }
+
+    @Test
+    fun emailEntriesAreLabeledWithoutShowingCredentialsOrTreatingThemAsTokens() {
+        val account = EmailMaterial.create(
+            "Work", "person@example.org", "imap.example.org", 993, 0, 0,
+            "person@example.org", "incoming secret", 0,
+            "smtp.example.org", 465, 0, "person@example.org", "outgoing secret", 0)
+        val email = Entry.email(account.account, account.identity).apply { setDetailsVisible(true) }
+        val model = EntryTableModel(presentationWith(email))
+        try {
+            assertEquals("Email", model.getValueAt(0, 2))
+            assertEquals("[Email account]", model.getValueAt(0, 3))
+            assertTrue((0 until model.columnCount).none {
+                model.getValueAt(0, it)?.toString()?.contains("secret") == true
+            })
+
+            email.setDetailsVisible(false)
+            model.refresh()
+            assertEquals("", model.getValueAt(0, 2))
+            assertEquals("", model.getValueAt(0, 3))
+        } finally {
+            email.destroy()
+        }
     }
 
     @Test
