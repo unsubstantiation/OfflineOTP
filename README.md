@@ -92,8 +92,17 @@ implementation; verify on your devices before relying on it.
 
 The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reuses the shared
 `:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
-all portable logic stays headless and unit-tested; Swing is only a thin shell. The desktop vault
-directory is `~/.offlineotp`. Windows and Debian share Android's Dark Forest palette, with an
+all portable logic stays headless and unit-tested; Swing is only a thin shell. Desktop builds are
+fully portable: the vault (`secrets.dat`), its `.bck` copy, the client settings and the
+security-key unlock record live in a `data` folder **inside the program folder**, never in the
+user's profile. Move or copy the OfflineOTP folder and the vault comes along, so a USB stick or a
+second machine works without a migration step — keep the folder private, since the vault is only
+as safe as the key you unlock it with. The program folder is found from the jpackage launcher,
+then from the running jar, then from the directory you launched in; pass
+`-Dofflineotp.home=<folder>` (or set `OFFLINEOTP_HOME`) to keep the data somewhere else, for
+example when the program folder is read-only. An unwritable program folder is reported at startup
+rather than silently falling back into your home directory. Windows and Debian share Android's Dark
+Forest palette, with an
 app bar, the same bundled issuer logos, entry cards that lift on hover, dark controls and dialogs.
 Codes are drawn in amber and turn red as the code is about to change; native window decorations
 may still differ by platform.

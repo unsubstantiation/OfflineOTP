@@ -31,3 +31,7 @@ signing/
 *.jks
 *.keystore
 *.jks.b64
+
+# Desktop client data: a `gradle run` keeps its portable vault in the module folder
+desktop/data/
+/data/

@@ -16,7 +16,8 @@ import javax.swing.SwingUtilities
  *
  * Swing requires the UI to be built on the event dispatch thread, so the frame is created inside
  * [SwingUtilities.invokeLater]. Storage assembly happens off the UI call: [DesktopStorage] opens
- * the per-user vault directory and the headless [VaultController] drives the portable core engine.
+ * the vault directory inside the program's own folder (so an installed build is portable) and the
+ * headless [VaultController] drives the portable core engine.
  * The PC/SC security-key discovery and its envelope store are assembled once and shared by the
  * hardware menu actions. A storage failure is reported as a dialog (or stderr on a headless host)
  * instead of a raw stack trace, and the process exits non-zero so launchers notice it.
