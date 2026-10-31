@@ -65,6 +65,7 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/HardwareUnlockEnvelope.kt"
     "$KOTLIN_CORE/Utilities/InputPolicy.kt"
     "$KOTLIN_CORE/Utilities/SshKeyMaterial.kt"
+    "$KOTLIN_CORE/Utilities/SshConnection.kt"
     "$KOTLIN_CORE/Utilities/LoginBackupKey.kt"
     "$KOTLIN_CORE/Utilities/OpenPgpPolicy.kt"
     "$KOTLIN_CORE/Utilities/OpenPgpPort.kt"

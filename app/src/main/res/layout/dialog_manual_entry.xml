@@ -164,6 +164,106 @@
         </LinearLayout>
 
         <LinearLayout
+            android:id="@+id/manual_layout_ssh_host"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ssh_host" />
+
+            <EditText
+                android:id="@+id/manual_ssh_host"
+                android:layout_weight="7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:inputType="textNoSuggestions"
+                android:importantForAutofill="no"
+                android:saveEnabled="false"
+                android:hint="@string/hint_ssh_host" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/manual_layout_ssh_port"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ssh_port" />
+
+            <EditText
+                android:id="@+id/manual_ssh_port"
+                android:layout_weight="7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:inputType="number"
+                android:importantForAutofill="no"
+                android:saveEnabled="false"
+                android:hint="@string/hint_ssh_port" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/manual_layout_ssh_username"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ssh_username" />
+
+            <EditText
+                android:id="@+id/manual_ssh_username"
+                android:layout_weight="7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:inputType="textNoSuggestions"
+                android:importantForAutofill="no"
+                android:saveEnabled="false"
+                android:hint="@string/hint_ssh_username" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/manual_layout_ssh_password"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:text="@string/label_ssh_password" />
+
+            <EditText
+                android:id="@+id/manual_ssh_password"
+                android:layout_weight="7"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:importantForAutofill="no"
+                android:saveEnabled="false"
+                android:hint="@string/hint_ssh_password" />
+        </LinearLayout>
+
+        <LinearLayout
             android:id="@+id/manual_layout_counter"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

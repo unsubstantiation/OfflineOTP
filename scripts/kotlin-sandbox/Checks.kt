@@ -78,6 +78,7 @@ import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
 import org.shadowice.flocke.andotp.Utilities.VaultSession
 import org.shadowice.flocke.andotp.Utilities.ScreenTimerController
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.Tools
@@ -1233,6 +1234,14 @@ private class ManualDialogRoot(host: Context) : View() {
     val secret = EditText(host)
     val sshPublic = EditText(host)
     val sshLayout = LinearLayout(host)
+    val sshHost = EditText(host)
+    val sshPort = EditText(host)
+    val sshUsername = EditText(host)
+    val sshPassword = EditText(host)
+    val sshHostLayout = LinearLayout(host)
+    val sshPortLayout = LinearLayout(host)
+    val sshUsernameLayout = LinearLayout(host)
+    val sshPasswordLayout = LinearLayout(host)
     val secretView = TextView()
     val counter = EditText(host)
     val period = EditText(host)
@@ -1245,6 +1254,8 @@ private class ManualDialogRoot(host: Context) : View() {
     val expandLayout = ExpandableLinearLayout(host)
     init {
         sshLayout.visibility = View.GONE
+        listOf(sshHostLayout, sshPortLayout, sshUsernameLayout, sshPasswordLayout)
+            .forEach { it.visibility = View.GONE }
         counterLayout.visibility = View.GONE
         secretView.visibility = View.GONE
     }
@@ -1252,6 +1263,10 @@ private class ManualDialogRoot(host: Context) : View() {
         R.id.manual_type to type, R.id.manual_otp_uri to otpUri, R.id.manual_apply_otp_uri to applyUri,
         R.id.manual_issuer to issuer, R.id.manual_label to label, R.id.manual_secret to secret,
         R.id.manual_ssh_public to sshPublic, R.id.manual_layout_ssh_public to sshLayout,
+        R.id.manual_ssh_host to sshHost, R.id.manual_layout_ssh_host to sshHostLayout,
+        R.id.manual_ssh_port to sshPort, R.id.manual_layout_ssh_port to sshPortLayout,
+        R.id.manual_ssh_username to sshUsername, R.id.manual_layout_ssh_username to sshUsernameLayout,
+        R.id.manual_ssh_password to sshPassword, R.id.manual_layout_ssh_password to sshPasswordLayout,
         R.id.manual_secret_view to secretView, R.id.manual_counter to counter, R.id.manual_period to period,
         R.id.manual_digits to digits, R.id.manual_layout_counter to counterLayout,
         R.id.manual_layout_period to periodLayout, R.id.manual_algorithm to algorithm, R.id.manual_tags to tags,
@@ -5591,6 +5606,8 @@ fun main() {
             // The stub does not dispatch platform dismiss events; deliver the recorded callback.
             dialog.onDismissListener!!.onDismiss(dialog)
             expect(root.secret.text.toString().isEmpty() && root.sshPublic.text.toString().isEmpty() &&
+                root.sshHost.text.toString().isEmpty() && root.sshPort.text.toString().isEmpty() &&
+                root.sshUsername.text.toString().isEmpty() && root.sshPassword.text.toString().isEmpty() &&
                 root.otpUri.text.toString().isEmpty(), { "dismissal did not wipe the editor fields" })
         }
 
@@ -5623,12 +5640,35 @@ fun main() {
         val sshSave = requireNotNull(sshDialog.getButton(AlertDialog.BUTTON_POSITIVE))
         expect(ssh.otpUri.visibility == View.GONE && ssh.sshLayout.visibility == View.VISIBLE &&
             ssh.secret.hint == "res:${R.string.hint_ssh_private}", { "SSH fields were not configured" })
+        expect(listOf(ssh.sshHostLayout, ssh.sshPortLayout, ssh.sshUsernameLayout, ssh.sshPasswordLayout)
+            .all { it.visibility == View.VISIBLE }, { "the SSH connection rows were not shown" })
         ssh.label.setText("Laptop")
         ssh.label.dispatchAfterTextChanged()
         expect(!sshSave.isEnabled, { "SSH entries need at least one key" })
         ssh.sshPublic.setText("ssh-ed25519 example\n")
         ssh.sshPublic.dispatchAfterTextChanged()
         expect(sshSave.isEnabled, { "a public-only key should be accepted" })
+        // A port outside 1..65535 is refused in place instead of being silently defaulted to 22.
+        ssh.sshPort.setText("70000")
+        ssh.sshPort.dispatchAfterTextChanged()
+        expect(!sshSave.isEnabled, { "an out-of-range port was accepted" })
+        ssh.sshPort.setText("not-a-port")
+        ssh.sshPort.dispatchAfterTextChanged()
+        expect(!sshSave.isEnabled, { "a non-numeric port was accepted" })
+        ssh.sshPort.setText("")
+        ssh.sshPort.dispatchAfterTextChanged()
+        expect(sshSave.isEnabled, { "an empty port should mean the default" })
+        // Switching types re-runs validation: the connection rows hide and the port rule only
+        // applies while SSH is selected.
+        ssh.type.setSelection(Entry.OTPType.TOTP.ordinal)
+        ssh.deliverSelection()
+        expect(listOf(ssh.sshHostLayout, ssh.sshPortLayout, ssh.sshUsernameLayout, ssh.sshPasswordLayout)
+            .all { it.visibility == View.GONE }, { "the connection rows survived a type switch" })
+        ssh.type.setSelection(Entry.OTPType.SSH_KEY.ordinal)
+        ssh.deliverSelection()
+        expect(listOf(ssh.sshHostLayout, ssh.sshPortLayout, ssh.sshUsernameLayout, ssh.sshPasswordLayout)
+            .all { it.visibility == View.VISIBLE } && sshSave.isEnabled,
+            { "switching back to SSH did not restore the connection rows" })
         ssh.sshPublic.setText("x".repeat(32 * 1024 + 1))
         ssh.sshPublic.dispatchAfterTextChanged()
         expect(!sshSave.isEnabled, { "the SSH key byte limit was not enforced" })
@@ -5656,6 +5696,36 @@ fun main() {
             expect(old.getNote() == "edited\nnote" && updates == 1 && !editDialog.isShowing,
                 { "edit Save did not update the original entry" })
             close(edit, editDialog)
+
+            // An existing SSH key entry preselects its stored connection details and saves the edits.
+            val storedConnection = requireNotNull(
+                SshConnection.of("old.example.com", 2222, "alice", "s3cret"))
+            val sshEntry = Entry.sshKey("ssh-ed25519 stored\n", "PRIVATE", "",
+                "Server", arrayListOf(), storedConnection)
+            val (sshEdit, sshEditDialog) = open(old = sshEntry, callback = ManualEntryDialog.UpdateCallback { updates++ })
+            expect(sshEdit.sshHost.text.toString() == "old.example.com" &&
+                sshEdit.sshPort.text.toString() == "2222" &&
+                sshEdit.sshUsername.text.toString() == "alice" &&
+                sshEdit.sshPassword.text.toString() == "s3cret",
+                { "the stored connection details were not restored" })
+            expect(listOf(sshEdit.sshHostLayout, sshEdit.sshPortLayout,
+                sshEdit.sshUsernameLayout, sshEdit.sshPasswordLayout)
+                .all { it.visibility == View.VISIBLE }, { "the restored SSH rows were hidden" })
+            sshEdit.sshHost.setText("new.example.com")
+            sshEdit.sshHost.dispatchAfterTextChanged()
+            sshEdit.sshPort.setText("2200")
+            sshEdit.sshPort.dispatchAfterTextChanged()
+            val sshEditSave = requireNotNull(sshEditDialog.getButton(AlertDialog.BUTTON_POSITIVE))
+            expect(sshEditSave.isEnabled && sshEditSave.performClick(),
+                { "the existing SSH entry could not be saved" })
+            val edited = requireNotNull(sshEntry.getSshConnection())
+            expect(edited.host == "new.example.com" && edited.port == 2200 &&
+                edited.username == "alice" && edited.password == "s3cret" && updates == 2,
+                { "the connection details were not updated: $edited" })
+            expect(sshEntry.getSshKeys().publicKey == "ssh-ed25519 stored\n",
+                { "the keys changed while editing the connection details" })
+            close(sshEdit, sshEditDialog)
+            sshEntry.destroy()
         } finally {
             old.destroy()
             adapter.lockEntries()

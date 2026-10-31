@@ -32,6 +32,7 @@ import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpParseResult
@@ -77,6 +78,8 @@ open class Entry {
     private var thumbnailName: String = ThumbnailCatalog.DEFAULT_NAME
     private var color = COLOR_DEFAULT
     private var pin = ""
+    // Optional connection metadata; only SSH key entries may carry it.
+    private var sshConnection: SshConnection.Details? = null
     private var listId = 0L
 
     constructor()
@@ -184,6 +187,7 @@ open class Entry {
             this.used_frequency = value.usedFrequency
             this.detailsVisible = value.detailsVisible
             this.pin = value.pin
+            this.sshConnection = value.sshConnection
             validate()
         } catch (error: RuntimeException) {
             destroy()
@@ -216,6 +220,9 @@ open class Entry {
         if (type == OTPType.SSH_KEY) {
             SshKeyMaterial.decode(seed)
             require(label.isNotBlank()) { "An SSH key needs a title" }
+        } else {
+            // Connection metadata is SSH-only; a stale value must never ride along on another kind.
+            require(sshConnection == null) { "Only SSH key entries carry connection fields" }
         }
         if (type == OTPType.PASSWORD) PasswordMaterial.decode(seed)
         if (type == OTPType.PASSWORD || type == OTPType.PASSWORD_ARCHIVE) require(label.isNotBlank())
@@ -238,6 +245,7 @@ open class Entry {
         secret = null
         invalidateCachedToken()
         pin = ""
+        sshConnection = null
         issuer = ""
         label = ""
         tags = ArrayList()
@@ -261,7 +269,8 @@ open class Entry {
         usedFrequency = getUsedFrequency(),
         tags = tags,
         pin = getPin(),
-        detailsVisible = detailsVisible
+        detailsVisible = detailsVisible,
+        sshConnection = sshConnection
     )
 
     /**
@@ -344,6 +353,8 @@ open class Entry {
         if (this.type != type) {
             invalidateCachedToken()
             setColor(COLOR_DEFAULT)
+            // Connection metadata belongs to the key entry; dropping the type must drop it too.
+            if (type != OTPType.SSH_KEY) sshConnection = null
         }
         this.type = type
     }
@@ -381,6 +392,22 @@ open class Entry {
         val encoded = SshKeyMaterial.encode(publicKey, privateKey)
         try { setSecret(encoded) } finally { encoded.fill(0) }
     }
+
+    /**
+     * Optional host/port/user/password for this key, or null when the entry stores none. Values are
+     * built and validated by [SshConnection.of], so an entry never holds a partial or out-of-range
+     * connection.
+     */
+    fun getSshConnection(): SshConnection.Details? = sshConnection
+
+    /** Replaces the connection metadata; null removes it. SSH key entries only. */
+    fun setSshConnection(details: SshConnection.Details?) {
+        if (details != null) require(isSshKey()) { "Not an SSH key entry" }
+        sshConnection = details
+    }
+
+    /** True when at least one of host/port/user/password is stored. */
+    fun hasSshConnection(): Boolean = sshConnection?.isSet() ?: false
 
     /** Explicit access only: notes are never calculated or displayed as OTPs. */
     fun getNote(): String {
@@ -473,8 +500,9 @@ open class Entry {
 
     /**
      * Applies an edit and validates the entry. On a [RuntimeException], restores issuer, label,
-     * digits, period, counter, tags and thumbnail before rethrowing. Other fields are not rolled
-     * back, so callers must not mutate them if they rely on this rollback.
+     * digits, period, counter, tags, thumbnail, the SSH connection metadata and the secret before
+     * rethrowing. Other fields are not rolled back, so callers must not mutate them if they rely on
+     * this rollback.
      */
     fun applyEdit(mutate: (Entry) -> Unit) {
         val previousIssuer = issuer
@@ -484,6 +512,7 @@ open class Entry {
         val previousCounter = counter
         val previousTags = ArrayList(tags)
         val previousThumbnail = thumbnailName
+        val previousSshConnection = sshConnection
         val previousSecret = secret?.clone()
         try {
             mutate(this)
@@ -499,6 +528,7 @@ open class Entry {
             setSecret(previousSecret)
             setIssuer(previousIssuer, false)
             thumbnailName = previousThumbnail
+            sshConnection = previousSshConnection
             throw error
         } finally {
             previousSecret?.fill(0)
@@ -678,12 +708,21 @@ open class Entry {
                 algorithm == entry.algorithm &&
                 secret.contentEquals(entry.secret) &&
                 label == entry.label &&
-                issuer == entry.issuer
+                issuer == entry.issuer &&
+                sshIdentity() == entry.sshIdentity()
     }
+
+    /**
+     * The connection target participates in [equals]/[hashCode] so one key can back several hosts
+     * or login names without collapsing into one entry. The password is excluded: it is a secret
+     * that changes independently of the target.
+     */
+    private fun sshIdentity(): List<String>? = sshConnection?.identityKey()
 
     /** Hashes entry fields using content-based secret hashing to match [equals]. */
     override fun hashCode(): Int {
-        return Objects.hash(type, period, counter, digits, algorithm, secret?.contentHashCode(), label, issuer)
+        return Objects.hash(type, period, counter, digits, algorithm, secret?.contentHashCode(), label,
+            issuer, sshIdentity())
     }
 
     fun setColor(color: Int) {
@@ -750,10 +789,15 @@ open class Entry {
             } finally { material.fill(0) }
         }
 
-        /** Creates one vault entry for a public and/or private SSH key. */
+        /**
+         * Creates one vault entry for a public and/or private SSH key, optionally with the
+         * connection metadata that goes with it.
+         */
         @JvmStatic
+        @JvmOverloads
         fun sshKey(publicKey: String, privateKey: String, issuer: String, label: String,
-                   tags: MutableList<String>): Entry {
+                   tags: MutableList<String>,
+                   connection: SshConnection.Details? = null): Entry {
             val value = Entry()
             try {
                 value.type = OTPType.SSH_KEY
@@ -761,6 +805,7 @@ open class Entry {
                 value.issuer = issuer
                 value.label = label
                 value.tags = ArrayList(tags)
+                value.sshConnection = connection
                 value.setThumbnailFromIssuer(issuer)
                 value.validate()
                 return value

@@ -8,6 +8,7 @@ import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
@@ -35,6 +36,10 @@ object EntryJson {
     private const val JSON_USED_FREQUENCY = "used_frequency"
     private const val JSON_PIN = "pin"
     private const val JSON_DETAILS_VISIBLE = "details_visible"
+    private const val JSON_SSH_HOST = "ssh_host"
+    private const val JSON_SSH_PORT = "ssh_port"
+    private const val JSON_SSH_USERNAME = "ssh_username"
+    private const val JSON_SSH_PASSWORD = "ssh_password"
 
     private const val DEFAULT_PERIOD = TokenCalculator.TOTP_DEFAULT_PERIOD
     private val INTEGER_TEXT = Regex("-?[0-9]+")
@@ -104,6 +109,8 @@ object EntryJson {
             // Absent on non-mOTP documents and older mOTP documents; defaults to empty. Also forced
             // empty for every non-mOTP kind, matching the field serialize() only ever writes for mOTP.
             val pin = if (kind == OtpKind.MOTP && json.has(JSON_PIN)) text(json, JSON_PIN) else ""
+            // Only SSH key documents may carry connection metadata; other kinds ignore it entirely.
+            val sshConnection = if (kind == OtpKind.SSH_KEY) sshConnection(json) else null
 
             if (seed.isEmpty() || seed.size > limit) reject(EntryJsonError.INVALID_SECRET)
             try {
@@ -120,7 +127,7 @@ object EntryJson {
             for (tag in tags) bounded(tag, InputPolicy.MAX_TAG_CHARS)
 
             return ValidatedEntry.create(kind, seed, period, digits, counter, issuer, label, algorithm,
-                thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible)
+                thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible, sshConnection)
         } catch (invalid: Rejected) {
             seed.fill(0)
             throw invalid
@@ -141,7 +148,8 @@ object EntryJson {
     fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, digits: Int,
                   period: Int, counter: Long, algorithm: OtpHashAlgorithm, thumbnailName: String,
                   lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String,
-                  detailsVisible: Boolean = false): JSONObject {
+                  detailsVisible: Boolean = false,
+                  sshConnection: SshConnection.Details? = null): JSONObject {
         val jsonObj = JSONObject()
         jsonObj.put(JSON_SECRET, String(Base32().encode(secret)))
         jsonObj.put(JSON_ISSUER, issuer)
@@ -172,6 +180,15 @@ object EntryJson {
         jsonObj.put(JSON_TAGS, tagsArray)
         // Preserve legacy bytes for the default (concealed) state.
         if (detailsVisible) jsonObj.put(JSON_DETAILS_VISIBLE, true)
+
+        // Optional SSH connection metadata, written last and only when set: documents without it
+        // stay byte-identical to the ones written before these fields existed.
+        if (kind == OtpKind.SSH_KEY && sshConnection != null) {
+            if (sshConnection.host.isNotEmpty()) jsonObj.put(JSON_SSH_HOST, sshConnection.host)
+            if (sshConnection.port != 0) jsonObj.put(JSON_SSH_PORT, sshConnection.port)
+            if (sshConnection.username.isNotEmpty()) jsonObj.put(JSON_SSH_USERNAME, sshConnection.username)
+            if (sshConnection.password.isNotEmpty()) jsonObj.put(JSON_SSH_PASSWORD, sshConnection.password)
+        }
 
         return jsonObj
     }
@@ -263,6 +280,30 @@ object EntryJson {
             tags.add(tag)
         }
         return tags
+    }
+
+    /**
+     * Strictly reads the optional SSH connection metadata. Missing keys mean "not set", while a
+     * present but unusable value rejects the document (a silently clamped port would point the user
+     * at the wrong server). Values are held to exactly the bounds the entry model enforces.
+     */
+    private fun sshConnection(json: JSONObject): SshConnection.Details? {
+        val host = if (json.has(JSON_SSH_HOST)) text(json, JSON_SSH_HOST) else ""
+        val username = if (json.has(JSON_SSH_USERNAME)) text(json, JSON_SSH_USERNAME) else ""
+        val password = if (json.has(JSON_SSH_PASSWORD)) text(json, JSON_SSH_PASSWORD) else ""
+        val hasPort = json.has(JSON_SSH_PORT)
+        val port = if (hasPort) int(json, JSON_SSH_PORT) else 0
+        bounded(host, SshConnection.MAX_HOST_CHARS)
+        bounded(username, SshConnection.MAX_USERNAME_CHARS)
+        bounded(password, SshConnection.MAX_PASSWORD_CHARS)
+        // A stored port is always a real one: 0 means "not stored", so an explicit 0 is malformed.
+        if (hasPort && port !in SshConnection.MIN_PORT..SshConnection.MAX_PORT)
+            reject(EntryJsonError.INVALID_PARAMETERS)
+        return try {
+            SshConnection.of(host, port, username, password)
+        } catch (invalid: IllegalArgumentException) {
+            reject(EntryJsonError.INVALID_TEXT)
+        }
     }
 
     /** Best-effort thumbnail name: returns null when missing, unreadable, or oversized. */

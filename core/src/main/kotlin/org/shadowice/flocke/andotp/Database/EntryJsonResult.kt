@@ -4,6 +4,7 @@ import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.PasswordMaterial
 import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
 import org.shadowice.flocke.andotp.Utilities.OtpKind
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 
@@ -51,7 +52,12 @@ class ValidatedEntry private constructor(
     tags: List<String>,
     /** The mOTP PIN, empty for every other kind and for documents written before it was stored. */
     val pin: String,
-    val detailsVisible: Boolean
+    val detailsVisible: Boolean,
+    /**
+     * Optional SSH connection metadata, null for every other kind and for SSH documents written
+     * before these fields existed.
+     */
+    val sshConnection: SshConnection.Details?
 ) : AutoCloseable {
     private val seed: ByteArray = secret.also {
         val limit = when (kind) {
@@ -72,6 +78,8 @@ class ValidatedEntry private constructor(
             if (kind == OtpKind.SSH_KEY) {
                 SshKeyMaterial.decode(seed)
                 require(label.isNotBlank())
+            } else {
+                require(sshConnection == null)
             }
             if (kind == OtpKind.PASSWORD) PasswordMaterial.decode(seed)
             if (kind == OtpKind.EMAIL) EmailMaterial.decode(seed)
@@ -112,8 +120,9 @@ class ValidatedEntry private constructor(
         internal fun create(
             kind: OtpKind, secret: ByteArray, period: Int, digits: Int, counter: Long,
             issuer: String, label: String, algorithm: OtpHashAlgorithm, thumbnailName: String?,
-            lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String, detailsVisible: Boolean
+            lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String, detailsVisible: Boolean,
+            sshConnection: SshConnection.Details?
         ): ValidatedEntry = ValidatedEntry(kind, secret, period, digits, counter, issuer, label,
-            algorithm, thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible)
+            algorithm, thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible, sshConnection)
     }
 }

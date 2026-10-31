@@ -27,6 +27,18 @@ as the Android icons; regenerate them with `python scripts/branding/generate_ico
 required). The app images are portable archives, not system-installed desktop entries; Linux
 menu or dock integration depends on the desktop environment and how the app is launched.
 
+## Portable data folder
+
+Both clients' desktop builds keep their data beside the program: `data/secrets.dat`, `data/
+secrets.dat.bck`, `data/vault.properties` and the security-key unlock record live in a `data`
+folder inside the app image (or the `installDist`/`distZip` folder). Nothing is written to the
+user's home directory, so the whole folder can be copied to a USB stick or another machine and the
+vault comes with it. The folder is resolved from `-Dofflineotp.home`/`OFFLINEOTP_HOME` first, then
+from the jpackage launcher (`jpackage.app-path`), then from the running jar's location, and finally
+from the working directory. Because an installation under `/usr/lib`, `/opt` or `Program Files` is
+normally read-only, run the app image from a writable folder (which is what the CI artifacts are:
+unpacked archives) or point `-Dofflineotp.home` at one.
+
 ## Reproducible builds
 
 `verify-desktop-build.sh` builds `:desktop:distZip` twice from independent source trees and
