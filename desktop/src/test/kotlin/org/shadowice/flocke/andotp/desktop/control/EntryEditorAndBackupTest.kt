@@ -18,6 +18,7 @@ import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.CryptoPrimitives
 import org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec
 import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 import org.shadowice.flocke.andotp.Utilities.QrImageDecoder
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
@@ -238,6 +239,39 @@ class EntryEditorAndBackupTest {
         assertEquals(1, BackupCoordinator(other, otherState).restoreEncrypted(password, backup))
         assertEquals(publicKey, otherState.snapshot().single().getSshKeys().publicKey)
         assertEquals(privateKey, otherState.snapshot().single().getSshKeys().privateKey)
+    }
+
+    @Test
+    fun sshConnectionDetailsAreCopiedOnlyAfterARevealAndSurviveBackup() {
+        val (_, controller, state) = harness()
+        val editor = EntryEditor(controller, state)
+        val connection = SshConnection.of("server.example", 2222, "alice", "s3cret")!!
+        val entry = Entry.sshKey("ssh-ed25519 example public\n", "", "",
+            "Server", arrayListOf(), connection)
+        assertTrue(editor.add(entry))
+        // The password is a secret: concealed cards refuse it, an explicit reveal allows it.
+        assertEquals(EntryEditor.TokenCopyResult.Unavailable, editor.copySshPassword(entry))
+        assertTrue(editor.setDetailsVisible(entry, true))
+        assertEquals("s3cret", (editor.copySshPassword(entry) as EntryEditor.TokenCopyResult.Copied).token)
+        // An entry without a stored password has nothing to copy.
+        val keyOnly = Entry.sshKey("ssh-ed25519 other\n", "", "", "Other", arrayListOf())
+        assertTrue(editor.add(keyOnly))
+        assertTrue(editor.setDetailsVisible(keyOnly, true))
+        assertEquals(EntryEditor.TokenCopyResult.Unavailable, editor.copySshPassword(keyOnly))
+
+        val backup = BackupCoordinator(controller, state).encryptedBackup(password)
+        val otherDir = Files.createTempDirectory("ssh-connection-backup-").toFile()
+        val other = VaultController(DesktopStorage.open(otherDir))
+        val otherState = DesktopVaultState((other.createVault(password) as VaultController.Session.Loaded).key)
+        assertEquals(2, BackupCoordinator(other, otherState).restoreEncrypted(password, backup))
+        val restored = otherState.snapshot().first { it.getLabel() == "Server" }.getSshConnection()!!
+        assertEquals("server.example", restored.host)
+        assertEquals(2222, restored.port)
+        assertEquals("alice", restored.username)
+        assertEquals("s3cret", restored.password)
+        assertEquals("alice@server.example:2222", restored.summary())
+        val plain = otherState.snapshot().first { it.getLabel() == "Other" }
+        assertEquals(null, plain.getSshConnection())
     }
 
     @Test

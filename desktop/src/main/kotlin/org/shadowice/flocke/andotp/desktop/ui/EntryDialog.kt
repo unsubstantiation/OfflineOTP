@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 
 import java.awt.Dimension
@@ -15,6 +16,7 @@ import javax.swing.JDialog
 import javax.swing.JFrame
 import javax.swing.JLabel
 import javax.swing.JOptionPane
+import javax.swing.JPasswordField
 import javax.swing.JPanel
 import javax.swing.JTextField
 import javax.swing.JTextArea
@@ -30,7 +32,8 @@ import javax.swing.SwingUtilities
  *  - all OTP types plus secure notes and SSH keys are offered for new entries;
  *  - the type is fixed while editing, so a Steam/mOTP entry can never be silently rebuilt as TOTP;
  *  - Steam locks digits/period/algorithm to its contract and mOTP exposes an optional PIN field;
- *  - tags can be chosen during add/edit; last-used and usage frequency survive edits.
+ *  - tags can be chosen during add/edit; last-used and usage frequency survive edits;
+ *  - SSH key entries also store an optional host, port, user name and password.
  */
 object EntryDialog {
 
@@ -47,9 +50,20 @@ object EntryDialog {
         val secret = JTextArea(if (sshKeys != null) sshKeys.privateKey
             else existing?.takeIf { it.isNote() }?.getNote().orEmpty(), 3, 24)
         val publicKey = JTextArea(sshKeys?.publicKey.orEmpty(), 3, 24)
+        // Connection metadata is optional; a blank port field means "not stored" and suggests 22.
+        val sshConnection = existing?.takeIf { it.isSshKey() }?.getSshConnection()
+        val sshHost = JTextField(sshConnection?.host.orEmpty(), 24)
+        val sshPort = JTextField(
+            sshConnection?.port?.takeIf { it != 0 }?.let { SshConnection.displayPort(it) }.orEmpty(), 8)
+        val sshUsername = JTextField(sshConnection?.username.orEmpty(), 24)
+        val sshPassword = JPasswordField(sshConnection?.password.orEmpty(), 24)
         val issuerLabel = JLabel("Issuer")
         val labelLabel = JLabel("Label")
         val publicKeyLabel = JLabel("SSH public key (optional)")
+        val sshHostLabel = JLabel("Host name (optional)")
+        val sshPortLabel = JLabel("Port (optional, default 22)")
+        val sshUsernameLabel = JLabel("User name (optional)")
+        val sshPasswordLabel = JLabel("Password (optional)")
         val secretLabel = JLabel("Secret (Base32)")
         val typeLabel = JLabel("Type")
         val type = JComboBox(Entry.OTPType.entries.filter {
@@ -118,11 +132,15 @@ object EntryDialog {
             row(2, typeLabel, type)
             row(3, secretLabel, secretScroll, secret)
             row(4, publicKeyLabel, publicKeyScroll, publicKey)
-            row(5, digitsLabel, digits)
-            row(6, timingLabel, periodOrCounter)
-            row(7, algorithmLabel, algorithm)
-            row(8, pinLabel, pin)
-            row(9, tagsLabel, tagsControl, tagsButton)
+            row(5, sshHostLabel, sshHost)
+            row(6, sshPortLabel, sshPort)
+            row(7, sshUsernameLabel, sshUsername)
+            row(8, sshPasswordLabel, sshPassword)
+            row(9, digitsLabel, digits)
+            row(10, timingLabel, periodOrCounter)
+            row(11, algorithmLabel, algorithm)
+            row(12, pinLabel, pin)
+            row(13, tagsLabel, tagsControl, tagsButton)
         }
         val formScroll = JScrollPane(panel).apply {
             border = BorderFactory.createEmptyBorder()
@@ -163,6 +181,9 @@ object EntryDialog {
             }
             publicKeyLabel.isVisible = ssh
             publicKeyScroll.isVisible = ssh
+            listOf(sshHostLabel, sshHost, sshPortLabel, sshPort,
+                sshUsernameLabel, sshUsername, sshPasswordLabel, sshPassword)
+                .forEach { it.isVisible = ssh }
             listOf(digitsLabel, digits, timingLabel, periodOrCounter, algorithmLabel, algorithm)
                 .forEach { it.isVisible = otp }
             pinLabel.isVisible = motp
@@ -195,11 +216,17 @@ object EntryDialog {
             if (choice != JOptionPane.OK_OPTION) {
                 secret.text = ""
                 publicKey.text = ""
+                sshPassword.text = ""
                 pin.text = ""
                 return null
             }
 
             val built = try {
+                // Only SSH entries carry connection data, and a blank form stores nothing.
+                val connection = if (type.selectedItem == Entry.OTPType.SSH_KEY) {
+                    SshConnection.of(sshHost.text, SshConnection.port(sshPort.text),
+                        sshUsername.text, String(sshPassword.password))
+                } else null
                 val replacement = buildEntry(
                     type.selectedItem as Entry.OTPType,
                     issuer.text, label.text,
@@ -207,7 +234,7 @@ object EntryDialog {
                     else secret.text.ifEmpty { existing?.getSecretEncoded() },
                     digits.text, periodOrCounter.text,
                     TokenCalculator.HashAlgorithm.valueOf(algorithm.selectedItem as String),
-                    pin.text, publicKey.text)
+                    pin.text, publicKey.text, connection)
                 try {
                     if (existing != null) preserveEditMetadata(existing, replacement)
                     replacement.setTags(ArrayList(selectedTags))
@@ -225,6 +252,7 @@ object EntryDialog {
             if (built != null) {
                 secret.text = ""
                 publicKey.text = ""
+                sshPassword.text = ""
                 pin.text = ""
                 return built
             }
@@ -240,7 +268,8 @@ object EntryDialog {
     private fun buildEntry(
         type: Entry.OTPType, issuer: String, label: String, secret: String?,
         digitsText: String, timingText: String, algorithm: TokenCalculator.HashAlgorithm,
-        pinText: String, publicKeyText: String
+        pinText: String, publicKeyText: String,
+        sshConnection: SshConnection.Details? = null
     ): Entry {
         val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
             else digitsText.toIntOrNull() ?: throw IllegalArgumentException("Digits must be a number")
@@ -248,7 +277,8 @@ object EntryDialog {
             Entry.OTPType.PASSWORD, Entry.OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("Use password import")
             Entry.OTPType.EMAIL -> throw IllegalArgumentException("Email entries must be managed through FairEmail import/export")
             Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, arrayListOf())
-            Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf())
+            Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf(),
+                sshConnection)
             Entry.OTPType.HOTP -> {
                 val counter = timingText.toLongOrNull()
                     ?: throw IllegalArgumentException("HOTP counter must be a number")

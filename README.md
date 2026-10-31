@@ -92,8 +92,17 @@ implementation; verify on your devices before relying on it.
 
 The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reuses the shared
 `:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
-all portable logic stays headless and unit-tested; Swing is only a thin shell. The desktop vault
-directory is `~/.offlineotp`. Windows and Debian share Android's Dark Forest palette, with an
+all portable logic stays headless and unit-tested; Swing is only a thin shell. Desktop builds are
+fully portable: the vault (`secrets.dat`), its `.bck` copy, the client settings and the
+security-key unlock record live in a `data` folder **inside the program folder**, never in the
+user's profile. Move or copy the OfflineOTP folder and the vault comes along, so a USB stick or a
+second machine works without a migration step — keep the folder private, since the vault is only
+as safe as the key you unlock it with. The program folder is found from the jpackage launcher,
+then from the running jar, then from the directory you launched in; pass
+`-Dofflineotp.home=<folder>` (or set `OFFLINEOTP_HOME`) to keep the data somewhere else, for
+example when the program folder is read-only. An unwritable program folder is reported at startup
+rather than silently falling back into your home directory. Windows and Debian share Android's Dark
+Forest palette, with an
 app bar, the same bundled issuer logos, entry cards that lift on hover, dark controls and dialogs.
 Codes are drawn in amber and turn red as the code is about to change; native window decorations
 may still differ by platform.
@@ -185,6 +194,16 @@ fields. Each field is limited to 32 KiB of UTF-8 text, independently of the note
 Whitespace and line breaks entered in the fields are preserved. Open **Edit** to view or change
 keys; the list hides their contents. The copy action asks which key to copy, even if only one is
 present. Clipboard contents may be visible to other applications or clipboard history.
+
+Each SSH entry can also store the connection it belongs to: **Host name**, **Port**, **User name**
+and **Password**. The port is optional and blank means the SSH default 22; anything else must be a
+whole number from 1 to 65535, and a typo is rejected rather than quietly replaced by the default.
+These details live beside the keys inside the encrypted vault and its encrypted backups, and a
+revealed card shows the target as `user@host:port`. The password is treated as a secret just like
+the keys: it never appears on a concealed card, the copy menu offers it as **Password** only when
+the entry is revealed and actually has one, and it is not exported to OTP QR codes. Leave the four
+fields empty and the entry is stored exactly as before, so older builds still read it; a backup
+that contains them needs updated clients on both sides.
 
 The app stores the text as entered: it does **not** validate keys, check that the two keys match,
 generate keys, or provide an SSH agent. Encrypted private-key files remain encrypted with their

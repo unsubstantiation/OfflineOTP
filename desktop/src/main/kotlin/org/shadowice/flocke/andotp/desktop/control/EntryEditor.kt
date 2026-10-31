@@ -124,6 +124,14 @@ class EntryEditor(
         return recordCopy(entry, value)
     }
 
+    /** Copy the stored SSH connection password, if the entry has one and details are revealed. */
+    fun copySshPassword(entry: Entry): TokenCopyResult {
+        if (!entry.areDetailsVisible() || !entry.isSshKey()) return TokenCopyResult.Unavailable
+        val password = entry.getSshConnection()?.password.orEmpty()
+        if (password.isBlank()) return TokenCopyResult.Unavailable
+        return recordCopy(entry, password)
+    }
+
     private fun recordCopy(entry: Entry, token: String): TokenCopyResult {
         entry.setLastUsed(System.currentTimeMillis())
         entry.setUsedFrequency(entry.getUsedFrequency() + 1)

@@ -377,8 +377,13 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
                 "NOTE" -> "Secure note"
                 else -> type
             }
+            // An SSH key entry also names the host it connects to (`user@host:port`).
+            val parts = ArrayList<String>(3)
+            parts.add(kind)
+            entry.getSshConnection()?.summary()?.let { parts.add(it) }
             val tags = entry.getTags()
-            if (tags.isEmpty()) kind else "$kind · ${tags.joinToString(", ")}"
+            if (tags.isNotEmpty()) parts.add(tags.joinToString(", "))
+            parts.joinToString(" · ")
         } else ""
         detail.foreground = ForestTheme.TEXT_SECONDARY
 

@@ -555,19 +555,28 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         }
     }
 
+    /** Which stored SSH field a copy action takes; never more than one at a time. */
+    private enum class SshField { PUBLIC_KEY, PRIVATE_KEY, PASSWORD }
+
     /** Explicitly choose one field; do not retain key text in a pending dialog callback. */
     private fun chooseSshKeyToCopy(position: Int, dropToBackground: Boolean) {
         showActionDialog(position, BiConsumer { target, entry ->
             val keys = entry.getSshKeys()
-            val choices = ArrayList<Boolean>() // false = public, true = private
+            val connection = entry.getSshConnection()
+            val choices = ArrayList<SshField>()
             val labels = ArrayList<String>()
             if (keys.publicKey.isNotBlank()) {
-                choices.add(false)
+                choices.add(SshField.PUBLIC_KEY)
                 labels.add(context.getString(R.string.ssh_public_key))
             }
             if (keys.privateKey.isNotBlank()) {
-                choices.add(true)
+                choices.add(SshField.PRIVATE_KEY)
                 labels.add(context.getString(R.string.ssh_private_key))
+            }
+            // The stored connection password, when there is one, is copied like a key: explicitly.
+            if (!connection?.password.isNullOrEmpty()) {
+                choices.add(SshField.PASSWORD)
+                labels.add(context.getString(R.string.ssh_password))
             }
             activeSshCopyDialog?.dismiss()
             val dialog = AlertDialog.Builder(context)
@@ -576,7 +585,11 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                     if (index in choices.indices) withTarget(target, Consumer { actual ->
                         if (!actual.isSshKey()) return@Consumer
                         val current = actual.getSshKeys()
-                        val value = if (choices[index]) current.privateKey else current.publicKey
+                        val value = when (choices[index]) {
+                            SshField.PUBLIC_KEY -> current.publicKey
+                            SshField.PRIVATE_KEY -> current.privateKey
+                            SshField.PASSWORD -> actual.getSshConnection()?.password.orEmpty()
+                        }
                         if (value.isBlank()) return@Consumer
                         val currentPos = presentation.indexOf(actual)
                         val currentIndex = entries.indexOf(actual)

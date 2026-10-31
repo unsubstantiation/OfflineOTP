@@ -2,6 +2,10 @@
 
 #### Unreleased
 
+ * Desktop: Keep the vault, its `.bck` copy, the settings and the hardware-unlock record in a `data` folder inside the program folder instead of `~/.offlineotp`, so the Debian and Windows builds are fully portable: copy the folder and everything travels with it. `-Dofflineotp.home=<folder>` or `OFFLINEOTP_HOME` still selects another folder, and an unwritable program folder is reported instead of falling back into the user's profile
+
+ * SSH keys: Store an optional host name, port, user name and password beside the keys, inside the encrypted vault and its encrypted backups; a revealed card shows `user@host:port` and the copy menu offers the password. Blank fields are omitted, so existing entries, vaults and backups keep their exact bytes and older builds still read them
+
  * CI: Skip the signed release build when the release keystore secret is not configured, instead of failing the Android workflow at 0s; release signing stays opt-in and is documented in `docs/release-signing.md`
 
  * Android: Make the app switcher blackout a setting (**Hide in the app switcher**), off by default, so the last screen stays visible in the switcher unless you opt in; screenshots remain blocked while the app is open and the QR scanner still always hides its preview
