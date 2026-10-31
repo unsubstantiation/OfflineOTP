@@ -25,8 +25,12 @@ class NoGithubAutomationTest(unittest.TestCase):
             self.assertIn("workflow_dispatch:", text)
             self.assertIn("pull_request:", text)
             self.assertIn("contents: read", text)
-            self.assertEqual(1, text.count("actions/upload-artifact@"))
-            self.assertIn("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2", text)
+            # A workflow may contain several jobs; every upload must use the single reviewed pin.
+            uploads = text.count("actions/upload-artifact@")
+            self.assertGreaterEqual(uploads, 1)
+            self.assertEqual(
+                uploads,
+                text.count("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"))
             self.assertIn("if-no-files-found: error", text)
             self.assertIn("SHA256SUMS.txt", text)
             self.assertNotIn("contents: write", text)
@@ -42,9 +46,11 @@ class NoGithubAutomationTest(unittest.TestCase):
         debian = (workflows / "debian.yml").read_text(encoding="utf-8")
         self.assertIn(":app:assembleFdroidDebug", android)
         self.assertIn("apksigner", android)
-        self.assertEqual(1, android.count("android-actions/setup-android@"))
-        self.assertIn("android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4", android)
-        self.assertIn("cmdline-tools-version: '12266719'", android)
+        setup_pin = "android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4"
+        setups = android.count("android-actions/setup-android@")
+        self.assertGreaterEqual(setups, 1)
+        self.assertEqual(setups, android.count(setup_pin))
+        self.assertEqual(setups, android.count("cmdline-tools-version: '12266719'"))
         self.assertIn("runs-on: windows-2022", windows)
         self.assertIn(":desktop:packageDesktop", windows)
         self.assertIn("OfflineOTP.exe", windows)

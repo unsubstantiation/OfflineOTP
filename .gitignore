@@ -25,3 +25,9 @@ reports/
 /gradle-connected.log
 /mem-emulator.log
 .cache/
+
+# Release signing material (see docs/release-signing.md)
+signing/
+*.jks
+*.keystore
+*.jks.b64
