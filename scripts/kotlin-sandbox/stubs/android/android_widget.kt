@@ -85,6 +85,9 @@ open class TextView() : View() {
     /** Whether the text is a single line. */
     var isSingleLine: Boolean = false
 
+    /** The line spacing multiplier; the platform defaults to 1 (normal spacing). */
+    var lineSpacingMultiplier: Float = 1f
+
     /**
      * The installed input filters. The platform property is synthesized from the Java
      * `getFilters()`/`setFilters(...)` pair, so it is declared as a Kotlin property here; the

@@ -79,14 +79,32 @@ object Tools {
     }
 
     /**
-     * Applies the screenshot setting to [window]. Screenshots are blocked unless the user has
-     * explicitly enabled them; the flag also keeps the window out of the recents thumbnail.
+     * Applies the policy for a window that is (about to be) on screen: screenshots are blocked
+     * unless the user has explicitly enabled them.
      */
     @JvmStatic fun applyScreenshotPolicy(window: Window, screenshotsEnabled: Boolean) {
-        if (screenshotsEnabled)
-            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        else
+        setSecure(window, ScreenshotPolicy.secureWhileVisible(screenshotsEnabled))
+    }
+
+    /**
+     * Applies the policy for a window that is leaving the foreground, which is when the system
+     * records the app switcher preview. The preview is kept unless the user opted into hiding it
+     * (`ScreenshotPolicy.secureWhileBackgrounded`).
+     */
+    @JvmStatic fun applyAppSwitcherPolicy(
+        window: Window,
+        screenshotsEnabled: Boolean,
+        hideInAppSwitcher: Boolean
+    ) {
+        setSecure(window, ScreenshotPolicy.secureWhileBackgrounded(screenshotsEnabled, hideInAppSwitcher))
+    }
+
+    /** `FLAG_SECURE` is the only switch Android offers for both screenshots and the switcher. */
+    @JvmStatic fun setSecure(window: Window, secure: Boolean) {
+        if (secure)
             window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        else
+            window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     /**

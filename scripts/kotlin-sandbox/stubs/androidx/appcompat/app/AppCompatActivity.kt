@@ -58,7 +58,7 @@ open class AppCompatActivity : android.app.Activity() {
 
     override fun onResume() {}
 
-    protected open fun onPause() {}
+    override fun onPause() {}
 
     protected open fun onStop() {}
 

@@ -268,6 +268,12 @@ open class Activity : Context() {
     /** The resume callback supplied by Android before an activity is interactive. */
     open fun onResume() {}
 
+    /**
+     * The pause callback supplied by Android as the activity leaves the foreground; this is when
+     * the system records the app switcher preview.
+     */
+    protected open fun onPause() {}
+
     /** The intent the activity was started with; the platform returns the launch intent. */
     open fun getIntent(): Intent? = null
 

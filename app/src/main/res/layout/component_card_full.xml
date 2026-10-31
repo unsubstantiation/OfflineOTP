@@ -78,7 +78,7 @@
                                     android:id="@+id/valueText"
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
-                                    android:textColor="?android:attr/textColorSecondary"
+                                    android:textColor="?attr/colorOtp"
                                     android:textSize="28sp"
                                     android:textStyle="bold" />
 
@@ -87,8 +87,21 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:layout_marginStart="@dimen/activity_margin_small"
-                                    android:textColor="?android:attr/textColorSecondary"
+                                    android:textColor="?attr/colorOtp"
                                     android:textDirection="ltr"
+                                    tools:ignore="HardcodedText" />
+
+                                <!-- A revealed secure note is shown in full: wrapped over as many
+                                     lines as it needs, in body text rather than the token color. -->
+                                <TextView
+                                    android:id="@+id/noteText"
+                                    android:layout_width="match_parent"
+                                    android:layout_height="wrap_content"
+                                    android:lineSpacingMultiplier="1.15"
+                                    android:textColor="?android:attr/textColorPrimary"
+                                    android:textDirection="ltr"
+                                    android:textSize="13sp"
+                                    android:visibility="gone"
                                     tools:ignore="HardcodedText" />
 
                             </LinearLayout>
@@ -112,7 +125,7 @@
                                     android:layout_width="wrap_content"
                                     android:layout_height="wrap_content"
                                     android:alpha="0.4"
-                                    android:textColor="?android:attr/textColorSecondary"
+                                    android:textColor="?attr/colorOtp"
                                     android:textSize="28sp"
                                     android:textStyle="bold"
                                     android:maxLines="1"
@@ -239,6 +252,7 @@
                     app:mpb_progressStyle="horizontal"
                     app:mpb_useIntrinsicPadding="false"
                     app:mpb_showProgressBackground="false"
+                    app:mpb_progressTint="@color/forest_otp_amber"
                     style="@style/Widget.MaterialProgressBar.ProgressBar.Horizontal.NoPadding" />
 
             </LinearLayout>

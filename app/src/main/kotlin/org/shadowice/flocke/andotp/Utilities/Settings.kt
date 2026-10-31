@@ -636,6 +636,11 @@ open class Settings(private val context: Context) {
         return getBoolean(R.string.settings_key_enable_screenshot, false)
     }
 
+    /** Whether the app switcher should show a blank card instead of a screenshot of the app. */
+    open fun getHideInAppSwitcher(): Boolean {
+        return getBoolean(R.string.settings_key_hide_in_app_switcher, false)
+    }
+
     open fun getUsedTokensDialogShown(): Boolean {
         return getBoolean(R.string.settings_key_last_used_dialog_shown, false)
     }

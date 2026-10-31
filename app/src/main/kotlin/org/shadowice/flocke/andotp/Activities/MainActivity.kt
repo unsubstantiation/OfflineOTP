@@ -17,7 +17,6 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewTreeObserver
-import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.LinearInterpolator
 import android.widget.AdapterView
@@ -363,8 +362,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         setTitle(R.string.app_name)
 
-        if (!settings!!.getScreenshotsEnabled())
-            getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // The base activity already applied the policy for a visible window; re-applying here keeps
+        // this screen correct if it is recreated by a preference change mid-session.
+        applyScreenshotPolicyForForeground()
 
         setContentView(R.layout.activity_main)
 

@@ -122,12 +122,16 @@ class EntryTableModelTest {
     }
 
     @Test
-    fun noteContentsAreNotShownInTheTable() {
-        val note = Entry(Entry.OTPType.NOTE, "a secret recovery key", "", "Recovery", arrayListOf())
-        note.setDetailsVisible(true)
+    fun revealedNotesExposeTheirWholeContentWhileHiddenOnesExposeNothing() {
+        val note = Entry(Entry.OTPType.NOTE, "a secret recovery key\nsecond line", "", "Recovery", arrayListOf())
         val model = EntryTableModel(presentationWith(note))
+        note.setDetailsVisible(true)
         assertEquals("NOTE", model.getValueAt(0, 2))
-        assertEquals("[Note hidden]", model.getValueAt(0, 3))
+        assertEquals("a secret recovery key\nsecond line", model.getValueAt(0, 3))
+
+        note.setDetailsVisible(false)
+        model.refresh()
+        assertEquals("", model.getValueAt(0, 3))
     }
 
     @Test
@@ -161,7 +165,7 @@ class EntryTableModelTest {
                 assertEquals(item.getIssuer(), model.getValueAt(0, 0))
                 assertEquals(item.getLabel(), model.getValueAt(0, 1))
                 assertEquals(item.getType().name, model.getValueAt(0, 2))
-                if (item.isNote()) assertEquals("[Note hidden]", model.getValueAt(0, 3))
+                if (item.isNote()) assertEquals(item.getNote(), model.getValueAt(0, 3))
                 if (item.isSshKey()) assertEquals("[SSH keys hidden]", model.getValueAt(0, 3))
                 model.setValueAt(false, 0, 4)
                 assertHidden()

@@ -11,7 +11,6 @@
     <string name="button_add_secure_note">Add secure note</string>
     <string name="button_add_ssh_key">Add SSH key</string>
     <string name="hint_secure_note">Secure note (1–200 characters); use Label as the title</string>
-    <string name="secure_note_hidden">Secure note (hidden)</string>
     <string name="ssh_key_hidden">SSH keys (hidden)</string>
     <string name="label_ssh_public">SSH public key</string>
     <string name="hint_ssh_public">Public key (optional)</string>

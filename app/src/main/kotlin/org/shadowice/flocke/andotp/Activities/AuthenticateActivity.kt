@@ -56,8 +56,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (!settings!!.getScreenshotsEnabled())
-            getWindow().setFlags(LayoutParams.FLAG_SECURE, LayoutParams.FLAG_SECURE)
+        applyScreenshotPolicyForForeground()
 
         authMethod = settings!!.getAuthMethod()
         newEncryption = getIntent()?.getStringExtra(Constants.EXTRA_AUTH_NEW_ENCRYPTION)

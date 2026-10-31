@@ -78,6 +78,19 @@ open class IntroScreenActivity : IntroActivity() {
         const val STATE_AUTH_SLIDE_POS = "intro_auth_slide_pos"
     }
 
+    public override fun onResume() {
+        super.onResume()
+        Tools.applyScreenshotPolicy(getWindow(), Settings(this).getScreenshotsEnabled())
+    }
+
+    public override fun onPause() {
+        // Same app switcher rule as BaseActivity: shown unless the user hid the preview.
+        val settings = Settings(this)
+        Tools.applyAppSwitcherPolicy(getWindow(),
+            settings.getScreenshotsEnabled(), settings.getHideInAppSwitcher())
+        super.onPause()
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 

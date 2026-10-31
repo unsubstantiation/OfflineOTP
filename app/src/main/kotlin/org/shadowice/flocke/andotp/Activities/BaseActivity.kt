@@ -46,7 +46,7 @@ abstract class BaseActivity : ThemedActivity() {
         // Settings, backup and about share this base. The main list and the unlock screen used
         // to be the only windows that honoured "block screenshots", so a password dialog on
         // those other screens was still captured in the recents thumbnail.
-        Tools.applyScreenshotPolicy(getWindow(), settings?.getScreenshotsEnabled() == true)
+        applyScreenshotPolicyForForeground()
 
         VaultSession.addLockListener(lockListener)
         val receiver = ScreenOffReceiver()
@@ -95,8 +95,32 @@ abstract class BaseActivity : ThemedActivity() {
 
     public override fun onResume() {
         super.onResume()
+        // Coming back from the background re-arms screenshot blocking; the pause below may have
+        // released it so the app switcher could show a preview.
+        applyScreenshotPolicyForForeground()
         if (requiresVaultSession() && VaultSession.getKey() == null) finish()
     }
+
+    public override fun onPause() {
+        // The system records the app switcher preview as the activity pauses, so the policy for a
+        // background window has to be in place before the pause completes.
+        Tools.applyAppSwitcherPolicy(getWindow(),
+            settings?.getScreenshotsEnabled() == true, hidesAppSwitcherPreview())
+        super.onPause()
+    }
+
+    /** Screenshots are blocked on this window unless the special-feature setting allows them. */
+    protected fun applyScreenshotPolicyForForeground() {
+        Tools.applyScreenshotPolicy(getWindow(), settings?.getScreenshotsEnabled() == true)
+    }
+
+    /**
+     * Whether the app switcher must show a blank card for this window. Off by default: the user
+     * opts in through Settings. A screen that shows something more sensitive than the vault, such
+     * as the live camera feed of the QR scanner, overrides it to always stay blank.
+     */
+    protected open fun hidesAppSwitcherPreview(): Boolean =
+        settings?.getHideInAppSwitcher() == true
 
     /** True if this activity should be closed when the screen turns off. */
     protected open fun shouldDestroyOnScreenOff(): Boolean = true
