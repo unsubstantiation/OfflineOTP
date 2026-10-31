@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * CI: Skip the signed release build when the release keystore secret is not configured, instead of failing the Android workflow at 0s; release signing stays opt-in and is documented in `docs/release-signing.md`
+
  * Android: Make the app switcher blackout a setting (**Hide in the app switcher**), off by default, so the last screen stays visible in the switcher unless you opt in; screenshots remain blocked while the app is open and the QR scanner still always hides its preview
 
  * UI: Show a revealed secure note in full, wrapped over as many lines as it needs, on both Android and desktop instead of a "note hidden" placeholder

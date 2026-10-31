@@ -40,8 +40,36 @@ jobs:
           path: artifacts/
           if-no-files-found: error
 
-  sign-release:
+  signing-preflight:
+    # Release signing is opt-in. The `secrets` context is not available to job-level `if`
+    # expressions, so this tiny job publishes whether the keystore secret exists and lets the
+    # signed-release job be *skipped* instead of *failed* when signing is not configured.
     if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - name: Check release signing secret
+        id: check
+        shell: bash
+        env:
+          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$ANDROID_RELEASE_KEYSTORE" ]]; then
+            echo "::notice::ANDROID_RELEASE_KEYSTORE is not configured; skipping the signed release build. See docs/release-signing.md to enable it."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  sign-release:
+    # Builds and verifies signed release APKs only when the keystore is configured; otherwise
+    # the job is skipped so the debug build and PR checks stay green. Never uploads release
+    # artifacts that were not actually signed with the release key.
+    needs: signing-preflight
+    if: needs.signing-preflight.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:

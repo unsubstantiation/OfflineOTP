@@ -335,6 +335,13 @@ Download their artifacts from the workflow run: an F-Droid debug APK, a Windows 
 and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
 signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
 
+The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when
+the release keystore is configured as repository secrets. Without `ANDROID_RELEASE_KEYSTORE` the
+`sign-release` job is skipped with a notice instead of failing, so an unconfigured fork or a fresh
+clone still gets a green Android build with the debug APK. See
+[release signing](docs/release-signing.md) for the keystore, the four secrets and the verification
+steps; unsigned release APKs are still built by `scripts/verify_reproducible_build.sh`.
+
 Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
 clients build for JVM 11 because the embedded PGPainless 2.x engine declares a JVM 11 requirement,
 and the Android USB/NFC transport stays on YubiKit 3.1.0 because 3.2.x targets `compileSdk 37`
@@ -363,6 +370,7 @@ bash scripts/verify_reproducible_build.sh
 ## Documentation
 
 - [Changelog](CHANGELOG.md) — release history.
+- [Release signing](docs/release-signing.md) — opt-in signed APKs, keystore secrets and CI behavior.
 - [Desktop packaging and release](scripts/packaging/README.md) — desktop distributions, jpackage, reproducible builds and sandbox verification.
 - [Vault security hardening](docs/vault-security-hardening.md) — storage, session, backup, and IPC behavior.
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
