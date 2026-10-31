@@ -32,6 +32,7 @@ import com.journeyapps.barcodescanner.DecoratedBarcodeView
 
 import org.shadowice.flocke.andotp.Utilities.LocaleContextHelper
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.Tools
 
 /** QR scanner activity that applies the app's theme, locale, and screenshot policy. */
 open class SecureCaptureActivity : CaptureActivity() {
@@ -54,9 +55,9 @@ open class SecureCaptureActivity : CaptureActivity() {
 
         val barcodeScannerView = super.initializeContent()
 
-        if (!settings.getScreenshotsEnabled()) {
-            getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        }
+        // The live camera feed and any QR code in it are never left in the app switcher, whether or
+        // not the user allowed screenshots.
+        Tools.setSecure(getWindow(), true)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             val insetsController = getWindow().getInsetsController()
@@ -74,10 +75,18 @@ open class SecureCaptureActivity : CaptureActivity() {
         return barcodeScannerView
     }
 
-    override fun onResume() {
+    public override fun onResume() {
         super.onResume()
+        Tools.setSecure(getWindow(), true)
         val locale = Settings(this).getLocale()
         if (!LocaleContextHelper.isLocaleApplied(this, locale))
             recreate()
+    }
+
+    public override fun onPause() {
+        // Compared with the rest of the app the scanner has the opposite default, because the
+        // preview would otherwise be the last frame the switcher shows.
+        Tools.setSecure(getWindow(), true)
+        super.onPause()
     }
 }

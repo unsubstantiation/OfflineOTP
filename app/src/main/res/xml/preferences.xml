@@ -50,6 +50,12 @@
             android:defaultValue="false" />
 
         <CheckBoxPreference
+            android:key="@string/settings_key_hide_in_app_switcher"
+            android:title="@string/settings_title_hide_in_app_switcher"
+            android:summary="@string/settings_desc_hide_in_app_switcher"
+            android:defaultValue="false" />
+
+        <CheckBoxPreference
             android:key="@string/settings_key_auth_inactivity"
             android:title="@string/settings_title_auth_inactivity"
             android:summary="@string/settings_desc_auth_inactivity"

@@ -4368,6 +4368,7 @@ fun main() {
             "getDefaultBackupType()Lorg/shadowice/flocke/andotp/Utilities/Constants\$BackupType;",
             "getEncryption()Lorg/shadowice/flocke/andotp/Utilities/Constants\$EncryptionType;",
             "getFirstTimeWarningShown()Z",
+            "getHideInAppSwitcher()Z",
             "getIsAppendingDateTimeToBackups()Z",
             "getIterations()I",
             "getLabelDisplay()Lorg/shadowice/flocke/andotp/Utilities/Constants\$LabelDisplay;",
@@ -5275,7 +5276,7 @@ fun main() {
         }
     }
 
-    check("the QR scanner activity honours the theme, the language and the screenshot setting") {
+    check("the QR scanner activity honours the theme, the language and the app switcher policy") {
         PreferenceManager.reset()
         val activity = ScannerActivity()
         val store = PreferenceManager.getDefaultSharedPreferences(activity) as FakeSharedPreferences
@@ -5304,12 +5305,19 @@ fun main() {
             expect(flags.contains(WindowManager.LayoutParams.FLAG_FULLSCREEN),
                     { "the system bars were not hidden" })
 
-            // With the screenshots enabled the window is not made secure.
+            // The camera preview and any QR code in it stay out of the app switcher even when the
+            // user allows screenshots elsewhere in the app.
             store.edit().putBoolean(settingsKey(R.string.settings_key_enable_screenshot), true).commit()
             val second = ScannerActivity()
             withPoisonedTransaction { second.initialize() }
-            expect(!second.getWindow().flagCalls.map { it.first }.contains(WindowManager.LayoutParams.FLAG_SECURE),
-                    { "the window was made secure although the screenshots are enabled" })
+            expect(second.getWindow().flagCalls.map { it.first }.contains(WindowManager.LayoutParams.FLAG_SECURE),
+                    { "the scanner window was left capturable although it shows the camera feed" })
+            second.getWindow().clearedFlags.clear()
+            second.onPause()
+            expect(second.getWindow().flagCalls.map { it.first }.contains(WindowManager.LayoutParams.FLAG_SECURE),
+                    { "the scanner window was not secured when the app switcher recorded it" })
+            expect(second.getWindow().clearedFlags.isEmpty(),
+                    { "the scanner window released FLAG_SECURE while backgrounded: ${second.getWindow().clearedFlags}" })
 
             // From Android 11 on the system bars are hidden with the insets controller.
             Build.VERSION.SDK_INT = Build.VERSION_CODES.R
@@ -5327,6 +5335,44 @@ fun main() {
             Build.VERSION.SDK_INT = sdk
             Locale.setDefault(defaultLocale)
         }
+    }
+
+    check("the app switcher preview is shown by default and blanked only on request") {
+        val fixture = SettingsFixture()
+        val secure = WindowManager.LayoutParams.FLAG_SECURE
+
+        // Default: screenshots are blocked while the app is visible, but the switcher keeps its
+        // preview, so the window releases FLAG_SECURE as the activity pauses.
+        expect(!fixture.settings.getScreenshotsEnabled(), { "screenshots must stay blocked by default" })
+        expect(!fixture.settings.getHideInAppSwitcher(), { "the app switcher preview must be shown by default" })
+        val foreground = Window()
+        Tools.applyScreenshotPolicy(foreground, fixture.settings.getScreenshotsEnabled())
+        expect(foreground.flagCalls.map { it.first }.contains(secure),
+                { "the visible window was left capturable" })
+        val paused = Window()
+        Tools.applyAppSwitcherPolicy(paused, fixture.settings.getScreenshotsEnabled(),
+                fixture.settings.getHideInAppSwitcher())
+        expect(paused.clearedFlags.contains(secure), { "the preview was blanked without being asked for" })
+        expect(!paused.flagCalls.map { it.first }.contains(secure),
+                { "the preview was blanked without being asked for" })
+
+        // Opt-in: the paused window keeps FLAG_SECURE, so the switcher shows a blank card.
+        fixture.seed(R.string.settings_key_hide_in_app_switcher, true)
+        expect(fixture.settings.getHideInAppSwitcher(), { "the setting was not read back" })
+        val hidden = Window()
+        Tools.applyAppSwitcherPolicy(hidden, fixture.settings.getScreenshotsEnabled(),
+                fixture.settings.getHideInAppSwitcher())
+        expect(hidden.flagCalls.map { it.first }.contains(secure), { "the preview was not blanked" })
+        expect(hidden.clearedFlags.isEmpty(), { "the preview was not blanked" })
+
+        // Allowing screenshots wins over the switcher setting: nothing is hidden anywhere.
+        fixture.seed(R.string.settings_key_enable_screenshot, true)
+        val open = Window()
+        Tools.applyAppSwitcherPolicy(open, fixture.settings.getScreenshotsEnabled(),
+                fixture.settings.getHideInAppSwitcher())
+        expect(open.clearedFlags.contains(secure), { "allowing screenshots must also show the preview" })
+        expect(!open.flagCalls.map { it.first }.contains(secure),
+                { "allowing screenshots must also show the preview" })
     }
 
     check("the about tab wires its rows, its version metadata and its image tint") {
@@ -5997,6 +6043,7 @@ fun main() {
         val card = CardView(context)
         val value = TextView()
         val valuePrev = TextView()
+        val noteView = TextView()
         val valueLayout = LinearLayout(context)
         val coverLayout = LinearLayout(context)
         val counterLayout = LinearLayout(context)
@@ -6019,6 +6066,7 @@ fun main() {
         root.children[R.id.card_view] = card
         root.children[R.id.valueText] = value
         root.children[R.id.valueTextPrev] = valuePrev
+        root.children[R.id.noteText] = noteView
         root.children[R.id.valueLayout] = valueLayout
         root.children[R.id.coverLayout] = coverLayout
         root.children[R.id.counterLayout] = counterLayout

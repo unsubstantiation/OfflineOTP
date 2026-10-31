@@ -156,8 +156,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 .cancelUniqueWork(EncryptedBackupBroadcastReceiver.UNIQUE_WORK_NAME)
         }
 
-        if (key == getString(R.string.settings_key_enable_screenshot)) {
-            Tools.applyScreenshotPolicy(getWindow(), settings!!.getScreenshotsEnabled())
+        // Both switches decide one flag, so either change re-applies the policy for this window.
+        if (key == getString(R.string.settings_key_enable_screenshot) ||
+                key == getString(R.string.settings_key_hide_in_app_switcher)) {
+            applyScreenshotPolicyForForeground()
         }
 
         if (key == getString(R.string.settings_key_theme) ||

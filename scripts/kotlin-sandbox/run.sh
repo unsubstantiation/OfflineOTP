@@ -76,6 +76,7 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/PlainTextBackupDecoder.kt"
     "$KOTLIN_CORE/Utilities/QrImageDecoder.kt"
     "$KOTLIN_CORE/Utilities/QrImport.kt"
+    "$KOTLIN_CORE/Utilities/ScreenshotPolicy.kt"
     "$KOTLIN_CORE/Utilities/ScreenTimerController.kt"
     "$KOTLIN_CORE/Utilities/SecurityPorts.kt"
     "$KOTLIN_CORE/Utilities/SessionContracts.kt"

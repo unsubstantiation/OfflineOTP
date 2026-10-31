@@ -166,9 +166,16 @@ If a visibility change cannot be saved, the entry stays hidden for the current s
 previously saved state may return after restart.
 
 This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
-titles, searches and other app screens may still expose information. Android's separate screenshot
-blocking setting offers additional protection; the Swing desktop has no equivalent portable
-screenshot-blocking guarantee.
+titles, searches and other app screens may still expose information. Android blocks screenshots
+and screen recording by default, which is the additional protection here; the Swing desktop has no
+equivalent portable screenshot-blocking guarantee.
+
+On Android the app switcher normally keeps a preview of the last screen, like any other app. Turn
+on **Hide in the app switcher** in Settings to replace that preview with a blank card. It is off by
+default, and screenshots stay blocked while the app is open either way. The setting covers the
+vault, settings, backup and unlock screens; the QR scanner always blanks its own preview because
+it shows the camera. Allow screenshots only if you accept that anything on screen can be captured.
+The desktop client does not control the operating system's window thumbnails.
 
 ### SSH key entries
 

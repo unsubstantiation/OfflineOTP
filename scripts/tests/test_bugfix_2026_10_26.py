@@ -54,7 +54,9 @@ class ScreenshotAndCardRefreshTest(unittest.TestCase):
         self.assertIn("Tools.applyScreenshotPolicy(getWindow(), settings?.getScreenshotsEnabled() == true)", base)
         self.assertIn("Tools.applyScreenshotPolicy(getWindow(), Settings(this).getScreenshotsEnabled())", intro)
         self.assertIn("settings_key_enable_screenshot", settings)
-        self.assertIn("Tools.applyScreenshotPolicy(getWindow(), settings!!.getScreenshotsEnabled())", settings)
+        # Both screenshot switches decide the same window flag, so either one re-applies the policy.
+        self.assertIn("settings_key_hide_in_app_switcher", settings)
+        self.assertIn("applyScreenshotPolicyForForeground()", settings)
 
     def test_individual_timeouts_rebind_cards_and_progress_animators_are_replaced(self):
         main = read("Activities/MainActivity.kt")

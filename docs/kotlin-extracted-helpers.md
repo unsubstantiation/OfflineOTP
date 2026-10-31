@@ -330,10 +330,12 @@ Nineteenth batch (the small standalone activities):
   wipes the accounts or the settings, and still removes its task. The scanner activity applies the
   selected locale through `LocaleContextHelper` in its own `attachBaseContext` override (it does not
   extend `ThemedActivity`), and still applies the theme, requests hardware acceleration before the
-  content view is built, blocks screenshots with `FLAG_SECURE` unless the setting allows them, and
+  content view is built, always keeps `FLAG_SECURE` because its preview shows the camera, and
   hides the system bars with the insets controller from Android 11 on and with the fullscreen flag
   below that. Its `onResume` recreates the scanner if the selected locale changed while it was
-  backgrounded.
+  backgrounded. `ScreenshotPolicy` (core) decides the flag for the other windows: it stays set while
+  they are visible unless the special-feature setting allows screenshots, and is released on pause
+  so the app switcher can keep a preview unless the user enables **Hide in the app switcher**.
 - Both classes stay extendable (`open`), like the Java classes, and the public constant
   `PANIC_TRIGGER_ACTION` stays a `public static final` field, so the Java call site in
   `MainActivity` (`SecureCaptureActivity.class`) and the manifest entries are unchanged.

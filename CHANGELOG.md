@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android: Make the app switcher blackout a setting (**Hide in the app switcher**), off by default, so the last screen stays visible in the switcher unless you opt in; screenshots remain blocked while the app is open and the QR scanner still always hides its preview
+
  * UI: Show a revealed secure note in full, wrapped over as many lines as it needs, on both Android and desktop instead of a "note hidden" placeholder
 
  * UI: Show the bundled issuer logos on desktop entry cards (Debian and Windows rasterize the same Android vector marks) instead of generated letter tiles

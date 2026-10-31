@@ -140,7 +140,7 @@ import, custom images). Open items needing a device run are listed under ⚠️.
   ⚠️ **VERIFY** — Plain-text restore is supported within size limits; JSON import is all-or-nothing with distinct failure outcomes.
 - **#983** — app not hiding info when using gesture navigation  
   _new issue_  
-  ✅ **FIXED** — `FLAG_SECURE` is set on `MainActivity`, `AuthenticateActivity` and `SecureCaptureActivity`, so recent-task previews (gesture navigation included) no longer show vault content.
+  ✅ **FIXED** — `FLAG_SECURE` is set on `MainActivity` and `AuthenticateActivity` while they are visible, and the QR scanner keeps it always. The recent-task preview is hidden when **Hide in the app switcher** is enabled (off by default), so accounts are not exposed there unintentionally.
 - **#995** — Empty GPG backup file  
   _new issue_  
   ⚠️ **VERIFY** — OpenPGP export fails closed on null streams / provider exceptions; verify GPG backups complete with a filename.

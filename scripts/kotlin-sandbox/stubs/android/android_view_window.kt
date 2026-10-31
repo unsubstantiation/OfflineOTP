@@ -18,6 +18,9 @@ open class Window {
     /** The flag calls that were made, in call order: the flags and the mask. */
     val flagCalls = ArrayList<Pair<Int, Int>>()
 
+    /** The layout parameters of the window; `flags` tracks the last state the calls produced. */
+    val attributes = WindowManager.LayoutParams()
+
     /** The insets controller of this window; the platform creates it with the window. */
     var windowInsetsController: WindowInsetsController? = null
 
@@ -37,6 +40,8 @@ open class Window {
     /** Records the flags; the platform turns the masked bits on or off. */
     open fun setFlags(flags: Int, mask: Int) {
         flagCalls.add(flags to mask)
+
+        attributes.flags = (attributes.flags and mask.inv()) or flags
     }
 
     /** The flags that were cleared, in call order. */
@@ -45,6 +50,8 @@ open class Window {
     /** Records a clear; the platform turns these bits off. */
     open fun clearFlags(flags: Int) {
         clearedFlags.add(flags)
+
+        attributes.flags = attributes.flags and flags.inv()
     }
 
     /** The controller of the system bars; the platform returns null before the window exists. */
@@ -58,6 +65,9 @@ open class Window {
 open class WindowManager {
     /** The window parameters; only the flag constants are used here. */
     class LayoutParams {
+        /** The window flags; the platform keeps a mutable field of the same name. */
+        var flags: Int = 0
+
         companion object {
             /** The platform's flag values. */
             const val FLAG_FULLSCREEN: Int = 0x00000400
