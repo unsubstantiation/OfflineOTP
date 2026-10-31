@@ -29,7 +29,7 @@ allprojects {
         google()
         mavenCentral()
         exclusiveContent {
-            forRepository { maven { url "https://jitpack.io" } }
+            forRepository { maven { url = "https://jitpack.io" } }
             filter {
                 includeGroup 'com.github.aakira'
                 includeGroup 'com.github.open-keychain.open-keychain'

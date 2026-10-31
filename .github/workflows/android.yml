@@ -57,11 +57,23 @@ jobs:
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Install release signing keystore
         shell: bash
+        env:
+          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
         run: |
           set -euo pipefail
+          if [[ -z "$ANDROID_RELEASE_KEYSTORE" ]]; then
+            echo "::error::ANDROID_RELEASE_KEYSTORE is not configured; a base64-encoded release keystore is required."
+            exit 1
+          fi
           mkdir -p signing
-          printf '%s' "${{ secrets.ANDROID_RELEASE_KEYSTORE }}" | base64 -d > signing/OfflineOTP-release-keystore.jks
-          test -s signing/OfflineOTP-release-keystore.jks
+          if ! printf '%s' "$ANDROID_RELEASE_KEYSTORE" | base64 -d > signing/OfflineOTP-release-keystore.jks; then
+            echo "::error::ANDROID_RELEASE_KEYSTORE is not valid base64."
+            exit 1
+          fi
+          if [[ ! -s signing/OfflineOTP-release-keystore.jks ]]; then
+            echo "::error::The decoded release keystore is empty."
+            exit 1
+          fi
       - name: Build signed release APKs
         shell: bash
         run: |
