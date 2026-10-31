@@ -159,6 +159,22 @@ class TokenCardDeviceTest {
                                 assertEquals(entry.getLabel(), label.text.toString())
                             }
                         }
+                        settings.setBoolean(R.string.settings_key_hide_issuer, false)
+
+                        // A revealed note replaces the token line with the whole note, and its
+                        // TextView wraps instead of truncating so nothing is cut off.
+                        note.setDetailsVisible(true)
+                        holder.updateValues(note, settings)
+                        val noteView = card.findViewById<TextView>(R.id.noteText)!!
+                        assertEquals(View.VISIBLE, noteView.visibility)
+                        assertEquals(note.getNote(), noteView.text.toString())
+                        assertEquals(1f, noteView.lineSpacingMultiplier)
+                        assertEquals(View.GONE, card.findViewById<View>(R.id.valueText)!!.visibility)
+                        assertEquals(View.GONE, card.findViewById<View>(R.id.valueTextPrev)!!.visibility)
+                        note.setDetailsVisible(false)
+                        holder.updateValues(note, settings)
+                        assertEquals(View.GONE, noteView.visibility)
+                        assertEquals("", noteView.text.toString())
                     } finally {
                         settings.setBoolean(R.string.settings_key_hide_issuer, false)
                         holder.cancelPendingClicks()

@@ -53,6 +53,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private var detailsVisible = false
     private val value: TextView
     private val valuePrev: TextView
+    private val noteText: TextView
     private val label: TextView
     private val counter: TextView
     private val customPeriodLayout: LinearLayout
@@ -64,6 +65,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         card = requireNotNull(v.findViewById<CardView>(R.id.card_view))
         value = requireNotNull(v.findViewById<TextView>(R.id.valueText))
         valuePrev = requireNotNull(v.findViewById<TextView>(R.id.valueTextPrev))
+        noteText = requireNotNull(v.findViewById<TextView>(R.id.noteText))
         valueLayout = requireNotNull(v.findViewById<LinearLayout>(R.id.valueLayout))
         thumbnailFrame = requireNotNull(v.findViewById<FrameLayout>(R.id.thumbnailFrame))
         thumbnailImg = requireNotNull(v.findViewById<ImageView>(R.id.thumbnailImg))
@@ -178,6 +180,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             value.setText("")
             value.tag = null
             valuePrev.setText("")
+            noteText.setText("")
+            noteText.visibility = View.GONE
             tags.setText("")
             counter.setText("")
             customPeriod.setText("")
@@ -218,17 +222,23 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         val tokenFormatted = when {
             entry.isPassword() -> context.getString(R.string.password_hidden)
             entry.isPasswordArchive() -> context.getString(R.string.password_file_hidden)
-            entry.isNote() -> context.getString(R.string.secure_note_hidden)
             entry.isSshKey() -> context.getString(R.string.ssh_key_hidden)
             entry.isEmail() -> context.getString(R.string.email_hidden)
             else -> Tools.formatToken(entry.getCurrentOTP(), settings.getTokenSplitGroupSize())
         }
 
         value.setText(tokenFormatted)
+        // A revealed secure note is shown in full instead of a placeholder: its own TextView wraps
+        // the whole note over as many lines as it needs, so the card grows to fit it.
+        val showWholeNote = entry.isNote()
+        value.visibility = if (showWholeNote) View.GONE else View.VISIBLE
+        noteText.setText(if (showWholeNote) entry.getNote() else "")
+        noteText.visibility = if (showWholeNote) View.VISIBLE else View.GONE
         // save the unformatted token to the tag of this TextView for copy/paste
         value.tag = entry.getCurrentOTP()
 
-        if (settings.getShowPrevToken()) {
+        // Notes have no previous code, and a shown note replaces the token line entirely.
+        if (settings.getShowPrevToken() && !showWholeNote) {
             val tokenPrev = entry.getPrevOTP()
 
             if (tokenPrev != null && tokenPrev.isNotEmpty()) {

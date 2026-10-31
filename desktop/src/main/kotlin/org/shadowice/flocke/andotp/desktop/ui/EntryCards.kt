@@ -7,12 +7,16 @@ import java.awt.BasicStroke
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
+import java.awt.CardLayout
 import java.awt.Font
+import java.awt.FontMetrics
 import java.awt.Graphics
 import java.awt.Graphics2D
 import java.awt.GridLayout
 import java.awt.RenderingHints
 import java.awt.event.ActionEvent
+import java.awt.event.ComponentAdapter
+import java.awt.event.ComponentEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -31,7 +35,13 @@ import javax.swing.JTable
 import javax.swing.KeyStroke
 import javax.swing.ListSelectionModel
 import javax.swing.SwingConstants
+import javax.swing.event.ChangeEvent
+import javax.swing.event.ListSelectionEvent
+import javax.swing.event.TableColumnModelEvent
+import javax.swing.event.TableColumnModelListener
+import javax.swing.event.TableModelListener
 import javax.swing.table.TableCellRenderer
+import javax.swing.table.TableModel
 
 /**
  * Presents the existing privacy-aware table model as Android-inspired cards. The real Show cell
@@ -43,6 +53,10 @@ import javax.swing.table.TableCellRenderer
  * fall back to a generated letter tile, so Debian and Windows match the phone. Their face lifts on
  * rollover and a per-repaint ring counts down the current token step, which makes the one-second
  * token refresh visible without adding another timer.
+ *
+ * A revealed secure note is shown in full: the row grows to fit every wrapped line ([CardRowHeights])
+ * instead of collapsing the content into a placeholder. Every other protected kind stays redacted on
+ * the face and is reached through its action.
  */
 internal object EntryCards {
     fun configure(table: JTable) {
@@ -96,6 +110,7 @@ internal object EntryCards {
         })
 
         CardHover.track(table)
+        CardRowHeights.track(table)
     }
 }
 
@@ -136,29 +151,181 @@ internal object CardClock {
     var nowSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
 }
 
+/** Fonts shared by the renderer and the row-height pass, so card and measurement cannot diverge. */
+internal object CardFonts {
+    val TITLE = Font(Font.SANS_SERIF, Font.PLAIN, 14)
+    val DETAIL = Font(Font.SANS_SERIF, Font.PLAIN, 12)
+    val HIDDEN = Font(Font.SANS_SERIF, Font.BOLD, 21)
+    val PLACEHOLDER = Font(Font.SANS_SERIF, Font.BOLD, 15)
+    val TOKEN = Font(Font.MONOSPACED, Font.BOLD, 22)
+    val NOTE = Font(Font.SANS_SERIF, Font.PLAIN, 13)
+}
+
+/** Card geometry shared by the renderer, the avatar and the row-height pass. */
+internal object CardMetrics {
+    const val MIN_HEIGHT = 104
+    /** Renderer top/bottom insets (10 + 10). */
+    const val VERTICAL_PADDING = 20
+    /** Left/right insets plus the avatar column and its gap: the space left for the text column. */
+    const val TEXT_INSET = 86
+    /** Breathing room between the note text and the identity lines below it. */
+    const val STACK_GAP = 6
+}
+
+/**
+ * Line breaking for a revealed note. The same function measures the row and paints the card, so a
+ * note can never be clipped by a mismatch between the two. Explicit newlines are kept, words break
+ * at spaces, and a single word longer than the column is split so nothing disappears.
+ */
+internal object NoteText {
+    fun wrap(text: String, width: Int, metrics: FontMetrics): List<String> {
+        val available = maxOf(width, 1)
+        val lines = ArrayList<String>()
+        for (paragraph in text.split('\n')) {
+            if (paragraph.isEmpty()) { lines.add(""); continue }
+            var start = 0
+            while (start < paragraph.length) {
+                var end = start
+                var lastBreak = -1
+                while (end < paragraph.length &&
+                    metrics.stringWidth(paragraph.substring(start, end + 1)) <= available) {
+                    if (paragraph[end] == ' ') lastBreak = end
+                    end++
+                }
+                if (end >= paragraph.length) { lines.add(paragraph.substring(start)); break }
+                val cut = if (lastBreak > start) lastBreak else end.coerceAtLeast(start + 1)
+                lines.add(paragraph.substring(start, cut))
+                start = if (lastBreak > start) cut + 1 else cut
+            }
+        }
+        return lines.ifEmpty { listOf("") }
+    }
+
+    /** The exact lines [text] occupies at [width]; painting and measuring both go through it. */
+    fun lines(text: String, width: Int, metrics: FontMetrics): List<String> = wrap(text, width, metrics)
+
+    /** Painted height of [text] at [width]; one line minimum, matching [lines]. */
+    fun height(text: String, width: Int, metrics: FontMetrics): Int =
+        lines(text, width, metrics).size * metrics.height
+}
+
+/** Paints a whole note as wrapped, amber-free body text; no HTML, no selection, no scrolling. */
+internal class NoteView : JComponent() {
+    var text: String = ""
+
+    override fun paintComponent(graphics: Graphics) {
+        val g = graphics.create() as Graphics2D
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+            g.font = CardFonts.NOTE
+            g.color = ForestTheme.TEXT_PRIMARY
+            val metrics = g.getFontMetrics(CardFonts.NOTE)
+            for ((index, line) in NoteText.lines(text, width, metrics).withIndex()) {
+                g.drawString(line, 0, index * metrics.height + metrics.ascent)
+            }
+        } finally {
+            g.dispose()
+        }
+    }
+}
+
+/**
+ * Per-row heights: a revealed note needs as many lines as its content wraps to, everything else
+ * keeps the standard card height. Heights are recomputed when the model changes, a vault is
+ * swapped in, the window resizes, or the note is hidden again.
+ */
+internal object CardRowHeights {
+    fun track(table: JTable) {
+        val listener = TableModelListener { refresh(table) }
+        table.model.addTableModelListener(listener)
+        table.addPropertyChangeListener("model") { event ->
+            (event.oldValue as? TableModel)?.removeTableModelListener(listener)
+            (event.newValue as? TableModel)?.addTableModelListener(listener)
+            refresh(table)
+        }
+        table.addComponentListener(object : ComponentAdapter() {
+            override fun componentResized(event: ComponentEvent) = refresh(table)
+        })
+        // Auto-resize moves the column edge when the window or the panel changes.
+        table.columnModel.addColumnModelListener(object : TableColumnModelListener {
+            override fun columnAdded(event: TableColumnModelEvent) = refresh(table)
+            override fun columnRemoved(event: TableColumnModelEvent) = refresh(table)
+            override fun columnMoved(event: TableColumnModelEvent) = refresh(table)
+            override fun columnMarginChanged(event: ChangeEvent) = refresh(table)
+            override fun columnSelectionChanged(event: ListSelectionEvent) = Unit
+        })
+        refresh(table)
+    }
+
+    fun refresh(table: JTable) {
+        for (row in 0 until table.rowCount) {
+            val height = heightFor(table, row)
+            if (table.getRowHeight(row) != height) table.setRowHeight(row, height)
+        }
+    }
+
+    /** Height for a view row: the standard card, or the note's wrapped text plus its identity. */
+    fun heightFor(table: JTable, row: Int): Int {
+        val model = table.model as? EntryTableModel ?: return CardMetrics.MIN_HEIGHT
+        val modelRow = table.convertRowIndexToModel(row)
+        if (modelRow !in 0 until model.rowCount) return CardMetrics.MIN_HEIGHT
+        val entry = model.entryAt(modelRow)
+        if (!entry.isNote() || !entry.areDetailsVisible()) return CardMetrics.MIN_HEIGHT
+        val width = (table.columnModel.getColumn(0).width - CardMetrics.TEXT_INSET).coerceAtLeast(40)
+        val noteHeight = NoteText.height(entry.getNote(), width, table.getFontMetrics(CardFonts.NOTE))
+        val identity = 2 * maxOf(table.getFontMetrics(CardFonts.TITLE).height,
+            table.getFontMetrics(CardFonts.DETAIL).height)
+        return maxOf(CardMetrics.MIN_HEIGHT,
+            CardMetrics.VERTICAL_PADDING + noteHeight + CardMetrics.STACK_GAP + identity)
+    }
+}
+
 /** Left section of a card, reused by JTable's renderer for all rows. */
 private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
     private val avatar = CardAvatar()
     private val value = JLabel()
+    private val note = NoteView()
     private val title = JLabel()
     private val detail = JLabel()
+    private val valueSlot = JPanel(CardLayout()).apply {
+        isOpaque = false
+        add(value, VALUE)
+        add(note, NOTE)
+    }
     private var selected = false
     private var hovered = false
+
+    private companion object {
+        const val VALUE = "value"
+        const val NOTE = "note"
+    }
 
     init {
         isOpaque = false
         border = BorderFactory.createEmptyBorder(10, 12, 10, 4)
         avatar.preferredSize = Dimension(56, 56)
         add(avatar, BorderLayout.WEST)
-        val labels = JPanel(GridLayout(3, 1, 0, 0)).apply {
+        val identity = JPanel(GridLayout(2, 1, 0, 0)).apply {
             isOpaque = false
-            add(value); add(title); add(detail)
+            add(title); add(detail)
+        }
+        // The identity keeps its natural height so a tall note gets exactly the room it measured.
+        val identityHolder = JPanel(BorderLayout()).apply {
+            isOpaque = false
+            add(identity, BorderLayout.NORTH)
+        }
+        val labels = JPanel(BorderLayout(0, CardMetrics.STACK_GAP)).apply {
+            isOpaque = false
+            add(valueSlot, BorderLayout.CENTER)
+            add(identityHolder, BorderLayout.SOUTH)
         }
         add(labels, BorderLayout.CENTER)
         // Account labels are untrusted input; never let a leading <html> enable Swing HTML/URLs.
+        // The note is painted line by line, so it has no markup path at all.
         listOf(value, title, detail).forEach { it.putClientProperty("html.disable", true) }
-        title.font = Font(Font.SANS_SERIF, Font.PLAIN, 14)
-        detail.font = Font(Font.SANS_SERIF, Font.PLAIN, 12)
+        title.font = CardFonts.TITLE
+        detail.font = CardFonts.DETAIL
     }
 
     override fun getTableCellRendererComponent(
@@ -175,16 +342,23 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         val label = text(EntryTableModel.Column.LABEL)
         val type = text(EntryTableModel.Column.TYPE)
         val token = text(EntryTableModel.Column.TOKEN)
-        val placeholder = shown && token.trimStart().startsWith("[")
-        val secondsLeft = if (shown && !placeholder) secondsRemaining(entry) else null
+        val noteShown = shown && entry.isNote()
+        val placeholder = shown && !noteShown && token.trimStart().startsWith("[")
+        val secondsLeft = if (shown && !noteShown && !placeholder) secondsRemaining(entry) else null
         val expiring = secondsLeft != null && secondsLeft <= EXPIRING_SECONDS
 
-        value.text = if (shown) token.ifBlank { "Waiting for code…" } else "Hidden"
+        (valueSlot.layout as CardLayout).show(valueSlot, if (noteShown) NOTE else VALUE)
+        note.text = if (noteShown) token else ""
+        value.text = when {
+            !shown -> "Hidden"
+            noteShown -> ""
+            else -> token.ifBlank { "Waiting for code…" }
+        }
         value.font = when {
             // Digits use a monospaced face so a one-second refresh never reflows the row.
-            shown && !placeholder -> Font(Font.MONOSPACED, Font.BOLD, 22)
-            shown -> Font(Font.SANS_SERIF, Font.BOLD, 15)
-            else -> Font(Font.SANS_SERIF, Font.BOLD, 21)
+            shown && !placeholder -> CardFonts.TOKEN
+            shown -> CardFonts.PLACEHOLDER
+            else -> CardFonts.HIDDEN
         }
         value.foreground = when {
             !shown -> ForestTheme.TEXT_HINT
@@ -214,8 +388,9 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         avatar.initial = initial(if (shown) issuer.ifBlank { label } else label.ifBlank { issuer })
         avatar.remaining = secondsLeft?.let { (it.toFloat() / stepSeconds(entry)).coerceIn(0f, 1f) } ?: -1f
         avatar.expiring = expiring
-        getAccessibleContext().accessibleName = listOf(value.text, title.text, detail.text)
-            .filter { it.isNotBlank() }.joinToString(", ")
+        getAccessibleContext().accessibleName =
+            listOf(if (noteShown) token else value.text, title.text, detail.text)
+                .filter { it.isNotBlank() }.joinToString(", ")
         return this
     }
 

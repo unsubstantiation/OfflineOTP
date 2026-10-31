@@ -114,9 +114,10 @@ On Android, tap **+** → **Add secure note**. On desktop, choose **Add entry** 
 On smaller Android screens, scroll the **+** menu to see all actions. Android's **Enter details** and
 desktop's **Enter account details** also offer the type selector. Use the label as the note title and
 enter 1–200 Unicode characters in
-the secret field; spaces and newlines are preserved. Notes are hidden in the list. Open **Edit** to
-view or change one, or use the copy action to place it on the clipboard. Clipboard contents may be
-visible to other applications or clipboard history. Notes are not OTPs, cannot be exported as OTP
+the secret field; spaces and newlines are preserved. Notes stay concealed until you reveal one, and
+then the card shows the note in full, wrapped over as many lines as it needs. Open **Edit** to change
+one, or use the copy action to place it on the clipboard. Clipboard contents may be visible to other
+applications or clipboard history. Notes are not OTPs, cannot be exported as OTP
 QR codes, and are not sent to hardware keys. They are included in encrypted vaults and backups.
 
 Both distributions must be updated to a version that supports notes before transferring a backup

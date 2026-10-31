@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * UI: Show a revealed secure note in full, wrapped over as many lines as it needs, on both Android and desktop instead of a "note hidden" placeholder
+
  * UI: Show the bundled issuer logos on desktop entry cards (Debian and Windows rasterize the same Android vector marks) instead of generated letter tiles
 
  * UI: Use a warm amber for OTP digits on both clients, with a warning color only while a code is about to expire

@@ -12,7 +12,9 @@ import javax.swing.table.AbstractTableModel
  * display projection into Swing's row/column contract. It creates no heavyweight peer, so the
  * mapping is exercised by headless JUnit tests while the [javax.swing.JTable] that renders it lives
  * in the UI shell. The token column reads the cached OTP and renders blank until the entry's token
- * has been calculated; the model never starts timers or computes tokens itself.
+ * has been calculated; the model never starts timers or computes tokens itself. A revealed secure
+ * note is the one entry whose content the column returns verbatim, because the card shows the whole
+ * note.
  */
 class EntryTableModel(
     private val presentation: EntryListPresentation,
@@ -45,11 +47,13 @@ class EntryTableModel(
             Column.TYPE -> if (entry.isEmail()) "Email" else entry.getType().name
             // Email credentials are not OTPs; never route them through token presentation.
             // Cached token only; a null value means no token has been generated for this step yet.
+            // A revealed note is shown in full: the card wraps it across as many lines as it needs.
+            // Everything else is redacted here even while shown and offered through an action instead.
             Column.TOKEN -> when {
                 entry.isEmail() -> "[Email account]"
                 entry.isPassword() -> "[Password hidden]"
                 entry.isPasswordArchive() -> "[Password file]"
-                entry.isNote() -> "[Note hidden]"
+                entry.isNote() -> entry.getNote()
                 entry.isSshKey() -> "[SSH keys hidden]"
                 else -> entry.getCurrentOTP().orEmpty()
             }

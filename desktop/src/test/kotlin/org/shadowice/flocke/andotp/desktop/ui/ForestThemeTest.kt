@@ -57,6 +57,8 @@ class ForestThemeTest {
 
     private fun labels(component: Component): List<JLabel> = components(component).filterIsInstance<JLabel>()
 
+    private fun notes(component: Component): List<NoteView> = components(component).filterIsInstance<NoteView>()
+
     private fun card(table: JTable, row: Int): Component = table.getCellRenderer(row, 0)
         .getTableCellRendererComponent(table, table.getValueAt(row, 0), false, false, row, 0)
 
@@ -219,9 +221,10 @@ class ForestThemeTest {
                 it.contains("NOTE") || it.contains("SSH") })
         }
         model.setValueAt(true, 2, EntryTableModel.Column.SHOW.ordinal)
-        val noteText = labels(card(table, 2)).map { it.text }
-        assertTrue(noteText.contains("[Note hidden]"))
-        assertFalse(noteText.any { it.contains("private note content") })
+        // A revealed note is shown in full, not collapsed into a placeholder.
+        val noteView = notes(card(table, 2)).single()
+        assertEquals("private note content", noteView.text)
+        assertFalse(labels(card(table, 2)).any { it.text == "Hidden" })
         model.setValueAt(true, 3, EntryTableModel.Column.SHOW.ordinal)
         val keyText = labels(card(table, 3)).map { it.text }
         assertTrue(keyText.contains("[SSH keys hidden]"))
