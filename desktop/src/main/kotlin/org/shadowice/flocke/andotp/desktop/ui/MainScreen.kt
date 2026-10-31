@@ -45,7 +45,6 @@ internal data class TagChoice(val kind: Kind, val tag: String = "", val count: I
 /** Lightweight main-window content, separated from JFrame so its layout can be checked headlessly. */
 internal class MainScreen(val table: JTable, val copyButton: JButton) {
     val search = JTextField(20)
-    val status = JLabel("Vault locked")
     val newVaultButton = JButton("New vault…")
     val openVaultButton = JButton("Open vault…")
     val addButton = JButton("+  Add entry")
@@ -79,8 +78,6 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         copyButton.toolTipText = "Copy the selected item (or double-click its row); choose an SSH key explicitly"
         search.toolTipText = "Search issuer, label or tags"
         search.accessibleContext.accessibleName = "Search entries"
-        status.foreground = ForestTheme.TEXT_SECONDARY
-        status.font = Font(Font.SANS_SERIF, Font.PLAIN, 12)
 
         val brand = JPanel(BorderLayout(12, 0)).apply {
             isOpaque = false
@@ -188,23 +185,11 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
             add(controls, BorderLayout.NORTH)
             add(body, BorderLayout.CENTER)
         }
-        val footer = JPanel(BorderLayout()).apply {
-            background = ForestTheme.BACKGROUND_DEEP
-            border = BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, ForestTheme.DIVIDER),
-                BorderFactory.createEmptyBorder(10, 24, 10, 24))
-            add(status, BorderLayout.CENTER)
-            add(JLabel("OFFLINE", SwingConstants.RIGHT).apply {
-                font = Font(Font.SANS_SERIF, Font.BOLD, 11)
-                foreground = ForestTheme.TEXT_SECONDARY
-            }, BorderLayout.EAST)
-        }
         panel = JPanel(BorderLayout()).apply {
             background = ForestTheme.BACKGROUND
             preferredSize = Dimension(900, 680)
             add(header, BorderLayout.NORTH)
             add(content, BorderLayout.CENTER)
-            add(footer, BorderLayout.SOUTH)
         }
 
         table.model.addTableModelListener(modelListener)

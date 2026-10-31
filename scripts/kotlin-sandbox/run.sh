@@ -48,6 +48,7 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Tasks/TaskContracts.kt"
     "$KOTLIN_CORE/Utilities/AuthenticationResultPolicy.kt"
     "$KOTLIN_CORE/Utilities/BackupScreenOffPolicy.kt"
+    "$KOTLIN_CORE/Utilities/BackupFileNames.kt"
     "$KOTLIN_CORE/Utilities/BoundedInputReader.kt"
     "$KOTLIN_CORE/Utilities/BrowserPasswordCsv.kt"
     "$KOTLIN_CORE/Utilities/PasswordMaterial.kt"

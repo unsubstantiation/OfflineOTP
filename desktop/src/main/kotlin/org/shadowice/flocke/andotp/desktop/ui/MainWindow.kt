@@ -56,10 +56,6 @@ object MainWindow {
         var editor: EntryEditor? = null
         var updatingTagChoices = false
 
-        fun setStatus(message: String) {
-            screen.status.text = message
-        }
-
         fun showError(failure: VaultController.Failure) {
             val message = when (failure) {
                 VaultController.Failure.MISSING -> "No vault found in the configured directory."
@@ -69,7 +65,6 @@ object MainWindow {
                 VaultController.Failure.ALREADY_EXISTS -> "A vault already exists in this directory."
                 VaultController.Failure.INVALID_INPUT -> "The password or vault content is invalid."
             }
-            setStatus(message)
             JOptionPane.showMessageDialog(frame, message, TITLE, JOptionPane.ERROR_MESSAGE)
         }
 
@@ -117,7 +112,6 @@ object MainWindow {
                 // A tick changes cached values, not the projection. Preserve the selected row.
                 (table.model as? EntryTableModel)?.refreshValues()
             }.also { it.start() }
-            setStatus("${session.entries.size} entries unlocked")
         }
 
         fun accept(session: VaultController.Session) {
@@ -172,12 +166,6 @@ object MainWindow {
                     Toolkit.getDefaultToolkit().systemClipboard
                         .setContents(StringSelection(result.token), null)
                     (table.model as? EntryTableModel)?.refresh()
-                    setStatus(when {
-                        entry.isPassword() -> "Password copied to the clipboard"
-                        entry.isSshKey() -> "SSH key copied to the clipboard"
-                        entry.isNote() -> "Note copied to the clipboard"
-                        else -> "Token copied to the clipboard"
-                    })
                 }
                 EntryEditor.TokenCopyResult.Unavailable ->
                     JOptionPane.showMessageDialog(frame, "No token is available for that entry yet.",
@@ -206,7 +194,6 @@ object MainWindow {
             }
             if (editor?.advanceHotp(entry) == true) {
                 (table.model as? EntryTableModel)?.refreshValues()
-                setStatus("HOTP counter advanced")
             } else {
                 JOptionPane.showMessageDialog(frame,
                     "The HOTP counter could not be advanced, or the vault could not be written.",
@@ -220,7 +207,6 @@ object MainWindow {
                 if (editor?.add(entry) == true) {
                     screen.categories.selectedIndex = when { entry.isNote() -> 1; entry.isSshKey() -> 2; else -> 0 }
                     refreshProjection(unlocked)
-                    setStatus("Entry added")
                 } else {
                     entry.destroy()
                     JOptionPane.showMessageDialog(frame, "The entry already exists or could not be saved.",
@@ -311,7 +297,6 @@ object MainWindow {
             EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getAllTags())?.let { replacement ->
                 if (editor?.replace(existing, replacement) == true) {
                     refreshProjection(unlocked)
-                    setStatus("Entry updated")
                 } else {
                     replacement.destroy()
                     JOptionPane.showMessageDialog(frame, "The entry could not be saved to the vault.",
@@ -328,7 +313,6 @@ object MainWindow {
             TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getAllTags())?.let { tags ->
                 if (editor?.setTags(entry, tags) == true) {
                     refreshProjection(unlocked)
-                    setStatus("Tags updated")
                 } else {
                     JOptionPane.showMessageDialog(frame, "Tags could not be saved; the original tags were retained.",
                         TITLE, JOptionPane.ERROR_MESSAGE)
@@ -342,7 +326,6 @@ object MainWindow {
             val row = table.convertRowIndexToModel(viewRow)
             if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
                 refreshProjection(unlocked)
-                setStatus("Entry deleted")
             } else {
                 JOptionPane.showMessageDialog(frame, "The entry could not be deleted from the vault.",
                     TITLE, JOptionPane.ERROR_MESSAGE)

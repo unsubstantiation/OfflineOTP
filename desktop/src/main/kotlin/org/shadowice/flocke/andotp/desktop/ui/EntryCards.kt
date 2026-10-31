@@ -51,8 +51,8 @@ import javax.swing.table.TableModel
  *
  * The cards prefer the same bundled issuer artwork the Android app shows (see [IssuerIcons]) and
  * fall back to a generated letter tile, so Debian and Windows match the phone. Their face lifts on
- * rollover and a per-repaint ring counts down the current token step, which makes the one-second
- * token refresh visible without adding another timer.
+ * rollover and the token turns amber-to-red as its step runs out, which makes the one-second token
+ * refresh visible without adding another timer.
  *
  * A revealed secure note is shown in full: the row grows to fit every wrapped line ([CardRowHeights])
  * instead of collapsing the content into a placeholder. Every other protected kind stays redacted on
@@ -386,8 +386,6 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         // (and "Default") keep the generated letter tile.
         avatar.artwork = IssuerIcons.artwork(entry.getThumbnailName())
         avatar.initial = initial(if (shown) issuer.ifBlank { label } else label.ifBlank { issuer })
-        avatar.remaining = secondsLeft?.let { (it.toFloat() / stepSeconds(entry)).coerceIn(0f, 1f) } ?: -1f
-        avatar.expiring = expiring
         getAccessibleContext().accessibleName =
             listOf(if (noteShown) token else value.text, title.text, detail.text)
                 .filter { it.isNotBlank() }.joinToString(", ")
@@ -402,8 +400,6 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
     private fun initial(text: String): String = text.trim().takeIf { it.isNotEmpty() }
         ?.let { String(Character.toChars(it.codePointAt(0))).uppercase(Locale.ROOT) } ?: "•"
 
-    private fun stepSeconds(entry: Entry): Float = entry.getTokenStepSeconds().coerceAtLeast(1).toFloat()
-
     /** Seconds left in the current step, or null for entries that do not expire on a clock. */
     private fun secondsRemaining(entry: Entry): Long? {
         if (!entry.isTimeBased()) return null
@@ -414,14 +410,12 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
 
 /**
  * Issuer mark: the bundled brand artwork on the light tile Android uses, or the generated letter
- * tile when no artwork exists. A thin ring shows how much of the current step is left and turns
- * amber-to-red inside the last seconds before the code changes.
+ * tile when no artwork exists. Deliberately unadorned: the step countdown lives in the token color,
+ * not in a ring drawn around the mark.
  */
 private class CardAvatar : JComponent() {
     var initial: String = "•"
     var artwork: BufferedImage? = null
-    var remaining: Float = -1f
-    var expiring: Boolean = false
 
     override fun paintComponent(graphics: Graphics) {
         val g = graphics.create() as Graphics2D
@@ -443,16 +437,6 @@ private class CardAvatar : JComponent() {
                 val metrics = g.fontMetrics
                 g.drawString(initial, x + (tile - metrics.stringWidth(initial)) / 2,
                     y + (tile - metrics.height) / 2 + metrics.ascent)
-            }
-            if (remaining in 0f..1f) {
-                val ring = tile + 6
-                val ringX = x - 3
-                val ringY = y - 3
-                g.stroke = BasicStroke(2.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-                g.color = ForestTheme.OTP_AMBER_MUTED
-                g.drawArc(ringX, ringY, ring, ring, 90, -360)
-                g.color = if (expiring) ForestTheme.WARNING else ForestTheme.OTP_AMBER
-                g.drawArc(ringX, ringY, ring, ring, 90, -(360 * remaining).toInt().coerceAtMost(-1))
             }
         } finally {
             g.dispose()

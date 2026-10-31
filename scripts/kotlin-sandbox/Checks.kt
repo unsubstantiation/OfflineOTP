@@ -1853,7 +1853,7 @@ fun main() {
         val entry = Entry::class.java
         expect(Modifier.isPublic(entry.modifiers), { "Entry is not public" })
         expect(!Modifier.isFinal(entry.modifiers), { "Entry must stay extendable like the Java class" })
-        expect(Entry.OTPType.values().map { it.name } == listOf("TOTP", "HOTP", "MOTP", "STEAM", "NOTE", "SSH_KEY", "PASSWORD", "PASSWORD_ARCHIVE"),
+        expect(Entry.OTPType.values().map { it.name } == listOf("TOTP", "HOTP", "MOTP", "STEAM", "NOTE", "SSH_KEY", "PASSWORD", "PASSWORD_ARCHIVE", "EMAIL"),
                 { "OTPType constants changed" })
         expect(Entry.COLOR_RED == 1, { "COLOR_RED" })
 

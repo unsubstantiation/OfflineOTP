@@ -15,7 +15,6 @@ import android.widget.Toast
 
 import org.shadowice.flocke.andotp.R
 
-import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
@@ -72,11 +71,8 @@ object Tools {
     }
 
     /** The current date/time in the format used for backup file names. */
-    @JvmStatic fun getDateTimeString(): String {
-        val df = SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", Locale.ENGLISH)
-        val now = Calendar.getInstance().time
-        return df.format(now)
-    }
+    @JvmStatic fun getDateTimeString(): String =
+        BackupFileNames.timestamp(Calendar.getInstance().time)
 
     /**
      * Applies the policy for a window that is (about to be) on screen: screenshots are blocked
