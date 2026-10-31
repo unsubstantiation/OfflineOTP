@@ -186,6 +186,16 @@ Whitespace and line breaks entered in the fields are preserved. Open **Edit** to
 keys; the list hides their contents. The copy action asks which key to copy, even if only one is
 present. Clipboard contents may be visible to other applications or clipboard history.
 
+Each SSH entry can also store the connection it belongs to: **Host name**, **Port**, **User name**
+and **Password**. The port is optional and blank means the SSH default 22; anything else must be a
+whole number from 1 to 65535, and a typo is rejected rather than quietly replaced by the default.
+These details live beside the keys inside the encrypted vault and its encrypted backups, and a
+revealed card shows the target as `user@host:port`. The password is treated as a secret just like
+the keys: it never appears on a concealed card, the copy menu offers it as **Password** only when
+the entry is revealed and actually has one, and it is not exported to OTP QR codes. Leave the four
+fields empty and the entry is stored exactly as before, so older builds still read it; a backup
+that contains them needs updated clients on both sides.
+
 The app stores the text as entered: it does **not** validate keys, check that the two keys match,
 generate keys, or provide an SSH agent. Encrypted private-key files remain encrypted with their
 original passphrase; the passphrase is not managed by this entry. SSH keys are included in vaults

@@ -156,10 +156,15 @@ object MainWindow {
                 val choices = ArrayList<String>()
                 if (keys.publicKey.isNotBlank()) choices.add("Public key")
                 if (keys.privateKey.isNotBlank()) choices.add("Private key")
-                val choice = JOptionPane.showOptionDialog(frame, "Choose which SSH key to copy.", TITLE,
+                // Only offered when the entry stores one, like the keys themselves.
+                if (!entry.getSshConnection()?.password.isNullOrEmpty()) choices.add("Password")
+                val choice = JOptionPane.showOptionDialog(frame, "Choose which SSH item to copy.", TITLE,
                     JOptionPane.DEFAULT_OPTION, JOptionPane.QUESTION_MESSAGE, null, choices.toTypedArray(), null)
                 if (choice !in choices.indices) return
-                editor?.copySshKey(entry, choices[choice] == "Private key")
+                when (choices[choice]) {
+                    "Password" -> editor?.copySshPassword(entry)
+                    else -> editor?.copySshKey(entry, choices[choice] == "Private key")
+                }
             } else editor?.copyToken(entry)
             when (result) {
                 is EntryEditor.TokenCopyResult.Copied -> {

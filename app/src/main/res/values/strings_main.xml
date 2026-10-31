@@ -18,6 +18,16 @@
     <string name="choose_ssh_key_to_copy">Choose which SSH key to copy</string>
     <string name="ssh_public_key">Public key</string>
     <string name="ssh_private_key">Private key</string>
+    <string name="ssh_password">Password</string>
+    <string name="error_invalid_ssh_port">Port must be a whole number from 1 to 65535</string>
+    <string name="label_ssh_host">Host name</string>
+    <string name="hint_ssh_host">Host name (optional)</string>
+    <string name="label_ssh_port">Port</string>
+    <string name="hint_ssh_port">Port (optional, default 22)</string>
+    <string name="label_ssh_username">User name</string>
+    <string name="hint_ssh_username">User name (optional)</string>
+    <string name="label_ssh_password">Password</string>
+    <string name="hint_ssh_password">SSH password (optional)</string>
     <string name="button_scan_qr">Scan QR code</string>
     <string name="button_save">Save</string>
     <string name="button_new_tag">New tag</string>

@@ -30,6 +30,7 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
+import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.SshKeyMaterial
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.Utilities.VaultSession
@@ -93,7 +94,21 @@ object ManualEntryDialog {
         val secretInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_secret))
         val sshPublicInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_public))
         val sshPublicLayout = requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_public))
+        val sshHostInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_host))
+        val sshPortInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_port))
+        val sshUsernameInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_username))
+        val sshPasswordInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_password))
+        // Connection metadata is optional and SSH-only; these rows follow the public-key row.
+        val sshConnectionRows = listOf(
+            requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_host)),
+            requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_port)),
+            requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_username)),
+            requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_password)))
         sshPublicInput.isSaveEnabled = false
+        sshHostInput.isSaveEnabled = false
+        sshPortInput.isSaveEnabled = false
+        sshUsernameInput.isSaveEnabled = false
+        sshPasswordInput.isSaveEnabled = false
         secretInput.isSaveEnabled = false
         val secretView = requireNotNull(inputView.findViewById<TextView>(R.id.manual_secret_view))
         secretView.isSaveEnabled = false
@@ -135,6 +150,7 @@ object ManualEntryDialog {
                     else -> R.string.hint_secret
                 })
                 sshPublicLayout.visibility = if (ssh) View.VISIBLE else View.GONE
+                sshConnectionRows.forEach { it.visibility = if (ssh) View.VISIBLE else View.GONE }
                 otpUriInput.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
                 applyOtpUriButton.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
                 if (nonOtp) {
@@ -293,6 +309,10 @@ object ManualEntryDialog {
             if (activeDialog === dialog) activeDialog = null
             secretInput.setText("")
             sshPublicInput.setText("")
+            sshHostInput.setText("")
+            sshPortInput.setText("")
+            sshUsernameInput.setText("")
+            sshPasswordInput.setText("")
             secretView.setText("")
             otpUriInput.setText("")
         }
@@ -336,14 +356,26 @@ object ManualEntryDialog {
                 if (type == Entry.OTPType.SSH_KEY) {
                     val publicKey = sshPublicInput.text?.toString() ?: ""
                     if (label.isBlank()) throw IllegalArgumentException("An SSH key needs a title")
+                    val port = try {
+                        SshConnection.port(sshPortInput.text?.toString())
+                    } catch (_: IllegalArgumentException) {
+                        // Point at the field with our own wording; never surface an exception
+                        // message (the value could be echoed back by a future parser).
+                        sshPortInput.setError(callingActivity.getString(R.string.error_invalid_ssh_port))
+                        return@setOnClickListener
+                    }
+                    val connection = SshConnection.of(sshHostInput.text?.toString(), port,
+                        sshUsernameInput.text?.toString(), sshPasswordInput.text?.toString())
                     if (isNewEntry) {
-                        adapter.addEntry(Entry.sshKey(publicKey, secret, issuer, label, tagsAdapter.getActiveTags()))
+                        adapter.addEntry(Entry.sshKey(publicKey, secret, issuer, label,
+                            tagsAdapter.getActiveTags(), connection))
                     } else {
                         oldEntry!!.applyEdit { edited ->
                             edited.setLabel(label)
                             edited.setIssuer(issuer, true)
                             edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
                             edited.setSshKeys(publicKey, secret)
+                            edited.setSshConnection(connection)
                         }
                         updateCallback?.onUpdate()
                     }
@@ -463,6 +495,11 @@ object ManualEntryDialog {
                     positiveButton.isEnabled = !labelInput.text.isNullOrBlank() && try {
                         SshKeyMaterial.encode(sshPublicInput.text?.toString() ?: "",
                             secretInput.text?.toString() ?: "").fill(0)
+                        // Same bounds the entry model enforces, so Save is not offered for a port
+                        // that would be rejected after the dialog closes.
+                        SshConnection.of(sshHostInput.text?.toString(),
+                            SshConnection.port(sshPortInput.text?.toString()),
+                            sshUsernameInput.text?.toString(), sshPasswordInput.text?.toString())
                         true
                     } catch (_: IllegalArgumentException) { false }
                     return
@@ -511,6 +548,10 @@ object ManualEntryDialog {
         issuerInput.addTextChangedListener(watcher)
         secretInput.addTextChangedListener(watcher)
         sshPublicInput.addTextChangedListener(watcher)
+        sshHostInput.addTextChangedListener(watcher)
+        sshPortInput.addTextChangedListener(watcher)
+        sshUsernameInput.addTextChangedListener(watcher)
+        sshPasswordInput.addTextChangedListener(watcher)
         periodInput.addTextChangedListener(watcher)
         digitsInput.addTextChangedListener(watcher)
         counterInput.addTextChangedListener(watcher)
@@ -562,6 +603,15 @@ object ManualEntryDialog {
                     secretInput.setText(keys.privateKey)
                     sshPublicInput.setText(keys.publicKey)
                     sshPublicLayout.visibility = View.VISIBLE
+                    sshConnectionRows.forEach { it.visibility = View.VISIBLE }
+                    // Only a stored port is filled in; an unset one keeps its "default 22" hint
+                    // instead of silently storing 22 on the next save.
+                    oldEntry.getSshConnection()?.let { connection ->
+                        sshHostInput.setText(connection.host)
+                        if (connection.port != 0) sshPortInput.setText(SshConnection.displayPort(connection.port))
+                        sshUsernameInput.setText(connection.username)
+                        sshPasswordInput.setText(connection.password)
+                    }
                 } else secretInput.setText(oldEntry.getNote())
             }
             typeInput.isEnabled = false
