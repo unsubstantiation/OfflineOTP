@@ -27,7 +27,7 @@ class ProjectBrandingTest(unittest.TestCase):
     def test_android_app_identity_remains_compatible(self):
         gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
         for name in ("namespace", "applicationId"):
-            self.assertRegex(gradle, rf'(?m)^\s*{name}\s+["\']{re.escape(LEGACY_PACKAGE)}["\']\s*$')
+            self.assertRegex(gradle, rf'(?m)^\s*{name}\s+(?:=\s*)?["\']{re.escape(LEGACY_PACKAGE)}["\']\s*$')
         manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
         policy = json.loads((ROOT / "scripts/manifest-policy.json").read_text(encoding="utf-8"))
         self.assertEqual(LEGACY_PACKAGE, manifest.get("package"))
