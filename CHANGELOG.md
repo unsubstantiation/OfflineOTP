@@ -12,7 +12,13 @@
 
  * UI: Use a warm amber for OTP digits on both clients, with a warning color only while a code is about to expire
 
- * Desktop UI: Give entry cards a top-lit gradient, a hover lift, a soft shadow and a countdown ring for the current token step
+ * Desktop UI: Give entry cards a top-lit gradient, a hover lift and a soft shadow; the token still turns amber-to-red as its step runs out, but the extra ring drawn around the issuer logo is gone
+
+ * Desktop: Suggest dated backup file names (`otp_accounts_<timestamp>.json.aes` / `.json.gpg`) like Android instead of the fixed `otp_accounts.json.aes`, so exporting twice cannot overwrite an earlier backup
+
+ * Desktop: Ask for a new backup password twice, with a **Show password** toggle and the Android minimum-length rule, so a mistyped password cannot make the backup unreadable
+
+ * Desktop UI: Drop the bottom footer row (unlocked-entry count and the OFFLINE badge); the entry count next to **Your entries** stays
 
  * Desktop: Add tag assignment for all entry types and a tag filter that works with search and tabs; preserve tags in the encrypted vault and backups.
 

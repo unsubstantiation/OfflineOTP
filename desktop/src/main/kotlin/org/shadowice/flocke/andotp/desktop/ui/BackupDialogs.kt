@@ -1,10 +1,11 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.Utilities.BackupFileNames
 import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
-import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 
 import java.io.File
+import java.util.Date
 import javax.swing.JFileChooser
 import javax.swing.JFrame
 import javax.swing.JOptionPane
@@ -18,9 +19,12 @@ import javax.swing.filechooser.FileNameExtensionFilter
 object BackupDialogs {
 
     fun saveEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
-        val password = PasswordDialog.prompt(parent, "Backup password") ?: return
+        // Confirmation + show-password toggle, as on Android: a mistyped backup password would make
+        // the file unreadable later, and there is no way to recover it.
+        val password = PasswordDialog.promptNewBackupPassword(parent) ?: return
+        // Dated like the Android backups, so exporting twice never overwrites an earlier file.
         val target = chooseFile(parent, "Save encrypted backup", true,
-            Constants.BACKUP_FILENAME_CRYPT, "aes") ?: return
+            BackupFileNames.encrypted(Date()), "aes") ?: return
         try {
             target.writeBytes(coordinator.encryptedBackup(password))
             showResult(parent, "Encrypted backup written to ${target.name}")
@@ -47,7 +51,7 @@ object BackupDialogs {
         val certificate = chooseFile(parent, "Select recipient public key", false, null, "asc", "gpg", "pgp")
             ?: return
         val target = chooseFile(parent, "Save OpenPGP backup", true,
-            Constants.BACKUP_FILENAME_PGP, "gpg") ?: return
+            BackupFileNames.openPgp(Date()), "gpg") ?: return
         try {
             val message = coordinator.openPgpBackup(listOf(readBounded(parent, certificate) ?: return))
             target.writeBytes(message)

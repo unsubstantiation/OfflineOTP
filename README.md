@@ -95,8 +95,8 @@ The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reus
 all portable logic stays headless and unit-tested; Swing is only a thin shell. The desktop vault
 directory is `~/.offlineotp`. Windows and Debian share Android's Dark Forest palette, with an
 app bar, the same bundled issuer logos, entry cards that lift on hover, dark controls and dialogs.
-Codes are drawn in amber with a ring that counts down the current step, and turn red as the code
-is about to change; native window decorations may still differ by platform.
+Codes are drawn in amber and turn red as the code is about to change; native window decorations
+may still differ by platform.
 
 Features:
 
@@ -104,7 +104,7 @@ Features:
 - Assign tags to any revealed entry using **Tags…**, or choose tags when adding or editing an account, note, or SSH key. Use the **Tag** dropdown to show all, untagged, or one tag; it works alongside search within each tab. Counts include entries across all tabs. Tag names in the dropdown are visible even when their entries are hidden. Tags are saved in the encrypted vault and included in backups.
 - Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
-- Save and restore password-encrypted and OpenPGP (PGPainless) backups. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
+- Save and restore password-encrypted and OpenPGP (PGPainless) backups. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
 - Deliberately out of desktop v1 scope: NFC, camera, screen capture, settings editor, inactivity lock, and password change.
 
