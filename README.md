@@ -24,7 +24,7 @@ installation additionally requires the same signing key.
 - Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Store standalone secure notes, SSH keys, and browser-exported passwords in the encrypted vault; browse them in separate OTP, Notes, SSH Keys and Passwords tabs.
+- Store standalone secure notes, SSH keys, browser-exported passwords and FairEmail mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
 - Search within the selected tab or filter by tags, and see per-tag entry counts. On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
 - Stay offline: the app declares no `INTERNET` permission.
@@ -109,9 +109,10 @@ may still differ by platform.
 
 Features:
 
-- Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
+- Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key, email account or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
 - Assign tags to any revealed entry using **Tags…**, or choose tags when adding or editing an account, note, or SSH key. Use the **Tag** dropdown to show all, untagged, or one tag; it works alongside search within each tab. Counts include entries across all tabs. Tag names in the dropdown are visible even when their entries are hidden. Tags are saved in the encrypted vault and included in backups.
 - Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
+- Manage FairEmail-compatible mail accounts in the **Email** tab: add one by hand, view its connection details with the passwords masked until you ask for them, and import or export FairEmail backups. The same entries are created by Android's **Add email account** action.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
 - Save and restore password-encrypted and OpenPGP (PGPainless) backups. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
@@ -160,6 +161,43 @@ can expose it to observers, other applications or clipboard history. These new e
 readable by older app versions: update both devices before transferring backups, and keep an
 independently tested backup. Browser OTPAuth values are retained as password metadata, not imported
 as OTP accounts.
+
+### Email accounts (FairEmail)
+
+OfflineOTP keeps mail-server credentials as a vault entry type of its own, in the style of the
+FairEmail account backup. One entry holds a single IMAP or POP account plus its SMTP identities:
+for each connection, the host, port, encryption (SSL, STARTTLS or none), FairEmail authentication
+type, user name and password. Add one on Android with **+ → Add email account**, or on desktop with
+**Add entry → Add email account…**; both use the same fields and the same validation, so an address
+without `@`, a port outside 1–65535, a protocol other than 0 (IMAP) or 1 (POP), a non-numeric field
+or a blank host is refused instead of stored. Entries appear in the **Email** tab on both clients.
+Tags work like every other entry, and encrypted backups carry the account.
+
+**Connection details.** Select an email card and open its menu → **View connection details**
+(Android) or **View email details…** (desktop) to read the account back. Both clients render the
+same rows. The desktop dialog masks the stored passwords behind a **Show passwords** toggle; the
+Android dialog shows the values directly, like the other details dialogs there. Concealed cards show
+only the issuer and label.
+
+**Import and export.** FairEmail's own file backup can be imported on either client: Android **+
+→ Import FairEmail backup**, desktop **Tools → Import FairEmail backup…**. The reader accepts the
+plain JSON restore file, the gzip-wrapped file FairEmail's backup agent writes, and the
+password-protected exports (both the current format and the older one); a password prompt appears
+only when the file does not parse without one. Oversized files (over 8 MiB), more than 2,000
+accounts, missing identities, impossible connection values or missing credentials reject the whole
+file — nothing is imported from a partial batch, and an identical existing account is skipped.
+
+**Export FairEmail backup** (Android **+**, desktop **Tools**) writes the selected accounts as
+FairEmail's unencrypted JSON restore file. Pick the accounts, then save: the file is plain text and
+contains the account passwords, which is why both clients warn before writing it. Exported files are
+compatible with FairEmail's passwordless file restore; OfflineOTP always writes them unencrypted.
+
+Email entries are structured credentials, not OTPs: they have no token, QR export, keystroke
+sharing or hardware-key copy, and they cannot be edited in the entry editor on either client —
+delete an outdated account and add or import it again. Revealing one never exposes it to the
+clipboard. As with the other newer entry kinds, an older release that does not know the `EMAIL`
+type rejects a vault or backup containing one: update both clients before transferring, and keep an
+independently tested backup.
 
 ### Hiding entry details
 

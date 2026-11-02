@@ -1,5 +1,6 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
 import java.awt.BasicStroke
@@ -59,7 +60,9 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         toolTipText = "Filter the selected tab by a tag or show untagged entries"
     }
     val categories = JTabbedPane().apply {
-        listOf("OTP", "Notes", "SSH Keys", "Passwords").forEach { addTab(it, JPanel()) }
+        // One tab per EntryListPresentation.Category, in that enum's order (MainWindow maps the
+        // selected index onto the category, and Android shows the same five tabs).
+        EntryListPresentation.Category.entries.forEach { addTab(categoryTitle(it), JPanel()) }
         preferredSize = Dimension(400, 40)
     }
     val panel: JPanel
@@ -74,7 +77,7 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
 
     init {
         ForestTheme.makePrimary(addButton)
-        addButton.toolTipText = "Add an account, secure note, SSH key, password file or QR image"
+        addButton.toolTipText = "Add an account, secure note, SSH key, email account, password file or QR image"
         copyButton.toolTipText = "Copy the selected item (or double-click its row); choose an SSH key explicitly"
         search.toolTipText = "Search issuer, label or tags"
         search.accessibleContext.accessibleName = "Search entries"
@@ -232,7 +235,8 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
                     0 -> "Add an OTP account to get started."
                     1 -> "Add a secure note to get started."
                     2 -> "Add an SSH key to get started."
-                    else -> "Import a browser password file to get started."
+                    3 -> "Import a browser password file to get started."
+                    else -> "Add an email account or import a FairEmail backup to get started."
                 }
             }
         }
@@ -281,4 +285,17 @@ private class LockIcon(private val size: Int) : Icon {
             g.drawLine(20, 26, 20, 29)
         } finally { g.dispose() }
     }
+}
+
+/**
+ * Tab title for an [EntryListPresentation.Category]. The list is derived from the enum so a new
+ * entry kind cannot be added to `:core` while its tab silently disappears; the labels match the
+ * Android tab strings the same categories map to.
+ */
+internal fun categoryTitle(category: EntryListPresentation.Category): String = when (category) {
+    EntryListPresentation.Category.OTP -> "OTP"
+    EntryListPresentation.Category.NOTES -> "Notes"
+    EntryListPresentation.Category.SSH_KEYS -> "SSH Keys"
+    EntryListPresentation.Category.PASSWORDS -> "Passwords"
+    EntryListPresentation.Category.EMAILS -> "Email"
 }

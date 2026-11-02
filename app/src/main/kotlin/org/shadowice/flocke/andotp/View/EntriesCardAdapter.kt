@@ -33,6 +33,7 @@ import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
 import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.EntryPersistence
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
@@ -895,26 +896,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             if (id == R.id.menu_popup_email_details) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (!actual.isEmail()) return@Consumer
-                    val value = actual.getEmailAccount()
-                    fun line(json: org.json.JSONObject, key: String): String = json.optString(key, "").orEmpty()
-                    fun server(title: String, json: org.json.JSONObject): String = buildString {
-                        append(title).append('\n')
-                        append("Host: ").append(line(json, "host")).append('\n')
-                        append("Port: ").append(json.optInt("port")).append(" · Encryption: ").append(json.optInt("encryption")).append('\n')
-                        append("Auth type: ").append(json.optInt("auth_type")).append('\n')
-                        append("Username: ").append(line(json, "user")).append('\n')
-                        append("Password: ").append(line(json, "password"))
-                        for (key in listOf("provider", "realm", "fingerprint", "insecure"))
-                            if (json.has(key)) append('\n').append(key).append(": ").append(line(json, key))
-                    }
-                    val details = buildString {
-                        append("Account: ").append(line(value.account, "name")).append('\n')
-                        append("Address: ").append(line(value.identity, "email")).append("\n\n")
-                        append(server(if (value.account.optInt("protocol") == 1) "Incoming (POP)" else "Incoming (IMAP)", value.account))
-                        value.identities.forEachIndexed { index, identity ->
-                            append("\n\n").append(server("Outgoing SMTP" + if (index == 0) "" else " #${index + 1}", identity))
-                        }
-                    }
+                    // The same row builder feeds the desktop connection-details dialog, so both
+                    // clients describe a stored account identically.
+                    val details = EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
+                        .joinToString("\n") { "${it.label}: ${it.value}" }
                     activeEmailDialog?.dismiss()
                     val dialog = AlertDialog.Builder(context).setTitle(R.string.email_show_details)
                         .setMessage(details).setPositiveButton(android.R.string.ok, null).create()

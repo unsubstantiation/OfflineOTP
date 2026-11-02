@@ -92,6 +92,37 @@ class EmailMaterialTest {
         plain.fill(0)
     }
 
+    @Test fun connectionDetailsMaskPasswordsAndNameTheProtocols() {
+        val account = sample()
+        val masked = EmailMaterial.details(account, revealSecrets = false)
+        val revealed = EmailMaterial.details(account, revealSecrets = true)
+        assertEquals(revealed.map { it.label }, masked.map { it.label })
+        fun value(rows: List<EmailMaterial.Detail>, label: String) = rows.single { it.label == label }.value
+        assertEquals("Work", value(masked, "Account"))
+        assertEquals("person@example.org", value(masked, "Address"))
+        assertEquals("imap.example.org", value(masked, "Incoming (IMAP) server"))
+        assertEquals("993", value(masked, "Incoming (IMAP) port"))
+        assertEquals("SSL", value(masked, "Incoming (IMAP) encryption"))
+        assertEquals("smtp.example.org", value(masked, "Outgoing (SMTP) server"))
+        // Both clients render these rows, so a masked row must never carry the real password.
+        assertEquals(EmailMaterial.SECRET_MASK, value(masked, "Incoming (IMAP) password"))
+        assertEquals(EmailMaterial.SECRET_MASK, value(masked, "Outgoing (SMTP) password"))
+        assertTrue(masked.filter { it.secret }.all { !it.value.contains("secret") })
+        assertEquals("incoming secret", value(revealed, "Incoming (IMAP) password"))
+        assertEquals("outgoing secret", value(revealed, "Outgoing (SMTP) password"))
+
+        // A POP account is labelled as such, and a blank password shows nothing to mask.
+        val pop = EmailMaterial.Account(
+            JSONObject(account.account.toString()).put("protocol", 1)
+                .put("port", 110).put("encryption", 2).put("password", ""),
+            account.identities)
+        val popRows = EmailMaterial.details(pop, revealSecrets = false)
+        assertTrue(popRows.any { it.label == "Incoming (POP) server" })
+        assertEquals("None", value(popRows, "Incoming (POP) encryption"))
+        assertEquals("", value(popRows, "Incoming (POP) password"))
+        assertEquals("110", value(popRows, "Incoming (POP) port"))
+    }
+
     @Test fun malformedConnectionAndMissingOutgoingIdentityAreRejected() {
         val source = sample()
         val invalid = JSONObject(source.account.toString()).put("port", 70000)

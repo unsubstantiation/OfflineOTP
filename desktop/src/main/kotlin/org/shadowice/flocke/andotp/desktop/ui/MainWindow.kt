@@ -271,6 +271,38 @@ object MainWindow {
             PasswordImportDialogs.export(frame, entry)
         }
 
+        /** Manual FairEmail-compatible account, the desktop counterpart of Android's + action. */
+        fun addEmailAccount() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (EmailDialogs.addAccount(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun importEmailBackup() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (EmailDialogs.importBackup(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun exportEmailBackup() {
+            val unlocked = requireUnlocked() ?: return
+            EmailDialogs.exportBackup(frame, unlocked.snapshot())
+        }
+
+        fun showEmailDetails() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+            EmailDialogs.showDetails(frame, entry)
+        }
+
         screen.newVaultButton.addActionListener {
             PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
         }
@@ -281,6 +313,7 @@ object MainWindow {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
+            add(JMenuItem("Add email account…").apply { addActionListener { addEmailAccount() } })
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
@@ -346,6 +379,7 @@ object MainWindow {
             add(JMenuItem("Tags…").apply { addActionListener { screen.tagsButton.doClick() } })
             add(JMenuItem("View password details…").apply { addActionListener { showPasswordDetails() } })
             add(JMenuItem("Export password file…").apply { addActionListener { exportPasswordFile() } })
+            add(JMenuItem("View email details…").apply { addActionListener { showEmailDetails() } })
             add(JMenuItem("Delete").apply { addActionListener { screen.deleteButton.doClick() } })
             add(counterDivider)
             add(JMenuItem("Advance HOTP counter").apply { addActionListener { advanceSelectedHotp() } })
@@ -362,6 +396,7 @@ object MainWindow {
                     "Tags…" -> component.isEnabled = entry.areDetailsVisible()
                     "View password details…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
                     "Export password file…" -> { component.isVisible = entry.isPasswordArchive(); component.isEnabled = entry.areDetailsVisible() }
+                    "View email details…" -> { component.isVisible = entry.isEmail(); component.isEnabled = entry.areDetailsVisible() }
                     "Advance HOTP counter" -> {
                         component.isVisible = entry.isCounterBased()
                         component.isEnabled = entry.areDetailsVisible()
@@ -423,6 +458,9 @@ object MainWindow {
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
+                addSeparator()
+                add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
+                add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })
                 add(JMenuItem("Encrypted backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })

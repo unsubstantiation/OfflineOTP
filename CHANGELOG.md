@@ -2,6 +2,12 @@
 
 #### Unreleased
 
+ * Email accounts: Keep FairEmail-compatible IMAP/POP and SMTP credentials in one encrypted vault entry on both clients, with a fifth **Email** tab; add an account by hand, view its connection details, and import or export FairEmail backups (plain JSON, the gzip agent export, or a password-protected file), with passwords masked in the desktop details dialog until you ask for them
+
+ * Desktop: Complete the email support the Android client and `:core` already had — previously an `EMAIL` entry in a shared vault was filtered into a category that the desktop tab strip, a fixed list of four labels, could not select, so it was invisible; the strip is now derived from the shared category list and the same form validation guards both clients
+
+ * Email accounts: Describe encryption and protocol by name (SSL, STARTTLS, none; IMAP, POP) in the connection-details rows, and build those rows once in `:core` so Android and desktop cannot show different text for the same stored account
+
  * Desktop: Keep the vault, its `.bck` copy, the settings and the hardware-unlock record in a `data` folder inside the program folder instead of `~/.offlineotp`, so the Debian and Windows builds are fully portable: copy the folder and everything travels with it. `-Dofflineotp.home=<folder>` or `OFFLINEOTP_HOME` still selects another folder, and an unwritable program folder is reported instead of falling back into the user's profile
 
  * SSH keys: Store an optional host name, port, user name and password beside the keys, inside the encrypted vault and its encrypted backups; a revealed card shows `user@host:port` and the copy menu offers the password. Blank fields are omitted, so existing entries, vaults and backups keep their exact bytes and older builds still read them
