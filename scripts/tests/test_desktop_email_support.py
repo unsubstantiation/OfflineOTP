@@ -95,9 +95,13 @@ class DesktopEmailSupportTest(unittest.TestCase):
     def test_email_entries_stay_out_of_the_otp_editors(self):
         desktop_editor = (DESKTOP / "ui/EntryDialog.kt").read_text(encoding="utf-8")
         self.assertIn("if (existing?.isEmail() == true) return null", desktop_editor)
-        self.assertIn("it != Entry.OTPType.EMAIL", desktop_editor)
+        self.assertIn("EntryDraft.offerableTypes()", desktop_editor)
         android_editor = (APP / "Dialogs/ManualEntryDialog.kt").read_text(encoding="utf-8")
-        self.assertIn("it != Entry.OTPType.EMAIL", android_editor)
+        self.assertIn("EntryDraft.offerableTypes()", android_editor)
+        # The one shared list keeps both forms from offering an imported kind again.
+        draft = (CORE / "Database/EntryDraft.kt").read_text(encoding="utf-8")
+        for kind in ("PASSWORD &&", "PASSWORD_ARCHIVE &&", "EMAIL"):
+            self.assertIn(f"it != Entry.OTPType.{kind}", draft)
 
     def test_the_feature_is_documented_for_both_clients(self):
         readme = text("README.md")

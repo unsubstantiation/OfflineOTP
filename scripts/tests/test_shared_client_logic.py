@@ -94,6 +94,9 @@ class SharedClientLogicTest(unittest.TestCase):
                           f"{name} must assemble entries through EntryDraft")
             self.assertIn("EntryDraft.sanitizeSecret(", body,
                           f"{name} must read secrets through EntryDraft.sanitizeSecret")
+            # The offered kinds are one list, not a predicate written out per form.
+            self.assertIn("EntryDraft.offerableTypes()", body,
+                          f"{name} must take its type list from EntryDraft.offerableTypes")
             # Assembling an entry per type in a shell is the copy that drifted before.
             self.assertIsNone(re.search(r"\bEntry\.sshKey\(", body),
                               f"{name} must not build SSH entries by hand")

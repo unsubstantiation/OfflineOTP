@@ -194,6 +194,19 @@ class EntryDraftTest {
     }
 
     @Test
+    fun bothFormsOfferTheSameKinds() {
+        val offered = EntryDraft.offerableTypes()
+        assertEquals(
+            listOf(Entry.OTPType.TOTP, Entry.OTPType.HOTP, Entry.OTPType.MOTP, Entry.OTPType.STEAM,
+                Entry.OTPType.NOTE, Entry.OTPType.SSH_KEY),
+            offered.toList())
+        // The kinds an import produces are not offered, and building one is refused above.
+        for (kind in listOf(Entry.OTPType.PASSWORD, Entry.OTPType.PASSWORD_ARCHIVE, Entry.OTPType.EMAIL)) {
+            assertTrue("$kind must not be offered by a manual-entry form", kind !in offered)
+        }
+    }
+
+    @Test
     fun tagsTravelWithTheDraft() {
         val entry = create(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", tags = listOf("work", "cloud"))
         try {

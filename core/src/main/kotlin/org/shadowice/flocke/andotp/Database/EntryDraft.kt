@@ -30,6 +30,15 @@ object EntryDraft {
         if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) raw
         else raw.replace(WHITESPACE, "")
 
+    /**
+     * The kinds a manual-entry form offers, in the model's own order. Password and email entries
+     * are structured credentials that only an import can produce, so neither form may list them.
+     */
+    @JvmStatic
+    fun offerableTypes(): List<Entry.OTPType> = Entry.OTPType.values().filter {
+        it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && it != Entry.OTPType.EMAIL
+    }
+
     /** Digits for a form that typed them in; the same wording whichever dialog asked. */
     @JvmStatic
     fun digits(text: String): Int =

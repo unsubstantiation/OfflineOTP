@@ -67,9 +67,7 @@ object EntryDialog {
         val sshPasswordLabel = JLabel("Password (optional)")
         val secretLabel = JLabel("Secret (Base32)")
         val typeLabel = JLabel("Type")
-        val type = JComboBox(Entry.OTPType.entries.filter {
-            it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && it != Entry.OTPType.EMAIL
-        }.toTypedArray()).apply {
+        val type = JComboBox(EntryDraft.offerableTypes().toTypedArray()).apply {
             selectedItem = existing?.getType() ?: initialType.takeUnless { it == Entry.OTPType.EMAIL }
                 ?: Entry.OTPType.TOTP
             // Android keeps the OTP type fixed on edit; a switch would rebuild the entry and drop

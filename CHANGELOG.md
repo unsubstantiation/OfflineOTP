@@ -2,7 +2,7 @@
 
 #### Unreleased
 
- * Core: The two manual-entry dialogs now assemble their entry through one shared builder (`EntryDraft`), so a value one form accepts is accepted by the other — including the period/counter/digits wording, whitespace in a pasted secret, and the usage stamp a new entry gets (the desktop form now stamps a hand-typed entry as used, so it leads a "last used" list as it does on Android)
+ * Core: The two manual-entry dialogs now assemble their entry through one shared builder (`EntryDraft`), including the list of kinds a form offers, so a value one form accepts is accepted by the other — including the period/counter/digits wording, whitespace in a pasted secret, and the usage stamp a new entry gets (the desktop form now stamps a hand-typed entry as used, so it leads a "last used" list as it does on Android)
 
  * Core: Give both clients one implementation of the rules they share — usage counting and the last-used stamp (`EntryUsage`), the one-step HOTP advance and its ceiling, the tag selection rule and tag ordering (`EntryTagFilter`), the entry-to-tab mapping (`EntryListPresentation.categoryOf`), whether an entry has an `otpauth://` QR form (`Entry.hasOtpUri`), and the merge-or-replace plan a restore applies (`VaultRestoreMerge`) — so a phone and a desktop copy of the same vault cannot follow different rules and a fix lands once
 

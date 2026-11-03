@@ -127,7 +127,7 @@ object ManualEntryDialog {
         val algorithmAdapter = ArrayAdapter<TokenCalculator.HashAlgorithm>(callingActivity,
             android.R.layout.simple_expandable_list_item_1, TokenCalculator.HashAlgorithm.values().toMutableList())
         val typeAdapter = ArrayAdapter<Entry.OTPType>(callingActivity,
-            android.R.layout.simple_expandable_list_item_1, Entry.OTPType.values().filter { it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && it != Entry.OTPType.EMAIL }.toMutableList())
+            android.R.layout.simple_expandable_list_item_1, EntryDraft.offerableTypes().toMutableList())
 
         typeInput.adapter = typeAdapter
         algorithmInput.adapter = algorithmAdapter
