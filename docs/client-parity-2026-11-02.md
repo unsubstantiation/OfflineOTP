@@ -85,6 +85,9 @@ desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared ru
   OTP mode via `menu_send_keystrokes`. The desktop client has no hardware keystroke path (it
   supports PC/SC OATH only), which the README lists as out of scope.
 - **Settings editor, inactivity lock, automatic backups, biometrics, master-password change.**
+  Both are opt-in on Android and off by default (`getAuthInactivity()`, the automatic-backup keys),
+  so an untouched Android install and the desktop client behave the same; only an Android user who
+  turns them on gets behaviour the desktop client has no equivalent for.
   Android preferences with no desktop equivalent; documented as out of desktop v1 scope rather than
   half-built. A password change has to re-key the vault inside a transaction (`changeVaultEncryption`
   on Android); a desktop version that is simpler than that would risk leaving a vault whose stored
