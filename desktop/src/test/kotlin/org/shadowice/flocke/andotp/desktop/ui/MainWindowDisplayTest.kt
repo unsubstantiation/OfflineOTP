@@ -9,6 +9,7 @@ import org.junit.Assume.assumeFalse
 import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 import org.shadowice.flocke.andotp.desktop.control.HardwareKeyManager
 import org.shadowice.flocke.andotp.desktop.control.VaultController
@@ -298,8 +299,13 @@ class MainWindowDisplayTest {
             }
             edt {
                 val popup = MenuSelectionManager.defaultManager().selectedPath.filterIsInstance<JPopupMenu>().last()
-                assertTrue(popup.components.filterIsInstance<JMenuItem>()
-                    .any { it.text == "Copy selected" && it.isEnabled })
+                val items = popup.components.filterIsInstance<JMenuItem>()
+                assertTrue(items.any { it.text == "Copy selected" && it.isEnabled })
+                // Android's popup offers "Show QR code"; the first row is an OTP entry, so it can
+                // be encoded, and it is the top row, so only "Move down" applies to it.
+                assertTrue(items.any { it.text == "Show QR code…" && it.isVisible && it.isEnabled })
+                assertTrue(items.any { it.text == "Move down" && it.isVisible && it.isEnabled })
+                assertFalse(items.any { it.text == "Move up" && it.isEnabled })
                 MenuSelectionManager.defaultManager().clearSelectedPath()
             }
 
@@ -553,6 +559,59 @@ class MainWindowDisplayTest {
             await("entry removed") { table(fixture.frame).rowCount == 1 && dialog("Remove") == null }
             assertEquals(1, (fixture.controller.openVault(password) as VaultController.Session.Loaded)
                 .entries.size)
+        } finally { close(fixture) }
+    }
+
+    @Test
+    fun manualOrderMovesRowsOnlyInTheUnsortedUnfilteredView() {
+        val fixture = fixture()
+        try {
+            open(fixture)
+            fun order(): List<String> = edt {
+                val model = table(fixture.frame).model as EntryTableModel
+                (0 until model.rowCount).map { model.entryAt(it).getLabel() }
+            }
+            fun moveDown(row: Int) = edt {
+                val table = table(fixture.frame)
+                table.setRowSelectionInterval(row, row)
+                table.actionMap.get("moveEntryDown")
+                    .actionPerformed(ActionEvent(table, ActionEvent.ACTION_PERFORMED, "moveEntryDown"))
+            }
+
+            edt { assertEquals(listOf("Hidden account", "Shown account"), order()) }
+            moveDown(0)
+            await("rows swapped") { order() == listOf("Shown account", "Hidden account") }
+            // The manual order belongs to the vault, so it survives a reopen.
+            val saved = fixture.controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals("Shown account", saved.entries[0].getLabel())
+            edt { assertEquals(1, table(fixture.frame).selectedRow) } // selection follows the row
+
+            // A sort order ends the manual view; Android disables drag in exactly the same case.
+            edt {
+                val combo = components(fixture.frame).filterIsInstance<JComboBox<*>>()
+                    .first { it.accessibleContext.accessibleName == "Sort order" }
+                combo.selectedIndex = (0 until combo.itemCount).first {
+                    (combo.getItemAt(it) as? SortChoice)?.mode == Constants.SortMode.ISSUER
+                }
+            }
+            await("issuer order") { order() == listOf("Shown account", "Hidden account") }
+            moveDown(0)
+            Thread.sleep(200)
+            assertEquals(listOf("Shown account", "Hidden account"), order())
+
+            // …and so does an active search.
+            edt {
+                components(fixture.frame).filterIsInstance<JComboBox<*>>()
+                    .first { it.accessibleContext.accessibleName == "Sort order" }.selectedIndex = 0
+            }
+            edt {
+                components(fixture.frame).filterIsInstance<JTextField>()
+                    .first { it.accessibleContext.accessibleName == "Search entries" }.text = "account"
+            }
+            await("search applied") { table(fixture.frame).rowCount == 2 }
+            moveDown(0)
+            Thread.sleep(200)
+            assertEquals(listOf("Shown account", "Hidden account"), order())
         } finally { close(fixture) }
     }
 

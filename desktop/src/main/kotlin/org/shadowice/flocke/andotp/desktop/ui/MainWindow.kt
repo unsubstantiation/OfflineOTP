@@ -11,6 +11,7 @@ import org.shadowice.flocke.andotp.desktop.control.HardwareKeyManager
 import org.shadowice.flocke.andotp.desktop.control.TokenTicker
 import org.shadowice.flocke.andotp.desktop.control.VaultController
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
+import org.shadowice.flocke.andotp.desktop.qr.QrCodeImage
 
 import java.awt.Dimension
 import java.awt.Toolkit
@@ -198,6 +199,36 @@ object MainWindow {
             }
         }
 
+        /**
+         * Manual ordering, the desktop counterpart of Android's drag handle: the shared
+         * [EntryListPresentation.canDrag] rule limits it to the unsorted, unfiltered view.
+         */
+        fun moveSelected(delta: Int) {
+            val unlocked = requireUnlocked() ?: return
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return
+            val target = viewRow + delta
+            if (target !in 0 until table.rowCount) return
+            val from = table.convertRowIndexToModel(viewRow)
+            val to = table.convertRowIndexToModel(target)
+            if (editor?.move(from, to) == true) {
+                refreshProjection(unlocked)
+                if (target in 0 until table.rowCount) table.setRowSelectionInterval(target, target)
+            }
+        }
+
+        /** Desktop counterpart of Android's **Show QR code** popup item. */
+        fun showQrCode() {
+            requireUnlocked() ?: return
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
+            if (!QrCodeDialog.show(frame, entry)) {
+                JOptionPane.showMessageDialog(frame, QrCodeDialog.UNSUPPORTED, TITLE,
+                    JOptionPane.INFORMATION_MESSAGE)
+            }
+        }
+
         /** Desktop counterpart of the Android counter chip: explicit HOTP counter advance. */
         fun advanceSelectedHotp() {
             requireUnlocked() ?: return
@@ -266,7 +297,7 @@ object MainWindow {
 
         screen.categories.addChangeListener {
             state?.let { unlocked ->
-                unlocked.presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                unlocked.applyCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
                 refreshProjection(unlocked)
             }
         }
@@ -404,6 +435,7 @@ object MainWindow {
 
         // Right-click or the keyboard context-menu key opens the same row actions.
         val counterDivider = JPopupMenu.Separator()
+        val orderDivider = JPopupMenu.Separator()
         val rowMenu = JPopupMenu().apply {
             add(JMenuItem("Copy selected").apply { addActionListener { copySelectedToken() } })
             add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
@@ -414,12 +446,19 @@ object MainWindow {
             add(JMenuItem("Delete").apply { addActionListener { screen.deleteButton.doClick() } })
             add(counterDivider)
             add(JMenuItem("Advance HOTP counter").apply { addActionListener { advanceSelectedHotp() } })
+            add(JMenuItem("Show QR code…").apply { addActionListener { showQrCode() } })
+            add(orderDivider)
+            add(JMenuItem("Move up").apply { addActionListener { moveSelected(-1) } })
+            add(JMenuItem("Move down").apply { addActionListener { moveSelected(1) } })
         }
         fun showRowMenu(viewRow: Int, x: Int, y: Int) {
             if (viewRow !in 0 until table.rowCount) return
             table.setRowSelectionInterval(viewRow, viewRow)
             val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
             counterDivider.isVisible = entry.isCounterBased()
+            // Android only drags in the unsorted, unfiltered view, and only encodes OTP entries.
+            val canReorder = state?.presentation?.canDrag() == true
+            orderDivider.isVisible = canReorder
             rowMenu.components.forEach { component ->
                 if (component is JMenuItem) when (component.text) {
                     "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive() && !entry.isEmail()
@@ -432,6 +471,12 @@ object MainWindow {
                         component.isVisible = entry.isCounterBased()
                         component.isEnabled = entry.areDetailsVisible()
                     }
+                    "Show QR code…" -> {
+                        component.isVisible = QrCodeImage.payloadFor(entry) != null
+                        component.isEnabled = entry.areDetailsVisible()
+                    }
+                    "Move up" -> component.isEnabled = canReorder && viewRow > 0
+                    "Move down" -> component.isEnabled = canReorder && viewRow < table.rowCount - 1
                 }
             }
             rowMenu.show(table, x, y)
@@ -469,6 +514,17 @@ object MainWindow {
                     showRowMenu(row, bounds.x + 16, bounds.y + bounds.height)
                 }
             }
+        })
+        // Alt+Up/Down reorder without opening the menu, the keyboard equivalent of dragging a card.
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).apply {
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK), "moveEntryUp")
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK), "moveEntryDown")
+        }
+        table.actionMap.put("moveEntryUp", object : AbstractAction() {
+            override fun actionPerformed(event: ActionEvent) = moveSelected(-1)
+        })
+        table.actionMap.put("moveEntryDown", object : AbstractAction() {
+            override fun actionPerformed(event: ActionEvent) = moveSelected(1)
         })
 
         search.document.addDocumentListener(object : SimpleDocumentListener {
@@ -510,6 +566,14 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreOpenPgp(frame, it)
+                            state?.let { unlocked -> refreshProjection(unlocked) }
+                        }
+                    }
+                })
+                add(JMenuItem("Restore plain-text backup…").apply {
+                    addActionListener {
+                        coordinator?.let {
+                            BackupDialogs.restorePlainText(frame, it)
                             state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }

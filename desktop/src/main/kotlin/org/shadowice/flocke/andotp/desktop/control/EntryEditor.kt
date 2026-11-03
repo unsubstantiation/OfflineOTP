@@ -2,6 +2,9 @@ package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.View.EntryListPresentation
+
+import java.util.Collections
 
 /**
  * Applies entry mutations to the unlocked [DesktopVaultState] and persists each successful one
@@ -111,6 +114,23 @@ class EntryEditor(
         proposed[index] = replacement
         if (!controller.save(state.key, proposed)) return false
         return state.replace(existing, replacement)
+    }
+
+    /**
+     * Moves the row at [fromDisplayed] past its neighbour [toDisplayed], the desktop counterpart of
+     * Android's drag handle. The manual order lives in the vault, so the swap is persisted; the
+     * move is refused (and nothing is written) whenever [EntryListPresentation.canDrag] is false,
+     * exactly as Android ignores a drag in a sorted or filtered view.
+     */
+    fun move(fromDisplayed: Int, toDisplayed: Int): Boolean {
+        if (!state.presentation.canDrag()) return false
+        val proposed = state.snapshot()
+        val from = state.presentation.sourceIndex(fromDisplayed)
+        val to = state.presentation.sourceIndex(toDisplayed)
+        if (from !in proposed.indices || to !in proposed.indices) return false
+        Collections.swap(proposed, from, to)
+        if (!controller.save(state.key, proposed)) return false
+        return state.move(fromDisplayed, toDisplayed)
     }
 
     fun removeAt(position: Int): Boolean {

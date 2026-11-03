@@ -4,9 +4,14 @@ import org.shadowice.flocke.andotp.Utilities.BackupFileNames
 import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 
+import java.awt.BorderLayout
 import java.io.File
 import java.util.Date
+import javax.swing.BorderFactory
+import javax.swing.JCheckBox
 import javax.swing.JFileChooser
+import javax.swing.JLabel
+import javax.swing.JPanel
 import javax.swing.JFrame
 import javax.swing.JOptionPane
 import javax.swing.filechooser.FileNameExtensionFilter
@@ -36,15 +41,68 @@ object BackupDialogs {
     fun restoreEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
         val source = chooseFile(parent, "Open encrypted backup", false, null, "aes") ?: return
         val password = PasswordDialog.prompt(parent, "Backup password") ?: return
-        if (JOptionPane.showConfirmDialog(parent,
-                "Restore replaces all entries in the current vault. Continue?", "Restore encrypted backup",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
+        val replace = confirmRestore(parent, "Restore encrypted backup") ?: return
         try {
-            val count = coordinator.restoreEncrypted(password, readBounded(parent, source) ?: return)
-            showResult(parent, "Restored $count entr${if (count == 1) "y" else "ies"}")
+            val count = coordinator.restoreEncrypted(password, readBounded(parent, source) ?: return, replace)
+            showResult(parent, restoreSummary(count, replace))
         } catch (error: Exception) {
             showError(parent, error)
         }
+    }
+
+    /**
+     * Restores a legacy unencrypted JSON backup, the desktop counterpart of Android's **Restore
+     * plain-text backup…**: the same warning, the same merge/replace choice, and no writer — the
+     * desktop never creates a plain-text backup either.
+     */
+    fun restorePlainText(parent: JFrame, coordinator: BackupCoordinator) {
+        val source = chooseFile(parent, "Open plain-text backup", false, null, "json", "txt") ?: return
+        if (JOptionPane.showConfirmDialog(parent,
+                "Plain-text backups contain your OTP secrets without encryption. Only restore a file you trust. " +
+                    "OfflineOTP imports the entries but does not create plain-text backups.",
+                "Restore plain-text backup?", JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
+        val replace = confirmRestore(parent, "Restore plain-text backup") ?: return
+        try {
+            val count = coordinator.restorePlainText(readBounded(parent, source) ?: return, replace)
+            showResult(parent, restoreSummary(count, replace))
+        } catch (error: IllegalArgumentException) {
+            showError(parent, "The plain-text backup is empty or is not valid UTF-8.")
+        } catch (error: Exception) {
+            showError(parent, error)
+        }
+    }
+
+    /**
+     * The Android restore screen asks two things at once: the restore itself, and whether the
+     * backup replaces the current entries. Its **Replace existing entries** switch starts off, so
+     * merging is the default here as well. Returns null when the user cancels.
+     */
+    internal fun confirmRestore(parent: JFrame, title: String): Boolean? {
+        val replace = JCheckBox("Replace existing entries").apply {
+            isSelected = false
+            accessibleContext.accessibleName = "Replace existing entries"
+            toolTipText = "Replace current entries with the backup contents. " +
+                "When off, the backup is merged with the current entries."
+        }
+        val body = JPanel(BorderLayout(0, 8)).apply {
+            border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
+            add(JLabel("Restore this backup into the current vault?"), BorderLayout.NORTH)
+            add(replace, BorderLayout.CENTER)
+            add(JLabel("When off, the backup is merged with the current entries.").apply {
+                foreground = ForestTheme.TEXT_SECONDARY
+            }, BorderLayout.SOUTH)
+        }
+        val choice = JOptionPane.showConfirmDialog(parent, body, title,
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
+        return if (choice == JOptionPane.OK_OPTION) replace.isSelected else null
+    }
+
+    /** Result text for a restore; a merge reports only what it added, as Android's toast does. */
+    internal fun restoreSummary(count: Int, replace: Boolean): String = when {
+        replace -> "Restored $count entr${if (count == 1) "y" else "ies"}"
+        count == 0 -> "The backup had no entries the vault does not already hold."
+        else -> "Merged $count new entr${if (count == 1) "y" else "ies"} into the vault"
     }
 
     fun saveOpenPgpBackup(parent: JFrame, coordinator: BackupCoordinator) {
@@ -65,15 +123,14 @@ object BackupDialogs {
         val message = chooseFile(parent, "Open OpenPGP backup", false, null, "gpg", "asc", "pgp") ?: return
         val secretKey = chooseFile(parent, "Select secret key", false, null, "asc", "gpg", "pgp") ?: return
         val passphrase = PasswordDialog.prompt(parent, "Secret key passphrase (blank if unprotected)") ?: return
-        if (JOptionPane.showConfirmDialog(parent,
-                "Restore replaces all entries in the current vault. Continue?", "Restore OpenPGP backup",
-                JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
+        val replace = confirmRestore(parent, "Restore OpenPGP backup") ?: return
         try {
             val count = coordinator.restoreOpenPgp(
                 readBounded(parent, message) ?: return,
                 readBounded(parent, secretKey) ?: return,
-                passphrase.takeIf { it.isNotEmpty() }?.toCharArray())
-            showResult(parent, "Restored $count entr${if (count == 1) "y" else "ies"}")
+                passphrase.takeIf { it.isNotEmpty() }?.toCharArray(),
+                replace)
+            showResult(parent, restoreSummary(count, replace))
         } catch (error: Exception) {
             showError(parent, error)
         }

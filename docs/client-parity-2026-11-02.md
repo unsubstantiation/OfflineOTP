@@ -32,21 +32,67 @@ Details worth knowing:
   `InputPolicy.MAX_ENTRIES`, so the editor now checks first and reports a rejected import instead of
   relying on the write to fail.
 
+## Fixed in the follow-up pass: two more surfaces
+
+The first pass left some differences in place; a second read showed two of them were fixable without
+redesigning either client, so they are aligned too.
+
+| Behaviour | Android | Desktop before | Now |
+| --- | --- | --- | --- |
+| Manual order | Dragging a card reorders the vault in the unsorted, unfiltered view (`canDrag()`) | No way to reorder; only the order in which entries were added | **Move up**/**Move down** in the row menu and Alt+↑/↓, gated by the same shared `EntryListPresentation.canDrag()` rule and persisted to the vault |
+| Per-entry QR code | **Show QR code** renders the `otpauth://` URI, hidden for notes, SSH keys, password entries and email accounts | Only QR *import* existed (from an image file) | **Show QR code…** in the row menu renders the same URI with zxing and is hidden for exactly the same entry kinds |
+
+The manual order is a vault property, not a view property: a move is written through the same
+`EntryEditor` path as every other mutation, so a failed write leaves the visible order untouched, and
+selecting any sort order disables the action (as Android hides the drag handle).
+
+## Fixed in the same pass: restore semantics and plain-text restore
+
+A later read of the backup surface found two more differences, both about what a restore does to the
+vault that is already open.
+
+| Behaviour | Android | Desktop before | Now |
+| --- | --- | --- | --- |
+| Merge versus replace | The backup screen has a **Replace existing entries** switch (`backup_title_replace`), off by default: a restore appends the backup's new entries and keeps the current ones | Restore always replaced the whole vault, after a warning that said so | `BackupCoordinator.restoreEncrypted`/`restoreOpenPgp` take `replace`; every restore dialog asks with the same switch wording and the same default, and the result text says *Merged N new entries* rather than claiming a restore |
+| Plain-text restore | **Restore plain-text backup…** imports a legacy unencrypted JSON file through `PlainTextBackupDecoder`, behind `backup_plaintext_warning_message` | No plain-text path at all | **Tools → Restore plain-text backup…** uses the same shared decoder and the same warning text, and still never *writes* an unencrypted backup |
+
+Merging follows Android's branch exactly: an entry the vault already holds is not duplicated and
+keeps its counters, usage metadata and tags, the imported entries come first, and a backup whose
+entries collide with the current ones is rejected rather than silently collapsing two accounts. In a
+replace the entries the backup drops are zeroized, as a fresh unlock would do.
+
+### One suspected difference that turned out not to exist
+
+`EntriesCardAdapter.setCategory`/`filterByTags` call `clearFilter()`, which reads like "a tab or tag
+change drops the search". It does not: `clearFilter()` only discards the in-flight `Filter` object,
+while the query stays in `EntryListPresentation` and `refreshTags()` re-runs it against the new
+category and tag set. The sandbox check *the adapter keeps a live search across tag and sort
+refreshes* asserts exactly that. An early attempt to make the desktop drop the search on a tab or tag
+change was reverted, and both clients now keep a live search across tab, tag and sort changes; the
+desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared rule.
+
 ## Deliberately left alone
 
-- **Filters across tab changes.** Android's `setCategory`/`filterByTags` call `clearFilter()`, so
-  switching tab drops an active search; the desktop client keeps search and tag filter when you
-  change tabs (covered by `DesktopVaultStateTest.tagSearchAndCategoryComposeAcrossMutations`). The
-  desktop behaviour is the more useful one and is tested, so it stays — changing it would be a
-  behaviour removal, not a fix.
-- **Tag drawer versus tag dropdown.** Android offers AND/OR combination, a "no tags" filter and the
-  search-includes-tag preference; the desktop client offers one tag dropdown plus the untagged
-  choice. Same reach for the common case, fewer settings to migrate.
+- **Tag drawer versus tag dropdown.** Android offers AND/OR combination of several tags, a "no tags"
+  filter and the search-includes-tag preference; the desktop client offers one tag dropdown plus the
+  untagged choice. Selecting one tag filters identically under AND and OR, so the single-tag case
+  matches exactly; only multi-tag combination has no desktop equivalent.
+- **Search fields.** Android lets you choose whether search covers labels, issuers and tags; the
+  desktop client always searches all three. The preference lives in Android's settings, which the
+  desktop client deliberately does not read or edit. (The live search itself, and its survival
+  across tab, tag and sort changes, is identical — see above.)
 - **OpenSSH-key keystroke output.** Android's SSH popup can type the key through NFC or a YubiKey in
   OTP mode via `menu_send_keystrokes`. The desktop client has no hardware keystroke path (it
   supports PC/SC OATH only), which the README lists as out of scope.
-- **Settings editor, inactivity lock, automatic backups, biometrics.** Android preferences with no
-  desktop equivalent; documented as out of desktop v1 scope rather than half-built.
+- **Settings editor, inactivity lock, automatic backups, biometrics, master-password change.**
+  Android preferences with no desktop equivalent; documented as out of desktop v1 scope rather than
+  half-built. A password change has to re-key the vault inside a transaction (`changeVaultEncryption`
+  on Android); a desktop version that is simpler than that would risk leaving a vault whose stored
+  credentials no longer match its key.
+- **Custom per-entry thumbnails** (`menu_popup_changeImage`). Android stores user-picked images next
+  to the vault; the desktop client shows the bundled issuer logos only.
+- **Sort control surface.** Android keeps sort in the overflow menu, which it hides while the search
+  view is open; the desktop client keeps a **Sort** dropdown in the search row, visible at all times.
 
 ## Verified identical
 

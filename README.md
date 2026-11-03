@@ -111,11 +111,14 @@ Features:
 
 - Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key, email account or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
 - Choose the list order with the **Sort** dropdown: **Unsorted**, **Issuer**, **Label**, **Last used** or **Most used** — the five modes of Android's sort menu. The choice is remembered in the client settings file and survives a restart; an imported entry is stamped as just used, so it leads a **Last used** list. Sorting combines with search and the tag filter inside each tab.
-- **Delete** asks for confirmation, naming the entry, before anything is removed — as Android does — and both clients stop adding entries at the same 2000-entry ceiling.
+- Reorder entries by hand in the **Unsorted** view: select a row and use **Move up**/**Move down** in its menu, or Alt+↑/↓. The order is saved in the vault, and choosing any sort order disables moving, as Android's drag handle does.
+- **Show QR code…** in a row's menu renders that entry's `otpauth://` URI for another device to scan. Notes, SSH keys, password entries and email accounts have no QR form, so the item is hidden for them, exactly as on Android.
+- **Delete** asks for confirmation, naming the entry, before anything is removed — as Android does — and both clients stop adding entries at the same 2000-entry ceiling. An active search keeps applying when you change tab, tag or sort order on both clients.
 - Assign tags to any revealed entry using **Tags…**, or choose tags when adding or editing an account, note, or SSH key. Use the **Tag** dropdown to show all, untagged, or one tag; it works alongside search within each tab. Counts include entries across all tabs. Tag names in the dropdown are visible even when their entries are hidden. Tags are saved in the encrypted vault and included in backups.
 - Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Manage FairEmail-compatible mail accounts in the **Email** tab: add one by hand, view its connection details with the passwords masked until you ask for them, and import or export FairEmail backups. The same entries are created by Android's **Add email account** action.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
+- Restore a legacy unencrypted JSON backup with **Tools → Restore plain-text backup…**, behind Android's warning that such a file carries your secrets in the clear; like Android, the desktop client imports them but never writes one.
 - Save and restore password-encrypted and OpenPGP (PGPainless) backups. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
 - Deliberately out of desktop v1 scope: NFC, camera, screen capture, settings editor, inactivity lock, and password change.
@@ -258,8 +261,10 @@ Password-encrypted `.json.aes` backups use the same framing, password derivation
 Android (both flavors) and desktop. Export on one device, transfer the file securely, and restore
 on the other using the original backup password. Restoring a backup created before andOTP 0.6.3
 (the headerless SHA-256 format) is no longer supported on either platform: open such a file with an
-older release that still reads it, then export a new backup. Desktop restore **replaces** the
-current vault; Android offers merge or replace.
+older release that still reads it, then export a new backup. Both clients ask the same question
+before restoring: with **Replace existing entries** off (the default) the backup is merged into the
+current vault, its new entries first, while entries the vault already holds keep their counters and
+metadata; turn it on to replace the vault with the backup contents.
 Keep a separate, tested backup before restoring. Desktop rejects backups containing duplicate
 account identities (even when their tags or usage metadata differ) rather than silently dropping
 one. HOTP counters in different copies do not sync. Hardware-key-held accounts and local device

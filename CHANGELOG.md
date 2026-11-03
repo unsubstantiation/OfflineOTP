@@ -2,6 +2,10 @@
 
 #### Unreleased
 
+ * Desktop: Restore asks the same question as Android's backup screen — a **Replace existing entries** switch, off by default, so a restore merges the backup into the vault (new entries first, existing ones keeping their counters and metadata) instead of silently discarding the current entries; and **Tools → Restore plain-text backup…** imports a legacy unencrypted JSON backup through the same shared decoder and warning Android uses
+
+ * Desktop: Close two more Android differences — entries can be reordered in the unsorted view with **Move up**/**Move down** or Alt+↑/↓ (Android's drag handle, gated by the same rule and saved in the vault), and **Show QR code…** renders an entry's `otpauth://` URI like Android's popup item, for the same entry kinds
+
  * Desktop: Match the Android client on four points where the two had drifted — the entry list can now be sorted (**Unsorted**, **Issuer**, **Label**, **Last used**, **Most used**) and the choice is remembered in the client settings file, importing entries stamps them as just used so they lead a **Last used** list, adding or importing entries stops at the same 2000-entry ceiling instead of writing a vault Android refuses, and **Delete** asks for confirmation by name before removing the entry
 
  * Email accounts: Keep FairEmail-compatible IMAP/POP and SMTP credentials in one encrypted vault entry on both clients, with a fifth **Email** tab; add an account by hand, view its connection details, and import or export FairEmail backups (plain JSON, the gzip agent export, or a password-protected file), with passwords masked in the desktop details dialog until you ask for them

@@ -185,8 +185,12 @@ class EntryEditorAndBackupTest {
         val coordinator = BackupCoordinator(controller, state)
 
         val blob = coordinator.encryptedBackup(password)
-        val imported = coordinator.restoreEncrypted(password, blob)
-        assertEquals(1, imported)
+        // The default is a merge (Android's "Replace existing entries" switch starts off), so a
+        // vault restored from its own backup gains nothing and keeps its entries.
+        assertEquals(0, coordinator.restoreEncrypted(password, blob))
+        assertEquals(1, state.snapshot().size)
+        assertEquals(1, coordinator.restoreEncrypted(password, blob, replace = true))
+        assertEquals(1, state.snapshot().size)
         assertEquals("Issuer", state.snapshot()[0].getIssuer())
     }
 
@@ -437,8 +441,9 @@ class EntryEditorAndBackupTest {
         val coordinator = BackupCoordinator(controller, state, pgpPort = ReversingPgpPort())
 
         val message = coordinator.openPgpBackup(listOf("cert".toByteArray()))
+        assertEquals(0, coordinator.restoreOpenPgp(message, "secret-key".toByteArray(), null))
         val imported = coordinator.restoreOpenPgp(
-            message, "secret-key".toByteArray(), null)
+            message, "secret-key".toByteArray(), null, replace = true)
         assertEquals(1, imported)
         assertEquals("PGP Issuer", state.snapshot()[0].getIssuer())
     }
@@ -772,6 +777,86 @@ class EntryEditorAndBackupTest {
             state.snapshot().forEach { it.destroy() }
             dir.deleteRecursively()
         }
+    }
+
+    @Test
+    fun theManualOrderIsPersistedAndRefusedOutsideTheUnsortedView() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val zeta = entry("Zeta", "charlie")
+            val alpha = entry("Alpha", "bob")
+            assertTrue(editor.add(zeta))
+            assertTrue(editor.add(alpha))
+            state.applyCategory(org.shadowice.flocke.andotp.View.EntryListPresentation.Category.OTP)
+            assertEquals(listOf("charlie", "bob"),
+                (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() })
+
+            assertTrue(editor.move(0, 1))
+            assertEquals(listOf("bob", "charlie"),
+                (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() })
+
+            // The swap reached the vault, so it survives an unlock.
+            val reopened = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(listOf("bob", "charlie"), reopened.entries.map { it.getLabel() })
+
+            // A sorted view refuses the move and writes nothing.
+            state.applySortMode(Constants.SortMode.ISSUER)
+            assertFalse(editor.move(0, 1))
+            val stillSorted = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(listOf("bob", "charlie"), stillSorted.entries.map { it.getLabel() })
+        } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
+    }
+
+    @Test
+    fun aMergeKeepsCurrentEntriesAndPutsTheBackupsEntriesFirst() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val existing = entry("Existing", "alice").apply { setLastUsed(1_234L); setUsedFrequency(9) }
+            assertTrue(editor.add(existing))
+            val document = VaultJson.entriesToString(listOf(
+                entry("Existing", "alice"),     // already in the vault: must not duplicate
+                entry("New", "bob")))
+            val backup = EncryptedBackupCodec.seal(password, document)
+
+            // Merging (the default) adds only the new entry, first, and keeps the existing one's
+            // metadata, as Android's merge branch does.
+            assertEquals(1, BackupCoordinator(controller, state).restoreEncrypted(password, backup))
+            assertEquals(listOf("bob", "alice"), state.snapshot().map { it.getLabel() })
+            val kept = state.snapshot().first { it.getLabel() == "alice" }
+            assertEquals(1_234L, kept.getLastUsed())
+            assertEquals(9L, kept.getUsedFrequency())
+            val reopened = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(2, reopened.entries.size)
+
+            // A replace installs the document as-is and zeroizes the entry it dropped.
+            assertEquals(2, BackupCoordinator(controller, state)
+                .restoreEncrypted(password, backup, replace = true))
+            assertEquals(listOf("alice", "bob"), state.snapshot().map { it.getLabel() })
+        } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
+    }
+
+    @Test
+    fun aPlainTextBackupRestoresThroughTheSharedDecoder() {
+        val (dir, controller, state) = harness()
+        try {
+            val document = VaultJson.entriesToString(listOf(entry("Legacy", "carol")))
+            // A byte-order mark is accepted, as it is by Android's PlainTextBackupDecoder.
+            val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
+                document.toByteArray(Charsets.UTF_8)
+            val coordinator = BackupCoordinator(controller, state)
+            assertEquals(1, coordinator.restorePlainText(bytes))
+            assertEquals("Legacy", state.snapshot().single().getIssuer())
+
+            // Invalid UTF-8 and an empty document are refused before anything is written.
+            val before = VaultJson.entriesToString(state.snapshot())
+            for (invalid in listOf(byteArrayOf(0xC3.toByte()), ByteArray(0))) {
+                try { coordinator.restorePlainText(invalid); throw AssertionError("accepted invalid text") }
+                catch (_: IllegalArgumentException) { }
+            }
+            assertEquals(before, VaultJson.entriesToString(state.snapshot()))
+        } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
     }
 
 }
