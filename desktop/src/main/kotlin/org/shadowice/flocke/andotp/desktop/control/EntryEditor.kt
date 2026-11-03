@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.InputPolicy
 
 /**
  * Applies entry mutations to the unlocked [DesktopVaultState] and persists each successful one
@@ -31,9 +32,19 @@ class EntryEditor(
         return false
     }
 
+    /**
+     * Adds one entry. Refuses an equal entry or a vault that already holds [InputPolicy.MAX_ENTRIES]
+     * entries, the same ceiling Android applies before it adds, so neither client can build a vault
+     * the other will not extend.
+     */
     fun add(entry: Entry): Boolean {
         val proposed = state.snapshot()
-        if (proposed.contains(entry)) return false
+        if (proposed.contains(entry) || proposed.size >= InputPolicy.MAX_ENTRIES) return false
+        try {
+            entry.validate()
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         proposed.add(entry)
         if (!controller.save(state.key, proposed)) return false
         return state.add(entry)
@@ -47,11 +58,18 @@ class EntryEditor(
         try {
             for (entry in incoming) {
                 entry.validate()
-                if (seen.add(entry)) { proposed.add(entry); accepted.add(entry) }
+                if (!seen.add(entry)) continue
+                // Android refuses the rest of the batch at the ceiling rather than writing past it.
+                if (proposed.size >= InputPolicy.MAX_ENTRIES) return null
+                proposed.add(entry)
+                accepted.add(entry)
             }
             if (accepted.isEmpty()) return 0
-            if (proposed.size > org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES ||
-                !controller.save(state.key, proposed)) return null
+            // Android stamps an import with the current time so the new entries lead a
+            // "last used" list; without it they would sort below everything already used.
+            val now = System.currentTimeMillis()
+            accepted.forEach { it.updateOTP(false); it.setLastUsed(now) }
+            if (!controller.save(state.key, proposed)) return null
             for (entry in accepted) check(state.add(entry))
             return accepted.size
         } finally {

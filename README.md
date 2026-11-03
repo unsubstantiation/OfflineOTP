@@ -110,6 +110,8 @@ may still differ by platform.
 Features:
 
 - Create and open a local password-encrypted vault; use **Add entry** to add an account, secure note, SSH key, email account or QR image; edit and delete entries, search the vault, and watch tokens refresh each second.
+- Choose the list order with the **Sort** dropdown: **Unsorted**, **Issuer**, **Label**, **Last used** or **Most used** — the five modes of Android's sort menu. The choice is remembered in the client settings file and survives a restart; an imported entry is stamped as just used, so it leads a **Last used** list. Sorting combines with search and the tag filter inside each tab.
+- **Delete** asks for confirmation, naming the entry, before anything is removed — as Android does — and both clients stop adding entries at the same 2000-entry ceiling.
 - Assign tags to any revealed entry using **Tags…**, or choose tags when adding or editing an account, note, or SSH key. Use the **Tag** dropdown to show all, untagged, or one tag; it works alongside search within each tab. Counts include entries across all tabs. Tag names in the dropdown are visible even when their entries are hidden. Tags are saved in the encrypted vault and included in backups.
 - Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Manage FairEmail-compatible mail accounts in the **Email** tab: add one by hand, view its connection details with the passwords masked until you ask for them, and import or export FairEmail backups. The same entries are created by Android's **Add email account** action.
@@ -433,6 +435,7 @@ bash scripts/verify_reproducible_build.sh
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
+- [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
 - [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.

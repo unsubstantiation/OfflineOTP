@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop: Match the Android client on four points where the two had drifted — the entry list can now be sorted (**Unsorted**, **Issuer**, **Label**, **Last used**, **Most used**) and the choice is remembered in the client settings file, importing entries stamps them as just used so they lead a **Last used** list, adding or importing entries stops at the same 2000-entry ceiling instead of writing a vault Android refuses, and **Delete** asks for confirmation by name before removing the entry
+
  * Email accounts: Keep FairEmail-compatible IMAP/POP and SMTP credentials in one encrypted vault entry on both clients, with a fifth **Email** tab; add an account by hand, view its connection details, and import or export FairEmail backups (plain JSON, the gzip agent export, or a password-protected file), with passwords masked in the desktop details dialog until you ask for them
 
  * Desktop: Complete the email support the Android client and `:core` already had — previously an `EMAIL` entry in a shared vault was filtered into a category that the desktop tab strip, a fixed list of four labels, could not select, so it was invisible; the strip is now derived from the shared category list and the same form validation guards both clients

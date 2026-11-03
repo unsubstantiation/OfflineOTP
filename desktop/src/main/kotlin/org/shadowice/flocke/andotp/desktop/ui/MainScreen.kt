@@ -1,5 +1,6 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
 
@@ -43,6 +44,26 @@ internal data class TagChoice(val kind: Kind, val tag: String = "", val count: I
     fun sameFilter(other: TagChoice): Boolean = kind == other.kind && tag == other.tag
 }
 
+/**
+ * The wording of the removal prompt, matching Android's `dialog_msg_confirm_delete`. Kept here so
+ * the sentence the user is asked to confirm can be checked without opening a dialog.
+ */
+internal fun removalConfirmationMessage(label: String, issuer: String): String {
+    val name = label.ifBlank { issuer }
+    return "Are you sure you want to remove the account \"$name\"? This cannot be undone."
+}
+
+/** Display label for one list order; the labels match the Android sort menu. */
+internal class SortChoice(val mode: Constants.SortMode) {
+    override fun toString(): String = when (mode) {
+        Constants.SortMode.UNSORTED -> "Unsorted"
+        Constants.SortMode.ISSUER -> "Issuer"
+        Constants.SortMode.LABEL -> "Label"
+        Constants.SortMode.LAST_USED -> "Last used"
+        Constants.SortMode.MOST_USED -> "Most used"
+    }
+}
+
 /** Lightweight main-window content, separated from JFrame so its layout can be checked headlessly. */
 internal class MainScreen(val table: JTable, val copyButton: JButton) {
     val search = JTextField(20)
@@ -58,6 +79,14 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         addItem(TagChoice(TagChoice.Kind.ALL))
         accessibleContext.accessibleName = "Filter by tag"
         toolTipText = "Filter the selected tab by a tag or show untagged entries"
+    }
+    /** One entry per Constants.SortMode value, labelled like the Android sort menu. */
+    val sortOrder = JComboBox<SortChoice>().apply {
+        Constants.SortMode.entries.forEach { addItem(SortChoice(it)) }
+        renderer = PlainTagRenderer()
+        prototypeDisplayValue = SortChoice(Constants.SortMode.MOST_USED)
+        accessibleContext.accessibleName = "Sort order"
+        toolTipText = "Order the selected tab by issuer, label or usage, or keep the vault order"
     }
     val categories = JTabbedPane().apply {
         // One tab per EntryListPresentation.Category, in that enum's order (MainWindow maps the
@@ -136,6 +165,12 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
                 border = BorderFactory.createEmptyBorder(0, 12, 0, 0)
                 add(JLabel("Tag").apply { labelFor = tagFilter; foreground = ForestTheme.TEXT_SECONDARY }, BorderLayout.WEST)
                 add(tagFilter, BorderLayout.CENTER)
+                add(JPanel(BorderLayout(8, 0)).apply {
+                    isOpaque = false
+                    border = BorderFactory.createEmptyBorder(0, 12, 0, 0)
+                    add(JLabel("Sort").apply { labelFor = sortOrder; foreground = ForestTheme.TEXT_SECONDARY }, BorderLayout.WEST)
+                    add(sortOrder, BorderLayout.CENTER)
+                }, BorderLayout.EAST)
             }, BorderLayout.EAST)
         }
         val selectionActions = JPanel(FlowLayout(FlowLayout.LEFT, 8, 0)).apply {
@@ -204,6 +239,7 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         table.selectionModel.addListSelectionListener { refreshActions() }
         categories.addChangeListener { refreshState() }
         tagFilter.addActionListener { refreshState() }
+        sortOrder.addActionListener { refreshState() }
         search.document.addDocumentListener(object : DocumentListener {
             override fun insertUpdate(event: DocumentEvent) = refreshState()
             override fun removeUpdate(event: DocumentEvent) = refreshState()
@@ -244,6 +280,7 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         addButton.isEnabled = unlocked
         search.isEnabled = unlocked
         tagFilter.isEnabled = unlocked
+        sortOrder.isEnabled = unlocked
         refreshActions()
     }
 

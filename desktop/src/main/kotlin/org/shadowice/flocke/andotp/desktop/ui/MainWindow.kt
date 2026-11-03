@@ -2,6 +2,7 @@ package org.shadowice.flocke.andotp.desktop.ui
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 import org.shadowice.flocke.andotp.desktop.control.DesktopVaultState
@@ -55,6 +56,7 @@ object MainWindow {
         var coordinator: BackupCoordinator? = null
         var editor: EntryEditor? = null
         var updatingTagChoices = false
+        var updatingSortChoice = false
 
         fun showError(failure: VaultController.Failure) {
             val message = when (failure) {
@@ -87,9 +89,23 @@ object MainWindow {
                 unlocked.applyTagFilter(emptyList(), false)
         }
 
+        /** The combo is a view of the saved preference; setting it must not re-apply the order. */
+        fun selectSortChoice(mode: Constants.SortMode) {
+            updatingSortChoice = true
+            try {
+                for (index in 0 until screen.sortOrder.itemCount) {
+                    val choice = screen.sortOrder.getItemAt(index)
+                    if (choice.mode == mode) { screen.sortOrder.selectedIndex = index; return }
+                }
+            } finally { updatingSortChoice = false }
+        }
+
         fun bind(session: VaultController.Session.Loaded) {
+            val savedSort = controller.savedSortMode()
+            selectSortChoice(savedSort)
             val unlocked = DesktopVaultState(session.key).apply {
                 presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                presentation.setSortMode(savedSort)
                 load(session.entries)
             }
             state = unlocked
@@ -239,6 +255,15 @@ object MainWindow {
             }
         }
 
+        screen.sortOrder.addActionListener {
+            if (!updatingSortChoice) state?.let { unlocked ->
+                val choice = screen.sortOrder.selectedItem as? SortChoice ?: return@let
+                unlocked.applySortMode(choice.mode)
+                controller.saveSortMode(choice.mode)
+                refreshProjection(unlocked)
+            }
+        }
+
         screen.categories.addChangeListener {
             state?.let { unlocked ->
                 unlocked.presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
@@ -362,6 +387,12 @@ object MainWindow {
             val viewRow = table.selectedRow
             if (viewRow < 0) return@addActionListener
             val row = table.convertRowIndexToModel(viewRow)
+            val selected = unlocked.presentation.get(row)
+            // Android confirms a removal by name; a single click here must not drop an entry.
+            if (JOptionPane.showConfirmDialog(frame,
+                    removalConfirmationMessage(selected.getLabel(), selected.getIssuer()),
+                    "Remove", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
+                != JOptionPane.YES_OPTION) return@addActionListener
             if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
                 refreshProjection(unlocked)
             } else {

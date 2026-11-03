@@ -717,4 +717,61 @@ class EntryEditorAndBackupTest {
         } while (value != 0L)
         return out.toByteArray()
     }
+    @Test
+    fun addingAndImportingStopAtTheSameEntryCeilingAsAndroid() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            // Fill the vault to the shared ceiling. Bulk-load the entries directly so the test
+            // does not pay for two thousand vault writes.
+            val loaded = ArrayList<Entry>()
+            for (index in 0 until org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES) {
+                loaded.add(entry("Issuer $index", "label $index"))
+            }
+            assertTrue(controller.save(state.key, loaded))
+            state.load(loaded)
+            assertEquals(org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES,
+                state.snapshot().size)
+
+            // One more manual entry is refused, and the vault keeps its size.
+            val extra = entry("Overflow", "overflow")
+            assertFalse(editor.add(extra))
+            extra.destroy()
+            assertEquals(org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES,
+                state.snapshot().size)
+
+            // An import that would exceed the ceiling is rejected as a whole, not truncated.
+            val batch = arrayListOf(entry("Batch", "one"), entry("Batch", "two"))
+            assertEquals(null, editor.importEntries(batch))
+            assertEquals(org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES,
+                state.snapshot().size)
+            // Nothing from the rejected batch was published, so it owns (and wipes) its entries.
+            assertEquals(0, batch.count { candidate -> state.snapshot().any { it === candidate } })
+        } finally {
+            state.snapshot().forEach { it.destroy() }
+            dir.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun anImportIsStampedAsJustUsedLikeAndroid() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val before = System.currentTimeMillis()
+            val incoming = arrayListOf(entry("New", "one"))
+            assertEquals(1, editor.importEntries(incoming))
+            val imported = state.snapshot().single()
+            // Android sets last-used for an imported entry so a "last used" list leads with it.
+            assertTrue(imported.getLastUsed() >= before)
+            assertTrue(imported.getLastUsed() <= System.currentTimeMillis())
+            state.presentation.setSortMode(Constants.SortMode.LAST_USED)
+            state.refreshProjection()
+            assertEquals("one", state.presentation.get(0).getLabel())
+        } finally {
+            state.snapshot().forEach { it.destroy() }
+            dir.deleteRecursively()
+        }
+    }
+
 }

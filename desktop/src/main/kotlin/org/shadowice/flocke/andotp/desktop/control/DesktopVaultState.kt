@@ -84,6 +84,15 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         refreshProjection()
     }
 
+    /**
+     * Orders the visible projection like Android's sort menu. The vault's own order is untouched,
+     * so choosing the unsorted mode again restores it; the active search and tag filter survive.
+     */
+    fun applySortMode(mode: Constants.SortMode) {
+        presentation.setSortMode(mode)
+        refreshProjection()
+    }
+
     /** Reapply both filters after a mutation or tab change without destroying borrowed entries. */
     fun refreshProjection() {
         presentation.setSearch(query, searchIncludes)

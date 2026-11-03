@@ -136,6 +136,40 @@ class DesktopVaultStateTest {
     }
 
     @Test
+    fun sortModesOrderTheVisibleProjectionAndKeepTheFilters() {
+        val state = state()
+        val zeta = entry("Zeta", "charlie")
+        val beta = entry("Beta", "alice")
+        val alpha = entry("Alpha", "bob")
+        zeta.setLastUsed(3_000L); beta.setLastUsed(2_000L); alpha.setLastUsed(1_000L)
+        zeta.setUsedFrequency(2); beta.setUsedFrequency(4); alpha.setUsedFrequency(7)
+        // Vault order: charlie, alice, bob.
+        listOf(zeta, beta, alpha).forEach { assertTrue(state.add(it)) }
+
+        fun order() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
+
+        // Unchanged by default: the vault order is preserved, exactly like the Android default.
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+        state.applySortMode(Constants.SortMode.ISSUER)
+        assertEquals(listOf("bob", "alice", "charlie"), order()) // Alpha, Beta, Zeta
+        state.applySortMode(Constants.SortMode.LABEL)
+        assertEquals(listOf("alice", "bob", "charlie"), order())
+        state.applySortMode(Constants.SortMode.LAST_USED)
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+        state.applySortMode(Constants.SortMode.MOST_USED)
+        assertEquals(listOf("bob", "alice", "charlie"), order())
+
+        // An active search survives an order change, and going back to unsorted restores the
+        // vault order instead of freezing the last sort. ("a" matches every entry here.)
+        state.applySearch("a")
+        state.applySortMode(Constants.SortMode.ISSUER)
+        assertEquals(listOf("bob", "alice", "charlie"), order())
+        state.applySearch("")
+        state.applySortMode(Constants.SortMode.UNSORTED)
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+    }
+
+    @Test
     fun sameTagFiltersEveryCategoryIncludingBothPasswordKinds() {
         val state = state()
         val csv = "name,url,username,password\nsite,https://example.test,alice,secret\n".toByteArray()

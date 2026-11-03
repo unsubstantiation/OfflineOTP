@@ -527,4 +527,33 @@ class MainWindowDisplayTest {
             await("hardware dialog dismissed") { dialog("Security key") == null }
         } finally { close(fixture) }
     }
+    @Test
+    fun removingAnEntryAsksForConfirmationLikeTheAndroidDialog() {
+        val fixture = fixture()
+        try {
+            open(fixture)
+            val delete = edt {
+                table(fixture.frame).setRowSelectionInterval(0, 0)
+                button(fixture.frame, "Delete")
+            }
+            // Cancelling the prompt must keep both entries; Android only removes on confirmation.
+            SwingUtilities.invokeLater { delete.doClick() }
+            await("removal prompt") { dialog("Remove") != null }
+            edt { optionButton(dialog("Remove")!!, "no", "No").doClick() }
+            await("prompt dismissed") { dialog("Remove") == null }
+            assertEquals(2, edt { table(fixture.frame).rowCount })
+            assertEquals(2, (fixture.controller.openVault(password) as VaultController.Session.Loaded)
+                .entries.size)
+
+            // Confirming removes exactly the selected entry, and the vault keeps one entry.
+            edt { table(fixture.frame).setRowSelectionInterval(0, 0) }
+            SwingUtilities.invokeLater { delete.doClick() }
+            await("removal prompt reopened") { dialog("Remove") != null }
+            edt { optionButton(dialog("Remove")!!, "yes", "Yes").doClick() }
+            await("entry removed") { table(fixture.frame).rowCount == 1 && dialog("Remove") == null }
+            assertEquals(1, (fixture.controller.openVault(password) as VaultController.Session.Loaded)
+                .entries.size)
+        } finally { close(fixture) }
+    }
+
 }
