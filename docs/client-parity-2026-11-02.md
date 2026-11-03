@@ -117,7 +117,14 @@ The shells keep what is genuinely platform-specific — dialog rendering, file c
 nothing else repeats a shared rule.
 `scripts/tests/test_shared_client_logic.py` fails the build if a shell re-implements any of these
 (tag `containsAll` predicates, `getUsedFrequency() + 1` counting, the HOTP ceiling literal, a
-hand-built merge list) or stops calling the shared helper.
+hand-built merge list, a per-type `Entry(...)` construction in a dialog) or stops calling the shared
+helper.
+
+The last extraction also settled two small differences the earlier passes had missed: the desktop
+form kept whitespace inside a pasted secret (so a wrapped Base32 secret that the phone accepted was
+rejected there), and a hand-typed entry was never stamped as used (so it sank to the bottom of a
+**Last used** list while the same entry added on the phone went to the top). Both now follow from
+`EntryDraft`.
 
 ## Verified identical
 
