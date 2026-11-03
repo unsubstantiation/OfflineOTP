@@ -1,5 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
+
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import java.awt.BorderLayout
 import java.awt.Component
@@ -36,7 +38,7 @@ internal class TagEditorPanel(current: List<String>, private val known: List<Str
         cellRenderer = PlainTagRenderer()
         accessibleContext.accessibleName = "Assigned tags"
     }
-    val input = JComboBox(known.distinct().sortedWith(String.CASE_INSENSITIVE_ORDER).toTypedArray()).apply {
+    val input = JComboBox(EntryTagFilter.sortedNames(known.distinct()).toTypedArray()).apply {
         isEditable = true
         renderer = PlainTagRenderer()
         prototypeDisplayValue = "Example tag name"

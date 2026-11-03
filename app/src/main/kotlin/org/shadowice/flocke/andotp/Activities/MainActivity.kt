@@ -50,6 +50,7 @@ import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
 import org.shadowice.flocke.andotp.Dialogs.EmailEntryDialog
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
 import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.Constants.EncryptionType
 import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
@@ -1262,13 +1263,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     fun showEntryCategory(entry: Entry) {
-        val category = when {
-            entry.isEmail() -> EntryListPresentation.Category.EMAILS
-            entry.isPassword() || entry.isPasswordArchive() -> EntryListPresentation.Category.PASSWORDS
-            entry.isNote() -> EntryListPresentation.Category.NOTES
-            entry.isSshKey() -> EntryListPresentation.Category.SSH_KEYS
-            else -> EntryListPresentation.Category.OTP
-        }
+        // One mapping for both clients: the tab strip and the projection are built from the same
+        // category list, so a new entry kind lands in its tab without a second lookup table.
+        val category = EntryListPresentation.categoryOf(entry)
         findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
     }
 
@@ -1819,8 +1816,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     entry.destroy()
                     return
                 }
-                entry.updateOTP(false)
-                entry.setLastUsed(System.currentTimeMillis())
+                EntryUsage.markImported(entry)
                 currentAdapter.addEntry(entry)
                 transferredToAdapter = true
                 refreshTags()

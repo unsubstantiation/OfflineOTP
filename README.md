@@ -105,7 +105,10 @@ rather than silently falling back into your home directory. Windows and Debian s
 Forest palette, with an
 app bar, the same bundled issuer logos, entry cards that lift on hover, dark controls and dialogs.
 Codes are drawn in amber and turn red as the code is about to change; native window decorations
-may still differ by platform.
+may still differ by platform. The rules the two clients share — usage counting and last-used stamps,
+the HOTP step, tag matching and tag order, which tab an entry belongs to, whether an entry can be
+shown as a QR code, and how a restore merges or replaces — are single `:core` implementations used
+by both, not two copies.
 
 Features:
 

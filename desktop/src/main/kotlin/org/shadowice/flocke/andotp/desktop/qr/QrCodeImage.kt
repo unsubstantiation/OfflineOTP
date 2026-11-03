@@ -28,8 +28,9 @@ object QrCodeImage {
      * keys, passwords, password archives and email accounts), or when the URI itself is invalid.
      */
     fun payloadFor(entry: Entry): String? {
-        if (entry.isNote() || entry.isSshKey() || entry.isPassword() || entry.isPasswordArchive() ||
-            entry.isEmail()) return null
+        // The kind rule is shared with Android's popup, so neither client can offer a code the
+        // other refuses for the same entry.
+        if (!entry.hasOtpUri()) return null
         return try {
             entry.toUriString().takeIf { it.isNotBlank() }
         } catch (_: IllegalArgumentException) {

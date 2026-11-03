@@ -8,6 +8,7 @@ import org.shadowice.flocke.andotp.Utilities.MigrationBatchStatus
 import org.shadowice.flocke.andotp.Utilities.MigrationParseResult
 import org.shadowice.flocke.andotp.Utilities.OpenPgpBackupCodec
 import org.shadowice.flocke.andotp.Utilities.PlainTextBackupDecoder
+import org.shadowice.flocke.andotp.Utilities.VaultRestoreMerge
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 import org.shadowice.flocke.andotp.Utilities.QrImageDecoder
 import org.shadowice.flocke.andotp.Utilities.QrImport
@@ -110,17 +111,9 @@ class BackupCoordinator(
             // rather than report success and silently drop their distinct metadata on the next save.
             require(imported.toHashSet().size == imported.size) { "Backup contains duplicate accounts" }
 
-            val current = if (replace) ArrayList<Entry>() else ArrayList(state.snapshot())
-            // An entry the vault already holds is not duplicated: the existing one (with its
-            // counters and metadata) stays, as in Android's merge branch.
-            val iterator = imported.iterator()
-            while (iterator.hasNext()) {
-                val entry = iterator.next()
-                if (current.contains(entry)) { iterator.remove(); entry.destroy() }
-            }
-            val merged = ArrayList<Entry>(imported)
-            merged.addAll(current)
-            require(merged.toHashSet().size == merged.size) { "Backup conflicts with the current entries" }
+            // One merge rule for both clients: imported entries first, entries the vault already
+            // holds kept as they are (counters, metadata, tags), or replaced wholesale.
+            val merged = VaultRestoreMerge.plan(imported, state.snapshot(), replace)
 
             check(controller.save(state.key, merged)) { "Vault persistence failed" }
             state.installRestored(merged, destroyPrevious = replace)

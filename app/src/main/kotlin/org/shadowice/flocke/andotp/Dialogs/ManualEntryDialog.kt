@@ -27,6 +27,7 @@ import com.github.aakira.expandablelayout.ExpandableLinearLayout
 
 import org.shadowice.flocke.andotp.Activities.MainActivity
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
@@ -402,8 +403,7 @@ object ManualEntryDialog {
                         val validated = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
                         validated.destroy()
                         val e = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        e.updateOTP(false)
-                        e.setLastUsed(System.currentTimeMillis())
+                        EntryUsage.markImported(e)
 
                         adapter.addEntry(e)
                     } else {
@@ -431,8 +431,7 @@ object ManualEntryDialog {
                         val validated = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
                         validated.destroy()
                         val e = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        e.updateOTP(false)
-                        e.setLastUsed(System.currentTimeMillis())
+                        EntryUsage.markImported(e)
 
                         adapter.addEntry(e)
                     } else {
@@ -455,8 +454,7 @@ object ManualEntryDialog {
                         val validated = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
                         validated.destroy()
                         val newEntry = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
-                        newEntry.updateOTP(false)
-                        newEntry.setLastUsed(System.currentTimeMillis())
+                        EntryUsage.markImported(newEntry)
 
                         adapter.addEntry(newEntry)
                     } else {

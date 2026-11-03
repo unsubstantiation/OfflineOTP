@@ -35,6 +35,7 @@ import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.EntryPersistence
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.Tools
@@ -152,7 +153,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 }
                 if (accepted.isEmpty()) return BatchImportResult(0, skipped)
                 val now = System.currentTimeMillis()
-                accepted.forEach { it.updateOTP(false); it.setLastUsed(now) }
+                accepted.forEach { EntryUsage.markImported(it, now) }
                 val write = persistence.save(proposed, key, settings.getAutoBackupEncryptedPasswordsEnabled(),
                     UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
                 if (write !is VaultWriteResult.Saved) {
@@ -631,14 +632,11 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     private fun updateEntry(entry: Entry, realEntry: Entry, position: Int) {
-        if (entry.getCounter() >= Long.MAX_VALUE - 1) return
-        val counter = entry.getCounter() + 1
-
-        entry.setCounter(counter)
-        entry.updateOTP(false)
+        // The one-step advance and its ceiling are shared with the desktop counter action.
+        if (!EntryUsage.advanceHotp(entry)) return
         notifyItemChanged(position)
 
-        realEntry.setCounter(counter)
+        realEntry.setCounter(entry.getCounter())
         realEntry.updateOTP(false)
 
         saveEntries(settings.getAutoBackupEncryptedFullEnabled())
@@ -709,17 +707,13 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val safePosition = position.takeIf { it >= 0 && it < presentation.size() }
         val realEntry = ownedEntries[realIndex]
         val timeStamp = System.currentTimeMillis()
-        val entryUsedFrequency = realEntry.getUsedFrequency()
 
         if (safePosition != null) {
-            val displayEntry = presentation.get(safePosition)
-            val displayEntryUsedFrequency = displayEntry.getUsedFrequency()
-            displayEntry.setLastUsed(timeStamp)
-            displayEntry.setUsedFrequency(displayEntryUsedFrequency + 1)
+            // The stamping rule is shared with the desktop copy action, so the counters agree.
+            EntryUsage.recordUse(presentation.get(safePosition), timeStamp)
         }
 
-        realEntry.setLastUsed(timeStamp)
-        realEntry.setUsedFrequency(entryUsedFrequency + 1)
+        EntryUsage.recordUse(realEntry, timeStamp)
         saveEntries(false)
 
         if (presentation.resortAfterUsage()) {
@@ -822,7 +816,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
-        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey() || presentation.get(pos).isPassword() || presentation.get(pos).isPasswordArchive() || presentation.get(pos).isEmail()) return
+        if (!validDisplayedPosition(pos) || !presentation.get(pos).hasOtpUri()) return
         val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
@@ -868,7 +862,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
-        if (popupEntry.isNote() || popupEntry.isSshKey() || popupEntry.isPassword() || popupEntry.isPasswordArchive() || popupEntry.isEmail()) {
+        if (!popupEntry.hasOtpUri()) {
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
         }
@@ -997,7 +991,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         filter = null
     }
 
-    fun getTags(): List<String> = entries.getAllTags()
+    /** In-use tags in the shared display order (see EntryTagFilter.sortedNames). */
+    fun getTags(): List<String> = entries.getSortedTags()
 
     /** Per-tag entry counts for the drawer rows (#994). */
     fun getTagCounts(): Map<String, Int> = entries.getTagCounts()

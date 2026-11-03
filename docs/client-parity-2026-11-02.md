@@ -97,6 +97,26 @@ desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared ru
 - **Sort control surface.** Android keeps sort in the overflow menu, which it hides while the search
   view is open; the desktop client keeps a **Sort** dropdown in the search row, visible at all times.
 
+## One implementation, two clients
+
+Closing the gaps by writing the desktop side of each rule a second time would have left two copies
+to drift apart again, which is how the differences in this document appeared in the first place. The
+rules both clients need now live in `:core` and both shells call them:
+
+| Shared helper (`:core`) | What it owns | Used by |
+| --- | --- | --- |
+| `Utilities/EntryUsage` | the last-used/frequency stamp of one use (`recordUse`), the stamp a new or imported entry gets (`markImported`), and the one-step HOTP advance with its ceiling (`advanceHotp`) | Android `EntriesCardAdapter`, `ManualEntryDialog`, `MainActivity`; desktop `EntryEditor` |
+| `Database/EntryTagFilter` | the tag selection rule (AND/OR, tagless switch) and the tag-name ordering both clients list | Android `TagsAdapter`; desktop `DesktopVaultState`, `MainWindow`, `TagDialog`; `EntryList` itself |
+| `Utilities/VaultRestoreMerge` | the merge-or-replace plan a restore applies: imports first, entries the vault already holds kept as they are, duplicates destroyed rather than duplicated | Android `VaultRestoreOperation`; desktop `BackupCoordinator` |
+| `EntryListPresentation.categoryOf` | the entry kind → tab mapping (the projection's `matches` now uses it too) | Android `showEntryCategory`; desktop `MainWindow.addEntry` |
+| `Entry.hasOtpUri()` | whether an entry has an `otpauth://` form at all | Android QR popup visibility and `showQRCode`; desktop `QrCodeImage` |
+
+The shells keep what is genuinely platform-specific — dialog rendering, file choosers, Android
+`Filter` plumbing, the desktop's synchronous projection — and nothing else repeats a shared rule.
+`scripts/tests/test_shared_client_logic.py` fails the build if a shell re-implements any of these
+(tag `containsAll` predicates, `getUsedFrequency() + 1` counting, the HOTP ceiling literal, a
+hand-built merge list) or stops calling the shared helper.
+
 ## Verified identical
 
 Email tabs and their actions, backup formats and the dated export names, QR import with the

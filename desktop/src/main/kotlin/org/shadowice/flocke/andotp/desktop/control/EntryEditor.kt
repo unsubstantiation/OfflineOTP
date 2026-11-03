@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 
@@ -69,9 +70,9 @@ class EntryEditor(
             }
             if (accepted.isEmpty()) return 0
             // Android stamps an import with the current time so the new entries lead a
-            // "last used" list; without it they would sort below everything already used.
+            // "last used" list; the rule is shared so both clients stamp identically.
             val now = System.currentTimeMillis()
-            accepted.forEach { it.updateOTP(false); it.setLastUsed(now) }
+            accepted.forEach { EntryUsage.markImported(it, now) }
             if (!controller.save(state.key, proposed)) return null
             for (entry in accepted) check(state.add(entry))
             return accepted.size
@@ -171,8 +172,7 @@ class EntryEditor(
     }
 
     private fun recordCopy(entry: Entry, token: String): TokenCopyResult {
-        entry.setLastUsed(System.currentTimeMillis())
-        entry.setUsedFrequency(entry.getUsedFrequency() + 1)
+        EntryUsage.recordUse(entry)
         state.presentation.resortAfterUsage()
         return if (persist()) TokenCopyResult.Copied(token) else TokenCopyResult.PersistenceFailed
     }
@@ -183,10 +183,9 @@ class EntryEditor(
      * entries, at the [Long] counter ceiling, or when the vault write fails.
      */
     fun advanceHotp(entry: Entry): Boolean {
-        if (!entry.areDetailsVisible() || !entry.isCounterBased()) return false
-        if (entry.getCounter() >= Long.MAX_VALUE - 1) return false
-        entry.setCounter(entry.getCounter() + 1)
-        entry.updateOTP(false)
+        if (!entry.areDetailsVisible()) return false
+        // The ceiling and the one-step advance are shared with Android's counter chip.
+        if (!EntryUsage.advanceHotp(entry)) return false
         return persist()
     }
 

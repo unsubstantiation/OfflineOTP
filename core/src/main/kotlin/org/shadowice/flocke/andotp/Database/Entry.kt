@@ -340,6 +340,13 @@ open class Entry {
 
     fun isCounterBased(): Boolean = type == OTPType.HOTP
 
+    /**
+     * True when this entry has an `otpauth://` form — the same set Android offers **Show QR code**
+     * for. Notes, SSH keys, password entries, password archives and email accounts are stored as
+     * encrypted documents rather than OTP parameters, so there is nothing to encode.
+     */
+    fun hasOtpUri(): Boolean = isTimeBased() || isCounterBased()
+
     fun getType(): OTPType = type
 
     private fun invalidateCachedToken() {

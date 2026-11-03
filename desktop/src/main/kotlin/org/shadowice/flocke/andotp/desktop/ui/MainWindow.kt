@@ -2,6 +2,7 @@ package org.shadowice.flocke.andotp.desktop.ui
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
@@ -77,7 +78,7 @@ object MainWindow {
             val counts = unlocked.entryList.getTagCounts()
             val untagged = unlocked.snapshot().count { it.getTags().isEmpty() }
             val choices = arrayListOf(TagChoice(TagChoice.Kind.ALL), TagChoice(TagChoice.Kind.UNTAGGED, count = untagged))
-            counts.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { name ->
+            EntryTagFilter.sortedNames(counts.keys).forEach { name ->
                 choices.add(TagChoice(TagChoice.Kind.TAG, name, counts.getValue(name)))
             }
             val selected = previous?.let { old -> choices.firstOrNull { it.sameFilter(old) } } ?: choices.first()
@@ -255,9 +256,10 @@ object MainWindow {
 
         fun addEntry(type: Entry.OTPType) {
             val unlocked = requireUnlocked() ?: return
-            EntryDialog.prompt(frame, initialType = type, knownTags = unlocked.entryList.getAllTags())?.let { entry ->
+            EntryDialog.prompt(frame, initialType = type, knownTags = unlocked.entryList.getSortedTags())?.let { entry ->
                 if (editor?.add(entry) == true) {
-                    screen.categories.selectedIndex = when { entry.isNote() -> 1; entry.isSshKey() -> 2; else -> 0 }
+                    // The shared mapping decides the tab, exactly as Android's showEntryCategory.
+                    screen.categories.selectedIndex = EntryListPresentation.categoryOf(entry).ordinal
                     refreshProjection(unlocked)
                 } else {
                     entry.destroy()
@@ -388,7 +390,7 @@ object MainWindow {
             val existing = unlocked.presentation.get(table.convertRowIndexToModel(viewRow))
             if (!existing.areDetailsVisible()) return@addActionListener
             if (existing.isPassword() || existing.isPasswordArchive() || existing.isEmail()) return@addActionListener
-            EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getAllTags())?.let { replacement ->
+            EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getSortedTags())?.let { replacement ->
                 if (editor?.replace(existing, replacement) == true) {
                     refreshProjection(unlocked)
                 } else {
@@ -404,7 +406,7 @@ object MainWindow {
             if (row < 0) return@addActionListener
             val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
             if (!entry.areDetailsVisible()) return@addActionListener
-            TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getAllTags())?.let { tags ->
+            TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getSortedTags())?.let { tags ->
                 if (editor?.setTags(entry, tags) == true) {
                     refreshProjection(unlocked)
                 } else {

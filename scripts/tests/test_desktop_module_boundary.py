@@ -273,9 +273,10 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("fun copyToken(entry: Entry)", editor)
         self.assertIn("fun advanceHotp(entry: Entry): Boolean", editor)
         self.assertIn("TokenCopyResult", editor)
-        # Usage metadata mirrors the Android copy path; clipboard/AWT must not leak into control.
-        self.assertIn("setLastUsed", editor)
-        self.assertIn("setUsedFrequency", editor)
+        # Usage metadata goes through the shared rule both clients use (see
+        # test_shared_client_logic.py); clipboard/AWT must not leak into control.
+        self.assertIn("EntryUsage.recordUse(", editor)
+        self.assertIn("EntryUsage.advanceHotp(", editor)
         self.assertNotIn("javax.swing", editor)
         self.assertNotIn("java.awt", editor)
 

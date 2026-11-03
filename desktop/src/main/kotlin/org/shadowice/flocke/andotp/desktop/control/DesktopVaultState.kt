@@ -2,6 +2,7 @@ package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 
@@ -138,12 +139,9 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         presentation.setSearch(query, searchIncludes)
         val result = presentation.search(query, searchIncludes)
         if (selectedTags.isNotEmpty() || includeUntagged) {
+            // Shared with Android's tag drawer, so the same selection keeps the same rows.
             result.entries?.removeAll { entry ->
-                val tags = entry.getTags()
-                val tagMatch = if (selectedTags.isEmpty()) false
-                    else if (tagMode == Constants.TagFunctionality.AND) tags.containsAll(selectedTags)
-                    else selectedTags.any { it in tags }
-                !tagMatch && !(includeUntagged && tags.isEmpty())
+                !EntryTagFilter.matches(entry, selectedTags, includeUntagged, tagMode)
             }
         }
         presentation.publishSearch(result)
