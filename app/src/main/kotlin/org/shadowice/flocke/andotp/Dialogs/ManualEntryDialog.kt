@@ -27,7 +27,7 @@ import com.github.aakira.expandablelayout.ExpandableLinearLayout
 
 import org.shadowice.flocke.andotp.Activities.MainActivity
 import org.shadowice.flocke.andotp.Database.Entry
-import org.shadowice.flocke.andotp.Utilities.EntryUsage
+import org.shadowice.flocke.andotp.Database.EntryDraft
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
@@ -328,10 +328,8 @@ object ManualEntryDialog {
             }
             try {
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
-                val rawSecret = secretInput.text?.toString() ?: ""
-                // Notes must retain spaces and newlines verbatim.
-                val secret = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY)
-                    rawSecret else rawSecret.replace("\\s+".toRegex(), "")
+                // Notes and SSH keys keep their spaces and newlines; a secret never keeps any.
+                val secret = EntryDraft.sanitizeSecret(type, secretInput.text?.toString() ?: "")
 
                 // Only validate the typed secret for new entries; editing keeps the existing secret.
                 if (isNewEntry && type != Entry.OTPType.NOTE && type != Entry.OTPType.SSH_KEY &&
@@ -348,8 +346,9 @@ object ManualEntryDialog {
 
                 val algorithm = algorithmInput.getSelectedItem() as? TokenCalculator.HashAlgorithm
                     ?: TokenCalculator.HashAlgorithm.SHA1
-                val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
-                    else java.lang.Integer.parseInt(digitsInput.text?.toString() ?: "0")
+                val digitsText = digitsInput.text?.toString() ?: "0"
+                val periodText = periodInput.text?.toString() ?: "0"
+                val counterText = counterInput.text?.toString() ?: "0"
 
                 val issuer = issuerInput.text?.toString() ?: ""
                 val label = labelInput.text?.toString() ?: ""
@@ -368,8 +367,12 @@ object ManualEntryDialog {
                     val connection = SshConnection.of(sshHostInput.text?.toString(), port,
                         sshUsernameInput.text?.toString(), sshPasswordInput.text?.toString())
                     if (isNewEntry) {
-                        adapter.addEntry(Entry.sshKey(publicKey, secret, issuer, label,
-                            tagsAdapter.getActiveTags(), connection))
+                        // One shared builder assembles the draft for both dialogs, so a type this
+                        // form accepts is accepted on the desktop too.
+                        adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
+                            digitsText, periodText, algorithm, publicKey = publicKey,
+                            sshConnection = connection, tags = tagsAdapter.getActiveTags(),
+                            newEntry = true))
                     } else {
                         oldEntry!!.applyEdit { edited ->
                             edited.setLabel(label)
@@ -382,10 +385,11 @@ object ManualEntryDialog {
                     }
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.NOTE) {
-                    InputPolicy.note(secret)
                     if (label.isBlank()) throw IllegalArgumentException("A note needs a title")
                     if (isNewEntry) {
-                        adapter.addEntry(Entry(type, secret, issuer, label, tagsAdapter.getActiveTags()))
+                        adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
+                            digitsText, periodText, algorithm,
+                            tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
                         oldEntry!!.applyEdit { edited ->
                             edited.setLabel(label)
@@ -397,16 +401,14 @@ object ManualEntryDialog {
                     }
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
-                    val period = java.lang.Integer.parseInt(periodInput.text?.toString() ?: "0")
-
                     if (isNewEntry) {
-                        val validated = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        validated.destroy()
-                        val e = Entry(type, secret, period, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        EntryUsage.markImported(e)
-
-                        adapter.addEntry(e)
+                        adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
+                            digitsText, periodText, algorithm,
+                            tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
+                        val digits = EntryDraft.digits(digitsText)
+                        val period = EntryDraft.period(periodText)
+
                         // applyEdit() rolls the live entry back when the model rejects the new
                         // values; otherwise a too-large digits/period stayed on the entry and the
                         // next token refresh or vault write threw again.
@@ -425,16 +427,14 @@ object ManualEntryDialog {
 
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.HOTP) {
-                    val counter = java.lang.Long.parseLong(counterInput.text?.toString() ?: "0")
-
                     if (isNewEntry) {
-                        val validated = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        validated.destroy()
-                        val e = Entry(type, secret, counter, digits, issuer, label, algorithm, tagsAdapter.getActiveTags())
-                        EntryUsage.markImported(e)
-
-                        adapter.addEntry(e)
+                        adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
+                            digitsText, counterText, algorithm,
+                            tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
+                        val digits = EntryDraft.digits(digitsText)
+                        val counter = EntryDraft.counter(counterText)
+
                         oldEntry!!.applyEdit { edited ->
                             edited.setIssuer(issuer, true)
                             edited.setLabel(label)
@@ -451,12 +451,9 @@ object ManualEntryDialog {
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.MOTP) {
                     if (isNewEntry) {
-                        val validated = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
-                        validated.destroy()
-                        val newEntry = Entry(type, secret, issuer, label, tagsAdapter.getActiveTags())
-                        EntryUsage.markImported(newEntry)
-
-                        adapter.addEntry(newEntry)
+                        adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
+                            digitsText, periodText, algorithm,
+                            tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
                         oldEntry!!.applyEdit { edited ->
                             edited.setIssuer(issuer, true)

@@ -110,9 +110,11 @@ rules both clients need now live in `:core` and both shells call them:
 | `Utilities/VaultRestoreMerge` | the merge-or-replace plan a restore applies: imports first, entries the vault already holds kept as they are, duplicates destroyed rather than duplicated | Android `VaultRestoreOperation`; desktop `BackupCoordinator` |
 | `EntryListPresentation.categoryOf` | the entry kind → tab mapping (the projection's `matches` now uses it too) | Android `showEntryCategory`; desktop `MainWindow.addEntry` |
 | `Entry.hasOtpUri()` | whether an entry has an `otpauth://` form at all | Android QR popup visibility and `showQRCode`; desktop `QrCodeImage` |
+| `Database/EntryDraft` | assembling a manual-entry form into an entry: which constructor a type needs, what a blank period means, typed digits/period/counter parsing, which text keeps its whitespace, and the usage stamp a new entry gets | Android `ManualEntryDialog`; desktop `ui/EntryDialog` |
 
 The shells keep what is genuinely platform-specific — dialog rendering, file choosers, Android
-`Filter` plumbing, the desktop's synchronous projection — and nothing else repeats a shared rule.
+`Filter` plumbing, the desktop's synchronous projection, the desktop-only mOTP PIN field — and
+nothing else repeats a shared rule.
 `scripts/tests/test_shared_client_logic.py` fails the build if a shell re-implements any of these
 (tag `containsAll` predicates, `getUsedFrequency() + 1` counting, the HOTP ceiling literal, a
 hand-built merge list) or stops calling the shared helper.

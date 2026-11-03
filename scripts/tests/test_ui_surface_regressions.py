@@ -58,18 +58,21 @@ class ManualEntryEditSaveTest(unittest.TestCase):
             "an ungated validateSecret call would reject every edit save with an empty secret",
         )
 
-    def test_entry_construction_stays_inside_the_new_entry_branches(self):
-        """Each type branch may only build ``Entry(type, secret, ...)`` under ``isNewEntry``."""
+    def test_new_entries_are_built_through_the_shared_draft(self):
+        """The dialog no longer assembles a type itself; every new branch asks ``EntryDraft``."""
         text = self.DIALOG.read_text(encoding="utf-8")
-        constructions = list(re.finditer(r"val validated = Entry\(", text))
-        self.assertEqual(3, len(constructions),
-                         "expected one throwaway validation entry per entry type")
-        for match in constructions:
-            before = text[max(0, match.start() - 120):match.start()]
-            self.assertRegex(
-                before, r"if \(isNewEntry\) \{\s*$",
-                "Entry(type, secret, ...) construction must sit inside if (isNewEntry)",
-            )
+        self.assertEqual(5, text.count("EntryDraft.create(type, issuer, label, secret,"),
+                         "every type branch must build its new entry through EntryDraft")
+        self.assertEqual(5, text.count("newEntry = true"),
+                         "a new entry must be stamped through EntryDraft, never by hand")
+        self.assertNotRegex(
+            text, r"val validated = Entry\(",
+            "validation happens in the shared builder; a throwaway entry must not come back",
+        )
+        self.assertNotRegex(
+            text, r"\bEntry\.sshKey\(",
+            "the SSH assembly belongs to EntryDraft",
+        )
         # The edit branches consume only the old entry; nothing may decode the empty secret.
         self.assertNotRegex(
             text, r"oldEntry[^\n]*setSecret",

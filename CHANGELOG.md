@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Core: The two manual-entry dialogs now assemble their entry through one shared builder (`EntryDraft`), so a value one form accepts is accepted by the other — including the period/counter/digits wording, whitespace in a pasted secret, and the usage stamp a new entry gets (the desktop form now stamps a hand-typed entry as used, so it leads a "last used" list as it does on Android)
+
  * Core: Give both clients one implementation of the rules they share — usage counting and the last-used stamp (`EntryUsage`), the one-step HOTP advance and its ceiling, the tag selection rule and tag ordering (`EntryTagFilter`), the entry-to-tab mapping (`EntryListPresentation.categoryOf`), whether an entry has an `otpauth://` QR form (`Entry.hasOtpUri`), and the merge-or-replace plan a restore applies (`VaultRestoreMerge`) — so a phone and a desktop copy of the same vault cannot follow different rules and a fix lands once
 
  * Desktop: Restore asks the same question as Android's backup screen — a **Replace existing entries** switch, off by default, so a restore merges the backup into the vault (new entries first, existing ones keeping their counters and metadata) instead of silently discarding the current entries; and **Tools → Restore plain-text backup…** imports a legacy unencrypted JSON backup through the same shared decoder and warning Android uses

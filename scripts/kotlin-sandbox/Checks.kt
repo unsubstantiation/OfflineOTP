@@ -29,6 +29,7 @@ import org.shadowice.flocke.andotp.Tasks.TaskStart
 import org.shadowice.flocke.andotp.Tasks.TaskState
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.EntryDraft
 import org.shadowice.flocke.andotp.Database.EntryList
 import org.shadowice.flocke.andotp.Database.EntryJson
 import org.shadowice.flocke.andotp.Database.EntryJsonError
@@ -7450,6 +7451,54 @@ fun main() {
             VaultSession.lock()
             raw.fill(0)
             prf.fill(0)
+        }
+    }
+
+    check("manual entry drafts assemble every offerable type through one builder") {
+        val tags = arrayListOf("work")
+        // Both dialogs clean the typed secret first: wrapping whitespace is a typing artefact.
+        val totp = EntryDraft.create(Entry.OTPType.TOTP, "issuer", "label",
+            EntryDraft.sanitizeSecret(Entry.OTPType.TOTP, "JBSW Y3DP\nEHPK 3PXP"),
+            " 8 ", " 45 ", TokenCalculator.HashAlgorithm.SHA1, tags = tags)
+        val hotp = EntryDraft.create(Entry.OTPType.HOTP, "issuer", "label",
+            "JBSWY3DPEHPK3PXP", "6", "17", TokenCalculator.HashAlgorithm.SHA256)
+        val note = EntryDraft.create(Entry.OTPType.NOTE, "issuer", "label",
+            "two\nlines", "nonsense", "", TokenCalculator.HashAlgorithm.SHA1)
+        val motp = EntryDraft.create(Entry.OTPType.MOTP, "issuer", "label",
+            "raw seed", "nonsense", "", TokenCalculator.HashAlgorithm.SHA1, pin = "1234")
+        try {
+            expect(totp.getDigits() == 8 && totp.getPeriod() == 45 && totp.getAlgorithm() == TokenCalculator.HashAlgorithm.SHA1,
+                    { "TOTP draft lost its typed parameters: ${totp.getDigits()}/${totp.getPeriod()}" })
+            expect(totp.getTags() == listOf("work"), { "draft lost its tags: ${totp.getTags()}" })
+            expect(hotp.getCounter() == 17L, { "HOTP draft did not read the counter: ${hotp.getCounter()}" })
+            expect(note.getNote() == "two\nlines" && note.getDigits() == TokenCalculator.TOTP_DEFAULT_DIGITS,
+                    { "a note kept OTP parameters it cannot use" })
+            expect(motp.getSecretEncoded() == "raw seed" && motp.getPin() == "1234",
+                    { "mOTP draft changed its raw seed or lost its PIN" })
+            // A new entry is stamped as used now; an edited draft keeps the stamp it was given.
+            expect(totp.getLastUsed() == 0L && totp.getUsedFrequency() == 0L,
+                    { "an edit draft was stamped as new" })
+            val fresh = EntryDraft.create(Entry.OTPType.TOTP, "issuer", "label",
+                "JBSWY3DPEHPK3PXP", "6", "30", TokenCalculator.HashAlgorithm.SHA1, newEntry = true)
+            try {
+                expect(fresh.getLastUsed() > 0L, { "a new draft was not stamped as used now" })
+            } finally { fresh.destroy() }
+            // Unparsable form fields are a rejection the dialog can report, not a crash.
+            var rejected = 0
+            for (bad in listOf("six", "", "6.0")) {
+                try {
+                    EntryDraft.create(Entry.OTPType.TOTP, "issuer", "label", "JBSWY3DPEHPK3PXP",
+                        bad, "30", TokenCalculator.HashAlgorithm.SHA1)
+                } catch (_: IllegalArgumentException) { rejected++ }
+            }
+            expect(rejected == 3, { "only $rejected of 3 unparsable digits fields were rejected" })
+            try {
+                EntryDraft.create(Entry.OTPType.EMAIL, "issuer", "label", "{}", "6", "30",
+                    TokenCalculator.HashAlgorithm.SHA1)
+                throw AssertionError("the draft builder assembled an email entry")
+            } catch (_: IllegalArgumentException) { }
+        } finally {
+            totp.destroy(); hotp.destroy(); note.destroy(); motp.destroy()
         }
     }
 

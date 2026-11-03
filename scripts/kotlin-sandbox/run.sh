@@ -40,6 +40,7 @@ fi
 
 CORE_SOURCES=(
     "$KOTLIN_CORE/Database/Entry.kt"
+    "$KOTLIN_CORE/Database/EntryDraft.kt"
     "$KOTLIN_CORE/Database/EntryJson.kt"
     "$KOTLIN_CORE/Database/EntryJsonResult.kt"
     "$KOTLIN_CORE/Database/EntryList.kt"

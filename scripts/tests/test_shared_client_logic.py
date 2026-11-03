@@ -4,8 +4,8 @@ Android and the desktop client are thin shells over `:core`, but several small r
 written out in each shell: how a use is counted, how an HOTP counter advances, how a tag selection
 is matched, which tab an entry belongs to, and how a restored backup is merged with the open vault.
 Those copies are now single core helpers (`EntryUsage`, `EntryTagFilter`, `VaultRestoreMerge`,
-`EntryListPresentation.categoryOf`, `Entry.hasOtpUri`); these guards keep the shells using them and
-keep the duplicated forms from creeping back.
+`EntryListPresentation.categoryOf`, `Entry.hasOtpUri`, `EntryDraft`); these guards keep the shells
+using them and keep the duplicated forms from creeping back.
 """
 import re
 import unittest
@@ -32,7 +32,7 @@ def joined(root):
 class SharedClientLogicTest(unittest.TestCase):
     def test_the_shared_helpers_live_in_core(self):
         for name in ("Utilities/EntryUsage.kt", "Database/EntryTagFilter.kt",
-                     "Utilities/VaultRestoreMerge.kt"):
+                     "Utilities/VaultRestoreMerge.kt", "Database/EntryDraft.kt"):
             self.assertTrue((CORE / name).is_file(), f"{name} must live in :core")
             self.assertFalse((APP / name).exists(), f"{name} must not be duplicated in the app")
             self.assertFalse((DESKTOP / name).exists(),
@@ -44,7 +44,8 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("EntryUsage.recordUse(", text(DESKTOP / "control/EntryEditor.kt"))
         # New and imported entries are stamped through the shared helper as well.
         self.assertIn("EntryUsage.markImported(", text(APP / "View/EntriesCardAdapter.kt"))
-        self.assertIn("EntryUsage.markImported(", text(APP / "Dialogs/ManualEntryDialog.kt"))
+        # The manual-entry dialogs stamp through EntryDraft.create(..., newEntry = true).
+        self.assertIn("EntryDraft.create(", text(APP / "Dialogs/ManualEntryDialog.kt"))
         self.assertIn("EntryUsage.markImported(", text(DESKTOP / "control/EntryEditor.kt"))
         # The HOTP advance and its ceiling are shared, not re-derived per client.
         self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/EntriesCardAdapter.kt"))
@@ -85,10 +86,32 @@ class SharedClientLogicTest(unittest.TestCase):
         # The desktop used to build the merged list by hand; that copy must not return.
         self.assertNotIn("merged.addAll(current)", text(DESKTOP / "control/BackupCoordinator.kt"))
 
+    def test_both_manual_entry_forms_build_through_the_shared_draft(self):
+        android = text(APP / "Dialogs/ManualEntryDialog.kt")
+        desktop = text(DESKTOP / "ui/EntryDialog.kt")
+        for body, name in ((android, "Android"), (desktop, "desktop")):
+            self.assertIn("EntryDraft.create(", body,
+                          f"{name} must assemble entries through EntryDraft")
+            self.assertIn("EntryDraft.sanitizeSecret(", body,
+                          f"{name} must read secrets through EntryDraft.sanitizeSecret")
+            # Assembling an entry per type in a shell is the copy that drifted before.
+            self.assertIsNone(re.search(r"\bEntry\.sshKey\(", body),
+                              f"{name} must not build SSH entries by hand")
+            self.assertIsNone(re.search(r"\bEntry\(type,", body),
+                              f"{name} must not build drafts from per-type constructors")
+            # A Save button may test its own fields, but the values that reach the model are
+            # parsed once, by the shared builder.
+            for stale in ("Integer.parseInt(digitsInput", "Long.parseLong(counterInput",
+                          "Integer.parseInt(periodInput"):
+                self.assertNotIn(stale, body, f"{name} must parse numbers through EntryDraft")
+        # A new entry is stamped; an edit keeps the stamp the entry already carries.
+        self.assertIn("newEntry = true", android)
+        self.assertIn("newEntry = existing == null", desktop)
+
     def test_the_sandbox_gate_compiles_the_shared_helpers(self):
         script = text(ROOT / "scripts/kotlin-sandbox/run.sh")
         for name in ("Utilities/EntryUsage.kt", "Database/EntryTagFilter.kt",
-                     "Utilities/VaultRestoreMerge.kt"):
+                     "Utilities/VaultRestoreMerge.kt", "Database/EntryDraft.kt"):
             self.assertIn(f'"$KOTLIN_CORE/{name}"', script,
                           f"{name} must be listed in scripts/kotlin-sandbox/run.sh")
 

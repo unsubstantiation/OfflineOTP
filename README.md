@@ -107,8 +107,9 @@ app bar, the same bundled issuer logos, entry cards that lift on hover, dark con
 Codes are drawn in amber and turn red as the code is about to change; native window decorations
 may still differ by platform. The rules the two clients share — usage counting and last-used stamps,
 the HOTP step, tag matching and tag order, which tab an entry belongs to, whether an entry can be
-shown as a QR code, and how a restore merges or replaces — are single `:core` implementations used
-by both, not two copies.
+shown as a QR code, how a restore merges or replaces, and how a manual-entry form becomes an entry
+(including which values it accepts and what it does with a pasted secret) — are single `:core`
+implementations used by both, not two copies.
 
 Features:
 
