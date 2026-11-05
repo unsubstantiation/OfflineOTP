@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.PasswordVault
 import org.shadowice.flocke.andotp.Utilities.VaultReadError
 import org.shadowice.flocke.andotp.Utilities.VaultWriteError
@@ -51,7 +52,31 @@ class VaultController(private val vault: PasswordVault) {
     fun save(key: SecretKey, entries: ArrayList<Entry>): Boolean =
         vault.save(key, entries) is VaultWriteResult.Saved
 
+    /**
+     * The list order chosen last time, mirroring Android's persisted sort setting. A missing or
+     * unreadable value falls back to the vault order, never to an exception.
+     */
+    fun savedSortMode(): Constants.SortMode = try {
+        Constants.SortMode.valueOf(vault.preferences.getString(SORT_MODE_KEY, Constants.SortMode.UNSORTED.name))
+    } catch (_: RuntimeException) {
+        Constants.SortMode.UNSORTED
+    }
+
+    /** Remembers the list order beside the vault; a write failure only loses the preference. */
+    fun saveSortMode(mode: Constants.SortMode) {
+        try {
+            vault.preferences.putString(SORT_MODE_KEY, mode.name)
+        } catch (_: Exception) {
+            // The order still applies to the open session.
+        }
+    }
+
     fun backup(): Boolean = vault.backup()
+
+    private companion object {
+        /** Key used in the client settings file; never part of the encrypted vault document. */
+        const val SORT_MODE_KEY = "ui_sort_mode"
+    }
 
     private fun mapRead(error: VaultReadError): Failure = when (error) {
         VaultReadError.MISSING, VaultReadError.MISSING_KEY -> Failure.MISSING

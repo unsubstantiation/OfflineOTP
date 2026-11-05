@@ -2,6 +2,8 @@ package org.shadowice.flocke.andotp.desktop.ui
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.desktop.control.BackupCoordinator
 import org.shadowice.flocke.andotp.desktop.control.DesktopVaultState
@@ -10,6 +12,7 @@ import org.shadowice.flocke.andotp.desktop.control.HardwareKeyManager
 import org.shadowice.flocke.andotp.desktop.control.TokenTicker
 import org.shadowice.flocke.andotp.desktop.control.VaultController
 import org.shadowice.flocke.andotp.desktop.model.EntryTableModel
+import org.shadowice.flocke.andotp.desktop.qr.QrCodeImage
 
 import java.awt.Dimension
 import java.awt.Toolkit
@@ -55,6 +58,7 @@ object MainWindow {
         var coordinator: BackupCoordinator? = null
         var editor: EntryEditor? = null
         var updatingTagChoices = false
+        var updatingSortChoice = false
 
         fun showError(failure: VaultController.Failure) {
             val message = when (failure) {
@@ -74,7 +78,7 @@ object MainWindow {
             val counts = unlocked.entryList.getTagCounts()
             val untagged = unlocked.snapshot().count { it.getTags().isEmpty() }
             val choices = arrayListOf(TagChoice(TagChoice.Kind.ALL), TagChoice(TagChoice.Kind.UNTAGGED, count = untagged))
-            counts.keys.sortedWith(String.CASE_INSENSITIVE_ORDER).forEach { name ->
+            EntryTagFilter.sortedNames(counts.keys).forEach { name ->
                 choices.add(TagChoice(TagChoice.Kind.TAG, name, counts.getValue(name)))
             }
             val selected = previous?.let { old -> choices.firstOrNull { it.sameFilter(old) } } ?: choices.first()
@@ -87,9 +91,23 @@ object MainWindow {
                 unlocked.applyTagFilter(emptyList(), false)
         }
 
+        /** The combo is a view of the saved preference; setting it must not re-apply the order. */
+        fun selectSortChoice(mode: Constants.SortMode) {
+            updatingSortChoice = true
+            try {
+                for (index in 0 until screen.sortOrder.itemCount) {
+                    val choice = screen.sortOrder.getItemAt(index)
+                    if (choice.mode == mode) { screen.sortOrder.selectedIndex = index; return }
+                }
+            } finally { updatingSortChoice = false }
+        }
+
         fun bind(session: VaultController.Session.Loaded) {
+            val savedSort = controller.savedSortMode()
+            selectSortChoice(savedSort)
             val unlocked = DesktopVaultState(session.key).apply {
                 presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                presentation.setSortMode(savedSort)
                 load(session.entries)
             }
             state = unlocked
@@ -182,6 +200,36 @@ object MainWindow {
             }
         }
 
+        /**
+         * Manual ordering, the desktop counterpart of Android's drag handle: the shared
+         * [EntryListPresentation.canDrag] rule limits it to the unsorted, unfiltered view.
+         */
+        fun moveSelected(delta: Int) {
+            val unlocked = requireUnlocked() ?: return
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return
+            val target = viewRow + delta
+            if (target !in 0 until table.rowCount) return
+            val from = table.convertRowIndexToModel(viewRow)
+            val to = table.convertRowIndexToModel(target)
+            if (editor?.move(from, to) == true) {
+                refreshProjection(unlocked)
+                if (target in 0 until table.rowCount) table.setRowSelectionInterval(target, target)
+            }
+        }
+
+        /** Desktop counterpart of Android's **Show QR code** popup item. */
+        fun showQrCode() {
+            requireUnlocked() ?: return
+            val viewRow = table.selectedRow
+            if (viewRow < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
+            if (!QrCodeDialog.show(frame, entry)) {
+                JOptionPane.showMessageDialog(frame, QrCodeDialog.UNSUPPORTED, TITLE,
+                    JOptionPane.INFORMATION_MESSAGE)
+            }
+        }
+
         /** Desktop counterpart of the Android counter chip: explicit HOTP counter advance. */
         fun advanceSelectedHotp() {
             requireUnlocked() ?: return
@@ -208,9 +256,10 @@ object MainWindow {
 
         fun addEntry(type: Entry.OTPType) {
             val unlocked = requireUnlocked() ?: return
-            EntryDialog.prompt(frame, initialType = type, knownTags = unlocked.entryList.getAllTags())?.let { entry ->
+            EntryDialog.prompt(frame, initialType = type, knownTags = unlocked.entryList.getSortedTags())?.let { entry ->
                 if (editor?.add(entry) == true) {
-                    screen.categories.selectedIndex = when { entry.isNote() -> 1; entry.isSshKey() -> 2; else -> 0 }
+                    // The shared mapping decides the tab, exactly as Android's showEntryCategory.
+                    screen.categories.selectedIndex = EntryListPresentation.categoryOf(entry).ordinal
                     refreshProjection(unlocked)
                 } else {
                     entry.destroy()
@@ -239,9 +288,18 @@ object MainWindow {
             }
         }
 
+        screen.sortOrder.addActionListener {
+            if (!updatingSortChoice) state?.let { unlocked ->
+                val choice = screen.sortOrder.selectedItem as? SortChoice ?: return@let
+                unlocked.applySortMode(choice.mode)
+                controller.saveSortMode(choice.mode)
+                refreshProjection(unlocked)
+            }
+        }
+
         screen.categories.addChangeListener {
             state?.let { unlocked ->
-                unlocked.presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                unlocked.applyCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
                 refreshProjection(unlocked)
             }
         }
@@ -271,6 +329,38 @@ object MainWindow {
             PasswordImportDialogs.export(frame, entry)
         }
 
+        /** Manual FairEmail-compatible account, the desktop counterpart of Android's + action. */
+        fun addEmailAccount() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (EmailDialogs.addAccount(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun importEmailBackup() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (EmailDialogs.importBackup(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun exportEmailBackup() {
+            val unlocked = requireUnlocked() ?: return
+            EmailDialogs.exportBackup(frame, unlocked.snapshot())
+        }
+
+        fun showEmailDetails() {
+            requireUnlocked() ?: return
+            val row = table.selectedRow
+            if (row < 0) return
+            val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+            EmailDialogs.showDetails(frame, entry)
+        }
+
         screen.newVaultButton.addActionListener {
             PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
         }
@@ -281,6 +371,7 @@ object MainWindow {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
+            add(JMenuItem("Add email account…").apply { addActionListener { addEmailAccount() } })
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
@@ -299,7 +390,7 @@ object MainWindow {
             val existing = unlocked.presentation.get(table.convertRowIndexToModel(viewRow))
             if (!existing.areDetailsVisible()) return@addActionListener
             if (existing.isPassword() || existing.isPasswordArchive() || existing.isEmail()) return@addActionListener
-            EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getAllTags())?.let { replacement ->
+            EntryDialog.prompt(frame, existing, knownTags = unlocked.entryList.getSortedTags())?.let { replacement ->
                 if (editor?.replace(existing, replacement) == true) {
                     refreshProjection(unlocked)
                 } else {
@@ -315,7 +406,7 @@ object MainWindow {
             if (row < 0) return@addActionListener
             val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
             if (!entry.areDetailsVisible()) return@addActionListener
-            TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getAllTags())?.let { tags ->
+            TagDialog.prompt(frame, entry.getTags().toList(), unlocked.entryList.getSortedTags())?.let { tags ->
                 if (editor?.setTags(entry, tags) == true) {
                     refreshProjection(unlocked)
                 } else {
@@ -329,6 +420,12 @@ object MainWindow {
             val viewRow = table.selectedRow
             if (viewRow < 0) return@addActionListener
             val row = table.convertRowIndexToModel(viewRow)
+            val selected = unlocked.presentation.get(row)
+            // Android confirms a removal by name; a single click here must not drop an entry.
+            if (JOptionPane.showConfirmDialog(frame,
+                    removalConfirmationMessage(selected.getLabel(), selected.getIssuer()),
+                    "Remove", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
+                != JOptionPane.YES_OPTION) return@addActionListener
             if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
                 refreshProjection(unlocked)
             } else {
@@ -340,21 +437,30 @@ object MainWindow {
 
         // Right-click or the keyboard context-menu key opens the same row actions.
         val counterDivider = JPopupMenu.Separator()
+        val orderDivider = JPopupMenu.Separator()
         val rowMenu = JPopupMenu().apply {
             add(JMenuItem("Copy selected").apply { addActionListener { copySelectedToken() } })
             add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
             add(JMenuItem("Tags…").apply { addActionListener { screen.tagsButton.doClick() } })
             add(JMenuItem("View password details…").apply { addActionListener { showPasswordDetails() } })
             add(JMenuItem("Export password file…").apply { addActionListener { exportPasswordFile() } })
+            add(JMenuItem("View email details…").apply { addActionListener { showEmailDetails() } })
             add(JMenuItem("Delete").apply { addActionListener { screen.deleteButton.doClick() } })
             add(counterDivider)
             add(JMenuItem("Advance HOTP counter").apply { addActionListener { advanceSelectedHotp() } })
+            add(JMenuItem("Show QR code…").apply { addActionListener { showQrCode() } })
+            add(orderDivider)
+            add(JMenuItem("Move up").apply { addActionListener { moveSelected(-1) } })
+            add(JMenuItem("Move down").apply { addActionListener { moveSelected(1) } })
         }
         fun showRowMenu(viewRow: Int, x: Int, y: Int) {
             if (viewRow !in 0 until table.rowCount) return
             table.setRowSelectionInterval(viewRow, viewRow)
             val entry = (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(viewRow))
             counterDivider.isVisible = entry.isCounterBased()
+            // Android only drags in the unsorted, unfiltered view, and only encodes OTP entries.
+            val canReorder = state?.presentation?.canDrag() == true
+            orderDivider.isVisible = canReorder
             rowMenu.components.forEach { component ->
                 if (component is JMenuItem) when (component.text) {
                     "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive() && !entry.isEmail()
@@ -362,10 +468,17 @@ object MainWindow {
                     "Tags…" -> component.isEnabled = entry.areDetailsVisible()
                     "View password details…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
                     "Export password file…" -> { component.isVisible = entry.isPasswordArchive(); component.isEnabled = entry.areDetailsVisible() }
+                    "View email details…" -> { component.isVisible = entry.isEmail(); component.isEnabled = entry.areDetailsVisible() }
                     "Advance HOTP counter" -> {
                         component.isVisible = entry.isCounterBased()
                         component.isEnabled = entry.areDetailsVisible()
                     }
+                    "Show QR code…" -> {
+                        component.isVisible = QrCodeImage.payloadFor(entry) != null
+                        component.isEnabled = entry.areDetailsVisible()
+                    }
+                    "Move up" -> component.isEnabled = canReorder && viewRow > 0
+                    "Move down" -> component.isEnabled = canReorder && viewRow < table.rowCount - 1
                 }
             }
             rowMenu.show(table, x, y)
@@ -404,6 +517,17 @@ object MainWindow {
                 }
             }
         })
+        // Alt+Up/Down reorder without opening the menu, the keyboard equivalent of dragging a card.
+        table.getInputMap(JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT).apply {
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_UP, InputEvent.ALT_DOWN_MASK), "moveEntryUp")
+            put(KeyStroke.getKeyStroke(KeyEvent.VK_DOWN, InputEvent.ALT_DOWN_MASK), "moveEntryDown")
+        }
+        table.actionMap.put("moveEntryUp", object : AbstractAction() {
+            override fun actionPerformed(event: ActionEvent) = moveSelected(-1)
+        })
+        table.actionMap.put("moveEntryDown", object : AbstractAction() {
+            override fun actionPerformed(event: ActionEvent) = moveSelected(1)
+        })
 
         search.document.addDocumentListener(object : SimpleDocumentListener {
             override fun update() {
@@ -423,6 +547,9 @@ object MainWindow {
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
+                addSeparator()
+                add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
+                add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })
                 add(JMenuItem("Encrypted backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })
@@ -441,6 +568,14 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreOpenPgp(frame, it)
+                            state?.let { unlocked -> refreshProjection(unlocked) }
+                        }
+                    }
+                })
+                add(JMenuItem("Restore plain-text backup…").apply {
+                    addActionListener {
+                        coordinator?.let {
+                            BackupDialogs.restorePlainText(frame, it)
                             state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }

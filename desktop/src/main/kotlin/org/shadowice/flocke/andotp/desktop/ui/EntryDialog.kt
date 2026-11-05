@@ -1,6 +1,7 @@
 package org.shadowice.flocke.andotp.desktop.ui
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.EntryDraft
 import org.shadowice.flocke.andotp.Utilities.SshConnection
 import org.shadowice.flocke.andotp.Utilities.TokenCalculator
 
@@ -66,9 +67,7 @@ object EntryDialog {
         val sshPasswordLabel = JLabel("Password (optional)")
         val secretLabel = JLabel("Secret (Base32)")
         val typeLabel = JLabel("Type")
-        val type = JComboBox(Entry.OTPType.entries.filter {
-            it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && it != Entry.OTPType.EMAIL
-        }.toTypedArray()).apply {
+        val type = JComboBox(EntryDraft.offerableTypes().toTypedArray()).apply {
             selectedItem = existing?.getType() ?: initialType.takeUnless { it == Entry.OTPType.EMAIL }
                 ?: Entry.OTPType.TOTP
             // Android keeps the OTP type fixed on edit; a switch would rebuild the entry and drop
@@ -227,23 +226,15 @@ object EntryDialog {
                     SshConnection.of(sshHost.text, SshConnection.port(sshPort.text),
                         sshUsername.text, String(sshPassword.password))
                 } else null
-                val replacement = buildEntry(
+                buildEntry(
                     type.selectedItem as Entry.OTPType,
                     issuer.text, label.text,
-                    if (type.selectedItem == Entry.OTPType.NOTE || type.selectedItem == Entry.OTPType.SSH_KEY) secret.text
-                    else secret.text.ifEmpty { existing?.getSecretEncoded() },
+                    enteredSecret(type.selectedItem as Entry.OTPType, secret.text, existing),
                     digits.text, periodOrCounter.text,
                     TokenCalculator.HashAlgorithm.valueOf(algorithm.selectedItem as String),
-                    pin.text, publicKey.text, connection)
-                try {
-                    if (existing != null) preserveEditMetadata(existing, replacement)
-                    replacement.setTags(ArrayList(selectedTags))
-                    replacement.validate()
-                    replacement
-                } catch (error: RuntimeException) {
-                    replacement.destroy()
-                    throw error
-                }
+                    pin.text, publicKey.text, connection, selectedTags,
+                    newEntry = existing == null)
+                    .also { if (existing != null) preserveEditMetadata(existing, it) }
             } catch (error: IllegalArgumentException) {
                 JOptionPane.showMessageDialog(parent, error.message ?: "Invalid entry",
                     "Invalid entry", JOptionPane.ERROR_MESSAGE)
@@ -259,43 +250,35 @@ object EntryDialog {
         }
     }
 
+    /**
+     * The secret the form sends to the model: the typed text for notes and SSH keys, and the typed
+     * text or, when the field is left empty on an edit, the secret the entry already holds. Typed
+     * OTP secrets go through the shared whitespace rule so a pasted, wrapped secret works here as
+     * it does on the phone.
+     */
+    private fun enteredSecret(type: Entry.OTPType, typed: String, existing: Entry?): String {
+        if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) return typed
+        val cleaned = EntryDraft.sanitizeSecret(type, typed)
+        return cleaned.ifEmpty { existing?.getSecretEncoded() }.orEmpty()
+    }
+
     private fun preserveEditMetadata(existing: Entry, replacement: Entry) {
         replacement.setDetailsVisible(existing.areDetailsVisible())
         replacement.setLastUsed(existing.getLastUsed())
         replacement.setUsedFrequency(existing.getUsedFrequency())
     }
 
+    /**
+     * Assembles the draft through the shared builder, so the desktop form and the Android form
+     * accept exactly the same values for the same type, with the same wording when they do not.
+     */
     private fun buildEntry(
         type: Entry.OTPType, issuer: String, label: String, secret: String?,
         digitsText: String, timingText: String, algorithm: TokenCalculator.HashAlgorithm,
         pinText: String, publicKeyText: String,
-        sshConnection: SshConnection.Details? = null
-    ): Entry {
-        val digits = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) TokenCalculator.TOTP_DEFAULT_DIGITS
-            else digitsText.toIntOrNull() ?: throw IllegalArgumentException("Digits must be a number")
-        return when (type) {
-            Entry.OTPType.PASSWORD, Entry.OTPType.PASSWORD_ARCHIVE -> throw IllegalArgumentException("Use password import")
-            Entry.OTPType.EMAIL -> throw IllegalArgumentException("Email entries must be managed through FairEmail import/export")
-            Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, arrayListOf())
-            Entry.OTPType.SSH_KEY -> Entry.sshKey(publicKeyText, secret ?: "", issuer, label, arrayListOf(),
-                sshConnection)
-            Entry.OTPType.HOTP -> {
-                val counter = timingText.toLongOrNull()
-                    ?: throw IllegalArgumentException("HOTP counter must be a number")
-                Entry(type, secret, counter, digits, issuer, label, algorithm, arrayListOf())
-            }
-            Entry.OTPType.MOTP -> {
-                // mOTP seeds are raw strings rather than Base32; the simple constructor stores
-                // them verbatim and validate() enforces the seed bounds.
-                Entry(type, secret ?: "", issuer, label, arrayListOf()).apply {
-                    if (pinText.isNotEmpty()) setPin(pinText)
-                }
-            }
-            Entry.OTPType.TOTP, Entry.OTPType.STEAM -> {
-                val period = timingText.toIntOrNull()
-                    ?: throw IllegalArgumentException("Period must be a number")
-                Entry(type, secret, period, digits, issuer, label, algorithm, arrayListOf())
-            }
-        }
-    }
+        sshConnection: SshConnection.Details?, tags: List<String>, newEntry: Boolean
+    ): Entry = EntryDraft.create(
+        type, issuer, label, secret, digitsText, timingText, algorithm,
+        pin = pinText, publicKey = publicKeyText, sshConnection = sshConnection,
+        tags = ArrayList(tags), newEntry = newEntry)
 }

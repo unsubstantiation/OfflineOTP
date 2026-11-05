@@ -21,3 +21,9 @@ synchronization would also conflict with the current offline contract.
 Host JVM and sandbox checks use Android stand-ins. The new device tests must still run on real
 API 28 and API 36 environments, alongside both-flavor Gradle builds, lint and provider tests;
 stand-in compilation is not Android runtime acceptance.
+
+**Follow-up (2026-11-01):** [incomplete-feature-audit-2026-11-01.md](incomplete-feature-audit-2026-11-01.md)
+completed the FairEmail email-entry feature on the desktop client (tab, connection details,
+manual add, import/export), which this audit did not cover, and moved the connection-details rows
+into `:core` so both clients share them. The note above about automatic-backup pruning is unchanged:
+completed backups are still retained.

@@ -1,6 +1,11 @@
 package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
+import org.shadowice.flocke.andotp.Utilities.InputPolicy
+import org.shadowice.flocke.andotp.View.EntryListPresentation
+
+import java.util.Collections
 
 /**
  * Applies entry mutations to the unlocked [DesktopVaultState] and persists each successful one
@@ -31,9 +36,19 @@ class EntryEditor(
         return false
     }
 
+    /**
+     * Adds one entry. Refuses an equal entry or a vault that already holds [InputPolicy.MAX_ENTRIES]
+     * entries, the same ceiling Android applies before it adds, so neither client can build a vault
+     * the other will not extend.
+     */
     fun add(entry: Entry): Boolean {
         val proposed = state.snapshot()
-        if (proposed.contains(entry)) return false
+        if (proposed.contains(entry) || proposed.size >= InputPolicy.MAX_ENTRIES) return false
+        try {
+            entry.validate()
+        } catch (_: IllegalArgumentException) {
+            return false
+        }
         proposed.add(entry)
         if (!controller.save(state.key, proposed)) return false
         return state.add(entry)
@@ -47,11 +62,18 @@ class EntryEditor(
         try {
             for (entry in incoming) {
                 entry.validate()
-                if (seen.add(entry)) { proposed.add(entry); accepted.add(entry) }
+                if (!seen.add(entry)) continue
+                // Android refuses the rest of the batch at the ceiling rather than writing past it.
+                if (proposed.size >= InputPolicy.MAX_ENTRIES) return null
+                proposed.add(entry)
+                accepted.add(entry)
             }
             if (accepted.isEmpty()) return 0
-            if (proposed.size > org.shadowice.flocke.andotp.Utilities.InputPolicy.MAX_ENTRIES ||
-                !controller.save(state.key, proposed)) return null
+            // Android stamps an import with the current time so the new entries lead a
+            // "last used" list; the rule is shared so both clients stamp identically.
+            val now = System.currentTimeMillis()
+            accepted.forEach { EntryUsage.markImported(it, now) }
+            if (!controller.save(state.key, proposed)) return null
             for (entry in accepted) check(state.add(entry))
             return accepted.size
         } finally {
@@ -95,6 +117,23 @@ class EntryEditor(
         return state.replace(existing, replacement)
     }
 
+    /**
+     * Moves the row at [fromDisplayed] past its neighbour [toDisplayed], the desktop counterpart of
+     * Android's drag handle. The manual order lives in the vault, so the swap is persisted; the
+     * move is refused (and nothing is written) whenever [EntryListPresentation.canDrag] is false,
+     * exactly as Android ignores a drag in a sorted or filtered view.
+     */
+    fun move(fromDisplayed: Int, toDisplayed: Int): Boolean {
+        if (!state.presentation.canDrag()) return false
+        val proposed = state.snapshot()
+        val from = state.presentation.sourceIndex(fromDisplayed)
+        val to = state.presentation.sourceIndex(toDisplayed)
+        if (from !in proposed.indices || to !in proposed.indices) return false
+        Collections.swap(proposed, from, to)
+        if (!controller.save(state.key, proposed)) return false
+        return state.move(fromDisplayed, toDisplayed)
+    }
+
     fun removeAt(position: Int): Boolean {
         val proposed = state.snapshot()
         if (position !in proposed.indices) return false
@@ -133,8 +172,7 @@ class EntryEditor(
     }
 
     private fun recordCopy(entry: Entry, token: String): TokenCopyResult {
-        entry.setLastUsed(System.currentTimeMillis())
-        entry.setUsedFrequency(entry.getUsedFrequency() + 1)
+        EntryUsage.recordUse(entry)
         state.presentation.resortAfterUsage()
         return if (persist()) TokenCopyResult.Copied(token) else TokenCopyResult.PersistenceFailed
     }
@@ -145,10 +183,9 @@ class EntryEditor(
      * entries, at the [Long] counter ceiling, or when the vault write fails.
      */
     fun advanceHotp(entry: Entry): Boolean {
-        if (!entry.areDetailsVisible() || !entry.isCounterBased()) return false
-        if (entry.getCounter() >= Long.MAX_VALUE - 1) return false
-        entry.setCounter(entry.getCounter() + 1)
-        entry.updateOTP(false)
+        if (!entry.areDetailsVisible()) return false
+        // The ceiling and the one-step advance are shared with Android's counter chip.
+        if (!EntryUsage.advanceHotp(entry)) return false
         return persist()
     }
 

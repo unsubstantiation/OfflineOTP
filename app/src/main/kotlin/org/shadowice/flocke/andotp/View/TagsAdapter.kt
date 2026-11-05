@@ -30,6 +30,7 @@ import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.CheckedTextView
 import org.shadowice.flocke.andotp.Database.Entry
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
 import org.shadowice.flocke.andotp.Utilities.Settings
 import java.util.ArrayList
 import java.util.HashMap
@@ -40,7 +41,7 @@ import java.util.HashMap
  * construction on, not only after the first [TagsAdapter.setTags] call.
  */
 private fun sortedTagNames(tags: Map<String, Boolean?>): ArrayList<String> =
-    ArrayList(tags.keys).apply { sort() }
+    EntryTagFilter.sortedNames(tags.keys)
 
 /** Adapter for the tag lists (drawer and entry dialog); keeps tags sorted by name. */
 open class TagsAdapter(context: Context, tags: HashMap<String, Boolean?>) :

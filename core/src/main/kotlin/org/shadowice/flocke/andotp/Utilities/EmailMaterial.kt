@@ -28,6 +28,58 @@ object EmailMaterial {
         override fun toString(): String = "EmailAccount(redacted)"
     }
 
+    /**
+     * One label/value row of an account's connection details. Both clients render these rows, so
+     * the desktop dialog and the Android card cannot describe the same stored account differently.
+     */
+    data class Detail(val label: String, val value: String, val secret: Boolean = false)
+
+    /** Replacement shown instead of a stored password when details are not being revealed. */
+    const val SECRET_MASK = "********"
+
+    /**
+     * Read-only description of [account]: name and address, then the incoming server, then one
+     * group per outgoing identity. Passwords are masked unless [revealSecrets] is true; a blank
+     * password stays blank rather than showing a mask for a value that is not stored.
+     */
+    @JvmStatic
+    fun details(account: Account, revealSecrets: Boolean): List<Detail> {
+        val rows = ArrayList<Detail>()
+        rows.add(Detail("Account", account.account.optString("name").orEmpty()))
+        rows.add(Detail("Address", account.address))
+        val protocol = if (account.account.optInt("protocol", 0) == 1) "POP" else "IMAP"
+        rows.addAll(connection("Incoming ($protocol)", account.account, revealSecrets))
+        account.identities.forEachIndexed { index, identity ->
+            rows.addAll(connection("Outgoing (SMTP)" + if (index == 0) "" else " #${index + 1}",
+                identity, revealSecrets))
+        }
+        return rows
+    }
+
+    private fun connection(title: String, json: JSONObject, revealSecrets: Boolean): List<Detail> {
+        val password = json.optString("password").orEmpty()
+        val shown = when {
+            password.isEmpty() -> ""
+            revealSecrets -> password
+            else -> SECRET_MASK
+        }
+        return listOf(
+            Detail("$title server", json.optString("host").orEmpty()),
+            Detail("$title port", json.optInt("port", 0).toString()),
+            Detail("$title encryption", encryptionName(json.optInt("encryption", 0))),
+            Detail("$title authentication", json.optInt("auth_type", 0).toString()),
+            Detail("$title user name", json.optString("user").orEmpty()),
+            Detail("$title password", shown, secret = true)
+        )
+    }
+
+    private fun encryptionName(value: Int): String = when (value) {
+        0 -> "SSL"
+        1 -> "STARTTLS"
+        2 -> "None"
+        else -> "Unknown ($value)"
+    }
+
     /** Build one account from FairEmail's documented account + identity JSON fields. */
     @JvmStatic
     fun create(name: String, address: String,

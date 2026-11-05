@@ -120,7 +120,12 @@ class DesktopSshConnectionTest(unittest.TestCase):
         for field in ("sshHost", "sshPort", "sshUsername", "sshPassword"):
             self.assertIn(f"val {field} =", self.dialog)
         self.assertIn("SshConnection.of(sshHost.text, SshConnection.port(sshPort.text)", self.dialog)
-        self.assertIn("Entry.sshKey(publicKeyText, secret", self.dialog)
+        # The four fields reach the model through the shared draft builder, which owns the
+        # SSH assembly for both dialogs.
+        self.assertIn("sshConnection = sshConnection", self.dialog)
+        self.assertIn("publicKey = publicKeyText", self.dialog)
+        draft = read(CORE / "Database/EntryDraft.kt")
+        self.assertIn("Entry.sshKey(publicKey, secret", draft)
         # The rows are hidden for every other type, and the password is wiped on close.
         self.assertIn(".forEach { it.isVisible = ssh }", self.dialog)
         self.assertIn('sshPassword.text = ""', self.dialog)

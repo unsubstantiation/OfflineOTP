@@ -2,6 +2,22 @@
 
 #### Unreleased
 
+ * Core: The two manual-entry dialogs now assemble their entry through one shared builder (`EntryDraft`), including the list of kinds a form offers, so a value one form accepts is accepted by the other — including the period/counter/digits wording, whitespace in a pasted secret, and the usage stamp a new entry gets (the desktop form now stamps a hand-typed entry as used, so it leads a "last used" list as it does on Android)
+
+ * Core: Give both clients one implementation of the rules they share — usage counting and the last-used stamp (`EntryUsage`), the one-step HOTP advance and its ceiling, the tag selection rule and tag ordering (`EntryTagFilter`), the entry-to-tab mapping (`EntryListPresentation.categoryOf`), whether an entry has an `otpauth://` QR form (`Entry.hasOtpUri`), and the merge-or-replace plan a restore applies (`VaultRestoreMerge`) — so a phone and a desktop copy of the same vault cannot follow different rules and a fix lands once
+
+ * Desktop: Restore asks the same question as Android's backup screen — a **Replace existing entries** switch, off by default, so a restore merges the backup into the vault (new entries first, existing ones keeping their counters and metadata) instead of silently discarding the current entries; and **Tools → Restore plain-text backup…** imports a legacy unencrypted JSON backup through the same shared decoder and warning Android uses
+
+ * Desktop: Close two more Android differences — entries can be reordered in the unsorted view with **Move up**/**Move down** or Alt+↑/↓ (Android's drag handle, gated by the same rule and saved in the vault), and **Show QR code…** renders an entry's `otpauth://` URI like Android's popup item, for the same entry kinds
+
+ * Desktop: Match the Android client on four points where the two had drifted — the entry list can now be sorted (**Unsorted**, **Issuer**, **Label**, **Last used**, **Most used**) and the choice is remembered in the client settings file, importing entries stamps them as just used so they lead a **Last used** list, adding or importing entries stops at the same 2000-entry ceiling instead of writing a vault Android refuses, and **Delete** asks for confirmation by name before removing the entry
+
+ * Email accounts: Keep FairEmail-compatible IMAP/POP and SMTP credentials in one encrypted vault entry on both clients, with a fifth **Email** tab; add an account by hand, view its connection details, and import or export FairEmail backups (plain JSON, the gzip agent export, or a password-protected file), with passwords masked in the desktop details dialog until you ask for them
+
+ * Desktop: Complete the email support the Android client and `:core` already had — previously an `EMAIL` entry in a shared vault was filtered into a category that the desktop tab strip, a fixed list of four labels, could not select, so it was invisible; the strip is now derived from the shared category list and the same form validation guards both clients
+
+ * Email accounts: Describe encryption and protocol by name (SSL, STARTTLS, none; IMAP, POP) in the connection-details rows, and build those rows once in `:core` so Android and desktop cannot show different text for the same stored account
+
  * Desktop: Keep the vault, its `.bck` copy, the settings and the hardware-unlock record in a `data` folder inside the program folder instead of `~/.offlineotp`, so the Debian and Windows builds are fully portable: copy the folder and everything travels with it. `-Dofflineotp.home=<folder>` or `OFFLINEOTP_HOME` still selects another folder, and an unwritable program folder is reported instead of falling back into the user's profile
 
  * SSH keys: Store an optional host name, port, user name and password beside the keys, inside the encrypted vault and its encrypted backups; a revealed card shows `user@host:port` and the copy menu offers the password. Blank fields are omitted, so existing entries, vaults and backups keep their exact bytes and older builds still read them

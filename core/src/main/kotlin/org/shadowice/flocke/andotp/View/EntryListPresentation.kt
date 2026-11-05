@@ -16,13 +16,23 @@ class EntryListPresentation(private val source: EntryList) {
     enum class Category { OTP, NOTES, SSH_KEYS, PASSWORDS, EMAILS }
     private var category: Category? = null
 
-    private fun matches(entry: Entry, selected: Category?): Boolean = when (selected) {
-        null -> true
-        Category.OTP -> entry.isTimeBased() || entry.isCounterBased()
-        Category.NOTES -> entry.isNote()
-        Category.SSH_KEYS -> entry.isSshKey()
-        Category.PASSWORDS -> entry.isPassword() || entry.isPasswordArchive()
-        Category.EMAILS -> entry.isEmail()
+    private fun matches(entry: Entry, selected: Category?): Boolean =
+        selected == null || categoryOf(entry) == selected
+
+    companion object {
+        /**
+         * The tab that shows [entry]. Both clients select a tab after adding or revealing an entry
+         * and both tab strips are built from [Category], so the mapping lives here rather than once
+         * per client, where a new entry kind would silently land in the wrong tab on one side.
+         */
+        @JvmStatic
+        fun categoryOf(entry: Entry): Category = when {
+            entry.isEmail() -> Category.EMAILS
+            entry.isPassword() || entry.isPasswordArchive() -> Category.PASSWORDS
+            entry.isNote() -> Category.NOTES
+            entry.isSshKey() -> Category.SSH_KEYS
+            else -> Category.OTP
+        }
     }
 
     /** Invalidates in-flight searches; caller then refreshes its current tag/search projection. */

@@ -136,6 +136,110 @@ class DesktopVaultStateTest {
     }
 
     @Test
+    fun sortModesOrderTheVisibleProjectionAndKeepTheFilters() {
+        val state = state()
+        val zeta = entry("Zeta", "charlie")
+        val beta = entry("Beta", "alice")
+        val alpha = entry("Alpha", "bob")
+        zeta.setLastUsed(3_000L); beta.setLastUsed(2_000L); alpha.setLastUsed(1_000L)
+        zeta.setUsedFrequency(2); beta.setUsedFrequency(4); alpha.setUsedFrequency(7)
+        // Vault order: charlie, alice, bob.
+        listOf(zeta, beta, alpha).forEach { assertTrue(state.add(it)) }
+
+        fun order() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
+
+        // Unchanged by default: the vault order is preserved, exactly like the Android default.
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+        state.applySortMode(Constants.SortMode.ISSUER)
+        assertEquals(listOf("bob", "alice", "charlie"), order()) // Alpha, Beta, Zeta
+        state.applySortMode(Constants.SortMode.LABEL)
+        assertEquals(listOf("alice", "bob", "charlie"), order())
+        state.applySortMode(Constants.SortMode.LAST_USED)
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+        state.applySortMode(Constants.SortMode.MOST_USED)
+        assertEquals(listOf("bob", "alice", "charlie"), order())
+
+        // An active search survives an order change, and going back to unsorted restores the
+        // vault order instead of freezing the last sort. ("a" matches every entry here.)
+        state.applySearch("a")
+        state.applySortMode(Constants.SortMode.ISSUER)
+        assertEquals(listOf("bob", "alice", "charlie"), order())
+        state.applySearch("")
+        state.applySortMode(Constants.SortMode.UNSORTED)
+        assertEquals(listOf("charlie", "alice", "bob"), order())
+    }
+
+    @Test
+    fun manualOrderMovesRowsOnlyInTheUnsortedUnfilteredView() {
+        val state = state()
+        val first = entry("Zeta", "charlie")
+        val second = entry("Alpha", "bob")
+        val third = entry("Beta", "alice")
+        listOf(first, second, third).forEach { assertTrue(state.add(it)) }
+        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+
+        fun order() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
+        assertEquals(listOf("charlie", "bob", "alice"), order())
+
+        // The shared canDrag() rule allows a swap in the unsorted, unfiltered view.
+        assertTrue(state.presentation.canDrag())
+        assertTrue(state.move(0, 1))
+        assertEquals(listOf("bob", "charlie", "alice"), order())
+        // The swap is in the vault order too, not only in the projection.
+        assertEquals(listOf("bob", "charlie", "alice"), state.snapshot().map { it.getLabel() })
+
+        // Out-of-range rows are refused rather than throwing.
+        assertFalse(state.move(0, 5))
+        assertFalse(state.move(-1, 0))
+
+        // A tag filter, a search or a sort order each end the manual view, exactly as Android's
+        // drag handle disappears in those cases.
+        state.applyTagFilter(listOf("work"), false)
+        assertFalse(state.presentation.canDrag())
+        assertFalse(state.move(0, 1))
+        state.applyTagFilter(emptyList(), false)
+        state.applySearch("b")
+        assertFalse(state.presentation.canDrag())
+        assertFalse(state.move(0, 1))
+        state.applySearch("")
+        state.applySortMode(Constants.SortMode.LABEL)
+        assertFalse(state.presentation.canDrag())
+        assertFalse(state.move(0, 1))
+        // Returning to the unsorted view restores the manual order, which never changed.
+        state.applySortMode(Constants.SortMode.UNSORTED)
+        assertEquals(listOf("bob", "charlie", "alice"), order())
+    }
+
+    @Test
+    fun aLiveSearchSurvivesTabAndTagChangesLikeAndroid() {
+        val state = state()
+        val alice = entry("Service", "alice").apply { setTags(arrayListOf("work")) }
+        val bob = entry("Service", "bob").apply { setTags(arrayListOf("work")) }
+        val note = Entry(Entry.OTPType.NOTE, "body", "", "alice note", arrayListOf("work"))
+        listOf(alice, bob, note).forEach { assertTrue(state.add(it)) }
+        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+
+        fun labels() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
+
+        // Android's setCategory()/filterByTags() call clearFilter() only to drop the in-flight
+        // Filter; refreshTags() re-runs the stored query, so the search keeps applying. The
+        // sandbox check "the adapter keeps a live search across tag and sort refreshes" pins the
+        // same rule on the Android side.
+        state.applySearch("alice")
+        assertEquals(listOf("alice"), labels())
+        state.applyTagFilter(listOf("work"), false)
+        assertEquals(listOf("alice"), labels())
+        state.applyCategory(EntryListPresentation.Category.NOTES)
+        assertEquals(listOf("alice note"), labels())
+        state.applyCategory(EntryListPresentation.Category.OTP)
+        assertEquals(listOf("alice"), labels())
+
+        // Dropping the query restores the tag filter rather than the whole vault.
+        state.applySearch("")
+        assertEquals(listOf("alice", "bob"), labels())
+    }
+
+    @Test
     fun sameTagFiltersEveryCategoryIncludingBothPasswordKinds() {
         val state = state()
         val csv = "name,url,username,password\nsite,https://example.test,alice,secret\n".toByteArray()

@@ -130,6 +130,9 @@ class EntryList {
         return ArrayList(tags)
     }
 
+    /** In-use tag names in display order, the order both clients list tags in. */
+    @Synchronized fun getSortedTags(): ArrayList<String> = EntryTagFilter.sortedNames(getAllTags())
+
     /** Counts how many entries carry each tag (for tag-counter UI; see #994). */
     @Synchronized fun getTagCounts(): HashMap<String, Int> {
         val counts = HashMap<String, Int>()
@@ -177,22 +180,8 @@ class EntryList {
         val matchingEntries = ArrayList<Entry>()
 
         for (e in entries) {
-            var foundMatchingTag = e.getTags().isEmpty() && noTags
-
-            if (tagFunctionality == Constants.TagFunctionality.AND) {
-                if (e.getTags().containsAll(tags)) {
-                    foundMatchingTag = true
-                }
-            } else {
-                for (tag in tags) {
-                    if (e.getTags().contains(tag)) {
-                        foundMatchingTag = true
-                        break
-                    }
-                }
-            }
-
-            if (foundMatchingTag) {
+            // One rule for both clients' tag controls; see EntryTagFilter.matches.
+            if (EntryTagFilter.matches(e, tags, noTags, tagFunctionality)) {
                 matchingEntries.add(e)
             }
         }

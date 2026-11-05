@@ -42,6 +42,13 @@ class PasswordVault(
     fun isInitialized(): Boolean = vaultFile.exists()
 
     /**
+     * The client's key/value settings beside the vault (the same file that holds the salt and
+     * verifier). Only client preferences such as the list sort order belong there; this class
+     * keeps ownership of the vault's own keys.
+     */
+    val preferences: KeyValueSettings get() = settings
+
+    /**
      * Provisions fresh PBKDF2 credentials and writes an empty encrypted vault. Fails with
      * [VaultWriteError.ALREADY_EXISTS] if a vault or backup is already present.
      */

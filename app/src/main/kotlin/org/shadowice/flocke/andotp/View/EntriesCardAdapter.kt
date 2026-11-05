@@ -33,7 +33,9 @@ import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
 import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Utilities.Constants
+import org.shadowice.flocke.andotp.Utilities.EmailMaterial
 import org.shadowice.flocke.andotp.Utilities.EntryPersistence
+import org.shadowice.flocke.andotp.Utilities.EntryUsage
 import org.shadowice.flocke.andotp.Utilities.InputPolicy
 import org.shadowice.flocke.andotp.Utilities.Settings
 import org.shadowice.flocke.andotp.Utilities.Tools
@@ -151,7 +153,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 }
                 if (accepted.isEmpty()) return BatchImportResult(0, skipped)
                 val now = System.currentTimeMillis()
-                accepted.forEach { it.updateOTP(false); it.setLastUsed(now) }
+                accepted.forEach { EntryUsage.markImported(it, now) }
                 val write = persistence.save(proposed, key, settings.getAutoBackupEncryptedPasswordsEnabled(),
                     UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
                 if (write !is VaultWriteResult.Saved) {
@@ -630,14 +632,11 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     private fun updateEntry(entry: Entry, realEntry: Entry, position: Int) {
-        if (entry.getCounter() >= Long.MAX_VALUE - 1) return
-        val counter = entry.getCounter() + 1
-
-        entry.setCounter(counter)
-        entry.updateOTP(false)
+        // The one-step advance and its ceiling are shared with the desktop counter action.
+        if (!EntryUsage.advanceHotp(entry)) return
         notifyItemChanged(position)
 
-        realEntry.setCounter(counter)
+        realEntry.setCounter(entry.getCounter())
         realEntry.updateOTP(false)
 
         saveEntries(settings.getAutoBackupEncryptedFullEnabled())
@@ -708,17 +707,13 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val safePosition = position.takeIf { it >= 0 && it < presentation.size() }
         val realEntry = ownedEntries[realIndex]
         val timeStamp = System.currentTimeMillis()
-        val entryUsedFrequency = realEntry.getUsedFrequency()
 
         if (safePosition != null) {
-            val displayEntry = presentation.get(safePosition)
-            val displayEntryUsedFrequency = displayEntry.getUsedFrequency()
-            displayEntry.setLastUsed(timeStamp)
-            displayEntry.setUsedFrequency(displayEntryUsedFrequency + 1)
+            // The stamping rule is shared with the desktop copy action, so the counters agree.
+            EntryUsage.recordUse(presentation.get(safePosition), timeStamp)
         }
 
-        realEntry.setLastUsed(timeStamp)
-        realEntry.setUsedFrequency(entryUsedFrequency + 1)
+        EntryUsage.recordUse(realEntry, timeStamp)
         saveEntries(false)
 
         if (presentation.resortAfterUsage()) {
@@ -821,7 +816,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     /** Shows the entry as a QR code (if the type can be encoded). */
     private fun showQRCode(pos: Int) {
-        if (!validDisplayedPosition(pos) || presentation.get(pos).isNote() || presentation.get(pos).isSshKey() || presentation.get(pos).isPassword() || presentation.get(pos).isPasswordArchive() || presentation.get(pos).isEmail()) return
+        if (!validDisplayedPosition(pos) || !presentation.get(pos).hasOtpUri()) return
         val uri: Uri? = Uri.parse(presentation.get(pos).toUriString())
         if (uri != null) {
             val bitmap: Bitmap
@@ -867,7 +862,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
 
-        if (popupEntry.isNote() || popupEntry.isSshKey() || popupEntry.isPassword() || popupEntry.isPasswordArchive() || popupEntry.isEmail()) {
+        if (!popupEntry.hasOtpUri()) {
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
         }
@@ -895,26 +890,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             if (id == R.id.menu_popup_email_details) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (!actual.isEmail()) return@Consumer
-                    val value = actual.getEmailAccount()
-                    fun line(json: org.json.JSONObject, key: String): String = json.optString(key, "").orEmpty()
-                    fun server(title: String, json: org.json.JSONObject): String = buildString {
-                        append(title).append('\n')
-                        append("Host: ").append(line(json, "host")).append('\n')
-                        append("Port: ").append(json.optInt("port")).append(" · Encryption: ").append(json.optInt("encryption")).append('\n')
-                        append("Auth type: ").append(json.optInt("auth_type")).append('\n')
-                        append("Username: ").append(line(json, "user")).append('\n')
-                        append("Password: ").append(line(json, "password"))
-                        for (key in listOf("provider", "realm", "fingerprint", "insecure"))
-                            if (json.has(key)) append('\n').append(key).append(": ").append(line(json, key))
-                    }
-                    val details = buildString {
-                        append("Account: ").append(line(value.account, "name")).append('\n')
-                        append("Address: ").append(line(value.identity, "email")).append("\n\n")
-                        append(server(if (value.account.optInt("protocol") == 1) "Incoming (POP)" else "Incoming (IMAP)", value.account))
-                        value.identities.forEachIndexed { index, identity ->
-                            append("\n\n").append(server("Outgoing SMTP" + if (index == 0) "" else " #${index + 1}", identity))
-                        }
-                    }
+                    // The same row builder feeds the desktop connection-details dialog, so both
+                    // clients describe a stored account identically.
+                    val details = EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
+                        .joinToString("\n") { "${it.label}: ${it.value}" }
                     activeEmailDialog?.dismiss()
                     val dialog = AlertDialog.Builder(context).setTitle(R.string.email_show_details)
                         .setMessage(details).setPositiveButton(android.R.string.ok, null).create()
@@ -1012,7 +991,8 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         filter = null
     }
 
-    fun getTags(): List<String> = entries.getAllTags()
+    /** In-use tags in the shared display order (see EntryTagFilter.sortedNames). */
+    fun getTags(): List<String> = entries.getSortedTags()
 
     /** Per-tag entry counts for the drawer rows (#994). */
     fun getTagCounts(): Map<String, Int> = entries.getTagCounts()

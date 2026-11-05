@@ -396,4 +396,21 @@ class EntryTest {
         entry.setThumbnailName("GitHub")
         assertEquals("GitHub", Entry(entry.toJSON()).getThumbnailName())
     }
+
+    @Test
+    fun hasOtpUriCoversExactlyTheKindsThatCanBeEncoded() {
+        // Both clients use this to decide whether to offer "Show QR code".
+        val note = Entry(Entry.OTPType.NOTE, "body", "Example", "alice", ArrayList())
+        val ssh = Entry.sshKey("ssh-rsa AAAA", "-----BEGIN KEY-----", "Example", "alice", ArrayList())
+        val steam = Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 30, 5, "Example", "alice",
+            TokenCalculator.HashAlgorithm.SHA1, ArrayList())
+        try {
+            assertTrue(totp().hasOtpUri())
+            assertTrue(hotp().hasOtpUri())
+            assertTrue(steam.hasOtpUri())
+            assertFalse(note.hasOtpUri())
+            assertFalse(ssh.hasOtpUri())
+        } finally { note.destroy(); ssh.destroy(); steam.destroy() }
+    }
+
 }

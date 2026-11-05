@@ -2,6 +2,7 @@ package org.shadowice.flocke.andotp.desktop.control
 
 import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Database.EntryList
+import org.shadowice.flocke.andotp.Database.EntryTagFilter
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 
@@ -33,6 +34,21 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         // parity) before dropping the references.
         entries.getEntries().forEach { it.destroy() }
         entries.updateEntries(loaded, true)
+        refreshProjection()
+    }
+
+    /**
+     * Installs the list a restore produced. Android's restore screen offers a **Replace existing
+     * entries** switch (off by default, i.e. merge), so [destroyPrevious] is only true for a
+     * replace: in merge mode the entries already in the vault are part of [restored] and must keep
+     * their secrets, while a replace zeroizes the entries the backup dropped.
+     */
+    fun installRestored(restored: ArrayList<Entry>, destroyPrevious: Boolean) {
+        require(restored.toHashSet().size == restored.size) { "Duplicate entries in a restore" }
+        val previous = ArrayList(entries.getEntries())
+        while (entries.getEntries().isNotEmpty()) entries.removeEntry(entries.getEntries().size - 1)
+        if (destroyPrevious) previous.forEach { it.destroy() }
+        check(entries.addDistinctEntries(restored)) { "Duplicate entries in a restore" }
         refreshProjection()
     }
 
@@ -68,10 +84,35 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
 
     fun snapshot(): ArrayList<Entry> = entries.getEntries()
 
+    /**
+     * Swaps two *displayed* rows in the manual order. Android allows this only through drag & drop
+     * in the unsorted, unfiltered view; [EntryListPresentation.canDrag] is the shared rule, so both
+     * clients reorder under exactly the same conditions.
+     */
+    fun move(fromDisplayed: Int, toDisplayed: Int): Boolean {
+        if (!presentation.canDrag()) return false
+        if (fromDisplayed !in 0 until presentation.size() || toDisplayed !in 0 until presentation.size())
+            return false
+        entries.swapEntries(presentation.sourceIndex(fromDisplayed), presentation.sourceIndex(toDisplayed))
+        presentation.showReorderedEntries()
+        return true
+    }
+
     /** Search and tag filters compose within the selected category. */
     fun applySearch(query: String, includes: List<Constants.SearchIncludes> = DEFAULT_INCLUDES) {
         this.query = query
         this.searchIncludes = includes.toList()
+        refreshProjection()
+    }
+
+    /**
+     * Selects a tab and rebuilds the projection for it. An active search and tag filter keep
+     * applying, exactly like Android's `setCategory()`, whose `refreshTags()` re-runs the stored
+     * query against the new category (pinned by the sandbox check "the adapter keeps a live search
+     * across tag and sort refreshes").
+     */
+    fun applyCategory(category: EntryListPresentation.Category) {
+        presentation.setCategory(category)
         refreshProjection()
     }
 
@@ -84,17 +125,23 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
         refreshProjection()
     }
 
+    /**
+     * Orders the visible projection like Android's sort menu. The vault's own order is untouched,
+     * so choosing the unsorted mode again restores it; the active search and tag filter survive.
+     */
+    fun applySortMode(mode: Constants.SortMode) {
+        presentation.setSortMode(mode)
+        refreshProjection()
+    }
+
     /** Reapply both filters after a mutation or tab change without destroying borrowed entries. */
     fun refreshProjection() {
         presentation.setSearch(query, searchIncludes)
         val result = presentation.search(query, searchIncludes)
         if (selectedTags.isNotEmpty() || includeUntagged) {
+            // Shared with Android's tag drawer, so the same selection keeps the same rows.
             result.entries?.removeAll { entry ->
-                val tags = entry.getTags()
-                val tagMatch = if (selectedTags.isEmpty()) false
-                    else if (tagMode == Constants.TagFunctionality.AND) tags.containsAll(selectedTags)
-                    else selectedTags.any { it in tags }
-                !tagMatch && !(includeUntagged && tags.isEmpty())
+                !EntryTagFilter.matches(entry, selectedTags, includeUntagged, tagMode)
             }
         }
         presentation.publishSearch(result)

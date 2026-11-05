@@ -54,19 +54,10 @@ class VaultRestoreOperation(context: Context) {
                     }
                     val loaded = (read as VaultReadResult.Loaded).takeEntries()
                     current.addAll(loaded)
-                    val iterator = imported.iterator()
-                    while (iterator.hasNext()) {
-                        val entry = iterator.next()
-                        if (current.contains(entry)) {
-                            iterator.remove()
-                            entry.destroy()
-                        }
-                    }
                 }
-                // Preserve historical ordering: new imports first, then existing entries. Duplicate
-                // imports matching existing entries do not overwrite existing metadata/counters.
-                val merged = ArrayList<Entry>(imported)
-                merged.addAll(current)
+                // The merge rule (imports first, an entry the vault already holds kept as it is,
+                // a replace dropping the current entries) is shared with the desktop restore.
+                val merged = VaultRestoreMerge.plan(imported, current, replace)
                 if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
                 // An import is a real entry change. The persistence layer suppresses no-op imports.
                 val write = persistence.save(merged, key, settings.getAutoBackupEncryptedPasswordsEnabled(), backupCallback)

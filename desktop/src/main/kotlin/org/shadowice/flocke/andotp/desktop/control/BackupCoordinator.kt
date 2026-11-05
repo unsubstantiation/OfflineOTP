@@ -7,6 +7,8 @@ import org.shadowice.flocke.andotp.Utilities.MigrationBatchCollector
 import org.shadowice.flocke.andotp.Utilities.MigrationBatchStatus
 import org.shadowice.flocke.andotp.Utilities.MigrationParseResult
 import org.shadowice.flocke.andotp.Utilities.OpenPgpBackupCodec
+import org.shadowice.flocke.andotp.Utilities.PlainTextBackupDecoder
+import org.shadowice.flocke.andotp.Utilities.VaultRestoreMerge
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 import org.shadowice.flocke.andotp.Utilities.QrImageDecoder
 import org.shadowice.flocke.andotp.Utilities.QrImport
@@ -68,8 +70,18 @@ class BackupCoordinator(
 
     /** Restores a password backup and persists the imported entries. */
     @Throws(GeneralSecurityException::class, IOException::class)
-    fun restoreEncrypted(password: String, data: ByteArray): Int {
-        return restoreDocument(EncryptedBackupCodec.open(password, data))
+    fun restoreEncrypted(password: String, data: ByteArray, replace: Boolean = false): Int {
+        return restoreDocument(EncryptedBackupCodec.open(password, data), replace)
+    }
+
+    /**
+     * Restores a legacy unencrypted JSON backup, the desktop counterpart of Android's **Restore
+     * plain-text backup…**. Decoding is the shared [PlainTextBackupDecoder], so a file Android
+     * accepts is accepted here and a file it rejects is rejected for the same reason.
+     */
+    @Throws(IllegalArgumentException::class, IOException::class)
+    fun restorePlainText(data: ByteArray, replace: Boolean = false): Int {
+        return restoreDocument(PlainTextBackupDecoder.decode(data), replace)
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)
@@ -77,26 +89,38 @@ class BackupCoordinator(
         OpenPgpBackupCodec.seal(pgpPort, VaultJson.entriesToString(state.snapshot()), recipientKeyBlocks)
 
     @Throws(GeneralSecurityException::class, IOException::class)
-    fun restoreOpenPgp(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): Int {
-        return restoreDocument(OpenPgpBackupCodec.open(pgpPort, message, secretKeyBlock, passphrase))
+    fun restoreOpenPgp(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?,
+                       replace: Boolean = false): Int {
+        return restoreDocument(
+            OpenPgpBackupCodec.open(pgpPort, message, secretKeyBlock, passphrase), replace)
     }
 
-    /** Save before replacing the live state; a failed restore must not discard the current entries. */
-    private fun restoreDocument(document: String): Int {
-        val entries = VaultJson.stringToEntries(document)
+    /**
+     * Save before replacing the live state; a failed restore must not discard the current entries.
+     * With [replace] false the backup is merged into the current vault, new entries first and
+     * entries the vault already holds left untouched — the default on both clients, where Android's
+     * "Replace existing entries" switch starts off.
+     */
+    private fun restoreDocument(document: String, replace: Boolean): Int {
+        val imported = VaultJson.stringToEntries(document)
         var installed = false
         try {
             // Android also rejects an empty import rather than replacing a vault with it.
-            require(entries.isNotEmpty()) { "Backup contains no entries" }
+            require(imported.isNotEmpty()) { "Backup contains no entries" }
             // EntryList treats equal account identities as one entry. Reject ambiguous backups
             // rather than report success and silently drop their distinct metadata on the next save.
-            require(entries.toHashSet().size == entries.size) { "Backup contains duplicate accounts" }
-            check(controller.save(state.key, entries)) { "Vault persistence failed" }
-            state.load(entries)
+            require(imported.toHashSet().size == imported.size) { "Backup contains duplicate accounts" }
+
+            // One merge rule for both clients: imported entries first, entries the vault already
+            // holds kept as they are (counters, metadata, tags), or replaced wholesale.
+            val merged = VaultRestoreMerge.plan(imported, state.snapshot(), replace)
+
+            check(controller.save(state.key, merged)) { "Vault persistence failed" }
+            state.installRestored(merged, destroyPrevious = replace)
             installed = true
-            return entries.size
+            return imported.size
         } finally {
-            if (!installed) entries.forEach { it.destroy() }
+            if (!installed) imported.forEach { it.destroy() }
         }
     }
 
