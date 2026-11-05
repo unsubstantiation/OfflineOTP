@@ -102,15 +102,39 @@ jobs:
             echo "::error::The decoded release keystore is empty."
             exit 1
           fi
+      - name: Check the rest of the release signing inputs
+        shell: bash
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          # A configured keystore with a missing password would otherwise fail inside Gradle with
+          # "keystore password was incorrect"; name the secret instead. Values are never printed.
+          check() {
+            if [[ -z "${!1}" ]]; then
+              echo "::error::$2 is not configured; it is required once ANDROID_RELEASE_KEYSTORE is set."
+              exit 1
+            fi
+          }
+          check STORE_PASSWORD ANDROID_RELEASE_STORE_PASSWORD
+          check KEY_ALIAS ANDROID_RELEASE_KEY_ALIAS
+          check KEY_PASSWORD ANDROID_RELEASE_KEY_PASSWORD
       - name: Build signed release APKs
         shell: bash
+        # The three credentials reach Gradle as ORG_GRADLE_PROJECT_* environment variables instead
+        # of -P arguments: they never show up in the process list, and no secret is substituted into
+        # this script, so a password containing a quote, a backslash, $ or a space cannot break the
+        # command or inject shell syntax.
+        env:
+          ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           ./gradlew --no-daemon :app:assembleFdroidRelease :app:assemblePlayRelease \
-            -PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks" \
-            -PRELEASE_STORE_PASSWORD="${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}" \
-            -PRELEASE_KEY_ALIAS="${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}" \
-            -PRELEASE_KEY_PASSWORD="${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}"
+            -PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks"
       - name: Verify APK signatures
         shell: bash
         run: |
@@ -134,3 +158,12 @@ jobs:
           name: OfflineOTP-android-release
           path: artifacts/
           if-no-files-found: error
+      - name: Remove the decoded keystore
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The runner is ephemeral, but the decoded keystore should not outlive the step that
+          # needed it, even if a later step fails and the workspace is preserved for debugging.
+          rm -f signing/OfflineOTP-release-keystore.jks
+          rmdir signing 2>/dev/null || true

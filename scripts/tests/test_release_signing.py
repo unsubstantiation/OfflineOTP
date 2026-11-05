@@ -99,6 +99,89 @@ class ReleaseSigningTest(unittest.TestCase):
         self.assertNotIn("sign-release:\n    if: github.event_name != 'pull_request'\n", workflow)
         self.assertEqual(1, workflow.count("assembleFdroidRelease"))
 
+    def test_a_keystore_without_credentials_fails_before_signing(self):
+        """Gradle must name the missing property, not fail later inside apksigner."""
+        gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("throw new GradleException(", gradle)
+        for name in ("RELEASE_STORE_PASSWORD", "RELEASE_KEY_PASSWORD"):
+            self.assertIn(f"'{name}'", gradle)
+        # Validation runs only when a keystore was supplied, so unsigned builds stay unchanged.
+        validation = gradle.index("must be set (and non-empty)")
+        self.assertLess(gradle.index("def releaseSigningConfigured ="), validation)
+        self.assertLess(validation, gradle.index("    signingConfigs {"))
+        # The guard is the same opt-in flag, so an unsigned build never runs the check.
+        self.assertLess(validation, gradle.index("    signingConfigs {"))
+        between = gradle[gradle.index("def releaseSigningConfigured ="):validation]
+        self.assertIn("if (releaseSigningConfigured) {", between)
+
+    def test_secrets_are_never_interpolated_into_a_step_script(self):
+        """A secret must reach a step through `env:`, never as text inside the shell script.
+
+        Substituting ``${{ secrets.X }}`` into a ``run:`` block pastes the value straight into a
+        shell script, so a password containing a quote, a backslash or ``$`` breaks the command
+        (and lets shell syntax in a value run). The ``env:`` context has neither problem.
+        """
+        for step in ("Install release signing keystore",
+                     "Check the rest of the release signing inputs",
+                     "Build signed release APKs",
+                     "Verify APK signatures",
+                     "Prepare signed APKs and checksums"):
+            self.assertNotIn("${{ secrets.", self.step_script(step),
+                             f"{step} must read its secret from env, not inline")
+
+    def test_build_step_passes_credentials_through_gradle_environment_properties(self):
+        workflow = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
+        script = self.step_script("Build signed release APKs")
+        gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
+        for name in ("RELEASE_STORE_PASSWORD", "RELEASE_KEY_ALIAS", "RELEASE_KEY_PASSWORD"):
+            # The env name maps onto the exact property Gradle reads, and never onto argv.
+            self.assertIn(f"ORG_GRADLE_PROJECT_{name}: ${{{{ secrets.", workflow)
+            self.assertIn(name, gradle)
+            self.assertNotIn(f"-P{name}=", script,
+                             f"{name} must not be passed on the command line (visible in ps)")
+        self.assertIn('project.properties[\'RELEASE_STORE_PASSWORD\']', gradle)
+        self.assertIn('project.properties[\'RELEASE_KEY_PASSWORD\']', gradle)
+        self.assertIn("project.property('RELEASE_KEY_ALIAS')", gradle)
+        # The keystore path is not a secret, so it stays an ordinary build argument.
+        self.assertIn('-PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks"', script)
+
+    def test_a_missing_password_names_the_secret_and_fails(self):
+        """A present keystore with a missing password must name the secret, not fail in Gradle."""
+        script = self.step_script("Check the rest of the release signing inputs")
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                ["bash", "-c", script], cwd=directory,
+                env={**os.environ, "STORE_PASSWORD": "", "KEY_ALIAS": "offlineotp",
+                     "KEY_PASSWORD": "hunter2"},
+                text=True, capture_output=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("::error::ANDROID_RELEASE_STORE_PASSWORD is not configured", result.stdout)
+        self.assertNotIn("hunter2", result.stdout + result.stderr)
+
+    def test_complete_credentials_pass_the_check_silently(self):
+        script = self.step_script("Check the rest of the release signing inputs")
+        values = {"STORE_PASSWORD": "p@ss word", "KEY_ALIAS": "offlineotp",
+                  "KEY_PASSWORD": 'q"uote$(id)`tick`'}
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                ["bash", "-c", script], cwd=directory,
+                env={**os.environ, **values}, text=True, capture_output=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        for value in values.values():
+            self.assertNotIn(value, result.stdout + result.stderr)
+
+    def test_the_decoded_keystore_does_not_outlive_the_job(self):
+        script = self.step_script("Remove the decoded keystore")
+        with tempfile.TemporaryDirectory() as directory:
+            keystore = Path(directory) / "signing" / "OfflineOTP-release-keystore.jks"
+            keystore.parent.mkdir(parents=True)
+            keystore.write_bytes(b"keystore bytes")
+            result = subprocess.run(["bash", "-c", script], cwd=directory,
+                                    text=True, capture_output=True)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertFalse(keystore.exists())
+            self.assertFalse(keystore.parent.exists())
+
     def test_signing_document_names_every_required_secret(self):
         document = (ROOT / "docs/release-signing.md").read_text(encoding="utf-8")
         workflow = (ROOT / ".github/workflows/android.yml").read_text(encoding="utf-8")
