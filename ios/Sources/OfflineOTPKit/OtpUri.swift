@@ -140,7 +140,7 @@ public struct OtpUri: Equatable {
         let defaultDigits = kind == .steam ? TokenCalculator.steamDefaultDigits
             : TokenCalculator.totpDefaultDigits
         let digits = try parameters["digits"].map(integer) ?? defaultDigits
-        let suppliedCounter = try parameters["counter"].map(integer) ?? 0
+        let suppliedCounter: Int64 = try parameters["counter"].map(integer64) ?? 0
         do {
             try InputPolicy.validateTokenParameters(period: suppliedPeriod, digits: digits,
                                                     counter: suppliedCounter)
@@ -268,6 +268,17 @@ public struct OtpUri: Equatable {
             index += 1
         }
         return nil
+    }
+
+    /// The counter is a `Long` on the JVM, so it is parsed as one: a value too large for `Int64` is
+    /// `INVALID_NUMBER` rather than a truncation or an overflow trap.
+    private static func integer64(_ text: String) throws -> Int64 {
+        guard !text.isEmpty,
+              text.range(of: "^-?[0-9]+$", options: .regularExpression) != nil,
+              let value = Int64(text) else {
+            throw OtpParseError.invalidNumber
+        }
+        return value
     }
 
     private static func integer(_ text: String) throws -> Int {

@@ -187,6 +187,11 @@ final class OtpUriTests: XCTestCase {
         XCTAssertThrowsError(try OtpUri.parse("otpauth://totp/x?secret=\(seed)&period=thirty")) {
             XCTAssertEqual($0 as? OtpParseError, .invalidNumber)
         }
+        // A counter beyond `Long` is a bad number, not a wrapped one.
+        XCTAssertThrowsError(try OtpUri.parse(
+            "otpauth://hotp/x?secret=\(seed)&counter=99999999999999999999")) {
+            XCTAssertEqual($0 as? OtpParseError, .invalidNumber)
+        }
         XCTAssertThrowsError(try OtpUri.parse("otpauth://totp/x?secret=\(seed)&algorithm=MD5")) {
             XCTAssertEqual($0 as? OtpParseError, .invalidAlgorithm)
         }
