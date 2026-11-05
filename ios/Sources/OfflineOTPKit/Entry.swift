@@ -67,9 +67,12 @@ public struct Entry: Equatable {
 
     // MARK: - Typed access
 
-    /// The stored kind, or nil for a `type` this build does not know (preserved, not rejected).
+    /// The stored kind. A document without a `type` is a TOTP entry — that is the historical default
+    /// both existing clients apply — and nil only marks a `type` this format does not define, which
+    /// `parse` refuses anyway.
     public var kind: EntryKind? {
-        fields["type"]?.stringValue.flatMap(EntryKind.init(rawValue:))
+        guard let rawType = fields["type"] else { return .totp }
+        return rawType.stringValue.flatMap(EntryKind.init(rawValue:))
     }
 
     public var secretBase32: String? { fields["secret"]?.stringValue }
@@ -176,25 +179,17 @@ public struct Entry: Equatable {
         guard let object = value.objectValue else { throw EntryError.notAnObject }
         guard let secretText = object["secret"]?.stringValue else { throw EntryError.missingSecret }
 
-        // The kind decides the seed limit, so it is read first — and, as on the JVM, a `type` this
-        // format does not define is rejected rather than carried around (no other client could open
-        // the document either). Kinds that exist but are not displayable here are parsed and kept.
-        let kind: EntryKind
-        if let rawType = object["type"] {
-            guard let name = rawType.stringValue, let known = EntryKind(rawValue: name) else {
-                throw EntryError.unsupportedKind
-            }
-            kind = known
-        } else {
-            kind = .totp
-        }
+        // As on the JVM, a `type` this format does not define is rejected rather than carried around:
+        // no other client could open the document either. Kinds that exist but are not displayable
+        // here (a password archive, an email account) are parsed and kept untouched.
+        let entry = Entry(fields: object)
+        guard let kind = entry.kind else { throw EntryError.unsupportedKind }
 
+        // The kind decides the seed limit: an SSH key carries far more material than an OTP seed.
         let limit = SecretLimit.forKind(kind)
         guard secretText.count <= limit * 2,
               let seed = Base32.decode(secretText) else { throw EntryError.invalidSecret }
         guard !seed.isEmpty, seed.count <= limit else { throw EntryError.invalidSecret }
-
-        let entry = Entry(fields: object)
 
         // Bounds for the fields every kind shares. `InputPolicy` owns the limits; the errors are
         // translated here so a caller of this type only ever has to know one error enum.

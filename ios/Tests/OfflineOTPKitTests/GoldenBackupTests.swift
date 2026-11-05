@@ -73,9 +73,9 @@ final class GoldenBackupTests: XCTestCase {
             password: GoldenCorpus.password,
             data: try GoldenCorpus.golden("desktop-privacy-export.json.aes"))
         XCTAssertEqual(entries.count, 4)
-        let revealed = entries.filter { $0.detailsVisible }
-        XCTAssertEqual(revealed.count, 1, "exactly one fixture entry is marked visible")
-        XCTAssertEqual(revealed.first?.label, "Key")
+        // The fixture reveals an OTP account and an SSH key, and conceals a HOTP account and a note.
+        let revealed = entries.filter { $0.detailsVisible }.map(\.label).sorted()
+        XCTAssertEqual(revealed, ["Key", "alice@example.com"])
     }
 
     func testAWrongBackupPasswordIsRejected() throws {
