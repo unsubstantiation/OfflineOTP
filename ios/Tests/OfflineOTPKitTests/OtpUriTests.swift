@@ -46,10 +46,14 @@ final class OtpUriTests: XCTestCase {
     }
 
     func testASteamLinkDefaultsToFiveDigits() throws {
-        let uri = try OtpUri.parse("otpauth://steam/Steam:player?secret=\(seed)")
+        let uri = try OtpUri.parse("otpauth://steam/Steam:player?secret=\(seed)&issuer=Steam")
         XCTAssertEqual(uri.kind, .steam)
         XCTAssertEqual(uri.digits, 5)
+        XCTAssertEqual(uri.issuer, "Steam")
+        // The label loses the issuer prefix only when the issuer parameter agrees with it.
         XCTAssertEqual(uri.label, "player")
+        XCTAssertEqual(try OtpUri.parse("otpauth://steam/Steam:player?secret=\(seed)").label,
+                       "Steam:player")
     }
 
     func testASteamLinkCannotChangeItsDigitCount() {
