@@ -109,11 +109,12 @@ public enum EntryDraft {
             }
             entryPin = pin
         case .hotp:
-            entryDigits = try digits(digitsText)
-            counter = try counter(timingText)
+            // Qualified, because the local `counter`/`period` below would shadow the parsers.
+            entryDigits = try EntryDraft.digits(digitsText)
+            counter = try EntryDraft.counter(timingText)
         case .totp, .steam:
-            entryDigits = try digits(digitsText)
-            period = try period(timingText)
+            entryDigits = try EntryDraft.digits(digitsText)
+            period = try EntryDraft.period(timingText)
         case .sshKey, .password, .passwordArchive, .email:
             throw EntryDraftError.kindNotOfferable
         }
