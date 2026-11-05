@@ -60,7 +60,7 @@ struct UnlockView: View {
                 Button {
                     store.unlockWithBiometrics()
                 } label: {
-                    Label("Use \(store.biometryTitle)", systemImage: "faceid")
+                    Label("Use \(store.biometryTitle)", systemImage: store.biometry.kind.symbol)
                         .font(.subheadline.weight(.semibold))
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 12)

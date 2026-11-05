@@ -20,6 +20,17 @@ public enum BiometryKind: Equatable {
         case .other: return "Biometrics"
         }
     }
+
+    /// The SF Symbol the interface draws for it, so the lock screen shows a face on a phone with a
+    /// face sensor and a fingerprint on one with a fingerprint sensor.
+    public var symbol: String {
+        switch self {
+        case .faceID: return "faceid"
+        case .touchID: return "touchid"
+        case .opticID: return "opticid"
+        case .other: return "touchid"
+        }
+    }
 }
 
 /// Whether the quick unlock can be offered, and why not when it cannot.
@@ -160,7 +171,7 @@ public struct KeychainBiometricKeyStore: BiometricKeyStore {
                                                 error: &error)
         let kind = Self.kind(for: context.biometryType)
         guard allowed else {
-            if let laError = error as? LAError, laError.code == .biometryNotEnrolled {
+            if error?.code == LAError.Code.biometryNotEnrolled.rawValue {
                 return .notEnrolled(kind)
             }
             return .unavailable(kind)
@@ -262,16 +273,19 @@ public struct KeychainBiometricKeyStore: BiometricKeyStore {
         }
     }
 
+    /// The system's answer, mapped. Compared by raw code so the mapping does not depend on a bridge
+    /// cast from `NSError` to `LAError`.
     private static func error(for error: Error?) -> BiometricKeyError {
-        guard let laError = error as? LAError else { return .failed }
-        switch laError.code {
-        case .userCancel, .appCancel, .systemCancel, .userFallback:
+        guard let error = error as NSError? else { return .failed }
+        switch error.code {
+        case LAError.Code.userCancel.rawValue, LAError.Code.appCancel.rawValue,
+             LAError.Code.systemCancel.rawValue, LAError.Code.userFallback.rawValue:
             return .cancelled
-        case .biometryNotEnrolled:
+        case LAError.Code.biometryNotEnrolled.rawValue:
             return .notEnrolled
-        case .biometryLockout:
+        case LAError.Code.biometryLockout.rawValue:
             return .lockedOut
-        case .biometryNotAvailable, .passcodeNotSet:
+        case LAError.Code.biometryNotAvailable.rawValue, LAError.Code.passcodeNotSet.rawValue:
             return .unavailable
         default:
             return .failed
