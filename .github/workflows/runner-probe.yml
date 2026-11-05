@@ -1,0 +1,32 @@
+# TEMPORARY probe: which macOS runner labels can start in this repository right now.
+# Deleted as soon as it has answered; see scripts/tests/test_no_github_automation.py for the set of
+# workflows that is allowed to exist.
+name: runner probe
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.label }}
+    # A label that cannot start must not fail the pull request: this job only reports.
+    continue-on-error: true
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        label:
+          - macos-13
+          - macos-14
+          - macos-15
+          - macos-15-intel
+          - macos-14-large
+          - macos-14-xlarge
+          - macos-latest
+    steps:
+      - name: Where am I
+        run: uname -a && sw_vers && xcodebuild -version
