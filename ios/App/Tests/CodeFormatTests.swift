@@ -6,7 +6,9 @@ final class CodeFormatTests: XCTestCase {
     func testGroupingInsertsSpacesWithoutChangingTheCode() {
         XCTAssertEqual(CodeFormat.grouped("324550"), "324 550")
         XCTAssertEqual(CodeFormat.grouped("18948850"), "189 488 50")
-        XCTAssertEqual(CodeFormat.grouped("12345"), "12 345")
+        // Groups from the left, so a five-character code reads "123 45" — the spaces never move a
+        // character, they only make the code easier to read out.
+        XCTAssertEqual(CodeFormat.grouped("12345"), "123 45")
         XCTAssertEqual(CodeFormat.grouped("123"), "123")
         XCTAssertEqual(CodeFormat.grouped("2KM2P"), "2KM 2P")
         XCTAssertEqual(CodeFormat.grouped("693ae2"), "693 ae2")
@@ -19,8 +21,9 @@ final class CodeFormatTests: XCTestCase {
     }
 
     func testAStepIsCountedDownAndRestarts() {
-        // 1700000000 is a multiple of 10, so a 30-second TOTP step has all 30 seconds left.
-        let start = Date(timeIntervalSince1970: 1_700_000_000)
+        // 1700000010 is the start of a 30-second step (and of a ten-second one), so the countdown
+        // begins at a full period. 1700000000 is not: it is 20 seconds into a step.
+        let start = Date(timeIntervalSince1970: 1_700_000_010)
         XCTAssertEqual(CodeFormat.secondsRemaining(kind: "TOTP", period: 30, now: start), 30)
         XCTAssertEqual(CodeFormat.secondsRemaining(kind: "TOTP", period: 30,
             now: start.addingTimeInterval(29)), 1)
