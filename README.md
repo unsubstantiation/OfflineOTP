@@ -420,11 +420,15 @@ labels, issuers and tags, the same tag rules, the same five orders (remembered b
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
 entries, dated encrypted backups, restores that merge by default or replace, legacy plain-text import,
 `otpauth://` and QR-image import, Google Authenticator export import (every code of a multi-code
-export, committed together once the last one is in), and an entry shown as a QR code. A concealed entry
-shows no code and offers no copy, exactly as on the phone and the desktop client, an entry kind this
-build cannot display is still listed in its tab and explained rather than hidden, and a second account
-from an issuer that is already there asks the phone's *Issuer already exists* question first. Face ID
-and OpenPGP backups are not there yet; that list, with milestones, is in
+export, committed together once the last one is in), optional Face ID unlock, and an entry shown as a
+QR code. A concealed entry shows no code and offers no copy, exactly as on the phone and the desktop
+client, an entry kind this build cannot display is still listed in its tab and explained rather than
+hidden, and a second account from an issuer that is already there asks the phone's *Issuer already
+exists* question first. **Face ID** is off until it is turned on in **Settings**, and turning it on
+asks for the vault password: the app keeps the derived vault key in a Keychain item that is released
+only after a successful check of the *currently enrolled* face and never leaves the device, so the
+vault file stays encrypted with the password and a forgotten face costs only the shortcut. OpenPGP
+backups are not there yet; that list, with milestones, is in
 [the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
 simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
 on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,

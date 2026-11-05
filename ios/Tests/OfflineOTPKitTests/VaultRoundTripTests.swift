@@ -71,6 +71,36 @@ final class VaultRoundTripTests: XCTestCase {
         XCTAssertEqual(reopened.entries.first?.tags, ["work"])
     }
 
+    func testAnAlreadyDerivedKeyOpensTheVaultWithoutThePassword() throws {
+        // The hardware/keychain unlock: a device that has kept the derived key can hand it back
+        // without the password. The GCM tag alone decides, so a wrong key is refused exactly as a
+        // wrong password is — nothing is revealed about which.
+        let (vault, _, _) = try makeVault()
+        let unlocked = try vault.open(password: "correct horse battery")
+        try vault.save(key: unlocked.key, entries: [try totpEntry()])
+
+        let reopened = try vault.openWithKey(unlocked.key)
+        XCTAssertEqual(reopened.entries.count, 1)
+        XCTAssertEqual(reopened.key, unlocked.key)
+
+        XCTAssertThrowsError(try vault.openWithKey([UInt8](repeating: 7, count: 16))) { error in
+            XCTAssertEqual(error as? VaultOpenError, .authenticationFailed)
+        }
+    }
+
+    func testTheVaultIdentifierIsStablePerVaultAndIsNotTheKey() throws {
+        // The identifier files a device-held unlock key under the vault it belongs to: a copy of the
+        // same vault shares it, a different vault never does, and it says nothing about the key.
+        let (vault, _, _) = try makeVault()
+        let identifier = try XCTUnwrap(vault.vaultIdentifier)
+        let unlocked = try vault.open(password: "correct horse battery")
+        XCTAssertEqual(vault.vaultIdentifier, identifier)
+        XCTAssertNotEqual(identifier, VaultCrypto.base64URLEncode(unlocked.key))
+
+        let (other, _, _) = try makeVault()
+        XCTAssertNotEqual(other.vaultIdentifier, identifier)
+    }
+
     func testTheVaultFileIsNoncePrefixedCiphertextWithNoPlaintext() throws {
         let (vault, store, _) = try makeVault()
         let unlocked = try vault.open(password: "correct horse battery")

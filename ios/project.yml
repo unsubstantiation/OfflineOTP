@@ -56,6 +56,12 @@ targets:
         # The app declares no networking at all, so there is no export-controlled cryptography to
         # report beyond the standard library imports.
         ITSAppUsesNonExemptEncryption: false
+        # Face ID is optional and off until the person turns it on, but iOS refuses the prompt
+        # outright without this sentence, so it has to ship. It is the only permission the app
+        # declares: no camera, no photo library beyond the system picker, no network.
+        NSFaceIDUsageDescription: >-
+          Unlock your OfflineOTP vault with Face ID instead of typing its password. The vault stays
+          encrypted with the password; this only releases a key kept on this device.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: org.shadowice.flocke.andotp

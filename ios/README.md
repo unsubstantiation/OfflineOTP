@@ -8,7 +8,8 @@ Two things live here:
 2. **`App/`** — a SwiftUI app that uses the package: unlock or create a vault, five tabs, a live
    search, the tag filter and the five orders, reveal an entry, generate its code, copy it with an
    expiry, step an HOTP counter, add, edit and delete entries, write and restore backups, import an
-   `otpauth://` link or a QR image, show an entry as a QR code, lock. Face ID is still a milestone in
+   `otpauth://` link or a QR image, show an entry as a QR code, unlock with Face ID, lock. The remaining
+   milestones are in
    [the plan](../docs/ios-client-plan.md).
 
 Nothing in this directory is shared code; `:core` is JVM-only. What is shared is the *format*, and it
@@ -99,9 +100,15 @@ client added it.
 
 ## What is deliberately not here
 
-Biometric unlock, the Keychain-backed settings store, App Store packaging, and OpenPGP backups.
-Google Authenticator's multi-account export (`otpauth-migration://`) *is* supported: a bounded
-protobuf reader collects every code of the export and the accounts are imported together, once.
+App Store packaging and OpenPGP backups. Google Authenticator's multi-account export
+(`otpauth-migration://`) *is* supported: a bounded protobuf reader collects every code of the export
+and the accounts are imported together, once.
+
+Face ID is supported and optional. `BiometricUnlock.swift` keeps the **derived vault key** in a
+Keychain item with `kSecAccessControlBiometryCurrentSet` on `WhenUnlockedThisDeviceOnly`; the vault
+file, the password and the KDF are unchanged, so the shortcut only decides *when* the key is handed
+over, never what it is. Turning it on asks for the password again, and the switch lives in
+`vault.properties.plist` beside `ui_sort_mode` rather than inside `secrets.dat`.
 
 **Plain-text export is a deliberate omission.** The client *reads* a legacy unencrypted JSON backup
 and warns with Android's sentence before it opens the file picker, but it never writes one: an

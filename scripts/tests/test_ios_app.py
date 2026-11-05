@@ -272,7 +272,7 @@ class IosAppTest(unittest.TestCase):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
                      "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
-                     "MigrationImportView.swift"):
+                     "MigrationImportView.swift", "SettingsView.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -581,6 +581,80 @@ class IosAppTest(unittest.TestCase):
         hashed = swift.split("public func hash(into hasher", 1)[1].split("}", 1)[0]
         for swift_name in shared.values():
             self.assertIn(f"hasher.combine({swift_name})", hashed)
+
+    def test_the_quick_unlock_is_opt_in_and_keeps_the_password_as_the_key(self):
+        """Face ID is a shortcut to the vault key, never a second way to derive it."""
+        # iOS refuses the prompt outright without the usage sentence, so it has to be declared.
+        project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
+        description = project["targets"]["OfflineOTP"]["info"]["properties"][
+            "NSFaceIDUsageDescription"]
+        self.assertIn("Face ID", description)
+        self.assertGreater(len(description), 40, "the reason must be a real sentence")
+        # The only permission the app declares: no camera, no tracking, no network.
+        for absent in ("NSCameraUsageDescription", "NSMicrophoneUsageDescription",
+                       "NSLocationWhenInUseUsageDescription"):
+            self.assertNotIn(absent, project["targets"]["OfflineOTP"]["info"]["properties"])
+
+        sources = app_sources()
+        biometric = sources["BiometricUnlock.swift"]
+        # The security decision, spelled out in the one file allowed to touch the Keychain.
+        self.assertIn("import LocalAuthentication", biometric)
+        self.assertIn("import Security", biometric)
+        self.assertIn(".biometryCurrentSet", biometric)
+        self.assertIn("kSecAttrAccessibleWhenUnlockedThisDeviceOnly", biometric)
+        self.assertIn("kSecAttrSynchronizable as String: false", biometric)
+        self.assertIn("kSecClassGenericPassword", biometric)
+        self.assertIn("kSecUseAuthenticationContext", biometric)
+        # A device passcode is a *device* secret, not the vault password: biometrics only.
+        self.assertNotIn(".deviceOwnerAuthentication,", biometric)
+        self.assertNotIn("kSecAttrAccessibleAlways", biometric)
+        self.assertNotIn("kSecAttrAccessibleAfterFirstUnlock", biometric)
+        # Only that file speaks to the system sensor or the Keychain; a view cannot.
+        for name, text in sources.items():
+            if name == "BiometricUnlock.swift":
+                continue
+            for forbidden in ("import LocalAuthentication", "import Security", "SecItemAdd",
+                              "SecItemCopyMatching", "LAContext"):
+                self.assertNotIn(forbidden, text, f"{name} must not use {forbidden}")
+
+        # The vault password is the only thing that produces the key: turning the shortcut on asks
+        # for it, and what is filed is the derived key.
+        store = sources["VaultStore.swift"]
+        self.assertIn("public func enableBiometricUnlock(password: String) -> Bool", store)
+        self.assertIn("try vault.open(password: password)", store)
+        self.assertIn("guard verified.key == key", store)
+        self.assertIn("try biometrics.save(key: verified.key", store)
+        self.assertIn("try vault.openWithKey(sessionKey)", store)
+        # The key store only ever handles bytes: there is no shape of it that could carry the
+        # password, and no setting in the vault document that would duplicate one.
+        store_protocol = biometric.split("public protocol BiometricKeyStore {", 1)[1].split(
+            "\n}\n", 1)[0]
+        self.assertIn("func save(key: [UInt8], account: String) throws", store_protocol)
+        self.assertIn("func load(account: String, reason: String,", store_protocol)
+        # The surface between the store and the device has no shape that could carry the password.
+        self.assertNotIn("password", store_protocol)
+        self.assertNotIn("biometric_unlock", (KIT / "PasswordVault.swift").read_text(
+            encoding="utf-8"))
+        # Off until the person turns it on, and remembered beside the vault, not inside it.
+        self.assertIn('biometricSettingKey = "biometric_unlock"', store)
+        self.assertIn("biometricUnlockEnabled && biometry.isAvailable", store)
+        self.assertIn("settings.setString(VaultStore.biometricSettingKey", store)
+
+        # The lock screen offers the button, and the settings sheet asks for the password.
+        unlock = sources["UnlockView.swift"]
+        self.assertIn("store.canUnlockWithBiometrics", unlock)
+        self.assertIn("Unlock with \\(store.biometryTitle)", unlock)
+        settings = sources["SettingsView.swift"]
+        self.assertIn("BiometricWording.switchDetail", settings)
+        self.assertIn("store.enableBiometricUnlock(password: password)", settings)
+        self.assertIn("store.disableBiometricUnlock()", settings)
+
+        # The wording has no Android counterpart, so it is pinned here instead of compared.
+        wording = (SOURCES / "BiometricUnlock.swift").read_text(encoding="utf-8")
+        for sentence in ("Too many attempts. Enter your password to unlock.",
+                         "Set up Face ID on this device first.",
+                         "Enter the vault password to turn this on."):
+            self.assertIn(sentence, wording)
 
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")

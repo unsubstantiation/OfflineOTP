@@ -145,8 +145,8 @@ shared *rules* one file at a time. The parity rule that matters most for it is t
 kept returning to: an unsupported kind or field is **preserved verbatim**, never dropped, because a
 save must not silently destroy another client's data.
 
-The iOS client now has the same surfaces as the other two for everything short of Face ID, and each
-one is a port rather than a reinterpretation:
+The iOS client now has the same surfaces as the other two, and each one is a port rather than a
+reinterpretation:
 
 | Rule | Shared source | iOS port | Pinned by |
 | --- | --- | --- | --- |
@@ -167,6 +167,7 @@ one is a port rather than a reinterpretation:
 | A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
 | A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
 | A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
+| The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | (iOS only) | `KeychainBiometricKeyStore`, `VaultStore.unlockWithBiometrics` | `BiometricUnlockTests`, `test_ios_app.py` |
 | Two entries are the same account when their kind, token parameters, seed, name, issuer and SSH target match — the usage stamp, counters of use, tags and reveal state are metadata | `Entry.equals`/`hashCode` | `Entry.==`/`hash(into:)` | `VaultStoreTests`, `test_ios_app.py` |
 | A Google Authenticator export is read code by code and written only when every code of it has arrived; a repeated or foreign code is refused without ending it, and an identical account is skipped | `GoogleAuthenticatorMigration`, `MigrationBatchCollector`, Android's `google_import_*` strings, `EntriesCardAdapter.importEntries` | `MigrationPayload`, `MigrationBatchCollector`, `MigrationWording`, `VaultStore.addMigrationImportCode`/`confirmMigrationImport` | `MigrationImportTests`, `VaultStoreTests`, `test_ios_app.py` |
 
@@ -176,3 +177,10 @@ entries are read, listed, revealed and written back unchanged); it always search
 which is what the desktop client does, since Android's narrower search preference lives in its own
 settings that neither other client reads; and OpenPGP backups (`.json.gpg`) are still outstanding,
 because they need a whole OpenPGP implementation.
+
+One thing the iOS client has and the other two do not: an optional **Face ID** unlock. It is not a
+format change and it does not touch the vault — it releases the derived key from a Keychain item that
+is bound to the currently enrolled face and never leaves the device, so the password still opens the
+vault and the other clients see exactly the bytes they wrote. It is iOS-only because it is a property
+of the platform's Keychain, not of the vault. The rules, and the reasons for them, are in
+[the iOS client plan](ios-client-plan.md#face-id-and-why-it-does-not-weaken-the-vault).

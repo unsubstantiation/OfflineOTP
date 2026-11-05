@@ -53,6 +53,21 @@ public final class PasswordVault {
 
     public var isInitialized: Bool { vaultFile.exists() }
 
+    /// A stable name for *this* vault, derived from its stored salt.
+    ///
+    /// Nothing secret: the salt sits next to the verifier in the settings file and is useless without
+    /// the password. It is here so a device-held unlock key — a Keychain item the system releases only
+    /// after Face ID — can be filed under the vault it belongs to, instead of one slot per app that
+    /// would be handed to whichever vault happened to be opened next. A copy of the same vault has the
+    /// same identifier and the same key; a different vault never shares one.
+    public var vaultIdentifier: String? {
+        guard let saltText = settings.string(VaultSettingsKeys.authSalt),
+              let salt = VaultCrypto.base64URLDecode(saltText), !salt.isEmpty else {
+            return nil
+        }
+        return VaultCrypto.base64URLEncode(salt)
+    }
+
     /// Provisions fresh credentials and writes an empty encrypted vault.
     public func create(password: String) throws {
         guard !vaultFile.exists(), !backupFile.exists() else {

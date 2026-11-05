@@ -16,6 +16,7 @@ struct EntryListView: View {
     @State private var deletion: DeletionTarget?
     @State private var backupsShown = false
     @State private var qrCode: QrTarget?
+    @State private var settingsShown = false
 
     /// The QR sheet: the entry's link and the name to show above it.
     private struct QrTarget: Identifiable {
@@ -76,6 +77,15 @@ struct EntryListView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        settingsShown = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                            .foregroundColor(ForestPalette.textPrimary)
+                    }
+                    .accessibilityLabel("Settings")
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
                         store.lock()
                     } label: {
                         Image(systemName: "lock.fill")
@@ -105,6 +115,9 @@ struct EntryListView: View {
             }
             .sheet(isPresented: $backupsShown) {
                 BackupView(store: store)
+            }
+            .sheet(isPresented: $settingsShown) {
+                SettingsView(store: store)
             }
             .sheet(item: $qrCode) { target in
                 QrCodeView(title: target.title, payload: target.payload)
