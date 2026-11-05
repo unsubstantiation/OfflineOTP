@@ -1,0 +1,169 @@
+# Native iOS client — plan
+
+Status: **plan only**. Nothing exists under `ios/` yet, and `:core` cannot be reused (see
+[Why not Kotlin Multiplatform](#why-not-kotlin-multiplatform)). This document is the contract a
+SwiftUI client has to satisfy, so that it is a fourth *reader and writer* of the same vault rather
+than a fourth format.
+
+The desktop client is a JVM Swing application and the phone client is Android; both were made to
+follow one rule set in `docs/client-parity-2026-11-02.md`. An iOS client joins that set under the
+same rule: **the vault bytes are the API**. Anything it cannot model it must preserve, never drop.
+
+## Why not Kotlin Multiplatform
+
+`:core` is portable Kotlin, not Kotlin/Native. It uses `javax.crypto.Cipher`/`SecretKeySpec`,
+`java.security.SecureRandom`/`MessageDigest`/`SecretKeyFactory` (PBKDF2), `org.json`,
+`java.nio.charset` with `CodingErrorAction` and `java.util.zip`. Kotlin/Native has none of these, so
+the module does not compile for `iosArm64` today. Converting it would mean an `expect`/`actual`
+crypto layer over CommonCrypto/CryptoKit, a different JSON library and new golden vectors — a
+prerequisite project in its own right, not a build step.
+
+The Swift client therefore reimplements the *formats* below and proves itself against the vectors
+this repository already ships. Duplication is accepted here because the duplication is a format, not
+a rule: the parser is pinned by fixed bytes, not by review.
+
+## The interop contract
+
+Every constant below is enforced by `:core` and by a Python guard
+(`scripts/tests/test_ios_plan.py`), so this table cannot silently drift from the code.
+
+### 1. The vault: `data/secrets.dat`
+
+| Property | Value |
+| --- | --- |
+| Plaintext | the compact `VaultJson` document: a UTF-8 JSON array of entries |
+| Key derivation | PBKDF2-HMAC-**SHA1**, **256-bit** output, **16-byte** salt, iteration count from the settings file |
+| Written iteration count | at least **30000** (`PBKDF2_MIN_AUTH_ITERATIONS`); a reader accepts 1 – 20000000 |
+| AES key | the **first 16 bytes** of that 32-byte output (lower half) |
+| Verifier | the **last 16 bytes** (upper half), stored Base64 URL-safe |
+| Cipher | AES-**GCM**, **128-bit** tag, **96-bit** nonce |
+| Framing | `nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`; nothing else, no header |
+
+Settings beside the vault (Android `SharedPreferences`, desktop `data/vault.properties`) hold
+`auth_method=password`, `encryption=password`, `auth_salt` (Base64 URL-safe, 16 bytes),
+`auth_iterations` (int) and `auth_credentials` (Base64 URL-safe verifier, compared in constant
+time). The verifier is a fast pre-check; the GCM tag is the real gate.
+
+### 2. Encrypted backup: `otp_accounts_<timestamp>.json.aes`
+
+| Property | Value |
+| --- | --- |
+| Framing | `4-byte big-endian iterations ‖ 12-byte salt ‖ 12-byte nonce ‖ ciphertext ‖ 16-byte tag` |
+| Key | PBKDF2-HMAC-SHA1, **all 32 bytes** (no split — unlike the vault key) |
+| Iterations | writer picks 140000 – 160000; reader accepts 1 – 1000000 |
+| Plaintext | the same UTF-8 `VaultJson` document |
+
+### 3. Entry JSON
+
+| Field | Notes |
+| --- | --- |
+| `type` | `TOTP`, `HOTP`, `MOTP`, `STEAM`, `NOTE`, `SSH_KEY`, `PASSWORD`, `PASSWORD_ARCHIVE`, `EMAIL` |
+| `secret` | Base32 for the OTP kinds; raw text for mOTP; note text for `NOTE`; framed key material for `SSH_KEY`; structured for the credential kinds |
+| `issuer`, `label`, `digits`, `algorithm`, `thumbnail` | `algorithm` is `SHA1`, `SHA256` or `SHA512` |
+| `period` (TOTP/Steam), `counter` (HOTP), `pin` (mOTP) | written only for the kinds that use them |
+| `last_used`, `used_frequency` | usage ordering |
+| `tags` | array of strings |
+| `details_visible`, `ssh_host`, `ssh_port`, `ssh_username`, `ssh_password` | optional; omitted when unset, so an untouched entry round-trips byte-for-byte |
+
+### 4. Bounds a reader must enforce
+
+| Bound | Value | Source |
+| --- | --- | --- |
+| Entries per vault | 2000 | `InputPolicy.MAX_ENTRIES` |
+| Note length | 1 – 200 Unicode code points | `InputPolicy.MAX_NOTE_CHARACTERS` |
+| OTP secret | ≤ 2048 bytes | `InputPolicy.MAX_SECRET_BYTES` |
+| Free text (issuer, label) | ≤ 1024 characters | `InputPolicy.MAX_TEXT_CHARS` |
+| Tags | ≤ 32 tags, ≤ 128 characters each | `InputPolicy.MAX_TAGS`, `MAX_TAG_CHARS` |
+| Digits | 1 – 9 | `InputPolicy.tokenParameters` |
+| Period | 1 – 86400 seconds | `InputPolicy.MAX_PERIOD_SECONDS` |
+| HOTP counter | ≥ 0 and never `Long.MAX_VALUE` | `InputPolicy.tokenParameters` |
+| Steam digits | exactly 5 | `TokenCalculator.STEAM_DEFAULT_DIGITS` |
+
+### 5. Tokens
+
+- **TOTP/HOTP**: RFC 4226 dynamic truncation over HMAC-SHA1/256/512 of the 8-byte big-endian time
+  step or counter; `offset = last byte & 0x0f`; 31-bit result; `code = result % 10^digits`.
+- **Steam**: the same TOTP value, but each digit is `alphabet[value % 26]` over the 26-character
+  alphabet `23456789BCDFGHJKMNPQRTVWXY` (no `L`, no vowels), with `value /= 26` per digit and the
+  least significant character produced first.
+- **mOTP**: `MD5("<epoch/10 + offset><secret><pin>")` in hex, first 6 characters; a 10-second step
+  regardless of the stored period, and `"PINREQ"` is shown instead of a code while the PIN is empty.
+
+## Conformance corpus
+
+`desktop/src/test/resources/golden/` already contains fixed-vector blobs with the password
+`golden-interop-password`:
+
+| File | What the iOS test must do with it |
+| --- | --- |
+| `secrets.dat` + `vault.properties` | unlock, decode, and re-encode to exactly `expected-vault.json` |
+| `expected-vault.json` | compare bytes after a round-trip, not just parsed values |
+| `otp_accounts.json.aes` | decrypt to the same document, then re-seal deterministically |
+| `desktop-note-export.json.aes`, `desktop-ssh-export.json.aes`, `desktop-privacy-export.json.aes` | open a real backup containing a Unicode note, a >5 KiB SSH key and hidden/revealed entries |
+
+A Swift test target reads those files **from the repository path** (no copies), so a format change
+on either side breaks both suites at once. The corpus is the whole reason this project is feasible:
+the crypto never has to be reviewed by eye.
+
+## Milestones
+
+| # | Scope | Exit criteria |
+| --- | --- | --- |
+| **M0** | Xcode project, SPM package (`Crypto`, `Vault`, `Entry`, `OTP`), test target wired to the golden fixtures, `.github/workflows/ios.yml` | Simulator build + fixture tests green in CI |
+| **M1** | Unlock `secrets.dat`, decode entries, byte-identical re-encode, create a vault, reject a wrong password | Every vault fixture round-trips exactly; a vault created on Android opens and re-saves unchanged |
+| **M2** | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit |
+| **M3** | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit an entry | Same vault shows the same order and the same tabs as the other two clients |
+| **M4** | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android |
+| **M5** | Face ID lock, clipboard expiry, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+
+Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
+week, M5 about a week. Nothing here is on the critical path of the existing clients.
+
+## What the iOS build action will look like
+
+`ios.yml` is added at **M0**, when there is a project to build — a workflow before that could only
+fail or sit permanently skipped, which is indistinguishable from coverage that does not exist. It
+follows the same per-platform shape as the other four:
+
+- `runs-on: macos-14`, `xcodebuild build-for-testing` + `test-without-building` against an iOS
+  simulator, so pull requests need **no signing identity at all**;
+- a release job gated on `master` (and a `workflow_dispatch`), declaring an **`ios-release`**
+  environment exactly like `android-release`, holding the distribution certificate (`.p12` plus
+  password), the provisioning profile and an App Store Connect API key (key ID, issuer ID, `.p8`);
+- `xcodebuild archive` → `-exportArchive -exportMethod app-store-connect`, then `codesign -dv`
+  verification and an upload through the App Store Connect API. Publishing stays manual, as with
+  the other platforms: the workflow uploads a build, it does not create a release note.
+
+## Security requirements
+
+- Vault password and keys stay in the **Keychain** with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`;
+  the derived key is never written to disk, `UserDefaults`, or a log.
+- PBKDF2 through CommonCrypto (`CCKeyDerivationPBKDF`), AES-GCM through CryptoKit; no third-party
+  crypto dependency.
+- No networking code at all, matching the other clients (the app is offline by design; that is also
+  why the App Store privacy answers are short).
+- iOS cannot block screenshots the way Android's `FLAG_SECURE` does. Instead: blur the content when
+  `scenePhase` leaves `.active`, clear the pasteboard on a timer
+  (`UIPasteboard.setItems(…, options: [.expirationDate: …])`), and never put a secret in a
+  notification, a widget or a snapshot-visible view.
+- Unsupported entry kinds (`PASSWORD`, `PASSWORD_ARCHIVE`, `EMAIL`, and any future kind) must be
+  **preserved verbatim** when a vault is saved, even though v1 cannot display them. Dropping them
+  would silently destroy another client's data — the failure mode this whole repository is built to
+  avoid.
+
+## Non-goals for v1
+
+OpenPGP (`.json.gpg`) backups — they need an OpenPGP implementation, and the existing clients use
+incompatible ones (Android talks to an external provider, the desktop embeds PGPainless). Hardware
+security keys over NFC. FairEmail account import/export. The password-vault and email entry kinds
+(preserved, not edited). Master-password change on device.
+
+## Risks
+
+| Risk | Mitigation |
+| --- | --- |
+| Crypto diverges from the JVM implementation | Fixed-vector corpus, run on both sides, byte comparison rather than value comparison |
+| A new entry kind or field appears and iOS drops it | Round-trip rule above plus a corpus fixture added whenever `:core` gains a field |
+| App Store review treats an offline authenticator as needing justification | No network, no accounts, no analytics; privacy answers and a short reviewer note in M5 |
+| Two codebases for one product | Accepted and bounded: formats are frozen by vectors, and the parity rules in `docs/client-parity-2026-11-02.md` apply to the iOS client as they do to the desktop one |
+| Xcode/macOS runner drift | The workflow pins the runner image and the Xcode version it selects |
