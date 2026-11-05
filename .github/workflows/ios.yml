@@ -38,7 +38,9 @@ jobs:
         run: |
           set -euo pipefail
           cd ios
-          swift build --build-tests
+          # `tee` keeps the diagnostics: the next step turns them into annotations, which is the only
+          # way to read a compiler error from the run without downloading the job log.
+          swift build --build-tests 2>&1 | tee build-log.txt
       - name: Run the format tests against the shared fixtures
         shell: bash
         run: |
@@ -46,7 +48,22 @@ jobs:
           cd ios
           # The tests read desktop/src/test/resources/golden/ in place: the same vault, backups and
           # fixed parameters the JVM suites use. No signing identity and no simulator are involved.
-          swift test --parallel
+          swift test --parallel 2>&1 | tee -a build-log.txt
+      - name: Report compiler diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Attach each diagnostic to the run as an annotation, so a failure is readable on the pull
+          # request instead of buried in a log download.
+          [ -f ios/build-log.txt ] || exit 0
+          grep -E ': (error|warning): ' ios/build-log.txt | head -40 | while IFS= read -r line; do
+            case "$line" in
+              *": error: "*) echo "::error title=Swift::${line}" ;;
+              *) echo "::warning title=Swift::${line}" ;;
+            esac
+          done
+          exit 0
       - name: Build for the iOS simulator
         shell: bash
         run: |

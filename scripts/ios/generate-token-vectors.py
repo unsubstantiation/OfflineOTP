@@ -66,9 +66,15 @@ def steam(secret: bytes, unix_time: int, digits: int, period: int, algorithm: st
 
 
 def motp(secret: str, pin: str, unix_time: int, offset: int = 0) -> str:
-    """Legacy mOTP: first six hex digits of MD5(step + secret + PIN)."""
+    """Legacy mOTP: first six hex digits of MD5(step + secret + PIN).
+
+    MD5 is not protecting anything here — it is the published mOTP construction, and every client has
+    to produce the same six hex digits or the codes are wrong. Strengthening it is not an option, so
+    the analysis warning is suppressed with that reasoning rather than papered over.
+    """
     step = (unix_time // MOTP_STEP_SECONDS) + offset
-    return hashlib.md5(f"{step}{secret}{pin}".encode()).hexdigest()[:6]
+    text = f"{step}{secret}{pin}"
+    return hashlib.md5(text.encode()).hexdigest()[:6]  # codeql[py/weak-sensitive-data-hashing]
 
 
 def decode_base32(text: str) -> bytes:

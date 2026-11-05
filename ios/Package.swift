@@ -16,6 +16,8 @@ let package = Package(
     ],
     targets: [
         .target(name: "OfflineOTPKit"),
-        .testTarget(name: "OfflineOTPKitTests", dependencies: ["OfflineOTPKit"]),
+        .testTarget(name: "OfflineOTPKitTests", dependencies: ["OfflineOTPKit"],
+                // Read from the source tree through #filePath, not bundled.
+                exclude: ["Fixtures"]),
     ]
 )
