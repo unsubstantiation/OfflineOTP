@@ -109,6 +109,19 @@ public struct Entry: Equatable {
         return kind == .hotp ? TokenCalculator.hotpInitialCounter : 0
     }
 
+    /// The note text a `NOTE` entry carries, decoded from its Base32 seed.
+    public var noteText: String? {
+        guard kind == .note, let bytes = secretBytes else { return nil }
+        return String(bytes: bytes, encoding: .utf8)
+    }
+
+    /// The raw seed text of an entry whose seed is not Base32 to begin with — an mOTP seed is stored
+    /// as the UTF-8 bytes of the hexadecimal string the user typed, so this is what a form shows back.
+    public var rawSecretText: String? {
+        guard let bytes = secretBytes else { return nil }
+        return String(bytes: bytes, encoding: .utf8)
+    }
+
     public var pin: String { fields["pin"]?.stringValue ?? "" }
     public var tags: [String] { fields["tags"]?.arrayValue?.compactMap { $0.stringValue } ?? [] }
     public var lastUsed: Int64 { fields["last_used"]?.intValue ?? 0 }
@@ -150,6 +163,41 @@ public struct Entry: Equatable {
         case .note, .sshKey, .password, .passwordArchive, .email:
             throw EntryError.notAnOtpEntry
         }
+    }
+
+    // MARK: - Mutation
+
+    /// Replaces one field, or removes it when `value` is nil.
+    ///
+    /// Only an explicit user action goes through here — adding or editing an entry, recording a use,
+    /// advancing a counter, revealing details. A load/save cycle never rewrites a field it did not
+    /// understand, which is what makes an unknown field survive this client.
+    public mutating func set(_ name: String, _ value: JSONValue?) {
+        if let value {
+            fields[name] = value
+        } else {
+            fields.removeValue(forKey: name)
+        }
+    }
+
+    public mutating func setLastUsed(_ value: Int64) { set("last_used", .int(value)) }
+
+    public mutating func setUsedFrequency(_ value: Int64) { set("used_frequency", .int(value)) }
+
+    public mutating func setCounter(_ value: Int64) { set("counter", .int(value)) }
+
+    /// Concealing removes the field rather than writing `false`, so an untouched entry keeps the
+    /// legacy bytes the other clients write for the default state.
+    public mutating func setDetailsVisible(_ value: Bool) {
+        set("details_visible", value ? .bool(true) : nil)
+    }
+
+    public mutating func setPin(_ value: String) {
+        set("pin", value.isEmpty ? nil : .string(value))
+    }
+
+    public mutating func setTags(_ values: [String]) {
+        set("tags", .array(values.map { .string($0) }))
     }
 
     // MARK: - Serialization

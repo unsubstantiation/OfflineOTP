@@ -137,17 +137,31 @@ re-deriving the behaviour.
 
 ## A third client
 
-The same rules apply to a client that does not exist yet: a native SwiftUI iOS app is planned in
+The same rules apply to a third client: the native SwiftUI iOS app in
 [docs/ios-client-plan.md](ios-client-plan.md). It cannot share `:core` code (the module is JVM-only),
 so it shares the *formats* instead — the vault bytes, the encrypted-backup framing and the entry
-JSON, pinned by the fixed-vector corpus in `desktop/src/test/resources/golden/`. The parity rule
-that matters most for it is the one this review kept returning to: an unsupported kind or field is
-**preserved verbatim**, never dropped, because a save must not silently destroy another client's
-data.
+JSON, pinned by the fixed-vector corpus in `desktop/src/test/resources/golden/` — and ports the
+shared *rules* one file at a time. The parity rule that matters most for it is the one this review
+kept returning to: an unsupported kind or field is **preserved verbatim**, never dropped, because a
+save must not silently destroy another client's data.
 
-The iOS shell follows the same rules where it has a surface to apply them to: one sentence for a wrong
-password, the six-character minimum with a matching confirmation, the Dark Forest tokens taken from
-`ForestTheme.kt` (compared in `scripts/tests/test_ios_app.py`), a ten-second rollover for mOTP
-regardless of the stored period, no countdown for HOTP, and a copy that expires. Where it has no
-surface yet — tabs, sorting, search, editing — it lists the entries it cannot display rather than
-hiding them, so the parity rule and the data-loss rule are not quietly violated by the gap.
+The iOS client now has the same surfaces as the other two for everything short of imports, backups,
+QR codes and Face ID, and each one is a port rather than a reinterpretation:
+
+| Rule | Shared source | iOS port | Pinned by |
+| --- | --- | --- | --- |
+| Entry kind → tab, and the tab order and titles | `EntryListPresentation.Category`/`categoryOf`, Android's `tab_*` strings, desktop's `categoryTitle` | `EntryCategory` | `EntryListProjectionTests`, `test_ios_app.py` |
+| Search over labels, issuers and tags; a live search survives tab, tag and sort changes | `EntryList.getFilteredEntries`, `EntryListPresentation.refreshTags` | `EntryListProjection.matchesSearch`, `visibleIndices` | `EntryListProjectionTests` |
+| Tag selection (any/all/one) and tag-name order | `EntryTagFilter.matches`/`sortedNames` | `EntryTagFilter` | `EntryListProjectionTests`, `test_ios_app.py` |
+| The five orders, stable ties, `unsorted` restoring the vault order | `EntryList.sortEntries` and its comparators | `EntryListProjection.ordered` | `EntryListProjectionTests` |
+| The sort preference is a client preference, stored as `ui_sort_mode` | `VaultController.SORT_MODE_KEY` | `SortMode.settingsKey` in `vault.properties.plist` | `VaultStoreTests`, `test_ios_app.py` |
+| A use stamps `last_used` and adds one to `used_frequency`; an import stamps only; a step is one counter below `MAX_COUNTER` | `EntryUsage` | `EntryUsage` | `EntryUsageTests`, `test_ios_app.py` |
+| A manual form's kinds, whitespace rule, wording and metadata preservation | `EntryDraft`, `EntryDialog.preserveEditMetadata` | `EntryDraft` | `EntryDraftTests`, `test_ios_app.py` |
+| A concealed entry shows no code and offers no copy; a reveal is vault data | Android `privacyButton`/`EntriesCardAdapter`, desktop `EntryEditor.setDetailsVisible` | `VaultStore.code(for:)`, `setDetailsVisible` | `VaultStoreTests` |
+| A removal asks by name | `dialog_msg_confirm_delete`, desktop `MainWindow` | `EntryListView` alert | `EntryListView` |
+
+Two things are deliberately *not* the same, and both are recorded in the plan: the iOS client cannot
+create an SSH key (its seed is `SshKeyMaterial`-framed material this build does not implement — such
+entries are read, listed, revealed and written back unchanged), and it always searches all three
+fields, which is what the desktop client does; Android's narrower search preference lives in its own
+settings, which neither other client reads.

@@ -407,13 +407,16 @@ details. The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
 **right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.
-The iOS client is an early shell rather than a finished app: `ios/` holds a Swift package that
-matches the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry
-document and the token maths, verified against the same fixed vectors in
-`desktop/src/test/resources/golden/` — plus a SwiftUI app that unlocks a vault, lists its entries,
-shows the codes and copies one with an expiry. It has no tabs, search, sorting, editing, imports,
-backups or Face ID yet; that list, with milestones, is in
-[the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
+The iOS client is a working daily-use app short of imports and backups: `ios/` holds a Swift package
+that matches the other two clients byte for byte — the encrypted vault, the encrypted backup, the
+entry document and the token maths, verified against the same fixed vectors in
+`desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
+labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
+inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, and adding, editing and
+deleting entries. A concealed entry shows no code and offers no copy, exactly as on the phone and the
+desktop client, and an entry kind this build cannot display is still listed in its tab and explained
+rather than hidden. Imports, QR codes, backups and Face ID are not there yet; that list, with
+milestones, is in [the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
 simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
 on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.
