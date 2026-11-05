@@ -69,10 +69,15 @@ tasks.register('packageDesktop', Exec) {
         '--main-class', 'org.shadowice.flocke.andotp.desktop.MainKt',
         '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
     ]
-    // jpackage requires a platform-specific icon format. Other platforms keep their default.
+    // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated
+    // from the shared PNG by the CI job (-PmacIconFile) because it is a binary container; a plain
+    // local build without the property keeps jpackage's default icon.
     def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    def macIcon = project.hasProperty('macIconFile') ?
+        file(project.property('macIconFile')) : file('packaging/offlineotp.icns')
     def icon = isWindows ? file('packaging/offlineotp.ico') :
-        (osName.contains('linux') ? file('src/main/resources/offlineotp.png') : null)
+        (osName.contains('linux') ? file('src/main/resources/offlineotp.png') :
+            (osName.contains('mac') && macIcon.isFile() ? macIcon : null))
     if (icon != null) {
         inputs.file(icon)
         args '--icon', icon.absolutePath
