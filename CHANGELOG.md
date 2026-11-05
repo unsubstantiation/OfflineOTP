@@ -16,7 +16,8 @@ same key, so nobody is locked out and **Settings → Authentication** can give t
 password. Treating the stored value as unknown would have thrown on launch. mOTP PINs and
 hardware-key PINs are entry and key data, not logins, and are untouched. PIN-only strings are
 deleted from all 31 translations, and the eight translated sentences whose meaning changed fall
-back to English rather than keep describing a login that no longer exists
+back to English rather than keep describing a login that no longer exists. `AuthMethodTest`
+pins the stored-token rules, including the removed token and an unreadable one
 
  * CI: Move the two Apple workflow jobs to `macos-15`, because GitHub retired the `macos-14` arm64 image. Every run on that label started being cancelled before its first step with *The configuration 'macos-14-arm64-us-default' is not supported* — a probe across the labels confirmed `macos-14`, `macos-14-large` and `macos-14-xlarge` all cancel while `macos-15` and `macos-15-intel` start, and reported what the new image is: `macos-15` is arm64, macOS 15.8.2, Xcode 16.4. The macOS artifact is unchanged (`OfflineOTP-macos-arm64.zip`, still Apple silicon only), the Xcode project keeps its `xcode15_3` format pin so it still opens on Xcode 15, and `xcodeVersion` moves to the runner's 16.4. With the iOS job running for the first time, its compiler found two name errors in `BiometricUnlockTests` — the fake key store's account property was called for by the wrong name, and one assertion read that account after the failed unlock had cleared it — so the quick-unlock tests now compile and drive the paths they were written for. `scripts/tests/test_ios_app.py`, `test_ios_package.py` and `test_no_github_automation.py` fail if a workflow moves back to `macos-14`
 
