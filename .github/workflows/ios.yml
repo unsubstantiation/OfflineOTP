@@ -50,7 +50,7 @@ jobs:
           # The tests read desktop/src/test/resources/golden/ in place: the same vault, backups and
           # fixed parameters the JVM suites use. No signing identity and no simulator are involved.
           swift test --parallel 2>&1 | tee -a build-log.txt
-      - name: Report compiler diagnostics
+      - name: Report diagnostics
         if: always()
         shell: bash
         run: |
@@ -59,7 +59,9 @@ jobs:
           # request instead of buried in a log download. This step must never fail the job by itself:
           # a clean build has nothing to report, and grep exits 1 when it matches nothing.
           [ -f ios/build-log.txt ] || exit 0
-          diagnostics=$(grep -E ': (error|warning): ' ios/build-log.txt | head -40 || true)
+          diagnostics=$(grep -E -i ': (error|warning): |error:|spec validation|damaged|'
+            'cannot be opened|unable to (read|write|parse)|invalid (value|type)' \
+            ios/build-log.txt | head -40 || true)
           while IFS= read -r line; do
             [ -n "$line" ] || continue
             case "$line" in
@@ -87,16 +89,17 @@ jobs:
           set -euo pipefail
           # The Xcode project is generated from ios/project.yml rather than committed: a pbxproj is
           # an opaque, conflict-prone file, and the definition is five reviewable screens of YAML.
-          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install xcodegen
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install xcodegen \
+            2>&1 | tee -a build-log.txt
           xcodegen --version
       - name: Generate the Xcode project
         shell: bash
         run: |
           set -euo pipefail
           cd ios
-          xcodegen generate
+          xcodegen generate 2>&1 | tee -a build-log.txt
           test -d OfflineOTP.xcodeproj
-          xcodebuild -list -project OfflineOTP.xcodeproj
+          xcodebuild -list -project OfflineOTP.xcodeproj 2>&1 | tee -a build-log.txt
       - name: Build the app for the simulator
         shell: bash
         run: |
