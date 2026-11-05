@@ -53,16 +53,19 @@ jobs:
         if: always()
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
           # Attach each diagnostic to the run as an annotation, so a failure is readable on the pull
-          # request instead of buried in a log download.
+          # request instead of buried in a log download. This step must never fail the job by itself:
+          # a clean build has nothing to report, and grep exits 1 when it matches nothing.
           [ -f ios/build-log.txt ] || exit 0
-          grep -E ': (error|warning): ' ios/build-log.txt | head -40 | while IFS= read -r line; do
+          diagnostics=$(grep -E ': (error|warning): ' ios/build-log.txt | head -40 || true)
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
             case "$line" in
               *": error: "*) echo "::error title=Swift::${line}" ;;
               *) echo "::warning title=Swift::${line}" ;;
             esac
-          done
+          done <<< "$diagnostics"
           exit 0
       - name: Build for the iOS simulator
         shell: bash
