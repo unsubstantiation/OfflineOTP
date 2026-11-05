@@ -90,7 +90,7 @@ final class BiometricUnlockTests: XCTestCase {
     func testTheKeyIsFiledUnderTheVaultItBelongsTo() throws {
         let first = FakeBiometricKeyStore()
         XCTAssertTrue(unlockedStore(first).enableBiometricUnlock(password: password))
-        let account = try XCTUnwrap(first.savedAccount)
+        let account = try XCTUnwrap(first.storedAccount)
 
         // The same vault, opened again: the same slot, so a copy of a vault and the original share
         // one key and a different vault does not.
@@ -98,7 +98,7 @@ final class BiometricUnlockTests: XCTestCase {
         let reopened = makeStore(biometrics: again)
         reopened.unlock(password: password)
         XCTAssertTrue(reopened.enableBiometricUnlock(password: password))
-        XCTAssertEqual(again.savedAccount, account)
+        XCTAssertEqual(again.storedAccount, account)
 
         let otherDirectory = directory.appendingPathComponent("another", isDirectory: true)
         try FileManager.default.createDirectory(at: otherDirectory, withIntermediateDirectories: true)
@@ -106,7 +106,7 @@ final class BiometricUnlockTests: XCTestCase {
         let other = VaultStore(directory: otherDirectory, biometrics: elsewhere)
         other.unlock(password: password, confirmation: password, creating: true)
         XCTAssertTrue(other.enableBiometricUnlock(password: password))
-        XCTAssertNotEqual(elsewhere.savedAccount, account)
+        XCTAssertNotEqual(elsewhere.storedAccount, account)
     }
 
     func testAnUnavailableDeviceSaysWhyAndFilesNothing() {
@@ -200,7 +200,7 @@ final class BiometricUnlockTests: XCTestCase {
         XCTAssertFalse(store.biometricUnlockEnabled)
         XCTAssertFalse(store.canUnlockWithBiometrics)
         // The key is dropped rather than left to fail again on the next tap.
-        let account = try XCTUnwrap(fake.savedAccount)
+        let account = try XCTUnwrap(fake.storedAccount)
         XCTAssertTrue(fake.removedAccounts.contains(account))
         // And the password still opens the vault, with the entries intact.
         store.unlock(password: password)
@@ -239,7 +239,7 @@ final class BiometricUnlockTests: XCTestCase {
         let fake = FakeBiometricKeyStore()
         let store = unlockedStore(fake)
         XCTAssertTrue(store.enableBiometricUnlock(password: password))
-        let account = try XCTUnwrap(fake.savedAccount)
+        let account = try XCTUnwrap(fake.storedAccount)
 
         store.disableBiometricUnlock()
         XCTAssertFalse(store.biometricUnlockEnabled)
