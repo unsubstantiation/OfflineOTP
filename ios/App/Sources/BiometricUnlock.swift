@@ -276,8 +276,8 @@ public struct KeychainBiometricKeyStore: BiometricKeyStore {
     /// The system's answer, mapped. Compared by raw code so the mapping does not depend on a bridge
     /// cast from `NSError` to `LAError`.
     private static func error(for error: Error?) -> BiometricKeyError {
-        guard let error = error as NSError? else { return .failed }
-        switch error.code {
+        guard let error else { return .failed }
+        switch (error as NSError).code {
         case LAError.Code.userCancel.rawValue, LAError.Code.appCancel.rawValue,
              LAError.Code.systemCancel.rawValue, LAError.Code.userFallback.rawValue:
             return .cancelled
