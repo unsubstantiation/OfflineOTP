@@ -5,60 +5,63 @@ APK. The separate `sign-release` job builds signed F-Droid and Play release APKs
 release keystore is configured**; otherwise it is skipped with a notice and the workflow stays
 green. This is why an unconfigured repository no longer shows a red Android build.
 
-## "The release was not signed / the action was skipped"
+The credentials live in the **`android-release` environment**, not in plain repository secrets:
 
-If a run on `master` shows `sign-release` as **skipped** (or the log says
-`ANDROID_RELEASE_KEYSTORE is not configured`), nothing is broken: this repository has no release
-keystore configured yet, and the workflow deliberately does not fall back to a debug or unsigned
-APK for a release artifact. The advisory is only a notice, so the run stays green.
+| Where | Name | Required | Contents |
+| --- | --- | --- | --- |
+| `android-release` environment | `ANDROID_KEYSTORE_BASE64` | yes | Base64 of the `.jks` keystore (single line or wrapped) |
+| `android-release` environment | `ANDROID_KEYSTORE_PASSWORD` | yes | Keystore password; also used as the key password |
+| `android-release` environment | `ANDROID_RELEASE_KEY_ALIAS` | no | Names the key when the keystore holds more than one; otherwise read from the keystore |
+| `android-release` environment | `ANDROID_RELEASE_KEY_PASSWORD` | no | Only when the key password differs from the store password |
 
-That also means no release asset has ever been signed: the uploaded `OfflineOTP-android-debug`
-artifact and every asset on the published releases are debug builds, signed with the runner's
-ephemeral key and carrying the `.dev` application ID. They are fine for trying the app, but they
-cannot be installed over a release install
-(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`), and different runs have different keys.
+`ANDROID_RELEASE_KEYSTORE`, `ANDROID_RELEASE_STORE_PASSWORD` and `ANDROID_RELEASE_KEY_PASSWORD` are
+still read as fallbacks, so a setup made with the older names keeps working. Two secrets are enough
+for the common case, because the key alias is not a secret: the job reads it out of the keystore
+with `keytool -list`.
 
-To enable signing:
-
-1. Create the keystore once, on a machine you control — [Creating a keystore](#creating-a-keystore-once)
-   below — and keep the `.jks` file and both passwords in an offline password manager. They cannot
-   be recovered from GitHub, and losing them means no future build can update the same install.
-2. Base64-encode it and set the four repository secrets — [Setting the secrets](#setting-the-secrets).
-3. Push to `master`, or run the **Android build** workflow manually (`workflow_dispatch`), and check
-   that `sign-release` ran instead of being skipped. The job prints the certificate it verified.
-4. Re-publish the release assets from that run, not from an earlier debug build. The workflows stop
-   at uploading artifacts and never create a GitHub release themselves.
-
-The preflight only tests `ANDROID_RELEASE_KEYSTORE`, so a keystore with a missing password fails
-inside the signing job, where it names the secret that is absent
-(`::error::ANDROID_RELEASE_STORE_PASSWORD is not configured …`) instead of failing inside Gradle with
-`keystore password was incorrect`.
+The environment's branch policy allows **`master` only**, and the signing jobs declare
+`environment: android-release`. A run on any other branch therefore reports a plain skip instead of
+failing at the environment gate.
 
 There are two independent things to keep apart:
 
 - `app/build.gradle` signs `release` only when `-PRELEASE_STORE_FILE` **and**
   `-PRELEASE_KEY_ALIAS` are present. Without them, `assemble*Release` still produces *unsigned*
   APKs, which is what local runs and `scripts/verify_reproducible_build.sh` rely on.
-- The workflow decides whether to pass those properties at all, based on the repository secrets.
+- The workflow decides whether to pass those properties at all, based on the environment secrets.
 
-## Required repository secrets
+## "The release was not signed / the action was skipped"
 
-| Secret | Contents |
+If a run on `master` shows `sign-release` as **skipped** (or the log says
+`ANDROID_KEYSTORE_BASE64 is not configured`), the keystore secret is not visible to the job. The
+workflow deliberately does not fall back to a debug or unsigned APK for a release artifact, and the
+advisory is only a notice, so the run stays green.
+
+Check, in order:
+
+1. Both secrets are set in the **`android-release` environment**, not only at repository level —
+   the jobs read the environment's copy.
+2. The run is on `master` (or a `workflow_dispatch` of `master`). The environment's branch policy
+   allows `master` only, and the preflight is guarded by the same rule.
+3. `ANDROID_KEYSTORE_BASE64` holds the base64 of the whole `.jks` file. A base64 of the `.b64` text
+   or of a truncated file decodes to something `keytool` cannot open.
+
+Diagnostics the job prints before failing:
+
+| Message | Meaning |
 | --- | --- |
-| `ANDROID_RELEASE_KEYSTORE` | Base64 of the `.jks` keystore file (single line or wrapped) |
-| `ANDROID_RELEASE_STORE_PASSWORD` | Keystore password |
-| `ANDROID_RELEASE_KEY_ALIAS` | Key alias inside the keystore |
-| `ANDROID_RELEASE_KEY_PASSWORD` | Key password |
+| `::error::ANDROID_KEYSTORE_BASE64 is not configured` | The secret is empty or invisible to the job |
+| `::error::ANDROID_KEYSTORE_BASE64 is not valid base64` | The payload is not base64 |
+| `::error::The decoded release keystore is empty` | The payload decoded to zero bytes |
+| `::error::ANDROID_KEYSTORE_PASSWORD is not configured` | Keystore set, password missing |
+| `::error::keytool could not open the release keystore …` | Wrong password, or the base64 is not a keystore |
+| `::error::The release keystore holds no private key …` | The keystore opens but contains no signing key |
+| `::error::The release keystore holds N private keys; set ANDROID_RELEASE_KEY_ALIAS to name one` | Several keys, so the alias cannot be inferred |
 
-`ANDROID_RELEASE_KEYSTORE` drives the preflight check: when it is empty the `sign-release` job is
-skipped. The other three are consumed only by that job, but a build will fail at signing time if
-they are missing once the keystore is present.
-
-The three credentials reach Gradle as `ORG_GRADLE_PROJECT_RELEASE_*` environment variables, so they
-never appear on the command line (`ps` output, process titles) and never pass through shell quoting:
-a password containing `"`, `\`, `$`, a backtick or a space works as-is. Only the keystore path is an
-ordinary `-P` argument, because it is not a secret. Every value is masked in the log by the runner
-and the workflow never echoes any of them.
+Every published release so far carries **debug** builds — the uploaded `OfflineOTP-android-debug`
+artifact and the `.apk` on `v2026-10-21`, for example. They are signed with the runner's ephemeral
+key and use the `.dev` application ID, so they cannot be installed over a release install
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) and different runs have different keys.
 
 ## Creating a keystore (once)
 
@@ -67,7 +70,7 @@ keytool -genkeypair -v \
   -keystore OfflineOTP-release-keystore.jks \
   -alias offlineotp \
   -keyalg RSA -keysize 4096 -validity 10000 \
-  -storepass "$STORE_PASSWORD" -keypass "$KEY_PASSWORD" \
+  -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" \
   -dname "CN=OfflineOTP"
 ```
 
@@ -77,27 +80,34 @@ Base64-encode it for the secret (GNU coreutils; on macOS use `base64 -i`):
 base64 -w0 OfflineOTP-release-keystore.jks > OfflineOTP-release-keystore.jks.b64
 ```
 
+Keep the `.jks` file and the password in an offline password manager. GitHub cannot return a secret,
+and losing the key means no future update can be installed over the same app.
+
 ## Setting the secrets
 
 ```sh
-gh secret set ANDROID_RELEASE_KEYSTORE --repo <owner>/<repo> < OfflineOTP-release-keystore.jks.b64
-gh secret set ANDROID_RELEASE_STORE_PASSWORD --repo <owner>/<repo>
-gh secret set ANDROID_RELEASE_KEY_ALIAS --repo <owner>/<repo>
-gh secret set ANDROID_RELEASE_KEY_PASSWORD --repo <owner>/<repo>
+gh secret set ANDROID_KEYSTORE_BASE64 --env android-release \
+  --repo <owner>/<repo> < OfflineOTP-release-keystore.jks.b64
+gh secret set ANDROID_KEYSTORE_PASSWORD --env android-release --repo <owner>/<repo>
 ```
 
-Or add them under **Settings → Secrets and variables → Actions**. Secrets are not readable back, so
-keep the keystore file and both passwords in an offline password manager; losing them means no
-future update can be signed with the same identity. The workflow re-checks that the payload is
-valid base64 and non-empty, fails closed on a malformed secret, and never echoes the keystore or
-the passwords into the log.
+The optional pieces, only if your keystore needs them:
+
+```sh
+gh secret set ANDROID_RELEASE_KEY_ALIAS --env android-release --repo <owner>/<repo>
+gh secret set ANDROID_RELEASE_KEY_PASSWORD --env android-release --repo <owner>/<repo>
+```
+
+Or use **Settings → Environments → `android-release` → Environment secrets**. A repository-level
+secret with the same name is shadowed by the environment copy, so keep exactly one.
 
 Never commit the keystore, the `.b64` file, or the passwords. `/signing/`, `*.jks` and `*.keystore`
 are ignored by Git for that reason.
 
 ## What the job produces
 
-With the secrets configured, a push to `master` (or a manual `workflow_dispatch`) produces:
+With the secrets configured, a push to `master` (or a manual `workflow_dispatch` of `master`)
+produces:
 
 - `OfflineOTP-fdroid-release.apk` and `OfflineOTP-play-release.apk`, both signed with the release
   key;
@@ -106,8 +116,24 @@ With the secrets configured, a push to `master` (or a manual `workflow_dispatch`
 Before uploading, the job verifies each APK with `apksigner verify --print-certs` and
 `zipalign -c -v 4`. Pull requests never run the job, so fork PRs cannot trigger a signing attempt
 and secrets are never exposed to untrusted code. The workflow only uploads artifacts; it does not
-create GitHub releases or store listings. The decoded keystore is deleted in an `always()` step, so
-it does not outlive the job even when a later step fails and the workspace is kept for debugging.
+create GitHub releases or store listings — publishing a release is a manual step, and its assets
+should come from the signed run, not from an earlier debug build.
+
+## How the credentials reach Gradle
+
+The store password, key alias and key password reach Gradle as `ORG_GRADLE_PROJECT_RELEASE_*`
+environment variables, so they never appear on the command line (`ps` output, process titles) and
+never pass through shell quoting: a password containing `"`, `\`, `$`, a backtick or a space works
+as-is. Only the keystore path is an ordinary `-P` argument, because it is not a secret. Gradle
+masks nothing itself, so the step writes the values through `$GITHUB_ENV` rather than
+interpolating a `secrets` context into a script, and masks the alias before it is echoed. The alias
+lookup passes the password as `-storepass:env`, never as an argument, so it does not appear in `ps`
+either.
+
+The decoded keystore is deleted in an `always()` step, so it does not outlive the job even when a
+later step fails and the workspace is kept for debugging. A keystore supplied without its password
+fails before any APK is built: the job names the missing secret, and `app/build.gradle` throws a
+`GradleException` naming the property, so a local attempt fails the same way.
 
 ## Verifying a downloaded APK
 
@@ -116,7 +142,6 @@ it does not outlive the job even when a later step fails and the workspace is ke
 sha256sum -c SHA256SUMS.txt
 ```
 
-The printed certificate DN (`CN=OfflineOTP` above) must match the key you set as
-`ANDROID_RELEASE_KEY_ALIAS`. Installing a build signed with a different key over an existing
-install fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; users must export a portable backup,
-uninstall, and restore.
+The printed certificate DN (`CN=OfflineOTP` above) must match the key in the keystore. Installing a
+build signed with a different key over an existing install fails with
+`INSTALL_FAILED_UPDATE_INCOMPATIBLE`; users must export a portable backup, uninstall, and restore.

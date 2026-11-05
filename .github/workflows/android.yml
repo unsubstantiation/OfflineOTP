@@ -44,7 +44,12 @@ jobs:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
     # signed-release job be *skipped* instead of *failed* when signing is not configured.
-    if: github.event_name != 'pull_request'
+    #
+    # The keystore lives in the `android-release` environment, which is how this repository scopes
+    # signing credentials (its branch policy allows `master` only, so the ref check keeps every
+    # other dispatch from failing at the environment gate instead of reporting a clear skip).
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    environment: android-release
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -54,11 +59,13 @@ jobs:
         id: check
         shell: bash
         env:
-          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          # ANDROID_KEYSTORE_BASE64 is the name this repository uses; the ANDROID_RELEASE_* pair is
+          # still honoured so an older setup keeps working.
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.ANDROID_RELEASE_KEYSTORE }}
         run: |
           set -euo pipefail
-          if [[ -z "$ANDROID_RELEASE_KEYSTORE" ]]; then
-            echo "::notice::ANDROID_RELEASE_KEYSTORE is not configured; skipping the signed release build. See docs/release-signing.md to enable it."
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::notice::ANDROID_KEYSTORE_BASE64 is not configured; skipping the signed release build. See docs/release-signing.md to enable it."
             echo "enabled=false" >> "$GITHUB_OUTPUT"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
@@ -70,6 +77,9 @@ jobs:
     # artifacts that were not actually signed with the release key.
     needs: signing-preflight
     if: needs.signing-preflight.outputs.enabled == 'true'
+    # Same environment as the preflight: environment secrets are only readable by a job that names
+    # the environment, and this is where the keystore and its password live.
+    environment: android-release
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -86,53 +96,90 @@ jobs:
       - name: Install release signing keystore
         shell: bash
         env:
-          ANDROID_RELEASE_KEYSTORE: ${{ secrets.ANDROID_RELEASE_KEYSTORE }}
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.ANDROID_RELEASE_KEYSTORE }}
         run: |
           set -euo pipefail
-          if [[ -z "$ANDROID_RELEASE_KEYSTORE" ]]; then
-            echo "::error::ANDROID_RELEASE_KEYSTORE is not configured; a base64-encoded release keystore is required."
+          if [[ -z "$KEYSTORE_BASE64" ]]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not configured; a base64-encoded release keystore is required."
             exit 1
           fi
           mkdir -p signing
-          if ! printf '%s' "$ANDROID_RELEASE_KEYSTORE" | base64 -d > signing/OfflineOTP-release-keystore.jks; then
-            echo "::error::ANDROID_RELEASE_KEYSTORE is not valid base64."
+          if ! printf '%s' "$KEYSTORE_BASE64" | base64 -d > signing/OfflineOTP-release-keystore.jks; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is not valid base64."
             exit 1
           fi
           if [[ ! -s signing/OfflineOTP-release-keystore.jks ]]; then
             echo "::error::The decoded release keystore is empty."
             exit 1
           fi
-      - name: Check the rest of the release signing inputs
+      - name: Find the key alias and the passwords
         shell: bash
         env:
-          STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          # keytool makes the key password equal to the store password unless it is given
+          # -keypass, so one secret normally covers both; a distinct one still wins if set.
+          KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_RELEASE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           # A configured keystore with a missing password would otherwise fail inside Gradle with
           # "keystore password was incorrect"; name the secret instead. Values are never printed.
-          check() {
-            if [[ -z "${!1}" ]]; then
-              echo "::error::$2 is not configured; it is required once ANDROID_RELEASE_KEYSTORE is set."
+          if [[ -z "$STORE_PASSWORD" ]]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured; it is required once the keystore is set."
+            exit 1
+          fi
+          if [[ -z "$KEY_PASSWORD" ]]; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured; it is required once the keystore is set."
+            exit 1
+          fi
+          # The alias is not a secret: read it from the keystore instead of asking for a third
+          # secret. A keystore holding several private keys still needs the explicit secret.
+          # -storepass:env keeps the password off the command line, where `ps` would show it.
+          if [[ -z "$KEY_ALIAS" ]]; then
+            export STORE_PASSWORD
+            set +e
+            LISTING="$(keytool -list -keystore signing/OfflineOTP-release-keystore.jks \
+              -storepass:env STORE_PASSWORD 2>&1)"
+            STATUS=$?
+            set -e
+            if [[ "$STATUS" -ne 0 ]]; then
+              echo "::error::keytool could not open the release keystore: ANDROID_KEYSTORE_PASSWORD is wrong, or ANDROID_KEYSTORE_BASE64 is not a keystore."
               exit 1
             fi
-          }
-          check STORE_PASSWORD ANDROID_RELEASE_STORE_PASSWORD
-          check KEY_ALIAS ANDROID_RELEASE_KEY_ALIAS
-          check KEY_PASSWORD ANDROID_RELEASE_KEY_PASSWORD
+            ALIASES="$(printf '%s\n' "$LISTING" | awk -F, '/PrivateKeyEntry/ { print $1 }')"
+            COUNT="$(printf '%s\n' "$ALIASES" | grep -c . || true)"
+            if [[ "$COUNT" == "0" ]]; then
+              echo "::error::The release keystore holds no private key; it needs one signing key."
+              exit 1
+            fi
+            if [[ "$COUNT" != "1" ]]; then
+              echo "::error::The release keystore holds $COUNT private keys; set ANDROID_RELEASE_KEY_ALIAS to name one."
+              exit 1
+            fi
+            KEY_ALIAS="$ALIASES"
+            echo "::notice::Using key alias '$KEY_ALIAS' from the keystore."
+          fi
+          echo "::add-mask::$KEY_ALIAS"
+          {
+            echo "RELEASE_KEY_ALIAS=$KEY_ALIAS"
+            echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD"
+            echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
+          } >> "$GITHUB_ENV"
       - name: Build signed release APKs
         shell: bash
         # The three credentials reach Gradle as ORG_GRADLE_PROJECT_* environment variables instead
         # of -P arguments: they never show up in the process list, and no secret is substituted into
         # this script, so a password containing a quote, a backslash, $ or a space cannot break the
-        # command or inject shell syntax.
-        env:
-          ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
-          ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        # command or inject shell syntax. The values come from $GITHUB_ENV, so no `secrets` context
+        # is interpolated here either.
         run: |
           set -euo pipefail
+          : "${RELEASE_KEY_ALIAS:?missing}"
+          : "${RELEASE_STORE_PASSWORD:?missing}"
+          : "${RELEASE_KEY_PASSWORD:?missing}"
+          export ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS"
+          export ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD"
+          export ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD"
           ./gradlew --no-daemon :app:assembleFdroidRelease :app:assemblePlayRelease \
             -PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks"
       - name: Verify APK signatures
