@@ -6,7 +6,7 @@ import Foundation
 /// model is deliberately generic: an entry is a bag of named values, not a fixed struct. A field this
 /// client does not understand (an entry kind it cannot display, a key a newer build added) survives a
 /// load/save cycle because it is still in the bag when the document is written again.
-public enum JSONValue: Equatable {
+public enum JSONValue: Equatable, Hashable {
     case string(String)
     case int(Int64)
     case double(Double)

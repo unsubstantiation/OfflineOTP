@@ -45,7 +45,7 @@ public enum SecretLimit {
 /// The bag is the point. A field this build does not know about — a key a newer client wrote, an
 /// entry kind it cannot display — stays in `fields` and is written back unchanged, so an iOS save
 /// never destroys another client's data. Fields are only added or replaced by an explicit edit.
-public struct Entry: Equatable {
+public struct Entry: Equatable, Hashable {
     /// Every stored field, keyed by name.
     public private(set) var fields: [String: JSONValue]
 

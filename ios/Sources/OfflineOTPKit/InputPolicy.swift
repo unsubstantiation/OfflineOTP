@@ -16,6 +16,8 @@ public enum InputPolicy {
     public static let maxNoteCharacters = 200
     public static let maxPeriodSeconds = 86400
     public static let maxDocumentBytes = 16 * 1024 * 1024
+    /// The longest `otpauth://` link accepted before parsing starts (`MAX_URI_CHARS`).
+    public static let maxURIChars = 16384
     public static let maxVaultPasswordChars = 1024
     /// The shortest password either existing client accepts when a vault is created
     /// (`Constants.AUTH_MIN_PASSWORD_LENGTH`). Enforced by the UIs, not by the vault engine.

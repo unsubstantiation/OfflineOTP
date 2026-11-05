@@ -41,6 +41,14 @@ public enum EntryDraft {
     /// preserved untouched.
     public static let offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]
 
+    /// The stored thumbnail name when nothing better is known — `ThumbnailCatalog.DEFAULT_NAME`.
+    ///
+    /// This client draws no logos, but the *name* is shared data: the other two clients resolve it
+    /// to artwork, and a name of `Default` on an entry they created for a known brand would show the
+    /// generic mark there. `ThumbnailCatalog.resolveName` therefore picks the same name they would,
+    /// so an entry typed or imported here keeps its logo on the phone and the desktop.
+    public static var defaultThumbnailName: String { ThumbnailCatalog.defaultName }
+
     /// A secret is Base32 or a raw mOTP seed: whitespace is never part of it, and a pasted secret is
     /// commonly broken across lines. Notes are free text and keep every character — the same rule as
     /// `EntryDraft.sanitizeSecret`.
@@ -134,8 +142,9 @@ public enum EntryDraft {
         guard seed.count <= SecretLimit.forKind(kind) else { throw EntryDraftError.invalidSecret }
 
         // The stored field set, in the order `EntryJson.serialize` writes it. `thumbnail` is always
-        // present (empty when no thumbnail was chosen) and `details_visible` is only written when
-        // true, so a new entry keeps the legacy bytes the other clients write for the default state.
+        // present (the shared default name, since this client has no logo artwork) and
+        // `details_visible` is only written when true, so a new entry keeps the legacy bytes the
+        // other clients write for the default state.
         var fields: [String: JSONValue] = [
             "secret": .string(Base32.encode(seed)),
             "issuer": .string(issuer),
@@ -143,7 +152,7 @@ public enum EntryDraft {
             "digits": .int(Int64(entryDigits)),
             "type": .string(kind.rawValue),
             "algorithm": .string(algorithm.rawValue),
-            "thumbnail": .string(""),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer)),
             "last_used": .int(newEntry ? now : 0),
             "used_frequency": .int(0),
         ]

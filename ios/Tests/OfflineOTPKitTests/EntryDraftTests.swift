@@ -23,7 +23,7 @@ final class EntryDraftTests: XCTestCase {
         let built = try create()
         XCTAssertEqual(built.compact(),
                        "{\"secret\":\"JBSWY3DPEHPK3PXP\",\"issuer\":\"Issuer\",\"label\":\"alice\","
-                       + "\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA1\",\"thumbnail\":\"\","
+                       + "\"digits\":6,\"type\":\"TOTP\",\"algorithm\":\"SHA1\",\"thumbnail\":\"Default\","
                        + "\"last_used\":1700000000000,\"used_frequency\":0,\"period\":30,\"tags\":[]}")
         // A new entry is stamped as used, so it leads a "Last used" list without being counted as
         // used — `EntryUsage.markImported`.

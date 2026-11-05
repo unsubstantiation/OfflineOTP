@@ -14,6 +14,15 @@ struct EntryListView: View {
     @State private var toast: String?
     @State private var editor: EditorTarget?
     @State private var deletion: DeletionTarget?
+    @State private var backupsShown = false
+    @State private var qrCode: QrTarget?
+
+    /// The QR sheet: the entry's link and the name to show above it.
+    private struct QrTarget: Identifiable {
+        let id = UUID()
+        let title: String
+        let payload: String
+    }
 
     /// What the sheet should edit: nothing (add) or one stored position.
     private struct EditorTarget: Identifiable {
@@ -58,6 +67,15 @@ struct EntryListView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
+                        backupsShown = true
+                    } label: {
+                        Image(systemName: "externaldrive")
+                            .foregroundColor(ForestPalette.textPrimary)
+                    }
+                    .accessibilityLabel("Backups and links")
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
                         store.lock()
                     } label: {
                         Image(systemName: "lock.fill")
@@ -84,6 +102,12 @@ struct EntryListView: View {
             .animation(.easeInOut(duration: 0.15), value: toast)
             .sheet(item: $editor) { target in
                 EntryEditorView(store: store, index: target.index)
+            }
+            .sheet(isPresented: $backupsShown) {
+                BackupView(store: store)
+            }
+            .sheet(item: $qrCode) { target in
+                QrCodeView(title: target.title, payload: target.payload)
             }
             .alert("Remove entry?", isPresented: Binding(
                 get: { deletion != nil },
@@ -127,6 +151,7 @@ struct EntryListView: View {
                                 onReveal: { reveal(index) },
                                 onStep: { step(at: index) },
                                 onEdit: { editor = EditorTarget(index: index) },
+                                onQr: { showQr(at: index) },
                                 onDelete: {
                                     deletion = DeletionTarget(index: index,
                                                               name: VaultStore.displayName(entry))
@@ -158,6 +183,16 @@ struct EntryListView: View {
         if !store.setDetailsVisible(at: index, !visible) {
             show(store.message ?? "The change could not be saved, so the entry stays concealed.")
         }
+    }
+
+    private func showQr(at index: Int) {
+        guard let payload = store.otpUri(for: index) else {
+            show("This entry cannot be shown as a QR code.")
+            return
+        }
+        let entry = store.entries[index]
+        qrCode = QrTarget(title: entry.issuer.isEmpty ? entry.label : entry.issuer,
+                          payload: payload)
     }
 
     private func step(at index: Int) {
@@ -472,6 +507,7 @@ struct EntryMenu: View {
     let onReveal: () -> Void
     let onStep: () -> Void
     let onEdit: () -> Void
+    let onQr: () -> Void
     let onDelete: () -> Void
 
     private var editable: Bool {
@@ -495,6 +531,12 @@ struct EntryMenu: View {
             if entry.kind == .hotp {
                 Button("Step counter", action: onStep)
             }
+        }
+        // Only an entry with an `otpauth://` form has a code to show, and showing it means showing
+        // the secret, so it follows the same reveal gate as copying.
+        if entry.kind?.isOtp == true {
+            Button("Show QR code…", action: onQr)
+                .disabled(!entry.detailsVisible)
         }
         Button("Edit…", action: onEdit)
             .disabled(!editable)

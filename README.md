@@ -407,16 +407,19 @@ details. The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
 **right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.
-The iOS client is a working daily-use app short of imports and backups: `ios/` holds a Swift package
-that matches the other two clients byte for byte — the encrypted vault, the encrypted backup, the
-entry document and the token maths, verified against the same fixed vectors in
+The iOS client is a working daily-use app short of Face ID: `ios/` holds a Swift package that matches
+the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
+the token maths, verified against the same fixed vectors in
 `desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
 labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
-inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, and adding, editing and
-deleting entries. A concealed entry shows no code and offers no copy, exactly as on the phone and the
-desktop client, and an entry kind this build cannot display is still listed in its tab and explained
-rather than hidden. Imports, QR codes, backups and Face ID are not there yet; that list, with
-milestones, is in [the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
+inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
+entries, dated encrypted backups, restores that merge by default or replace, legacy plain-text import,
+`otpauth://` and QR-image import, and an entry shown as a QR code. A concealed entry shows no code and
+offers no copy, exactly as on the phone and the desktop client, an entry kind this build cannot display
+is still listed in its tab and explained rather than hidden, and a second account from an issuer that
+is already there asks the phone's *Issuer already exists* question first. Face ID, Google
+Authenticator's multi-account export and OpenPGP backups are not there yet; that list, with milestones,
+is in [the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
 simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
 on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.
