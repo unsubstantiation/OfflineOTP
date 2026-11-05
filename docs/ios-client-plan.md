@@ -160,9 +160,10 @@ what remains.
 | `ios/Sources/OfflineOTPKit/OtpUri.swift` | `otpauth://` in both directions — the port of `OtpUriParser` and `Entry.toUriString`, with the error names of `OtpParseError`, plus the payload classification of `QrImport` |
 | `ios/Sources/OfflineOTPKit/ThumbnailCatalog.swift` | The persisted logo names and the issuer matching of `ThumbnailCatalog` in `:core` — generated from it by `scripts/ios/generate-thumbnail-catalog.py`, so an entry added or imported here keeps the logo the other clients would have given it |
 | `ios/Sources/OfflineOTPKit/BackupRestore.swift` | Dated backup names (`BackupFileNames`), strict plain-text decoding (`PlainTextBackupDecoder`), and the merge/replace rule (`VaultRestoreMerge`) |
+| `ios/Sources/OfflineOTPKit/MigrationImport.swift` | Google Authenticator exports: the bounded protobuf reader of `GoogleAuthenticatorMigration`, the session-bound `MigrationBatchCollector`, and Android's `google_import_*` wording |
 | `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage, draft, URI and restore rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
-| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `MigrationImportView` (an export's progress and confirmation), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
 | `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), the backup and restore round trips through `VaultStore`, and a real create/save/reopen cycle |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
 | `scripts/ios/generate-thumbnail-catalog.py` | Generates `ThumbnailCatalog.swift` from the Kotlin catalog; `ios.yml` and `scripts/tests/test_ios_app.py` both fail when the copy is stale |
@@ -206,7 +207,8 @@ scene leaves the foreground.
 Moving data: write an encrypted backup under a dated name (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`,
 the same shape the phone and the desktop write), restore an encrypted or a legacy plain-text backup —
 merged by default, with the **Replace existing entries** switch — paste an `otpauth://` link, import
-one from a QR image picked from the photo library, and show an entry as a QR code for another device
+one from a QR image picked from the photo library, read a Google Authenticator export code by code
+and import its accounts once the last code is in, and show an entry as a QR code for another device
 to scan.
 
 Three rules carried over verbatim from the other clients, because they are what makes the same vault
