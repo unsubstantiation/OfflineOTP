@@ -413,6 +413,10 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.entries.count, 1)
         XCTAssertEqual(store.entries[0].issuer, "Example")
         XCTAssertEqual(store.entries[0].tags, ["work"])
+        // An imported account is concealed like any other, so it shows no code until it is revealed.
+        XCTAssertNil(store.code(for: store.entries[0],
+                                at: Date(timeIntervalSince1970: 1_700_000_000)))
+        XCTAssertTrue(store.setDetailsVisible(at: 0, true))
         XCTAssertEqual(store.code(for: store.entries[0],
                                  at: Date(timeIntervalSince1970: 1_700_000_000)), "324550")
 
