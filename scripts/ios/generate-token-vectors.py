@@ -70,11 +70,12 @@ def motp(secret: str, pin: str, unix_time: int, offset: int = 0) -> str:
 
     MD5 is not protecting anything here — it is the published mOTP construction, and every client has
     to produce the same six hex digits or the codes are wrong. Strengthening it is not an option, so
-    the analysis warning is suppressed with that reasoning rather than papered over.
+    the call says `usedforsecurity=False`, the standard way to declare a weak hash that is a
+    compatibility requirement rather than a security primitive.
     """
     step = (unix_time // MOTP_STEP_SECONDS) + offset
     text = f"{step}{secret}{pin}"
-    return hashlib.md5(text.encode()).hexdigest()[:6]  # codeql[py/weak-sensitive-data-hashing]
+    return hashlib.md5(text.encode(), usedforsecurity=False).hexdigest()[:6]
 
 
 def decode_base32(text: str) -> bytes:

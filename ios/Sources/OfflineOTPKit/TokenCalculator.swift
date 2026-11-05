@@ -34,7 +34,8 @@ public enum TokenCalculator {
         let mac: [UInt8]
         switch algorithm {
         case .sha1:
-            mac = Array(HMAC<SHA1>.authenticationCode(for: message, using: key))
+            // CryptoKit keeps SHA-1 in `Insecure`: the format requires it for legacy entries.
+            mac = Array(HMAC<Insecure.SHA1>.authenticationCode(for: message, using: key))
         case .sha256:
             mac = Array(HMAC<SHA256>.authenticationCode(for: message, using: key))
         case .sha512:
