@@ -77,17 +77,37 @@ jobs:
         run: |
           set -euo pipefail
           cd ios
-          # Everything here lands in build-log.txt, including the tool's own error text and the spec
-          # it was given, because a failure has to be diagnosable from the annotation on the run.
+          # A helper that appends a tool's output to the log *and* republishes it as annotations, so a
+          # failure is diagnosable from the run page even when its output went somewhere else.
+          annotate() {
+            local title="$1"
+            while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              echo "::error title=${title}::${line}"
+            done
+          }
+
+          echo "--- xcodegen $(command -v xcodegen || echo missing) ---" >> build-log.txt
           xcodegen --version >> build-log.txt 2>&1 || true
+
           status=0
-          xcodegen generate >> build-log.txt 2>&1 || status=$?
+          output=$(xcodegen generate 2>&1) || status=$?
+          printf '%s\n' "$output" >> build-log.txt
           echo "--- xcodegen exit status: $status ---" >> build-log.txt
           if [ "$status" -ne 0 ] || [ ! -d OfflineOTP.xcodeproj ]; then
+            printf '%s\n' "$output" | annotate XcodeGen
             ls -la >> build-log.txt 2>&1
             exit 1
           fi
-          xcodebuild -list -project OfflineOTP.xcodeproj 2>&1 | tee -a build-log.txt
+
+          status=0
+          listing=$(xcodebuild -list -project OfflineOTP.xcodeproj 2>&1) || status=$?
+          printf '%s\n' "$listing" >> build-log.txt
+          if [ "$status" -ne 0 ]; then
+            printf '%s\n' "$listing" | annotate xcodebuild
+            exit 1
+          fi
+          printf '%s\n' "$listing" | grep -q OfflineOTPAppTests
       - name: Build the app for the simulator
         shell: bash
         run: |
@@ -159,9 +179,9 @@ jobs:
             echo "::notice::No build log was produced."
             exit 0
           fi
-          diagnostics=$(grep -E -i ': (error|warning): |error:|spec validation|damaged|'
-            'cannot be opened|unable to (read|write|parse)|invalid (value|type)' \
-            ios/build-log.txt | head -40 || true)
+          pattern=': (error|warning): |error:|spec validation|damaged|cannot be opened|'
+          pattern="${pattern}unable to (read|write|parse)|invalid (value|type)|not found"
+          diagnostics=$(grep -E -i "$pattern" ios/build-log.txt | head -40 || true)
           if [ -z "$diagnostics" ]; then
             # Nothing matched, so fall back to the tail: a tool that failed for its own reasons still
             # said why somewhere in the last few lines.
