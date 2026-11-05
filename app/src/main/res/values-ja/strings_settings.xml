@@ -82,7 +82,6 @@
     <string name="settings_toast_encryption_backup_failed">内部バックアップの作成に失敗しました！</string>
     <string name="settings_toast_encryption_no_key">暗号化キーの取得に失敗しました！</string>
     <string name="settings_toast_encryption_auth_failed">認証に失敗しました！</string>
-    <string name="settings_toast_auth_upgrade_failed">自動的に パスワード / PIN を新しい暗号化にアップグレードできませんでした、設定で手動でリセットしてください！</string>
     <string name="settings_toast_android_sync_enabled">Android sync 有効</string>
     <string name="settings_toast_android_sync_disabled">Android sync 無効</string>
     <string name="settings_dialog_title_warning">警告</string>
@@ -90,21 +89,16 @@
     <string name="settings_dialog_title_clear_keystore">キーストアをクリアしますか？</string>
     <string name="settings_dialog_title_android_sync">Android sync</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP はデータベースの暗号化を変更しようとします。 障害が発生した場合、内部バックアップが復元され、暗号化は変更されません。\n\n<b>ただし、予期しないことが発生した場合に備えてバックアップを作成することをお勧めします！</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">パスワードまたは PIN は、データベース暗号化が「パスワード / PIN」に設定されている場合のみ使用できます！</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">まず、認証を「パスワード」または「PIN」に設定する必要があります！</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">暗号化を変更する前に、まずパスワードまたは PIN を設定する必要があります！</string>
-    <string name="settings_dialog_msg_clear_keystore_password">場合によっては、キーストアをクリアすると問題の解決に役立つことがあります。あなたが何をしているか知っている場合にのみ、続行する必要があります！\n\n<b>データベース暗号化</b>は、 <b>パスワード / PIN</b> に設定されているので、これを行っている間にデータを失うことはありません (しかし、とにかくバックアップを取っても問題ありません) 。\n\n<b>本当にキーストアをクリアしてもよろしいですか?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">場合によっては、キーストアをクリアすると問題の解決に役立つことがあります。あなたが何をしているか知っている場合にのみ、続行する必要があります！\n\n<b>警告</b>：<b>データベース暗号化</b>は、 <b>Android キーストア</b> に設定されているため、すべてのアカウントが失われます。バックアップがあることを確認してください！\n\n<b>本当にキーストアをクリアしてもよろしいですか?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>なし</item>
         <item>パスワード</item>
-        <item>PIN</item>
         <item>デバイス認証情報</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android キーストア</item>
-        <item>パスワード / PIN</item>
+        <item>パスワード</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>すべてのアカウントを削除</item>
@@ -171,9 +165,6 @@
     <string name="settings_lang_sys_default">デバイスの言語</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">新しいパスワードを入力</string>
-    <string name="settings_hint_pin">新しい PIN を入力</string>
     <string name="settings_hint_password_confirm">パスワードの確認</string>
-    <string name="settings_hint_pin_confirm">PIN の確認</string>
     <string name="settings_label_short_password">パスワードは %1$d 文字以上にする必要があります！</string>
-    <string name="settings_label_short_pin">PIN は %1$d 桁以上にする必要があります！</string>
 </resources>

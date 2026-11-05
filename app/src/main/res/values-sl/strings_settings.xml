@@ -98,8 +98,6 @@
         uspela, v preklicu!</string>
     <string name="settings_toast_encryption_no_key">Kodirnega ključa ni bilo mogoče pridobiti, v preklicu!</string>
     <string name="settings_toast_encryption_auth_failed">Preverjanje pristnosti ni uspelo!</string>
-    <string name="settings_toast_auth_upgrade_failed">Tiha posodobitev vašega gesla/PIN na novo kodiranje
-        ni uspelo, prosimo ročno ga ponastavite v Nastavitve!</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">Opozorilo</string>
@@ -110,17 +108,6 @@
         V primeru napake bo obnovljena notranja varnostna kopija in kodiranje bo
         ostalo nespremenjeno.\n\n<b>Kakorkoli, vedno je dobro za vsak slučaj imeti napravljeno
         varnostno kopijo, če se zgodi kaj nepričakovanega!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Geslo ali PIN lahko uporabljate samo, če
-        je kodiranje baze podatkov nastavljeno na \"Geslo/PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Najprej morate nastaviti
-        Preverjanje identitete na ali \"Geslo\" ali \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Najprej morate nastaviti
-        Geslo ali PIN pred spreminjanjem načina kodiranja!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">V nekaterih primerih lahko brisanje KeyStore
-        pomaga rešiti probleme. Svetovano je, da nadaljujete, če veste kaj delate!\n\n Ker je 
-        <b>kodiranje zbirke podatkov</b>nastavljeno na <b>Geslo / PIN</b> ne bi smeli pri tem izgubiti nič podatkov,
-        (ampak nikoli ne škodi prej vseeno narediti varnostne kopije).\n\n<b> Ali ste prepričani, da želite
-        izbrisati KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">V nekaterih primerih lahko brisanje KeyStore
         pomaga rešiti probleme. Svetovano je, da nadaljujete, če veste kaj delate!\n\n <b>Opozorilo</b>:
         Ker je  <b>Kodiranje zbirke podatkov</b>nastavljeno na <b>Android KeyStore</b> bostei pri tem izgubili
@@ -130,12 +117,11 @@
     <string-array name="settings_entries_auth">
         <item>Brez</item>
         <item>Geslo</item>
-        <item>PIN</item>
         <item>Podatki naprave</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Geslo / PIN</item>
+        <item>Geslo</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Izbrišite vse račune</item>
@@ -202,9 +188,6 @@
     <string name="settings_lang_sys_default">Privzeto</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Vnesi novo geslo</string>
-    <string name="settings_hint_pin">Vnesi nov PIN</string>
     <string name="settings_hint_password_confirm">Potrdite geslo</string>
-    <string name="settings_hint_pin_confirm">Potrdi PIN</string>
     <string name="settings_label_short_password">Geslo mora imeti najmanj %1$d znakov!</string>
-    <string name="settings_label_short_pin">PIN mora imeti najmanj %1$d znakov!</string>
 </resources>

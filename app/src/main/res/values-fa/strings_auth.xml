@@ -3,7 +3,6 @@
     <string name="auth_activity_title">احراز هویت</string>
     <!-- Hints -->
     <string name="auth_hint_password">گذرواژه</string>
-    <string name="auth_hint_pin">پین</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">لطفا برای شروع OfflineOTP
 احراز هویت کنید!</string>
@@ -13,5 +12,4 @@
     <string name="auth_button_unlock">بازکردن</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">لطفا در <b>تنظیمات</b> یک گذرواژه تعیین کنید!</string>
-    <string name="auth_toast_pin_missing">لطفا در <b>تنظیمات</b> یک پین تعیین کنید!</string>
 </resources>

@@ -89,7 +89,6 @@
     <string name="settings_toast_encryption_backup_failed">Erstellung eines internen Sicherung fehlgeschlagen. Abbruch!</string>
     <string name="settings_toast_encryption_no_key">Fehler beim Abrufen des Verschlüsselungsschlüssels. Abbruch!</string>
     <string name="settings_toast_encryption_auth_failed">Authentifizierung fehlgeschlagen!</string>
-    <string name="settings_toast_auth_upgrade_failed">Transparentes Umstellen vom Ihrem Passwort / Ihrer PIN auf die neuen Verschlüsselung fehlgeschlagen, bitte setzen Sie es manuell in den Einstellungen zurück!</string>
     <string name="settings_toast_android_sync_enabled">Android Sync aktiviert</string>
     <string name="settings_toast_android_sync_disabled">Android Sync deaktivert</string>
     <string name="settings_dialog_title_warning">Achtung</string>
@@ -97,21 +96,16 @@
     <string name="settings_dialog_title_clear_keystore">KeyStore leeren?</string>
     <string name="settings_dialog_title_android_sync">Android-Synchronisation</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP wird nun versuchen, die Datenbankverschlüsselung zu ändern. Im Fehlerfall wird eine interne Datensicherung wiederhergestellt und die Verschlüsselung bleibt unverändert.\n\n<b>Es ist jedoch immer eine gute Idee, eine Datensicherung zu haben, falls etwas Unerwartetes passiert!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Du kannst nur ein Passwort oder eine PIN verwenden, solange die Datenbankverschlüsselung auf \"Passwort / PIN\" eingestellt ist!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Du musst zuerst die Authentifizierung auf \"Passwort\" oder \"PIN\" setzen!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Du musst zuerst ein Passwort oder eine PIN festlegen, bevor du die Verschlüsselung änderst!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">In einigen Fällen kann das Leeren des KeyStores helfen, Probleme zu lösen. Du solltest nur fortfahren, wenn du weißt, was du tust!\n\nDa die <b>Datenbankverschlüsselung</b> auf <b>Passwort / PIN</b> eingestellt ist, solltest du dadurch keine Daten verlieren (aber es schadet nie, Datensicherungen zu haben).\n\n<b>Bist du wirklich sicher, dass duden KeyStore leeren möchtest?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">In einigen Fällen kann das Leeren des KeyStore helfen, Probleme zu lösen. Du solltest nur fortfahren, wenn du weißt, was du tust!\n\n<b>Warnung</b>: Da die <b>Datenbankverschlüsselung</b> auf <b>Android KeyStore</b> eingestellt ist, wirst du alle Konten verlieren. Stelle sicher, dass du eine Datensicherung hast!\n\n<b>Bist du dir wirklich sicher, dass du den KeyStore leeren willst?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Keine</item>
         <item>Passwort</item>
-        <item>PIN</item>
         <item>Gerät-Anmeldedaten</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Passwort / PIN</item>
+        <item>Passwort</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Alle Konten löschen</item>
@@ -178,9 +172,6 @@
     <string name="settings_lang_sys_default">Systemstandard</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Neues Passwort eingeben</string>
-    <string name="settings_hint_pin">Neue PIN eingeben</string>
     <string name="settings_hint_password_confirm">Passwort bestätigen</string>
-    <string name="settings_hint_pin_confirm">PIN bestätigen</string>
     <string name="settings_label_short_password">Das Passwort muss mindestens %1$d Zeichen lang sein!</string>
-    <string name="settings_label_short_pin">Die PIN muss mindestens %1$d Ziffern lang sein!</string>
 </resources>

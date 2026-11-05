@@ -98,8 +98,6 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
   fallita!</string>
     <string name="settings_toast_encryption_no_key">Impossibile ottenere la chiave di crittografia, interrompendo!</string>
     <string name="settings_toast_encryption_auth_failed">Autenticazione fallita!</string>
-    <string name="settings_toast_auth_upgrade_failed">Impossibile aggiornare automaticamente la password / PIN per la
-        nuova crittografia, si prega di reimpostarla manualmente nelle Impostazioni!</string>
     <string name="settings_toast_android_sync_enabled">Sincronizzazione Android attivata</string>
     <string name="settings_toast_android_sync_disabled">Sincronizzazione Android disattivata</string>
     <string name="settings_dialog_title_warning">Attenzione</string>
@@ -110,17 +108,6 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
         del database. In caso di errore verrà ripristinato un backup interno e la crittografia
         rimarrà invariata.\n\n<b>Tuttavia, è sempre una buona idea avere un backup nel
         caso in cui accada qualcosa di inaspettato!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">È possibile utilizzare solo Password o PIN,
-        finché  la crittografia del database è impostata su \"Password / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">È necessario impostare 
-        l\'Autenticazione su \"Password\" o \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">È necessario impostare
-        una Password o un PIN prima di cambiare la crittografia!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">In alcuni casi pulire il KeyStore
-        può aiutare a risolvere problemi. Dovresti procedere solo se sai ciò che stai facendo!\n\nPoiché
-        la <b>crittografia del Database</b> è impostata su <b>Password / PIN</b> non dovresti perdere
-        alcun dato (ma non fa mai male avere un backup).\n\n<b>Sei davvero sicuro di voler
-        pulire il KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">In alcuni casi pulire il KeyStore
         può aiutare a risolvere problemi. Dovresti procedere solo se sai ciò che stai facendo!\n\n<b>Attenzione</b>:
         Poiché la <b>crittografia del Database</b> è impostata su <b>Android KeyStore</b> perderai tutti i
@@ -130,12 +117,11 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
     <string-array name="settings_entries_auth">
         <item>Nessuno</item>
         <item>Password</item>
-        <item>PIN</item>
         <item>Credenziali del dispositivo</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>KeyStore Android</item>
-        <item>Password / PIN</item>
+        <item>Password</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Elimina tutti gli account</item>
@@ -202,9 +188,6 @@ voci o editate, se le condizioni delle impostazioni sono configurate</string>
     <string name="settings_lang_sys_default">Impostazioni predefinite di sistema</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Inserisci la nuova password</string>
-    <string name="settings_hint_pin">Inserisci il nuovo PIN</string>
     <string name="settings_hint_password_confirm">Conferma password</string>
-    <string name="settings_hint_pin_confirm">Conferma PIN</string>
     <string name="settings_label_short_password">La password deve essere almeno di %1$d caratteri!</string>
-    <string name="settings_label_short_pin">Il PIN deve essere almeno di %1$d cifre!</string>
 </resources>

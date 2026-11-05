@@ -11,8 +11,6 @@
     <string name="backup_receiver_title_backup_failed">Sicherung fehlgeschlagen</string>
     <string name="backup_receiver_title_backup_success">Sicherung erfolgreich</string>
     <string name="backup_receiver_encrypted_disabled">Verschlüsselte Sicherungen sind derzeit deaktiviert. Bitte öffne die Einstellungen, um diese zu aktivieren</string>
-    <string name="backup_receiver_custom_encryption_failed">Passwort/PIN Verschlüsselung ist nicht
-        unterstützt mit Broadcast Datensicherung</string>
     <string name="backup_receiver_no_location_set">Kein Sicherungsort festgelegt, bitte in der App-Einstellung einen festlegen</string>
     <string name="backup_receiver_no_password_set">Kein Standard-Passwort festgelegt, bitte in der App-Einstellung einen festlegen</string>
     <!-- Notification channels -->

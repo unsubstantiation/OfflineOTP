@@ -12,21 +12,18 @@
     <string name="intro_slide2_desc_keystore"><b>Android KeyStore</b> keeps the encryption key outside the app\'s data,
         optionally backed by hardware encryption. Third-party backup tools cannot restore that
         key; use OfflineOTP\'s backup instead. If the KeyStore key is lost, the vault cannot be
-        recovered without a backup.\n\n<b>Note:</b> Password / PIN encryption is usually more
+        recovered without a backup.\n\n<b>Note:</b> Password encryption is usually more
         reliable.</string>
-    <string name="intro_slide2_desc_password"><b>Password / PIN</b> encryption derives the key from
+    <string name="intro_slide2_desc_password"><b>Password</b> encryption derives the key from
         your password. You enter it each time OfflineOTP starts.</string>
 
     <string name="intro_slide3_desc_keystore">Set up an authentication method to lock <b>OfflineOTP</b>. With
         <b>Android KeyStore</b> encryption this step is optional.</string>
     <string name="intro_slide3_desc_password">Set up an authentication method to lock <b>OfflineOTP</b>. With
-        <b>Password / PIN</b> encryption a password or PIN is required.</string>
+        <b>Password</b> encryption a password is required.</string>
     <string name="intro_slide3_warn_no_password">Set a password to continue.</string>
-    <string name="intro_slide3_warn_no_pin">Set a PIN to continue.</string>
     <string name="intro_slide3_warn_confirm_password">Confirm your password to continue.</string>
     <string name="intro_slide3_warn_password_mismatch">Passwords must match.</string>
-    <string name="intro_slide3_warn_confirm_pin">Confirm your PIN to continue.</string>
-    <string name="intro_slide3_warn_pin_mismatch">PINs must match.</string>
 
     <string name="intro_slide4_title">Finished</string>
     <string name="intro_slide4_title_failed">Setup failed</string>

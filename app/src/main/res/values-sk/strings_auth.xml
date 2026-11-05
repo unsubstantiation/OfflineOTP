@@ -3,7 +3,6 @@
     <string name="auth_activity_title">Overiť</string>
     <!-- Hints -->
     <string name="auth_hint_password">Heslo</string>
-    <string name="auth_hint_pin">PIN</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">Prosím prihláste sa pre spustenie OfflineOTP!</string>
     <string name="auth_msg_confirm_encryption">Prosím potvrďte prihlásenie pre vygenerovanie šifrovacieho kľúču!</string>
@@ -11,5 +10,4 @@
     <string name="auth_button_unlock">Odomknúť</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Prosím nastavte heslo v <b>Nastaveniach</b>!</string>
-    <string name="auth_toast_pin_missing">Prosím nastavte PIN v <b>Nastaveniach</b>!</string>
 </resources>

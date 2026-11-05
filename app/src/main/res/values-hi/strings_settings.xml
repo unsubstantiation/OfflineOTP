@@ -95,12 +95,10 @@
     <string name="settings_dialog_msg_clear_keystore_password">कुछ मामलों में कुंजी स्टोर को साफ़ करने से समस्याओं को हल करने में मदद मिल सकती है। आपको केवल तभी आगे बढ़ना चाहिए जब आप जानते हैं कि आप क्या कर रहे हैं! \n\n<b>डेटाबेस कूटलेखन</b> को <b>पासवर्ड / पिन </b> पर सेट किया गया है, आपको ऐसा करने में कोई डेटा नहीं खोना चाहिए (लेकिन एक बैकअप रखना फायदेमंद हो सकता है)।\n\n<b>क्या आप वाकई कुंजी स्टोर को खाली करना चाहते हैं? </b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">कुछ मामलों में कुंजी स्टोर को साफ़ करने से समस्याओं को हल करने में मदद मिल सकती है। आपको केवल तभी आगे बढ़ना चाहिए जब आप जानते हैं कि आप क्या कर रहे हैं! \n\n<b>चेतावनी</b>: <b>डेटाबेस कूटलेखन</b> <b>एंड्रॉयड कुंजी स्टोर</b> पर सेट किया गया है, इसलिए आप अपने सभी खाते खो देंगे। सुनिश्चित करें कि आपके पास एक बैकअप है! \n\n<b>क्या आप वाकई सुनिश्चित हैं कि आप बैकअप खाली करना चाहते हैं</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>कोई नहीं</item>
+    <string-array name="settings_entries_auth">        <item>कोई नहीं</item>
         <item>पासवर्ड</item>
-        <item>पिन</item>
         <item>यंत्र साख</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>एंड्रॉयड कुंजी स्टोर</item>
         <item>पासवर्ड / पिन</item>
@@ -170,9 +168,6 @@
     <string name="settings_lang_sys_default">तंत्र निर्धारित</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">नया पासवर्ड दर्ज करें</string>
-    <string name="settings_hint_pin">नया पिन दर्ज करें</string>
     <string name="settings_hint_password_confirm">पासवर्ड की पुष्टि करें</string>
-    <string name="settings_hint_pin_confirm">पिन की पुष्टि करें</string>
     <string name="settings_label_short_password">पासवर्ड कम से कम %1$d अक्षर लंबा होने की जरूरत है।</string>
-    <string name="settings_label_short_pin">पिन को कम से कम %1$d अंक लंबा होना चाहिए!</string>
 </resources>

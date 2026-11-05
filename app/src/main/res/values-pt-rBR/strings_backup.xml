@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Erro ao fazer backup</string>
     <string name="backup_receiver_title_backup_success">Backup realizado com sucesso</string>
     <string name="backup_receiver_encrypted_disabled">Backups criptografados não são permitidos,         vá até as Configurações para habilitá-los</string>
-    <string name="backup_receiver_custom_encryption_failed">A criptografia de senha ou PIN não         pode ser usada com o backup de ativação remota</string>
     <string name="backup_receiver_no_location_set">Não foi definido um local para backup, indique um nas
         configurações dos aplicativos</string>
     <string name="backup_receiver_no_password_set">Não foi definida uma senha padrão, indique uma nas

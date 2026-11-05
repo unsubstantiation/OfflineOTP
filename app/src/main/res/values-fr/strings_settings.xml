@@ -88,8 +88,6 @@
     <string name="settings_toast_encryption_backup_failed">Échec de la création d\'une sauvegarde interne, annulation !</string>
     <string name="settings_toast_encryption_no_key">Impossible d’obtenir la clé de chiffrement, abandon !</string>
     <string name="settings_toast_encryption_auth_failed">Échec de l\'authentification !</string>
-    <string name="settings_toast_auth_upgrade_failed">Échec de la mise à jour de votre mot de passe / code PIN
-        pour le nouveau chiffrement, veuillez le réinitialiser manuellement depuis les paramètres !</string>
     <string name="settings_toast_android_sync_enabled">Synchronisation Android activée</string>
     <string name="settings_toast_android_sync_disabled">Synchronisation Android désactivée</string>
     <string name="settings_dialog_title_warning">Attention</string>
@@ -97,29 +95,16 @@
     <string name="settings_dialog_title_clear_keystore">Vider le KeyStore ?</string>
     <string name="settings_dialog_title_android_sync">Synchronisation Android</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP va maintenant essayer de changer le chiffrement de la base de données. En cas d\'échec, une sauvegarde interne sera restaurée et le chiffrement restera inchangé.\n\n<b>Cependant, c’est toujours une bonne idée d’avoir une sauvegarde au cas où quelque chose d’inattendu arrive !</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Vous pouvez seulement utiliser un mot de passe ou un code PIN si
-        le chiffrement de la base de données est défini sur \"Mot de passe / Code PIN\" !</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Vous devez d\'abord définir
-        l\'authentification sur \"Mot de passe / Code PIN\" !</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Vous devez d\'abord définir un
-        mot de passe ou code PIN avant de changer le chiffrement !</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Dans certains cas, effacer le KeyStore
-        peut aider à résoudre des problèmes. Vous ne devriez seulement le faire si vous savez ce que vous faites !\n\nVu que
-        le <b>chiffrement de la base de données</b> est défini sur <b>Mot de passe / Code PIN</b>, vous ne devriez perdre aucune donnée
-        en le faisant (mais ça ne fait jamais de mal de faire une sauvegarde).\n\n<b>Êtes-vous sûr(e) de vouloir
-        effacer le KeyStore ?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Dans certains cas, effacer le KeyStore
         peut aider à résoudre des problèmes. Vous ne devriez seulement le faire si vous savez ce que vous faites !\n\n<b>Attention</b>:
         Vu que le <b>chiffrement de la base de données</b> est défini sur <b>KeyStore Android</b>, vous allez perdre tous
         vos comptes. Assurez-vous d\'avoir une sauvegarde !\n\n<b>Êtes-vous sûr(e) de vouloir effacer le
         KeyStore ?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Aucune</item>
+    <string-array name="settings_entries_auth">        <item>Aucune</item>
         <item>Mot de passe</item>
-        <item>NIP</item>
         <item>Identification du périphérique</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>KeyStore Android</item>
         <item>Mot de passe / NIP</item>
@@ -189,10 +174,7 @@
     <string name="settings_lang_sys_default">Par défaut du système</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Saisir le nouveau mot de passe</string>
-    <string name="settings_hint_pin">Saisir le nouveau NIP</string>
     <string name="settings_hint_password_confirm">      Confirmer le mot de passe
     </string>
-    <string name="settings_hint_pin_confirm">Confirmer le NIP</string>
     <string name="settings_label_short_password">Le mot de passe doit comporter au moins %1$d caractères !</string>
-    <string name="settings_label_short_pin">Le NIP doit comporter au moins %1$d chiffres !</string>
 </resources>

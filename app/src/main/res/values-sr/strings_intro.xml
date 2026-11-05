@@ -29,11 +29,8 @@
         <b>OfflineOTP-а</b>. Пошто сте изабрали <b>Лозинку/ПИН</b> као метод шифровања,
         за наставак морате поставити лозинку или ПИН.</string>
     <string name="intro_slide3_warn_no_password">Поставите лозинку за наставак!</string>
-    <string name="intro_slide3_warn_no_pin">Поставите ПИН за наставак!</string>
     <string name="intro_slide3_warn_confirm_password">Молимо потврдите лозинку да бисте наставили!</string>
     <string name="intro_slide3_warn_password_mismatch">Лозинке се морају поклапати!</string>
-    <string name="intro_slide3_warn_confirm_pin">Молимо потврдите ПИН да бисте наставили!</string>
-    <string name="intro_slide3_warn_pin_mismatch">ПИН-ови нису исти!</string>
     <string name="intro_slide4_title">Завршено</string>
     <string name="intro_slide4_title_failed">Инсталација није успела</string>
     <string name="intro_slide4_title_progress">Сачекајте</string>

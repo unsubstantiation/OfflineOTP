@@ -6,7 +6,6 @@
     <string name="settings_category_title_ui">Felhasználói felület</string>
     <string name="settings_category_title_backup">Biztonsági mentés</string>
     <!-- Titles -->
-    <string name="settings_title_tap_to_reveal_timeout">A koppintással történő felfedés időtúllépése</string>
     <string name="settings_title_auth">Hitelesítés</string>
     <string name="settings_title_encryption">Adatbázis-titkosítás</string>
     <string name="settings_title_relock_screen_off">Lezárás a kijelző kikapcsolásakor</string>
@@ -24,8 +23,6 @@
     <string name="settings_title_show_prev_token">Előző token megjelenítése</string>
     <string name="settings_title_label_size">Cím betűmérete</string>
     <string name="settings_title_label_display">Címkemegjelenítés</string>
-    <string name="settings_title_tap_single">Egy koppintás</string>
-    <string name="settings_title_tap_double">Dupla koppintás</string>
     <string name="settings_title_thumbnail_size_ask">Bélyegképek mérete</string>
     <string name="settings_title_split_group_size">Token elválasztása szóközzel</string>
     <string name="settings_title_tag_functionality">Címkekiválasztás viselkedése</string>
@@ -99,8 +96,6 @@
         létrehozni, megszakítás!</string>
     <string name="settings_toast_encryption_no_key">A titkosítási kulcs elérése sikertelen, megszakítás!</string>
     <string name="settings_toast_encryption_auth_failed">A hitelesítés sikertelen!</string>
-    <string name="settings_toast_auth_upgrade_failed">Nem sikerült a jelszó/PIN-kód néma frissítése az új titkosításra,
-        állítsa vissza kézzel a Beállításokban!</string>
     <string name="settings_toast_android_sync_enabled">Android szinkronizálás be</string>
     <string name="settings_toast_android_sync_disabled">Android szinkronizálás ki</string>
     <string name="settings_dialog_title_warning">Figyelmeztetés</string>
@@ -111,32 +106,19 @@
         titkosítását. Hiba esetén esetén a belső biztonsági mentés lesz visszaállítva, és a titkosítás
         változatlan marad.\n\n<b>Mindig jó ötlet, ha van egy biztonsági mentése arra az esetre,
         ha valami váratlan történik!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Csak akkor használhat jelszót vagy PIN-kódot, ha
-        az adatbázis-titkosítás beállítása „Jelszó/PIN-kód”!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Először be kell állítania a hitelesítést
-        „Jelszó” vagy „PIN-kód” típusúra!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">A titkosítás megváltoztatása előtt először
-        be kell állítania egy jelszót vagy PIN-kódot!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Egyes esetekben a KeyStore törlése segíthet
-        megoldani a problémákat. Csak akkor folytassa, ha tudja, hogy mit csinál!\n\nMivel az
-        <b>Adatbázis-titkosítás</b> beállítása <b>Jelszó/PIN-kód</b>, így nem kellene, hogy
-        adatokat veszítsen (de sosem árt, ha van biztonsági mentése).\n\n<b>Biztos, hogy
-        törölni szeretné a KeyStore-t?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Egyes esetekben a KeyStore törlése segíthet
         megoldani a problémákat. Csak akkor folytassa, ha tudja, mit csinál!\n\n<b>Figyelmeztetés</b>:
         Mivel az <b>Adatbázis-titkosítás</b> beállítása <b>Android KeyStore</b>, így elveszíti az
         összes fiókját. Győződjön meg róla, hogy van biztonsági mentése!\n\n<b>Biztos, hogy
         törölni szeretné a KeyStore-t?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Nincs</item>
+    <string-array name="settings_entries_auth">        <item>Nincs</item>
         <item>Jelszó</item>
-        <item>PIN-kód</item>
         <item>Eszköz hitelesítő adatai</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Jelszó/PIN-kód</item>
+        <item>Jelszó</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Összes fiók törlése</item>
@@ -203,9 +185,6 @@
     <string name="settings_lang_sys_default">Rendszer alapértelmezése</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Adja meg az új jelszót</string>
-    <string name="settings_hint_pin">Adja meg az új PIN-kódot</string>
     <string name="settings_hint_password_confirm">Jelszó megerősítése</string>
-    <string name="settings_hint_pin_confirm">PIN-kód megerősítése</string>
     <string name="settings_label_short_password">A jelszónak legalább %1$d karakter hosszúnak kell lennie!</string>
-    <string name="settings_label_short_pin">A PIN-kódnak legalább %1$d karakter hosszúnak kell lennie!</string>
 </resources>

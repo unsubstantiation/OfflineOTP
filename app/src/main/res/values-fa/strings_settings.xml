@@ -104,12 +104,10 @@
     <string name="settings_dialog_msg_clear_keystore_password">در برخی موارد، تمیز کردن KeyStore می‌تواند کمک کند به حل مشکلات. شما باید فقط زمانی آن را انجام دهید که می‌دانید در حال انجام چه کاری هستید!\n\n از آنجایی که <b>رمزنگاری پایگاه داده</b> روی <b>گذرواژه / پین</b> تنظیم شده است، شما نباید با انجام آن هیچ داده‌ای را از دست بدهید (اما به هر حال پشتیبان‌گیری هرگز ضرر ندارد).\n\n<b>آیا شما واقعا می‌خواهید که KeyStore را پاک‌سازی کنید؟</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">در برخی موارد، تمیز کردن KeyStore می‌تواند کمک کند به حل مشکلات. شما باید فقط زمانی آن را انجام دهید که می‌دانید در حال انجام چه کاری هستید!\n\n<b>هشدار</b>: از آنجایی که <b>رمزنگاری پایگاه داده</b> روی <b>KeyStore اندروید</b> تنظیم شده است، شما همه حساب‌های خود را از دست می‌دهید. مطمئن شوید که پشتیبان دارید!\n\n<b>آیا شما واقعا می‌خواهید که KeyStore را پاک‌سازی کنید؟</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>هیچ کدام</item>
+    <string-array name="settings_entries_auth">        <item>هیچ کدام</item>
         <item>گذرواژه</item>
-        <item>پین</item>
         <item>اعتبارنامه دستگاه</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>KeyStore اندروید</item>
         <item>گذرواژه / پین</item>
@@ -179,9 +177,6 @@
     <string name="settings_lang_sys_default">پیش‌فرض سیستم</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">گذرواژه جدید را وارد کنید</string>
-    <string name="settings_hint_pin">پین جدید را وارد کنید</string>
     <string name="settings_hint_password_confirm">تایید گذرواژه</string>
-    <string name="settings_hint_pin_confirm">تایید پین</string>
     <string name="settings_label_short_password">طول گذرواژه باید حداقل %1$d حرف باشد!</string>
-    <string name="settings_label_short_pin">طول پین باید حداقل %1$d عدد باشد!</string>
 </resources>

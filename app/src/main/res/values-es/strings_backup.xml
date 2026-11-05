@@ -15,8 +15,6 @@
     <string name="backup_receiver_title_backup_failed">Falló la copia de seguridad</string>
     <string name="backup_receiver_title_backup_success">Copia de seguridad correcta</string>
     <string name="backup_receiver_encrypted_disabled">Las copias de seguridad cifradas no están permitidas por ahora, por favor vé a los Ajutes para activarlas</string>
-    <string name="backup_receiver_custom_encryption_failed">Cifrado basado en clave/PIN no
-        soportado en la copia de seguridad de difusión</string>
     <string name="backup_receiver_no_location_set">No se ha establecido una ubicación de copia de seguridad,
         por favor establezca una en la configuración de aplicaciones</string>
     <string name="backup_receiver_no_password_set">No se ha establecido una contraseña por defecto,

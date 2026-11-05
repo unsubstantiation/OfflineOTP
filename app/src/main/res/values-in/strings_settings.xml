@@ -81,7 +81,6 @@
     <string name="settings_toast_encryption_backup_failed">Gagal membuat cadangan internal, membatalkan!</string>
     <string name="settings_toast_encryption_no_key">Gagal mendapatkan kunci enkripsi, membatalkan!</string>
     <string name="settings_toast_encryption_auth_failed">Autentikasi gagal!</string>
-    <string name="settings_toast_auth_upgrade_failed">Gagal memperbarui secara diam-diam kata sandi/PIN ke enkripsi baru, mohon untuk menyetel ulang secara manual di Pengaturan!</string>
     <string name="settings_toast_android_sync_enabled">Sinkronisasi Android diaktifkan</string>
     <string name="settings_toast_android_sync_disabled">Sinkronisasi Android dinonaktifkan</string>
     <string name="settings_dialog_title_warning">Peringatan</string>
@@ -89,21 +88,16 @@
     <string name="settings_dialog_title_clear_keystore">Bersihkan KeyStore?</string>
     <string name="settings_dialog_title_android_sync">Sinkronisasi Android</string>
     <string name="settings_dialog_msg_encryption_change">Sekarang OfflineOTP akan mengganti enkripsi basis data. Jika terjadi kegagalan, cadangan internal akan dipulihkan dan enkripsi tetap tidak berubah.\n\n<b>Namun, ada baiknya untuk memiliki cadangan jika sesuatu yang tidak diinginkan terjadi!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Anda hanya dapat menggunakan Kata Sandi atau PIN selama enkripsi basis data diatur ke \"Kata Sandi/PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Anda harus mengatur Autentikasi terlebih dahulu menjadi \"Kata Sandi\" atau \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Anda harus menentukan Kata Sandi atau PIN terlebih dahulu sebelum mengganti enkripsi!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Dalam beberapa kasus, membersihkan KeyStore dapat membantu menyelesaikan masalah. Anda hanya boleh melanjutkan jika Anda tahu apa yang Anda lakukan.\n\n Karena <b>enkripsi basis data</b> diatur ke <b>Kata Sandi/PIN</b>, Anda tidak akan kehilangan data apa pun (tapi tidak ada salahnya memiliki cadangan).\n\n<b>Apakah Anda yakin ingin membersihkan KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Dalam beberapa kasus, membersihkan KeyStore dapat membantu menyelesaikan masalah. Anda hanya boleh melanjutkan jika Anda tahu apa yang Anda lakukan.\n\n<b>Peringatan</b>: Karena <b>enkripsi basis data</b> diatur ke <b>Android KeyStore</b>, Anda akan kehilangan semua akun Anda. Pastikan Anda memiliki cadangan!\n\n<b>Apakah Anda yakin ingin membersihkan KeyStore?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Tidak ada</item>
         <item>Kata Sandi</item>
-        <item>PIN</item>
         <item>Kredensial perangkat</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Kata Sandi/PIN</item>
+        <item>Kata Sandi</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Hapus semua akun</item>
@@ -170,9 +164,6 @@
     <string name="settings_lang_sys_default">Bawaan sistem</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Masukkan kata sandi baru</string>
-    <string name="settings_hint_pin">Masukkan PIN baru</string>
     <string name="settings_hint_password_confirm">Konfirmasi kata sandi</string>
-    <string name="settings_hint_pin_confirm">Konfirmasi PIN</string>
     <string name="settings_label_short_password">Panjang kata sandi minimal %1$d karakter!</string>
-    <string name="settings_label_short_pin">Panjang PIN minimal %1$d digit!</string>
 </resources>

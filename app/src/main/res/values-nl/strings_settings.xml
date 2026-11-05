@@ -88,7 +88,6 @@
     <string name="settings_toast_encryption_backup_failed">Het maken van een interne reservekopie mislukte, afbreken!</string>
     <string name="settings_toast_encryption_no_key">Het ophalen van de encryptiesleutel mislukte, afbreken!</string>
     <string name="settings_toast_encryption_auth_failed">Verificatie mislukt!</string>
-    <string name="settings_toast_auth_upgrade_failed">Het bijwerken van je wachtwoord / PIN naar de nieuwe codering mislukte, herstel het handmatig bij de instellingen!</string>
     <string name="settings_toast_android_sync_enabled">Android-synchronisatie ingeschakeld</string>
     <string name="settings_toast_android_sync_disabled">Android-synchronisatie uitgeschakeld</string>
     <string name="settings_dialog_title_warning">Waarschuwing</string>
@@ -96,12 +95,6 @@
     <string name="settings_dialog_title_clear_keystore">Sleutelopslag leegmaken?</string>
     <string name="settings_dialog_title_android_sync">Android synchronisatie</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP zal nu proberen de database encryptie te wijzigen. In het geval dat dit niet lukt, zal een intern reservekopie teruggeplaatst worden en blijft de encryptie onveranderd.\n\n<b>Het is echter altijd een goed idee om een kopie te hebben voor het geval dat er iets onverwachts gebeurd!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">U kunt alleen een wachtwoord of pincode gebruiken zolang de database encryptie is ingesteld op \"Wachtwoord / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">U moet eerst de authenticatie instellen op \"Wachtwoord\" of \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Je moet een wachtwoord of pincode instellen voor het wijzigen van de versleuteiing!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">In sommige gevallen kan het leegmaken van de sleutelopslag problemen verhelpen. Ga enkel verder wanneer je weet waar je mee bezig bent!\n\n
-Doordat de <b>Database encryptie</b> is ingesteld op <b>Wachtwoord / Pincode</b> zou u hiermee geen gegevens mogen verliezen (maar een kopie nemen kan nooit kwaad).\n\n
-<b>Bent je heel zeker dat je de sleutelopslag wil leegmaken?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">In sommige gevallen kan het leegmaken van de sleutelopslag problemen verhelpen. Ga enkel verder als je weet waar je mee bezig bent!\n\n
 <b>Waarschuwing</b>:
 Doordat de <b>Database encryptie</b> is ingesteld op <b>Android sleutelopslag</b> zal je al je accounts verliezen. Wees dus zeker dat je een backup hebt!\n\n
@@ -110,12 +103,11 @@ Doordat de <b>Database encryptie</b> is ingesteld op <b>Android sleutelopslag</b
     <string-array name="settings_entries_auth">
         <item>Geen</item>
         <item>Wachtwoord</item>
-        <item>PIN</item>
         <item>Apparaatreferenties</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android Sleutelopslag</item>
-        <item>Wachtwoord / PIN</item>
+        <item>Wachtwoord</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Alle accounts verwijderen</item>
@@ -182,9 +174,6 @@ Doordat de <b>Database encryptie</b> is ingesteld op <b>Android sleutelopslag</b
     <string name="settings_lang_sys_default">Systeemstandaard</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Nieuw wachtwoord invoeren</string>
-    <string name="settings_hint_pin">Nieuwe PIN invoeren</string>
     <string name="settings_hint_password_confirm">Bevestig wachtwoord</string>
-    <string name="settings_hint_pin_confirm">Bevestig PIN</string>
     <string name="settings_label_short_password">Het wachtwoord moet minstens %1$d karakters bevatten!</string>
-    <string name="settings_label_short_pin">De pincode moet minstens %1$d cijfers bevatten!</string>
 </resources>

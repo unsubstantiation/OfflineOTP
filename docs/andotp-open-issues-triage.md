@@ -444,7 +444,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   🆕 **GAP** — Garena QR (`KKKK…|Username`) is not recognized; manual entry works because the period limit (1–86,400 s) covers its 180 s step.
 - **#214** — OpenKeychain as authentication source  
   _enhancement_  
-  ✅ **OUTOFSCOPE** — Vault unlock is password/PIN/KeyStore only; OpenKeychain is used for OpenPGP backups, not authentication.
+  ✅ **OUTOFSCOPE** — Vault unlock is password, device credentials or KeyStore only; OpenKeychain is used for OpenPGP backups, not authentication.
 - **#225** — Custom image support  
   _enhancement_  
   🆕 **GAP** — Thumbnails are bundled brand vectors or generated letter tiles; custom images are not supported.

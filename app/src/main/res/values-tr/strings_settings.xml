@@ -95,8 +95,6 @@ ilk haline dönülüyor!</string>
         başarısız, durduruluyor!</string>
     <string name="settings_toast_encryption_no_key">Şifreleme anahtarı alınamadı, durduruluyor!</string>
     <string name="settings_toast_encryption_auth_failed">Kimlik doğrulama başarısız!</string>
-    <string name="settings_toast_auth_upgrade_failed">Şifrenizi / PIN\'inizi yeni şifrelemeye sessizce yükseltme başarısız oldu,
-        lütfen ayarları el ile sıfırlayın!</string>
     <string name="settings_toast_android_sync_enabled">Android sync aktifleştirildi</string>
     <string name="settings_toast_android_sync_disabled">Android sync pasifleştirildi</string>
     <string name="settings_dialog_title_warning">Uyarı</string>
@@ -106,17 +104,6 @@ ilk haline dönülüyor!</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP şimdi veritabanı şifreleme metodunu değiştirmeye çalışacak. Olası bir hata karşısında
 dahili yedeklerden biri geri yüklenecek ve de şifreleme metodu değiştirimeyecek.\n\n<b>Lakin,
 beklenmedik durumlar karşısında her zaman bir yedek barındırmak iyi bir alışkanlık!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Veritabanı şifrelemesi \"Şifre / PIN\" olarak ayarlandığı sürece
-        yalnızca Şifre veya PIN\'i kullanabilirsiniz!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Önce Kimlik Doğrulama\'yı
-        \"Şifre\" veya \"PIN\" olarak ayarlamanız gerek!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Şifrelemeyi değiştirmeden önce
-        bir Şifre veya PIN ayarlamanız gerek!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Bazı durumlarda KeyStore\'u temizlemek
-        sorunu çözebilir. Bunu yanlızca ne yaptığınızı biliyorsanız yapmalısınız!\n\n<b>Veritabanı şifrelemesi</b>
-        <b>Şifre / PIN</b> olarak ayarlandığından bunu yaparken herhangi bir veri
-        kaybetmemelisiniz(ancak yine de bir yedekleme yapmak iyi olur).\n\n<b>Gerçekten KeyStore\'u 
-        temizlemek istediğinizden emin misiniz?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Bazı durumlarda KeyStore\'u temizlemek
         sorunu çözebilir. Bunu yanlızca ne yaptığınızı biliyorsanız yapmalısınız!\n
 \n<b>Uyarı</b>:
@@ -127,12 +114,11 @@ beklenmedik durumlar karşısında her zaman bir yedek barındırmak iyi bir al�
     <string-array name="settings_entries_auth">
         <item>Hiçbiri</item>
         <item>Şifre</item>
-        <item>PIN</item>
         <item>Alet kimlik bilgileri</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Şifre / PIN</item>
+        <item>Şifre</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Tüm hesapları sil</item>
@@ -199,9 +185,6 @@ beklenmedik durumlar karşısında her zaman bir yedek barındırmak iyi bir al�
     <string name="settings_lang_sys_default">Sistem varsayılanı</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Yeni bir şifre gir</string>
-    <string name="settings_hint_pin">Yeni PIN giriniz</string>
     <string name="settings_hint_password_confirm">Şifreyi doğrula</string>
-    <string name="settings_hint_pin_confirm">PIN\'i doğrula</string>
     <string name="settings_label_short_password">Parola en az %1$d karakter olmalıdır!</string>
-    <string name="settings_label_short_pin">PIN en az %1$d uzunluğunda olmalıdır!</string>
 </resources>

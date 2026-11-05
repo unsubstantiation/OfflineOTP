@@ -13,7 +13,6 @@
     <string name="backup_receiver_title_backup_success">Резервная копия создана</string>
     <string name="backup_receiver_encrypted_disabled">Зашифрованные резервные копии не разрешены,
 включите возможность их создания в «Настройках»</string>
-    <string name="backup_receiver_custom_encryption_failed">Шифрование на основе пароля/PIN-кода не поддерживается сторонними приложениями резервного копирования</string>
     <string name="backup_receiver_no_location_set">Путь для резервного копирования не указан, установите его в настройках приложения</string>
     <string name="backup_receiver_no_password_set">Пароль по умолчанию не указан, установите его в настройках приложения</string>
     <!-- Notification channels -->

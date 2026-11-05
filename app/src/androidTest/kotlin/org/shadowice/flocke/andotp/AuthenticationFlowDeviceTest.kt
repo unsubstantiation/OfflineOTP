@@ -5,7 +5,7 @@
  *
  *  - #208 "Back takes you back to app bypassing password": the unlock prompt fails closed, so a
  *    cancelled prompt revokes the session and MainActivity removes its task instead of showing
- *    the entry list. The positive case (the right PIN still unlocks) is asserted too, so the
+ *    the entry list. The positive case (the right password still unlocks) is asserted too, so the
  *    fail-closed path cannot be satisfied by simply never unlocking.
  *  - #712 "Re-lock on inactivity not working": the idle deadline uses elapsed realtime and is
  *    kept across a pause, so time spent with the app in the background still counts. The test
@@ -54,7 +54,7 @@ class AuthenticationFlowDeviceTest {
     @Test
     fun aCancelledUnlockPromptCannotRevealTheVault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        installPinVault(context, PIN)
+        installPasswordVault(context, PASSWORD)
         try {
             assertNull("the test vault must start locked", VaultSession.getKey())
 
@@ -77,9 +77,9 @@ class AuthenticationFlowDeviceTest {
     }
 
     @Test
-    fun theConfiguredPinStillUnlocksTheVault() {
+    fun theConfiguredPasswordStillUnlocksTheVault() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        installPinVault(context, PIN)
+        installPasswordVault(context, PASSWORD)
         try {
             DeviceTestSupport.startActivity(context, MainActivity::class.java)
             val prompt = DeviceTestSupport.awaitResumed<AuthenticateActivity>()
@@ -87,12 +87,11 @@ class AuthenticationFlowDeviceTest {
 
             instrumentation.runOnMainSync {
                 val input = requireNotNull(prompt!!.findViewById<EditText>(R.id.passwordEdit))
-                input.setText(PIN)
+                input.setText(PASSWORD)
                 requireNotNull(prompt.findViewById<Button>(R.id.buttonUnlock)).performClick()
             }
 
-            assertTrue("the correct PIN did not restore the vault session", awaitVaultKey())
-            assertNull("a PIN must not become a portable backup password", VaultSession.copyBackupKey())
+            assertTrue("the correct password did not restore the vault session", awaitVaultKey())
             val main = DeviceTestSupport.awaitResumed<MainActivity>()
             assertNotNull("the main screen did not come back", main)
             instrumentation.runOnMainSync {
@@ -100,6 +99,38 @@ class AuthenticationFlowDeviceTest {
                 assertEquals("the entry list is not visible after unlocking", android.view.View.VISIBLE,
                     cards.visibility)
             }
+        } finally {
+            DeviceTestSupport.finishActivities()
+            cleanUp(context)
+        }
+    }
+
+    @Test
+    fun aVaultStoredAsAPinStillOpensThroughThePasswordPrompt() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        installPasswordVault(context, LEGACY_PIN)
+        try {
+            // What an older release left behind: the credential is a short PIN and the stored
+            // method names a login this build no longer offers.
+            android.preference.PreferenceManager.getDefaultSharedPreferences(context).edit()
+                .putString(context.getString(R.string.settings_key_auth), "pin")
+                .commit()
+            assertEquals("a removed method must read as a password, not crash",
+                Constants.AuthMethod.PASSWORD, Settings(context).getAuthMethod())
+
+            DeviceTestSupport.startActivity(context, MainActivity::class.java)
+            val prompt = DeviceTestSupport.awaitResumed<AuthenticateActivity>()
+            assertNotNull("the legacy vault did not ask for its credential", prompt)
+
+            instrumentation.runOnMainSync {
+                val input = requireNotNull(prompt!!.findViewById<EditText>(R.id.passwordEdit))
+                input.setText(LEGACY_PIN)
+                requireNotNull(prompt.findViewById<Button>(R.id.buttonUnlock)).performClick()
+            }
+
+            assertTrue("the PIN credential no longer opened its vault", awaitVaultKey())
+            val main = DeviceTestSupport.awaitResumed<MainActivity>()
+            assertNotNull("the main screen did not come back", main)
         } finally {
             DeviceTestSupport.finishActivities()
             cleanUp(context)
@@ -139,7 +170,7 @@ class AuthenticationFlowDeviceTest {
     @Test
     fun backgroundTimeCountsTowardsTheInactivityRelock() {
         val context = ApplicationProvider.getApplicationContext<Context>()
-        val key = installPinVault(context, PIN)
+        val key = installPasswordVault(context, PASSWORD)
         enableInactivityRelock(context, seconds = INACTIVITY_SECONDS)
         try {
             val generation = VaultSession.beginUnlock().generation
@@ -180,29 +211,8 @@ class AuthenticationFlowDeviceTest {
         }
     }
 
-    /** Creates a password-encrypted vault whose authentication method is the given PIN. */
-    private fun installPinVault(context: Context, pin: String): SecretKey {
-        assumeTrue("a vault already exists; refusing to overwrite it", DatabaseHelper.canInitialize(context))
-        DeviceTestSupport.freshPreferences(context)
-
-        val settings = Settings(context)
-        val prepared = settings.prepareAuthCredentials(pin)
-        val key = EncryptionHelper.generateSymmetricKey(prepared.key)
-        try {
-            val write = DatabaseHelper.changeVaultEncryption(context, null, key, true) { transactionId ->
-                VaultCommitDecision.fromCommit(settings.commitVaultSettings(
-                    transactionId, Constants.EncryptionType.PASSWORD, Constants.AuthMethod.PIN,
-                    prepared, true))
-            }
-            assertTrue("test vault initialization failed: $write", write is VaultWriteResult.Saved)
-        } finally {
-            prepared.destroy()
-        }
-        VaultSession.lock()
-        return key
-    }
-
-    private fun installPasswordVault(context: Context, password: String) {
+    /** Creates a password-encrypted vault and returns the key it was written with. */
+    private fun installPasswordVault(context: Context, password: String): SecretKey {
         assumeTrue("a vault already exists; refusing to overwrite it", DatabaseHelper.canInitialize(context))
         DeviceTestSupport.freshPreferences(context)
         val settings = Settings(context)
@@ -217,6 +227,7 @@ class AuthenticationFlowDeviceTest {
             prepared.destroy()
         }
         VaultSession.lock()
+        return key
     }
 
     private fun enableInactivityRelock(context: Context, seconds: Int) {
@@ -244,7 +255,8 @@ class AuthenticationFlowDeviceTest {
     }
 
     private companion object {
-        const val PIN = "1234"
+        /** The credential an older release's PIN login would have left in the vault. */
+        const val LEGACY_PIN = "1234"
         const val PASSWORD = "correct horse battery staple"
         const val INACTIVITY_SECONDS = 4
     }

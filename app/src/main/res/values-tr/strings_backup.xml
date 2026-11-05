@@ -15,8 +15,6 @@ kısmından OpenPGP anahtarı seçmelisiniz.    </string>
     <string name="backup_receiver_title_backup_success">Yedekleme başarılı</string>
     <string name="backup_receiver_encrypted_disabled">Şifrelenmiş biçimdeki yedeklemelere şimdilik izin verilmiyor.
 Lütfen ayarlar kısmından bu özelliği aktifleştirin</string>
-    <string name="backup_receiver_custom_encryption_failed">Parola/PIN tabanlı şifreleme, broadcast yedekleme
-        ile desteklenmemektedir</string>
     <string name="backup_receiver_no_location_set">Bir yedekleme konumu ayarlanmamış, lütfen
          uygulama ayarlarından bir yol seçin</string>
     <string name="backup_receiver_no_password_set">Varsayılan parola ayarlanmamış, lütfen uygulama

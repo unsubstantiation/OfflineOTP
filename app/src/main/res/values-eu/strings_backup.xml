@@ -16,8 +16,6 @@
     <string name="backup_receiver_title_backup_success">Backup Arrakastatsua</string>
     <string name="backup_receiver_encrypted_disabled">Ezin dira zifratutako segurtasun-kopiak egin,
         joan ezarpenetara hau aktibatzeko</string>
-    <string name="backup_receiver_custom_encryption_failed">Pasahitz/PIN bidezko zifratzea ezin da
-        kanpotik aktibatutako segurtasun-kopien moduarekin erabili</string>
     <string name="backup_receiver_no_location_set">Ez dago babeskopiak gordetzeko kokapenik, zehaztu bat
         aplikazioaren ezarpenetan</string>
     <string name="backup_receiver_no_password_set">Ez dago pasahitzik, zehaztu bat

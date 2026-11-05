@@ -103,8 +103,6 @@ d\'accesibilidá!</b></string>
         seguranza interna, ¡albortando!</string>
     <string name="settings_toast_encryption_no_key">Fallu al consiguir la clave de cifráu, ¡albortando!</string>
     <string name="settings_toast_encryption_auth_failed">¡Falló l\'autenticación!</string>
-    <string name="settings_toast_auth_upgrade_failed">Fallu al anovar dafurto la contraseña / PIN
-        al cifráu nuevu, volvi afitala manualmente n\'axustes.</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">Alvertencia</string>
@@ -115,18 +113,6 @@ d\'accesibilidá!</b></string>
         de la base de datos. En casu de fallu, una copia de seguranza va restaurase y
         el cifráu nun va camudar.\n\n<b>Por embargu, siempres ye una bona idea tener una
         copia en casu de qu\'asoceda daqué inesperao.</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">¡Namás pues usar una contraseña o un PIN
-        mentanto\'l cifráu de la base de datos tea afitáu a «Contraseña/PIN»!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">¡Primero precises afitar
-        l\'autenticación a «Contraseña» o «PIN»!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">¡Primero precises afitar
-        una contraseña o un PIN enantes de camudar el
-        cifráu!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">En dalgunos casos, llimpiar l\'almacén
-        de claves pue ayudar a iguar problemes. ¡Namás deberíes siguir si sabes lo que tas faciendo!\n\nDarréu
-        que\'l <b>cifráu de la base de datos</b> s\'afitó a <b>Contraseña/PIN</b>, nun deberíes
-        nengún datu (pero nun ta demás tener una copia de seguranza).\n\n<b>¿De xuru que quies
-        llimpiar l\'almacén de claves?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">En dalgunos casos, llimpiar l\'almacén
         de claves pue ayudar a iguar problemes. ¡Namás deberíes siguir si sabes lo que tas faciendo!\n\n<b>Alvertencia</b>:
         Darréu que\'l <b>cifráu de la base de datos</b> s\'afitó a <b>Almacén de claves d\'Android</b>,
@@ -136,12 +122,11 @@ d\'accesibilidá!</b></string>
     <string-array name="settings_entries_auth">
         <item>Nenguna</item>
         <item>Contraseña</item>
-        <item>PIN</item>
         <item>Credenciales del preséu</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Almacén de claves d\'Android</item>
-        <item>Contraseña / PIN</item>
+        <item>Contraseña</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Llimpiar toles cuentes</item>
@@ -208,9 +193,6 @@ d\'accesibilidá!</b></string>
     <string name="settings_lang_sys_default">Lo predeterminao del sistema</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Introduz una contraseña nueva</string>
-    <string name="settings_hint_pin">Introduz un PIN nuevu</string>
     <string name="settings_hint_password_confirm">Confirma la contraseña</string>
-    <string name="settings_hint_pin_confirm">Confirma\'l PIN</string>
     <string name="settings_label_short_password">¡La contraseña precisa ser de polo menos %1$d de llargor!</string>
-    <string name="settings_label_short_pin">¡El PIN precisar ser de polo menos %1$d díxitos de llargor!</string>
 </resources>

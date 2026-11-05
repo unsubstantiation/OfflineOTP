@@ -16,8 +16,6 @@
     <string name="backup_receiver_title_backup_success">Backup eseguito con successo</string>
     <string name="backup_receiver_encrypted_disabled">Attualmente i backup crittografati non sono permessi,
         vai nelle Impostazioni per abilitarli</string>
-    <string name="backup_receiver_custom_encryption_failed">Crittografia basata su password / PIN
-        non supportata con backup broadcast</string>
     <string name="backup_receiver_no_location_set">Nessuna posizione di backup impostata, scegline una nelle
         impostazioni dell\'app</string>
     <string name="backup_receiver_no_password_set">Nessuna password predefinita impostata, scegline una nelle

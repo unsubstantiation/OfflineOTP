@@ -8,11 +8,8 @@
     <string name="intro_slide3_desc_keystore">اینجا شما می‌توانید یک احراز هویت تنظیم کنید تا <b>OfflineOTP</b> را قفل کنید. از آنجایی که شما <b>KeyStore اندروید</b> را به عنوان روش رمزنگاری انتخاب کرده‌اید، این اختیاری است.</string>
     <string name="intro_slide3_desc_password">اینجا شما می‌توانید یک احراز هویت تنظیم کنید تا <b>OfflineOTP</b> را قفل کنید. از آنجایی که شما <b>رمز عبور / پین</b> را به عنوان روش رمزنگاری انتخاب کرده‌اید، شما باید یک رمز یا پین تعیین کنید تا پیش برویم.</string>
     <string name="intro_slide3_warn_no_password">لطفا برای ادامه، یک گذرواژه تعیین کنید!</string>
-    <string name="intro_slide3_warn_no_pin">لطفا برای ادامه، یک پین تعیین کنید!</string>
     <string name="intro_slide3_warn_confirm_password">لطفا برای ادامه، گذرواژه خود را تایید کنید!</string>
     <string name="intro_slide3_warn_password_mismatch">دو رمز عبور یکسان نیستند!</string>
-    <string name="intro_slide3_warn_confirm_pin">لطفا برای ادامه، پین خود را تایید کنید!</string>
-    <string name="intro_slide3_warn_pin_mismatch">دو پین یکسان نیستند!</string>
     <string name="intro_slide4_title">تمام شد</string>
     <string name="intro_slide4_title_failed">تنظیم با شکست مواجه شد</string>
     <string name="intro_slide4_title_progress">لطفا صبر کنید</string>

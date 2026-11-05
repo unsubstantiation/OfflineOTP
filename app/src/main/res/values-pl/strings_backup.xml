@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Tworzenie kopii zapasowej nie powiodło się</string>
     <string name="backup_receiver_title_backup_success">Kopia zapasowa wykonana pomyślnie</string>
     <string name="backup_receiver_encrypted_disabled">Zaszyfrowane kopie zapasowe nie są obecnie dozwolone, proszę przejść do ustawień, aby je włączyć</string>
-    <string name="backup_receiver_custom_encryption_failed">Szyfrowanie przy pomocy hasła / kodu PIN nie jest obsługiwane przy wywoływaniu kopii zapasowej przez broadcast</string>
     <string name="backup_receiver_no_location_set">Nie ustawiono lokalizacji kopii zapasowej, należy ją ustawić w
         ustawienia aplikacji</string>
     <string name="backup_receiver_no_password_set">Nie ustawiono domyślnego hasła, należy je ustawić w

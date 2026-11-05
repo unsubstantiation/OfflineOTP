@@ -16,8 +16,6 @@
     <string name="backup_receiver_title_backup_success">A biztonsági mentés sikeres</string>
     <string name="backup_receiver_encrypted_disabled">A titkosított biztonsági mentések nem engedélyezettek,
         az engedélyezéshez menjen a Beállításokba</string>
-    <string name="backup_receiver_custom_encryption_failed">A jelszó/PIN-kód alapú titkosítás nem
-        támogatott a közvetített biztonsági mentésnél</string>
     <string name="backup_receiver_no_location_set">Nincs megadva a biztonsági mentés helye, állítsa
         be az alkalmazás beállításaiban</string>
     <string name="backup_receiver_no_password_set">Nincs megadva alapértelmezett jelszó, állítsa

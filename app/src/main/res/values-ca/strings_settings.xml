@@ -98,8 +98,6 @@
         interna, s\'ha interromput!</string>
     <string name="settings_toast_encryption_no_key">No ha estat possible obtenir la clau de xifratge, s\'ha interromput!</string>
     <string name="settings_toast_encryption_auth_failed">Ha fallat l\'autenticació!</string>
-    <string name="settings_toast_auth_upgrade_failed">Ha fallat l\'actualització automàtica de la contrasenya / PIN
-        per al nou xifratge; per favor, reinicialitzeu-la manualment en la configuració!</string>
     <string name="settings_toast_android_sync_enabled">Sincronització d\'Android habilitada</string>
     <string name="settings_toast_android_sync_disabled">Sincronització d\'Android deshabilitada</string>
     <string name="settings_dialog_title_warning">Alerta</string>
@@ -110,14 +108,6 @@
         de la base de dades. En cas d\'error una copia de seguretat interna es restaurarà
         i el xifrat no cambiarà.\n\n<b>Sempre es bona idea tenir una copia de seguretat per si
         passés alguna cosa inesperada!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Només podeu usar una contrasenya o un PIN
-        si el xifratge de la base de dades s\'ha establert a \"contrasenya / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Primer cal definir l\'autenticació a \"contrasenya\" o \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Cal establir una contrasenya o PIN abans de canviar l\'encriptació!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">En alguns casos, netejar el magatzem de claus
-        pot ajudar a resoldre problemes. Feu-ho només si sabeu què feu!\\n\nAtés que el xifratge de la <b>base de dades</b> està definit a <b>contrasenya / PIN</b> no hauríeu de perdre-hi
-        dades (fer una cópia de seguretat sempre va bé, però).\n\n<b>Segur que voleu netejar
-        el magatzem de claus (KeyStore)?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">En alguns casos, netejar el magatzem de claus
         pot ajudar a resoldre problemes. Feu-ho només si sabeu què feu!\\n\n<b>Alerta</b>:
         Atés que el xifratge de la <b>base de dades</b> està definit a <b>Android KeyStore</b> perdreu tots els
@@ -127,12 +117,11 @@
     <string-array name="settings_entries_auth">
         <item>Cap</item>
         <item>Contrasenya</item>
-        <item>PIN</item>
         <item>Credencials del dispositiu</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Contrasenya / PIN</item>
+        <item>Contrasenya</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Suprimeix tots els comptes</item>
@@ -199,9 +188,6 @@
     <string name="settings_lang_sys_default">Valor del sistema per defecte</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Introduïu la contrasenya nova</string>
-    <string name="settings_hint_pin">Introduïu el PIN nou</string>
     <string name="settings_hint_password_confirm">Confirmeu la contrasenya</string>
-    <string name="settings_hint_pin_confirm">Confirmeu el PIN</string>
     <string name="settings_label_short_password">La contrasenya ha de tenir, si més no, %1$d caràcters!</string>
-    <string name="settings_label_short_pin">El PIN ha de tindre, si més no, %1$d xifres!</string>
 </resources>

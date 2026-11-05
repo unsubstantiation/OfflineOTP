@@ -21,7 +21,7 @@ installation additionally requires the same signing key.
 ## Features
 
 - Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually. Google Authenticator export QR codes are supported, including multi-code exports.
-- Keep the vault encrypted with Android KeyStore-backed protection or a password/PIN.
+- Keep the vault encrypted with Android KeyStore-backed protection or a password.
 - Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
 - Store standalone secure notes, SSH keys, browser-exported passwords and FairEmail mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
@@ -332,7 +332,7 @@ changes trigger them in **Any edits** mode. Usage statistics and manual reorderi
 backups. Automatic backup is off by default.
 
 Existing separate backup passwords remain selected for compatibility until explicitly changed.
-PIN and device authentication do not supply a login password for this mode; use a strong separate
+Device authentication does not supply a login password for this mode; use a strong separate
 backup password or choose password login. OpenPGP backups use their selected recipients instead.
 Previously created backups keep their original passwords, and completed snapshots are not deleted
 automatically. Old snapshots can still contain accounts you later delete. Always test restoring

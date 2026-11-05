@@ -8,8 +8,6 @@
     <string name="settings_key_auth" translatable="false">pref_auth</string>
     <string name="settings_key_auth_password" translatable="false">pref_auth_password</string>    <!-- Deprecated -->
     <string name="settings_key_auth_password_hash" translatable="false">pref_auth_password_hash</string>    <!-- Deprecated -->
-    <string name="settings_key_auth_pin" translatable="false">pref_auth_pin</string>    <!-- Deprecated -->
-    <string name="settings_key_auth_pin_hash" translatable="false">pref_auth_pin_hash</string>    <!-- Deprecated -->
     <string name="settings_key_auth_credentials" translatable="false">pref_auth_credentials</string>
     <string name="settings_key_auth_iterations" translatable="false">pref_auth_iterations</string>
     <string name="settings_key_auth_salt" translatable="false">pref_auth_salt</string>

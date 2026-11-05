@@ -431,7 +431,7 @@ open class IntroScreenActivity : IntroActivity() {
                                  password: String?, androidSyncEnabled: Boolean) {
             val resolvedContext = hostContext ?: getContext()
             if (resolvedContext == null ||
-                    ((authMethod == Constants.AuthMethod.PASSWORD || authMethod == Constants.AuthMethod.PIN) &&
+                    (authMethod == Constants.AuthMethod.PASSWORD &&
                             (password == null || password.isEmpty()))) {
                 title?.setText(R.string.intro_slide4_title_failed)
                 message?.setText(R.string.intro_slide4_desc_failed)
@@ -557,7 +557,7 @@ open class IntroScreenActivity : IntroActivity() {
         }
     }
 
-    /** Slide to choose the auth method and enter the password/PIN. */
+    /** Slide to choose the auth method and enter the password. */
     open class AuthenticationFragment : SlideFragment(), TextView.OnEditorActionListener {
         private var encryptionType: Constants.EncryptionType = Constants.EncryptionType.PASSWORD
         private var selectedAuthMethod: Constants.AuthMethod = Constants.AuthMethod.PASSWORD
@@ -584,15 +584,14 @@ open class IntroScreenActivity : IntroActivity() {
             slidePos = pos
         }
 
-        /** Adapts the slide to the encryption choice (password encryption requires password/PIN). */
+        /** Adapts the slide to the encryption choice (password encryption requires a password). */
         fun updateEncryptionType(encryptionType: Constants.EncryptionType) {
             val changed = this.encryptionType != encryptionType
             this.encryptionType = encryptionType
             if (encryptionType == Constants.EncryptionType.KEYSTORE && changed) {
                 selectedAuthMethod = Constants.AuthMethod.NONE
             } else if (encryptionType == Constants.EncryptionType.PASSWORD &&
-                    selectedAuthMethod != Constants.AuthMethod.PASSWORD &&
-                    selectedAuthMethod != Constants.AuthMethod.PIN) {
+                    selectedAuthMethod != Constants.AuthMethod.PASSWORD) {
                 selectedAuthMethod = Constants.AuthMethod.PASSWORD
             }
 
@@ -609,7 +608,7 @@ open class IntroScreenActivity : IntroActivity() {
                     description.setText(R.string.intro_slide3_desc_password)
 
                     val selectedMethod = selectionMapping.get(spinner.selectedItemPosition)
-                    if (selectedMethod != Constants.AuthMethod.PASSWORD && selectedMethod != Constants.AuthMethod.PIN)
+                    if (selectedMethod != Constants.AuthMethod.PASSWORD)
                         spinner.setSelection(selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD))
                 }
             }
@@ -719,8 +718,7 @@ open class IntroScreenActivity : IntroActivity() {
                 android.R.layout.simple_spinner_item, authEntries.toMutableList()) {
                 override fun isEnabled(position: Int): Boolean {
                     return encryptionType != Constants.EncryptionType.PASSWORD ||
-                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD) ||
-                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PIN)
+                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD)
                 }
 
                 override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
@@ -728,8 +726,7 @@ open class IntroScreenActivity : IntroActivity() {
                     val tv = view as TextView
 
                     tv.isEnabled = encryptionType != Constants.EncryptionType.PASSWORD ||
-                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD) ||
-                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PIN)
+                            position == selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD)
 
                     return view
                 }
@@ -745,8 +742,6 @@ open class IntroScreenActivity : IntroActivity() {
 
                     if (authMethod == Constants.AuthMethod.PASSWORD) {
                         setupForPasswordInput()
-                    } else if (authMethod == Constants.AuthMethod.PIN) {
-                        setupForPinInput()
                     } else {
                         credentials.visibility = View.INVISIBLE
                         UIHelper.hideKeyboard(getIntroActivity()!!, root)
@@ -785,8 +780,7 @@ open class IntroScreenActivity : IntroActivity() {
                     R.string.intro_slide3_desc_password
             )
             if (encryptionType == Constants.EncryptionType.PASSWORD &&
-                    selectedAuthMethod != Constants.AuthMethod.PASSWORD &&
-                    selectedAuthMethod != Constants.AuthMethod.PIN) {
+                    selectedAuthMethod != Constants.AuthMethod.PASSWORD) {
                 selectedAuthMethod = Constants.AuthMethod.PASSWORD
             }
             spinner.setSelection(selectionMapping.indexOfValue(selectedAuthMethod))
@@ -826,31 +820,6 @@ open class IntroScreenActivity : IntroActivity() {
             }
         }
 
-        private fun setupForPinInput() {
-            credentialsLayout?.visibility = View.VISIBLE
-
-            passwordLayout?.hint = getString(R.string.settings_hint_pin)
-            passwordConfirm?.hint = getString(R.string.settings_hint_pin_confirm)
-
-            passwordInput?.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            passwordConfirm?.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-
-            val pwdLayout = passwordLayout
-            val pwdInput = passwordInput
-            val pwdConfirm = passwordConfirm
-            if (pwdLayout != null && pwdInput != null && pwdConfirm != null) {
-                ConfirmedPasswordTransformationHelper.setup(pwdLayout, pwdInput, pwdConfirm)
-            }
-
-            minLength = Constants.AUTH_MIN_PIN_LENGTH
-            lengthWarning = getString(R.string.settings_label_short_pin, minLength)
-            noPasswordWarning = getString(R.string.intro_slide3_warn_no_pin)
-            confirmPasswordWarning = getString(R.string.intro_slide3_warn_confirm_pin)
-            passwordMismatchWarning = getString(R.string.intro_slide3_warn_pin_mismatch)
-
-            focusOnPasswordInput()
-        }
-
         override fun onEditorAction(v: TextView?, actionId: Int, event: KeyEvent?): Boolean {
             if (EditorActionHelper.isActionDoneOrKeyboardEnter(actionId, event)) {
                 nextSlide()
@@ -865,7 +834,7 @@ open class IntroScreenActivity : IntroActivity() {
         override fun canGoForward(): Boolean {
             val authMethod = selectionMapping.get(selection?.selectedItemPosition ?: -1)
 
-            if (authMethod == Constants.AuthMethod.PIN || authMethod == Constants.AuthMethod.PASSWORD) {
+            if (authMethod == Constants.AuthMethod.PASSWORD) {
                 val password = passwordInput?.text?.toString()
 
                 val confirm = passwordConfirm?.text?.toString() ?: ""

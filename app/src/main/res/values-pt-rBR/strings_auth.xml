@@ -3,7 +3,6 @@
     <string name="auth_activity_title">Autenticar</string>
     <!-- Hints -->
     <string name="auth_hint_password">Senha</string>
-    <string name="auth_hint_pin">PIN</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">Por favor, autentique-se para iniciar o aplicativo.</string>
     <string name="auth_msg_confirm_encryption">Por favor, confirme sua autenticação para gerar
@@ -12,5 +11,4 @@
     <string name="auth_button_unlock">Desbloquear</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Por favor, defina uma senha nas <b>configurações</b>!</string>
-    <string name="auth_toast_pin_missing">Por favor, defina um PIN nas <b>configurações</b>!</string>
 </resources>

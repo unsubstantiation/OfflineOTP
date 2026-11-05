@@ -68,14 +68,12 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
         // Abort if no current or legacy credentials are stored.
         if (existingAuthCredentials.isEmpty()) {
-            val missingPwResId = if (authMethod == AuthMethod.PASSWORD)
-                R.string.auth_toast_password_missing else R.string.auth_toast_pin_missing
-            Toast.makeText(this, missingPwResId, Toast.LENGTH_LONG).show()
+            Toast.makeText(this, R.string.auth_toast_password_missing, Toast.LENGTH_LONG).show()
             finishWithResult(false, null)
             return
         }
-        // Only password and PIN authentication use this screen.
-        if (authMethod != AuthMethod.PASSWORD && authMethod != AuthMethod.PIN) {
+        // Only password authentication uses this screen.
+        if (authMethod != AuthMethod.PASSWORD) {
             finishWithResult(false, null)
             return
         }
@@ -121,8 +119,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     private fun initPasswordLayoutView(v: View) {
         val layout = requireNotNull(v.findViewById<TextInputLayout>(R.id.passwordLayout))
         passwordLayout = layout
-        val hintResId = if (authMethod == AuthMethod.PASSWORD) R.string.auth_hint_password else R.string.auth_hint_pin
-        layout.hint = getString(hintResId)
+        layout.hint = getString(R.string.auth_hint_password)
         if (settings!!.getBlockAccessibility()) {
             layout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
         }
@@ -135,11 +132,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         val input = requireNotNull(v.findViewById<AutoFillableTextInputEditText>(R.id.passwordEdit))
         passwordInput = input
         input.isSaveEnabled = false
-        val inputType = if (authMethod == AuthMethod.PASSWORD)
-            (InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        else
-            (InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD)
-        input.inputType = inputType
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         input.transformationMethod = PasswordTransformationMethod.getInstance()
         input.setOnEditorActionListener(this)
     }

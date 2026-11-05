@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">La sauvegarde a échoué</string>
     <string name="backup_receiver_title_backup_success">Sauvegarde réussie</string>
     <string name="backup_receiver_encrypted_disabled">Les sauvegardes chiffrées ne sont actuellement pas autorisées, veuillez aller dans les Paramètres afin de les activer</string>
-    <string name="backup_receiver_custom_encryption_failed">Le chiffrement à base de mot de passe ou code PIN n\'est pas supporté par la sauvegarde par diffusion</string>
     <string name="backup_receiver_no_location_set">Aucun emplacement de sauvegarde défini, veuillez en définir un
         dans les paramètres des applications</string>
     <string name="backup_receiver_no_password_set">Aucun mot de passe par défaut défini, veuillez en définir un

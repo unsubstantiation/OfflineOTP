@@ -98,8 +98,6 @@
         säkerhetskopia, avbryter!</string>
     <string name="settings_toast_encryption_no_key">Misslyckades med att få krypteringsnyckeln, avbryter!</string>
     <string name="settings_toast_encryption_auth_failed">Autentisering misslyckades!</string>
-    <string name="settings_toast_auth_upgrade_failed">Det gick inte att tyst uppgradera ditt lösenord / PIN-kod
-        till den nya krypteringen, återställ den manuellt i inställningarna!</string>
     <string name="settings_toast_android_sync_enabled">Android-synkronisering inaktiverad</string>
     <string name="settings_toast_android_sync_disabled">Android-synkronisering inaktiverad</string>
     <string name="settings_dialog_title_warning">Varning</string>
@@ -110,32 +108,19 @@
         krypteringen. Vid ett fel återställs en intern säkerhetskopia och krypteringen
         förblir oförändrad.\n\n<b>Det är dock alltid en bra idé att ha en säkerhetskopia om
         något oväntat händer!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Du kan bara använda Lösenord eller PIN-kod så
-        länge databaskrypteringen är inställd på \"Lösenord / PIN-kod\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Du måste först ställa in
-        Autentisering till \"Lösenord\" eller \"PIN-kod\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Du måste först ställa in ett
-        Lösenord eller PIN-kod innan du ändrar krypteringen!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">I vissa fall kan rensning av KeyStore
-        hjälpa till att lösa problem. Du bör bara fortsätta om du vet vad du gör!\n\nEftersom
-        <b>Databaskrypteringen</b> är inställd på <b>Lösenord / PIN-kod</b> bör du inte förlora någon data
-        när du gör detta (men det skadar aldrig att ha en säkerhetskopia ändå).\n\n<b>Är du verkligen säker på att du vill
-        rensa KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">I vissa fall kan rensning av KeyStore
         hjälpa till att lösa problem. Du bör bara fortsätta om du vet vad du gör!\n\n<b>Varning</b>:
         Eftersom <b>Databaskrypteringen</b> är inställd på <b>Android KeyStore</b> kommer du att förlora alla
         dina konton. Se till att du har en säkerhetskopia!\n\n<b>Är du verkligen säker på att du vill rensa
         KeyStore?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Inga</item>
+    <string-array name="settings_entries_auth">        <item>Inga</item>
         <item>Lösenord</item>
-        <item>PIN-kod</item>
         <item>Enhetsuppgifter</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Lösenord / PIN-kod</item>
+        <item>Lösenord</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Radera alla konton</item>
@@ -202,9 +187,6 @@
     <string name="settings_lang_sys_default">Systemstandard</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Ange nytt lösenord</string>
-    <string name="settings_hint_pin">Ange ny PIN-kod</string>
     <string name="settings_hint_password_confirm">Bekräfta lösenord</string>
-    <string name="settings_hint_pin_confirm">Bekräfta PIN-kod</string>
     <string name="settings_label_short_password">Lösenordet måste vara minst %1$d tecken långt!</string>
-    <string name="settings_label_short_pin">PIN-koden måste vara minst %1$d siffror lång!</string>
 </resources>

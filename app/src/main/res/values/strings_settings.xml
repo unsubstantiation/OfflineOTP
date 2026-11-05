@@ -129,7 +129,7 @@
     <string name="settings_toast_encryption_no_key">Could not load the encryption key. Aborting.</string>
     <string name="settings_toast_encryption_auth_failed">Authentication failed.</string>
 
-    <string name="settings_toast_auth_upgrade_failed">Could not upgrade the password / PIN encryption. Reset it in
+    <string name="settings_toast_auth_upgrade_failed">Could not upgrade the password encryption. Reset it in
         Settings.</string>
 
     <string name="settings_toast_android_sync_enabled">Android cloud backup enabled</string>
@@ -148,13 +148,13 @@
     <string name="settings_dialog_msg_encryption_change">OfflineOTP will change the database encryption. If it fails,
         an internal backup is restored and the encryption stays unchanged.\n\n<b>Create a backup
         before continuing.</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Password / PIN authentication requires the \"Password / PIN\"
+    <string name="settings_dialog_msg_auth_invalid_with_encryption">Password authentication requires the \"Password\"
         database encryption.</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Set Authentication to \"Password\" or \"PIN\" first.</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Set a password or PIN before changing the encryption.</string>
+    <string name="settings_dialog_msg_encryption_invalid_with_auth">Set Authentication to \"Password\" first.</string>
+    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Set a password before changing the encryption.</string>
 
     <string name="settings_dialog_msg_clear_keystore_password">Clearing the KeyStore can fix some problems. With
-        <b>Password / PIN</b> encryption you should not lose data, but keep a backup.\n\n<b>Clear the
+        <b>Password</b> encryption you should not lose data, but keep a backup.\n\n<b>Clear the
         KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Clearing the KeyStore can fix some problems. With
         <b>Android KeyStore</b> encryption you will lose all accounts. Keep a backup.\n\n<b>Clear the
@@ -167,13 +167,12 @@
     <string-array name="settings_entries_auth">
         <item>None</item>
         <item>Password</item>
-        <item>PIN</item>
         <item>Device credentials</item>
     </string-array>
 
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Password / PIN</item>
+        <item>Password</item>
     </string-array>
 
     <string-array name="settings_entries_panic">
@@ -254,10 +253,7 @@
 
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Enter new password</string>
-    <string name="settings_hint_pin">Enter new PIN</string>
     <string name="settings_hint_password_confirm">Confirm password</string>
-    <string name="settings_hint_pin_confirm">Confirm PIN</string>
 
     <string name="settings_label_short_password">Password must be at least %1$d characters.</string>
-    <string name="settings_label_short_pin">PIN must be at least %1$d digits.</string>
 </resources>

@@ -172,7 +172,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 return
             }
             startActivityForResult(challenge, Constants.INTENT_MAIN_AUTHENTICATE)
-        } else if (authMethod == AuthMethod.PASSWORD || authMethod == AuthMethod.PIN) {
+        } else if (authMethod == AuthMethod.PASSWORD) {
             val challenge = Intent(this, AuthenticateActivity::class.java)
             challenge.putExtra(Constants.EXTRA_AUTH_MESSAGE, messageId)
             challenge.putExtra(Constants.EXTRA_AUTH_ALLOW_HARDWARE, true)

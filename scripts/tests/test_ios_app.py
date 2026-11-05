@@ -152,7 +152,8 @@ class IosAppTest(unittest.TestCase):
         constants = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Constants.kt"
                      ).read_text(encoding="utf-8")
         self.assertIn("const val AUTH_MIN_PASSWORD_LENGTH = 6", constants)
-        self.assertIn("const val AUTH_MIN_PIN_LENGTH = 4", constants)
+        # The PIN login was removed from the phone; no client may reintroduce a shorter minimum.
+        self.assertNotIn("AUTH_MIN_PIN_LENGTH", constants)
         # A wrong password must not be explained in terms a reader could act on.
         self.assertIn('"That password does not open this vault."', store)
 

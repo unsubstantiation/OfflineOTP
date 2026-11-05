@@ -82,7 +82,6 @@
     <string name="settings_toast_encryption_backup_failed">Не удалось создать внутреннюю резервную копию, прерывание!</string>
     <string name="settings_toast_encryption_no_key">Не удалось получить ключ шифрования, прерывание!</string>
     <string name="settings_toast_encryption_auth_failed">Ошибка аутентификации!</string>
-    <string name="settings_toast_auth_upgrade_failed">Не удалось автоматически обновить пароль/PIN-код к новому шифрованию, сбросьте его вручную в настройках!</string>
     <string name="settings_toast_android_sync_enabled">Синхронизация с Android включена</string>
     <string name="settings_toast_android_sync_disabled">Синхронизация с Android отключена</string>
     <string name="settings_dialog_title_warning">Предупреждение</string>
@@ -90,21 +89,15 @@
     <string name="settings_dialog_title_clear_keystore">Очистить хранилище ключей?</string>
     <string name="settings_dialog_title_android_sync">Синхронизация Android</string>
     <string name="settings_dialog_msg_encryption_change">Сейчас OfflineOTP попытается изменить шифрование базы данных. В случае сбоя внутренняя резервная копия будет восстановлена, и шифрование останется неизменным.\n\n<b>Однако, всегда полезно иметь резервную копию, если произойдёт что-то неожиданное!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Вы можете использовать только пароль или PIN-код, если для шифрования базы данных установлено значение «Пароль / PIN-код»!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Сначала необходимо задать проверку аутентификации «Пароль» или «PIN-код»!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Необходимо задать пароль или PIN-код перед изменением шифрования!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">В некоторых случаях очистка хранилища ключей может помочь решить проблемы. Приступайте, только если вы знаете, что делаете!\n\nПоскольку <b>база данных зашифрована</b> с помощью <b>пароля или PIN-кода</b>, вы не потеряете данные        (в любом случае, никогда не помешает иметь резервную копию).\n\n<b>Вы уверены, что хотите очистить хранилище ключей?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">В некоторых случаях очистка хранилища ключей может помочь решить проблемы. Приступайте, только если вы знаете, что делаете!\n\n<b>Внимание</b>: поскольку <b>база данных зашифрована</b> с помощью <b>хранилища ключей Android</b>, вы потеряете все ваши аккаунты. Создайте резервную копию!\n\n<b>Вы уверены, что хотите очистить хранилище ключей?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Нет</item>
+    <string-array name="settings_entries_auth">        <item>Нет</item>
         <item>Пароль</item>
-        <item>PIN-код</item>
         <item>Учётные данные устройства</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Хранилище ключей Android</item>
-        <item>Пароль / PIN-код</item>
+        <item>Пароль</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Удалить все аккаунты</item>
@@ -171,9 +164,6 @@
     <string name="settings_lang_sys_default">Настройки по умолчанию</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Введите новый пароль</string>
-    <string name="settings_hint_pin">Введите новый PIN-код</string>
     <string name="settings_hint_password_confirm">Подтвердите пароль</string>
-    <string name="settings_hint_pin_confirm">Подтвердите PIN-код</string>
     <string name="settings_label_short_password">Пароль должен содержать не менее %1$d символов!</string>
-    <string name="settings_label_short_pin">PIN-код должен содержать не менее %1$d цифр!</string>
 </resources>

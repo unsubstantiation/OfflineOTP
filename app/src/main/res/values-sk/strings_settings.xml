@@ -82,7 +82,6 @@
     <string name="settings_toast_encryption_backup_failed">Nepodarilo sa vytvoriť vnútornú zálohu, operácia bola zrušená!</string>
     <string name="settings_toast_encryption_no_key">Nepodarilo sa získať šifrovací kľúč, operácia bola zrušená!</string>
     <string name="settings_toast_encryption_auth_failed">Autentifikácia zlyhala!</string>
-    <string name="settings_toast_auth_upgrade_failed">Nepodarila sa automaticky previesť heslo/PIN na nové šifrovanie, prosím nastavte to znovu v Nastaveniach!</string>
     <string name="settings_toast_android_sync_enabled">Android synchronizácia povolená</string>
     <string name="settings_toast_android_sync_disabled">Android synchronizácia zakázaná</string>
     <string name="settings_dialog_title_warning">Varovanie</string>
@@ -91,21 +90,16 @@
     <string name="settings_dialog_title_android_sync">Android synchnizácia</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP sa pokúsi zmeniť šifrovanie databázy.
 V prípade chyby bude obnovená interná záloha a šifrovanie zostane nezmenené.\n\n<b>Ale aj tak je vhodné mať zálohu pre prípad, že sa stane niečo nepredvídaného!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Heslo alebo kód PIN sa dá použiť jedine ak je šifrovanie databázy nastavené na \"Heslo / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Najskôr je potrebné nastaviť autentifikáciu na \"Heslo\" alebo \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Najskôr musíte nastaviť heslo alebo PIN pred zmenou šifrovania!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">V niektorých prípadoch vymazanie KeyStore môže pomôcť vyriešiť problémy. Pokračujte, jedine ak viete, čo robíte!\n\nVzhľadom na to, že máte <b>šifrovanie databázy</b> nastavené na <b>heslo / PIN</b> by ste týmto postupom nemali prísť o dáta (ale mať zálohu nikdy neuškodí).\n\n<b>Ste si naozaj istý, že chcete vymazať KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">V niektorých prípadoch vymazanie KeyStore môže pomôcť vyriešiť problémy. Pokračujte, jedine ak viete, čo robíte!\n\n<b>Varovanie</b>: Vzhľadom na to, že máte <b>šifrovanie databázy</b> nastavené na <b>Android KeyStore</b> stratíte týmto krokom všetky svoje účty. Uistite sa, že máte zálohu!\n\n<b>Ste si naozaj istý, že chcete vymazať KeyStore?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Žiadny</item>
         <item>Heslo</item>
-        <item>PIN</item>
         <item>Rovnaké ako na zariadení</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Heslo / PIN</item>
+        <item>Heslo</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Vymazať všetky účty</item>
@@ -172,9 +166,6 @@ V prípade chyby bude obnovená interná záloha a šifrovanie zostane nezmenen�
     <string name="settings_lang_sys_default">Podľa systému</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Zadajte nové heslo</string>
-    <string name="settings_hint_pin">Zadajte nový PIN</string>
     <string name="settings_hint_password_confirm">Potvrďte heslo</string>
-    <string name="settings_hint_pin_confirm">Potvrďte PIN</string>
     <string name="settings_label_short_password">Heslo musí mať aspoň %1$d znakov!</string>
-    <string name="settings_label_short_pin">PIN musí mať aspoň %1$d číslic!</string>
 </resources>

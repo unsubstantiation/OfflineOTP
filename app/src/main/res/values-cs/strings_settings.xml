@@ -98,8 +98,6 @@
         operace byla zrušena!</string>
     <string name="settings_toast_encryption_no_key">Nepodařilo se získat šifrovací klíč, operace byla zrušena!</string>
     <string name="settings_toast_encryption_auth_failed">Ověření se nezdařilo!</string>
-    <string name="settings_toast_auth_upgrade_failed">Nepodařilo se automaticky převést heslo/PIN na nové šifrování,
-        prosím, nastavte je znovu v Nastaveních!</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">Varování</string>
@@ -110,17 +108,6 @@
         V případě chyby bude obnovena interní záloha a šifrování zůstane
         nezměněno.\n\n<b>Nicméně je vhodné mít zálohu pro případ,
         že se stane něco nepředvídaného!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Heslo nebo kód PIN lze použít pouze
-        pokud je šifrování databáze nastaveno na \"Heslo / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Nejprve je třeba nastavit
-        ověřování na \"Heslo\" nebo \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Před změnou šifrování musíte nejprve
-        nastavit heslo nebo PIN!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">V některých případech vymazání KeyStore
-        může pomoci vyřešit problémy. Pokračujte, pouze pokud víte, co děláte! \n\nVzhledem k tomu,
-        že máte <b>šifrování databáze</b> nastaveno na <b>heslo / PIN</b>, byste provedením
-        tohoto postupu něměli přijít o data (ale mít zálohu nikdy neuškodí).\n\n <b>Jste si opravdu jisti,
-        že chcete vymyzat KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">V některých případech vymazání KeyStore
         může pomoci vyřešit problémy. Pokračujte, pouze pokud víte, co děláte! \n\n <b>Varování</b>:
         Vzhledem k tomu, že máte <b>šifrování databáze</b> nastaveno na <b>Android KeyStore</b>,
@@ -130,12 +117,11 @@
     <string-array name="settings_entries_auth">
         <item>Žádný</item>
         <item>Heslo</item>
-        <item>PIN</item>
         <item>Stejné jako zařízení</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Heslo / PIN</item>
+        <item>Heslo</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Smazat všechny účty</item>
@@ -202,9 +188,6 @@
     <string name="settings_lang_sys_default">Podle systému</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Zadejte nové heslo</string>
-    <string name="settings_hint_pin">Zadejte nový PIN</string>
     <string name="settings_hint_password_confirm">Potvrďte heslo</string>
-    <string name="settings_hint_pin_confirm">Potvrďte PIN</string>
     <string name="settings_label_short_password">Heslo musí obsahovat alespoň %1$d znaků!</string>
-    <string name="settings_label_short_pin">PIN musí obsahovat alespoň %1$d číslic!</string>
 </resources>
