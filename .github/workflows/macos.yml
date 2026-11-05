@@ -11,10 +11,13 @@ permissions:
 
 jobs:
   build:
-    # macos-14 is Apple silicon, so the app image (and its bundled JRE) targets arm64. The desktop
-    # client is a pure-JVM Swing application, so this needs no Xcode project: jpackage produces the
-    # .app bundle from the same sources the Windows and Debian jobs build.
-    runs-on: macos-14
+    # macos-15 is Apple silicon (`uname -m` is arm64 on the image), so the app image and its bundled
+    # JRE target arm64. It replaced macos-14, whose arm64 configuration stopped being startable:
+    # jobs were cancelled before their first step with "The configuration
+    # 'macos-14-arm64-us-default' is not supported". The desktop client is a pure-JVM Swing
+    # application, so this needs no Xcode project: jpackage produces the .app bundle from the same
+    # sources the Windows and Debian jobs build.
+    runs-on: macos-15
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5

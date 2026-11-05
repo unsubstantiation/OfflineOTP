@@ -57,13 +57,26 @@ class IosAppTest(unittest.TestCase):
                          "a generated project was committed")
 
     def test_the_project_format_is_one_the_runner_can_open(self):
-        """Xcode 15.4 on `macos-14` cannot read a project generated in the newest format."""
+        """The project has to open on the runner's Xcode, and on older ones.
+
+        The image is `macos-15` (arm64, Xcode 16.4). `macos-14` was the first Apple silicon image, but
+        its arm64 configuration stopped starting: jobs were cancelled before their first step with
+        "The configuration 'macos-14-arm64-us-default' is not supported". The format pin is kept at
+        `xcode15_3` on purpose — it is the oldest format XcodeGen can write that still carries
+        everything this project needs, so an Xcode 15 machine can open it too.
+        """
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
         options = project["options"]
         self.assertEqual("xcode15_3", options["projectFormat"])
-        self.assertEqual("15.4", options["xcodeVersion"])
+        self.assertEqual("16.4", options["xcodeVersion"])
         workflow = WORKFLOW
-        self.assertIn("runs-on: macos-14", workflow)
+        # An arm64 image: the app target is built for the same architecture the artifacts ship.
+        self.assertIn("runs-on: macos-15", workflow)
+        self.assertNotIn("runs-on: macos-14", workflow,
+                         "the macos-14 arm64 configuration does not start; see the workflow comment")
+        # The move, and the verified architecture, are written down where the pin is.
+        self.assertIn("uname -m", workflow)
+        self.assertIn("arm64", workflow)
         # A comment has to say why, or the pin looks arbitrary and gets bumped.
         self.assertIn("bump it only together with the runner image", (IOS / "project.yml").read_text(
             encoding="utf-8"))

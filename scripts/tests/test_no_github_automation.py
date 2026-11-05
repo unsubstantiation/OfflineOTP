@@ -62,7 +62,7 @@ class NoGithubAutomationTest(unittest.TestCase):
     def test_the_macos_workflow_builds_and_packs_a_native_app_bundle(self):
         macos = (ROOT / ".github/workflows/macos.yml").read_text(encoding="utf-8")
         # Apple silicon runner, so the artifact name has to say arm64 rather than x64.
-        self.assertIn("runs-on: macos-14", macos)
+        self.assertIn("runs-on: macos-15", macos)
         self.assertIn(":desktop:packageDesktop", macos)
         self.assertIn("OfflineOTP-macos-arm64", macos)
         # jpackage emits a .app bundle on macOS; its launcher is what proves the build worked.
