@@ -55,7 +55,7 @@ final class MigrationImportTests: XCTestCase {
                     counter: 0),
             account(seed, name: "carol", issuer: "Other", algorithm: 2, digits: 2, type: 2),
             account(seed, name: "dan", issuer: "Other", algorithm: 3, digits: 1, type: 2),
-        ]))
+        ])))
         XCTAssertEqual(["alice", "bob", "carol", "dan"], parsed.accounts.map(\.label))
         XCTAssertEqual(["Example", "Service", "Other", "Other"], parsed.accounts.map(\.issuer))
         XCTAssertEqual([8, 6, 8, 6], parsed.accounts.map(\.digits))
