@@ -463,9 +463,13 @@ final class VaultStoreTests: XCTestCase {
         // same way `QrImport` reports `Outcome.Invalid` rather than "nothing recognised".
         XCTAssertEqual(store.importPayload("WIFI:S:net;T:WPA;P:pass;;"), .rejected("INVALID_URI"))
         XCTAssertEqual(store.message, OtpParseError.invalidUri.message)
-        XCTAssertEqual(store.importPayload("otpauth-migration://offline?data=abc"),
-                       .rejected("MIGRATION"))
-        XCTAssertTrue(store.message?.contains("Google Authenticator") == true)
+        // A Google Authenticator export is collected rather than added as one entry; a code that
+        // cannot be decoded is explained in the export's own words, as on Android.
+        guard case .migration(let step) = store.importPayload("otpauth-migration://offline?data=abc")
+        else { return XCTFail("a migration code must be routed to the export import") }
+        XCTAssertNil(step.entries)
+        XCTAssertEqual(step.message, MigrationWording.invalid)
+        XCTAssertEqual(store.message, MigrationWording.invalid)
         XCTAssertEqual(store.importPayload("otpauth://totp/x?secret=JBSWY3DPEHPK3PXP"), .added)
         XCTAssertEqual(store.entries.count, 1)
     }
@@ -478,5 +482,116 @@ final class VaultStoreTests: XCTestCase {
                        "otpauth://totp/alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Issuer")
         XCTAssertNil(store.otpUri(for: 1))
         XCTAssertNil(store.otpUri(for: 9))
+    }
+
+    // MARK: - Google Authenticator exports
+
+    /// One account, one code: `Example:alice` with the RFC 6238 seed.
+    private let migrationSingle = "otpauth-migration://offline?data=CjYKFDEyMzQ1Njc4OTAxMjM0NTY3ODkw"
+        + "Eg1FeGFtcGxlOmFsaWNlGgdFeGFtcGxlIAEoATACOAAQAQ=="
+    /// The first and second code of one two-code export.
+    private let migrationFirst = "otpauth-migration://offline?data=CjYKFDEyMzQ1Njc4OTAxMjM0NTY3ODkw"
+        + "Eg1FeGFtcGxlOmFsaWNlGgdFeGFtcGxlIAEoATACOAAQARgCKAc="
+    private let migrationSecond = "otpauth-migration://offline?data=CjQKFDIzNDU2Nzg5MDEyMzQ1Njc4OTAx"
+        + "EgtFeGFtcGxlOmJvYhoHRXhhbXBsZSABKAEwAjgAEAEYAiABKAc="
+    /// A code from a different export, offered while the two-code one is open.
+    private let migrationForeign = "otpauth-migration://offline?data=CjIKFDM0NTY3ODkwMTIzNDU2Nzg5MDEy"
+        + "EgtPdGhlcjpjYXJvbBoFT3RoZXIgASgBMAI4ABABGAIgASgI"
+
+    func testAnExportIsCollectedUntilTheLastCodeArrives() {
+        let store = unlockedStore()
+        let first = store.addMigrationImportCode(migrationFirst)
+        XCTAssertNil(first.entries)
+        XCTAssertEqual(first.received, 1)
+        XCTAssertEqual(first.expected, 2)
+        XCTAssertEqual(first.message,
+                       "Scanned 1 of 2 QR codes. Scan or choose the next code from the same export.")
+        // Nothing is written before the whole export is present.
+        XCTAssertTrue(store.entries.isEmpty)
+
+        let second = store.addMigrationImportCode(migrationSecond)
+        XCTAssertEqual(second.received, 2)
+        XCTAssertEqual(second.expected, 2)
+        XCTAssertEqual(second.entries?.map(\.label), ["alice", "bob"])
+        XCTAssertEqual(second.entries?.map(\.issuer), ["Example", "Example"])
+        XCTAssertEqual(store.entries.count, 0)
+        // Asking for the export again would start over: it was handed to the confirmation.
+        XCTAssertNil(store.openMigrationImport)
+    }
+
+    func testAnExportIsWrittenOnlyOnceItIsConfirmed() throws {
+        let store = unlockedStore()
+        let step = store.addMigrationImportCode(migrationSingle)
+        let entries = try XCTUnwrap(step.entries)
+        XCTAssertEqual(entries.count, 1)
+        XCTAssertTrue(store.entries.isEmpty)
+
+        let result = store.confirmMigrationImport(entries)
+        XCTAssertEqual(result, .imported(added: 1, skipped: 0))
+        XCTAssertEqual(result.message, "Imported 1 accounts; skipped 0 identical accounts.")
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].label, "alice")
+        XCTAssertEqual(store.entries[0].issuer, "Example")
+        // A code from the import can be read at once, and the account is concealed like every other.
+        XCTAssertFalse(store.entries[0].detailsVisible)
+        XCTAssertEqual(store.category, .otp)
+
+        let reopened = makeStore()
+        reopened.unlock(password: "correct horse")
+        XCTAssertEqual(reopened.entries.count, 1)
+        XCTAssertEqual(reopened.entries[0].label, "alice")
+    }
+
+    func testAnIdenticalAccountIsSkippedRatherThanImportedTwice() throws {
+        let store = unlockedStore()
+        let first = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        XCTAssertEqual(store.confirmMigrationImport(first), .imported(added: 1, skipped: 0))
+        // The same export again: the account is the same account even though its last-used stamp
+        // has moved, which is what Android's `Entry.equals` decides.
+        let again = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        let result = store.confirmMigrationImport(again)
+        XCTAssertEqual(result, .imported(added: 0, skipped: 1))
+        XCTAssertEqual(store.entries.count, 1)
+    }
+
+    func testAForeignOrRepeatedCodeKeepsTheExportOpen() {
+        let store = unlockedStore()
+        _ = store.addMigrationImportCode(migrationFirst)
+        XCTAssertEqual(store.addMigrationImportCode(migrationForeign).message,
+                       "This code belongs to a different export. Choose a code from the original "
+                       + "export.")
+        XCTAssertEqual(store.addMigrationImportCode(migrationFirst).message,
+                       "This export QR code was already scanned.")
+        // The export still completes with the code it was waiting for.
+        XCTAssertNotNil(store.addMigrationImportCode(migrationSecond).entries)
+    }
+
+    func testALockEndsAnExportInProgress() {
+        let store = unlockedStore()
+        let generation = store.generation
+        _ = store.addMigrationImportCode(migrationFirst)
+        XCTAssertNotNil(store.openMigrationImport)
+        store.lock()
+        XCTAssertNil(store.openMigrationImport)
+        XCTAssertGreaterThan(store.generation, generation)
+
+        store.unlock(password: "correct horse")
+        // The other half of an export from the previous session completes nothing.
+        let step = store.addMigrationImportCode(migrationSecond)
+        XCTAssertNil(step.entries)
+        XCTAssertEqual(step.received, 1)
+        XCTAssertTrue(store.entries.isEmpty)
+    }
+
+    func testTheConfirmationNamesTheAccountsAndNeverTheSecrets() throws {
+        let store = unlockedStore()
+        let entries = try XCTUnwrap(store.addMigrationImportCode(migrationSingle).entries)
+        let preview = MigrationWording.preview(entries)
+        XCTAssertTrue(preview.hasPrefix("Import 1 accounts from this export?\n\n"))
+        XCTAssertTrue(preview.contains("Example — alice"))
+        XCTAssertTrue(preview.hasSuffix(MigrationWording.duplicateNotice))
+        // The seed behind the account is not in the confirmation.
+        XCTAssertFalse(preview.contains("12345678901234567890"))
+        XCTAssertFalse(preview.contains(entries[0].secretBase32 ?? "\u{0}"))
     }
 }

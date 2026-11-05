@@ -271,7 +271,8 @@ class IosAppTest(unittest.TestCase):
     def test_the_views_do_not_compute_codes_or_touch_files(self):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
-                     "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift"):
+                     "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
+                     "MigrationImportView.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -460,12 +461,126 @@ class IosAppTest(unittest.TestCase):
         self.assertNotIn("requestAccess", reader)
         self.assertNotIn("NSCameraUsageDescription", (IOS / "project.yml").read_text(
             encoding="utf-8"))
-        # A Google Authenticator export is recognised and named, not reported as a broken link.
+        # A Google Authenticator export is recognised as its own kind of payload, so it is handed to
+        # the export import rather than to the single-account parser.
         uri = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
         self.assertIn("otpauth-migration:", uri)
         self.assertIn("case migration", uri)
         strings = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
-        self.assertIn("Google Authenticator exports are not supported yet.", strings)
+        self.assertIn("case .migration:", strings)
+        self.assertNotIn("not supported yet", strings,
+                         "the export is imported now, not refused")
+
+    def test_the_google_authenticator_import_matches_the_shared_rules(self):
+        """An export is Google's wire format, so its reader has to agree with `:core` byte for byte."""
+        kotlin = (UTILITIES / "GoogleAuthenticatorMigration.kt").read_text(encoding="utf-8")
+        swift = (KIT / "MigrationImport.swift").read_text(encoding="utf-8")
+
+        # The scheme, the fixed authority, and the rule that only the scheme is case-insensitive.
+        self.assertIn('SCHEME = "otpauth-migration"', kotlin)
+        self.assertIn('scheme = "otpauth-migration"', swift)
+        self.assertIn('authority = "offline"', swift)
+        self.assertIn('uri.rawAuthority != "offline"', kotlin)
+        self.assertIn("input.lowercased().hasPrefix(head)", swift)
+
+        # The failure names are shared, so the same code is refused for the same reason.
+        self.assertIn(
+            "enum class MigrationError { INVALID_URI, TOO_LARGE, INVALID_DATA, UNSUPPORTED }",
+            kotlin)
+        error_block = swift.split("public enum MigrationError", 1)[1].split("}", 1)[0]
+        self.assertEqual(["INVALID_URI", "TOO_LARGE", "INVALID_DATA", "UNSUPPORTED"],
+                         re.findall(r'case \w+ = "([A-Z_]+)"', error_block))
+
+        # The batch statuses, in the shared order.
+        self.assertIn("enum class MigrationBatchStatus { ADDED, COMPLETE, DUPLICATE, "
+                      "DIFFERENT_EXPORT, TOO_MANY, STALE }", kotlin)
+        status_block = swift.split("public enum MigrationBatchStatus", 1)[1].split("}", 1)[0]
+        self.assertEqual(["added", "complete", "duplicate", "differentExport", "tooMany", "stale"],
+                         re.findall(r"case (\w+)", status_block))
+
+        # The reader is bounded and non-recursive, refuses an unknown field rather than guessing,
+        # and never imports part of an export.
+        self.assertIn("reader.message()", kotlin)
+        self.assertIn("var nested = try reader.message()", swift)
+        self.assertIn("else -> reject(MigrationError.UNSUPPORTED)", kotlin)
+        self.assertIn("throw MigrationError.unsupported", swift)
+        for bound in ("InputPolicy.maxURIChars", "InputPolicy.maxEntries",
+                      "InputPolicy.maxSecretBytes", "InputPolicy.maxTextChars"):
+            self.assertIn(bound, swift, f"the export reader must apply {bound}")
+        self.assertIn("payload.count > InputPolicy.maxEntries - total", swift)
+        self.assertIn("guard !closed, sessionReady, current == generation, parts.count == batchSize",
+                      swift)
+        # A repeated or foreign code never closes the export; a stale one does.
+        self.assertIn("return .differentExport", swift)
+        self.assertIn("current != generation", swift)
+
+        # The wording is Android's, sentence for sentence.
+        strings = (ANDROID_VALUES / "strings_main.xml").read_text(encoding="utf-8")
+        for name in ("google_import_title", "google_import_progress", "google_import_confirm",
+                     "google_import_duplicate_notice", "google_import_unnamed",
+                     "google_import_more", "google_import_button", "google_import_finished",
+                     "google_import_invalid", "google_import_unsupported",
+                     "google_import_expected_qr", "google_import_already_scanned",
+                     "google_import_wrong_batch", "google_import_too_many",
+                     "google_import_save_failed"):
+            self.assertIn(f'<string name="{name}">', strings, f"{name} moved")
+        self.assertIn('<string name="google_import_title">Google Authenticator import</string>',
+                      strings)
+        self.assertIn('public static let title = "Google Authenticator import"', swift)
+        self.assertIn('"Imported \\(added) accounts; skipped \\(skipped) identical accounts."',
+                      swift)
+        self.assertIn('"Scanned \\(received) of \\(expected) QR codes. Scan or choose the next '
+                      'code from the same "', swift)
+        self.assertIn('"Import \\(count) accounts from this export?"', swift)
+        self.assertIn('"Invalid Google Authenticator export. No accounts from this code were '
+                      'imported."', swift)
+        self.assertIn('"This export QR code was already scanned."', swift)
+        self.assertIn('"This export has more accounts than the vault can import."', swift)
+        self.assertIn('"Unnamed account"', swift)
+        # Android keeps the progress sheet open for a refused code and shows the same sentence.
+        activity = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/"
+                    "MainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("MigrationBatchStatus.DUPLICATE ->", activity)
+        self.assertIn("dismissMigrationImport()", activity)
+        # An identical account is skipped, not imported twice: Android's `importEntries` rule.
+        adapter = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/View/"
+                   "EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        self.assertIn("if (!distinct.add(entry))", adapter)
+        self.assertIn("EntryUsage.markImported(it, now)", adapter)
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("if distinct.contains(entry)", store)
+        self.assertIn("EntryUsage.markImported(&imported, now: stamp)", store)
+
+    def test_an_identical_account_is_decided_the_way_entry_equals_decides_it(self):
+        """Android compares the *account*, not the field bag, so the port has to compare the same."""
+        kotlin = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt"
+                  ).read_text(encoding="utf-8")
+        equals = kotlin.split("override fun equals(other: Any?)", 1)[1].split("override fun hashCode",
+                                                                            1)[0]
+        swift = (KIT / "Entry.swift").read_text(encoding="utf-8")
+        compare = swift.split("public static func == (lhs: Entry, rhs: Entry)", 1)[1].split(
+            "public func hash(into hasher", 1)[0]
+        shared = {"type == entry.type": "kind", "period == entry.period": "period",
+                  "counter == entry.counter": "counter", "digits == entry.digits": "digits",
+                  "algorithm == entry.algorithm": "algorithm",
+                  "secret.contentEquals(entry.secret)": "secretBytes",
+                  "label == entry.label": "label", "issuer == entry.issuer": "issuer",
+                  "sshIdentity() == entry.sshIdentity()": "sshIdentity"}
+        for kotlin_expression, swift_name in shared.items():
+            self.assertIn(kotlin_expression, equals,
+                          f"Entry.equals stopped comparing {swift_name}")
+            self.assertIn(f"lhs.{swift_name} == rhs.{swift_name}", compare,
+                          f"the Swift equality must compare {swift_name}")
+        # The metadata a stamp or a reveal changes is deliberately *not* identity.
+        for metadata in ("last_used", "used_frequency", "tags", "details_visible", "thumbnail"):
+            self.assertNotIn(metadata, equals, f"Entry.equals must not compare {metadata}")
+        for metadata in ("lastUsed", "usedFrequency", "tags", "detailsVisible"):
+            self.assertNotIn(f"lhs.{metadata}", compare,
+                             f"the Swift equality must not compare {metadata}")
+        # The hash covers the same fields, so a Set collapses the same entries as Android's HashSet.
+        hashed = swift.split("public func hash(into hasher", 1)[1].split("}", 1)[0]
+        for swift_name in shared.values():
+            self.assertIn(f"hasher.combine({swift_name})", hashed)
 
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")

@@ -52,6 +52,14 @@ public final class VaultStore: ObservableObject {
     private let directory: URL
     private var key: [UInt8] = []
 
+    /// How many times this store has been unlocked. A Google Authenticator export can span several QR
+    /// codes, and the codes are only allowed to complete an export if they all arrive inside one
+    /// unlocked session — the `VaultSession.generation()` rule Android applies.
+    @Published public private(set) var generation = 0
+
+    /// The export being collected, if one is open.
+    private var migration: MigrationBatchCollector?
+
     /// `directory` is injectable so the app tests can use a temporary folder instead of Documents.
     public init(directory: URL = VaultStore.defaultDirectory()) {
         self.directory = directory
@@ -82,6 +90,7 @@ public final class VaultStore: ObservableObject {
             key = unlocked.key
             entries = unlocked.entries
             isUnlocked = true
+            beginSession()
         } catch VaultOpenError.authenticationFailed {
             message = "That password does not open this vault."
         } catch VaultOpenError.missing {
@@ -113,6 +122,7 @@ public final class VaultStore: ObservableObject {
             entries = unlocked.entries
             hasVault = true
             isUnlocked = true
+            beginSession()
         } catch VaultWriteError.alreadyExists {
             hasVault = true
             message = "A vault already exists in this folder."
@@ -132,6 +142,17 @@ public final class VaultStore: ObservableObject {
         entries = []
         isUnlocked = false
         message = nil
+        // The export, if one was open, belonged to the session that just ended.
+        migration?.cancel()
+        migration = nil
+        generation += 1
+    }
+
+    /// Starts a session: everything that was true of the previous unlock stops being true.
+    private func beginSession() {
+        generation += 1
+        migration?.cancel()
+        migration = nil
     }
 
     // MARK: - The list
@@ -437,6 +458,9 @@ public final class VaultStore: ObservableObject {
         case duplicateIssuer(String)
         case duplicateEntry
         case rejected(String)
+        /// A Google Authenticator export code: where the export has got to, and what it holds once
+        /// the last code has arrived.
+        case migration(MigrationImportStep)
 
         /// The question the duplicate-issuer case asks, word for word as on Android.
         public static let duplicateIssuerTitle = "Issuer already exists"
@@ -479,8 +503,9 @@ public final class VaultStore: ObservableObject {
         }
     }
 
-    /// Adds the entry a QR payload describes. A Google Authenticator export is recognised and
-    /// refused by name rather than being reported as a broken link.
+    /// Adds the entry a QR payload describes. A Google Authenticator export code is not one entry:
+    /// it is routed to `addMigrationImportCode`, which collects the codes of one export and hands the
+    /// accounts back for a single confirmation.
     public func importPayload(_ text: String, allowDuplicateIssuer: Bool = false,
                               now: Date = Date()) -> ImportOutcome {
         switch QrPayload.classify(text) {
@@ -496,9 +521,8 @@ public final class VaultStore: ObservableObject {
                 return .rejected("UNKNOWN")
             }
         case .migration:
-            message = "Google Authenticator exports are not supported yet. Export the accounts "
-                + "from Google Authenticator as otpauth:// links, or restore a backup instead."
-            return .rejected("MIGRATION")
+            // A multi-account export is not one entry; `addMigrationImportCode` collects it.
+            return .migration(addMigrationImportCode(text, now: now))
         case .invalid(let reason):
             message = OtpParseError(rawValue: reason)?.message ?? OtpParseError.invalidUri.message
             return .rejected(reason)
@@ -506,6 +530,165 @@ public final class VaultStore: ObservableObject {
             message = "That code does not contain an otpauth:// link."
             return .rejected("UNRECOGNIZED")
         }
+    }
+
+    // MARK: - Google Authenticator exports
+
+    /// Where an export has got to. `entries` is filled in only once every code of the export has
+    /// arrived: a half-scanned export is never partly imported.
+    public struct MigrationImportStep: Equatable {
+        /// Codes of this export seen so far, and how many the export says it has.
+        public let received: Int
+        public let expected: Int
+        /// The accounts awaiting confirmation, once the export is complete.
+        public let entries: [Entry]?
+        /// A sentence for the sheet, or nil when there is nothing to say.
+        public let message: String?
+
+        public var isComplete: Bool { entries != nil }
+    }
+
+    /// What confirming an export did.
+    public enum MigrationImportResult: Equatable {
+        case imported(added: Int, skipped: Int)
+        case saveFailed
+        case locked
+
+        /// The sentence the phone shows afterwards, verbatim.
+        public var message: String {
+            switch self {
+            case .imported(let added, let skipped):
+                return MigrationWording.finished(added: added, skipped: skipped)
+            case .saveFailed, .locked:
+                return MigrationWording.saveFailed
+            }
+        }
+    }
+
+    /// Adds one code of a Google Authenticator export.
+    ///
+    /// The rules are `MigrationBatchCollector`'s, which mirrors Android's: a code from a different
+    /// export is refused but leaves the export open, a repeated code is refused, and an export that
+    /// would not fit in the vault ends instead of importing part of it. Nothing is written until
+    /// `confirmMigrationImport`.
+    @discardableResult
+    public func addMigrationImportCode(_ text: String, now: Date = Date())
+        -> MigrationImportStep {
+        guard isUnlocked else {
+            migration = nil
+            return MigrationImportStep(received: 0, expected: 0, entries: nil, message: nil)
+        }
+        let payload: MigrationPayload
+        do {
+            payload = try MigrationPayload.parse(text)
+        } catch let error as MigrationError {
+            // The open export survives a code that could not be read, as it does on the phone: the
+            // person can scan the right code next.
+            message = error.message
+            return step(message: error.message)
+        } catch {
+            message = MigrationWording.invalid
+            return step(message: MigrationWording.invalid)
+        }
+
+        var collector = migration ?? MigrationBatchCollector(generation: generation)
+        let status = collector.add(payload, generation: generation, sessionReady: isUnlocked)
+        switch status {
+        case .added:
+            migration = collector
+            let notice = MigrationWording.progress(received: collector.received,
+                                                   expected: collector.expected)
+            message = nil
+            return MigrationImportStep(received: collector.received,
+                                       expected: collector.expected, entries: nil,
+                                       message: notice)
+        case .complete:
+            // The counts have to be read before the accounts are taken: taking them closes the
+            // collector, which empties it.
+            let received = collector.received
+            let expected = collector.expected
+            migration = collector
+            let accounts = collector.takeAccounts(generation: generation, sessionReady: isUnlocked)
+            migration = nil
+            guard let accounts else {
+                message = MigrationWording.invalid
+                return step(message: MigrationWording.invalid)
+            }
+            do {
+                let entries = try accounts.map { try $0.entry(now: EntryUsage.nowMillis(now)) }
+                message = nil
+                return MigrationImportStep(received: received, expected: expected,
+                                           entries: entries, message: nil)
+            } catch {
+                message = MigrationWording.invalid
+                return step(message: MigrationWording.invalid)
+            }
+        case .duplicate, .differentExport, .tooMany, .stale:
+            // A duplicate or a foreign code leaves the export open; the other two end it.
+            if status == .tooMany || status == .stale {
+                migration = nil
+            } else {
+                migration = collector
+            }
+            let notice = MigrationWording.message(for: status)
+            message = notice.isEmpty ? nil : notice
+            return step(message: notice.isEmpty ? nil : notice)
+        }
+    }
+
+    /// The export as it stands, for a sheet that was dismissed and reopened.
+    public var openMigrationImport: MigrationImportStep? {
+        guard let migration, migration.isOpen, migration.received > 0 else { return nil }
+        return MigrationImportStep(received: migration.received, expected: migration.expected,
+                                   entries: nil, message: MigrationWording.progress(
+                                    received: migration.received, expected: migration.expected))
+    }
+
+    /// Discards an export in progress; nothing was written, so nothing has to be undone.
+    public func cancelMigrationImport() {
+        migration?.cancel()
+        migration = nil
+    }
+
+    /// Writes the confirmed accounts as one change, the way Android's `importEntries` does: an entry
+    /// the vault already holds is skipped rather than duplicated, the rest are stamped as imported,
+    /// and the whole batch is committed once or not at all.
+    public func confirmMigrationImport(_ entries: [Entry], now: Date = Date())
+        -> MigrationImportResult {
+        guard isUnlocked, !key.isEmpty else { return .locked }
+        let stamp = EntryUsage.nowMillis(now)
+        var proposed = self.entries
+        var distinct = Set(proposed)
+        var accepted: [Entry] = []
+        var skipped = 0
+        for entry in entries {
+            if distinct.contains(entry) {
+                skipped += 1
+                continue
+            }
+            // The vault ceiling is checked per entry, as the phone does: reaching it fails the
+            // whole batch instead of importing the first few.
+            guard proposed.count < InputPolicy.maxEntries else { return .saveFailed }
+            // Imported entries are stamped as just used, so they lead a **Last used** list.
+            var imported = entry
+            EntryUsage.markImported(&imported, now: stamp)
+            distinct.insert(entry)
+            proposed.append(imported)
+            accepted.append(imported)
+        }
+        guard !accepted.isEmpty else {
+            message = nil
+            return .imported(added: 0, skipped: skipped)
+        }
+        guard commit(proposed) else { return .saveFailed }
+        // Android shows the tab of the first imported account.
+        if let first = accepted.first { category = EntryCategory.of(first) }
+        return .imported(added: accepted.count, skipped: skipped)
+    }
+
+    private func step(message: String?) -> MigrationImportStep {
+        MigrationImportStep(received: migration?.received ?? 0, expected: migration?.expected ?? 0,
+                            entries: nil, message: message)
     }
 
     /// The one place an imported account is put into the vault, so a link and a QR code share the

@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
-| **M5** | Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M5** 🔄 | Google Authenticator export import ✅, OpenPGP backups, Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -224,13 +224,16 @@ behave the same way:
   issuer anyway?* with **Add anyway** — and the identical entry is refused instead of stored twice.
   `allowDuplicateIssuer` is the answer to that question and nothing else sets it.
 
-Not there yet: Face ID, the hardware-key features that are Android-only by design, and two import
-formats the other clients have. Those are M5 above, and the two formats are:
+Not there yet: Face ID, the hardware-key features that are Android-only by design, and one import
+format the other clients have. Those are M5 above, and the format is:
 
-- **Google Authenticator's multi-account export** (`otpauth-migration://`) needs a protobuf decoder
-  and its own error vocabulary. This client recognises the payload and says so by name rather than
-  reporting a broken link, so a person is told to use another route while that work is outstanding.
 - **OpenPGP backups** (`.json.gpg`) need a whole OpenPGP implementation; see the non-goals below.
+
+Google Authenticator's multi-account export is now imported (M5's first item). A bounded, non-recursive
+reader parses one code of the export; `MigrationBatchCollector` holds the codes of a single export
+until all of them have arrived, so nothing is written for a partly scanned export, and the confirmation
+writes the batch in one commit, skipping an account the vault already holds. The reader, the statuses
+and every sentence are `:core`'s, and `scripts/tests/test_ios_app.py` compares them.
 
 Plain-text export stays unimplemented on purpose: the client *reads* a legacy plain-text backup, warns
 with Android's sentence before the file picker, and writes only encrypted backups.

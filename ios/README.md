@@ -99,9 +99,9 @@ client added it.
 
 ## What is deliberately not here
 
-Biometric unlock, the Keychain-backed settings store, App Store packaging, Google Authenticator's
-multi-account export (`otpauth-migration://`, which needs a protobuf decoder — such a payload is
-recognised and refused by name rather than reported as a broken link), and OpenPGP backups.
+Biometric unlock, the Keychain-backed settings store, App Store packaging, and OpenPGP backups.
+Google Authenticator's multi-account export (`otpauth-migration://`) *is* supported: a bounded
+protobuf reader collects every code of the export and the accounts are imported together, once.
 
 **Plain-text export is a deliberate omission.** The client *reads* a legacy unencrypted JSON backup
 and warns with Android's sentence before it opens the file picker, but it never writes one: an
