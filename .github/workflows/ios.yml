@@ -77,8 +77,16 @@ jobs:
         run: |
           set -euo pipefail
           cd ios
-          xcodegen generate 2>&1 | tee -a build-log.txt
-          test -d OfflineOTP.xcodeproj
+          # Everything here lands in build-log.txt, including the tool's own error text and the spec
+          # it was given, because a failure has to be diagnosable from the annotation on the run.
+          xcodegen --version >> build-log.txt 2>&1 || true
+          status=0
+          xcodegen generate >> build-log.txt 2>&1 || status=$?
+          echo "--- xcodegen exit status: $status ---" >> build-log.txt
+          if [ "$status" -ne 0 ] || [ ! -d OfflineOTP.xcodeproj ]; then
+            ls -la >> build-log.txt 2>&1
+            exit 1
+          fi
           xcodebuild -list -project OfflineOTP.xcodeproj 2>&1 | tee -a build-log.txt
       - name: Build the app for the simulator
         shell: bash
