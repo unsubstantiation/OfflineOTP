@@ -161,6 +161,7 @@ one is a port rather than a reinterpretation:
 | A removal asks by name | `dialog_msg_confirm_delete`, desktop `MainWindow` | `EntryListView` alert | `EntryListView` |
 | `otpauth://` parsing, in both directions, with the same refusals | `OtpUriParser`, `ValidatedOtp.create`, `OtpParseError` | `OtpUri` | `OtpUriTests`, `test_ios_app.py` |
 | An entry's QR payload and its field order (`secret`, `issuer`, `counter`, `period` when not 30, `digits` when not 6, `algorithm` when not SHA1, then `tags`), `%20` never `+` | `Entry.toUriString` | `OtpUri.uri(for:)` | `OtpUriTests`, `test_ios_app.py` |
+| The logo name an entry stores is resolved from its issuer (exact, alias, whole word, default), so the other clients show the same mark | `ThumbnailCatalog.resolveName`, `Entry.initialize`, `Entry.setThumbnailFromIssuer` | `ThumbnailCatalog`, used by `EntryDraft` and `OtpUri.entry` | `ThumbnailCatalogTests`, `test_ios_app.py` |
 | A QR payload is classified before it is parsed; a migration export is named, not guessed at | `QrImport.classify` | `QrPayload.classify` | `OtpUriTests` |
 | A backup is dated (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`) with ASCII digits | `BackupFileNames` | `BackupFileNames` | `BackupRestoreTests`, `test_ios_app.py` |
 | A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |

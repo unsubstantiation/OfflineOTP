@@ -30,7 +30,8 @@ final class VaultStoreTests: XCTestCase {
     private func draft(_ label: String, issuer: String = "Issuer", kind: EntryKind = .totp,
                        tags: [String] = []) throws -> Entry {
         try EntryDraft.create(kind: kind, issuer: issuer, label: label, secret: "JBSWY3DPEHPK3PXP",
-                             digits: "6", timing: "30", algorithm: .sha1, tags: tags)
+                             digits: "6", timing: "30", algorithm: .sha1, tags: tags,
+                             newEntry: true)
     }
 
     private func rawEntry(_ label: String) throws -> Entry {
@@ -338,9 +339,12 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertTrue(exported.name.hasSuffix(".json.aes"))
         XCTAssertTrue(exported.data.count > 44)
 
-        // A second vault over the same folder: `creating` would refuse, so it is opened normally.
-        let other = makeStore()
-        other.unlock(password: "correct horse")
+        // Another vault, in another folder: a second store over the same folder would be the same
+        // vault, and a merge into it would correctly add nothing.
+        let elsewhere = directory.appendingPathComponent("second", isDirectory: true)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let other = VaultStore(directory: elsewhere)
+        other.unlock(password: "correct horse", confirmation: "correct horse", creating: true)
         XCTAssertTrue(other.isUnlocked)
         let plan = try XCTUnwrap(other.restore(encrypted: exported.data, password: "backup pass",
                                               replace: false))
@@ -348,7 +352,7 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(other.entries.map(\.label).sorted(), ["alice@example.com", "bob"])
         XCTAssertEqual(other.entries.first { $0.label == "bob" }?.tags, ["work"])
         // The restore reaches the file, not only the screen.
-        let reopened = makeStore()
+        let reopened = VaultStore(directory: elsewhere)
         reopened.unlock(password: "correct horse")
         XCTAssertEqual(reopened.entries.count, 2)
     }
@@ -455,9 +459,10 @@ final class VaultStoreTests: XCTestCase {
 
     func testAGenericOrUnsupportedCodeIsExplained() throws {
         let store = unlockedStore()
-        // A Wi-Fi joining code: a real QR payload that is not an OTP account.
+        // A Wi-Fi joining code is a real QR payload that is not an account: the parser says so, the
+        // same way `QrImport` reports `Outcome.Invalid` rather than "nothing recognised".
         XCTAssertEqual(store.importPayload("WIFI:S:net;T:WPA;P:pass;;"), .rejected("INVALID_URI"))
-        XCTAssertEqual(store.message, "That code does not contain an otpauth:// link.")
+        XCTAssertEqual(store.message, OtpParseError.invalidUri.message)
         XCTAssertEqual(store.importPayload("otpauth-migration://offline?data=abc"),
                        .rejected("MIGRATION"))
         XCTAssertTrue(store.message?.contains("Google Authenticator") == true)

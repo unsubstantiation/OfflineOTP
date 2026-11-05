@@ -42,10 +42,12 @@ public enum EntryDraft {
     public static let offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]
 
     /// The stored thumbnail name when nothing better is known — `ThumbnailCatalog.DEFAULT_NAME`.
-    /// The other two clients resolve a service logo from the issuer and store its name; this client
-    /// has no logo artwork, so it writes the same fallback those clients use for an issuer they do
-    /// not recognise. A reader normalises an unknown or empty name to this value anyway.
-    public static let defaultThumbnailName = "Default"
+    ///
+    /// This client draws no logos, but the *name* is shared data: the other two clients resolve it
+    /// to artwork, and a name of `Default` on an entry they created for a known brand would show the
+    /// generic mark there. `ThumbnailCatalog.resolveName` therefore picks the same name they would,
+    /// so an entry typed or imported here keeps its logo on the phone and the desktop.
+    public static var defaultThumbnailName: String { ThumbnailCatalog.defaultName }
 
     /// A secret is Base32 or a raw mOTP seed: whitespace is never part of it, and a pasted secret is
     /// commonly broken across lines. Notes are free text and keep every character — the same rule as
@@ -150,7 +152,7 @@ public enum EntryDraft {
             "digits": .int(Int64(entryDigits)),
             "type": .string(kind.rawValue),
             "algorithm": .string(algorithm.rawValue),
-            "thumbnail": .string(defaultThumbnailName),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer)),
             "last_used": .int(newEntry ? now : 0),
             "used_frequency": .int(0),
         ]

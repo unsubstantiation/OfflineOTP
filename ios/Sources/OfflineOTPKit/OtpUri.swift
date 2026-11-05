@@ -190,7 +190,9 @@ public struct OtpUri: Equatable {
             "digits": .int(Int64(digits)),
             "type": .string(kind.rawValue),
             "algorithm": .string(algorithm.rawValue),
-            "thumbnail": .string(EntryDraft.defaultThumbnailName),
+            // Resolved from the issuer exactly as `Entry.initialize` does on the JVM, so the logo
+            // the other clients show for this account does not depend on which client added it.
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer)),
             "last_used": .int(newEntry ? now : 0),
             "used_frequency": .int(0),
         ]

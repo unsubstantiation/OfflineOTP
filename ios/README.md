@@ -65,6 +65,7 @@ action runs `OfflineOTPAppTests`.
 | `EntryListProjectionTests` | The tab mapping for every kind, the search fields and their locale-independent match, the any/all/one tag rule, collator-primary ordering with stable ties, and the five stored order names |
 | `EntryUsageTests` | The last-used stamp and use counter, the one-step HOTP advance, and the `MAX_COUNTER` ceiling |
 | `EntryDraftTests` | A hand-typed entry's exact stored bytes, the whitespace rule, the shared "must be a number" wording, Steam's omitted default period, and an edit keeping metadata the form does not show |
+| `ThumbnailCatalogTests` | The exact match (ignoring case and punctuation), the alias table, the whole-word match, the default, and that no two names fold to the same spelling |
 | `OtpUriTests` | Every refusal `OtpUriParser` makes (the 16 KiB ceiling, the four kinds, a canonical Base32 seed, mOTP's hexadecimal seed, HOTP's counter, the period/digit/counter bounds, Steam's five digits, repeatable tags, refused duplicates, the case-sensitive scheme), the label rules, and the round trip through `Entry.toUriString`'s field order |
 | `BackupRestoreTests` | The dated backup name in ASCII digits, the strict plain-text reader (a byte-order mark, invalid UTF-8, blank, oversized), the merge that puts imported entries first and keeps the vault's own copies, the replace, and the two refusals (an empty import, a duplicated one) |
 | `App/Tests/CodeFormatTests` | Code grouping and the countdown arithmetic (including mOTP's fixed ten-second step and HOTP's lack of one) |
@@ -83,6 +84,18 @@ scripts/ios/generate-token-vectors.py           # verify (this is what CI runs)
 The script refuses to emit anything unless it first reproduces the published RFC 4226 and RFC 6238
 test vectors, so the numbers the Swift tests assert are not the numbers this implementation happens
 to produce.
+
+## Regenerating the thumbnail catalog
+
+```sh
+scripts/ios/generate-thumbnail-catalog.py --write   # after the :core catalog changes
+scripts/ios/generate-thumbnail-catalog.py           # verify (this is what CI runs)
+```
+
+`ThumbnailCatalog.swift` is generated because the name an entry stores is shared data: the phone and
+the desktop resolve it to a logo, so the iOS client has to write the same name they would. A hand-copied
+list of names would drift; a stale one would give the same account a different logo depending on which
+client added it.
 
 ## What is deliberately not here
 

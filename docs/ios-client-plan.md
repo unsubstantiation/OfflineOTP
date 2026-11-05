@@ -158,12 +158,14 @@ what remains.
 | `ios/Sources/OfflineOTPKit/EntryUsage.swift` | The use stamp, the use counter and the HOTP step with its ceiling — the port of `EntryUsage` |
 | `ios/Sources/OfflineOTPKit/EntryDraft.swift` | Turning a form into an entry: which kinds, what a blank timing field means, the shared validation — the port of `EntryDraft` |
 | `ios/Sources/OfflineOTPKit/OtpUri.swift` | `otpauth://` in both directions — the port of `OtpUriParser` and `Entry.toUriString`, with the error names of `OtpParseError`, plus the payload classification of `QrImport` |
+| `ios/Sources/OfflineOTPKit/ThumbnailCatalog.swift` | The persisted logo names and the issuer matching of `ThumbnailCatalog` in `:core` — generated from it by `scripts/ios/generate-thumbnail-catalog.py`, so an entry added or imported here keeps the logo the other clients would have given it |
 | `ios/Sources/OfflineOTPKit/BackupRestore.swift` | Dated backup names (`BackupFileNames`), strict plain-text decoding (`PlainTextBackupDecoder`), and the merge/replace rule (`VaultRestoreMerge`) |
 | `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage, draft, URI and restore rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
 | `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
 | `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), the backup and restore round trips through `VaultStore`, and a real create/save/reopen cycle |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
+| `scripts/ios/generate-thumbnail-catalog.py` | Generates `ThumbnailCatalog.swift` from the Kotlin catalog; `ios.yml` and `scripts/tests/test_ios_app.py` both fail when the copy is stale |
 | `scripts/tests/test_ios_package.py`, `test_ios_app.py`, `test_ios_plan.py` | Keep every restated constant, the field order, the palette, the offline promise and this document honest |
 
 ## What the iOS build action does
@@ -174,7 +176,8 @@ per-platform shape as the other four, on `runs-on: macos-14`:
 
 1. `swift build --build-tests` and `swift test`, which run the format and fixture tests on the macOS
    host;
-2. `scripts/ios/generate-token-vectors.py`, which refuses a stale vector file;
+2. `scripts/ios/generate-token-vectors.py` and `scripts/ios/generate-thumbnail-catalog.py`, which
+   refuse a stale generated file;
 3. `xcodebuild -scheme OfflineOTPKit -destination 'generic/platform=iOS Simulator'`, which proves the
    format layer compiles for iOS itself;
 4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
