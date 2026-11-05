@@ -51,6 +51,18 @@ class IosAppTest(unittest.TestCase):
         self.assertFalse((IOS / "OfflineOTP.xcodeproj").exists(),
                          "a generated project was committed")
 
+    def test_the_project_format_is_one_the_runner_can_open(self):
+        """Xcode 15.4 on `macos-14` cannot read a project generated in the newest format."""
+        project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
+        options = project["options"]
+        self.assertEqual("xcode15_3", options["projectFormat"])
+        self.assertEqual("15.4", options["xcodeVersion"])
+        workflow = WORKFLOW
+        self.assertIn("runs-on: macos-14", workflow)
+        # A comment has to say why, or the pin looks arbitrary and gets bumped.
+        self.assertIn("bump it only together with the runner image", (IOS / "project.yml").read_text(
+            encoding="utf-8"))
+
     def test_the_deployment_target_matches_the_package_and_the_plan(self):
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
         self.assertEqual("17.0", project["options"]["deploymentTarget"]["iOS"])

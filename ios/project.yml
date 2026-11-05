@@ -6,7 +6,11 @@ options:
   deploymentTarget:
     iOS: "17.0"
   developmentLanguage: en
-  xcodeVersion: "15.0"
+  xcodeVersion: "15.4"
+  # The runner's Xcode is 15.4, and nothing in the app needs a newer project format. XcodeGen
+  # defaults to the newest format it knows (77), which Xcode 15 cannot open at all, so this is
+  # pinned deliberately: bump it only together with the runner image.
+  projectFormat: xcode15_3
 
 packages:
   # The format layer: vault, backup, entry document and token maths. Shared with the JVM clients
