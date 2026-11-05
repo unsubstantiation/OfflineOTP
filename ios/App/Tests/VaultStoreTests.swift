@@ -267,7 +267,10 @@ final class VaultStoreTests: XCTestCase {
         store.toggleTag("home")
         XCTAssertEqual(store.visibleIndices.count, 3)
         store.setTagFunctionality(.and)
-        XCTAssertEqual(store.visibleIndices.map { store.entries[$0].label }, ["alice-work"])
+        // Both tags are now selected and no entry carries both, so the intersection is empty.
+        XCTAssertEqual(store.visibleIndices.count, 0)
+        store.toggleTag("home")
+        XCTAssertEqual(store.visibleIndices.map { store.entries[$0].label }, ["alice-work", "bob"])
 
         // The chip list, ordered case-insensitively and without duplicates.
         XCTAssertEqual(store.tags(for: .otp), ["home", "work"])
