@@ -100,6 +100,9 @@ class IosPackageTest(unittest.TestCase):
         for name, value in expectations.items():
             self.assertIn(f"static let {name} = {value}", policy, f"{name} drifted from :core")
         self.assertIn("public static let maxDocumentBytes = 16 * 1024 * 1024", policy)
+        # The UIs enforce a minimum password length; the vault engine deliberately does not.
+        self.assertEqual(6, kotlin_const("Utilities/Constants.kt", "AUTH_MIN_PASSWORD_LENGTH"))
+        self.assertIn("public static let minVaultPasswordChars = 6", policy)
 
     def test_the_per_kind_seed_limits_match_the_material_classes(self):
         entry = (SOURCES / "Entry.swift").read_text(encoding="utf-8")

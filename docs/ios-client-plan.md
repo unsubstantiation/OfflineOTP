@@ -1,9 +1,10 @@
 # Native iOS client — plan
 
-Status: **the format layer exists** (`ios/`, milestone M0 and most of M1 — see
-[What exists today](#what-exists-today)). There is no app target and no SwiftUI yet, so there is
-nothing to sign, ship or review; the vault, backup and token formats are implemented and verified
-against the same fixed vectors the JVM clients use. `:core` still cannot be reused (see
+Status: **there is an app, and it is a shell** (`ios/`, milestones M0, M1 and M1.5 — see
+[What exists today](#what-exists-today)). It opens or creates a vault, lists what the vault holds,
+generates the codes and copies them with an expiry, in the shared Dark Forest theme. It has no
+imports, no backups, no tabs, no search and no Face ID yet, and it is not signed or submitted
+anywhere: a simulator build is the only artifact. `:core` still cannot be reused (see
 [Why not Kotlin Multiplatform](#why-not-kotlin-multiplatform)). This document is the contract a
 SwiftUI client has to satisfy, so that it is a fourth *reader and writer* of the same vault rather
 than a fourth format.
@@ -131,7 +132,7 @@ the crypto never has to be reviewed by eye.
 | --- | --- | --- |
 | **M0** ✅ | SPM package (`VaultCrypto`, `Entry`, `VaultDocument`, `EncryptedBackup`, `PasswordVault`, `TokenCalculator`), test target wired to the golden fixtures, `.github/workflows/ios.yml` | Fixture tests green in CI; the package also compiles for the iOS simulator. The Xcode *app* target arrives with the UI at M3 |
 | **M1** ✅ (except device interop) | Unlock `secrets.dat`, decode entries, re-encode the shared document byte for byte, create a vault, save, back up, restore, reject a wrong password | Every vault fixture round-trips exactly; a vault this client creates reopens on a second instance. A vault created on Android opening here is still proved by the golden fixture rather than by a device |
-| **M1.5** | Xcode project with an app target, SwiftUI shell, `ios.yml` gains a `simulator` job that runs the app's unit tests | An unsigned simulator build artifact exists on every pull request |
+| **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every pull request |
 | **M2** | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit |
 | **M3** | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit an entry | Same vault shows the same order and the same tabs as the other two clients |
 | **M4** | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android |
@@ -151,8 +152,11 @@ week, M5 about a week. Nothing here is on the critical path of the existing clie
 | `ios/Sources/OfflineOTPKit/EncryptedBackup.swift` | The backup header, seal and open |
 | `ios/Sources/OfflineOTPKit/TokenCalculator.swift`, `Base32.swift` | TOTP/HOTP/Steam/mOTP and the seed encoding |
 | `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests and the token vectors |
+| `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView`, `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, and a real create/save/reopen cycle through `VaultStore` |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
-| `scripts/tests/test_ios_package.py`, `test_ios_plan.py` | Keep every restated constant, the field order and this document honest |
+| `scripts/tests/test_ios_package.py`, `test_ios_app.py`, `test_ios_plan.py` | Keep every restated constant, the field order, the palette, the offline promise and this document honest |
 
 ## What the iOS build action does
 
@@ -160,17 +164,40 @@ week, M5 about a week. Nothing here is on the critical path of the existing clie
 permanently skipped, which is indistinguishable from coverage that does not exist. It follows the same
 per-platform shape as the other four, on `runs-on: macos-14`:
 
-1. `swift build --build-tests` and `swift test`, which run the fixture tests on the macOS host;
+1. `swift build --build-tests` and `swift test`, which run the format and fixture tests on the macOS
+   host;
 2. `scripts/ios/generate-token-vectors.py`, which refuses a stale vector file;
 3. `xcodebuild -scheme OfflineOTPKit -destination 'generic/platform=iOS Simulator'`, which proves the
-   code compiles for iOS itself — no booted simulator and **no signing identity at all**;
-4. a checksummed source archive of the package plus the fixtures it was verified against.
+   format layer compiles for iOS itself;
+4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
+   `generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**;
+5. `xcodebuild test` on the newest available iPhone simulator (picked with `simctl`, so an image that
+   renames its devices does not break the job), which runs the app's unit tests;
+6. two checksummed artifacts: `OfflineOTP-ios-simulator` (the `.app`, packed with `ditto` and
+   re-extracted to prove the bundle survived) and `OfflineOTP-ios-kit-source` (the package plus the
+   fixtures it was verified against).
 
-When the app target lands (M1.5/M3), the same workflow gains a simulator `build-for-testing` step and
-an unsigned `.app` artifact. Device and TestFlight signing stay manual, exactly as releases do on the
-other platforms: an **`ios-release`** environment would hold the distribution certificate (`.p12` plus
-password), the provisioning profile and an App Store Connect API key (key ID, issuer ID, `.p8`), and
-the workflow would stop at `xcodebuild archive` → `-exportArchive`. It would not create a release note.
+Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
+**`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the
+provisioning profile and an App Store Connect API key (key ID, issuer ID, `.p8`), and the workflow
+would stop at `xcodebuild archive` → `-exportArchive`. It would not create a release note.
+
+## What the shell does, and what it deliberately does not
+
+Working: create a vault, unlock with the password, list every entry with its code, count down the
+time step (ten seconds for mOTP whatever the stored period, no countdown for HOTP), copy a code with
+a 30-second pasteboard expiry, lock, and cover the content when the scene leaves the foreground.
+
+Not there yet: the five tabs the other clients have (an email account or a password archive is listed
+and explained rather than hidden — hiding data would be worse), search, the tag filter and the five
+sort modes, adding, editing and deleting an entry, imports of any kind, QR codes, encrypted backup
+export and import, plain-text import, Face ID, and the hardware-key features that are Android-only by
+design. Each of those is M2–M5 above.
+
+The vault lives in `Documents/data/`, the same three filenames the desktop client uses, so the folder
+readable by the Files app is self-explanatory. It is therefore included in an encrypted device backup,
+which is the intended behaviour: a restored phone still opens the vault with the same password, and
+nothing about that backup is weaker than the vault file itself.
 
 ## Security requirements
 

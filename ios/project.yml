@@ -1,0 +1,76 @@
+name: OfflineOTP
+options:
+  # The generated project is not committed: `project.yml` is the reviewable definition, and
+  # `xcodegen generate` recreates the rest. See ios/README.md.
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "17.0"
+  developmentLanguage: en
+  xcodeVersion: "15.0"
+
+packages:
+  # The format layer: vault, backup, entry document and token maths. Shared with the JVM clients
+  # through the fixed vectors in desktop/src/test/resources/golden, not through code.
+  OfflineOTPKit:
+    path: .
+
+settings:
+  base:
+    # Swift 5 language mode. The app is written for it; Swift 6's strict concurrency checking is a
+    # separate migration, not something a first shell should absorb.
+    SWIFT_VERSION: "5.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+    MARKETING_VERSION: "0.1"
+    CURRENT_PROJECT_VERSION: "1"
+    # No signing identity is needed to build for a simulator, and nothing here signs for a device.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: ""
+    DEVELOPMENT_TEAM: ""
+
+targets:
+  OfflineOTP:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/Sources
+    dependencies:
+      - package: OfflineOTPKit
+        product: OfflineOTPKit
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: OfflineOTP
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # The app declares no networking at all, so there is no export-controlled cryptography to
+        # report beyond the standard library imports.
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.shadowice.flocke.andotp
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ENABLE_USER_SCRIPT_SANDBOXING: YES
+    scheme:
+      # One shared scheme drives both the simulator build and the app unit tests.
+      testTargets:
+        - OfflineOTPAppTests
+      gatherCoverageData: false
+
+  OfflineOTPAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: App/Tests
+    dependencies:
+      - target: OfflineOTP
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: org.shadowice.flocke.andotp.tests
+        GENERATE_INFOPLIST_FILE: YES

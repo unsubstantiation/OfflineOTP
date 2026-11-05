@@ -12,9 +12,10 @@ permissions:
 jobs:
   build:
     # One workflow per platform, as with the Android, Windows, Debian and macOS builds. This job
-    # compiles and tests the iOS format layer (`ios/`, a Swift package) on an Apple silicon runner.
-    # Nothing here signs or publishes anything: the app target and its signing story arrive with the
-    # UI, and publishing stays manual. See docs/ios-client-plan.md.
+    # tests the shared format layer (`ios/`, a Swift package) and builds the app shell for the
+    # simulator, on an Apple silicon runner. Nothing here signs for a device or publishes anything:
+    # package signing and TestFlight stay manual, as releases do on the other platforms. See
+    # docs/ios-client-plan.md.
     runs-on: macos-14
     timeout-minutes: 30
     steps:
@@ -80,6 +81,56 @@ jobs:
             -quiet build
           # Whatever the linker emits for a library target, something has to carry the module name.
           find build/DerivedData -name 'OfflineOTPKit*' -print -quit | grep .
+      - name: Install XcodeGen
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The Xcode project is generated from ios/project.yml rather than committed: a pbxproj is
+          # an opaque, conflict-prone file, and the definition is five reviewable screens of YAML.
+          HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install xcodegen
+          xcodegen --version
+      - name: Generate the Xcode project
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          xcodegen generate
+          test -d OfflineOTP.xcodeproj
+          xcodebuild -list -project OfflineOTP.xcodeproj
+      - name: Build the app for the simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          # No signing identity: a simulator build does not need one, and this job must stay runnable
+          # by someone with no Apple developer account.
+          xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee -a build-log.txt
+          test -d build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
+      - name: Run the app unit tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          # An explicit simulator, because `test` needs a concrete device. Picking it here means a
+          # runner image that renames its devices (iPhone 15 -> iPhone 16) does not break the job.
+          UDID=$(xcrun simctl list devices available --json | jq -er '
+            [ .devices
+              | to_entries[]
+              | select(.key | test("SimRuntime.iOS-"))
+              | .value[]
+              | select(.isAvailable and (.name | startswith("iPhone"))) ]
+            | last
+            | .udid')
+          echo "::notice::Testing on the simulator $UDID"
+          xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            test 2>&1 | tee -a build-log.txt
       - name: Package the sources that were tested
         shell: bash
         run: |
@@ -90,9 +141,32 @@ jobs:
           git archive HEAD ios | tar -x -C artifacts/stage
           git archive HEAD desktop/src/test/resources/golden | tar -x -C artifacts/stage
           (cd artifacts/stage && zip -q -r ../OfflineOTP-ios-kit-source.zip ios desktop)
-          (cd artifacts && shasum -a 256 OfflineOTP-ios-kit-source.zip > SHA256SUMS.txt)
+      - name: Package the simulator app and checksum everything
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
+          test -d "$APP"
+          # ditto, as on macOS: a bundle has structure a plain zip would flatten.
+          ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/OfflineOTP-ios-simulator.zip
+          mkdir -p build/unpacked
+          ditto -x -k artifacts/OfflineOTP-ios-simulator.zip build/unpacked
+          test -f build/unpacked/OfflineOTP.app/Info.plist
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
+            build/unpacked/OfflineOTP.app/Info.plist | grep -qx OfflineOTP
+          (cd artifacts && shasum -a 256 OfflineOTP-ios-kit-source.zip OfflineOTP-ios-simulator.zip \
+            > SHA256SUMS.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OfflineOTP-ios-kit-source
-          path: artifacts/
+          path: |
+            artifacts/OfflineOTP-ios-kit-source.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: OfflineOTP-ios-simulator
+          path: |
+            artifacts/OfflineOTP-ios-simulator.zip
+            artifacts/SHA256SUMS.txt
           if-no-files-found: error

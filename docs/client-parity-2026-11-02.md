@@ -144,3 +144,10 @@ JSON, pinned by the fixed-vector corpus in `desktop/src/test/resources/golden/`.
 that matters most for it is the one this review kept returning to: an unsupported kind or field is
 **preserved verbatim**, never dropped, because a save must not silently destroy another client's
 data.
+
+The iOS shell follows the same rules where it has a surface to apply them to: one sentence for a wrong
+password, the six-character minimum with a matching confirmation, the Dark Forest tokens taken from
+`ForestTheme.kt` (compared in `scripts/tests/test_ios_app.py`), a ten-second rollover for mOTP
+regardless of the stored period, no countdown for HOTP, and a copy that expires. Where it has no
+surface yet — tabs, sorting, search, editing — it lists the entries it cannot display rather than
+hiding them, so the parity rule and the data-loss rule are not quietly violated by the gap.

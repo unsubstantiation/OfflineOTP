@@ -401,19 +401,22 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 Five GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
 per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
 from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip, a Debian 12 x64 app-image
-tarball, a macOS arm64 app-bundle zip, and — for iOS — a checksummed source archive of the package the
-tests ran against. Each includes SHA-256 checksums; Android also includes the signing certificate
+tarball, a macOS arm64 app-bundle zip, and — for iOS — an unsigned simulator app bundle plus a
+checksummed source archive of the package the tests ran against. Each includes SHA-256 checksums; Android also includes the signing certificate
 details. The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
 **right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.
-There is no iOS *app* yet: the desktop application is a JVM Swing app and the phone client is
-Android. The iOS side starts as a Swift package (`ios/`) holding the parts that have to match the
-other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
-the token maths — verified against the same fixed vectors in
-`desktop/src/test/resources/golden/`, with a workflow of its own that needs no signing identity. The
-UI, its milestones and the TestFlight story are in
-[the iOS client plan](docs/ios-client-plan.md); run its tests with `cd ios && swift test` on macOS.
+The iOS client is an early shell rather than a finished app: `ios/` holds a Swift package that
+matches the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry
+document and the token maths, verified against the same fixed vectors in
+`desktop/src/test/resources/golden/` — plus a SwiftUI app that unlocks a vault, lists its entries,
+shows the codes and copies one with an expiry. It has no tabs, search, sorting, editing, imports,
+backups or Face ID yet; that list, with milestones, is in
+[the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
+simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
+on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,
+`cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.
 
 The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when
 the release keystore is configured in the `android-release` environment (which allows `master`
