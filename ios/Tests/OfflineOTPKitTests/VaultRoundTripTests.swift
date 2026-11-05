@@ -209,6 +209,7 @@ final class VaultRoundTripTests: XCTestCase {
             settings: PropertyListSettings(url: directory.appendingPathComponent("vault.plist")))
         let reopened = try second.open(password: "correct horse battery")
         XCTAssertEqual(reopened.entries.count, 1)
-        XCTAssertEqual(reopened.entries[0].code(unixTime: 1700000000).isEmpty, false)
+        // The stored seed still produces the expected code after a relaunch through real files.
+        XCTAssertEqual(try reopened.entries[0].code(unixTime: 1700000000), "324550")
     }
 }
