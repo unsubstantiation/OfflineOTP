@@ -21,6 +21,16 @@ android {
     // APKs, so local and reproducible-build flows are unchanged.
     def releaseSigningConfigured = project.hasProperty('RELEASE_STORE_FILE') &&
             project.hasProperty('RELEASE_KEY_ALIAS')
+    // A keystore without its credentials would otherwise reach apksigner with an empty password and
+    // fail there with "keystore password was incorrect". Name the missing property instead, before
+    // any APK is built, so a local reproducible-signing attempt fails the same way CI does.
+    if (releaseSigningConfigured) {
+        ['RELEASE_STORE_PASSWORD', 'RELEASE_KEY_PASSWORD'].each { name ->
+            if (!project.hasProperty(name) || project.property(name).toString().isEmpty()) {
+                throw new GradleException("${name} must be set (and non-empty) when RELEASE_STORE_FILE is used")
+            }
+        }
+    }
 
     signingConfigs {
         release {
