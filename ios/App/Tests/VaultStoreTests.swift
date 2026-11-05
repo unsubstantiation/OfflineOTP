@@ -174,13 +174,17 @@ final class VaultStoreTests: XCTestCase {
         // Both other clients select the tab of the entry they just added.
         XCTAssertEqual(store.category, .notes)
 
-        // The same entry twice is refused; a second hand-typed entry is not a duplicate, because it
-        // carries its own usage stamp (the same rule `EntryList.addEntry` follows).
-        let again = try rawEntry("alice")
-        XCTAssertTrue(store.add(again))
-        XCTAssertFalse(store.add(again))
+        // The same account twice is refused even though the copy carries its own usage stamp:
+        // identity is `Entry.equals`' — issuer, label, seed, kind and token parameters — not the
+        // metadata, which is the rule `EntryList.addEntry` applies on the phone and the desktop.
+        XCTAssertFalse(store.add(try draft("alice")))
         XCTAssertEqual(store.message, "This vault already holds that entry.")
+        XCTAssertEqual(store.entries.count, 2)
+
+        // A different account from the same issuer is a new row, and its tab is selected again.
+        XCTAssertTrue(store.add(try draft("bob")))
         XCTAssertEqual(store.entries.count, 3)
+        XCTAssertEqual(store.category, .otp)
     }
 
     func testDeletingAndEditingPersist() throws {
