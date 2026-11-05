@@ -1,10 +1,11 @@
 # Native iOS client — plan
 
-Status: **there is an app, and it is a shell** (`ios/`, milestones M0, M1 and M1.5 — see
-[What exists today](#what-exists-today)). It opens or creates a vault, lists what the vault holds,
-generates the codes and copies them with an expiry, in the shared Dark Forest theme. It has no
-imports, no backups, no tabs, no search and no Face ID yet, and it is not signed or submitted
-anywhere: a simulator build is the only artifact. `:core` still cannot be reused (see
+Status: **there is an app, and it does the daily job** (`ios/`, milestones M0–M3 — see
+[What exists today](#what-exists-today)). It opens or creates a vault, shows the five tabs with a
+live search, the tag filter and the five orders, reveals an entry, generates its code, copies it with
+an expiry, steps an HOTP counter, and adds, edits and deletes entries — in the shared Dark Forest
+theme. It has no imports, no backups and no Face ID yet, and it is not signed or submitted anywhere:
+a simulator build is the only artifact. `:core` still cannot be reused (see
 [Why not Kotlin Multiplatform](#why-not-kotlin-multiplatform)). This document is the contract a
 SwiftUI client has to satisfy, so that it is a fourth *reader and writer* of the same vault rather
 than a fourth format.
@@ -133,13 +134,14 @@ the crypto never has to be reviewed by eye.
 | **M0** ✅ | SPM package (`VaultCrypto`, `Entry`, `VaultDocument`, `EncryptedBackup`, `PasswordVault`, `TokenCalculator`), test target wired to the golden fixtures, `.github/workflows/ios.yml` | Fixture tests green in CI; the package also compiles for the iOS simulator. The Xcode *app* target arrives with the UI at M3 |
 | **M1** ✅ (except device interop) | Unlock `secrets.dat`, decode entries, re-encode the shared document byte for byte, create a vault, save, back up, restore, reject a wrong password | Every vault fixture round-trips exactly; a vault this client creates reopens on a second instance. A vault created on Android opening here is still proved by the golden fixture rather than by a device |
 | **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every pull request |
-| **M2** | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit |
-| **M3** | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit an entry | Same vault shows the same order and the same tabs as the other two clients |
+| **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
+| **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android |
 | **M5** | Face ID lock, clipboard expiry, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
-week, M5 about a week. Nothing here is on the critical path of the existing clients.
+week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
+what remains.
 
 ## What exists today
 
@@ -151,10 +153,13 @@ week, M5 about a week. Nothing here is on the critical path of the existing clie
 | `ios/Sources/OfflineOTPKit/VaultDocument.swift`, `Entry.swift` | The entry document: parse with the shared bounds, write in the canonical field order, keep what this build cannot display |
 | `ios/Sources/OfflineOTPKit/EncryptedBackup.swift` | The backup header, seal and open |
 | `ios/Sources/OfflineOTPKit/TokenCalculator.swift`, `Base32.swift` | TOTP/HOTP/Steam/mOTP and the seed encoding |
-| `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests and the token vectors |
+| `ios/Sources/OfflineOTPKit/EntryListProjection.swift` | Tabs, live search, the tag rule and the five orders — the port of `EntryListPresentation`, `EntryList` sorting and `EntryTagFilter` |
+| `ios/Sources/OfflineOTPKit/EntryUsage.swift` | The use stamp, the use counter and the HOTP step with its ceiling — the port of `EntryUsage` |
+| `ios/Sources/OfflineOTPKit/EntryDraft.swift` | Turning a form into an entry: which kinds, what a blank timing field means, the shared validation — the port of `EntryDraft` |
+| `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage and draft rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
-| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView`, `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
-| `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, and a real create/save/reopen cycle through `VaultStore` |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), and a real create/save/reopen cycle through `VaultStore` |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
 | `scripts/tests/test_ios_package.py`, `test_ios_app.py`, `test_ios_plan.py` | Keep every restated constant, the field order, the palette, the offline promise and this document honest |
 
@@ -182,17 +187,37 @@ Device and TestFlight signing stay manual, exactly as releases do on the other p
 provisioning profile and an App Store Connect API key (key ID, issuer ID, `.p8`), and the workflow
 would stop at `xcodebuild archive` → `-exportArchive`. It would not create a release note.
 
-## What the shell does, and what it deliberately does not
+## What the app does, and what it deliberately does not
 
-Working: create a vault, unlock with the password, list every entry with its code, count down the
-time step (ten seconds for mOTP whatever the stored period, no countdown for HOTP), copy a code with
-a 30-second pasteboard expiry, lock, and cover the content when the scene leaves the foreground.
+Working: create a vault, unlock with the password, see the five tabs (OTP, Notes, SSH Keys,
+Passwords, Email) with a count on each, search labels, issuers and tags live, filter by tags with
+any/all/one and the tagless switch, order the list five ways (Unsorted, Issuer, Label, Last used, Most
+used — persisted beside the vault, never inside it), reveal an entry and copy its code with a
+30-second pasteboard expiry, step an HOTP counter, add a TOTP/HOTP/Steam/mOTP entry or a secure
+note, edit one, delete one behind a confirmation that names it, lock, and cover the content when the
+scene leaves the foreground.
 
-Not there yet: the five tabs the other clients have (an email account or a password archive is listed
-and explained rather than hidden — hiding data would be worse), search, the tag filter and the five
-sort modes, adding, editing and deleting an entry, imports of any kind, QR codes, encrypted backup
-export and import, plain-text import, Face ID, and the hardware-key features that are Android-only by
-design. Each of those is M2–M5 above.
+Two rules carried over verbatim from the other clients, because they are what makes the same vault
+behave the same way:
+
+- **A concealed entry shows no code and offers no copy.** `details_visible` is vault data, so a
+  reveal is written and survives a reopen; a failed write leaves the entry concealed rather than
+  showing details the file does not agree with. Issuer and label stay visible in either state — they
+  are how a person identifies the row they are about to reveal.
+- **An entry kind this build cannot display is still listed, in its own tab, and explained.** It is
+  never hidden and never dropped: an email account appears under Email with "no code", an SSH key
+  under SSH Keys with "no code".
+
+Not there yet: imports of any kind, QR codes, encrypted backup export and import, plain-text import,
+Face ID, and the hardware-key features that are Android-only by design. Those are M4 and M5 above.
+
+One iOS-specific limit, and it is a limit rather than a parity gap: **an SSH key cannot be created
+here**. Its seed is `SshKeyMaterial`-framed — a public key and a private key with length prefixes —
+which this build does not implement, so the form would have to write a frame it cannot reproduce.
+Such an entry is still read, listed, revealed and written back unchanged. Writing an unframed blob
+into that field would produce an entry the other clients cannot decode, which is worse than a form
+with one option missing. The password and email kinds are excluded for the shared reason: only an
+import can produce them.
 
 The vault lives in `Documents/data/`, the same three filenames the desktop client uses, so the folder
 readable by the Files app is self-explanatory. It is therefore included in an encrypted device backup,

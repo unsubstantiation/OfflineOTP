@@ -2,11 +2,12 @@ import SwiftUI
 
 /// The app shell.
 ///
-/// This is a first, honest shell: unlock a vault, see the entries it holds, copy a code. Everything
-/// about the *format* — the vault files, the backup, the entry document, the tokens — is in
+/// Unlock a vault, then the same list the other two clients show: five tabs, a live search, the tag
+/// filter, the five orders, a reveal per entry, codes with a countdown, and add, edit and delete.
+/// Everything about the *format* and every rule about *which* entry shows where — the vault files,
+/// the backup, the entry document, the tokens, the tabs, the search, the tag rule, the orders — is in
 /// `OfflineOTPKit` and shared with the other clients through the fixed vectors; this layer only
-/// draws it. See docs/ios-client-plan.md for what is still missing (imports, backups, Face ID, and
-/// the tabs the other clients have).
+/// draws it. See docs/ios-client-plan.md for what is still missing (imports, backups, Face ID).
 @main
 struct OfflineOTPApp: App {
     @StateObject private var store = VaultStore()

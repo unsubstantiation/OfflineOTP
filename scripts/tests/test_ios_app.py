@@ -148,9 +148,125 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".expirationDate", clipboard)
         self.assertIn("UTType.utf8PlainText.identifier", clipboard)
 
+    def test_the_tabs_are_the_other_clients_tabs(self):
+        """Five tabs, the same order, the same titles, and no entry kind without a home."""
+        projection = (IOS / "Sources/OfflineOTPKit/EntryListProjection.swift").read_text(
+            encoding="utf-8")
+        presentation = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/View/"
+                        "EntryListPresentation.kt").read_text(encoding="utf-8")
+        # The category set and its order come from the shared enum.
+        kotlin_categories = [match.strip() for match in re.findall(
+            r"enum class Category \{ ([A-Z_, ]+)\}",
+            presentation)]
+        self.assertEqual(["OTP, NOTES, SSH_KEYS, PASSWORDS, EMAILS"], kotlin_categories)
+        category_block = projection.split("public enum EntryCategory", 1)[1].split(
+            "public enum SortMode", 1)[0]
+        swift_categories = re.findall(r"case (\w+) = \"([A-Z_]+)\"", category_block)
+        self.assertEqual(
+            [("otp", "OTP"), ("notes", "NOTES"), ("sshKeys", "SSH_KEYS"),
+             ("passwords", "PASSWORDS"), ("emails", "EMAILS")], swift_categories)
+        # The titles match Android's tab strings and the desktop's categoryTitle.
+        strings = (ROOT / "app/src/main/res/values/strings_main.xml").read_text(encoding="utf-8")
+        for resource in ("tab_otp", "tab_notes", "tab_ssh_keys", "tab_passwords", "tab_email"):
+            self.assertIn(f'<string name="{resource}">', strings)
+        for title in ('"OTP"', '"Notes"', '"SSH Keys"', '"Passwords"', '"Email"'):
+            self.assertIn(f"return {title}", projection)
+        # Every kind the format defines is mapped explicitly, so a new kind cannot fall into a tab
+        # by accident and cannot be dropped from the strip either.
+        kinds = re.findall(r"^\s+case (\w+) = \"([A-Z_]+)\"",
+                           (IOS / "Sources/OfflineOTPKit/Entry.swift").read_text(encoding="utf-8"),
+                           re.MULTILINE)
+        kind_names = {name for name, _ in kinds} if kinds else set()
+        self.assertTrue(kind_names, "no EntryKind cases found")
+        mapping = projection.split("static func of", 1)[1].split("public var title", 1)[0]
+        for name in kind_names:
+            self.assertIn(name, mapping, f"{name} has no tab")
+
+    def test_the_five_orders_and_the_tag_rules_match_the_shared_enums(self):
+        projection = (IOS / "Sources/OfflineOTPKit/EntryListProjection.swift").read_text(
+            encoding="utf-8")
+        constants = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/"
+                     "Constants.kt").read_text(encoding="utf-8")
+        self.assertIn("enum class SortMode {", constants)
+        self.assertIn("UNSORTED, ISSUER, LABEL, LAST_USED, MOST_USED", constants)
+        for stored in ("UNSORTED", "ISSUER", "LABEL", "LAST_USED", "MOST_USED"):
+            self.assertIn(f'= "{stored}"', projection)
+        self.assertIn("OR, AND, SINGLE", constants)
+        for functionality in ("OR", "AND", "SINGLE"):
+            self.assertIn(f'= "{functionality}"', projection)
+        self.assertIn("enum class SearchIncludes {", constants)
+        self.assertIn("LABEL, ISSUER, TAGS", constants)
+        for include in ("LABEL", "ISSUER", "TAGS"):
+            self.assertIn(f'= "{include}"', projection)
+        # The tag rule itself: AND means every tag, otherwise any tag, plus the tagless switch.
+        self.assertIn("isSubset(of: Set(entryTags))", projection)
+        self.assertIn("includeUntagged", projection)
+        # The sort preference is a client preference stored beside the vault, under the desktop
+        # client's key, never inside `secrets.dat`.
+        controller = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/control/"
+                      "VaultController.kt").read_text(encoding="utf-8")
+        self.assertIn('const val SORT_MODE_KEY = "ui_sort_mode"', controller)
+        self.assertIn('public static let settingsKey = "ui_sort_mode"', projection)
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("settings.string(SortMode.settingsKey)", store)
+        self.assertIn("settings.setString(SortMode.settingsKey", store)
+
+    def test_the_usage_rules_match_the_shared_entry_usage(self):
+        usage = (IOS / "Sources/OfflineOTPKit/EntryUsage.swift").read_text(encoding="utf-8")
+        shared = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/"
+                  "EntryUsage.kt").read_text(encoding="utf-8")
+        self.assertIn("const val MAX_COUNTER: Long = Long.MAX_VALUE - 1", shared)
+        self.assertIn("maxCounter: Int64 = Int64.max - 1", usage)
+        # A use is a stamp plus one, an import is a stamp only, and a step is one counter at a time.
+        self.assertIn("entry.setLastUsed(now)", usage)
+        self.assertIn("entry.setUsedFrequency(entry.usedFrequency + 1)", usage)
+        self.assertIn("entry.setCounter(entry.counter + 1)", usage)
+        self.assertIn('guard entry.kind == .hotp, entry.counter < maxCounter else { return false }',
+                      usage)
+        # The store records the use of the entry that was copied, not of the row that was tapped.
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("EntryUsage.recordUse(&proposed[index]", store)
+        self.assertIn("EntryUsage.advanceHotp(&proposed[index])", store)
+
+    def test_a_concealed_entry_cannot_show_or_copy_its_code(self):
+        """Both other clients redact the token until the entry is revealed."""
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("guard entry.detailsVisible else { return nil }", store)
+        self.assertIn("proposed[index].setDetailsVisible(true)", store)
+        list_view = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
+        self.assertIn("if !entry.detailsVisible", list_view)
+        self.assertIn("if entry.detailsVisible, entry.kind?.isOtp == true", list_view)
+
+    def test_the_manual_form_offers_only_what_it_can_build(self):
+        draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
+        shared = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/"
+                  "EntryDraft.kt").read_text(encoding="utf-8")
+        self.assertIn("it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && "
+                      "it != Entry.OTPType.EMAIL", shared)
+        self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]", draft)
+        # SSH keys are the one kind the shared list has and this one does not: their seed is framed
+        # material this build cannot produce, and a wrong frame would be unreadable elsewhere.
+        self.assertIn("SshKeyMaterial", draft)
+        editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
+        self.assertIn("ForEach(EntryDraft.offerableKinds", editor)
+        # The shared wording for a refused number, verbatim.
+        for wording in ('"Digits must be a number"', '"Period must be a number"',
+                        '"HOTP counter must be a number"'):
+            self.assertIn(wording, draft)
+            self.assertIn(wording, shared)
+
+    def test_an_edit_keeps_the_metadata_the_form_does_not_show(self):
+        draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
+        dialog = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/"
+                  "EntryDialog.kt").read_text(encoding="utf-8")
+        for field in ("setDetailsVisible", "setLastUsed", "setUsedFrequency"):
+            self.assertIn(f"replacement.{field}(existing", dialog)
+            self.assertIn(f"result.{field}(existing", draft)
+
     def test_the_views_do_not_compute_codes_or_touch_files(self):
         """A view asks the store or the format layer; it never reimplements either."""
-        for name in ("EntryListView.swift", "UnlockView.swift", "OfflineOTPApp.swift"):
+        for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
+                     "OfflineOTPApp.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -191,6 +307,8 @@ class IosAppTest(unittest.TestCase):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
         self.assertIn("M1.5", plan)
         self.assertIn("**M1.5** ✅", plan)
+        self.assertIn("**M2** ✅", plan)
+        self.assertIn("**M3** ✅", plan)
         for honest_limit in ("no app target and no SwiftUI yet", "tabs", "Face ID"):
             if honest_limit == "no app target and no SwiftUI yet":
                 self.assertNotIn(honest_limit, plan,
