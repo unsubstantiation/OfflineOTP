@@ -398,18 +398,22 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## Build verification
 
-Four GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
+Five GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
 per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
 from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip, a Debian 12 x64 app-image
-tarball and a macOS arm64 app-bundle zip. Each includes SHA-256 checksums; Android also includes the
-signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
+tarball, a macOS arm64 app-bundle zip, and — for iOS — a checksummed source archive of the package the
+tests ran against. Each includes SHA-256 checksums; Android also includes the signing certificate
+details. The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
 **right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.
-There is no iOS client yet: the desktop application is a JVM Swing app and the phone client is
-Android. A native SwiftUI client that reads the same vault and backup formats is planned, with
-its interop contract, milestones and unsigned simulator build spelled out in
-[the iOS client plan](docs/ios-client-plan.md).
+There is no iOS *app* yet: the desktop application is a JVM Swing app and the phone client is
+Android. The iOS side starts as a Swift package (`ios/`) holding the parts that have to match the
+other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
+the token maths — verified against the same fixed vectors in
+`desktop/src/test/resources/golden/`, with a workflow of its own that needs no signing identity. The
+UI, its milestones and the TestFlight story are in
+[the iOS client plan](docs/ios-client-plan.md); run its tests with `cd ios && swift test` on macOS.
 
 The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when
 the release keystore is configured in the `android-release` environment (which allows `master`

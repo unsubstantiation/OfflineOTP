@@ -15,13 +15,13 @@ class NoGithubAutomationTest(unittest.TestCase):
         for directory, dirs, files in os.walk(ROOT):
             dirs[:] = [name for name in dirs if name not in SKIP_DIRS]
             actions.extend(Path(directory) / name for name in files if name in {"action.yml", "action.yaml"})
-        self.assertEqual({"android.yml", "windows.yml", "debian.yml", "macos.yml"},
+        self.assertEqual({"android.yml", "windows.yml", "debian.yml", "macos.yml", "ios.yml"},
                          {path.name for path in workflows})
         self.assertEqual([], [str(path.relative_to(ROOT)) for path in actions])
 
     def test_workflows_are_read_only_pinned_and_upload_only_artifacts(self):
         workflows = ROOT / ".github/workflows"
-        for name in ("android.yml", "windows.yml", "debian.yml", "macos.yml"):
+        for name in ("android.yml", "windows.yml", "debian.yml", "macos.yml", "ios.yml"):
             text = (workflows / name).read_text(encoding="utf-8")
             self.assertIn("workflow_dispatch:", text)
             self.assertIn("pull_request:", text)

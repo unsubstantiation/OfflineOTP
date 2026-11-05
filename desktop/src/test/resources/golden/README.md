@@ -45,4 +45,8 @@ tests must still be run on a device or emulator to verify that runtime.
 `desktop-privacy-export.json.aes` is a desktop-produced mixed OTP, note and SSH backup with
 both hidden and revealed entries. Android device restore coverage is compiled but still needs execution.
 
+The Swift package in `ios/` reads these files **in place** as well (`GoldenCorpus` locates this
+directory from its own source path), so the iOS client is verified against exactly the bytes the
+JVM suites pin, and a format change breaks both at once. It never writes here.
+
 These are test-only fixtures with a throwaway password and no real accounts.

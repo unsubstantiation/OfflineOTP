@@ -12,6 +12,9 @@ build
 # Android Studio
 captures
 
+# Swift Package Manager (the iOS format layer)
+.build/
+
 # OS files
 .DS_Store
 
