@@ -17,6 +17,9 @@ public enum InputPolicy {
     public static let maxPeriodSeconds = 86400
     public static let maxDocumentBytes = 16 * 1024 * 1024
     public static let maxVaultPasswordChars = 1024
+    /// The shortest password either existing client accepts when a vault is created
+    /// (`Constants.AUTH_MIN_PASSWORD_LENGTH`). Enforced by the UIs, not by the vault engine.
+    public static let minVaultPasswordChars = 6
 
     /// Descriptions of the OTP parameters a document may carry; mirrors `tokenParameters`.
     public static func validateTokenParameters(period: Int, digits: Int, counter: Int64) throws {
