@@ -262,19 +262,19 @@ final class MigrationImportTests: XCTestCase {
     }
 
     func testAnExportMayNotGrowPastTheVaultLimit() throws {
-        // A vault holds at most `MAX_ENTRIES`; a second code that would push the export past that
-        // ends the import instead of importing part of it.
-        let full = (0..<InputPolicy.maxEntries).map { index in
-            account(Array("seed\(index)".utf8), name: "account\(index)")
+        // A vault holds at most `MAX_ENTRIES`. One code only carries as many accounts as fit inside
+        // the URI ceiling, so a full vault takes several codes; the code that would cross the limit
+        // ends the import instead of importing part of the export.
+        let perCode = 700
+        func code(_ index: Int) throws -> MigrationPayload {
+            let accounts = (0..<perCode).map { _ in account(Array("a".utf8), name: "") }
+            return try MigrationPayload.parse(uri(payload(accounts: accounts, batchSize: 3,
+                                                          batchIndex: index, batchId: 9)))
         }
-        let big = try MigrationPayload.parse(uri(payload(accounts: full, batchSize: 2,
-                                                        batchIndex: 0, batchId: 9)))
-        let extra = try MigrationPayload.parse(uri(payload(accounts: [account(Array("x".utf8))],
-                                                          batchSize: 2, batchIndex: 1,
-                                                          batchId: 9)))
         var collector = MigrationBatchCollector(generation: 1)
-        XCTAssertEqual(.added, collector.add(big, generation: 1, sessionReady: true))
-        XCTAssertEqual(.tooMany, collector.add(extra, generation: 1, sessionReady: true))
+        XCTAssertEqual(.added, collector.add(try code(0), generation: 1, sessionReady: true))
+        XCTAssertEqual(.added, collector.add(try code(1), generation: 1, sessionReady: true))
+        XCTAssertEqual(.tooMany, collector.add(try code(2), generation: 1, sessionReady: true))
         XCTAssertFalse(collector.isOpen)
         XCTAssertEqual(0, collector.received)
         XCTAssertNil(collector.takeAccounts(generation: 1, sessionReady: true))
