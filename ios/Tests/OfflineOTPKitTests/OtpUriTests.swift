@@ -25,7 +25,9 @@ final class OtpUriTests: XCTestCase {
         XCTAssertEqual(entry.secretBase32, seed)
         XCTAssertEqual(entry.issuer, "Example")
         XCTAssertEqual(entry.label, "alice@example.com")
-        XCTAssertEqual(entry.thumbnail, EntryDraft.defaultThumbnailName)
+        // The thumbnail is the shared default name: this client has no logo artwork, so it writes
+        // the same fallback the other clients write for an issuer they do not recognise.
+        XCTAssertEqual(entry.fields["thumbnail"]?.stringValue, EntryDraft.defaultThumbnailName)
         XCTAssertEqual(try entry.code(unixTime: 1700000000), "324550")
     }
 
