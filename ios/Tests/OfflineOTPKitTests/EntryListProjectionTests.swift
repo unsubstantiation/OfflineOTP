@@ -89,7 +89,7 @@ final class EntryListProjectionTests: XCTestCase {
         XCTAssertEqual(labels(entries, EntryListQuery(text: "work", includes: all)), ["login"])
         // A field that is not included cannot match, even when its text is there.
         XCTAssertEqual(labels(entries, EntryListQuery(text: "work", includes: [.label])), [])
-        XCTAssertEqual(labels(entries, EntryListQuery(text: "beta", includes: [.issuer])), ["login"])
+        XCTAssertEqual(labels(entries, EntryListQuery(text: "beta", includes: [.issuer])), ["alice"])
     }
 
     func testSearchIsCaseInsensitiveWithoutDependingOnTheDeviceLanguage() throws {

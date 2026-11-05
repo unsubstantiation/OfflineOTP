@@ -39,7 +39,9 @@ final class EntryDraftTests: XCTestCase {
     }
 
     func testACounterBasedEntryStoresItsCounterAndNotAPeriod() throws {
-        let built = try create(.hotp, digits: "8", timing: "9")
+        // The fixed HOTP vector: `KRSXG5A=`, 8 digits, SHA-256, counter 9.
+        let built = try create(.hotp, secret: "KRSXG5A=", digits: "8", timing: "9",
+                              algorithm: .sha256)
         XCTAssertEqual(built.counter, 9)
         XCTAssertEqual(built.fields["period"], nil)
         XCTAssertEqual(built.digits, 8)
