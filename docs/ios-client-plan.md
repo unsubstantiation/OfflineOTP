@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
-| **M5** 🔄 | Google Authenticator export import ✅, Face ID unlock ✅, privacy cover ✅, OpenPGP backups, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M5** 🔄 | Google Authenticator export import ✅, Face ID unlock ✅, privacy cover ✅, VoiceOver and target-size pass ✅, OpenPGP backups, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -250,6 +250,26 @@ under a rule worth writing down, because it is easy to get wrong:
 
 `Info.plist` declares `NSFaceIDUsageDescription`; it is the only permission the app asks for, next to
 no camera, no tracking and no networking.
+
+### Accessibility
+
+What a screen reader gets from the list, and why:
+
+- **The code is spoken one character at a time** (`CodeFormat.spoken`). A six-digit code read as a
+  number — "two hundred eighty-two thousand, seven hundred sixty" — cannot be typed into another
+  client, and Steam and mOTP codes mix letters and digits. The characters and their order are
+  untouched; only the spaces VoiceOver already pauses on are added.
+- **The time left is part of the code's value**, so the countdown ring is `accessibilityHidden` — a
+  shape that changes every second is noise, and the value still says "12 seconds left".
+- **The action is the label, the code is the value**: "Copy code", then "3 2 4 5 5 0, 12 seconds
+  left". Folding the value into the label makes VoiceOver announce a changing label on a focused
+  element; splitting them is what the platform expects.
+- **Every control is at least 44 points** (the reveal eye was 32 points tall), and the name, label and
+  kind of a row are combined into one stop instead of three fragments read out of order.
+- Icon-only toolbar buttons all carry labels, and the tab strip reports `isSelected`.
+
+That is the VoiceOver and target-size pass; a full accessibility audit on hardware (Switch Control,
+Voice Control, Dynamic Type at AX5) is part of the TestFlight work, where a device is in the loop.
 
 The other half of M5's "background blur" was settled without a blur: when the scene stops being
 active, `RootView` covers the app with the theme background and a lock glyph. The snapshot iOS takes

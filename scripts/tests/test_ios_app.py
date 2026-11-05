@@ -656,6 +656,45 @@ class IosAppTest(unittest.TestCase):
                          "Enter the vault password to turn this on."):
             self.assertIn(sentence, wording)
 
+    def test_a_code_is_announced_one_character_at_a_time_and_fits_a_thumb(self):
+        """VoiceOver has to be able to read out a code, and every control has to be reachable."""
+        code = (SOURCES / "CodeFormat.swift").read_text(encoding="utf-8")
+        self.assertIn("public static func spoken(_ code: String) -> String", code)
+        self.assertIn('code.map(String.init).joined(separator: " ")', code)
+        self.assertIn("public static func remainingDescription(_ seconds: Int?) -> String", code)
+        self.assertIn('seconds == 1 ? "1 second left"', code)
+
+        row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
+        # The code button says what it does, then the code one character at a time, then the time.
+        self.assertIn('.accessibilityLabel(entry.kind == .hotp ? "Next code" : "Copy code")',
+                      row)
+        self.assertIn(".accessibilityValue(accessibilityCode(code))", row)
+        self.assertIn("CodeFormat.spoken(code)", row)
+        self.assertIn("CodeFormat.remainingDescription(remaining)", row)
+        # The ring draws the countdown; it is decorative now that the value carries the time.
+        self.assertIn(".accessibilityHidden(true)", row)
+        # The name is one stop, not three fragments.
+        self.assertIn(".accessibilityElement(children: .combine)", row)
+        # The reveal control is a full 44-point target, the minimum either platform asks for.
+        self.assertIn(".frame(width: 44, height: 44)", row)
+        for hint in (".accessibilityHint(\"Shows the code and lets it be copied\")",):
+            self.assertIn(hint, row)
+
+        # Every icon-only button in the list has a label; the toolbar is where they all are.
+        labels = re.findall(r'\.accessibilityLabel\("([^"]+)"\)', row)
+        for expected in ("Add an entry", "Backups and links", "Settings", "Lock the vault",
+                         "Clear the search", "How selected tags combine"):
+            self.assertIn(expected, labels, f"{expected} lost its label")
+        # No icon-only button is left for VoiceOver to call just "button": each Image the toolbar
+        # draws is followed by a label within the same block.
+        for icon in ("plus", "externaldrive", "gearshape", "lock.fill"):
+            block = row.split(f'Image(systemName: "{icon}")', 1)[1].split("ToolbarItem", 1)[0]
+            self.assertIn(".accessibilityLabel(", block, f"the {icon} button has no label")
+
+        # The Face ID sentence is a label too, not just text next to a button.
+        unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
+        self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
+
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
         self.assertIn("M1.5", plan)

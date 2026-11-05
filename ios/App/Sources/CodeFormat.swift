@@ -20,6 +20,22 @@ public enum CodeFormat {
         return out
     }
 
+    /// A code the way VoiceOver should read it: one character at a time.
+    ///
+    /// Without this a six-digit code is spoken as a number — "two hundred eighty-two thousand, seven
+    /// hundred sixty" — which is useless to anyone typing it into another client, and a Steam or mOTP
+    /// code mixes letters and digits. The characters and their order are untouched; only spaces (the
+    /// separators VoiceOver already treats as pauses) are inserted.
+    public static func spoken(_ code: String) -> String {
+        code.map(String.init).joined(separator: " ")
+    }
+
+    /// The time left, in words, for a code's accessibility value. Empty when nothing rolls over.
+    public static func remainingDescription(_ seconds: Int?) -> String {
+        guard let seconds else { return "" }
+        return seconds == 1 ? "1 second left" : "\(seconds) seconds left"
+    }
+
     /// What a locked entry shows instead of its code.
     public static let concealedPlaceholder = "•" + String(repeating: "•", count: 5)
 

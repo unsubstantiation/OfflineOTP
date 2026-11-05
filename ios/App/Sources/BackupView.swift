@@ -192,6 +192,7 @@ struct BackupView: View {
             Button("Add an entry from a QR image…") { pickingImage = true }
         } header: {
             Text("Add from a picture")
+            .accessibilityAddTraits(.isHeader)
         } footer: {
             Text("Choose a screenshot or photo of a QR code. A Google Authenticator export is read "
                  + "one code at a time: choose each code from the same export and the accounts are "

@@ -437,6 +437,10 @@ struct EntryRowView: View {
                     .font(.caption2)
                     .foregroundColor(ForestPalette.textHint)
             }
+            // One stop for the name, so VoiceOver does not read three fragments as three items, and
+            // so a long issuer and a long label are read in the order they are drawn.
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(title), \(subtitle)")
             Spacer(minLength: 8)
             trailing
         }
@@ -450,10 +454,12 @@ struct EntryRowView: View {
                 Image(systemName: "eye")
                     .font(.title3)
                     .foregroundColor(ForestPalette.textSecondary)
-                    .frame(width: 44, height: 32)
+                    // The minimum a finger — or a Switch Control cursor — can reliably hit.
+                    .frame(width: 44, height: 44)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Reveal \(title)")
+            .accessibilityHint("Shows the code and lets it be copied")
         } else if entry.kind?.isOtp == true, let code {
             HStack(spacing: 8) {
                 Button {
@@ -466,9 +472,14 @@ struct EntryRowView: View {
                         .minimumScaleFactor(0.7)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(entry.kind == .hotp
-                                    ? "Step the counter, currently \(code)"
-                                    : "Copy code \(code)")
+                // The action, then how the code actually sounds, then how long it has left: read as
+                // one character at a time so it can be typed into another client.
+                .accessibilityLabel(entry.kind == .hotp ? "Next code" : "Copy code")
+                .accessibilityValue(accessibilityCode(code))
+                .accessibilityHint(entry.kind == .hotp
+                                   ? "Steps the counter to the next code"
+                                   : "Copies the code; the clipboard clears after "
+                                     + "\(Int(Clipboard.expirySeconds)) seconds")
                 if entry.kind != .hotp {
                     CountdownRing(fraction: fraction, soon: soon)
                 }
@@ -484,6 +495,14 @@ struct EntryRowView: View {
                 .foregroundColor(ForestPalette.textHint)
                 .accessibilityLabel("No code")
         }
+    }
+
+    /// The spoken value of the code: the characters one at a time, plus the time left when the entry
+    /// rolls over — the ring itself is decorative and hidden from VoiceOver.
+    private func accessibilityCode(_ code: String) -> String {
+        let spoken = CodeFormat.spoken(code)
+        let timeLeft = CodeFormat.remainingDescription(remaining)
+        return timeLeft.isEmpty ? spoken : spoken + ", " + timeLeft
     }
 
     private var title: String {

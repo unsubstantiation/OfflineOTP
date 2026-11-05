@@ -424,7 +424,8 @@ export, committed together once the last one is in), optional Face ID unlock, an
 QR code. A concealed entry shows no code and offers no copy, exactly as on the phone and the desktop
 client, an entry kind this build cannot display is still listed in its tab and explained rather than
 hidden, and a second account from an issuer that is already there asks the phone's *Issuer already
-exists* question first. **Face ID** is off until it is turned on in **Settings**, and turning it on
+exists* question first. The list speaks its codes one character at a time to VoiceOver and every control is a 44-point
+target. **Face ID** is off until it is turned on in **Settings**, and turning it on
 asks for the vault password: the app keeps the derived vault key in a Keychain item that is released
 only after a successful check of the *currently enrolled* face and never leaves the device, so the
 vault file stays encrypted with the password and a forgotten face costs only the shortcut. OpenPGP
