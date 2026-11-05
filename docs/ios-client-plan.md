@@ -174,7 +174,10 @@ what remains.
 
 `ios.yml` exists now that there is a project to build — a workflow before that could only fail or sit
 permanently skipped, which is indistinguishable from coverage that does not exist. It follows the same
-per-platform shape as the other four, on `runs-on: macos-14`:
+per-platform shape as the other four, on `runs-on: macos-15`: the arm64 image, as `macos-14` was
+until GitHub retired that configuration — jobs on it are cancelled at 0 steps with *The
+configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15.8.2 with Xcode 16.4
+(`macos-15-intel` is the x86_64 variant; the app is Apple silicon only, like the desktop build):
 
 1. `swift build --build-tests` and `swift test`, which run the format and fixture tests on the macOS
    host;

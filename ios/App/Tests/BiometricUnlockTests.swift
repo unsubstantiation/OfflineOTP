@@ -189,6 +189,8 @@ final class BiometricUnlockTests: XCTestCase {
         let store = unlockedStore(fake)
         XCTAssertTrue(store.add(try entry("alice")))
         XCTAssertTrue(store.enableBiometricUnlock(password: password))
+        // Where it was filed, remembered before the failed unlock — dropping the key clears it.
+        let account = try XCTUnwrap(fake.storedAccount)
         // The enrolled face changed, or the vault was re-created: the key the device hands back is
         // not this vault's key.
         fake.storedKey = [UInt8](repeating: 7, count: 16)
@@ -200,8 +202,8 @@ final class BiometricUnlockTests: XCTestCase {
         XCTAssertFalse(store.biometricUnlockEnabled)
         XCTAssertFalse(store.canUnlockWithBiometrics)
         // The key is dropped rather than left to fail again on the next tap.
-        let account = try XCTUnwrap(fake.storedAccount)
         XCTAssertTrue(fake.removedAccounts.contains(account))
+        XCTAssertNil(fake.storedKey)
         // And the password still opens the vault, with the entries intact.
         store.unlock(password: password)
         XCTAssertTrue(store.isUnlocked)
