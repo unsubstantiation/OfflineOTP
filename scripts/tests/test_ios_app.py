@@ -57,13 +57,26 @@ class IosAppTest(unittest.TestCase):
                          "a generated project was committed")
 
     def test_the_project_format_is_one_the_runner_can_open(self):
-        """Xcode 15.4 on `macos-14` cannot read a project generated in the newest format."""
+        """The project has to open on the runner's Xcode, and on older ones.
+
+        The image is `macos-15` (arm64, Xcode 16.4). `macos-14` was the first Apple silicon image, but
+        its arm64 configuration stopped starting: jobs were cancelled before their first step with
+        "The configuration 'macos-14-arm64-us-default' is not supported". The format pin is kept at
+        `xcode15_3` on purpose — it is the oldest format XcodeGen can write that still carries
+        everything this project needs, so an Xcode 15 machine can open it too.
+        """
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
         options = project["options"]
         self.assertEqual("xcode15_3", options["projectFormat"])
-        self.assertEqual("15.4", options["xcodeVersion"])
+        self.assertEqual("16.4", options["xcodeVersion"])
         workflow = WORKFLOW
-        self.assertIn("runs-on: macos-14", workflow)
+        # An arm64 image: the app target is built for the same architecture the artifacts ship.
+        self.assertIn("runs-on: macos-15", workflow)
+        self.assertNotIn("runs-on: macos-14", workflow,
+                         "the macos-14 arm64 configuration does not start; see the workflow comment")
+        # The move, and the verified architecture, are written down where the pin is.
+        self.assertIn("uname -m", workflow)
+        self.assertIn("arm64", workflow)
         # A comment has to say why, or the pin looks arbitrary and gets bumped.
         self.assertIn("bump it only together with the runner image", (IOS / "project.yml").read_text(
             encoding="utf-8"))
@@ -272,7 +285,7 @@ class IosAppTest(unittest.TestCase):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
                      "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
-                     "MigrationImportView.swift"):
+                     "MigrationImportView.swift", "SettingsView.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -581,6 +594,119 @@ class IosAppTest(unittest.TestCase):
         hashed = swift.split("public func hash(into hasher", 1)[1].split("}", 1)[0]
         for swift_name in shared.values():
             self.assertIn(f"hasher.combine({swift_name})", hashed)
+
+    def test_the_quick_unlock_is_opt_in_and_keeps_the_password_as_the_key(self):
+        """Face ID is a shortcut to the vault key, never a second way to derive it."""
+        # iOS refuses the prompt outright without the usage sentence, so it has to be declared.
+        project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
+        description = project["targets"]["OfflineOTP"]["info"]["properties"][
+            "NSFaceIDUsageDescription"]
+        self.assertIn("Face ID", description)
+        self.assertGreater(len(description), 40, "the reason must be a real sentence")
+        # The only permission the app declares: no camera, no tracking, no network.
+        for absent in ("NSCameraUsageDescription", "NSMicrophoneUsageDescription",
+                       "NSLocationWhenInUseUsageDescription"):
+            self.assertNotIn(absent, project["targets"]["OfflineOTP"]["info"]["properties"])
+
+        sources = app_sources()
+        biometric = sources["BiometricUnlock.swift"]
+        # The security decision, spelled out in the one file allowed to touch the Keychain.
+        self.assertIn("import LocalAuthentication", biometric)
+        self.assertIn("import Security", biometric)
+        self.assertIn(".biometryCurrentSet", biometric)
+        self.assertIn("kSecAttrAccessibleWhenUnlockedThisDeviceOnly", biometric)
+        self.assertIn("kSecAttrSynchronizable as String: false", biometric)
+        self.assertIn("kSecClassGenericPassword", biometric)
+        self.assertIn("kSecUseAuthenticationContext", biometric)
+        # A device passcode is a *device* secret, not the vault password: biometrics only.
+        self.assertNotIn(".deviceOwnerAuthentication,", biometric)
+        self.assertNotIn("kSecAttrAccessibleAlways", biometric)
+        self.assertNotIn("kSecAttrAccessibleAfterFirstUnlock", biometric)
+        # Only that file speaks to the system sensor or the Keychain; a view cannot.
+        for name, text in sources.items():
+            if name == "BiometricUnlock.swift":
+                continue
+            for forbidden in ("import LocalAuthentication", "import Security", "SecItemAdd",
+                              "SecItemCopyMatching", "LAContext"):
+                self.assertNotIn(forbidden, text, f"{name} must not use {forbidden}")
+
+        # The vault password is the only thing that produces the key: turning the shortcut on asks
+        # for it, and what is filed is the derived key.
+        store = sources["VaultStore.swift"]
+        self.assertIn("public func enableBiometricUnlock(password: String) -> Bool", store)
+        self.assertIn("try vault.open(password: password)", store)
+        self.assertIn("guard verified.key == key", store)
+        self.assertIn("try biometrics.save(key: verified.key", store)
+        self.assertIn("try vault.openWithKey(sessionKey)", store)
+        # The key store only ever handles bytes: there is no shape of it that could carry the
+        # password, and no setting in the vault document that would duplicate one.
+        store_protocol = biometric.split("public protocol BiometricKeyStore {", 1)[1].split(
+            "\n}\n", 1)[0]
+        self.assertIn("func save(key: [UInt8], account: String) throws", store_protocol)
+        self.assertIn("func load(account: String, reason: String,", store_protocol)
+        # The surface between the store and the device has no shape that could carry the password.
+        self.assertNotIn("password", store_protocol)
+        self.assertNotIn("biometric_unlock", (KIT / "PasswordVault.swift").read_text(
+            encoding="utf-8"))
+        # Off until the person turns it on, and remembered beside the vault, not inside it.
+        self.assertIn('biometricSettingKey = "biometric_unlock"', store)
+        self.assertIn("biometricUnlockEnabled && biometry.isAvailable", store)
+        self.assertIn("settings.setString(VaultStore.biometricSettingKey", store)
+
+        # The lock screen offers the button, and the settings sheet asks for the password.
+        unlock = sources["UnlockView.swift"]
+        self.assertIn("store.canUnlockWithBiometrics", unlock)
+        self.assertIn("Unlock with \\(store.biometryTitle)", unlock)
+        settings = sources["SettingsView.swift"]
+        self.assertIn("BiometricWording.switchDetail", settings)
+        self.assertIn("store.enableBiometricUnlock(password: password)", settings)
+        self.assertIn("store.disableBiometricUnlock()", settings)
+
+        # The wording has no Android counterpart, so it is pinned here instead of compared.
+        wording = (SOURCES / "BiometricUnlock.swift").read_text(encoding="utf-8")
+        for sentence in ("Too many attempts. Enter your password to unlock.",
+                         "Set up Face ID on this device first.",
+                         "Enter the vault password to turn this on."):
+            self.assertIn(sentence, wording)
+
+    def test_a_code_is_announced_one_character_at_a_time_and_fits_a_thumb(self):
+        """VoiceOver has to be able to read out a code, and every control has to be reachable."""
+        code = (SOURCES / "CodeFormat.swift").read_text(encoding="utf-8")
+        self.assertIn("public static func spoken(_ code: String) -> String", code)
+        self.assertIn('code.map(String.init).joined(separator: " ")', code)
+        self.assertIn("public static func remainingDescription(_ seconds: Int?) -> String", code)
+        self.assertIn('seconds == 1 ? "1 second left"', code)
+
+        row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
+        # The code button says what it does, then the code one character at a time, then the time.
+        self.assertIn('.accessibilityLabel(entry.kind == .hotp ? "Next code" : "Copy code")',
+                      row)
+        self.assertIn(".accessibilityValue(accessibilityCode(code))", row)
+        self.assertIn("CodeFormat.spoken(code)", row)
+        self.assertIn("CodeFormat.remainingDescription(remaining)", row)
+        # The ring draws the countdown; it is decorative now that the value carries the time.
+        self.assertIn(".accessibilityHidden(true)", row)
+        # The name is one stop, not three fragments.
+        self.assertIn(".accessibilityElement(children: .combine)", row)
+        # The reveal control is a full 44-point target, the minimum either platform asks for.
+        self.assertIn(".frame(width: 44, height: 44)", row)
+        for hint in (".accessibilityHint(\"Shows the code and lets it be copied\")",):
+            self.assertIn(hint, row)
+
+        # Every icon-only button in the list has a label; the toolbar is where they all are.
+        labels = re.findall(r'\.accessibilityLabel\("([^"]+)"\)', row)
+        for expected in ("Add an entry", "Backups and links", "Settings", "Lock the vault",
+                         "Clear the search", "How selected tags combine"):
+            self.assertIn(expected, labels, f"{expected} lost its label")
+        # No icon-only button is left for VoiceOver to call just "button": each Image the toolbar
+        # draws is followed by a label within the same block.
+        for icon in ("plus", "externaldrive", "gearshape", "lock.fill"):
+            block = row.split(f'Image(systemName: "{icon}")', 1)[1].split("ToolbarItem", 1)[0]
+            self.assertIn(".accessibilityLabel(", block, f"the {icon} button has no label")
+
+        # The Face ID sentence is a label too, not just text next to a button.
+        unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
+        self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
 
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")

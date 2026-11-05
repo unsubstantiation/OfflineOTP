@@ -16,7 +16,14 @@ jobs:
     # simulator, on an Apple silicon runner. Nothing here signs for a device or publishes anything:
     # package signing and TestFlight stay manual, as releases do on the other platforms. See
     # docs/ios-client-plan.md.
-    runs-on: macos-14
+    #
+    # `macos-15` is arm64 (verified on the image: `uname -m` is arm64, macOS 15.8.2, Xcode 16.4).
+    # It replaced `macos-14` because that image's arm64 configuration stopped being startable:
+    # every job was cancelled before its first step with "The configuration
+    # 'macos-14-arm64-us-default' is not supported", on all three `macos-14*` labels, while
+    # `macos-15` and `macos-15-intel` started normally. Both are Apple silicon, so the app target is
+    # unchanged; only the Xcode that builds it moved forward.
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5

@@ -47,9 +47,22 @@ public final class VaultStore: ObservableObject {
     /// one; Android's narrower preference lives in its own settings, which neither client reads.
     public let searchIncludes: Set<SearchInclude> = Set(SearchInclude.allCases)
 
+    /// Whether this device can offer the quick unlock, and which sensor it would use. It changes when
+    /// a face is enrolled or removed, so it is asked again whenever the lock screen appears.
+    @Published public private(set) var biometry: BiometryAvailability = .unavailable(.other)
+    /// Whether the person turned the quick unlock on for this vault: a client preference stored beside
+    /// the vault, never inside `secrets.dat`.
+    @Published public private(set) var biometricUnlockEnabled = false
+
+    /// The client preference key, next to `ui_sort_mode` in the settings file.
+    public static let biometricSettingKey = "biometric_unlock"
+    static let biometricEnabled = "enabled"
+    static let biometricDisabled = "disabled"
+
     private let vault: PasswordVault
     private let settings: PropertyListSettings
     private let directory: URL
+    private let biometrics: BiometricKeyStore
     private var key: [UInt8] = []
 
     /// How many times this store has been unlocked. A Google Authenticator export can span several QR
@@ -60,9 +73,12 @@ public final class VaultStore: ObservableObject {
     /// The export being collected, if one is open.
     private var migration: MigrationBatchCollector?
 
-    /// `directory` is injectable so the app tests can use a temporary folder instead of Documents.
-    public init(directory: URL = VaultStore.defaultDirectory()) {
+    /// `directory` is injectable so the app tests can use a temporary folder instead of Documents,
+    /// and `biometrics` so they can drive the quick unlock without a sensor.
+    public init(directory: URL = VaultStore.defaultDirectory(),
+                biometrics: BiometricKeyStore = KeychainBiometricKeyStore()) {
         self.directory = directory
+        self.biometrics = biometrics
         let vaultFile = FileByteStore(url: directory.appendingPathComponent(VaultStore.vaultFilename))
         let backupFile = FileByteStore(
             url: directory.appendingPathComponent(VaultStore.backupFilename))
@@ -74,6 +90,11 @@ public final class VaultStore: ObservableObject {
         // A client preference, not vault data: it is written beside the vault, under the same key the
         // desktop client uses, and an unreadable value falls back to the vault order.
         self.sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
+        // Both are read before the first unlock: the lock screen has to know whether to offer the
+        // quick unlock.
+        self.biometricUnlockEnabled =
+            settings.string(VaultStore.biometricSettingKey) == VaultStore.biometricEnabled
+        self.biometry = biometrics.availability()
     }
 
     // MARK: - Unlocking
@@ -146,6 +167,123 @@ public final class VaultStore: ObservableObject {
         migration?.cancel()
         migration = nil
         generation += 1
+        // The lock screen is about to ask whether it can offer the quick unlock; the answer can have
+        // changed while the vault was open (a face enrolled in Settings, for instance).
+        refreshBiometry()
+    }
+
+    // MARK: - The quick unlock
+
+    /// Asks the device again what it can do. Cheap, and the only way to notice a face being enrolled
+    /// or removed while the app is running.
+    public func refreshBiometry() {
+        biometry = biometrics.availability()
+    }
+
+    /// Clears the sentence the last action left behind, when the person moves on from it.
+    public func clearMessage() {
+        message = nil
+    }
+
+    /// The sensor named in the interface, e.g. "Face ID".
+    public var biometryTitle: String { biometry.kind.title }
+
+    /// True when the lock screen should offer the button: turned on here, and the device still able.
+    public var canUnlockWithBiometrics: Bool {
+        biometricUnlockEnabled && biometry.isAvailable
+    }
+
+    /// Unlocks with the key this device keeps behind Face ID / Touch ID.
+    ///
+    /// The vault file is untouched by this: the key it returns is the same one the password derives,
+    /// and it is the GCM tag that decides whether it opens the file. A key that no longer fits — the
+    /// vault was re-created, or the item was dropped when the enrolled face changed — is removed
+    /// rather than left to fail again, and the person is told to use the password.
+    public func unlockWithBiometrics() {
+        guard !isUnlocked, biometricUnlockEnabled else { return }
+        refreshBiometry()
+        guard biometry.isAvailable else {
+            message = biometry.refusal.isEmpty ? BiometricWording.unavailable : biometry.refusal
+            return
+        }
+        guard let account = vault.vaultIdentifier else {
+            disableBiometricUnlock(announcing: false)
+            message = BiometricWording.stale
+            return
+        }
+        message = nil
+        biometrics.load(account: account, reason: BiometricWording.reason) { [weak self] result in
+            guard let self else { return }
+            switch result {
+            case .success(let sessionKey):
+                self.finishBiometricUnlock(sessionKey)
+            case .failure(let error):
+                if error == .missing { self.disableBiometricUnlock(announcing: false) }
+                self.message = error.message
+            }
+        }
+    }
+
+    private func finishBiometricUnlock(_ sessionKey: [UInt8]) {
+        guard !isUnlocked else { return }
+        do {
+            let unlocked = try vault.openWithKey(sessionKey)
+            key = unlocked.key
+            entries = unlocked.entries
+            isUnlocked = true
+            beginSession()
+            message = nil
+        } catch {
+            disableBiometricUnlock(announcing: false)
+            message = BiometricWording.stale
+        }
+    }
+
+    /// Turns the quick unlock on. The vault password is asked for even though the vault is open: an
+    /// unlocked phone must not be enough to add a face that keeps access after it is locked again.
+    @discardableResult
+    public func enableBiometricUnlock(password: String) -> Bool {
+        guard isUnlocked else { return false }
+        refreshBiometry()
+        guard biometry.isAvailable else {
+            message = biometry.refusal.isEmpty ? BiometricWording.unavailable : biometry.refusal
+            return false
+        }
+        let verified: PasswordVault.Unlocked
+        do {
+            verified = try vault.open(password: password)
+        } catch {
+            message = BiometricWording.wrongPassword
+            return false
+        }
+        // The key that just verified has to be the key this session holds, or the stored key would
+        // open a different file than the one on screen.
+        guard verified.key == key, let account = vault.vaultIdentifier else {
+            message = BiometricWording.saveFailed
+            return false
+        }
+        do {
+            try biometrics.save(key: verified.key, account: account)
+        } catch {
+            message = BiometricWording.saveFailed
+            return false
+        }
+        settings.setString(VaultStore.biometricSettingKey, VaultStore.biometricEnabled)
+        biometricUnlockEnabled = true
+        message = BiometricWording.turnedOn
+        return true
+    }
+
+    /// Turns it off and drops the key. Turning it off only costs convenience, so it asks nothing.
+    public func disableBiometricUnlock() {
+        disableBiometricUnlock(announcing: true)
+    }
+
+    private func disableBiometricUnlock(announcing: Bool) {
+        if let account = vault.vaultIdentifier { biometrics.remove(account: account) }
+        settings.setString(VaultStore.biometricSettingKey, VaultStore.biometricDisabled)
+        biometricUnlockEnabled = false
+        if announcing { message = BiometricWording.turnedOff }
     }
 
     /// Starts a session: everything that was true of the previous unlock stops being true.

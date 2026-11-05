@@ -56,6 +56,22 @@ struct UnlockView: View {
                     .foregroundColor(ForestPalette.textPrimary)
             }
 
+            if !isCreating, store.canUnlockWithBiometrics {
+                Button {
+                    store.unlockWithBiometrics()
+                } label: {
+                    Label("Use \(store.biometryTitle)", systemImage: store.biometry.kind.symbol)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                        .background(ForestPalette.surfaceElevated)
+                        .foregroundColor(ForestPalette.textPrimary)
+                        .cornerRadius(10)
+                }
+                .padding(.horizontal, 32)
+                .accessibilityLabel("Unlock with \(store.biometryTitle)")
+            }
+
             if let message = store.message {
                 Text(message)
                     .font(.footnote)
@@ -87,7 +103,15 @@ struct UnlockView: View {
         .padding(.horizontal, 24)
         .onAppear {
             creating = !store.hasVault
-            passwordFocused = true
+            // A device that can offer the quick unlock should not also raise the keyboard: the
+            // password field stays one tap away for anyone who would rather type it.
+            store.refreshBiometry()
+            passwordFocused = !store.canUnlockWithBiometrics
+        }
+        .task {
+            // One prompt per visit to the lock screen. After a cancel the person can tap the button
+            // again; nothing prompts in a loop.
+            if store.canUnlockWithBiometrics { store.unlockWithBiometrics() }
         }
     }
 

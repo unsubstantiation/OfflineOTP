@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
-| **M5** 🔄 | Google Authenticator export import ✅, OpenPGP backups, Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M5** 🔄 | Google Authenticator export import ✅, Face ID unlock ✅, privacy cover ✅, VoiceOver and target-size pass ✅, OpenPGP backups, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -161,9 +161,10 @@ what remains.
 | `ios/Sources/OfflineOTPKit/ThumbnailCatalog.swift` | The persisted logo names and the issuer matching of `ThumbnailCatalog` in `:core` — generated from it by `scripts/ios/generate-thumbnail-catalog.py`, so an entry added or imported here keeps the logo the other clients would have given it |
 | `ios/Sources/OfflineOTPKit/BackupRestore.swift` | Dated backup names (`BackupFileNames`), strict plain-text decoding (`PlainTextBackupDecoder`), and the merge/replace rule (`VaultRestoreMerge`) |
 | `ios/Sources/OfflineOTPKit/MigrationImport.swift` | Google Authenticator exports: the bounded protobuf reader of `GoogleAuthenticatorMigration`, the session-bound `MigrationBatchCollector`, and Android's `google_import_*` wording |
+| `ios/App/Sources/BiometricUnlock.swift` | The Face ID / Touch ID quick unlock: the `BiometricKeyStore` seam, the Keychain item (`kSecAccessControlBiometryCurrentSet`, `WhenUnlockedThisDeviceOnly`, not synchronizable) that holds the derived vault key, and its sentences |
 | `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage, draft, URI and restore rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
-| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `MigrationImportView` (an export's progress and confirmation), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `MigrationImportView` (an export's progress and confirmation), `SettingsView` (the Face ID switch and the vault folder), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
 | `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), the backup and restore round trips through `VaultStore`, and a real create/save/reopen cycle |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
 | `scripts/ios/generate-thumbnail-catalog.py` | Generates `ThumbnailCatalog.swift` from the Kotlin catalog; `ios.yml` and `scripts/tests/test_ios_app.py` both fail when the copy is stale |
@@ -173,7 +174,10 @@ what remains.
 
 `ios.yml` exists now that there is a project to build — a workflow before that could only fail or sit
 permanently skipped, which is indistinguishable from coverage that does not exist. It follows the same
-per-platform shape as the other four, on `runs-on: macos-14`:
+per-platform shape as the other four, on `runs-on: macos-15`: the arm64 image, as `macos-14` was
+until GitHub retired that configuration — jobs on it are cancelled at 0 steps with *The
+configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15.8.2 with Xcode 16.4
+(`macos-15-intel` is the x86_64 variant; the app is Apple silicon only, like the desktop build):
 
 1. `swift build --build-tests` and `swift test`, which run the format and fixture tests on the macOS
    host;
@@ -201,8 +205,8 @@ Passwords, Email) with a count on each, search labels, issuers and tags live, fi
 any/all/one and the tagless switch, order the list five ways (Unsorted, Issuer, Label, Last used, Most
 used — persisted beside the vault, never inside it), reveal an entry and copy its code with a
 30-second pasteboard expiry, step an HOTP counter, add a TOTP/HOTP/Steam/mOTP entry or a secure
-note, edit one, delete one behind a confirmation that names it, lock, and cover the content when the
-scene leaves the foreground.
+note, edit one, delete one behind a confirmation that names it, turn on Face ID in **Settings**, lock,
+and cover the content when the scene leaves the foreground.
 
 Moving data: write an encrypted backup under a dated name (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`,
 the same shape the phone and the desktop write), restore an encrypted or a legacy plain-text backup —
@@ -226,8 +230,57 @@ behave the same way:
   issuer anyway?* with **Add anyway** — and the identical entry is refused instead of stored twice.
   `allowDuplicateIssuer` is the answer to that question and nothing else sets it.
 
-Not there yet: Face ID, the hardware-key features that are Android-only by design, and one import
-format the other clients have. Those are M5 above, and the format is:
+## Face ID, and why it does not weaken the vault
+
+The quick unlock is the one thing the iOS client has and the other two deliberately do not (Android's
+own issue history has no biometric unlock; the desktop client's unlock is the key file). It was added
+under a rule worth writing down, because it is easy to get wrong:
+
+- **The vault stays password-encrypted.** Nothing about `secrets.dat`, the KDF, the salt or the
+  verifier changes. What Face ID releases is the *derived session key*, so the GCM tag still decides
+  whether a key opens the file, and the password opens it exactly as before. Losing the item — a
+  restore to another phone, a wiped Keychain, a re-created vault — costs the shortcut and nothing else.
+- **Off until turned on, and turning it on asks for the password.** An unlocked phone must not be
+  enough to enrol a face that keeps access after the vault is locked again.
+- **`kSecAccessControlBiometryCurrentSet`, `WhenUnlockedThisDeviceOnly`, not synchronizable.** The item
+  never leaves the device, and enrolling a new face or finger invalidates it — so someone who can add
+  a face to an unlocked phone still cannot use the key they added.
+- **No passcode policy.** Only `.deviceOwnerAuthenticationWithBiometrics` is evaluated: the device
+  passcode is a different secret, and accepting it here would quietly become "the phone's PIN opens the
+  vault". A lockout, a cancel or a missing enrolment all end at the password field.
+- **The switch is a client preference**, stored in `vault.properties.plist` beside `ui_sort_mode`, never
+  inside the vault document — the other clients reading this vault see no change at all.
+
+`Info.plist` declares `NSFaceIDUsageDescription`; it is the only permission the app asks for, next to
+no camera, no tracking and no networking.
+
+### Accessibility
+
+What a screen reader gets from the list, and why:
+
+- **The code is spoken one character at a time** (`CodeFormat.spoken`). A six-digit code read as a
+  number — "two hundred eighty-two thousand, seven hundred sixty" — cannot be typed into another
+  client, and Steam and mOTP codes mix letters and digits. The characters and their order are
+  untouched; only the spaces VoiceOver already pauses on are added.
+- **The time left is part of the code's value**, so the countdown ring is `accessibilityHidden` — a
+  shape that changes every second is noise, and the value still says "12 seconds left".
+- **The action is the label, the code is the value**: "Copy code", then "3 2 4 5 5 0, 12 seconds
+  left". Folding the value into the label makes VoiceOver announce a changing label on a focused
+  element; splitting them is what the platform expects.
+- **Every control is at least 44 points** (the reveal eye was 32 points tall), and the name, label and
+  kind of a row are combined into one stop instead of three fragments read out of order.
+- Icon-only toolbar buttons all carry labels, and the tab strip reports `isSelected`.
+
+That is the VoiceOver and target-size pass; a full accessibility audit on hardware (Switch Control,
+Voice Control, Dynamic Type at AX5) is part of the TestFlight work, where a device is in the loop.
+
+The other half of M5's "background blur" was settled without a blur: when the scene stops being
+active, `RootView` covers the app with the theme background and a lock glyph. The snapshot iOS takes
+for the app switcher therefore contains no list, no label and no code. A blur would leak more than it
+hides — a large glyph stays readable through a modest radius — so the cover is opaque and complete.
+
+Not there yet: the hardware-key features that are Android-only by design, OpenPGP backups, and the
+App Store work. Those are M5 above, and the outstanding format is:
 
 - **OpenPGP backups** (`.json.gpg`) need a whole OpenPGP implementation; see the non-goals below.
 
