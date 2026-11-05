@@ -398,10 +398,18 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## Build verification
 
-Three GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch.
-Download their artifacts from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip,
-and a Debian 12 x64 app-image tarball. Each includes SHA-256 checksums; Android also includes the
+Four GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
+per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
+from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip, a Debian 12 x64 app-image
+tarball and a macOS arm64 app-bundle zip. Each includes SHA-256 checksums; Android also includes the
 signing certificate details. The workflows do **not** publish GitHub releases or run device tests.
+
+The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
+**right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.
+There is no iOS client yet: the desktop application is a JVM Swing app and the phone client is
+Android. A native SwiftUI client that reads the same vault and backup formats is planned, with
+its interop contract, milestones and unsigned simulator build spelled out in
+[the iOS client plan](docs/ios-client-plan.md).
 
 The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when
 the release keystore is configured in the `android-release` environment (which allows `master`
@@ -449,6 +457,7 @@ bash scripts/verify_reproducible_build.sh
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
 - [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
+- [iOS client plan](docs/ios-client-plan.md) — the vault/backup format contract a native SwiftUI client must implement, the fixed-vector corpus it is verified against, and the milestones up to TestFlight.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
 - [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.

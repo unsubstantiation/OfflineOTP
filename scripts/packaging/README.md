@@ -15,6 +15,12 @@ The desktop client is a pure-JVM Swing application. Two Gradle outputs matter fo
   macOS for `.pkg`/`.app`, and Linux for `.deb`/`.rpm`. The default task builds an `app-image`
   (no packager-specific toolchain required); pass `--type` through project properties when
   extending it to native installers.
+- On macOS the result is `desktop/build/release/OfflineOTP.app`. jpackage ad-hoc signs it, so it
+  starts locally but needs **right-click → Open** after a download until it is signed with an Apple
+  Developer ID. Pass `-PmacIconFile=/path/to/offlineotp.icns` to give the bundle an icon; the `.icns`
+  is deliberately not in the repository (`iconutil` builds it from `offlineotp.png`, which is what
+  the macOS workflow does). Archive it with `ditto -c -k --sequesterRsrc --keepParent`, never a
+  plain `zip`, which drops the symlinks and executable bits the bundle needs.
 - Dependencies resolve from Maven Central: `pgpainless-core` (with BouncyCastle), zxing-core and
   the yubikit PC/SC module (with raw-HID `hid4java` excluded).
 

@@ -1,4 +1,4 @@
-"""Restrict repository automation to the three reviewed build workflows."""
+"""Restrict repository automation to the reviewed per-platform build workflows."""
 import os
 import unittest
 from pathlib import Path
@@ -15,12 +15,13 @@ class NoGithubAutomationTest(unittest.TestCase):
         for directory, dirs, files in os.walk(ROOT):
             dirs[:] = [name for name in dirs if name not in SKIP_DIRS]
             actions.extend(Path(directory) / name for name in files if name in {"action.yml", "action.yaml"})
-        self.assertEqual({"android.yml", "windows.yml", "debian.yml"}, {path.name for path in workflows})
+        self.assertEqual({"android.yml", "windows.yml", "debian.yml", "macos.yml"},
+                         {path.name for path in workflows})
         self.assertEqual([], [str(path.relative_to(ROOT)) for path in actions])
 
     def test_workflows_are_read_only_pinned_and_upload_only_artifacts(self):
         workflows = ROOT / ".github/workflows"
-        for name in ("android.yml", "windows.yml", "debian.yml"):
+        for name in ("android.yml", "windows.yml", "debian.yml", "macos.yml"):
             text = (workflows / name).read_text(encoding="utf-8")
             self.assertIn("workflow_dispatch:", text)
             self.assertIn("pull_request:", text)
@@ -57,6 +58,32 @@ class NoGithubAutomationTest(unittest.TestCase):
         self.assertIn("container: debian:bookworm-slim", debian)
         self.assertIn(":desktop:packageDesktop", debian)
         self.assertIn("OfflineOTP/bin/OfflineOTP", debian)
+
+    def test_the_macos_workflow_builds_and_packs_a_native_app_bundle(self):
+        macos = (ROOT / ".github/workflows/macos.yml").read_text(encoding="utf-8")
+        # Apple silicon runner, so the artifact name has to say arm64 rather than x64.
+        self.assertIn("runs-on: macos-14", macos)
+        self.assertIn(":desktop:packageDesktop", macos)
+        self.assertIn("OfflineOTP-macos-arm64", macos)
+        # jpackage emits a .app bundle on macOS; its launcher is what proves the build worked.
+        self.assertIn("desktop/build/release/OfflineOTP.app", macos)
+        self.assertIn("Contents/MacOS/OfflineOTP", macos)
+        # The icon is generated, not committed, and handed to the task through a property.
+        self.assertIn("iconutil -c icns", macos)
+        self.assertIn('-PmacIconFile="$PWD/build/offlineotp.icns"', macos)
+        # ditto keeps the bundle intact; a plain zip flattens its symlinks and exec bits.
+        self.assertIn("ditto -c -k --sequesterRsrc --keepParent", macos)
+        self.assertNotIn("zip -r", macos)
+        self.assertIn("codesign --verify --strict", macos)
+        self.assertIn("SHA256SUMS.txt", macos)
+
+    def test_the_macos_icon_is_generated_rather_than_committed(self):
+        self.assertFalse((ROOT / "desktop/packaging/offlineotp.icns").exists(),
+                         "the .icns is generated from offlineotp.png by the macOS job")
+        gradle = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("project.hasProperty('macIconFile')", gradle)
+        # Only macOS may use the .icns; Windows keeps the .ico and Linux the PNG.
+        self.assertIn("osName.contains('mac') && macIcon.isFile()", gradle)
 
 
 if __name__ == "__main__":

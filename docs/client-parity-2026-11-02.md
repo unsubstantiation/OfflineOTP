@@ -134,3 +134,13 @@ frequency, details visibility) preserved by every edit, the master-password vaul
 (`secrets.dat`, PBKDF2 + AES-GCM) and the reveal/copy rules. Each of these is covered by shared
 `:core` code or by existing desktop tests, so the review checked the call sites rather than
 re-deriving the behaviour.
+
+## A third client
+
+The same rules apply to a client that does not exist yet: a native SwiftUI iOS app is planned in
+[docs/ios-client-plan.md](ios-client-plan.md). It cannot share `:core` code (the module is JVM-only),
+so it shares the *formats* instead — the vault bytes, the encrypted-backup framing and the entry
+JSON, pinned by the fixed-vector corpus in `desktop/src/test/resources/golden/`. The parity rule
+that matters most for it is the one this review kept returning to: an unsupported kind or field is
+**preserved verbatim**, never dropped, because a save must not silently destroy another client's
+data.
