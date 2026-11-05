@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
-| **M5** | Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M5** 🔄 | Google Authenticator export import ✅, OpenPGP backups, Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -160,9 +160,10 @@ what remains.
 | `ios/Sources/OfflineOTPKit/OtpUri.swift` | `otpauth://` in both directions — the port of `OtpUriParser` and `Entry.toUriString`, with the error names of `OtpParseError`, plus the payload classification of `QrImport` |
 | `ios/Sources/OfflineOTPKit/ThumbnailCatalog.swift` | The persisted logo names and the issuer matching of `ThumbnailCatalog` in `:core` — generated from it by `scripts/ios/generate-thumbnail-catalog.py`, so an entry added or imported here keeps the logo the other clients would have given it |
 | `ios/Sources/OfflineOTPKit/BackupRestore.swift` | Dated backup names (`BackupFileNames`), strict plain-text decoding (`PlainTextBackupDecoder`), and the merge/replace rule (`VaultRestoreMerge`) |
+| `ios/Sources/OfflineOTPKit/MigrationImport.swift` | Google Authenticator exports: the bounded protobuf reader of `GoogleAuthenticatorMigration`, the session-bound `MigrationBatchCollector`, and Android's `google_import_*` wording |
 | `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage, draft, URI and restore rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
-| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `MigrationImportView` (an export's progress and confirmation), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
 | `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), the backup and restore round trips through `VaultStore`, and a real create/save/reopen cycle |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
 | `scripts/ios/generate-thumbnail-catalog.py` | Generates `ThumbnailCatalog.swift` from the Kotlin catalog; `ios.yml` and `scripts/tests/test_ios_app.py` both fail when the copy is stale |
@@ -206,7 +207,8 @@ scene leaves the foreground.
 Moving data: write an encrypted backup under a dated name (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`,
 the same shape the phone and the desktop write), restore an encrypted or a legacy plain-text backup —
 merged by default, with the **Replace existing entries** switch — paste an `otpauth://` link, import
-one from a QR image picked from the photo library, and show an entry as a QR code for another device
+one from a QR image picked from the photo library, read a Google Authenticator export code by code
+and import its accounts once the last code is in, and show an entry as a QR code for another device
 to scan.
 
 Three rules carried over verbatim from the other clients, because they are what makes the same vault
@@ -224,13 +226,16 @@ behave the same way:
   issuer anyway?* with **Add anyway** — and the identical entry is refused instead of stored twice.
   `allowDuplicateIssuer` is the answer to that question and nothing else sets it.
 
-Not there yet: Face ID, the hardware-key features that are Android-only by design, and two import
-formats the other clients have. Those are M5 above, and the two formats are:
+Not there yet: Face ID, the hardware-key features that are Android-only by design, and one import
+format the other clients have. Those are M5 above, and the format is:
 
-- **Google Authenticator's multi-account export** (`otpauth-migration://`) needs a protobuf decoder
-  and its own error vocabulary. This client recognises the payload and says so by name rather than
-  reporting a broken link, so a person is told to use another route while that work is outstanding.
 - **OpenPGP backups** (`.json.gpg`) need a whole OpenPGP implementation; see the non-goals below.
+
+Google Authenticator's multi-account export is now imported (M5's first item). A bounded, non-recursive
+reader parses one code of the export; `MigrationBatchCollector` holds the codes of a single export
+until all of them have arrived, so nothing is written for a partly scanned export, and the confirmation
+writes the batch in one commit, skipping an account the vault already holds. The reader, the statuses
+and every sentence are `:core`'s, and `scripts/tests/test_ios_app.py` compares them.
 
 Plain-text export stays unimplemented on purpose: the client *reads* a legacy plain-text backup, warns
 with Android's sentence before the file picker, and writes only encrypted backups.

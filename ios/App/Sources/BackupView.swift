@@ -30,12 +30,21 @@ struct BackupView: View {
     @State private var link = ""
     @State private var importRequest: ImportRequest?
     @State private var duplicateIssuer: String?
+    @State private var migration: MigrationPrompt?
 
     /// An account waiting to be added: its text and whether it came from an image. Kept so the
     /// **Add anyway** answer can re-run the very same import.
     private struct ImportRequest {
         let text: String
         let fromImage: Bool
+    }
+
+    /// A Google Authenticator export in progress, or complete and awaiting confirmation.
+    private struct MigrationPrompt: Identifiable {
+        let id = UUID()
+        let received: Int
+        let expected: Int
+        let entries: [Entry]?
     }
 
     var body: some View {
@@ -98,6 +107,20 @@ struct BackupView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text(BackupWording.plainTextWarning)
+            }
+            .sheet(item: $migration) { prompt in
+                MigrationImportView(received: prompt.received, expected: prompt.expected,
+                                    entries: prompt.entries) {
+                    // The next code of the export comes from the same image picker: the export is
+                    // still open in the store, so the code is added to it rather than starting over.
+                    migration = nil
+                    pickingImage = true
+                } onImport: {
+                    importMigration(prompt.entries ?? [])
+                } onCancel: {
+                    store.cancelMigrationImport()
+                    migration = nil
+                }
             }
             .alert(VaultStore.ImportOutcome.duplicateIssuerTitle,
                    isPresented: Binding(get: { duplicateIssuer != nil },
@@ -170,8 +193,10 @@ struct BackupView: View {
         } header: {
             Text("Add from a picture")
         } footer: {
-            Text("Choose a screenshot or photo of a QR code. Camera scanning arrives with the next "
-                 + "milestone; this reads the image without asking for camera access.")
+            Text("Choose a screenshot or photo of a QR code. A Google Authenticator export is read "
+                 + "one code at a time: choose each code from the same export and the accounts are "
+                 + "imported together once the last one is in. This reads the image without asking "
+                 + "for camera access.")
         }
     }
 
@@ -215,10 +240,35 @@ struct BackupView: View {
         case .duplicateIssuer(let issuer):
             importRequest = request
             duplicateIssuer = issuer
+        case .migration(let step):
+            importRequest = nil
+            show(step)
         case .duplicateEntry, .rejected:
             status = store.message ?? "That account could not be added."
             importRequest = nil
         }
+    }
+
+    /// Shows where an export has got to: the confirmation once every code has arrived, the progress
+    /// sentence while codes are still missing, or a sentence when a code was refused. A named refusal
+    /// keeps the export open, exactly as Android's toast does, so the next code can still complete it.
+    private func show(_ step: VaultStore.MigrationImportStep) {
+        if let entries = step.entries {
+            migration = MigrationPrompt(received: step.received, expected: step.expected,
+                                        entries: entries)
+        } else if step.expected > 1 {
+            migration = MigrationPrompt(received: step.received, expected: step.expected,
+                                        entries: nil)
+        } else {
+            migration = nil
+            status = step.message ?? store.message
+        }
+    }
+
+    private func importMigration(_ entries: [Entry]) {
+        migration = nil
+        let result = store.confirmMigrationImport(entries)
+        status = result.message
     }
 
     private func confirmDuplicateIssuer() {

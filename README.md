@@ -304,6 +304,11 @@ HOTP counter. TOTP uses the format's 30-second default. Unsupported fields or pa
 the QR rather than silently changing the codes. If the vault locks or the activity is destroyed before
 confirmation, start the export import again; unfinished batches are not saved.
 
+On iOS, open **Backups and links** and choose **Add an entry from a QR image…**, then pick a screenshot
+or photo of each code from the same export; the sheet says how many codes have been read and imports
+the accounts together once the last one is in. The desktop client reads an export from a QR **image
+file** the same way, buffering the codes of one export until it is complete.
+
 **Export QR codes and their images contain unencrypted account secrets.** Do not share them or
 upload them to a QR-decoding website; delete any temporary images you no longer need. Matching
 batch IDs help avoid mixing exports but do not authenticate the source. The format is not an
@@ -414,12 +419,13 @@ the token maths, verified against the same fixed vectors in
 labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
 entries, dated encrypted backups, restores that merge by default or replace, legacy plain-text import,
-`otpauth://` and QR-image import, and an entry shown as a QR code. A concealed entry shows no code and
-offers no copy, exactly as on the phone and the desktop client, an entry kind this build cannot display
-is still listed in its tab and explained rather than hidden, and a second account from an issuer that
-is already there asks the phone's *Issuer already exists* question first. Face ID, Google
-Authenticator's multi-account export and OpenPGP backups are not there yet; that list, with milestones,
-is in [the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
+`otpauth://` and QR-image import, Google Authenticator export import (every code of a multi-code
+export, committed together once the last one is in), and an entry shown as a QR code. A concealed entry
+shows no code and offers no copy, exactly as on the phone and the desktop client, an entry kind this
+build cannot display is still listed in its tab and explained rather than hidden, and a second account
+from an issuer that is already there asks the phone's *Issuer already exists* question first. Face ID
+and OpenPGP backups are not there yet; that list, with milestones, is in
+[the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
 simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
 on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.

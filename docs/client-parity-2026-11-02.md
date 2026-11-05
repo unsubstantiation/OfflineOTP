@@ -167,12 +167,12 @@ one is a port rather than a reinterpretation:
 | A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
 | A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
 | A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
+| Two entries are the same account when their kind, token parameters, seed, name, issuer and SSH target match — the usage stamp, counters of use, tags and reveal state are metadata | `Entry.equals`/`hashCode` | `Entry.==`/`hash(into:)` | `VaultStoreTests`, `test_ios_app.py` |
+| A Google Authenticator export is read code by code and written only when every code of it has arrived; a repeated or foreign code is refused without ending it, and an identical account is skipped | `GoogleAuthenticatorMigration`, `MigrationBatchCollector`, Android's `google_import_*` strings, `EntriesCardAdapter.importEntries` | `MigrationPayload`, `MigrationBatchCollector`, `MigrationWording`, `VaultStore.addMigrationImportCode`/`confirmMigrationImport` | `MigrationImportTests`, `VaultStoreTests`, `test_ios_app.py` |
 
 Three things are deliberately *not* the same, and all are recorded in the plan: the iOS client cannot
 create an SSH key (its seed is `SshKeyMaterial`-framed material this build does not implement — such
 entries are read, listed, revealed and written back unchanged); it always searches all three fields,
 which is what the desktop client does, since Android's narrower search preference lives in its own
-settings that neither other client reads; and it does not parse Google Authenticator's multi-account
-export. That last one is a gap rather than a decision: the payload is recognised by scheme and refused
-with a sentence naming it, so a person is told to use a backup or the single-account links instead of
-being shown "not a valid link" for a code that is plainly valid.
+settings that neither other client reads; and OpenPGP backups (`.json.gpg`) are still outstanding,
+because they need a whole OpenPGP implementation.

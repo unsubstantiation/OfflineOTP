@@ -123,6 +123,47 @@ public struct Entry: Equatable, Hashable {
     }
 
     public var pin: String { fields["pin"]?.stringValue ?? "" }
+
+    /// The SSH connection target that makes two otherwise identical SSH entries different accounts —
+    /// `SshConnection.identityKey` on the JVM. The password is deliberately not part of it.
+    private var sshIdentity: [String]? {
+        guard let host = sshHost else { return nil }
+        return [host, sshPort.map(String.init) ?? "", sshUsername ?? ""]
+    }
+
+    /// Equality as `Entry.equals` defines it on the JVM — the *account*, not the field bag.
+    ///
+    /// Kind, token parameters, seed, name, issuer and SSH target decide whether two entries are the
+    /// same account. Everything else — the last-used stamp, the usage counter, the logo, the tags,
+    /// whether details are revealed — is metadata that changes independently: Android compares
+    /// entries this way so that a restore, an import and a paste all collapse to the same vault it
+    /// would produce, and a re-imported account is recognised instead of duplicated because its
+    /// stamp moved.
+    public static func == (lhs: Entry, rhs: Entry) -> Bool {
+        lhs.kind == rhs.kind
+            && lhs.period == rhs.period
+            && lhs.counter == rhs.counter
+            && lhs.digits == rhs.digits
+            && lhs.algorithm == rhs.algorithm
+            && lhs.secretBytes == rhs.secretBytes
+            && lhs.label == rhs.label
+            && lhs.issuer == rhs.issuer
+            && lhs.sshIdentity == rhs.sshIdentity
+    }
+
+    /// Hashes exactly the fields `==` compares, so a `Set<Entry>` collapses the same entries Android's
+    /// `HashSet` would.
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(kind)
+        hasher.combine(period)
+        hasher.combine(counter)
+        hasher.combine(digits)
+        hasher.combine(algorithm)
+        hasher.combine(secretBytes)
+        hasher.combine(label)
+        hasher.combine(issuer)
+        hasher.combine(sshIdentity)
+    }
     public var tags: [String] { fields["tags"]?.arrayValue?.compactMap { $0.stringValue } ?? [] }
     public var lastUsed: Int64 { fields["last_used"]?.intValue ?? 0 }
     public var usedFrequency: Int64 { fields["used_frequency"]?.intValue ?? 0 }
