@@ -39,6 +39,7 @@
   "motp": {
     "pin": "1234",
     "secret": "4c6f6e67206c697665207468652070696e21",
+    "stepSeconds": 10,
     "vectors": [
       {
         "code": "693ae2",

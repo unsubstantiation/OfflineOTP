@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+@testable import OfflineOTPKit
 
 /// Access to the fixed-vector corpus that already pins the on-disk format for the JVM clients.
 ///
