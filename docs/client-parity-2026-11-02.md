@@ -145,8 +145,8 @@ shared *rules* one file at a time. The parity rule that matters most for it is t
 kept returning to: an unsupported kind or field is **preserved verbatim**, never dropped, because a
 save must not silently destroy another client's data.
 
-The iOS client now has the same surfaces as the other two for everything short of imports, backups,
-QR codes and Face ID, and each one is a port rather than a reinterpretation:
+The iOS client now has the same surfaces as the other two for everything short of Face ID, and each
+one is a port rather than a reinterpretation:
 
 | Rule | Shared source | iOS port | Pinned by |
 | --- | --- | --- | --- |
@@ -159,9 +159,19 @@ QR codes and Face ID, and each one is a port rather than a reinterpretation:
 | A manual form's kinds, whitespace rule, wording and metadata preservation | `EntryDraft`, `EntryDialog.preserveEditMetadata` | `EntryDraft` | `EntryDraftTests`, `test_ios_app.py` |
 | A concealed entry shows no code and offers no copy; a reveal is vault data | Android `privacyButton`/`EntriesCardAdapter`, desktop `EntryEditor.setDetailsVisible` | `VaultStore.code(for:)`, `setDetailsVisible` | `VaultStoreTests` |
 | A removal asks by name | `dialog_msg_confirm_delete`, desktop `MainWindow` | `EntryListView` alert | `EntryListView` |
+| `otpauth://` parsing, in both directions, with the same refusals | `OtpUriParser`, `ValidatedOtp.create`, `OtpParseError` | `OtpUri` | `OtpUriTests`, `test_ios_app.py` |
+| An entry's QR payload and its field order (`secret`, `issuer`, `counter`, `period` when not 30, `digits` when not 6, `algorithm` when not SHA1, then `tags`), `%20` never `+` | `Entry.toUriString` | `OtpUri.uri(for:)` | `OtpUriTests`, `test_ios_app.py` |
+| A QR payload is classified before it is parsed; a migration export is named, not guessed at | `QrImport.classify` | `QrPayload.classify` | `OtpUriTests` |
+| A backup is dated (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`) with ASCII digits | `BackupFileNames` | `BackupFileNames` | `BackupRestoreTests`, `test_ios_app.py` |
+| A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
+| A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
+| A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
 
-Two things are deliberately *not* the same, and both are recorded in the plan: the iOS client cannot
+Three things are deliberately *not* the same, and all are recorded in the plan: the iOS client cannot
 create an SSH key (its seed is `SshKeyMaterial`-framed material this build does not implement — such
-entries are read, listed, revealed and written back unchanged), and it always searches all three
-fields, which is what the desktop client does; Android's narrower search preference lives in its own
-settings, which neither other client reads.
+entries are read, listed, revealed and written back unchanged); it always searches all three fields,
+which is what the desktop client does, since Android's narrower search preference lives in its own
+settings that neither other client reads; and it does not parse Google Authenticator's multi-account
+export. That last one is a gap rather than a decision: the payload is recognised by scheme and refused
+with a sentence naming it, so a person is told to use a backup or the single-account links instead of
+being shown "not a valid link" for a code that is plainly valid.

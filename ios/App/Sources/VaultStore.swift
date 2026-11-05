@@ -335,6 +335,198 @@ public final class VaultStore: ObservableObject {
         return false
     }
 
+    // MARK: - Backups, restores and links
+
+    /// One exported backup: the bytes and the dated name they are written under.
+    public struct ExportedBackup {
+        public let name: String
+        public let data: Data
+    }
+
+    /// Encrypts every entry with a password the person typed, under a dated name.
+    ///
+    /// The backup password is deliberately not the vault password: both other clients ask for it
+    /// separately, and reusing one would let a leaked backup open the vault.
+    public func exportBackup(password: String, now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        guard !password.isEmpty, password.count <= InputPolicy.maxVaultPasswordChars else {
+            message = "The backup password is empty or too long."
+            return nil
+        }
+        do {
+            let document = try VaultDocument.encode(entries)
+            let data = try EncryptedBackup.sealWithFreshParameters(password: password,
+                                                                  plain: document)
+            return ExportedBackup(name: BackupFileNames.encrypted(now), data: data)
+        } catch {
+            message = "The backup could not be written."
+            return nil
+        }
+    }
+
+    /// Restores a password-encrypted backup, merging or replacing. Returns the plan, or nil with a
+    /// sentence in `message`.
+    public func restore(encrypted data: Data, password: String, replace: Bool) -> RestorePlan? {
+        do {
+            let document = try EncryptedBackup.open(password: password, data: data)
+            return install(document: document, replace: replace)
+        } catch VaultCryptoError.authenticationFailed {
+            message = BackupWording.wrongPassword
+            return nil
+        } catch EncryptedBackupError.invalidPassword {
+            message = "The backup password is empty or too long."
+            return nil
+        } catch {
+            message = BackupWording.unreadableBackup
+            return nil
+        }
+    }
+
+    /// Restores a legacy unencrypted JSON backup. The client reads one; it never writes one.
+    public func restore(plainText data: Data, replace: Bool) -> RestorePlan? {
+        let document: String
+        do {
+            document = try PlainTextBackupDecoder.decode(data)
+        } catch {
+            message = BackupWording.plainTextInvalid
+            return nil
+        }
+        return install(document: document, replace: replace)
+    }
+
+    private func install(document: String, replace: Bool) -> RestorePlan? {
+        let imported: [Entry]
+        do {
+            imported = try VaultDocument.decode(document)
+        } catch {
+            message = "The backup does not contain a readable entry list."
+            return nil
+        }
+        let plan: RestorePlan
+        do {
+            plan = try VaultRestoreMerge.plan(imported: imported, current: entries,
+                                              replace: replace)
+        } catch VaultRestoreMergeError.emptyImport {
+            message = BackupWording.emptyBackup
+            return nil
+        } catch {
+            message = BackupWording.duplicateBackup
+            return nil
+        }
+        guard plan.entries.count <= InputPolicy.maxEntries else {
+            message = "The backup would grow this vault past \(InputPolicy.maxEntries) entries."
+            return nil
+        }
+        // Write first, publish second: a failed restore must not discard the current entries.
+        guard commit(plan.entries) else { return nil }
+        return plan
+    }
+
+    /// The `otpauth://` link for an entry, or nil when it has none. This is also the QR payload, so
+    /// **Show QR code** and **Copy link** can never disagree.
+    public func otpUri(for index: Int) -> String? {
+        guard entries.indices.contains(index) else { return nil }
+        return OtpUri.uri(for: entries[index])
+    }
+
+    /// What an import did. The duplicate-issuer case is a question, not a failure: the other two
+    /// clients ask **Add anyway** when a new account's issuer is already in the vault, and only then
+    /// add it, so a second GitHub account is a deliberate choice rather than a silent duplicate.
+    public enum ImportOutcome: Equatable {
+        case added
+        case duplicateIssuer(String)
+        case duplicateEntry
+        case rejected(String)
+
+        /// The question the duplicate-issuer case asks, word for word as on Android.
+        public static let duplicateIssuerTitle = "Issuer already exists"
+        public static func duplicateIssuerMessage(_ issuer: String) -> String {
+            "An account for \(issuer) is already in your vault. Add another account from this "
+                + "issuer anyway?"
+        }
+        public static let addAnyway = "Add anyway"
+
+        public var didAdd: Bool { self == .added }
+    }
+
+    /// True when a non-blank issuer is already present, ignoring surrounding space and case —
+    /// `EntryList.hasIssuer`.
+    public func hasIssuer(_ issuer: String) -> Bool {
+        let candidate = issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return false }
+        return entries.contains {
+            $0.issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+                .caseInsensitiveCompare(candidate) == .orderedSame
+        }
+    }
+
+    /// Adds the entry a pasted `otpauth://` link describes. `allowDuplicateIssuer` carries the answer
+    /// to the **Add anyway** question.
+    public func importUri(_ text: String, allowDuplicateIssuer: Bool = false,
+                          now: Date = Date()) -> ImportOutcome {
+        // A pasted link may arrive with a stray newline from the clipboard; the parser itself stays
+        // byte-exact, as it is for a scanned payload.
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        do {
+            return insert(try OtpUri.parse(trimmed).entry(now: EntryUsage.nowMillis(now)),
+                          allowDuplicateIssuer: allowDuplicateIssuer)
+        } catch let error as OtpParseError {
+            message = error.message
+            return .rejected(error.rawValue)
+        } catch {
+            message = "That link could not be turned into an entry."
+            return .rejected("UNKNOWN")
+        }
+    }
+
+    /// Adds the entry a QR payload describes. A Google Authenticator export is recognised and
+    /// refused by name rather than being reported as a broken link.
+    public func importPayload(_ text: String, allowDuplicateIssuer: Bool = false,
+                              now: Date = Date()) -> ImportOutcome {
+        switch QrPayload.classify(text) {
+        case .otp(let uri):
+            do {
+                return insert(try uri.entry(now: EntryUsage.nowMillis(now)),
+                              allowDuplicateIssuer: allowDuplicateIssuer)
+            } catch let error as OtpParseError {
+                message = error.message
+                return .rejected(error.rawValue)
+            } catch {
+                message = "That code could not be turned into an entry."
+                return .rejected("UNKNOWN")
+            }
+        case .migration:
+            message = "Google Authenticator exports are not supported yet. Export the accounts "
+                + "from Google Authenticator as otpauth:// links, or restore a backup instead."
+            return .rejected("MIGRATION")
+        case .invalid(let reason):
+            message = OtpParseError(rawValue: reason)?.message ?? OtpParseError.invalidUri.message
+            return .rejected(reason)
+        case .unrecognized:
+            message = "That code does not contain an otpauth:// link."
+            return .rejected("UNRECOGNIZED")
+        }
+    }
+
+    /// The one place an imported account is put into the vault, so a link and a QR code share the
+    /// duplicate rules instead of each re-implementing them.
+    private func insert(_ entry: Entry, allowDuplicateIssuer: Bool) -> ImportOutcome {
+        let issuer = entry.issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !issuer.isEmpty, hasIssuer(issuer), !allowDuplicateIssuer {
+            return .duplicateIssuer(issuer)
+        }
+        if entries.contains(entry) {
+            message = "This vault already holds that entry."
+            return .duplicateEntry
+        }
+        guard entries.count < InputPolicy.maxEntries else {
+            message = "This vault already holds the maximum of \(InputPolicy.maxEntries) entries."
+            return .rejected("MAX_ENTRIES")
+        }
+        guard add(entry) else { return .rejected("NOT_ADDED") }
+        return .added
+    }
+
     /// The name a confirmation asks about: the label, or the issuer when the label is blank — the
     /// rule both other clients use when they name an entry in a prompt.
     public static func displayName(_ entry: Entry) -> String {

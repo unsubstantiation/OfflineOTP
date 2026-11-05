@@ -1,11 +1,12 @@
 # Native iOS client — plan
 
-Status: **there is an app, and it does the daily job** (`ios/`, milestones M0–M3 — see
-[What exists today](#what-exists-today)). It opens or creates a vault, shows the five tabs with a
-live search, the tag filter and the five orders, reveals an entry, generates its code, copies it with
-an expiry, steps an HOTP counter, and adds, edits and deletes entries — in the shared Dark Forest
-theme. It has no imports, no backups and no Face ID yet, and it is not signed or submitted anywhere:
-a simulator build is the only artifact. `:core` still cannot be reused (see
+Status: **there is an app, and it does the daily job and moves data in and out** (`ios/`,
+milestones M0–M4 — see [What exists today](#what-exists-today)). It opens or creates a vault, shows
+the five tabs with a live search, the tag filter and the five orders, reveals an entry, generates its
+code, copies it with an expiry, steps an HOTP counter, adds, edits and deletes entries, writes and
+restores encrypted backups, reads a legacy plain-text backup, imports `otpauth://` links and QR
+images, and shows an entry as a QR code — in the shared Dark Forest theme. It has no Face ID yet,
+and it is not signed or submitted anywhere: a simulator build is the only artifact. `:core` still cannot be reused (see
 [Why not Kotlin Multiplatform](#why-not-kotlin-multiplatform)). This document is the contract a
 SwiftUI client has to satisfy, so that it is a fourth *reader and writer* of the same vault rather
 than a fourth format.
@@ -136,8 +137,8 @@ the crypto never has to be reviewed by eye.
 | **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every pull request |
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
-| **M4** | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android |
-| **M5** | Face ID lock, clipboard expiry, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
+| **M5** | Face ID lock, background blur, accessibility, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -156,10 +157,12 @@ what remains.
 | `ios/Sources/OfflineOTPKit/EntryListProjection.swift` | Tabs, live search, the tag rule and the five orders — the port of `EntryListPresentation`, `EntryList` sorting and `EntryTagFilter` |
 | `ios/Sources/OfflineOTPKit/EntryUsage.swift` | The use stamp, the use counter and the HOTP step with its ceiling — the port of `EntryUsage` |
 | `ios/Sources/OfflineOTPKit/EntryDraft.swift` | Turning a form into an entry: which kinds, what a blank timing field means, the shared validation — the port of `EntryDraft` |
-| `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage and draft rules |
+| `ios/Sources/OfflineOTPKit/OtpUri.swift` | `otpauth://` in both directions — the port of `OtpUriParser` and `Entry.toUriString`, with the error names of `OtpParseError`, plus the payload classification of `QrImport` |
+| `ios/Sources/OfflineOTPKit/BackupRestore.swift` | Dated backup names (`BackupFileNames`), strict plain-text decoding (`PlainTextBackupDecoder`), and the merge/replace rule (`VaultRestoreMerge`) |
+| `ios/Tests/OfflineOTPKitTests/` | The fixture tests, the vault round-trip tests, the token vectors, and the projection, usage, draft, URI and restore rules |
 | `ios/project.yml` | The Xcode project definition (XcodeGen). The generated `.xcodeproj` is not committed |
-| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
-| `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), and a real create/save/reopen cycle through `VaultStore` |
+| `ios/App/Sources/` | The app: `OfflineOTPApp` (entry point, `scenePhase` cover), `UnlockView`, `EntryListView` (tabs, search, tag chips, sort menu, rows, row menu), `EntryEditorView`, `BackupView` (export, restore, link and image import), `QrCodeView` (an entry as a QR code), `QrImageReader` (Vision), `VaultStore`, `CodeFormat`, `Clipboard`, `ForestPalette` |
+| `ios/App/Tests/` | The app's unit tests: grouping and countdown arithmetic, the list rules reaching the files (tabs, search, tags, orders, reveal, counter step, add/edit/delete), the backup and restore round trips through `VaultStore`, and a real create/save/reopen cycle |
 | `scripts/ios/generate-token-vectors.py` | Generates the token vectors after checking itself against the published RFC 4226/6238 values |
 | `scripts/tests/test_ios_package.py`, `test_ios_app.py`, `test_ios_plan.py` | Keep every restated constant, the field order, the palette, the offline promise and this document honest |
 
@@ -197,7 +200,13 @@ used — persisted beside the vault, never inside it), reveal an entry and copy 
 note, edit one, delete one behind a confirmation that names it, lock, and cover the content when the
 scene leaves the foreground.
 
-Two rules carried over verbatim from the other clients, because they are what makes the same vault
+Moving data: write an encrypted backup under a dated name (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`,
+the same shape the phone and the desktop write), restore an encrypted or a legacy plain-text backup —
+merged by default, with the **Replace existing entries** switch — paste an `otpauth://` link, import
+one from a QR image picked from the photo library, and show an entry as a QR code for another device
+to scan.
+
+Three rules carried over verbatim from the other clients, because they are what makes the same vault
 behave the same way:
 
 - **A concealed entry shows no code and offers no copy.** `details_visible` is vault data, so a
@@ -207,9 +216,21 @@ behave the same way:
 - **An entry kind this build cannot display is still listed, in its own tab, and explained.** It is
   never hidden and never dropped: an email account appears under Email with "no code", an SSH key
   under SSH Keys with "no code".
+- **An import asks before it adds a second account from an issuer that is already there.** The
+  question is Android's, word for word — *Issuer already exists* … *Add another account from this
+  issuer anyway?* with **Add anyway** — and the identical entry is refused instead of stored twice.
+  `allowDuplicateIssuer` is the answer to that question and nothing else sets it.
 
-Not there yet: imports of any kind, QR codes, encrypted backup export and import, plain-text import,
-Face ID, and the hardware-key features that are Android-only by design. Those are M4 and M5 above.
+Not there yet: Face ID, the hardware-key features that are Android-only by design, and two import
+formats the other clients have. Those are M5 above, and the two formats are:
+
+- **Google Authenticator's multi-account export** (`otpauth-migration://`) needs a protobuf decoder
+  and its own error vocabulary. This client recognises the payload and says so by name rather than
+  reporting a broken link, so a person is told to use another route while that work is outstanding.
+- **OpenPGP backups** (`.json.gpg`) need a whole OpenPGP implementation; see the non-goals below.
+
+Plain-text export stays unimplemented on purpose: the client *reads* a legacy plain-text backup, warns
+with Android's sentence before the file picker, and writes only encrypted backups.
 
 One iOS-specific limit, and it is a limit rather than a parity gap: **an SSH key cannot be created
 here**. Its seed is `SshKeyMaterial`-framed — a public key and a private key with length prefixes —

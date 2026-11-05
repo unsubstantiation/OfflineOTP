@@ -17,6 +17,9 @@ APP = IOS / "App"
 SOURCES = APP / "Sources"
 APP_TESTS = APP / "Tests"
 PALETTE = (SOURCES / "ForestPalette.swift").read_text(encoding="utf-8")
+KIT = IOS / "Sources/OfflineOTPKit"
+UTILITIES = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
+ANDROID_VALUES = ROOT / "app/src/main/res/values"
 FOREST = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/ForestTheme.kt"
 WORKFLOW = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
 
@@ -266,7 +269,7 @@ class IosAppTest(unittest.TestCase):
     def test_the_views_do_not_compute_codes_or_touch_files(self):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
-                     "OfflineOTPApp.swift"):
+                     "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -303,12 +306,151 @@ class IosAppTest(unittest.TestCase):
                           "DEVELOPMENT_TEAM: ABC"):
             self.assertNotIn(forbidden, WORKFLOW, f"ios.yml must not use {forbidden}")
 
+    # MARK: - Backups, restores and links
+
+    def test_the_link_parser_reports_the_shared_error_names(self):
+        """A refused link has to fail for the same reason on every client, with the same name."""
+        kotlin = (UTILITIES / "OtpParseResult.kt").read_text(encoding="utf-8")
+        block = re.search(r"enum class OtpParseError \{(.*?)\}", kotlin, re.S)
+        self.assertIsNotNone(block, "the shared error enum moved")
+        kotlin_names = re.findall(r"\b[A-Z][A-Z_]+\b", block.group(1))
+        swift = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
+        swift_names = re.findall(r'case \w+ = "([A-Z_]+)"', swift)
+        self.assertEqual(kotlin_names, swift_names,
+                         "the Swift error cases drifted from OtpParseError")
+
+    def test_the_link_parser_uses_the_shared_bounds_and_decodes_itself(self):
+        policy = (UTILITIES / "InputPolicy.kt").read_text(encoding="utf-8")
+        self.assertIn("const val MAX_URI_CHARS = 16384", policy)
+        swift = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
+        self.assertIn("maxURIChars = 16384", (KIT / "InputPolicy.swift").read_text(
+            encoding="utf-8"))
+        for bound in ("InputPolicy.maxSecretBytes", "InputPolicy.maxTags",
+                      "InputPolicy.maxTagChars", "InputPolicy.maxTextChars"):
+            self.assertIn(bound, swift, f"the parser must apply {bound}")
+        # The decoding is the parser's own: the system URL types accept encodings the JVM clients
+        # reject, so using one would make the same link work here and fail there.
+        self.assertNotIn("URLComponents(", swift)
+        self.assertNotIn("URL(string:", swift)
+        self.assertNotIn("removingPercentEncoding", swift)
+        # Raw spaces are escaped before parsing and `+` means space only inside the query.
+        self.assertIn('replacingOccurrences(of: " ", with: "%20")', swift)
+        self.assertIn("plusAsSpace", swift)
+
+    def test_a_link_round_trips_through_the_shared_field_order(self):
+        """`Entry.toUriString`'s order is what `Show QR code` shows, so it is pinned here too."""
+        kotlin = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt"
+                  ).read_text(encoding="utf-8")
+        for piece in ('query["secret"]', 'query["issuer"]', 'query["counter"]',
+                      'query["period"]', 'query["digits"]', 'query["algorithm"]',
+                      'append("&tags=")'):
+            self.assertIn(piece, kotlin)
+        swift = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
+        for piece in ('pairs.append(("secret"', 'pairs.append(("issuer"',
+                      'pairs.append(("counter"', 'pairs.append(("period"',
+                      'pairs.append(("digits"', 'pairs.append(("algorithm"',
+                      'out += "&tags=" + percentEncode(tag)'):
+            self.assertIn(piece, swift, f"the serializer must keep {piece}")
+        # Only an entry with an otpauth form has a code to show.
+        self.assertIn("case .note, .sshKey, .password, .passwordArchive, .email: return nil", swift)
+
+    def test_a_backup_is_dated_and_plain_text_is_import_only(self):
+        swift = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
+        self.assertIn('timestampPattern = "yyyy-MM-dd_HH-mm-ss"', swift)
+        self.assertIn('TIMESTAMP_PATTERN = "yyyy-MM-dd_HH-mm-ss"',
+                      (UTILITIES / "BackupFileNames.kt").read_text(encoding="utf-8"))
+        constants = (UTILITIES / "Constants.kt").read_text(encoding="utf-8")
+        self.assertIn('BACKUP_FILENAME_CRYPT_FORMAT = "otp_accounts_%s.json.aes"', constants)
+        self.assertIn('encryptedPrefix = "otp_accounts_"', swift)
+        self.assertIn('encryptedSuffix = ".json.aes"', swift)
+        # ASCII digits in every language, as `Locale.ENGLISH` gives the JVM clients.
+        self.assertIn('Locale(identifier: "en_US_POSIX")', swift)
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("PlainTextBackupDecoder.decode", store)
+        # Import only: there is no plain-text writer in this client, by design.
+        self.assertNotIn("plainTextBackup(", store)
+        self.assertNotIn("encodePlainText", store)
+        self.assertNotIn("PlainTextBackupEncoder", store)
+
+    def test_a_restore_merges_the_way_the_shared_rule_does(self):
+        swift = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
+        for name in ("emptyImport", "duplicateEntries"):
+            self.assertIn(name, swift)
+        # Imported first, the vault's own copies kept; a replace ignores the current entries.
+        self.assertIn("imported.filter { !retained.contains($0) }", swift)
+        self.assertIn("replace ? fresh : fresh + current", swift)
+        self.assertIn("Set(merged).count == merged.count", swift)
+        # The summary is the desktop's sentence, because Android's toast says only "Backup restored."
+        dialogs = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/"
+                   "BackupDialogs.kt").read_text(encoding="utf-8")
+        self.assertIn('"Merged $count new entr', dialogs)
+        self.assertIn('"The backup had no entries the vault does not already hold."', dialogs)
+        wording = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
+        self.assertIn("Merged \\(plan.added) new \\(noun) into the vault", wording)
+        self.assertIn("The backup had no entries the vault does not already hold.", wording)
+
+    def test_the_plain_text_warning_is_the_android_sentence(self):
+        strings = (ANDROID_VALUES / "strings_backup.xml").read_text(encoding="utf-8")
+        warning = ("Plain-text backups contain your OTP secrets without encryption. Only restore a "
+                   "file you trust. OfflineOTP imports the entries but does not create plain-text "
+                   "backups.")
+        self.assertIn(warning, strings)
+        wording = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
+        # The Swift literal is wrapped across lines, so the pieces are checked one at a time.
+        for piece in ("Plain-text backups contain your OTP secrets without encryption. Only restore "
+                      "a file you ", "trust. OfflineOTP imports the entries but does not create ",
+                      "plain-text backups."):
+            self.assertIn(piece, wording)
+        # The warning comes before the file picker, as on the phone.
+        view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
+        self.assertIn("warningPlainText = true", view)
+
+    def test_a_second_account_from_an_issuer_is_a_question(self):
+        strings = (ANDROID_VALUES / "strings_main.xml").read_text(encoding="utf-8")
+        self.assertIn('<string name="dialog_title_duplicate_issuer">Issuer already exists</string>',
+                      strings)
+        self.assertIn('An account for %1$s is already in your vault. Add another account from this '
+                      'issuer anyway?', strings)
+        self.assertIn('<string name="button_add_anyway">Add anyway</string>', strings)
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn('duplicateIssuerTitle = "Issuer already exists"', store)
+        self.assertIn('addAnyway = "Add anyway"', store)
+        self.assertIn('"An account for \\(issuer) is already in your vault. Add another account '
+                      'from this "', store)
+        self.assertIn('"issuer anyway?"', store)
+        # Only an import asks; adding or editing an entry never does — the rule on the phone too.
+        self.assertIn("allowDuplicateIssuer", store)
+        self.assertNotIn("duplicateIssuer", (SOURCES / "EntryEditorView.swift").read_text(
+            encoding="utf-8"))
+
+    def test_a_qr_code_is_drawn_and_read_without_a_camera_claim(self):
+        view = (SOURCES / "QrCodeView.swift").read_text(encoding="utf-8")
+        self.assertIn("CIFilter.qrCodeGenerator()", view)
+        # The payload is the shared link, never a string this view builds itself.
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("OtpUri.uri(for: entries[index])", store)
+        reader = (SOURCES / "QrImageReader.swift").read_text(encoding="utf-8")
+        self.assertIn("import Vision", reader)
+        self.assertIn("VNDetectBarcodesRequest", reader)
+        # An image picked by the person; no camera permission is requested or needed.
+        self.assertNotIn("AVCaptureDevice", reader)
+        self.assertNotIn("requestAccess", reader)
+        self.assertNotIn("NSCameraUsageDescription", (IOS / "project.yml").read_text(
+            encoding="utf-8"))
+        # A Google Authenticator export is recognised and named, not reported as a broken link.
+        uri = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
+        self.assertIn("otpauth-migration:", uri)
+        self.assertIn("case migration", uri)
+        strings = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("Google Authenticator exports are not supported yet.", strings)
+
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
         self.assertIn("M1.5", plan)
         self.assertIn("**M1.5** ✅", plan)
         self.assertIn("**M2** ✅", plan)
         self.assertIn("**M3** ✅", plan)
+        self.assertIn("**M4** ✅", plan)
         for honest_limit in ("no app target and no SwiftUI yet", "tabs", "Face ID"):
             if honest_limit == "no app target and no SwiftUI yet":
                 self.assertNotIn(honest_limit, plan,

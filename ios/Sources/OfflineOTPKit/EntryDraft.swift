@@ -41,6 +41,12 @@ public enum EntryDraft {
     /// preserved untouched.
     public static let offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]
 
+    /// The stored thumbnail name when nothing better is known — `ThumbnailCatalog.DEFAULT_NAME`.
+    /// The other two clients resolve a service logo from the issuer and store its name; this client
+    /// has no logo artwork, so it writes the same fallback those clients use for an issuer they do
+    /// not recognise. A reader normalises an unknown or empty name to this value anyway.
+    public static let defaultThumbnailName = "Default"
+
     /// A secret is Base32 or a raw mOTP seed: whitespace is never part of it, and a pasted secret is
     /// commonly broken across lines. Notes are free text and keep every character — the same rule as
     /// `EntryDraft.sanitizeSecret`.
@@ -134,8 +140,9 @@ public enum EntryDraft {
         guard seed.count <= SecretLimit.forKind(kind) else { throw EntryDraftError.invalidSecret }
 
         // The stored field set, in the order `EntryJson.serialize` writes it. `thumbnail` is always
-        // present (empty when no thumbnail was chosen) and `details_visible` is only written when
-        // true, so a new entry keeps the legacy bytes the other clients write for the default state.
+        // present (the shared default name, since this client has no logo artwork) and
+        // `details_visible` is only written when true, so a new entry keeps the legacy bytes the
+        // other clients write for the default state.
         var fields: [String: JSONValue] = [
             "secret": .string(Base32.encode(seed)),
             "issuer": .string(issuer),
@@ -143,7 +150,7 @@ public enum EntryDraft {
             "digits": .int(Int64(entryDigits)),
             "type": .string(kind.rawValue),
             "algorithm": .string(algorithm.rawValue),
-            "thumbnail": .string(""),
+            "thumbnail": .string(defaultThumbnailName),
             "last_used": .int(newEntry ? now : 0),
             "used_frequency": .int(0),
         ]

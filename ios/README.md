@@ -7,8 +7,9 @@ Two things live here:
    entry document and the one-time password maths.
 2. **`App/`** — a SwiftUI app that uses the package: unlock or create a vault, five tabs, a live
    search, the tag filter and the five orders, reveal an entry, generate its code, copy it with an
-   expiry, step an HOTP counter, add, edit and delete entries, lock. Imports, QR codes, backups and
-   Face ID are still milestones in [the plan](../docs/ios-client-plan.md).
+   expiry, step an HOTP counter, add, edit and delete entries, write and restore backups, import an
+   `otpauth://` link or a QR image, show an entry as a QR code, lock. Face ID is still a milestone in
+   [the plan](../docs/ios-client-plan.md).
 
 Nothing in this directory is shared code; `:core` is JVM-only. What is shared is the *format*, and it
 is verified against the fixed vectors in `desktop/src/test/resources/golden/`, which the Android and
@@ -64,8 +65,10 @@ action runs `OfflineOTPAppTests`.
 | `EntryListProjectionTests` | The tab mapping for every kind, the search fields and their locale-independent match, the any/all/one tag rule, collator-primary ordering with stable ties, and the five stored order names |
 | `EntryUsageTests` | The last-used stamp and use counter, the one-step HOTP advance, and the `MAX_COUNTER` ceiling |
 | `EntryDraftTests` | A hand-typed entry's exact stored bytes, the whitespace rule, the shared "must be a number" wording, Steam's omitted default period, and an edit keeping metadata the form does not show |
+| `OtpUriTests` | Every refusal `OtpUriParser` makes (the 16 KiB ceiling, the four kinds, a canonical Base32 seed, mOTP's hexadecimal seed, HOTP's counter, the period/digit/counter bounds, Steam's five digits, repeatable tags, refused duplicates, the case-sensitive scheme), the label rules, and the round trip through `Entry.toUriString`'s field order |
+| `BackupRestoreTests` | The dated backup name in ASCII digits, the strict plain-text reader (a byte-order mark, invalid UTF-8, blank, oversized), the merge that puts imported entries first and keeps the vault's own copies, the replace, and the two refusals (an empty import, a duplicated one) |
 | `App/Tests/CodeFormatTests` | Code grouping and the countdown arithmetic (including mOTP's fixed ten-second step and HOTP's lack of one) |
-| `App/Tests/VaultStoreTests` | The folder the app uses, the messages a person sees, a real create → add → reopen cycle, and that the tabs, search, tags, reveal, counter step, order preference, edit and delete reach the files |
+| `App/Tests/VaultStoreTests` | The folder the app uses, the messages a person sees, a real create → add → reopen cycle, that the tabs, search, tags, reveal, counter step, order preference, edit and delete reach the files, and that an exported backup restores into another vault, a wrong password changes nothing, the replace switch behaves, a plain-text backup imports, and the duplicate-issuer question is asked before a second account is added |
 
 The app tests build their own vaults in a temporary folder, so unlike the package tests they need no
 repository checkout and no fixtures — which is what lets them run on a simulator.
@@ -83,8 +86,13 @@ to produce.
 
 ## What is deliberately not here
 
-Imports of any kind, QR scanning and display, encrypted and plain-text backup export/import,
-biometric unlock, the Keychain-backed settings store, and App Store packaging.
+Biometric unlock, the Keychain-backed settings store, App Store packaging, Google Authenticator's
+multi-account export (`otpauth-migration://`, which needs a protobuf decoder — such a payload is
+recognised and refused by name rather than reported as a broken link), and OpenPGP backups.
+
+**Plain-text export is a deliberate omission.** The client *reads* a legacy unencrypted JSON backup
+and warns with Android's sentence before it opens the file picker, but it never writes one: an
+unencrypted file of OTP secrets is the thing this app exists to avoid.
 
 Creating an SSH key is not offered either, and that one is specific to this client: an SSH key's seed
 is `SshKeyMaterial`-framed material, which this build does not implement, so it would have to write a

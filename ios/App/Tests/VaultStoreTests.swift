@@ -322,4 +322,152 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(Clipboard.expirySeconds, 30)
         XCTAssertTrue(Clipboard.copy("324550", now: Date(timeIntervalSince1970: 1_700_000_000)))
     }
+
+    // MARK: - Backups, restores and links
+
+    func testAnExportedBackupRestoresIntoAnotherVault() throws {
+        let source = unlockedStore()
+        XCTAssertTrue(source.add(try rawEntry("alice@example.com")))
+        XCTAssertTrue(source.add(try draft("bob", issuer: "Acme", tags: ["work"])))
+
+        let exported = try XCTUnwrap(source.exportBackup(password: "backup pass",
+                                                        now: Date(timeIntervalSince1970: 0)))
+        // The file is dated, so two exports never overwrite each other, and it is the encrypted
+        // container the other clients write.
+        XCTAssertTrue(exported.name.hasPrefix("otp_accounts_"))
+        XCTAssertTrue(exported.name.hasSuffix(".json.aes"))
+        XCTAssertTrue(exported.data.count > 44)
+
+        // A second vault over the same folder: `creating` would refuse, so it is opened normally.
+        let other = makeStore()
+        other.unlock(password: "correct horse")
+        XCTAssertTrue(other.isUnlocked)
+        let plan = try XCTUnwrap(other.restore(encrypted: exported.data, password: "backup pass",
+                                              replace: false))
+        XCTAssertEqual(plan.added, 2)
+        XCTAssertEqual(other.entries.map(\.label).sorted(), ["alice@example.com", "bob"])
+        XCTAssertEqual(other.entries.first { $0.label == "bob" }?.tags, ["work"])
+        // The restore reaches the file, not only the screen.
+        let reopened = makeStore()
+        reopened.unlock(password: "correct horse")
+        XCTAssertEqual(reopened.entries.count, 2)
+    }
+
+    func testARestoreMergesByDefaultAndKeepsTheExistingEntries() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("kept")))
+
+        // The same entry plus one the vault does not have yet.
+        let imported = try rawEntry("kept")
+        let extra = try rawEntry("extra")
+        let document = try VaultDocument.encode([imported, extra])
+        let plan = try XCTUnwrap(store.restore(encrypted:
+            EncryptedBackup.sealWithFreshParameters(password: "backup pass", plain: document),
+            password: "backup pass", replace: false))
+        XCTAssertEqual(plan.added, 1)
+        XCTAssertEqual(store.entries.map(\.label), ["extra", "kept"])
+    }
+
+    func testReplacingTakesTheBackupVerbatim() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("current")))
+        let document = try VaultDocument.encode([try rawEntry("imported")])
+        let data = try EncryptedBackup.sealWithFreshParameters(password: "pw", plain: document)
+        let plan = try XCTUnwrap(store.restore(encrypted: data, password: "pw", replace: true))
+        XCTAssertEqual(plan.entries.map(\.label), ["imported"])
+        XCTAssertEqual(store.entries.map(\.label), ["imported"])
+    }
+
+    func testAWrongBackupPasswordLeavesTheVaultAlone() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("kept")))
+        let exported = try XCTUnwrap(store.exportBackup(password: "backup pass"))
+
+        XCTAssertNil(store.restore(encrypted: exported.data, password: "wrong", replace: false))
+        XCTAssertEqual(store.message, BackupWording.wrongPassword)
+        XCTAssertEqual(store.entries.map(\.label), ["kept"])
+    }
+
+    func testAPlainTextBackupIsReadAndAnEmptyOneIsRefused() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("kept")))
+
+        let document = try VaultDocument.encode([try rawEntry("plain")])
+        let plan = try XCTUnwrap(store.restore(plainText: Data(document.utf8), replace: false))
+        XCTAssertEqual(plan.added, 1)
+        XCTAssertEqual(store.entries.map(\.label), ["plain", "kept"])
+
+        XCTAssertNil(store.restore(plainText: Data(), replace: false))
+        XCTAssertEqual(store.message, BackupWording.plainTextInvalid)
+        XCTAssertNil(store.restore(plainText: Data("[]".utf8), replace: false))
+        XCTAssertEqual(store.message, BackupWording.emptyBackup)
+        // The import-only rule: nothing this client writes is plain text.
+        let exported = try XCTUnwrap(store.exportBackup(password: "backup pass"))
+        XCTAssertNotEqual(String(data: exported.data, encoding: .utf8), document)
+    }
+
+    func testAPastedLinkBecomesAnEntry() throws {
+        let store = unlockedStore()
+        XCTAssertEqual(store.importUri("otpauth://totp/Example:alice@example.com?"
+                                       + "secret=JBSWY3DPEHPK3PXP&issuer=Example&tags=work"), .added)
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.entries[0].issuer, "Example")
+        XCTAssertEqual(store.entries[0].tags, ["work"])
+        XCTAssertEqual(store.code(for: store.entries[0],
+                                 at: Date(timeIntervalSince1970: 1_700_000_000)), "324550")
+
+        XCTAssertEqual(store.importUri("otpauth://totp/x?secret=not-a-seed"),
+                       .rejected("INVALID_SECRET"))
+        XCTAssertEqual(store.message, OtpParseError.invalidSecret.message)
+        XCTAssertEqual(store.entries.count, 1)
+        // A link pasted with a trailing newline still imports; the clipboard adds one often.
+        XCTAssertEqual(store.importUri("otpauth://totp/bob?secret=JBSWY3DPEHPK3PXP\n"), .added)
+    }
+
+    func testASecondAccountFromAnIssuerIsAQuestionNotAFailure() throws {
+        let store = unlockedStore()
+        let moment = Date(timeIntervalSince1970: 1_700_000_000)
+        XCTAssertEqual(store.importUri("otpauth://totp/Acme:one?secret=JBSWY3DPEHPK3PXP"
+                                       + "&issuer=Acme", now: moment), .added)
+        // Same issuer, different account: ask first, as both other clients do on a QR import.
+        XCTAssertEqual(store.importUri("otpauth://totp/Acme:two?secret=JBSWY3DPEHPK3PXP"
+                                       + "&issuer=acme "), .duplicateIssuer("acme"))
+        XCTAssertEqual(store.entries.count, 1)
+        XCTAssertEqual(store.importUri("otpauth://totp/Acme:two?secret=JBSWY3DPEHPK3PXP"
+                                       + "&issuer=acme ", allowDuplicateIssuer: true), .added)
+        XCTAssertEqual(store.entries.count, 2)
+        XCTAssertEqual(VaultStore.ImportOutcome.duplicateIssuerMessage("Acme"),
+                       "An account for Acme is already in your vault. Add another account from this "
+                       + "issuer anyway?")
+        // The identical account is refused: the vault would hold it twice.
+        XCTAssertEqual(store.importUri("otpauth://totp/Acme:one?secret=JBSWY3DPEHPK3PXP"
+                                       + "&issuer=Acme", allowDuplicateIssuer: true,
+                                       now: moment), .duplicateEntry)
+        XCTAssertEqual(store.entries.count, 2)
+        XCTAssertTrue(store.hasIssuer("  ACME  "))
+        XCTAssertFalse(store.hasIssuer("   "))
+        XCTAssertFalse(store.hasIssuer("Github"))
+    }
+
+    func testAGenericOrUnsupportedCodeIsExplained() throws {
+        let store = unlockedStore()
+        // A Wi-Fi joining code: a real QR payload that is not an OTP account.
+        XCTAssertEqual(store.importPayload("WIFI:S:net;T:WPA;P:pass;;"), .rejected("INVALID_URI"))
+        XCTAssertEqual(store.message, "That code does not contain an otpauth:// link.")
+        XCTAssertEqual(store.importPayload("otpauth-migration://offline?data=abc"),
+                       .rejected("MIGRATION"))
+        XCTAssertTrue(store.message?.contains("Google Authenticator") == true)
+        XCTAssertEqual(store.importPayload("otpauth://totp/x?secret=JBSWY3DPEHPK3PXP"), .added)
+        XCTAssertEqual(store.entries.count, 1)
+    }
+
+    func testOnlyOtpEntriesHaveALinkToShowAsACode() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("alice@example.com")))
+        XCTAssertTrue(store.add(try draft("Recovery", kind: .note)))
+        XCTAssertEqual(store.otpUri(for: 0),
+                       "otpauth://totp/alice%40example.com?secret=JBSWY3DPEHPK3PXP&issuer=Issuer")
+        XCTAssertNil(store.otpUri(for: 1))
+        XCTAssertNil(store.otpUri(for: 9))
+    }
 }
