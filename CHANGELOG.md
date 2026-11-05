@@ -2,6 +2,22 @@
 
 #### Unreleased
 
+ * Android: Remove the PIN login. Authentication is now none, password or device credentials: the
+fourth entry is gone from Settings → Authentication and from the first-run wizard, the unlock screen
+always asks for a password, and the credential dialog, the setup slide, the deprecated `pref_auth_pin`
+/ `pref_auth_pin_hash` keys and the PIN minimum length went with it. A PIN is a four-digit secret
+protecting an encrypted vault and, on a device that is already unlocked, the weakest way into one;
+anything left under the old keys is deleted on first start rather than migrated into credentials. The
+backup-password dialog loses its unused PIN mode too, so no credential of any kind can be a
+four-digit number any more — password-derived automatic backups are unchanged and still refuse a
+PIN. A vault that an older release set up with the PIN login still opens: the stored method is read
+as *password*, the file is untouched, and the same PIN typed into the password field derives the
+same key, so nobody is locked out and **Settings → Authentication** can give that vault a real
+password. Treating the stored value as unknown would have thrown on launch. mOTP PINs and
+hardware-key PINs are entry and key data, not logins, and are untouched. PIN-only strings are
+deleted from all 31 translations, and the eight translated sentences whose meaning changed fall
+back to English rather than keep describing a login that no longer exists
+
  * CI: Move the two Apple workflow jobs to `macos-15`, because GitHub retired the `macos-14` arm64 image. Every run on that label started being cancelled before its first step with *The configuration 'macos-14-arm64-us-default' is not supported* — a probe across the labels confirmed `macos-14`, `macos-14-large` and `macos-14-xlarge` all cancel while `macos-15` and `macos-15-intel` start, and reported what the new image is: `macos-15` is arm64, macOS 15.8.2, Xcode 16.4. The macOS artifact is unchanged (`OfflineOTP-macos-arm64.zip`, still Apple silicon only), the Xcode project keeps its `xcode15_3` format pin so it still opens on Xcode 15, and `xcodeVersion` moves to the runner's 16.4. With the iOS job running for the first time, its compiler found two name errors in `BiometricUnlockTests` — the fake key store's account property was called for by the wrong name, and one assertion read that account after the failed unlock had cleared it — so the quick-unlock tests now compile and drive the paths they were written for. `scripts/tests/test_ios_app.py`, `test_ios_package.py` and `test_no_github_automation.py` fail if a workflow moves back to `macos-14`
 
  * iOS: Move data in and out of the vault the way the other two clients do. **Backups** writes an encrypted backup under a dated name (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`), from a password entered twice and never stored, using the same header and the same name template as the phone and the desktop, so a file from any client opens on any other. **Restore** opens an encrypted backup, or a legacy plain-text one after Android's warning sentence, and merges it by default — imported entries first, entries the vault already holds left exactly as they are — with a **Replace existing entries** switch, off by default, that takes the backup verbatim. An empty backup, an unreadable one and one whose entries would duplicate the vault are all refused with a sentence instead of a half-applied vault, and a failed write leaves the current entries untouched

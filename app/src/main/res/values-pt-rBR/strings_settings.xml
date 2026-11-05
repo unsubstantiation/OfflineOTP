@@ -94,8 +94,6 @@
         interno, abortando!</string>
     <string name="settings_toast_encryption_no_key">Falha ao obter a chave de criptografia, abortando!</string>
     <string name="settings_toast_encryption_auth_failed">A autenticação falhou!</string>
-    <string name="settings_toast_auth_upgrade_failed">Falha ao migrar sua senha / PIN
-        para a nova criptografia, por favor redefina-a nas Configurações!</string>
     <string name="settings_toast_android_sync_enabled">Sincronização do Android ativada</string>
     <string name="settings_toast_android_sync_disabled">Sincronização do Android desativada</string>
     <string name="settings_dialog_title_warning">Aviso</string>
@@ -106,18 +104,6 @@
         do banco de dados. Em caso de falha, um backup interno será aplicado e a criptografia
         permanecerá intacta.\n\n<b>Contudo, é sempre uma boa ideia ter um backup para
         o caso de algo inesperado acontecer!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Você só pode usar Senha ou PIN enquanto
-        a criptografia do banco de dados estiver configurada para \"Senha/PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Você precisa antes alterar a
-        autenticação para \"Senha\" ou \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Você precisa antes definir uma
-        Senha ou PIN para que possa modificar a criptografia!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Em alguns casos, limpar a KeyStore
-        pode ajudar a resolver problemas. Você só deve prosseguir se souber o que está fazendo!\n
-\nComo
-        a <b>criptografia do banco de dados</b> está definida como <b>Senha/PIN</b>, não deve ocorrer nenhuma perda de dados
-        nessa operação (todavia não custa nada ter um backup).\n\n<b>Tem certeza de que
-        deseja limpar a KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Em alguns casos, limpar a KeyStore
         pode ajudar a resolver problemas. Você só deve prosseguir se souber o que está fazendo!\n
 \n<b>Aviso</b>:
@@ -127,12 +113,11 @@
     <string-array name="settings_entries_auth">
         <item>Nulo</item>
         <item>Senha</item>
-        <item>PIN</item>
         <item>Credenciais de dispositivo</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Sistema de armazenamento de chaves do Android</item>
-        <item>Senha / PIN</item>
+        <item>Senha</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Apagar todas as contas</item>
@@ -199,9 +184,6 @@
     <string name="settings_lang_sys_default">Padrão do sistema</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Digite a nova senha</string>
-    <string name="settings_hint_pin">Digite o novo PIN</string>
     <string name="settings_hint_password_confirm">Confirmar senha</string>
-    <string name="settings_hint_pin_confirm">Confirmar o PIN</string>
     <string name="settings_label_short_password">A senha deve ter no mínimo %1$d caracteres.</string>
-    <string name="settings_label_short_pin">O pin deve ter no mínimo %1$d caracteres.</string>
 </resources>

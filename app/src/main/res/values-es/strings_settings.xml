@@ -97,8 +97,6 @@
         abortando!</string>
     <string name="settings_toast_encryption_no_key">Fallo al obtener la clave de cifrado, abortando!</string>
     <string name="settings_toast_encryption_auth_failed">Error de autenticación!</string>
-    <string name="settings_toast_auth_upgrade_failed">Fallo al actualizar la contraseña / PIN al nuevo cifrado,
-        por favor reinicia manualmente desde ajustes!</string>
     <string name="settings_toast_android_sync_enabled">Sincronización de Android habilitada</string>
     <string name="settings_toast_android_sync_disabled">Sincronización de Android deshabilitada</string>
     <string name="settings_dialog_title_warning">Advertencia</string>
@@ -109,17 +107,6 @@
         de la base de datos. En caso de fallo una copia de seguridad interna será restaurada
         y el cifrado no cambiará.\n\n<b>¡Siempre es buena idea tener una copia de seguridad por si
         algo inesperado ocurriera!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Solo puedes usar la contraseña o el PIN si
-        el cifrado de la base de datos está establecido a \"Contraseña / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Primero tienes que establecer
-        la autenticación a \"Contraseña\" o \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Primero necesitas establecer una
-        contraseña o PIN antes de cambiar el cifrado!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">En algunos casos vaciar el almacen de claves
-        puede ayudar a solventar problemas. Deberías solo hacerlo si sabes lo que haces!\n\nPuesto
-        que el <b>Cifrado de la base de datos</b> está como <b>Contraseña / PIN</b> no deberías perder
-        ninguna información haciéndolo (pero nunca es malo tener una copia de seguridad igualmente).\n\n<b>
-        ¿Seguro que quieres vaciar el almacen de claves?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">En algunos casos vaciar el almacen de claves
         puede ayudar a solventar problemas. Deberías solo hacerlo si sabes lo que haces!\n\n<b>Advertencia</b>:
         Puesto que el <b>Cifrado de la base de datos</b> está como <b>Almacen de claves de Android</b> perderás todas
@@ -129,12 +116,11 @@
     <string-array name="settings_entries_auth">
         <item>Ninguno</item>
         <item>Contraseña</item>
-        <item>PIN</item>
         <item>Credenciales del dispositivo</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Almacen de claves de Android</item>
-        <item>Contraseña / PIN</item>
+        <item>Contraseña</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Eliminar todas las cuentas</item>
@@ -201,9 +187,6 @@
     <string name="settings_lang_sys_default">Predeterminado por el sistema</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Introduce la nueva contraseña</string>
-    <string name="settings_hint_pin">Introducir nuevo PIN</string>
     <string name="settings_hint_password_confirm">Confirmar contraseña</string>
-    <string name="settings_hint_pin_confirm">Confirmar PIN</string>
     <string name="settings_label_short_password">¡La contraseña debe ser al menos de %1$d caracteres!</string>
-    <string name="settings_label_short_pin">¡El PIN debe ser al menos de %1$d dígitos!</string>
 </resources>

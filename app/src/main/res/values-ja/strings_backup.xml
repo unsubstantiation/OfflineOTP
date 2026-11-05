@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">バックアップに失敗しました</string>
     <string name="backup_receiver_title_backup_success">バックアップに成功しました</string>
     <string name="backup_receiver_encrypted_disabled">暗号化バックアップは現在許可されていません、それらを有効にする設定に移動してください</string>
-    <string name="backup_receiver_custom_encryption_failed">パスワード / PIN ベースの暗号化はブロードキャストバックアップでサポートされていません</string>
     <string name="backup_receiver_no_location_set">バックアップ保存先が未設定です。設定してください。</string>
     <string name="backup_receiver_no_password_set">既定のバックアップパスワードが未設定です。設定してください。</string>
     <!-- Notification channels -->

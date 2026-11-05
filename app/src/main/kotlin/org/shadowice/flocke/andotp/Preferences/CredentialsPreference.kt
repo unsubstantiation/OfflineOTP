@@ -40,7 +40,7 @@ import java.util.Locale
 
 import javax.crypto.SecretKey
 
-/** Dialog preference that selects the authentication method and updates password/PIN credentials. */
+/** Dialog preference that selects the authentication method and updates the password credentials. */
 open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
     DialogPreference(context, attrs), AdapterView.OnItemClickListener, View.OnClickListener,
     TextWatcher, TextView.OnEditorActionListener {
@@ -52,8 +52,8 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
 
         /**
          * Whether the typed credential may be saved for [method]. NONE/DEVICE store no credential
-         * and are always saveable; a password/PIN must reach [minLength] and match its
-         * confirmation. Mirrors the minimums the intro screen enforces.
+         * and are always saveable; a password must reach [minLength] and match its confirmation.
+         * Mirrors the minimum the intro screen enforces.
          */
         @JvmStatic
         fun canSaveCredentials(
@@ -73,7 +73,6 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
     private val entryValues: List<AuthMethod> = Arrays.asList(
         AuthMethod.NONE,
         AuthMethod.PASSWORD,
-        AuthMethod.PIN,
         AuthMethod.DEVICE
     )
 
@@ -179,7 +178,7 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
     override fun onSetInitialValue(restorePersistedValue: Boolean, defaultValue: Any?) {
         if (restorePersistedValue) {
             val stringValue = getPersistedString(DEFAULT_VALUE.name.lowercase(Locale.ENGLISH))
-            value = AuthMethod.valueOf(stringValue.uppercase(Locale.ENGLISH))
+            value = AuthMethod.fromStored(stringValue)
         } else {
             value = DEFAULT_VALUE
             persistString(value.name.lowercase(Locale.ENGLISH))
@@ -304,7 +303,7 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
         val confirm = passwordConfirm?.editableText?.toString() ?: ""
 
         // The warning alone used to leave Save enabled after the typed credential fell below the
-        // minimum, so a too-short password/PIN could still be committed from this dialog.
+        // minimum, so a too-short password could still be committed from this dialog.
         tooShortWarning?.visibility = if (password.length >= minLength) View.GONE else View.VISIBLE
         btnSave?.isEnabled = canSaveCredentials(value, minLength, password, confirm)
     }
@@ -318,29 +317,22 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
                 UIHelper.hideKeyboard(context, passwordInput)
             }
             btnSave?.isEnabled = true
-        } else if (value == AuthMethod.PASSWORD || value == AuthMethod.PIN) {
+        } else if (value == AuthMethod.PASSWORD) {
             prepareAuthMethodInputFields()
         }
     }
 
-    /** Configures the input fields for password or PIN entry. */
+    /** Configures the input fields for password entry. */
     private fun prepareAuthMethodInputFields() {
-        if (value != AuthMethod.PIN && value != AuthMethod.PASSWORD) {
+        if (value != AuthMethod.PASSWORD) {
             return
         }
-        val isPassword = value == AuthMethod.PASSWORD
 
         credentialsLayout?.visibility = View.VISIBLE
-        val layoutHintRes = if (isPassword) R.string.settings_hint_password else R.string.settings_hint_pin
-        passwordLayout?.hint = context.getString(layoutHintRes)
-        val confirmHintRes =
-            if (isPassword) R.string.settings_hint_password_confirm else R.string.settings_hint_pin_confirm
-        passwordConfirm?.hint = context.getString(confirmHintRes)
+        passwordLayout?.hint = context.getString(R.string.settings_hint_password)
+        passwordConfirm?.hint = context.getString(R.string.settings_hint_password_confirm)
 
-        val inputType = if (isPassword)
-            (InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
-        else
-            (InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD)
+        val inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
         passwordInput?.inputType = inputType
         passwordConfirm?.inputType = inputType
         val layout = passwordLayout
@@ -350,9 +342,8 @@ open class CredentialsPreference(context: Context, attrs: AttributeSet?) :
             ConfirmedPasswordTransformationHelper.setup(layout, input, confirm)
         }
 
-        minLength = if (isPassword) Constants.AUTH_MIN_PASSWORD_LENGTH else Constants.AUTH_MIN_PIN_LENGTH
-        val shortWarningRes = if (isPassword) R.string.settings_label_short_password else R.string.settings_label_short_pin
-        tooShortWarning?.setText(context.getString(shortWarningRes, minLength))
+        minLength = Constants.AUTH_MIN_PASSWORD_LENGTH
+        tooShortWarning?.setText(context.getString(R.string.settings_label_short_password, minLength))
 
         passwordInput?.requestFocus()
         UIHelper.showKeyboard(context, passwordInput)

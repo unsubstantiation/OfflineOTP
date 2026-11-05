@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Gagal mencadangkan</string>
     <string name="backup_receiver_title_backup_success">Pencadangan berhasil</string>
     <string name="backup_receiver_encrypted_disabled">Pencadangan terenkripsi tidak diperbolehkan, silakan ke Pengaturan untuk mengaktifkannya</string>
-    <string name="backup_receiver_custom_encryption_failed">Enkripsi berbasis kata sandi/PIN tidak didukung oleh pencadangan siar</string>
     <string name="backup_receiver_no_location_set">Lokasi pencadangan belum ditentukan, tentukan di Pengaturan aplikasi</string>
     <string name="backup_receiver_no_password_set">Kata sandi baku belum ditentukan, tentukan di Pengaturan aplikasi</string>
     <!-- Notification channels -->

@@ -98,8 +98,6 @@ a campos de contrasinal dentro da app</string>
    interno, abortando!</string>
     <string name="settings_toast_encryption_no_key">Fallou ao obter a chave de cifrado, abortanto!</string>
     <string name="settings_toast_encryption_auth_failed">Fallou a autenticación!</string>
-    <string name="settings_toast_auth_upgrade_failed">Fallo ao actualizar o teu contrasinal / PIN
-   ao novo cifrado, por favor restableceo en Axustes!</string>
     <string name="settings_toast_android_sync_enabled">Activada a sincronización Android</string>
     <string name="settings_toast_android_sync_disabled">Desactivada a sincronización Android</string>
     <string name="settings_dialog_title_warning">Aviso</string>
@@ -109,16 +107,6 @@ a campos de contrasinal dentro da app</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP intentará agora cambiar o cifrado
         da base de datos. En caso de fallo restaurarase unha copia interna e o cifrado permanecerá
         sen cambios.\n\n<b>Porén, sempre é boa idea ter copias de apoio por se algo terrible acontece!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Só podes utilizar Contrasinal ou PIN
-     se o cifrado da base de datos se establece como \"Contrasinal / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Primeiro debes establecer
-    a Autenticación a \"Contrasinal\" ou \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Primeiro debes establecer un Contrasinal
-     ou PIN antes de cambiar o cifrado!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Nalgúns casos baleirar o KeyStore
-   pode axudar a resolver problemas. Só deberías facer esto se sabes o que fas!\n\nXa que
-   o <b>Cifrado da Base de datos</b> está establecido a <b>Cotrasinal / PIN</b> non deberías perder ningún
-   dato facendo esto (pero non está de máis ter unha copia).\n\n<b>Tes a certeza de querer baleirar a KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Nalgúns casos limpar a KeyStore
    pode axudar a resolver problemas. Só deberías seguir se sabes o que fas!\n\n<b>Aviso</b>:
    Xa que o <b>cifrado da base de datos</b> está establecido a <b>Android KeyStore</b> perderás todas as túas contas.
@@ -127,12 +115,11 @@ a campos de contrasinal dentro da app</string>
     <string-array name="settings_entries_auth">
         <item>Ningún</item>
         <item>Contrasinal</item>
-        <item>PIN</item>
         <item>Credenciais do dispositivo</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Contrasinal / PIN</item>
+        <item>Contrasinal</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Eliminar todas as contas</item>
@@ -199,9 +186,6 @@ a campos de contrasinal dentro da app</string>
     <string name="settings_lang_sys_default">Predefinido do sistema</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Inserir o novo contrasinal</string>
-    <string name="settings_hint_pin">Inserir o novo PIN</string>
     <string name="settings_hint_password_confirm">Confirmar contrasinal</string>
-    <string name="settings_hint_pin_confirm">Confirmar PIN</string>
     <string name="settings_label_short_password">O contrasinal deber ter polo menos %1$d caracteres!</string>
-    <string name="settings_label_short_pin">O PIN deber ter polo menos %1$d caracteres!</string>
 </resources>

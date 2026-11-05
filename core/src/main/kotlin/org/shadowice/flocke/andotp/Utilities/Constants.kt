@@ -4,9 +4,24 @@ package org.shadowice.flocke.andotp.Utilities
 object Constants {
     // Enums
 
-    /** How the user authenticates: not at all, password, PIN or device credentials. */
+    /** How the user authenticates: not at all, password, or device credentials. */
     enum class AuthMethod {
-        NONE, PASSWORD, PIN, DEVICE
+        NONE, PASSWORD, DEVICE;
+
+        companion object {
+            /**
+             * Reads a stored method token, never failing on one this build does not have.
+             *
+             * The PIN login older releases offered is gone, but a vault set up with it is still
+             * encrypted with that PIN: read as `PASSWORD`, the unlock screen asks for the
+             * credential and the stored salt/verifier decide, so the vault stays reachable and can
+             * be given a real password from Settings instead of being stranded. Returning `NONE`
+             * would skip the prompt and leave nothing able to derive the key.
+             */
+            @JvmStatic
+            fun fromStored(token: String): AuthMethod =
+                values().firstOrNull { it.name.equals(token.trim(), ignoreCase = true) } ?: PASSWORD
+        }
     }
 
     /** How the database key is protected: wrapped by the KeyStore, or derived from the credentials. */
@@ -122,7 +137,6 @@ object Constants {
     const val PBKDF2_MAX_BACKUP_ITERATIONS = 160000
 
     // Authentication
-    const val AUTH_MIN_PIN_LENGTH = 4
     const val AUTH_MIN_PASSWORD_LENGTH = 6
 
     // KeyStore

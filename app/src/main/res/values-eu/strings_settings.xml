@@ -98,8 +98,6 @@
         bertan behera utzi da prozesua!</string>
     <string name="settings_toast_encryption_no_key">Huts egin du zifratze-gakoa lortzean, bertan behera utzi da prozesua!</string>
     <string name="settings_toast_encryption_auth_failed">Autentifikazio errorea!</string>
-    <string name="settings_toast_auth_upgrade_failed">Huts egin du zure pasahitza / PINa zifratze berria erabiltzera
-migratzean, berrezarri eskuz Ezarpenetan!</string>
     <string name="settings_toast_android_sync_enabled">Android sync aktibatu da</string>
     <string name="settings_toast_android_sync_disabled">Android sync desaktibatu da</string>
     <string name="settings_dialog_title_warning">Oharra</string>
@@ -110,32 +108,19 @@ migratzean, berrezarri eskuz Ezarpenetan!</string>
         da orain. Honek huts egiten badu barneko segurtasun kopia bat berrezarriko da eta
         zifratzea lehen bezala geratuko da.\n\n<b>Hala ere beti da ideia ona segurtasun kopia bat
         izatea zer edo zer gaizki badoa-ere!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Pasahitza edo PINa bakarrik erabili ditzakezu
-        datu basearen zifratzea \"Pasahitza / PINa\" bezala konfiguratuta baitago!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Autentifikazioa \"Pasahitza\" edo \"PINa\"
-        izateko ezarri behar duzu!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Pasahitza edo PINa ezarri behar dituzu
-        zifratzea aldatu aurretik!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Kasu batzuetan KeyStorea garbitzeak
-        arazoak konpontzen lagundu dezake. Zer egiten ari zaren baldin badakizu bakarrik jarraitu!\n\n
-        <b>Datu basearen zifratzea</b> <b>Pasahitza / PINa</b> baliora ezarrita duzunez ez zenuke daturik
-        galdu behar hau egitean (baina inoiz ez du kalterik egiten segurtasun kopia bat izateak).\n\n<b>Benetan
-        KeyStorea garbitu nahi duzu?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Kasu batzuetan KeyStorea garbitzeak
         arazoak konpontzen lagundu dezake. Zer egiten ari zaren baldin badakizu bakarrik jarraitu!\n\n<b>Oharra</b>:
         <b>Datu basearen zifratzea</b> <b>Android KeStore</b> baliora ezarrita duzunez zure kontu guztien
         informazioa galdu egingo duzu. Egin segurtasun kopia bat lehenengo!\n\n<b>Benetan
         KeyStorea garbitu nahi duzu?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Bat ere ez</item>
+    <string-array name="settings_entries_auth">        <item>Bat ere ez</item>
         <item>Pasahitza</item>
-        <item>PINa</item>
         <item>Gailuaren kredentzialak</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStorea</item>
-        <item>Pasahitza / PINa</item>
+        <item>Pasahitza</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Kontu guztiak ezabatu</item>
@@ -202,9 +187,6 @@ migratzean, berrezarri eskuz Ezarpenetan!</string>
     <string name="settings_lang_sys_default">Sistemaren defektuzkoa</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Pasahitz berria idatzi</string>
-    <string name="settings_hint_pin">PIN berria idatzi</string>
     <string name="settings_hint_password_confirm">Pasahitza berretsi</string>
-    <string name="settings_hint_pin_confirm">PINa berretsi</string>
     <string name="settings_label_short_password">Pasahitzak gutxienez %1$d karaktere izan behar ditu!</string>
-    <string name="settings_label_short_pin">PINak gutxienez %1$d karaktere izan behar ditu!</string>
 </resources>

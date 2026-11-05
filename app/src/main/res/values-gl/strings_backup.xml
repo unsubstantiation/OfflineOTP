@@ -15,8 +15,6 @@
     <string name="backup_receiver_title_backup_success">Copia realizada correctamente</string>
     <string name="backup_receiver_encrypted_disabled">Actualmente non se permiten as copias cifradas,
         vai aos Axustes para activalos</string>
-    <string name="backup_receiver_custom_encryption_failed">O cifrado con Contrasinal/PIN non
-        está soportado con respaldo remoto</string>
     <string name="backup_receiver_no_location_set">Non se estableceu a localización para a copia,
         establécea nos axustes da app</string>
     <string name="backup_receiver_no_password_set">Sen contrasinal por defecto, establéceo

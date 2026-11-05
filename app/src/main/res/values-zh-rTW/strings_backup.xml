@@ -10,7 +10,6 @@
     <string name="backup_receiver_title_backup_failed">備份失敗</string>
     <string name="backup_receiver_title_backup_success">備份成功</string>
     <string name="backup_receiver_encrypted_disabled">當前不允許加密備份，請前往設定啟用之</string>
-    <string name="backup_receiver_custom_encryption_failed">透過外部程式執行自動備份時，不支援基於 密碼 / PIN 的加密方式</string>
     <string name="backup_receiver_no_location_set">未設置備份位置，請在設置中設定備份位置</string>
     <string name="backup_receiver_no_password_set">未設置預設密碼，請在設置中設定預設密碼</string>
     <!-- Notification channels -->

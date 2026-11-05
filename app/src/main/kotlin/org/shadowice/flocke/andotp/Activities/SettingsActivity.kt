@@ -500,7 +500,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
                 if (encryptionType != oldEncryptionType) {
                     if (encryptionType == EncryptionType.PASSWORD) {
-                        if (authMethod != AuthMethod.PASSWORD && authMethod != AuthMethod.PIN) {
+                        if (authMethod != AuthMethod.PASSWORD) {
                             UIHelper.showGenericDialog(getActivity()!!, R.string.settings_dialog_title_error,
                                 R.string.settings_dialog_msg_encryption_invalid_with_auth)
                             return@setOnPreferenceChangeListener false

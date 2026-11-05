@@ -151,7 +151,10 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("awaitFinishing(main)", flow)
         # MainActivity leaves RESUMED while the prompt is up, so the test must not require it.
         self.assertIn("DeviceTestSupport.startActivity(context, MainActivity::class.java)", flow)
-        self.assertIn("theConfiguredPinStillUnlocksTheVault", flow)
+        self.assertIn("theConfiguredPasswordStillUnlocksTheVault", flow)
+        # A vault an older release set up with the removed PIN login must still open: the stored
+        # method reads as a password instead of throwing or skipping the prompt.
+        self.assertIn("aVaultStoredAsAPinStillOpensThroughThePasswordPrompt", flow)
         # #712: background time must count towards the elapsed-realtime deadline.
         self.assertIn("backgroundTimeCountsTowardsTheInactivityRelock", flow)
         self.assertIn("INACTIVITY_SECONDS * 1_000L + 700L", flow)

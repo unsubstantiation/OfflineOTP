@@ -63,9 +63,10 @@ open class Settings(private val context: Context) {
                 remove(R.string.settings_key_auth_password)
         }
 
-        if (settings.contains(getResString(R.string.settings_key_auth_pin))) {
-            if (setAuthCredentials(getString(R.string.settings_key_auth_pin, "")) != null)
-                remove(R.string.settings_key_auth_pin)
+        // The PIN login is gone. Anything an older release left under its keys is secret material
+        // with no reader left, so it is deleted rather than migrated into credentials.
+        for (legacyPinKey in LEGACY_PIN_KEYS) {
+            if (settings.contains(legacyPinKey)) settings.edit().remove(legacyPinKey).apply()
         }
 
         // The theme mode key was misspelled as "perf_theme_mode" before; move the stored value over.
@@ -193,7 +194,6 @@ open class Settings(private val context: Context) {
             val authCredentials = getAuthCredentials()
             val authSalt = getString(R.string.settings_key_auth_salt, "")
             val legacyPassword = getOldCredentials(Constants.AuthMethod.PASSWORD)
-            val legacyPin = getOldCredentials(Constants.AuthMethod.PIN)
             val encryptionType = getEncryption()
             val authIterations = getIterations()
 
@@ -220,7 +220,6 @@ open class Settings(private val context: Context) {
 
             if (keep_auth) {
                 if (!legacyPassword.isEmpty()) editor.putString(getResString(R.string.settings_key_auth_password_hash), legacyPassword)
-                if (!legacyPin.isEmpty()) editor.putString(getResString(R.string.settings_key_auth_pin_hash), legacyPin)
             }
             if (!editor.commit()) return
 
@@ -249,7 +248,7 @@ open class Settings(private val context: Context) {
 
     open fun getAuthMethod(): Constants.AuthMethod {
         val authString = getString(R.string.settings_key_auth, CredentialsPreference.DEFAULT_VALUE.name.lowercase(Locale.ENGLISH))
-        return Constants.AuthMethod.valueOf(authString.uppercase(Locale.ENGLISH))
+        return Constants.AuthMethod.fromStored(authString)
     }
 
     open fun setAuthMethod(authMethod: Constants.AuthMethod) {
@@ -260,15 +259,9 @@ open class Settings(private val context: Context) {
         remove(R.string.settings_key_auth_password_hash)
     }
 
-    open fun removeAuthPINHash() {
-        remove(R.string.settings_key_auth_pin_hash)
-    }
-
     open fun getOldCredentials(method: Constants.AuthMethod): String {
         return if (method == Constants.AuthMethod.PASSWORD)
             getString(R.string.settings_key_auth_password_hash, "")
-        else if (method == Constants.AuthMethod.PIN)
-            getString(R.string.settings_key_auth_pin_hash, "")
         else
             ""
     }
@@ -326,7 +319,7 @@ open class Settings(private val context: Context) {
                 .putString(getResString(R.string.settings_key_auth_salt), credentials.salt)
                 .putInt(getResString(R.string.settings_key_auth_iterations), credentials.iterations)
                 .remove(getResString(R.string.settings_key_auth_password_hash))
-                .remove(getResString(R.string.settings_key_auth_pin_hash))
+                .remove(LEGACY_AUTH_PIN_HASH_KEY)
         }
         if (initialize) editor.putBoolean(getResString(R.string.settings_key_security_backup_warning), true)
         editor.putBoolean(getResString(R.string.settings_key_enable_android_backup_service), false)
@@ -764,6 +757,14 @@ open class Settings(private val context: Context) {
     }
 
     companion object {
+        /** The plaintext PIN preference a removed login used to read, purged on first start. */
+        private const val LEGACY_AUTH_PIN_KEY = "pref_auth_pin"
+
+        /** The SHA-256 PIN verifier a removed login used to read; never written again. */
+        private const val LEGACY_AUTH_PIN_HASH_KEY = "pref_auth_pin_hash"
+
+        private val LEGACY_PIN_KEYS = listOf(LEGACY_AUTH_PIN_KEY, LEGACY_AUTH_PIN_HASH_KEY)
+
         private val newLangs = listOf("ar", "bg", "ca", "cs", "de", "el", "en", "es", "fa", "fr", "gl", "hi", "hu", "it", "ja", "nl", "pl", "pt_BR", "ru", "sl", "sv", "tr", "uk", "zh_CN", "zh_TW")
         private val oldLangs = listOf("ar_SA", "bg_BG", "ca_ES", "cs_CZ", "de_DE", "el_GR", "en_US", "es_ES", "fa_IR", "fr_FR", "gl_ES", "hi_IN", "hu_HU", "it_IT", "ja_JP", "nl_NL", "pl_PL", "pt_BR", "ru_RU", "sl_SI", "sv_SE", "tr_TR", "uk_UA", "zh_CN", "zh_TW")
     }

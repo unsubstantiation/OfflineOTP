@@ -92,7 +92,6 @@
     <string name="settings_toast_encryption_backup_failed">فشلت عملية إنشاء نسخة داخلية, إلغاء العملية!</string>
     <string name="settings_toast_encryption_no_key">فشل في إستيراد مفتاح التشفير, إلغاء العملية!</string>
     <string name="settings_toast_encryption_auth_failed">أخفقت المصادقة!</string>
-    <string name="settings_toast_auth_upgrade_failed">فشل تحديث كلمة المرور / PIN إلى التشفيرة الجديدة. الرجاء إعادة تعيينها في الإعدادات!</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">تحذير</string>
@@ -103,26 +102,17 @@
 في حال الفشل, نسخة داخلية سوف تستعاد والتشفيرة ستبقى كما هي.
 مع ذلك, من الأفضل أن يكون لديك نسخة إحتياطية في حال وقوع شيئ غير
 متوقع. </string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">يمكنك فقط إستعمال كلمة المرور أو PIN طالما 
-قاعدة البيانات مشفرة بكلمة مرور أو PIN!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">يجب أولا أن تختار نوع المصادقة ككلمة مرور أو PIN!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">يجب تحديد كلمة مرور أو PIN قبل تغيير التشفيرة!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">في بعض الحالات محو مخزن المفاتيح يساعد في حل المشكلة.
-        يجب المتابعة فقط إذا تعرف ماذا تفعل! إنتباه: لأن تشفيرة قاعدة البيانات هي عبر كلمة المرور / PIN, لا يجب أن 
-        تخسر شيئ (لكن قم بنسخة إحتياطية على كل حال). هل أنت متأكد إنك تريد محو مخزن المفاتيح؟</string>
     <string name="settings_dialog_msg_clear_keystore_keystore">في بعض الحالات محو مخزن المفاتيح يساعد في حل المشكلة.
         يجب المتابعة فقط إذا تعرف ماذا تفعل! إنتباه: لأن تشفير قاعدة البيانات هو عبر مخزن المفاتيح لأندرويد, 
         سوف تخسر جميع الحسابات. قم بالنسخ الإحتياطي!. هل أنت متأكد إنك تريد محو مخزن المفاتيح؟</string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>بدون مصادقة</item>
+    <string-array name="settings_entries_auth">        <item>بدون مصادقة</item>
         <item>كلمة المرور</item>
-        <item>‏رمز PIN</item>
         <item>بيانات اعتماد الجهاز</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>مخزن مفاتيح أندرويد</item>
-        <item>كلمة المرور أو رمز PIN</item>
+        <item>كلمة المرور</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>حذف كافة الحسابات</item>
@@ -189,9 +179,6 @@
     <string name="settings_lang_sys_default">اللغة الإفتراضية للنظام</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">أدخل كلمة سرية جديدة</string>
-    <string name="settings_hint_pin">أدخل رمز PIN جديد</string>
     <string name="settings_hint_password_confirm">تأكيد كلمة المرور</string>
-    <string name="settings_hint_pin_confirm">تأكيد رمز PIN</string>
     <string name="settings_label_short_password">يجب أن يكون طول كلمة السر مكوّن من %1$d على الأقل!</string>
-    <string name="settings_label_short_pin">يجب أن يكون رمز الـ PIN مكوّن من %1$d أرقام على الأقل!</string>
 </resources>

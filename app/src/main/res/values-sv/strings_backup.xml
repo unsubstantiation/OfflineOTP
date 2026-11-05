@@ -16,8 +16,6 @@
     <string name="backup_receiver_title_backup_success">Säkerhetskopiering lyckades</string>
     <string name="backup_receiver_encrypted_disabled">Krypterade säkerhetskopior är för närvarande inte tillåtna,
         vänligen gå till inställningarna för att aktivera dem</string>
-    <string name="backup_receiver_custom_encryption_failed">Lösenord/PIN-baserad kryptering stöds
-        inte med broadcast-säkerhetskopiering</string>
     <string name="backup_receiver_no_location_set">No backup location set, please set one in the
         apps settings</string>
     <string name="backup_receiver_no_password_set">No default password set, please set one in the

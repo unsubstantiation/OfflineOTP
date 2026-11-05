@@ -98,8 +98,6 @@
         скасування змін!</string>
     <string name="settings_toast_encryption_no_key">Процес отримання ключа шифрування завершився невдало, скасування змін!</string>
     <string name="settings_toast_encryption_auth_failed">Помилка автентифікації!</string>
-    <string name="settings_toast_auth_upgrade_failed">Автоматичне оновлення Вашого паролю / PIN-коду
-        до нового типу шифрування завершилося невдало. Будь ласка, скиньте його вручну у Налаштуваннях!</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">Попередження</string>
@@ -110,32 +108,15 @@
         бази даних. У випадку невдачі - внутрішня резервна копія бази даних з її типом шифрування буде         
         відновлена.\n\n<b>Проте, завжди потрібно мати резервну копію, якщо станеться 
         щось кепське!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Ви можете використовувати пароль або PIN-код тільки тоді, коли
-        для шифрування бази даних встановлено значення \"Пароль / PIN-код\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Спочатку необхідно встановити 
-        автентифікацію по \"Пароль\" або \"PIN-код\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Щоб змінити тип шифрування,
-        спочатку необхідно встановити пароль або PIN-код!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">У деяких випадках, очищення KeyStore
-        може бути розв\'язком проблеми. Переходьте до очищення KeyStore лише в тому випадку, якщо Ви розумієте, що робите!\n\nОскільки
-        <b>база даних зашифрована</b> за допомогою <b>паролю / PIN-коду</b>, то Ви не втратите дані Ваших облікових записів
-        (у будь-якому випадку, не буде лишнім мати резервну копію бази даних).\n\n<b>Ви впевнені в тому, що хочете
-        очистити KeyStore?</b></string>
-    <string name="settings_dialog_msg_clear_keystore_keystore">У деяких випадках, очищення KeyStore
-        може бути розв\'язком проблеми. Переходьте до очищення KeyStore лише в тому випадку, якщо Ви розумієте, що робите!\n\n<b>Застереження</b>:
-        <b>база даних зашифрована</b> за допомогою <b>паролю / PIN-коду</b>, то Ви втратите дані усіх
-         Ваших облікових записів. Про всяк випадок, перевірте, чи є у Вас резервна копія бази даних!\n\n<b>Ви впевнені в тому, що хочете
-        очистити KeyStore?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Відсутній</item>
         <item>Пароль</item>
-        <item>PIN</item>
         <item>Облікові дані пристрою</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Пароль / PIN</item>
+        <item>Пароль</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Видалити усі облікові записи</item>
@@ -202,9 +183,6 @@
     <string name="settings_lang_sys_default">Налаштування за змовчуванням</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Ввести новий пароль</string>
-    <string name="settings_hint_pin">Ввести новий PIN</string>
     <string name="settings_hint_password_confirm">Підтвердити пароль</string>
-    <string name="settings_hint_pin_confirm">Підтвердити PIN</string>
     <string name="settings_label_short_password">Пароль повинен містити %1$d символів!</string>
-    <string name="settings_label_short_pin">ПІН-код повинен містити щонайменше %1$d цифр!</string>
 </resources>

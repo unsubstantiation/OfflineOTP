@@ -2320,11 +2320,10 @@ fun main() {
         expect(Modifier.isPublic(preference.modifiers), { "PasswordEncryptedPreference is not public" })
         expect(!Modifier.isFinal(preference.modifiers), { "PasswordEncryptedPreference must stay extendable" })
         preference.getConstructor(Context::class.java, android.util.AttributeSet::class.java)
-        expect(PasswordEncryptedPreference.Mode.values().map { it.name } == listOf("PASSWORD", "PIN"),
-                { "Mode constants changed" })
-        expectMethod(preference, "void setMode(Mode)")
-        expect(!Modifier.isFinal(preference.getDeclaredMethod("setMode", PasswordEncryptedPreference.Mode::class.java).modifiers),
-                { "setMode must stay overridable like the Java method" })
+        // The dialog asked for a password or a PIN; the PIN login is gone, so the nested Mode
+        // enumeration went with it and there is nothing left to switch between.
+        expect(preference.declaredClasses.none { it.simpleName == "Mode" },
+                { "the backup password dialog still has a credential mode" })
         expect(View.OnClickListener::class.java.isAssignableFrom(preference), { "click listener" })
         expect(TextWatcher::class.java.isAssignableFrom(preference), { "text watcher" })
     }
@@ -2355,15 +2354,6 @@ fun main() {
                 { "backup password inputs were not masked" })
         expect(layout.endIconClickListener != null, { "password visibility toggle was not installed" })
         expect(!save.isEnabled, { "save must begin disabled" })
-
-        preference.setMode(PasswordEncryptedPreference.Mode.PIN)
-        withPoisonedTransaction { preference.bind(root) }
-        val pinType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        expect(password.inputType == pinType && confirm.inputType == pinType,
-                { "PIN mode did not use numeric password input" })
-        expect(password.transformationMethod is PasswordTransformationMethod &&
-                confirm.transformationMethod is PasswordTransformationMethod,
-                { "PIN mode inputs were not masked" })
     }
 
     check("the converted vault repository keeps its Java-visible surface and fails closed") {
@@ -4426,7 +4416,6 @@ fun main() {
             "isShowIndividualTimeoutsEnabled()Z",
             "prepareAuthCredentials(Ljava/lang/String;)Lorg/shadowice/flocke/andotp/Utilities/Settings\$PreparedCredentials;",
             "registerPreferenceChangeListener(Landroid/content/SharedPreferences\$OnSharedPreferenceChangeListener;)V",
-            "removeAuthPINHash()V",
             "removeAuthPasswordHash()V",
             "setAllTagsToggle(Ljava/lang/Boolean;)V",
             "setAndroidBackupServiceEnabled(Z)V",
@@ -6519,7 +6508,7 @@ fun main() {
         expect(adapter.getTags() == mutableListOf("trimmed"), { "the trimmed tag was not added: ${adapter.getTags()}" })
     }
 
-    check("credential changes reject a too-short or unconfirmed password and PIN") {
+    check("credential changes reject a too-short or unconfirmed password") {
         expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
                 Constants.AUTH_MIN_PASSWORD_LENGTH, "abc", "abc"),
                 { "a too-short password was accepted" })
@@ -6532,15 +6521,6 @@ fun main() {
         expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PASSWORD,
                 Constants.AUTH_MIN_PASSWORD_LENGTH, "", ""),
                 { "an empty password was accepted" })
-        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
-                Constants.AUTH_MIN_PIN_LENGTH, "123", "123"),
-                { "a too-short PIN was accepted" })
-        expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
-                Constants.AUTH_MIN_PIN_LENGTH, "1234", "1234"),
-                { "a valid PIN was rejected" })
-        expect(!CredentialsPreference.canSaveCredentials(Constants.AuthMethod.PIN,
-                Constants.AUTH_MIN_PIN_LENGTH, "12345", "123"),
-                { "an unconfirmed PIN was accepted" })
         expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.NONE, 0, "", ""),
                 { "NONE must stay saveable without a credential" })
         expect(CredentialsPreference.canSaveCredentials(Constants.AuthMethod.DEVICE, 0, null, null),

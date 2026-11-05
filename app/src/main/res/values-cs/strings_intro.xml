@@ -7,33 +7,12 @@
     <string name="intro_slide2_desc">K zajištění bezpečnosti Vašich účtů je <b>OfflineOTP</b> ukládá
         výhradně do šifrovaných datových souborů.
         Zde můžete zvolit, která metoda šifrování se bude používat.</string>
-    <string name="intro_slide2_desc_keystore">KeyStore je komponenta systému Android sloužící k
-        bezpečnému ukládání kryptografických klíčů. Výhodou je, že klíče jsou uloženy
-        odděleně od dat, tato funkce může využívat hardwarovou podporu šifrování
-        (je-li v zařízení k dispozici). Nicméně tím, že klíče nejsou ukládány s daty, <b>zabraňuje tato metoda
-        použití externích zálohovacích řešení (například Titanium)</b>.
-        Pokud zvolíte tuto možnost, musíte se spolehnout na vlastní zálohovací funkce poskytované
-        <b>OfflineOTP</b>. \n\n<b>Varování</b>: O KeyStore je známo,
-        že dělá dost problémů, prosím používejte jej jen v případě, že opravdu musíte.
-        Pokud Vám nevadí zadávání hesla / PINu při každém spuštění
-         <b>OfflineOTP</b>, doporučuje se raději <b>použít šifrování založené na hesle</b>.</string>
-    <string name="intro_slide2_desc_password">Tato metoda zašifruje data pomocí klíče
-        generovaného z PINu nebo hesla. Hlavní výhodou je, že bude fungovat s externími zálohovacími
-        nástroji (např. Titanium) a je méně náchylná k selhání než KeyStore.
-        Budete ale muset zadat své přihlašovací údaje při každém spuštěn
-         <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Zde si můžete nastavit bezpečnostní zámek
         <b>OfflineOTP</b>. Pokud jste zvolili šifrování pomocí <b>Android KeyStore</b>,
         je tento krok volitelný.</string>
-    <string name="intro_slide3_desc_password">Zde si můžete nastavit bezpečnostní zámek
-        <b>OfflineOTP</b>. Vzhledem k volbě šifrování pomocí <b>Hesla/PINu</b> je třeba nastavit
-        heslo či PIN pro pokračování.</string>
     <string name="intro_slide3_warn_no_password">Prosím, nastavte heslo pro pokračování!</string>
-    <string name="intro_slide3_warn_no_pin">Prosím, nastavte PIN pro pokračování!</string>
     <string name="intro_slide3_warn_confirm_password">Před pokračováním, prosím, potvrďte své heslo!</string>
     <string name="intro_slide3_warn_password_mismatch">Passwords must match!</string>
-    <string name="intro_slide3_warn_confirm_pin">Před pokračováním, prosím, potvrďte svůj PIN!</string>
-    <string name="intro_slide3_warn_pin_mismatch">Pins must match!</string>
     <string name="intro_slide4_title">Hotovo</string>
     <string name="intro_slide4_title_failed">Setup failed</string>
     <string name="intro_slide4_title_progress">Please wait</string>

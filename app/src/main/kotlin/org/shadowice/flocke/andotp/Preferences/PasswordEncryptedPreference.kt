@@ -24,12 +24,9 @@ import org.shadowice.flocke.andotp.Utilities.Settings
 import java.nio.charset.StandardCharsets
 import java.security.KeyPair
 
-/** Dialog preference that stores a password or PIN encrypted with the KeyStore RSA key pair. */
+/** Dialog preference that stores the backup password encrypted with the KeyStore RSA key pair. */
 open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
     DialogPreference(context, attrs), View.OnClickListener, TextWatcher {
-
-    /** Which kind of credential the dialog asks for. */
-    enum class Mode { PASSWORD, PIN }
 
     private fun loadOrGenerateKey(): KeyPair? = try {
         KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
@@ -45,8 +42,6 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
         null
     }
 
-    private var mode: Mode = Mode.PASSWORD
-
     private lateinit var passwordInput: TextInputEditText
     private lateinit var passwordConfirm: EditText
     private lateinit var btnSave: Button
@@ -55,11 +50,6 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
 
     init {
         setDialogLayoutResource(R.layout.component_password)
-    }
-
-    /** Sets whether a password or a PIN is entered. */
-    open fun setMode(mode: Mode) {
-        this.mode = mode
     }
 
     override fun onPrepareDialogBuilder(builder: AlertDialog.Builder) {
@@ -97,19 +87,11 @@ open class PasswordEncryptedPreference(context: Context, attrs: AttributeSet?) :
 
         passwordInput.setText(restoreAndDecrypt(encryptedValue))
 
-        if (mode == Mode.PASSWORD) {
-            passwordLayout.hint = context.getString(R.string.settings_hint_password)
-            passwordConfirm.setHint(R.string.settings_hint_password_confirm)
+        passwordLayout.hint = context.getString(R.string.settings_hint_password)
+        passwordConfirm.setHint(R.string.settings_hint_password_confirm)
 
-            passwordInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            passwordConfirm.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-        } else if (mode == Mode.PIN) {
-            passwordLayout.hint = context.getString(R.string.settings_hint_pin)
-            passwordConfirm.setHint(R.string.settings_hint_pin_confirm)
-
-            passwordInput.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            passwordConfirm.inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        }
+        passwordInput.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        passwordConfirm.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
 
         ConfirmedPasswordTransformationHelper.setup(passwordLayout, passwordInput, passwordConfirm)
 

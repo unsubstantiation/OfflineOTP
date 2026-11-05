@@ -1,10 +1,13 @@
 """Source-level guards for the credential-change dialog's save button.
 
 The button state needs a bound `DialogPreference`, which the desktop harness does not model,
-so pin the call sites that decide it: the password/PIN branches must ask
+so pin the call sites that decide it: the password branch must ask
 `CredentialsPreference.canSaveCredentials`, and a credential below the minimum must not leave
 Save enabled (the previous code only showed the warning). `Checks.kt` covers the predicate and
-the minimums themselves.
+the minimum itself.
+
+The dialog used to carry a second, shorter minimum for a PIN login. That login was removed, so
+the guard asserts the old constant cannot come back.
 """
 import unittest
 from pathlib import Path
@@ -33,9 +36,9 @@ class CredentialGatingGuardTest(unittest.TestCase):
         self.assertIn("if (value == AuthMethod.NONE || value == AuthMethod.DEVICE) {", self.text)
         self.assertIn("btnSave?.isEnabled = true", self.text)
 
-    def test_the_minimums_come_from_the_shared_constants(self):
+    def test_the_minimum_comes_from_the_shared_constant(self):
         self.assertIn("Constants.AUTH_MIN_PASSWORD_LENGTH", self.text)
-        self.assertIn("Constants.AUTH_MIN_PIN_LENGTH", self.text)
+        self.assertNotIn("AUTH_MIN_PIN_LENGTH", self.text)
 
 
 if __name__ == "__main__":

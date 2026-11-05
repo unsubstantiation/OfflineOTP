@@ -7,30 +7,12 @@
     <string name="intro_slide2_desc">Pour assurer la sécurité de vos comptes, <b>OfflineOTP</b> ne les
         stocke uniquement dans des fichiers de données chiffrés. Ici, vous pouvez choisir quelle méthode de chiffrement sera
         utilisée.</string>
-    <string name="intro_slide2_desc_keystore">Le KeyStore est un composant système d\'Android pour
-        stocker de façon sécurisée les clés de chiffrage. L\'avantage de cette méthode est que les clés sont
-        stockées séparément des fichiers de données et peuvent être sauvegardées par un matériel cryptographique (si votre
-        appareil le supporte). Cependant, comme les clés ne sont pas stockée avec les données des applis, <b>cette méthode
-        empêche le fonctionnement de solutions de sauvegarde externes (comme Titanium)</b>. Si vous choisissez cette
-        méthode, vous devrez vous reposer sur les fonctionnalités de sauvegarde internes fournies par <b>OfflineOTP</b>.
-        \n\n<b>Avertissement</b> : le KeyStore est connu pour être problématique, ne l\'utilisez que si vous êtes obligé. Si saisir un mot de passe / code PIN à chaque démarrage de <b>OfflineOTP</b> ne vous dérange pas,
-        il est <b>fortement recommandé d\'utiliser un chiffrement basé sur un mot de passe </b>.</string>
-    <string name="intro_slide2_desc_password">Cette méthode va chiffrer vos données avec une clé
-        générée à partir d\'un mot de passe ou code PIN. Le principal avantage ici est que cela fonctionnera avec
-        des solutions de sauvegarde externes (comme Titanium) et est bien moins propice aux erreurs que le KeyStore.
-        Cependant, vous devrez saisir vos identifiants à chaque lancement de <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Ici vous pouvez définir une authentification pour verrouiller
         <b>OfflineOTP</b>. Puisque vous avez choisi le <b>KeyStore Android</b> comme méthode de chiffrement, ceci est
         optionnel.</string>
-    <string name="intro_slide3_desc_password">Ici vous pouvez définir une authentification pour verrouiller
-        <b>OfflineOTP</b>. Puisque vous avez choisi un <b>mot de passe / code PIN</b> comme méthode de chiffrement, vous devez
-        définir un mot de passe ou un code PIN pour continuer.</string>
     <string name="intro_slide3_warn_no_password">Veuillez définir un mot de passe pour continuer !</string>
-    <string name="intro_slide3_warn_no_pin">Veuillez définir un code PIN pour continuer !</string>
     <string name="intro_slide3_warn_confirm_password">Veuillez confirmer votre mot de passe pour continuer !</string>
     <string name="intro_slide3_warn_password_mismatch">Les mots de passe doivent correspondre!</string>
-    <string name="intro_slide3_warn_confirm_pin">Veuillez confirmer votre code PIN pour continuer !</string>
-    <string name="intro_slide3_warn_pin_mismatch">Les codes PIN doivent correspondre !</string>
     <string name="intro_slide4_title">Terminé</string>
     <string name="intro_slide4_title_failed">Échec de la configuration</string>
     <string name="intro_slide4_title_progress">Veuillez patienter</string>

@@ -15,10 +15,8 @@ Three defects fixed in one pass, each pinned here:
    wiring (``showCustomPeriod`` for ``hasNonDefaultPeriod()``) was lost upstream in v0.6.
    ``EntryViewHolder.updateValues`` binds the row again using each entry's actual token step.
 
-3. **PIN setup showed the password confirmation warning.** ``IntroScreenActivity
-   setupForPinInput`` assigned ``intro_slide3_warn_confirm_password`` instead of the PIN
-   variant ``intro_slide3_warn_confirm_pin`` (present in all translations, unused until the
-   fix).
+3. **PIN setup showed the password confirmation warning.** Fixed by that pass; the PIN login was
+   removed afterwards, and ``PinLoginRemovalTest`` now guards that nothing of it comes back.
 """
 import re
 import unittest
@@ -149,34 +147,62 @@ class CustomPeriodCardLabelTest(unittest.TestCase):
             self.assertIn('android:id="@+id/customPeriod"', text, layout)
 
 
-class IntroPinWarningTest(unittest.TestCase):
-    """PIN setup asks the user to confirm the PIN, not the password."""
+class PinLoginRemovalTest(unittest.TestCase):
+    """The PIN login is gone: no method, no keyboard, no strings, and no crash for old vaults."""
 
     INTRO = APP_KOTLIN / "Activities/IntroScreenActivity.kt"
+    CONSTANTS = CORE_KOTLIN / "Utilities/Constants.kt"
 
-    def _function_body(self, name):
+    def test_the_intro_offers_one_credential_form(self):
         text = self.INTRO.read_text(encoding="utf-8")
-        match = re.search(
-            rf"private fun {name}\(\) \{{(.*?)\n        (?:private |public |protected |internal |override |open )*fun ",
-            text, re.DOTALL)
-        self.assertIsNotNone(match, f"{name} not found")
-        return match.group(1)
+        self.assertNotIn("setupForPinInput", text)
+        self.assertNotIn("AuthMethod.PIN", text)
+        self.assertIn("setupForPasswordInput()", text)
 
-    def test_setup_for_pin_uses_the_pin_confirmation_warning(self):
-        body = self._function_body("setupForPinInput")
-        self.assertIn("R.string.intro_slide3_warn_confirm_pin", body)
-        self.assertNotIn("R.string.intro_slide3_warn_confirm_password", body,
-                         "the PIN path must not show the password wording")
+    def test_the_auth_enum_has_no_pin_member(self):
+        text = self.CONSTANTS.read_text(encoding="utf-8")
+        self.assertIn("NONE, PASSWORD, DEVICE", text)
+        self.assertNotIn("AUTH_MIN_PIN_LENGTH", text)
 
-    def test_setup_for_password_keeps_the_password_confirmation_warning(self):
-        body = self._function_body("setupForPasswordInput")
-        self.assertIn("R.string.intro_slide3_warn_confirm_password", body)
-        self.assertNotIn("R.string.intro_slide3_warn_confirm_pin", body)
+    def test_a_stored_method_from_an_older_release_reads_as_a_password(self):
+        # The fallback has to exist: a vault set up with the removed PIN login is still encrypted
+        # with that PIN, and throwing or returning NONE would leave it unopenable.
+        text = self.CONSTANTS.read_text(encoding="utf-8")
+        self.assertIn("fun fromStored(token: String): AuthMethod", text)
+        self.assertIn("it.name.equals(token.trim(), ignoreCase = true)", text)
+        self.assertIn("?: PASSWORD", text)
+        settings = (APP_KOTLIN / "Utilities/Settings.kt").read_text(encoding="utf-8")
+        self.assertIn("return Constants.AuthMethod.fromStored(authString)", settings)
 
-    def test_both_warning_strings_stay_declared(self):
-        text = (RES_VALUES / "strings_intro.xml").read_text(encoding="utf-8")
-        self.assertIn('name="intro_slide3_warn_confirm_pin"', text)
-        self.assertIn('name="intro_slide3_warn_confirm_password"', text)
+    def test_no_login_pin_strings_survive_in_any_translation(self):
+        removed = (
+            "auth_hint_pin", "auth_toast_pin_missing", "settings_hint_pin",
+            "settings_hint_pin_confirm", "settings_label_short_pin",
+            "intro_slide3_warn_no_pin", "intro_slide3_warn_confirm_pin",
+            "intro_slide3_warn_pin_mismatch", "settings_key_auth_pin",
+            "settings_key_auth_pin_hash",
+        )
+        resources = ROOT / "app/src/main/res"
+        for name in removed:
+            for path in sorted(resources.glob("values*/strings_*.xml")) + [
+                    resources / "values/settings.xml"]:
+                self.assertNotIn(f'name="{name}"', path.read_text(encoding="utf-8"),
+                                 f"{name} is still declared in {path}")
+
+    def test_every_translation_offers_the_same_three_auth_methods(self):
+        resources = ROOT / "app/src/main/res"
+        for path in sorted(resources.glob("values*/strings_settings.xml")):
+            text = path.read_text(encoding="utf-8")
+            match = re.search(r'<string-array name="settings_entries_auth">(.*?)</string-array>',
+                              text, re.DOTALL)
+            self.assertIsNotNone(match, path)
+            self.assertEqual(match.group(1).count("<item>"), 3, path)
+
+    def test_the_backup_password_dialog_has_no_pin_mode(self):
+        text = (APP_KOTLIN / "Preferences/PasswordEncryptedPreference.kt").read_text(encoding="utf-8")
+        self.assertNotIn("Mode.PIN", text)
+        self.assertNotIn("enum class Mode", text)
+        self.assertIn("R.string.settings_hint_password", text)
 
 
 if __name__ == "__main__":

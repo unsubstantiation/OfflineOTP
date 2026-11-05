@@ -3,7 +3,6 @@
     <string name="auth_activity_title">Authentifizieren</string>
     <!-- Hints -->
     <string name="auth_hint_password">Passwort</string>
-    <string name="auth_hint_pin">PIN</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">Bitte authentifizieren Sie sich, um OfflineOTP zu starten!</string>
     <string name="auth_msg_confirm_encryption">Bitte bestätigen Sie die Authentifizierung, um Ihren
@@ -12,5 +11,4 @@
     <string name="auth_button_unlock">Entsperren</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Bitte setze ein Passwort in den <b>Einstellungen</b>!</string>
-    <string name="auth_toast_pin_missing">Bitte setze eine PIN in den <b>Einstellungen</b>!</string>
 </resources>

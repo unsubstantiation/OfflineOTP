@@ -3,7 +3,6 @@
     <string name="auth_activity_title">验证身份</string>
     <!-- Hints -->
     <string name="auth_hint_password">密码</string>
-    <string name="auth_hint_pin">PIN 码</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">请验证身份以启动 OfflineOTP !</string>
     <string name="auth_msg_confirm_encryption">请确认身份验证以生成您的
@@ -12,5 +11,4 @@
     <string name="auth_button_unlock">解锁​​​​</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">请在 <b>设置</b> 中设置密码！</string>
-    <string name="auth_toast_pin_missing">请在 <b>设置</b> 中设置 PIN 码！</string>
 </resources>

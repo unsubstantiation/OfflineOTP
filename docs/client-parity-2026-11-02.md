@@ -171,6 +171,18 @@ reinterpretation:
 | Two entries are the same account when their kind, token parameters, seed, name, issuer and SSH target match — the usage stamp, counters of use, tags and reveal state are metadata | `Entry.equals`/`hashCode` | `Entry.==`/`hash(into:)` | `VaultStoreTests`, `test_ios_app.py` |
 | A Google Authenticator export is read code by code and written only when every code of it has arrived; a repeated or foreign code is refused without ending it, and an identical account is skipped | `GoogleAuthenticatorMigration`, `MigrationBatchCollector`, Android's `google_import_*` strings, `EntriesCardAdapter.importEntries` | `MigrationPayload`, `MigrationBatchCollector`, `MigrationWording`, `VaultStore.addMigrationImportCode`/`confirmMigrationImport` | `MigrationImportTests`, `VaultStoreTests`, `test_ios_app.py` |
 
+One difference was removed rather than documented: Android could unlock the vault with a four-digit
+PIN, which neither the desktop nor the iOS client ever offered, and which was the weakest credential
+any of the three accepted. It is gone from the enum, the wizard, the unlock screen and the settings
+dialog, and the deprecated `pref_auth_pin` keys are deleted instead of migrated, so all three clients
+now ask for the same thing — a password — or defer to Android's device credentials. A vault an older
+release set up with the PIN login is read as a `password` vault: the bytes are unchanged, the same PIN
+typed into the password field derives the same key, and
+**Settings → Authentication** can give it a real password
+(`AuthenticationFlowDeviceTest.aVaultStoredAsAPinStillOpensThroughThePasswordPrompt`, guarded by
+`PinLoginRemovalTest`). Entry-level mOTP PINs and hardware-key PINs are data, not logins, and are
+unchanged on both clients.
+
 Three things are deliberately *not* the same, and all are recorded in the plan: the iOS client cannot
 create an SSH key (its seed is `SshKeyMaterial`-framed material this build does not implement — such
 entries are read, listed, revealed and written back unchanged); it always searches all three fields,

@@ -91,7 +91,6 @@
         kopii, przerywam!</string>
     <string name="settings_toast_encryption_no_key">Nie można uzyskać klucza szyfrowania, przerywam!</string>
     <string name="settings_toast_encryption_auth_failed">Uwierzytelnianie nie powiodło się!</string>
-    <string name="settings_toast_auth_upgrade_failed">Zmiana hasła / kodu PIN nie powiodła się. Zmień swoje hasło ręcznie w ustawieniach.</string>
     <string name="settings_toast_android_sync_enabled">Synchronizacja systemu Android włączona</string>
     <string name="settings_toast_android_sync_disabled">Synchronizacja systemu Android wyłączona</string>
     <string name="settings_dialog_title_warning">Uwaga</string>
@@ -102,21 +101,16 @@
         bazy danych. W razie wypadku wewnętrzna kopia zapasowa zostanie przywrócona i szyfrowanie 
         zostanie niezmienione.\n\n<b>W przypadku gdy wydarzy się coś nieprzewidzianego dobrze
         jest mieć kopię zapasową</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Dopóki szyfrowanie bazy danych ustawione jest jako „Hasło / kod PIN”, możesz używać tylko hasła lub kodu PIN!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Najpierw należy skonfigurować uwierzytelnianie jako hasło lub kod PIN!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Zanim zmienisz szyfrowanie, najpierw musisz skonfigurować hasło lub kod PIN!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">W niektórych przypadkach wyczyszczenie KeyStore może pomóc rozwiązać problemy. Powinieneś kontynuować tylko w przypadku, gdy wiesz co robisz!\n\nPonieważ <b>Szyfrowanie bazy danych</b> jest ustawione na <b>Hasło / kod PIN</b>, nie powinieneś utracić żadnych danych (ale i tak nie zaszkodzi posiadać kopię zapasową).\n\n<b>Czy na pewno chcesz wyczyścić KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">W niektórych przypadkach wyczyszczenie KeyStore może pomóc rozwiązać problemy. Powinieneś kontynuować tylko w przypadku, gdy wiesz co robisz!\n\n<b>Uwaga</b>: <b>Szyfrowanie bazy danych</b> ustawione jest na <b>Android KeyStore</b>, dlatego utracisz wszystkie konta. Upewnij się, że posiadasz aktualną kopię zapasową!\n\n<b>Czy na pewno chcesz wyczyścić KeyStore?</b></string>
     <!-- List entries -->
     <string-array name="settings_entries_auth">
         <item>Brak</item>
         <item>Hasło</item>
-        <item>PIN</item>
         <item>Poświadczenia urządzenia</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Hasło / kod PIN</item>
+        <item>Hasło</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Usuń wszystkie konta</item>
@@ -183,9 +177,6 @@
     <string name="settings_lang_sys_default">Domyślny</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Wpisz nowe hasło</string>
-    <string name="settings_hint_pin">Wprowadź nowy kod PIN</string>
     <string name="settings_hint_password_confirm">Potwierdź hasło</string>
-    <string name="settings_hint_pin_confirm">Potwierdź kod PIN</string>
     <string name="settings_label_short_password">Hasło musi mieć co najmniej %1$d znaków!</string>
-    <string name="settings_label_short_pin">Kod PIN musi mieć co najmniej %1$d cyfr!</string>
 </resources>

@@ -9,7 +9,6 @@
     <string name="backup_receiver_title_backup_failed">Reservekopie mislukt</string>
     <string name="backup_receiver_title_backup_success">Reservekopie geslaagd</string>
     <string name="backup_receiver_encrypted_disabled">Versleutelde reservekopieën zijn op dit moment uitgeschakeld, ga naar de Instellingen om deze in te schakelen</string>
-    <string name="backup_receiver_custom_encryption_failed">Versleuteling op basis van wachtwoord/pincode wordt niet ondersteund bij reservekopieën gemaakt op afstand</string>
     <string name="backup_receiver_no_location_set">Geen back-up locatie ingesteld, stel er een in in de instellingen van de app</string>
     <string name="backup_receiver_no_password_set">Geen standaard wachtwoord ingesteld, stel er een in in de instellingen van de app</string>
     <!-- Notification channels -->

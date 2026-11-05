@@ -8,11 +8,8 @@
     <string name="intro_slide3_desc_keystore">यहां आप <b>OfflineOTP</b> लॉक करने के लिए एक प्रमाणीकरण सेटअप कर सकते हैं। चूंकि आपने एन्क्रिप्शन विधि के रूप में <b>एंड्रॉयड कुंजी स्टोर</b> चुना है, यह वैकल्पिक है।</string>
     <string name="intro_slide3_desc_password">यहां आप <b>OfflineOTP</b> लॉक करने के लिए एक प्रमाणीकरण सेटअप कर सकते हैं। चूंकि आपने <b>पासवर्ड / पिन</b> को एन्क्रिप्शन विधि के रूप में चुना है, इसलिए आपको आगे बढ़ने के लिए पासवर्ड या पिन सेट करना होगा।</string>
     <string name="intro_slide3_warn_no_password">कृपया जारी रखने के लिए एक पासवर्ड सेट करें!</string>
-    <string name="intro_slide3_warn_no_pin">कृपया जारी रखने के लिए एक पिन सेट करें!</string>
     <string name="intro_slide3_warn_confirm_password">जारी रखने के लिए कृपया अपने \'पासवर्ड की पुष्टि करें!</string>
     <string name="intro_slide3_warn_password_mismatch">पासवर्ड का मिलान होना चाहिए!</string>
-    <string name="intro_slide3_warn_confirm_pin">कृपया अपना पिन जारी रखने के लिए पुष्टि करें!</string>
-    <string name="intro_slide3_warn_pin_mismatch">पिन मैच होना चाहिए!</string>
     <string name="intro_slide4_title">संपन्न हो गया</string>
     <string name="intro_slide4_title_failed">सेटअप विफल हुआ</string>
     <string name="intro_slide4_title_progress">कृपया प्रतीक्षा करें</string>

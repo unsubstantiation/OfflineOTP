@@ -29,11 +29,8 @@
          <b>OfflineOTP</b>. Тъй като сте избрали <b>Парола/ПИН код</b> като метод за криптиране,
           необходимо е да зададете парола или ПИН код, за да продължите.</string>
     <string name="intro_slide3_warn_no_password">Моля, задайте парола, за да продължите!</string>
-    <string name="intro_slide3_warn_no_pin">Моля, задайте ПИН код, за да продължите!</string>
     <string name="intro_slide3_warn_confirm_password">Потвърдете вашата парола, за да продължите!</string>
     <string name="intro_slide3_warn_password_mismatch">Passwords must match!</string>
-    <string name="intro_slide3_warn_confirm_pin">Потвърдете вашия ПИН код, за да продължите!</string>
-    <string name="intro_slide3_warn_pin_mismatch">Pins must match!</string>
     <string name="intro_slide4_title">Завършено</string>
     <string name="intro_slide4_title_failed">Setup failed</string>
     <string name="intro_slide4_title_progress">Please wait</string>

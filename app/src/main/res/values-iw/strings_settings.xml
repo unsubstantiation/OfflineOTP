@@ -96,8 +96,6 @@
     <string name="settings_toast_encryption_backup_failed">יצירת גיבוי פנימי          נכשלה, מבטל!</string>
     <string name="settings_toast_encryption_no_key">השגת מפתח ההצפנה נכשלה, מבטל!</string>
     <string name="settings_toast_encryption_auth_failed">אימות נכשל!</string>
-    <string name="settings_toast_auth_upgrade_failed">נכשל השדרוג השקט של הסיסמה / PIN
-        להצפנה החדשה, אנא אפס אותה ידנית בהגדרות!</string>
     <string name="settings_toast_android_sync_enabled">Android sync enabled</string>
     <string name="settings_toast_android_sync_disabled">Android sync disabled</string>
     <string name="settings_dialog_title_warning">אזהרה</string>
@@ -108,32 +106,19 @@
         הצפנת מסד הנתונים. במקרה של תקלה ישוחזר גיבוי פנימי וההצפנה
         תשאר ללא שינוי.\n\n<b> עם זאת, זה תמיד רעיון טוב שיהיה לך גיבוי למקרה
         שקורה משהו לא צפוי!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">אתה יכול להשתמש רק בסיסמה או PIN
-        כל עוד הצפנת מסד הנתונים מוגדרת כ\"סיסמה / PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">ראשית עליך להגדיר את
-        האימות ל- \"סיסמה\" או \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">ראשית עליך להגדיר
-        סיסמה או PIN לפני שינוי ההצפנה!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">בחלק מהמקרים ניקוי ה- KeyStore
-        יכול לעזור בפתרון בעיות. עליך להמשיך רק אם אתה יודע מה אתה עושה!\n\n מכיוון
-        <b>שהצפנת מסד הנתונים</b> מוגדרת ל- <b>סיסמה / PIN</b> אתה לא צריך לאבד שום נתונים
-        כשאתה עושה זאת (אך זה לא כואב שיהיה לך גיבוי בכל מקרה).\n\n<b> האם אתה באמת בטוח שאתה רוצה
-        לנקות את ה- KeyStore?</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">בחלק מהמקרים ניקוי ה- KeyStore
         יכול לעזור בפתרון בעיות. עליך להמשיך רק אם אתה יודע מה אתה עושה!\n\n <b>אזהרה</b>:
         מכיוון <b>שהצפנת מסד הנתונים</b> מוגדרת ל-  <b>Android KeyStore</b> אתה תאבד את
         כל החשבונות שלך. וודא שיש לך גיבוי.\n\n<b> האם אתה באמת בטוח שאתה רוצה לנקות את ה-
         KeyStore?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>אף אחד</item>
+    <string-array name="settings_entries_auth">        <item>אף אחד</item>
         <item>סיסמה</item>
-        <item>קוד PIN</item>
         <item>אישורי מכשיר</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>KeyStore אנדרואיד</item>
-        <item>סיסמה / PIN</item>
+        <item>סיסמה</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>מחק את כל החשבונות</item>
@@ -200,9 +185,6 @@
     <string name="settings_lang_sys_default">ברירת המחדל של המערכת</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">הקלד סיסמה חדשה</string>
-    <string name="settings_hint_pin">הכנס קוד PIN חדש</string>
     <string name="settings_hint_password_confirm">אשר סיסמה</string>
-    <string name="settings_hint_pin_confirm">אשר PIN</string>
     <string name="settings_label_short_password">הסיסמה חייבת להיות באורך של %1$d תווים לפחות!</string>
-    <string name="settings_label_short_pin">ה- PIN חייב להיות באורך של %1$d ספרות לפחות!</string>
 </resources>

@@ -3,7 +3,6 @@
     <string name="auth_activity_title">Автентифікація</string>
     <!-- Hints -->
     <string name="auth_hint_password">Пароль</string>
-    <string name="auth_hint_pin">PIN-код</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">Будь ласка, пройдіть автентифікацію, щоб запустити OfflineOTP!</string>
     <string name="auth_msg_confirm_encryption">Please confirm authentication to generate your
@@ -12,5 +11,4 @@
     <string name="auth_button_unlock">Розблокувати</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Будь ласка, встановіть пароль в <b>Налаштуваннях</b>!</string>
-    <string name="auth_toast_pin_missing">Будь ласка, встановіть PIN-код в <b>Налаштуваннях</b>!</string>
 </resources>

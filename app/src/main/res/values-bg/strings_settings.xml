@@ -129,12 +129,10 @@
          имате резервно копие!\n\n<b>Наистина ли сте сигурни, че искате да изчистите
          Хранилището за ключове на Android?</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>Няма</item>
+    <string-array name="settings_entries_auth">        <item>Няма</item>
         <item>Парола</item>
-        <item>ПИН код</item>
         <item>Удостоверения на устройството</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Хранилище за ключове на Android</item>
         <item>Парола / ПИН код</item>
@@ -204,9 +202,6 @@
     <string name="settings_lang_sys_default">По подразбиране за системата</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Въведи нова парола</string>
-    <string name="settings_hint_pin">Въведете нов ПИН код</string>
     <string name="settings_hint_password_confirm">Потвърдете паролата</string>
-    <string name="settings_hint_pin_confirm">Потвърдете ПИН кода</string>
     <string name="settings_label_short_password">Паролата трябва да съдържа не по-малко от %1$d символа!</string>
-    <string name="settings_label_short_pin">ПИН кодът трябва да съдържа не по-малко от %1$d цифри!</string>
 </resources>

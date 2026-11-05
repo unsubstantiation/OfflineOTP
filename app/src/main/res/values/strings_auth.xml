@@ -4,7 +4,6 @@
 
     <!-- Hints -->
     <string name="auth_hint_password">Password</string>
-    <string name="auth_hint_pin">PIN</string>
 
     <!-- Messages -->
     <string name="auth_msg_authenticate">Authenticate to start OfflineOTP.</string>
@@ -15,5 +14,4 @@
 
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Set a password in Settings first.</string>
-    <string name="auth_toast_pin_missing">Set a PIN in Settings first.</string>
 </resources>

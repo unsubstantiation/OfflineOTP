@@ -7,33 +7,12 @@
     <string name="intro_slide2_desc">Per tal de garantir la seguretat dels vostres comptes, <b>OfflineOTP</b> fa servir
         xifratge per a desar les dades. Aquí podeu triar el mètode de xifratge que 
         s\'hi farà servir.</string>
-    <string name="intro_slide2_desc_keystore">The KeyStore is a system component of Android used to
-        securely store cryptographic keys. The advantage of using the KeyStore is that the keys are
-        stored separately from <b>OfflineOTP</b>\'s data, and can be backed by hardware-based encryption
-        (if your device supports it). However, as the keys are not stored with <b>OfflineOTP</b>\'s data,
-        <b>this method prevents external backup solutions (like Titanium) from working</b>. If you
-        choose this method, you will have to rely on the internal backup functions provided by
-        <b>OfflineOTP</b>.\n\n<b>Warning</b>: The KeyStore is known to cause many problems, so
-        please only use it if you absolutely have to. If you don\'t mind entering a password / PIN
-        every time you start <b>OfflineOTP</b>, it is <b>highly recommended to use the password-based
-        encryption instead</b>.</string>
-    <string name="intro_slide2_desc_password">This method will encrypt your data with a key
-        generated from a password or PIN. The main advantage of using this method is that external
-        backup solutions (like Titanium) will work as expected, and it is much less failure-prone
-        than the KeyStore. However, you will have to enter your credentials every time you start
-        <b>OfflineOTP</b>.</string>
     <string name="intro_slide3_desc_keystore">Here you can setup an authentication method to lock
         <b>OfflineOTP</b>. Since you have chosen <b>Android KeyStore</b> as your encryption method, this
         step is optional.</string>
-    <string name="intro_slide3_desc_password">Here you can setup an authentication method to lock
-        <b>OfflineOTP</b>. Since you have chosen <b>Password / PIN</b> as your encryption method, a
-        password or a PIN must be set to proceed.</string>
     <string name="intro_slide3_warn_no_password">Si us plau, establiu una contrasenya per a continuar!</string>
-    <string name="intro_slide3_warn_no_pin">Si us plau, establiu un PIN per a continuar!</string>
     <string name="intro_slide3_warn_confirm_password">Si us plau, confirmeu la contrasenya per a continuar!</string>
     <string name="intro_slide3_warn_password_mismatch">Les contrasenyes han de coincidir!</string>
-    <string name="intro_slide3_warn_confirm_pin">Si us plau, confirmeu el PIN per a continuar!</string>
-    <string name="intro_slide3_warn_pin_mismatch">Els PIN han de coincidir!</string>
     <string name="intro_slide4_title">Acabat</string>
     <string name="intro_slide4_title_failed">La configuració ha fallat</string>
     <string name="intro_slide4_title_progress">Espereu, si us plau</string>

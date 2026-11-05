@@ -87,7 +87,6 @@
     <string name="settings_toast_encryption_backup_failed">創建內部備份失敗，轉換過程正在中止！</string>
     <string name="settings_toast_encryption_no_key">未能取得加密金鑰，變更過程正在中止！</string>
     <string name="settings_toast_encryption_auth_failed">身分認證失敗！</string>
-    <string name="settings_toast_auth_upgrade_failed">無法自動將密碼 或 PIN 轉換為新的加密方式，請在自行在設定中重設！</string>
     <string name="settings_toast_android_sync_enabled">Android 同步已開啟</string>
     <string name="settings_toast_android_sync_disabled">Android 同步已關閉</string>
     <string name="settings_dialog_title_warning">警告</string>
@@ -95,21 +94,15 @@
     <string name="settings_dialog_title_clear_keystore">確定要清除金鑰庫碼？</string>
     <string name="settings_dialog_title_android_sync">Android 同步處理</string>
     <string name="settings_dialog_msg_encryption_change">OfflineOTP 現將嘗試更改資料庫加密方式。假若出現故障，將回復至內部備份，加密方式保持不變。\n\n<b>但是，常言有備無患 -- 在執行變更前先備份，方能運籌帷幄、化險為夷！</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">資料庫加密方式設定為「密碼/PIN」時，身分認證方式僅可使用「密碼」或「PIN」！</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">您首先需要將身分認證方式設定為「密碼」或「PIN」！</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">在變更加密方式前，您需設定「密碼」或「PIN」！</string>
-    <string name="settings_dialog_msg_clear_keystore_password">在某些情況下，清除金鑰庫有助於解決問題。您需要明白自己正在做什麼，否則請中斷執行此動作！\n\n由於當前的<b>資料庫加密方式</b>為<b>密碼/PIN</b>，理論上您不會丟失任何資料（但無論如何，做個備份總沒壞處）。\n\n<b>您確定要清除金鑰庫嗎？</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">在某些情況下，清除金鑰庫有助於解決問題。您需要明白自己正在做什麼，否則請中斷執行此動作！\n\n<b>警告</b>：由於當前的<b>資料庫加密方式</b>為 <b>Android 金鑰庫</b>，您將丟失所有資料。請確認您已有最新的備份！\n\n<b>您確定要清除金鑰庫嗎？</b></string>
     <!-- List entries -->
-    <string-array name="settings_entries_auth">
-        <item>無</item>
+    <string-array name="settings_entries_auth">        <item>無</item>
         <item>密碼</item>
-        <item>PIN 碼</item>
         <item>設備憑證</item>
-    </string-array>
+</string-array>
     <string-array name="settings_entries_encryption">
         <item>Android 金鑰庫</item>
-        <item>密碼 / PIN</item>
+        <item>密碼</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>清除所有帳戶</item>
@@ -176,9 +169,6 @@
     <string name="settings_lang_sys_default">系統預設值</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">鍵入新密碼</string>
-    <string name="settings_hint_pin">鍵入新 PIN</string>
     <string name="settings_hint_password_confirm">確認密碼</string>
-    <string name="settings_hint_pin_confirm">確認 PIN</string>
     <string name="settings_label_short_password">密碼至少要有 %1$d 個字元！</string>
-    <string name="settings_label_short_pin">PIN 至少要有 %1$d 個字元！</string>
 </resources>

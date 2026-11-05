@@ -34,7 +34,7 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
         var prepared: Settings.PreparedCredentials? = null
         try {
             if (isCanceled() || !DatabaseHelper.canInitialize(settingsContext)) return Result(false, null, taskGeneration())
-            if (authMethod == Constants.AuthMethod.PASSWORD || authMethod == Constants.AuthMethod.PIN) prepared = settings.prepareAuthCredentials(password)
+            if (authMethod == Constants.AuthMethod.PASSWORD) prepared = settings.prepareAuthCredentials(password)
             if (encryptionType == Constants.EncryptionType.PASSWORD && prepared == null) return Result(false, null, taskGeneration())
             val key: SecretKey? = if (encryptionType == Constants.EncryptionType.PASSWORD)
                 EncryptionHelper.generateSymmetricKey(prepared?.key ?: return Result(false, null, taskGeneration()))

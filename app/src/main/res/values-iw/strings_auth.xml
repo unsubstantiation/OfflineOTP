@@ -3,7 +3,6 @@
     <string name="auth_activity_title">אימות</string>
     <!-- Hints -->
     <string name="auth_hint_password">סיסמה</string>
-    <string name="auth_hint_pin">קוד PIN</string>
     <!-- Messages -->
     <string name="auth_msg_authenticate">נא לאמת כדי להתחיל להשתמש ב־OfflineOTP!</string>
     <string name="auth_msg_confirm_encryption">נא לאשר את האימות כדי ליצור את
@@ -12,5 +11,4 @@
     <string name="auth_button_unlock">שחרור</string>
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">נא להגדיר סיסמה ב<b>הגדרות</b>!</string>
-    <string name="auth_toast_pin_missing">נא להגדיר קוד PIN ב<b>הגדרות</b>!</string>
 </resources>

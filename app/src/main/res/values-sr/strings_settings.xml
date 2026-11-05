@@ -107,7 +107,6 @@
     <string-array name="settings_entries_auth">
         <item>Без</item>
         <item>Лозинка</item>
-        <item>ПИН</item>
         <item>Акредитиви за уређај</item>
     </string-array>
     <string-array name="settings_entries_encryption">
@@ -179,9 +178,6 @@
     <string name="settings_lang_sys_default">Подразумевано</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Унеси нову лозинку</string>
-    <string name="settings_hint_pin">Унеси нови PIN</string>
     <string name="settings_hint_password_confirm">Потврди лозинку</string>
-    <string name="settings_hint_pin_confirm">Потврди ПИН</string>
     <string name="settings_label_short_password">Лозинка мора имати макар %1$d карактера!</string>
-    <string name="settings_label_short_pin">ПИН мора имати макар %1$d цифара!</string>
 </resources>

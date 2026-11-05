@@ -98,8 +98,6 @@
         αντιγράφου ασφαλείας, ματαίωση!</string>
     <string name="settings_toast_encryption_no_key">Αποτυχία λήψης κλειδιού κρυπτογράφησης, ματαίωση!</string>
     <string name="settings_toast_encryption_auth_failed">Η ταυτοποίηση απέτυχε!</string>
-    <string name="settings_toast_auth_upgrade_failed">Η ενημέρωση του κωδικού πρόσβασης ή PIN απέτυχε
-        κατά την νέα κρυπτογράφηση, επαναφορά με μη αυτόματο τρόπο στις Ρυθμίσεις!</string>
     <string name="settings_toast_android_sync_enabled">Ενεργοποίηση συγχρονισμού Android</string>
     <string name="settings_toast_android_sync_disabled">Συγχρονισμός Android απενεργοποιημένος</string>
     <string name="settings_dialog_title_warning">Προειδοποίηση</string>
@@ -110,17 +108,6 @@
         κρυπτογράφησης. Σε περίπτωση αποτυχίας, θα γίνει επαναφορά από ένα εσωτερικό αντίγραφο ασφαλείας και η κρυπτογράφηση
         παραμένει αναλλοίωτη.\n\n<b>Ωστόσο, είναι πάντα καλή ιδέα να έχετε ένα αντίγραφο ασφαλείας σε περίπτωση που
         κάτι αναπάντεχο συμβεί!</b></string>
-    <string name="settings_dialog_msg_auth_invalid_with_encryption">Μπορείτε να χρησιμοποιήσετε μόνο τον κωδικό ή PIN
-        εφ \'όσον η κρυπτογράφηση δεδομένων έχει οριστεί με \"Κωδικό ή PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_with_auth">Πρώτα πρέπει να ρυθμίσετε το
-        ελέγχου ταυτότητας με \"Κωδικό\" ή \"PIN\"!</string>
-    <string name="settings_dialog_msg_encryption_invalid_without_credentials">Πρέπει πρώτα να ορίσετε έναν
-        κωδικό ή PIN πριν αλλάξετε την κρυπτογράφηση!</string>
-    <string name="settings_dialog_msg_clear_keystore_password">Σε ορισμένες περιπτώσεις εκκαθάριση του KeyStore
-        μπορεί να βοηθήσει στην επίλυση προβλημάτων. Θα πρέπει να προχωρήσετε μόνο αν ξέρετε τι κάνετε!\n\nΕάν
-       η <b>Κρυπτογράφηση βάσης δεδομένων</b> έχει οριστεί με <b>Κωδικό ή PIN</b>δεν θα πρέπει να χάσετε οποιαδήποτε δεδομένα
-        κάνοντας αυτό (αλλά ποτέ δεν είναι περιττό να υπάρχει ένα αντίγραφο ασφαλείας ούτως ή άλλως).\n\n<b>Είστε πραγματικά σίγουροι ότι θέλετε
-        για γίνει εκκαθάριση του KeyStore;</b></string>
     <string name="settings_dialog_msg_clear_keystore_keystore">Σε ορισμένες περιπτώσεις εκκαθάριση του KeyStore
         μπορεί να βοηθήσει στην επίλυση προβλημάτων. Θα πρέπει να προχωρήσετε μόνο αν ξέρετε τι κάνετε!\n\n<b>Προειδοποίηση</b>:¨
         Εφόσον η <b>Κρυπτογράφηση βάσης δεδομένων</b> έχει οριστεί σε <b>Android KeyStore</b>, θα χάσετε όλους
@@ -130,12 +117,11 @@
     <string-array name="settings_entries_auth">
         <item>Χωρίς</item>
         <item>Κωδικός πρόσβασης</item>
-        <item>PIN</item>
         <item>Πιστοποιητικά συσκευής</item>
     </string-array>
     <string-array name="settings_entries_encryption">
         <item>Android KeyStore</item>
-        <item>Κωδικός πρόσβασης / PIN</item>
+        <item>Κωδικός πρόσβασης</item>
     </string-array>
     <string-array name="settings_entries_panic">
         <item>Κατάργηση όλων των λογαριασμών</item>
@@ -202,9 +188,6 @@
     <string name="settings_lang_sys_default">Προεπιλογή συστήματος</string>
     <!-- PasswordPreference -->
     <string name="settings_hint_password">Εισάγετε νέο κωδικό</string>
-    <string name="settings_hint_pin">Εισάγετε νέο PIN</string>
     <string name="settings_hint_password_confirm">Επιβεβαίωση κωδικού</string>
-    <string name="settings_hint_pin_confirm">Επιβεβαίωση PIN</string>
     <string name="settings_label_short_password">Ο κωδικός πρέπει να έχει μήκος τουλάχιστον %1$d χαρακτήρες!</string>
-    <string name="settings_label_short_pin">Το PIN πρέπει να έχει μήκος τουλάχιστον %1$d ψηφία!</string>
 </resources>

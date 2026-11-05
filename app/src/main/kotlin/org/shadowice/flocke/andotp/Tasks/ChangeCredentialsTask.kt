@@ -28,7 +28,7 @@ open class ChangeCredentialsTask(context: Context, private val encryptionType: C
         var backupCandidate: LoginBackupKey? = null
         try {
             if (isCanceled() || oldEncryptionKey == null || VaultSession.getKey() !== oldEncryptionKey) return Result(false, null, null)
-            if (newAuthMethod == Constants.AuthMethod.PASSWORD || newAuthMethod == Constants.AuthMethod.PIN) prepared = settings.prepareAuthCredentials(password)
+            if (newAuthMethod == Constants.AuthMethod.PASSWORD) prepared = settings.prepareAuthCredentials(password)
             if (newAuthMethod == Constants.AuthMethod.PASSWORD && password != null) {
                 try { backupCandidate = LoginBackupKey.derive(password) } catch (_: Exception) { }
             }
