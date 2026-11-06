@@ -52,6 +52,13 @@ jobs:
                 [ -n "$safe" ] || continue
                 echo "::notice title=Rust log::$safe"
               done || true
+              echo "::notice title=Rust::--- tail $log ---"
+              tail -n 80 "$log" | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust tail::$safe"
+              done || true
               grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
                 [ -n "$line" ] || continue
                 safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
