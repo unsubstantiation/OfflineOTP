@@ -133,15 +133,45 @@ either.
 The decoded keystore is deleted in an `always()` step, so it does not outlive the job even when a
 later step fails and the workspace is kept for debugging. A keystore supplied without its password
 fails before any APK is built: the job names the missing secret, and `app/build.gradle` throws a
-`GradleException` naming the property, so a local attempt fails the same way.
+`GradleException` naming the property, so a local attempt fails the same way. The `release`
+`signingConfig` now has `enableV1Signing`/`V2`/`V3`/`V4` all `true`, so the APK is verifiable on
+every API level the `minSdk 28` allows.
 
 ## Verifying a downloaded APK
 
 ```sh
-"$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs OfflineOTP-fdroid-release.apk
+"$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs OfflineOTP-fdroid-release.apk
+"$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging OfflineOTP-fdroid-release.apk | grep -E "package:|application:"
 sha256sum -c SHA256SUMS.txt
 ```
 
 The printed certificate DN (`CN=OfflineOTP` above) must match the key in the keystore. Installing a
 build signed with a different key over an existing install fails with
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; users must export a portable backup, uninstall, and restore.
+
+Release builds use `org.shadowice.flocke.andotp` — the same package as the upstream andOTP app from
+F-Droid/Play — so a device that still has the original andOTP installed will show **Update** instead
+of **Install** and then fail with `App not installed` (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`,
+`INSTALL_FAILED_DUPLICATE_PERMISSION` or `INSTALL_FAILED_VERSION_DOWNGRADE`). Debug builds use
+`org.shadowice.flocke.andotp.dev` and do not collide. If a signed release shows **Update** even
+though it looks uninstalled, check for a lingering install:
+
+```sh
+adb shell pm list packages --user all | grep andotp
+adb shell pm list packages -u | grep andotp
+adb shell dumpsys package org.shadowice.flocke.andotp | head -n 40
+```
+
+An entry there — often in a work profile, secondary user, or as a disabled system app — must be
+removed first (`adb uninstall --user all org.shadowice.flocke.andotp` or `adb shell pm uninstall
+--user 0 org.shadowice.flocke.andotp`), after exporting a backup. Installing with `adb install`
+instead of the file manager prints the exact reason:
+
+```sh
+adb install OfflineOTP-fdroid-release.apk
+adb logcat | grep -i -E "PackageManager|andotp"
+```
+
+The CI `Verify APK signatures` step now dumps `aapt2 dump badging` (package, `testOnly`, `uses-sdk`)
+and `apksigner verify --verbose` (v1/v2/v3/v4) for every release APK, and fails the job if the
+package is `org.shadowice.flocke.andotp.dev` or the APK is `testOnly`.

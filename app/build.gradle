@@ -39,6 +39,10 @@ android {
                 storePassword project.properties['RELEASE_STORE_PASSWORD'] ?: ''
                 keyAlias project.property('RELEASE_KEY_ALIAS')
                 keyPassword project.properties['RELEASE_KEY_PASSWORD'] ?: ''
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+                enableV4Signing true
             }
         }
     }
