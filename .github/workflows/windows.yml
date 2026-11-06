@@ -29,8 +29,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          set +e
           cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
           status=${PIPESTATUS[0]}
+          set -e
           if [ $status -ne 0 ]; then
             echo "::group::Rust test failure tail"
             tail -n 120 rust-test.log || true
