@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -15,6 +16,86 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Check Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+      - name: Test Rust crate (rpgp + UniFFI, 5/5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          cargo check --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ $status -ne 0 ]; then
+            echo "::group::Rust test failure tail"
+            echo "--- tail 200 raw ---"
+            tail -n 200 rust-test.log || true
+            wc -l rust-test.log || true
+            echo "::group::Rust full tail as errors"
+            tail -n 150 rust-test.log | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              [ -n "$safe" ] || continue
+              echo "::error title=Rust::$safe"
+            done || true
+            grep -n -i "error" rust-test.log | head -n 60 | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              echo "::error title=Rust grep::$safe"
+            done || true
+            tail -n 200 rust-test.log | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              [ -n "$safe" ] || continue
+              echo "::notice title=Rust tail::$safe"
+            done || true
+            echo "::endgroup::"
+            exit $status
+          fi
+      - name: Build Rust crate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-build.log
+      - name: Report Rust diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "pwd=$(pwd)"; ls -la
+          for log in rust-test.log rust-build.log; do
+            if [ -f "$log" ]; then
+              echo "--- $log ---"
+              cat "$log"
+              # Emit the first 40 lines as annotations so `gh api .../annotations` is readable when blob logs EOF
+              head -n 40 "$log" | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust log::$safe"
+              done || true
+              echo "::notice title=Rust::--- tail $log ---"
+              tail -n 80 "$log" | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust tail::$safe"
+              done || true
+              grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::error title=Rust::$safe"
+              done || true
+            else
+              echo "::notice title=Rust::no log $log"
+            fi
+          done
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin

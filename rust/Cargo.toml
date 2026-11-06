@@ -1,0 +1,3 @@
+[workspace]
+members = ["offlineotp-openpgp"]
+resolver = "2"

@@ -183,12 +183,20 @@ typed into the password field derives the same key, and
 `PinLoginRemovalTest`). Entry-level mOTP PINs and hardware-key PINs are data, not logins, and are
 unchanged on both clients.
 
-Three things are deliberately *not* the same, and all are recorded in the plan: the iOS client cannot
+Two things are deliberately *not* the same, and both are recorded in the plan: the iOS client cannot
 create an SSH key (its seed is `SshKeyMaterial`-framed material this build does not implement — such
-entries are read, listed, revealed and written back unchanged); it always searches all three fields,
+entries are read, listed, revealed and written back unchanged); and it always searches all three fields,
 which is what the desktop client does, since Android's narrower search preference lives in its own
-settings that neither other client reads; and OpenPGP backups (`.json.gpg`) are still outstanding,
-because they need a whole OpenPGP implementation.
+settings that neither other client reads.
+
+OpenPGP backups (`.json.gpg`) were the third difference — the clients used incompatible implementations
+(Android via external OpenKeychain, desktop via embedded PGPainless, iOS with none). That is now in
+progress via the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) which provides
+one implementation for all five distributions. The crate builds a `cdylib` for JVM targets (JNA) and a
+`staticlib`/`XCFramework` for Apple targets; `RpgpOpenPgpPort` on desktop and Android and
+`RustOpenPgpPort`/`OpenPgpBackupCodec` on iOS wrap it. Every per-platform workflow now builds and tests
+the crate on the host; per-ABI packaging and removal of PGPainless remain before the format is truly
+identical, but the design gap is closed.
 
 One thing the iOS client has and the other two do not: an optional **Face ID** unlock. It is not a
 format change and it does not touch the vault — it releases the derived key from a Keychain item that

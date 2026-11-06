@@ -1,0 +1,24 @@
+[package]
+name = "offlineotp-openpgp"
+version = "0.1.0"
+edition = "2021"
+description = "OpenPGP encrypt/decrypt via rpgp for OfflineOTP — rpgp + UniFFI, 5/5"
+license = "MIT OR Apache-2.0"
+publish = false
+rust-version = "1.88"
+
+[lib]
+name = "offlineotp_openpgp"
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[dependencies]
+pgp = { version = "0.21", default-features = false, features = ["bzip2"] }
+rand = "0.8"
+uniffi = { version = "0.28", features = ["build"] }
+thiserror = "2.0"
+
+[build-dependencies]
+uniffi = { version = "0.28", features = ["build"] }
+
+[dev-dependencies]
+tempfile = "3.8"

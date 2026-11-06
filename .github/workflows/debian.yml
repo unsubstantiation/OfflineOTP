@@ -8,6 +8,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   build:
@@ -21,8 +22,90 @@ jobs:
           # binutils: jpackage's jlink step strips native libraries with objcopy, which is missing
           # from debian:bookworm-slim and otherwise fails the app-image build.
           apt-get install -y --no-install-recommends ca-certificates curl git unzip zip binutils libstdc++6 \
-            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1
+            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1 \
+            build-essential pkg-config
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - name: Install Rust toolchain (Debian container)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! command -v cargo >/dev/null 2>&1; then
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+            export PATH="$HOME/.cargo/bin:$PATH"
+          fi
+          rustc --version
+          cargo --version
+      - name: Test Rust crate (rpgp + UniFFI, 5/5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          set +e
+          cargo check --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ $status -ne 0 ]; then
+            echo "::group::Rust test failure tail"
+            echo "--- tail 200 raw ---"
+            tail -n 200 rust-test.log || true
+            wc -l rust-test.log || true
+            echo "::group::Rust full tail as errors"
+            tail -n 150 rust-test.log | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              [ -n "$safe" ] || continue
+              echo "::error title=Rust::$safe"
+            done || true
+            grep -n -i "error" rust-test.log | head -n 60 | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              echo "::error title=Rust grep::$safe"
+            done || true
+            tail -n 200 rust-test.log | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              [ -n "$safe" ] || continue
+              echo "::notice title=Rust tail::$safe"
+            done || true
+            echo "::endgroup::"
+            exit $status
+          fi
+      - name: Build Rust crate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-build.log
+      - name: Report Rust diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "pwd=$(pwd)"; ls -la; echo "--- env ---"; env | sort | head -n 20
+          for log in rust-test.log rust-build.log; do
+            if [ -f "$log" ]; then
+              echo "--- $log ---"
+              cat "$log"
+              # Emit the first 40 lines as annotations so `gh api .../annotations` is readable when blob logs EOF
+              head -n 40 "$log" | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust log::$safe"
+              done || true
+              echo "::notice title=Rust::--- tail $log ---"
+              tail -n 80 "$log" | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust tail::$safe"
+              done || true
+              grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::error title=Rust::$safe"
+              done || true
+            else
+              echo "::notice title=Rust::no log $log"
+            fi
+          done
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
