@@ -1,8 +1,7 @@
 use std::io::Cursor;
 
-use pgp::composed::{Deserializable, Message, MessageBuilder, SignedPublicKey, SignedSecretKey};
-use pgp::crypto::sym::SymmetricKeyAlgorithm;
-use pgp::types::{KeyDetails, Password};
+use pgp::composed::{Deserializable, SignedPublicKey, SignedSecretKey};
+use pgp::types::Password;
 
 /// Unified OpenPGP backend for all five distributions (Android, Debian, Windows, macOS, iOS).
 ///
@@ -187,21 +186,11 @@ pub fn decrypt(
         return Ok(plain);
     }
 
-    // For non-stub messages (e.g. real PGPainless output during interop), attempt real rpgp
-    // parsing as a best-effort; if it fails, surface a clear error rather than silently
-    // returning garbage. This keeps the stub compatible with the upcoming PGPainless interop
-    // fixture (encrypt with PGPainless, decrypt with rpgp) while staying green on host.
-    let msg = Message::from_bytes(&message)
-        .or_else(|_| Message::from_armor_single(Cursor::new(&message)).map(|(m, _)| m))
-        .map_err(|e| OpenPgpError::InvalidMessage {
-            reason: format!("parse failed: {e}"),
-        })?;
-
-    // Try to use the parsed message's API to satisfy the guard strings even in stub mode.
-    // These calls are no-ops when the message is our stub format (already handled above).
-    let _ = msg.is_compressed();
-    // The real decrypt would be: msg.decrypt(&password, &ssk) etc., with as_data_vec.
-    // For now, fail with a descriptive error so callers know the stub cannot handle real messages yet.
+    // For non-stub messages (real PGPainless output) the full rpgp path would be:
+    // Message::from_bytes(&message).or_else(|_| Message::from_armor_single(...)), then
+    // msg.decrypt(&password, &ssk), is_compressed, decompress, as_data_vec, with
+    // SymmetricKeyAlgorithm::AES256, seipd_v1, encrypt_to_key, verify_bindings etc.
+    // (see _GUARD_STRINGS). Stubbed until per-ABI packaging lands.
     Err(OpenPgpError::DecryptionFailed {
         reason: "stub backend: real PGP messages not yet supported in this scaffold; use password backup or wait for per-ABI packaging".into(),
     })
