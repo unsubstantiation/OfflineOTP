@@ -204,7 +204,7 @@ pub fn decrypt(
 
     // Message may be armored or binary. from_reader_single handles both when the header is
     // present; from_bytes handles binary directly. Try the composed deserializer.
-    let msg = Message::from_bytes(Cursor::new(&message))
+    let msg = Message::from_bytes(&message)
         .or_else(|_| Message::from_armor_single(Cursor::new(&message)).map(|(m, _)| m))
         .map_err(|e| OpenPgpError::InvalidMessage {
             reason: format!("parse failed: {e}"),

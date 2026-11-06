@@ -29,12 +29,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --manifest-path rust/Cargo.toml --verbose
+          cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
       - name: Build Rust crate
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --manifest-path rust/Cargo.toml --verbose
+          cargo build --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-build.log
+      - name: Report Rust diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          for log in rust-test.log rust-build.log; do
+            if [ -f "$log" ]; then
+              echo "--- $log ---"
+              cat "$log"
+              # Emit annotations for the few error lines GitHub can surface without the blob log
+              grep -E -i ": error|error\[|failed|cannot find" "$log" | head -20 | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                echo "::error title=Rust::$line"
+              done || true
+            fi
+          done
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
