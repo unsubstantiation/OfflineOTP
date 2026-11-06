@@ -67,8 +67,6 @@ internal class SortChoice(val mode: Constants.SortMode) {
 /** Lightweight main-window content, separated from JFrame so its layout can be checked headlessly. */
 internal class MainScreen(val table: JTable, val copyButton: JButton) {
     val search = JTextField(20)
-    val newVaultButton = JButton("New vault…")
-    val openVaultButton = JButton("Open vault…")
     val addButton = JButton("+  Add entry")
     val editButton = JButton("Edit…")
     val deleteButton = JButton("Delete")
@@ -126,15 +124,10 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
                 })
             }, BorderLayout.CENTER)
         }
-        val vaultActions = JPanel(FlowLayout(FlowLayout.RIGHT, 8, 0)).apply {
-            isOpaque = false
-            add(newVaultButton); add(openVaultButton)
-        }
         val header = JPanel(BorderLayout(16, 0)).apply {
             background = ForestTheme.APP_BAR
             border = BorderFactory.createEmptyBorder(14, 24, 16, 24)
             add(brand, BorderLayout.WEST)
-            add(vaultActions, BorderLayout.EAST)
         }
 
         val heading = JPanel(BorderLayout(12, 0)).apply {

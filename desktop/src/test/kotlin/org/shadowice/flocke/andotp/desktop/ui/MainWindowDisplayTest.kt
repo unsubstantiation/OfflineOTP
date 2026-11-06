@@ -133,8 +133,15 @@ class MainWindowDisplayTest {
         .getTableCellRendererComponent(table, table.getValueAt(row, 0), false, false, row, 0)
 
     private fun open(fixture: Fixture) {
-        val openButton = edt { button(fixture.frame, "Open vault…") }
-        SwingUtilities.invokeLater { openButton.doClick() }
+        // Parity: MainWindow no longer has header New/Open vault buttons. It auto-prompts
+        // (Create on first launch, Open when a vault exists) mirroring Android's Intro/Auth.
+        // The prompt runnable is exposed on the frame for tests so this helper still works
+        // even when the window hasn't yet auto-fired, and without clicking removed buttons.
+        edt {
+            (fixture.frame.getClientProperty("offlineotp.promptOpenVault") as? Runnable)?.let { runnable ->
+                if (dialog("Open vault") == null) SwingUtilities.invokeLater { runnable.run() }
+            }
+        }
         await("password dialog") { dialog("Open vault") != null }
         edt {
             val modal = dialog("Open vault")!!
@@ -440,7 +447,9 @@ class MainWindowDisplayTest {
                     .first { it.accessibleContext.accessibleName == "Search entries" }
                 assertTrue(search.width >= 300)
                 assertTrue(table(fixture.frame).visibleRect.height >= 100)
-                assertTrue(button(fixture.frame, "Open vault…").isShowing)
+                // Parity with Android: no persistent New/Open vault header buttons or Vault menu.
+                assertTrue(components(fixture.frame).filterIsInstance<JButton>().none { it.text == "New vault…" || it.text == "Open vault…" })
+                assertTrue((0 until fixture.frame.jMenuBar.menuCount).none { fixture.frame.jMenuBar.getMenu(it).text == "Vault" })
             }
             val modal = openAddForm(fixture, "Add secure note…", "Add secure note")
             edt {

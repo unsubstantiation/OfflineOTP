@@ -361,12 +361,16 @@ object MainWindow {
             EmailDialogs.showDetails(frame, entry)
         }
 
-        screen.newVaultButton.addActionListener {
+        fun promptCreateVault() {
             PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
         }
-        screen.openVaultButton.addActionListener {
+        fun promptOpenVault() {
             PasswordDialog.prompt(frame, "Open vault")?.let { accept(controller.openVault(it)) }
         }
+        // Auto-prompt like Android: first launch → Create, later → Open.
+        // Exposed for display tests so they do not click header buttons that no longer exist.
+        frame.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
+        frame.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
         val addMenu = JPopupMenu().apply {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
@@ -537,11 +541,6 @@ object MainWindow {
         })
 
         val menuBar = JMenuBar().apply {
-            add(JMenu("Vault").apply {
-                mnemonic = KeyEvent.VK_V
-                add(JMenuItem("New vault…").apply { addActionListener { screen.newVaultButton.doClick() } })
-                add(JMenuItem("Open vault…").apply { addActionListener { screen.openVaultButton.doClick() } })
-            })
             add(JMenu("Tools").apply {
                 mnemonic = KeyEvent.VK_T
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
@@ -613,6 +612,14 @@ object MainWindow {
                 override fun windowClosing(event: java.awt.event.WindowEvent) {
                     ticker?.close()
                     hardware.close()
+                }
+                override fun windowOpened(event: java.awt.event.WindowEvent) {
+                    // Parity with Android: no persistent New/Open buttons. First launch auto-asks to
+                    // create, later launches auto-ask to open – the header and Vault menu stay vault-free.
+                    javax.swing.SwingUtilities.invokeLater {
+                        if (!controller.isInitialized()) promptCreateVault()
+                        else if (state == null) promptOpenVault()
+                    }
                 }
             })
             contentPane = screen.panel
