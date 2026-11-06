@@ -33,7 +33,7 @@ jobs:
           # It builds a cdylib for Android/JVM (JNA) and a staticlib/XCFramework for iOS. This
           # job runs the host-target unit tests (keygen + round-trip + multi-recipient) so a
           # broken crypto change fails here rather than in a later per-ABI NDK build.
-          cargo test --manifest-path rust/Cargo.toml --verbose
+          cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
       - name: Build Rust crate
         shell: bash
         run: |
@@ -44,6 +44,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "pwd=$(pwd)"; ls -la
           for log in rust-test.log rust-build.log; do
             if [ -f "$log" ]; then
               echo "--- $log ---"

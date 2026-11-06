@@ -21,7 +21,8 @@ jobs:
           # binutils: jpackage's jlink step strips native libraries with objcopy, which is missing
           # from debian:bookworm-slim and otherwise fails the app-image build.
           apt-get install -y --no-install-recommends ca-certificates curl git unzip zip binutils libstdc++6 \
-            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1
+            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1 \
+            build-essential pkg-config
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install Rust toolchain (Debian container)
         shell: bash
@@ -49,6 +50,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          echo "pwd=$(pwd)"; ls -la; echo "--- env ---"; env | sort | head -n 20
           for log in rust-test.log rust-build.log; do
             if [ -f "$log" ]; then
               echo "--- $log ---"
