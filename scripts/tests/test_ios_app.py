@@ -311,13 +311,19 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("xcodegen generate", WORKFLOW)
         self.assertIn("-project OfflineOTP.xcodeproj -scheme OfflineOTP", WORKFLOW)
         self.assertIn("-destination 'generic/platform=iOS Simulator'", WORKFLOW)
+        self.assertIn("-destination 'generic/platform=iOS'", WORKFLOW)
+        self.assertIn("-configuration Release", WORKFLOW)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", WORKFLOW)
+        self.assertIn("CODE_SIGNING_REQUIRED=NO", WORKFLOW)
         self.assertIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
+        self.assertIn("Payload/OfflineOTP.app", WORKFLOW)
+        self.assertIn("OfflineOTP-ios-unsigned", WORKFLOW)
+        self.assertIn("OfflineOTP-ios-unsigned.ipa", WORKFLOW)
         self.assertIn("OfflineOTP-ios-simulator", WORKFLOW)
         self.assertIn("OfflineOTP-ios-kit-source", WORKFLOW)
-        self.assertEqual(2, WORKFLOW.count("actions/upload-artifact@"))
+        self.assertEqual(3, WORKFLOW.count("actions/upload-artifact@"))
         self.assertIn("SHA256SUMS.txt", WORKFLOW)
-        # A simulator build needs no certificate; device signing and TestFlight stay manual.
+        # Unsigned builds need no certificate; device signing and TestFlight stay manual.
         for forbidden in ("codesign", "xcodebuild archive", "exportArchive", "notarytool",
                           "secrets.", "contents: write", "gh release", "development-team",
                           "DEVELOPMENT_TEAM: ABC"):

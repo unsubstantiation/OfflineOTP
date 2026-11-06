@@ -57,6 +57,10 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
+        # Expose Documents/ in the iOS Files app ("On My iPhone -> OfflineOTP") so vaults and
+        # encrypted backups can be inspected or copied directly on a physical device.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
         # The app declares no networking at all, so there is no export-controlled cryptography to
         # report beyond the standard library imports.
         ITSAppUsesNonExemptEncryption: false
@@ -68,7 +72,7 @@ targets:
           encrypted with the password; this only releases a key kept on this device.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.shadowice.flocke.andotp
+        PRODUCT_BUNDLE_IDENTIFIER: com.fairuniversal.offlineotp
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
     scheme:
@@ -86,5 +90,5 @@ targets:
       - target: OfflineOTP
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: org.shadowice.flocke.andotp.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.fairuniversal.offlineotp.tests
         GENERATE_INFOPLIST_FILE: YES

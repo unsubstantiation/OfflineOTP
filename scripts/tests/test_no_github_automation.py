@@ -24,8 +24,10 @@ class NoGithubAutomationTest(unittest.TestCase):
         for name in ("android.yml", "windows.yml", "debian.yml", "macos.yml", "ios.yml"):
             text = (workflows / name).read_text(encoding="utf-8")
             self.assertIn("workflow_dispatch:", text)
-            self.assertIn("pull_request:", text)
+            self.assertIn("push:\n    branches: [master]", text)
+            self.assertNotIn("pull_request", text)
             self.assertIn("contents: read", text)
+            self.assertNotIn("pull-requests: write", text)
             # A workflow may contain several jobs; every upload must use the single reviewed pin.
             uploads = text.count("actions/upload-artifact@")
             self.assertGreaterEqual(uploads, 1)

@@ -134,7 +134,7 @@ the crypto never has to be reviewed by eye.
 | --- | --- | --- |
 | **M0** ✅ | SPM package (`VaultCrypto`, `Entry`, `VaultDocument`, `EncryptedBackup`, `PasswordVault`, `TokenCalculator`), test target wired to the golden fixtures, `.github/workflows/ios.yml` | Fixture tests green in CI; the package also compiles for the iOS simulator. The Xcode *app* target arrives with the UI at M3 |
 | **M1** ✅ (except device interop) | Unlock `secrets.dat`, decode entries, re-encode the shared document byte for byte, create a vault, save, back up, restore, reject a wrong password | Every vault fixture round-trips exactly; a vault this client creates reopens on a second instance. A vault created on Android opening here is still proved by the golden fixture rather than by a device |
-| **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every pull request |
+| **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every `master` or dispatched workflow run |
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
@@ -189,9 +189,13 @@ configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15
    `generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**;
 5. `xcodebuild test` on the newest available iPhone simulator (picked with `simctl`, so an image that
    renames its devices does not break the job), which runs the app's unit tests;
-6. two checksummed artifacts: `OfflineOTP-ios-simulator` (the `.app`, packed with `ditto` and
-   re-extracted to prove the bundle survived) and `OfflineOTP-ios-kit-source` (the package plus the
-   fixtures it was verified against).
+6. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
+   `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to be an `arm64`
+   `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app` into an
+   unsigned `.ipa`;
+7. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
+   sideloaders or local signing), `OfflineOTP-ios-simulator` (the simulator `.app`, packed with
+   `ditto`), and `OfflineOTP-ios-kit-source` (the package plus the fixtures it was verified against).
 
 Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
 **`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the
