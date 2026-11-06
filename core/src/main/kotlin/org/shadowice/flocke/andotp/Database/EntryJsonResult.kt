@@ -45,6 +45,7 @@ class ValidatedEntry private constructor(
     val counter: Long,
     val issuer: String,
     val label: String,
+    val hiddenLabel: String,
     val algorithm: OtpHashAlgorithm,
     val thumbnailName: String?,
     val lastUsed: Long,
@@ -91,6 +92,7 @@ class ValidatedEntry private constructor(
             require(kind != OtpKind.STEAM || digits == 5)
             InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
             InputPolicy.text(label, InputPolicy.MAX_TEXT_CHARS)
+            InputPolicy.text(hiddenLabel, InputPolicy.MAX_TEXT_CHARS)
             InputPolicy.text(pin, InputPolicy.MAX_TAG_CHARS)
             require(this.tags.size <= InputPolicy.MAX_TAGS)
             this.tags.forEach { InputPolicy.text(requireNotNull(it), InputPolicy.MAX_TAG_CHARS) }
@@ -119,10 +121,10 @@ class ValidatedEntry private constructor(
         @JvmSynthetic
         internal fun create(
             kind: OtpKind, secret: ByteArray, period: Int, digits: Int, counter: Long,
-            issuer: String, label: String, algorithm: OtpHashAlgorithm, thumbnailName: String?,
+            issuer: String, label: String, hiddenLabel: String, algorithm: OtpHashAlgorithm, thumbnailName: String?,
             lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String, detailsVisible: Boolean,
             sshConnection: SshConnection.Details?
-        ): ValidatedEntry = ValidatedEntry(kind, secret, period, digits, counter, issuer, label,
+        ): ValidatedEntry = ValidatedEntry(kind, secret, period, digits, counter, issuer, label, hiddenLabel,
             algorithm, thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible, sshConnection)
     }
 }

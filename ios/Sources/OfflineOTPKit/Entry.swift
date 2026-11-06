@@ -57,7 +57,7 @@ public struct Entry: Equatable, Hashable {
         "last_used", "used_frequency",
         // One of these, at this position, depending on the kind.
         "period", "counter", "pin",
-        "tags", "details_visible",
+        "tags", "hidden_label", "details_visible",
         "ssh_host", "ssh_port", "ssh_username", "ssh_password",
     ]
 
@@ -85,6 +85,7 @@ public struct Entry: Equatable, Hashable {
 
     public var issuer: String { fields["issuer"]?.stringValue ?? "" }
     public var label: String { fields["label"]?.stringValue ?? "" }
+    public var hiddenLabel: String { fields["hidden_label"]?.stringValue ?? "" }
 
     public var digits: Int {
         if let value = fields["digits"]?.intValue { return Int(value) }
@@ -148,6 +149,7 @@ public struct Entry: Equatable, Hashable {
             && lhs.secretBytes == rhs.secretBytes
             && lhs.label == rhs.label
             && lhs.issuer == rhs.issuer
+            && lhs.hiddenLabel == rhs.hiddenLabel
             && lhs.sshIdentity == rhs.sshIdentity
     }
 
@@ -162,6 +164,7 @@ public struct Entry: Equatable, Hashable {
         hasher.combine(secretBytes)
         hasher.combine(label)
         hasher.combine(issuer)
+        hasher.combine(hiddenLabel)
         hasher.combine(sshIdentity)
     }
     public var tags: [String] { fields["tags"]?.arrayValue?.compactMap { $0.stringValue } ?? [] }
@@ -285,6 +288,7 @@ public struct Entry: Equatable, Hashable {
         do {
             try InputPolicy.validateText(entry.issuer, limit: InputPolicy.maxTextChars)
             try InputPolicy.validateText(entry.label, limit: InputPolicy.maxTextChars)
+            try InputPolicy.validateText(entry.hiddenLabel, limit: InputPolicy.maxTextChars)
             try InputPolicy.validateText(entry.pin, limit: InputPolicy.maxTagChars)
             guard entry.tags.count <= InputPolicy.maxTags else { throw EntryError.tooManyTags }
             for tag in entry.tags {

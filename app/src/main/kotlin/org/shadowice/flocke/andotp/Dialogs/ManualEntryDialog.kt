@@ -92,6 +92,8 @@ object ManualEntryDialog {
         otpUriInput.isSaveEnabled = false
         val issuerInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_issuer))
         val labelInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_label))
+        val hiddenLabelInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_hidden_label))
+        val hiddenLabelLayout = requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_hidden_label))
         val secretInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_secret))
         val sshPublicInput = requireNotNull(inputView.findViewById<EditText>(R.id.manual_ssh_public))
         val sshPublicLayout = requireNotNull(inputView.findViewById<LinearLayout>(R.id.manual_layout_ssh_public))
@@ -152,6 +154,7 @@ object ManualEntryDialog {
                 })
                 sshPublicLayout.visibility = if (ssh) View.VISIBLE else View.GONE
                 sshConnectionRows.forEach { it.visibility = if (ssh) View.VISIBLE else View.GONE }
+                hiddenLabelLayout.visibility = if (nonOtp) View.GONE else View.VISIBLE
                 otpUriInput.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
                 applyOtpUriButton.visibility = if (isNewEntry && !nonOtp) View.VISIBLE else View.GONE
                 if (nonOtp) {
@@ -314,6 +317,7 @@ object ManualEntryDialog {
             sshPortInput.setText("")
             sshUsernameInput.setText("")
             sshPasswordInput.setText("")
+            hiddenLabelInput.setText("")
             secretView.setText("")
             otpUriInput.setText("")
         }
@@ -352,6 +356,8 @@ object ManualEntryDialog {
 
                 val issuer = issuerInput.text?.toString() ?: ""
                 val label = labelInput.text?.toString() ?: ""
+                val rawHidden = hiddenLabelInput.text?.toString() ?: ""
+                val hiddenLabel = if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY) "" else rawHidden
 
                 if (type == Entry.OTPType.SSH_KEY) {
                     val publicKey = sshPublicInput.text?.toString() ?: ""
@@ -371,13 +377,13 @@ object ManualEntryDialog {
                         // form accepts is accepted on the desktop too.
                         adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
                             digitsText, periodText, algorithm, publicKey = publicKey,
-                            sshConnection = connection, tags = tagsAdapter.getActiveTags(),
+                            sshConnection = connection, tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel,
                             newEntry = true))
                     } else {
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, secret,
                                 digitsText, periodText, algorithm, publicKey = publicKey,
-                                sshConnection = connection, tags = tagsAdapter.getActiveTags(),
+                                sshConnection = connection, tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel,
                                 newEntry = false)
                         } catch (_: IllegalArgumentException) {
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
@@ -397,12 +403,12 @@ object ManualEntryDialog {
                     if (isNewEntry) {
                         adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
                             digitsText, periodText, algorithm,
-                            tags = tagsAdapter.getActiveTags(), newEntry = true))
+                            tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, secret,
                                 digitsText, periodText, algorithm,
-                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                                tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = false)
                         } catch (_: IllegalArgumentException) {
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -420,13 +426,13 @@ object ManualEntryDialog {
                     if (isNewEntry) {
                         adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
                             digitsText, periodText, algorithm,
-                            tags = tagsAdapter.getActiveTags(), newEntry = true))
+                            tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
                         val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, periodText, algorithm,
-                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                                tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = false)
                         } catch (_: IllegalArgumentException) {
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -445,13 +451,13 @@ object ManualEntryDialog {
                     if (isNewEntry) {
                         adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
                             digitsText, counterText, algorithm,
-                            tags = tagsAdapter.getActiveTags(), newEntry = true))
+                            tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
                         val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, counterText, algorithm,
-                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                                tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = false)
                         } catch (_: IllegalArgumentException) {
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -470,13 +476,13 @@ object ManualEntryDialog {
                     if (isNewEntry) {
                         adapter.addEntry(EntryDraft.create(type, issuer, label, secret,
                             digitsText, periodText, algorithm,
-                            tags = tagsAdapter.getActiveTags(), newEntry = true))
+                            tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = true))
                     } else {
                         val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
                         val replacement = try {
                             EntryDraft.create(type, issuer, label, existingSecret,
                                 digitsText, periodText, algorithm,
-                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                                tags = tagsAdapter.getActiveTags(), hiddenLabel = hiddenLabel, newEntry = false)
                         } catch (_: IllegalArgumentException) {
                             secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
                             Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
@@ -565,6 +571,7 @@ object ManualEntryDialog {
         validationWatcher = watcher
         labelInput.addTextChangedListener(watcher)
         issuerInput.addTextChangedListener(watcher)
+        hiddenLabelInput.addTextChangedListener(watcher)
         secretInput.addTextChangedListener(watcher)
         sshPublicInput.addTextChangedListener(watcher)
         sshHostInput.addTextChangedListener(watcher)
@@ -583,6 +590,8 @@ object ManualEntryDialog {
             typeInput.setSelection(typeAdapter.getPosition(oldType))
             issuerInput.setText(oldEntry.getIssuer())
             labelInput.setText(oldEntry.getLabel())
+            hiddenLabelInput.setText(oldEntry.getHiddenLabel())
+            hiddenLabelLayout.visibility = if (oldType == Entry.OTPType.NOTE || oldType == Entry.OTPType.SSH_KEY) View.GONE else View.VISIBLE
             if (oldType != Entry.OTPType.NOTE && oldType != Entry.OTPType.SSH_KEY)
                 secretView.setText(oldEntry.getSecretEncoded())
             digitsInput.setText(String.format(Locale.ENGLISH, "%d", oldEntry.getDigits()))

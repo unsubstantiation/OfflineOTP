@@ -60,6 +60,7 @@ open class Entry {
     private var counter: Long = 0
     private var issuer: String = ""
     private var label: String = ""
+    private var hiddenLabel: String = ""
     private var currentOTP: String? = null
     private var prevOTP: String? = null
     private var visible = false
@@ -85,13 +86,15 @@ open class Entry {
     constructor()
 
     constructor(type: OTPType, secret: String?, period: Int, digits: Int, issuer: String?, label: String?,
-                algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>) {
+                algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>,
+                hiddenLabel: String? = null) {
         this.type = type
         this.secret = decodeSecret(secret)
         this.period = period
         this.digits = digits
         this.issuer = issuer ?: ""
         this.label = label ?: ""
+        this.hiddenLabel = hiddenLabel ?: ""
         this.algorithm = algorithm
         this.tags = tags
         setThumbnailFromIssuer(this.issuer)
@@ -99,13 +102,15 @@ open class Entry {
     }
 
     constructor(type: OTPType, secret: String?, counter: Long, digits: Int, issuer: String?, label: String?,
-                algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>) {
+                algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>,
+                hiddenLabel: String? = null) {
         this.type = type
         this.secret = decodeSecret(secret)
         this.counter = counter
         this.digits = digits
         this.issuer = issuer ?: ""
         this.label = label ?: ""
+        this.hiddenLabel = hiddenLabel ?: ""
         this.algorithm = algorithm
         this.tags = tags
         setThumbnailFromIssuer(this.issuer)
@@ -113,12 +118,13 @@ open class Entry {
     }
 
     constructor(type: OTPType, secret: String, issuer: String?, label: String?,
-                tags: MutableList<String>) {
+                tags: MutableList<String>, hiddenLabel: String? = null) {
         this.type = type
         if (type == OTPType.NOTE) InputPolicy.note(secret)
         this.secret = secret.toByteArray(StandardCharsets.UTF_8)
         this.issuer = issuer ?: ""
         this.label = label ?: ""
+        this.hiddenLabel = hiddenLabel ?: ""
         this.tags = tags
         this.period = TokenCalculator.TOTP_DEFAULT_PERIOD
         setThumbnailFromIssuer(this.issuer)
@@ -154,6 +160,7 @@ open class Entry {
             this.counter = value.counter
             this.issuer = value.issuer
             this.label = value.label
+            this.hiddenLabel = ""
             this.algorithm = TokenCalculator.HashAlgorithm.valueOf(value.algorithm.name)
             this.tags = ArrayList(value.tags)
             setThumbnailFromIssuer(this.issuer)
@@ -175,6 +182,7 @@ open class Entry {
         try {
             this.secret = value.copySecret()
             this.label = value.label
+            this.hiddenLabel = value.hiddenLabel
             this.issuer = value.issuer
             this.type = OTPType.valueOf(value.kind.name)
             this.period = value.period
@@ -231,6 +239,7 @@ open class Entry {
             throw IllegalArgumentException("Invalid Steam digits")
         InputPolicy.text(issuer, InputPolicy.MAX_TEXT_CHARS)
         InputPolicy.text(label, InputPolicy.MAX_TEXT_CHARS)
+        InputPolicy.text(hiddenLabel, InputPolicy.MAX_TEXT_CHARS)
         InputPolicy.text(pin, InputPolicy.MAX_TAG_CHARS)
         if (tags.size > InputPolicy.MAX_TAGS) throw IllegalArgumentException("Invalid tags")
         for (tag in tags) {
@@ -248,6 +257,7 @@ open class Entry {
         sshConnection = null
         issuer = ""
         label = ""
+        hiddenLabel = ""
         tags = ArrayList()
         visible = false
         hideTask = null
@@ -260,6 +270,7 @@ open class Entry {
         secret = ownedSecret(),
         issuer = getIssuer(),
         label = getLabel(),
+        hiddenLabel = getHiddenLabel(),
         digits = getDigits(),
         period = getPeriod(),
         counter = getCounter(),
@@ -464,6 +475,12 @@ open class Entry {
         this.label = label ?: ""
     }
 
+    fun getHiddenLabel(): String = hiddenLabel
+
+    fun setHiddenLabel(hiddenLabel: String?) {
+        this.hiddenLabel = hiddenLabel ?: ""
+    }
+
     fun getPeriod(): Int = period
 
     /**
@@ -514,6 +531,7 @@ open class Entry {
     fun applyEdit(mutate: (Entry) -> Unit) {
         val previousIssuer = issuer
         val previousLabel = label
+        val previousHiddenLabel = hiddenLabel
         val previousDigits = digits
         val previousPeriod = period
         val previousCounter = counter
@@ -532,6 +550,7 @@ open class Entry {
             setCounter(previousCounter)
             setTags(previousTags)
             setLabel(previousLabel)
+            setHiddenLabel(previousHiddenLabel)
             setSecret(previousSecret)
             setIssuer(previousIssuer, false)
             thumbnailName = previousThumbnail
@@ -715,6 +734,7 @@ open class Entry {
                 algorithm == entry.algorithm &&
                 secret.contentEquals(entry.secret) &&
                 label == entry.label &&
+                hiddenLabel == entry.hiddenLabel &&
                 issuer == entry.issuer &&
                 sshIdentity() == entry.sshIdentity()
     }
@@ -729,7 +749,7 @@ open class Entry {
     /** Hashes entry fields using content-based secret hashing to match [equals]. */
     override fun hashCode(): Int {
         return Objects.hash(type, period, counter, digits, algorithm, secret?.contentHashCode(), label,
-            issuer, sshIdentity())
+            hiddenLabel, issuer, sshIdentity())
     }
 
     fun setColor(color: Int) {

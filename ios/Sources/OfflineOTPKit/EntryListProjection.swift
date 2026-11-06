@@ -189,7 +189,10 @@ public enum EntryListProjection {
     /// the device language (under Turkish, `"I"` folds to `"ı"`).
     public static func matchesSearch(_ entry: Entry, text: String, includes: Set<SearchInclude>) -> Bool {
         guard !text.isEmpty else { return true }
-        if includes.contains(.label), contains(entry.label, text) { return true }
+        if includes.contains(.label) {
+            if contains(entry.label, text) { return true }
+            if contains(entry.hiddenLabel, text) { return true }
+        }
         if includes.contains(.issuer), contains(entry.issuer, text) { return true }
         if includes.contains(.tags), entry.tags.contains(where: { contains($0, text) }) { return true }
         return false

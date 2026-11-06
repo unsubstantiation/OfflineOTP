@@ -93,7 +93,7 @@ public enum EntryDraft {
     ///   - timing: the period for TOTP/Steam, the counter for HOTP, ignored for the other kinds.
     ///   - newEntry: stamps the entry as used now, as a new entry is; an edit passes `false` and
     ///     keeps the stamp it already carries (see `preservingMetadata`).
-    public static func create(kind: EntryKind, issuer: String, label: String, secret: String,
+    public static func create(kind: EntryKind, issuer: String, label: String, hiddenLabel: String = "", secret: String,
                               digits digitsText: String, timing timingText: String,
                               algorithm: OtpHashAlgorithm, pin: String = "", tags: [String] = [],
                               newEntry: Bool = false,
@@ -173,6 +173,7 @@ public enum EntryDraft {
             break
         }
         fields["tags"] = .array(cleanedTags(tags).map { .string($0) })
+        if !hiddenLabel.isEmpty { fields["hidden_label"] = .string(hiddenLabel) }
 
         // The document loader is the validator: a draft that would not survive being read back is
         // refused here rather than written into the vault.

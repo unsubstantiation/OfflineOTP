@@ -217,13 +217,7 @@ independently tested backup.
 Each Android card has an eye button; the desktop card has a **Show** checkbox. On desktop, select
 a card and press Space to toggle it; right-click or press Shift+F10 for the card menu. New entries and
 older entries without a saved choice start hidden. A hidden row still displays its issuer and label,
-but not its token, type, tags, counter, note contents or SSH keys; reveal it before copying or
-editing. On Android, the separate **Hide issuer** setting also applies to hidden rows (an entry with
-no label will then have no identity text). Each choice is saved in the encrypted vault and included
-in portable backups, so a revealed entry remains revealed after a restart or restore. Older releases
-ignore this choice and may show details; do not rely on it when opening a backup in an older app.
-If a visibility change cannot be saved, the entry stays hidden for the current session, but its
-previously saved state may return after restart.
+but not its token, tags, counter, note contents or SSH keys — and on desktop the OTP **Type** (TOTP etc) is not shown even when revealed, only while editing; reveal an entry before copying or editing. OTP entries can store an optional **Hidden label** that behaves like **Label** but is shown only when the entry is revealed (and hidden otherwise, including from search when concealed); add or edit it in **Enter details** / **Enter account details** (OTP types only, up to 1024 characters). On Android, the separate **Hide issuer** setting also applies to hidden rows (an entry with no label will then have no identity text). Each choice is saved in the encrypted vault and included in portable backups, so a revealed entry remains revealed after a restart or restore. Older releases ignore this choice and may show details; do not rely on it when opening a backup in an older app. If a visibility change cannot be saved, the entry stays hidden for the current session, but its previously saved state may return after restart.
 
 This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
 titles, searches and other app screens may still expose information. Android blocks screenshots

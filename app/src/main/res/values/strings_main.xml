@@ -53,6 +53,8 @@
     <string name="label_counter">Counter</string>
     <string name="label_issuer">Issuer</string>
     <string name="label_label">Label</string>
+    <string name="label_hidden_label">Hidden Label</string>
+    <string name="hint_hidden_label">Hidden label (visible only when revealed)</string>
     <string name="label_algorithm">Algorithm</string>
     <string name="label_tags">Tags</string>
     <string name="label_advanced">Advanced options</string>
