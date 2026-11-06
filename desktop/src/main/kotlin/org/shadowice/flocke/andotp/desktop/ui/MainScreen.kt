@@ -112,16 +112,9 @@ internal class MainScreen(val table: JTable, val copyButton: JButton) {
         val brand = JPanel(BorderLayout(12, 0)).apply {
             isOpaque = false
             add(JLabel(LockIcon(38)), BorderLayout.WEST)
-            add(JPanel(java.awt.GridLayout(2, 1, 0, 1)).apply {
-                isOpaque = false
-                add(JLabel("OfflineOTP").apply {
-                    font = Font(Font.SANS_SERIF, Font.BOLD, 20)
-                    foreground = ForestTheme.TEXT_PRIMARY
-                })
-                add(JLabel("Your offline authenticator").apply {
-                    font = Font(Font.SANS_SERIF, Font.PLAIN, 12)
-                    foreground = ForestTheme.TEXT_PRIMARY
-                })
+            add(JLabel("OfflineOTP").apply {
+                font = Font(Font.SANS_SERIF, Font.BOLD, 20)
+                foreground = ForestTheme.TEXT_PRIMARY
             }, BorderLayout.CENTER)
         }
         val header = JPanel(BorderLayout(16, 0)).apply {
