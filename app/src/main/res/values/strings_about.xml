@@ -3,7 +3,9 @@
     <string name="about_activity_title">About</string>
 
     <string name="about_description">Offline authenticator for Android</string>
-    <string name="about_copyright" translatable="false">Copyright (c) 2026 unsubstantiation — http://fairuniversal.com\nBased on OfflineOTP by unsubstantiation: http://fairuniversal.com</string>
+    <string name="about_copyright" translatable="false">Copyright (c) 2026 unsubstantiation — http://fairuniversal.com and https://github.com/unsubstantiation/OfflineOTP/releases</string>
+    <string name="about_label_website">Website</string>
+    <string name="about_label_releases">Releases</string>
 
     <string name="about_tab_about">About</string>
     <string name="about_tab_libraries">Libraries</string>

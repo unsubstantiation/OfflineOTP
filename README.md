@@ -509,7 +509,14 @@ reproduction steps, and relevant logs; remove secrets and account data before sh
 
 ## Credits and license
 
-Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com)
+Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com) and [https://github.com/unsubstantiation/OfflineOTP/releases](https://github.com/unsubstantiation/OfflineOTP/releases)
+
+In-app **About** shows the same notice on both clients: Android **⋮ → About → About** displays
+`Copyright (c) 2026 unsubstantiation — http://fairuniversal.com and https://github.com/unsubstantiation/OfflineOTP/releases`
+with tappable **Website** (`http://fairuniversal.com`) and **Releases** (`https://github.com/unsubstantiation/OfflineOTP/releases`)
+rows (plus Source, Changelog, License and Issues); desktop **Help → About OfflineOTP** shows
+the identical copyright line with clickable **Website**, **Releases** and **Source** links that
+open in the system browser or copy to the clipboard.
 
 This project is licensed under the **OfflineOTP Custom Noncommercial License with Attribution
 and Artificial Intelligence Restrictions, Version 1.0**. The complete, binding terms are in

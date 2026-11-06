@@ -614,6 +614,9 @@ object MainWindow {
                     }
                 })
             })
+            add(JMenu("Help").apply {
+                add(JMenuItem("About OfflineOTP").apply { addActionListener { AboutDialog.show(frame) } })
+            })
         }
 
         frame = JFrame(TITLE).apply {

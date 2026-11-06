@@ -139,7 +139,15 @@ from one can be exported for the other: `EmailMaterial.importThunderbirdCsv` gro
 CSV rows by username (parsing `mailbox://`, `imap://`, `smtp://`, default ports/encryption) into
 the same `Account` that `importBackup` builds, `prepare` stores it as `EMAIL`, and
 `exportThunderbirdCsv`/`exportBackup` round-trip either way (inferred defaults aside); legacy
-PASSWORD-stored Thunderbird vaults remain exportable via the compatibility path.
+PASSWORD-stored Thunderbird vaults remain exportable via the compatibility path. The About screen
+is the same attribution on both clients — `Copyright (c) 2026 unsubstantiation — http://fairuniversal.com
+and https://github.com/unsubstantiation/OfflineOTP/releases` in the header (Android
+`strings_about.xml:about_copyright`, desktop `AboutDialog.COPYRIGHT`) with tappable **Website**
+(`http://fairuniversal.com`) and **Releases**
+(`https://github.com/unsubstantiation/OfflineOTP/releases`) rows (Android
+`fragment_about.xml` + `BaseAboutFragment.WEBSITE_URI/RELEASES_URI`, desktop `Help → About
+OfflineOTP` via `AboutDialog` with `Desktop.browse` + clipboard fallback) — so a binary always
+carries the required notice.
 
 ## A third client
 
