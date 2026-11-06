@@ -5,23 +5,20 @@ APK. The separate `sign-release` job builds signed F-Droid and Play release APKs
 release keystore is configured**; otherwise it is skipped with a notice and the workflow stays
 green. This is why an unconfigured repository no longer shows a red Android build.
 
-The credentials live in the **`android-release` environment**, not in plain repository secrets:
+The credentials live as **repository secrets** (previously the `android-release` environment):
 
 | Where | Name | Required | Contents |
 | --- | --- | --- | --- |
-| `android-release` environment | `ANDROID_KEYSTORE_BASE64` | yes | Base64 of the `.jks` keystore (single line or wrapped) |
-| `android-release` environment | `ANDROID_KEYSTORE_PASSWORD` | yes | Keystore password; also used as the key password |
-| `android-release` environment | `ANDROID_RELEASE_KEY_ALIAS` | no | Names the key when the keystore holds more than one; otherwise read from the keystore |
-| `android-release` environment | `ANDROID_RELEASE_KEY_PASSWORD` | no | Only when the key password differs from the store password |
+| Repository secret | `ANDROID_KEYSTORE_BASE64` | yes | Base64 of the `.jks` keystore (single line or wrapped) |
+| Repository secret | `ANDROID_KEYSTORE_PASSWORD` | yes | Keystore password; also used as the key password |
+| Repository secret | `ANDROID_RELEASE_KEY_ALIAS` | no | Names the key when the keystore holds more than one; otherwise read from the keystore |
+| Repository secret | `ANDROID_RELEASE_KEY_PASSWORD` | no | Only when the key password differs from the store password |
 
 `ANDROID_RELEASE_KEYSTORE`, `ANDROID_RELEASE_STORE_PASSWORD` and `ANDROID_RELEASE_KEY_PASSWORD` are
 still read as fallbacks, so a setup made with the older names keeps working. Two secrets are enough
 for the common case, because the key alias is not a secret: the job reads it out of the keystore
-with `keytool -list`.
-
-The environment's branch policy allows **`master` only**, and the signing jobs declare
-`environment: android-release`. A run on any other branch therefore reports a plain skip instead of
-failing at the environment gate.
+with `keytool -list`. The workflow no longer creates GitHub Deployments — artifacts are downloaded
+from **Actions** (see below).
 
 There are two independent things to keep apart:
 
@@ -39,10 +36,8 @@ advisory is only a notice, so the run stays green.
 
 Check, in order:
 
-1. Both secrets are set in the **`android-release` environment**, not only at repository level —
-   the jobs read the environment's copy.
-2. The run is on `master` (or a `workflow_dispatch` of `master`). The environment's branch policy
-   allows `master` only, and the preflight is guarded by the same rule.
+1. Both secrets are set as repository secrets (Settings → Secrets and variables → Actions).
+2. The run is on `master` (or a `workflow_dispatch` of `master`).
 3. `ANDROID_KEYSTORE_BASE64` holds the base64 of the whole `.jks` file. A base64 of the `.b64` text
    or of a truncated file decodes to something `keytool` cannot open.
 
@@ -86,20 +81,16 @@ and losing the key means no future update can be installed over the same app.
 ## Setting the secrets
 
 ```sh
-gh secret set ANDROID_KEYSTORE_BASE64 --env android-release \
-  --repo <owner>/<repo> < OfflineOTP-release-keystore.jks.b64
-gh secret set ANDROID_KEYSTORE_PASSWORD --env android-release --repo <owner>/<repo>
+gh secret set ANDROID_KEYSTORE_BASE64 --repo <owner>/<repo> < OfflineOTP-release-keystore.jks.b64
+gh secret set ANDROID_KEYSTORE_PASSWORD --repo <owner>/<repo>
 ```
 
 The optional pieces, only if your keystore needs them:
 
 ```sh
-gh secret set ANDROID_RELEASE_KEY_ALIAS --env android-release --repo <owner>/<repo>
-gh secret set ANDROID_RELEASE_KEY_PASSWORD --env android-release --repo <owner>/<repo>
+gh secret set ANDROID_RELEASE_KEY_ALIAS --repo <owner>/<repo>
+gh secret set ANDROID_RELEASE_KEY_PASSWORD --repo <owner>/<repo>
 ```
-
-Or use **Settings → Environments → `android-release` → Environment secrets**. A repository-level
-secret with the same name is shadowed by the environment copy, so keep exactly one.
 
 Never commit the keystore, the `.b64` file, or the passwords. `/signing/`, `*.jks` and `*.keystore`
 are ignored by Git for that reason.

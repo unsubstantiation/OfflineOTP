@@ -129,12 +129,7 @@ jobs:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
     # signed-release job be *skipped* instead of *failed* when signing is not configured.
-    #
-    # The keystore lives in the `android-release` environment, which is how this repository scopes
-    # signing credentials (its branch policy allows `master` only, so the ref check keeps every
-    # other dispatch from failing at the environment gate instead of reporting a clear skip).
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
-    environment: android-release
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     outputs:
@@ -162,9 +157,6 @@ jobs:
     # artifacts that were not actually signed with the release key.
     needs: signing-preflight
     if: needs.signing-preflight.outputs.enabled == 'true'
-    # Same environment as the preflight: environment secrets are only readable by a job that names
-    # the environment, and this is where the keystore and its password live.
-    environment: android-release
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
