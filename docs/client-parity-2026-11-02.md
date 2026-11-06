@@ -133,7 +133,13 @@ duplicate-issuer confirmation, the password and SSH editors, entry metadata (las
 frequency, details visibility) preserved by every edit, the master-password vault format
 (`secrets.dat`, PBKDF2 + AES-GCM) and the reveal/copy rules. Each of these is covered by shared
 `:core` code or by existing desktop tests, so the review checked the call sites rather than
-re-deriving the behaviour.
+re-deriving the behaviour. Thunderbird email credentials and FairEmail accounts share the same
+`EMAIL` vault representation (`EmailMaterial.Account` → `ENTRY_EMAIL`), so an account imported
+from one can be exported for the other: `EmailMaterial.importThunderbirdCsv` groups Thunderbird
+CSV rows by username (parsing `mailbox://`, `imap://`, `smtp://`, default ports/encryption) into
+the same `Account` that `importBackup` builds, `prepare` stores it as `EMAIL`, and
+`exportThunderbirdCsv`/`exportBackup` round-trip either way (inferred defaults aside); legacy
+PASSWORD-stored Thunderbird vaults remain exportable via the compatibility path.
 
 ## A third client
 
