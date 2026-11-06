@@ -400,18 +400,17 @@ final class VaultStoreTests: XCTestCase {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try rawEntry("kept")))
 
+        // Plain-text backups were removed — the import path no longer exists. Verify the
+        // encrypted path's empty-backup refusal and that exports are never plain text.
         let document = try VaultDocument.encode([try rawEntry("plain")])
-        let plan = try XCTUnwrap(store.restore(plainText: Data(document.utf8), replace: false))
-        XCTAssertEqual(plan.added, 1)
-        XCTAssertEqual(store.entries.map(\.label), ["plain", "kept"])
-
-        XCTAssertNil(store.restore(plainText: Data(), replace: false))
-        XCTAssertEqual(store.message, BackupWording.plainTextInvalid)
-        XCTAssertNil(store.restore(plainText: Data("[]".utf8), replace: false))
-        XCTAssertEqual(store.message, BackupWording.emptyBackup)
-        // The import-only rule: nothing this client writes is plain text.
         let exported = try XCTUnwrap(store.exportBackup(password: "backup pass"))
         XCTAssertNotEqual(String(data: exported.data, encoding: .utf8), document)
+
+        let emptyData = try EncryptedBackup.sealWithFreshParameters(password: "pw", plain: "[]")
+        XCTAssertNil(store.restore(encrypted: emptyData, password: "pw", replace: false))
+        XCTAssertEqual(store.message, BackupWording.emptyBackup)
+        XCTAssertNil(store.restore(encrypted: Data(), password: "pw", replace: false))
+        XCTAssertEqual(store.message, BackupWording.unreadableBackup)
     }
 
     func testAPastedLinkBecomesAnEntry() throws {
