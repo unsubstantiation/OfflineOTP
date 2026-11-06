@@ -122,6 +122,67 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         }
     }
 
+    /**
+     * Replaces [existing] with [replacement], preserving the vault order and list id, and saves.
+     * The replacement is validated and checked for duplicates (excluding the entry being replaced).
+     * On any failure the replacement is destroyed and the vault is left unchanged.
+     */
+    fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            val key = encryptionKey
+            if (key == null || VaultSession.getKey() !== key) {
+                replacement.destroy()
+                return false
+            }
+            if (!existing.areDetailsVisible()) {
+                replacement.destroy()
+                return false
+            }
+            val existingIndex = entries.indexOf(existing)
+            if (existingIndex < 0) {
+                replacement.destroy()
+                return false
+            }
+            try {
+                replacement.validate()
+            } catch (_: RuntimeException) {
+                replacement.destroy()
+                return false
+            }
+            val proposed = entries.getEntries()
+            if (proposed.indices.any { it != existingIndex && proposed[it] == replacement }) {
+                replacement.destroy()
+                return false
+            }
+            // Preserve the metadata the form does not edit, like the desktop does.
+            replacement.setDetailsVisible(existing.areDetailsVisible())
+            replacement.setLastUsed(existing.getLastUsed())
+            replacement.setUsedFrequency(existing.getUsedFrequency())
+            if (replacement.getType() == Entry.OTPType.MOTP && replacement.getPin().isEmpty()
+                && existing.getPin().isNotEmpty()) {
+                replacement.setPin(existing.getPin())
+            }
+            proposed[existingIndex] = replacement
+            val result = persistence.save(proposed, key, settings.getAutoBackupEncryptedPasswordsEnabled(),
+                UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
+            if (result !is VaultWriteResult.Saved) {
+                replacement.destroy()
+                if (result is VaultWriteResult.RecoveryRequired) loadEntries()
+                return false
+            }
+            val old = entries.getEntry(existingIndex)
+            if (!entries.replaceEntry(existingIndex, replacement)) {
+                replacement.destroy()
+                loadEntries()
+                return false
+            }
+            old.destroy()
+            updateTagsFilter()
+            entriesChanged(presentation.indexOf(replacement))
+            return true
+        }
+    }
+
     internal data class BatchImportResult(val added: Int, val skipped: Int)
 
     /**

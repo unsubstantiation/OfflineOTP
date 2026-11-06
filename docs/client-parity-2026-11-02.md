@@ -198,6 +198,19 @@ one implementation for all five distributions. The crate builds a `cdylib` for J
 the crate on the host; per-ABI packaging and removal of PGPainless remain before the format is truly
 identical, but the design gap is closed.
 
+### Fixed: entry edits now reliably autosave
+
+All three clients autosave on entry edits (issuer, label, secret parameters, tags, SSH
+connection) — the vault file is written before the in-memory list is published, so a failed
+write leaves the previous entry unchanged. On Android the edit path previously mutated the live
+entry outside the vault lock and relied on a two-step callback; if the session changed between
+the dialog closing and the save, the in-memory entry stayed dirty while the file was untouched.
+`EntriesCardAdapter` now exposes `replaceEntry(existing,replacement)` which validates the
+draft, checks for duplicates, writes the whole vault atomically under `MutationLock` and only
+then swaps the entry in the list, matching `EntryEditor.replace` on the desktop and
+`VaultStore.update` on iOS. `ManualEntryDialog` builds a new entry through `EntryDraft`
+instead of calling `applyEdit` on the live object.
+
 One thing the iOS client has and the other two do not: an optional **Face ID** unlock. It is not a
 format change and it does not touch the vault — it releases the derived key from a Keychain item that
 is bound to the currently enrolled face and never leaves the device, so the password still opens the

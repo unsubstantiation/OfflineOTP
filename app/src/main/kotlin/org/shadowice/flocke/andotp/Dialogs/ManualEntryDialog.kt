@@ -374,14 +374,22 @@ object ManualEntryDialog {
                             sshConnection = connection, tags = tagsAdapter.getActiveTags(),
                             newEntry = true))
                     } else {
-                        oldEntry!!.applyEdit { edited ->
-                            edited.setLabel(label)
-                            edited.setIssuer(issuer, true)
-                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
-                            edited.setSshKeys(publicKey, secret)
-                            edited.setSshConnection(connection)
+                        val replacement = try {
+                            EntryDraft.create(type, issuer, label, secret,
+                                digitsText, periodText, algorithm, publicKey = publicKey,
+                                sshConnection = connection, tags = tagsAdapter.getActiveTags(),
+                                newEntry = false)
+                        } catch (_: IllegalArgumentException) {
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
                         }
-                        updateCallback?.onUpdate()
+                        if (!adapter.replaceEntry(oldEntry!!, replacement)) {
+                            replacement.destroy()
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
                     }
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.NOTE) {
@@ -391,13 +399,21 @@ object ManualEntryDialog {
                             digitsText, periodText, algorithm,
                             tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
-                        oldEntry!!.applyEdit { edited ->
-                            edited.setLabel(label)
-                            edited.setIssuer(issuer, true)
-                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
-                            edited.setNote(secret)
+                        val replacement = try {
+                            EntryDraft.create(type, issuer, label, secret,
+                                digitsText, periodText, algorithm,
+                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                        } catch (_: IllegalArgumentException) {
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
                         }
-                        updateCallback?.onUpdate()
+                        if (!adapter.replaceEntry(oldEntry!!, replacement)) {
+                            replacement.destroy()
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
                     }
                     callingActivity.refreshTags()
                 } else if (type == Entry.OTPType.TOTP || type == Entry.OTPType.STEAM) {
@@ -406,23 +422,22 @@ object ManualEntryDialog {
                             digitsText, periodText, algorithm,
                             tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
-                        val digits = EntryDraft.digits(digitsText)
-                        val period = EntryDraft.period(periodText)
-
-                        // applyEdit() rolls the live entry back when the model rejects the new
-                        // values; otherwise a too-large digits/period stayed on the entry and the
-                        // next token refresh or vault write threw again.
-                        oldEntry!!.applyEdit { edited ->
-                            edited.setIssuer(issuer, true)
-                            edited.setLabel(label)
-                            edited.setDigits(digits)
-                            edited.setPeriod(period)
-                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val replacement = try {
+                            EntryDraft.create(type, issuer, label, existingSecret,
+                                digitsText, periodText, algorithm,
+                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                        } catch (_: IllegalArgumentException) {
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
                         }
-
-                        oldEntry.updateOTP(true)
-
-                        updateCallback?.onUpdate()
+                        if (!adapter.replaceEntry(oldEntry, replacement)) {
+                            replacement.destroy()
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
                     }
 
                     callingActivity.refreshTags()
@@ -432,20 +447,22 @@ object ManualEntryDialog {
                             digitsText, counterText, algorithm,
                             tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
-                        val digits = EntryDraft.digits(digitsText)
-                        val counter = EntryDraft.counter(counterText)
-
-                        oldEntry!!.applyEdit { edited ->
-                            edited.setIssuer(issuer, true)
-                            edited.setLabel(label)
-                            edited.setDigits(digits)
-                            edited.setCounter(counter)
-                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val replacement = try {
+                            EntryDraft.create(type, issuer, label, existingSecret,
+                                digitsText, counterText, algorithm,
+                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                        } catch (_: IllegalArgumentException) {
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
                         }
-
-                        oldEntry.updateOTP(true)
-
-                        updateCallback?.onUpdate()
+                        if (!adapter.replaceEntry(oldEntry, replacement)) {
+                            replacement.destroy()
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
                     }
 
                     callingActivity.refreshTags()
@@ -455,15 +472,22 @@ object ManualEntryDialog {
                             digitsText, periodText, algorithm,
                             tags = tagsAdapter.getActiveTags(), newEntry = true))
                     } else {
-                        oldEntry!!.applyEdit { edited ->
-                            edited.setIssuer(issuer, true)
-                            edited.setLabel(label)
-                            edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                        val existingSecret = oldEntry!!.getSecretEncoded() ?: ""
+                        val replacement = try {
+                            EntryDraft.create(type, issuer, label, existingSecret,
+                                digitsText, periodText, algorithm,
+                                tags = tagsAdapter.getActiveTags(), newEntry = false)
+                        } catch (_: IllegalArgumentException) {
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
                         }
-
-                        oldEntry.updateOTP(false)
-
-                        updateCallback?.onUpdate()
+                        if (!adapter.replaceEntry(oldEntry, replacement)) {
+                            replacement.destroy()
+                            secretInput.setError(callingActivity.getString(R.string.error_invalid_entry))
+                            Toast.makeText(callingActivity, R.string.error_invalid_entry, Toast.LENGTH_LONG).show()
+                            return@setOnClickListener
+                        }
                     }
 
                     callingActivity.refreshTags()

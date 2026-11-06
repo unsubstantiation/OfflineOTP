@@ -179,6 +179,20 @@ class EntryEditorAndBackupTest {
     }
 
     @Test
+    fun editsPersistViaReplace() {
+        val (dir, controller, state) = harness()
+        val editor = EntryEditor(controller, state)
+        val original = entry("Issuer A", "alice")
+        assertTrue(editor.add(original))
+        val replacement = entry("Issuer A", "alice-renamed")
+        assertTrue(editor.replace(original, replacement))
+        assertEquals("alice-renamed", state.snapshot().single().getLabel())
+        val reopened = VaultController(DesktopStorage.open(dir)).openVault(password)
+                as VaultController.Session.Loaded
+        assertEquals("alice-renamed", reopened.entries.single().getLabel())
+    }
+
+    @Test
     fun encryptedBackupRoundTripsThroughTheSharedCodec() {
         val (_, controller, state) = harness()
         EntryEditor(controller, state).add(entry("Issuer", "label"))

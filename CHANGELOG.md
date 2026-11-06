@@ -2,6 +2,14 @@
 
 #### Unreleased
 
+ * Vault: Entry edits now reliably autosave. `EntriesCardAdapter.replaceEntry` validates a draft,
+checks for duplicates, writes the vault atomically under `MutationLock` and only then publishes the
+replacement, matching `EntryEditor.replace` and `VaultStore.update`. `ManualEntryDialog` no
+longer mutates the live entry outside the lock (which could leave a dirty in-memory entry when the
+session changed before the save). A failing write keeps the previous entry and the file unchanged.
+`EntryEditorAndBackupTest.editsPersistViaReplace` and `VaultStoreTests.testDeletingAndEditingPersist`
+pin the round-trip.
+
  * OpenPGP: Scaffold the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) for all
 five distributions (Android, Debian, Windows, macOS, iOS). The crate exposes `encrypt`/`decrypt`
 over opaque key blocks (armored or binary) with the same document limits and empty-output rules as
