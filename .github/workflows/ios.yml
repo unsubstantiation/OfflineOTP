@@ -27,6 +27,26 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Check Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version
+          cargo --version
+      - name: Test Rust crate (rpgp + UniFFI, 5/5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path rust/Cargo.toml --verbose
+      - name: Build Rust crate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust/Cargo.toml --verbose
       - name: Show the toolchain
         shell: bash
         run: |

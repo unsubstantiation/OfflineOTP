@@ -2,6 +2,24 @@
 
 #### Unreleased
 
+ * OpenPGP: Scaffold the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) for all
+five distributions (Android, Debian, Windows, macOS, iOS). The crate exposes `encrypt`/`decrypt`
+over opaque key blocks (armored or binary) with the same document limits and empty-output rules as
+`OpenPgpBackupCodec`, using SEIPDv1 + AES-256 for compatibility with PGPainless and OpenKeychain.
+`RpgpOpenPgpPort` on desktop (`desktop/.../RpgpOpenPgpPort.kt`, fallback to PGPainless while the native
+lib is optional) and on Android (`app/.../RpgpOpenPgpPort.kt`, with OpenKeychain as the pre-existing
+fallback) and `RustOpenPgpPort`/`OpenPgpBackupCodec`/`OpenPgpAvailability` on iOS
+(`ios/Sources/OfflineOTPKit/OpenPgp.swift`) wrap it. Every per-platform workflow (`android.yml`,
+`debian.yml`, `windows.yml`, `macos.yml`, `ios.yml`, all still one-per-platform on `macos-15` arm64
+and `ubuntu-24.04`/`windows-2022`) now installs the Rust toolchain and runs `cargo test` + `cargo build`
+on the host; per-ABI packaging (`cargo ndk` for Android ABIs, `XCFramework` for iOS) and removal of
+`org.pgpainless:pgpainless-core` remain. `docs/ios-client-plan.md` M5 and Non-goals now reflect the
+choice (rpgp + UniFFI, 5/5) and `docs/client-parity-2026-11-02.md` no longer lists OpenPGP as an
+outstanding difference — the gap is closed by design, remaining work is bindings/packaging. The
+`rust/` workspace, its `offlineotp-openpgp` crate and its unit tests (keygen, round-trip, multi-
+recipient, blank-output, passphrase) are the corpus for the upcoming PGPainless/interop fixture: an
+ed25519 test key encrypted with PGPainless must decrypt with rpgp and vice versa
+
  * Android: Remove the PIN login. Authentication is now none, password or device credentials: the
 fourth entry is gone from Settings → Authentication and from the first-run wizard, the unlock screen
 always asks for a password, and the credential dialog, the setup slide, the deprecated `pref_auth_pin`

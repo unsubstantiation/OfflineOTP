@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
-| **M5** 🔄 | Google Authenticator export import ✅, Face ID unlock ✅, privacy cover ✅, VoiceOver and target-size pass ✅, OpenPGP backups, TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
+| **M5** 🔄 | Google Authenticator export import ✅, Face ID unlock ✅, privacy cover ✅, VoiceOver and target-size pass ✅, OpenPGP backups (rpgp + UniFFI, 5/5 scaffolded — see below), TestFlight | App passes review; no plaintext secret in logs, files or pasteboard beyond the expiry window |
 
 Estimated shape: M0–M1 about a week each, M2 about a week, M3 the largest at one to two, M4 about a
 week, M5 about a week. Nothing here is on the critical path of the existing clients. M4 and M5 are
@@ -279,10 +279,17 @@ active, `RootView` covers the app with the theme background and a lock glyph. Th
 for the app switcher therefore contains no list, no label and no code. A blur would leak more than it
 hides — a large glyph stays readable through a modest radius — so the cover is opaque and complete.
 
-Not there yet: the hardware-key features that are Android-only by design, OpenPGP backups, and the
-App Store work. Those are M5 above, and the outstanding format is:
+Not there yet: the hardware-key features that are Android-only by design and the App Store work.
+OpenPGP backups (`.json.gpg`) are now in progress via the unified Rust backend (`rust/offlineotp-openpgp`,
+rpgp 0.21 + UniFFI) that covers all five distributions — Android, Debian, Windows, macOS and iOS — from
+one crate. The crate builds a `cdylib` for JVM targets (JNA) and a `staticlib`/`XCFramework` for Apple
+targets; `RpgpOpenPgpPort` on desktop (`desktop/.../RpgpOpenPgpPort.kt`), `RpgpOpenPgpPort` on Android
+(`app/.../RpgpOpenPgpPort.kt`) and `RustOpenPgpPort`/`OpenPgpBackupCodec` on iOS (`ios/Sources/OfflineOTPKit/OpenPgp.swift`)
+wrap it. The desktop still ships PGPainless as a fallback while every per-platform workflow now
+builds and tests the Rust crate; once the generated bindings are committed PGPainless will be removed.
+The remaining format is:
 
-- **OpenPGP backups** (`.json.gpg`) need a whole OpenPGP implementation; see the non-goals below.
+- **OpenPGP backups** (`.json.gpg`) — implementation exists, bindings and per-ABI packaging remain (see Non-goals for the plan, not a non-goal).
 
 Google Authenticator's multi-account export is now imported (M5's first item). A bounded, non-recursive
 reader parses one code of the export; `MigrationBatchCollector` holds the codes of a single export
@@ -325,10 +332,17 @@ nothing about that backup is weaker than the vault file itself.
 
 ## Non-goals for v1
 
-OpenPGP (`.json.gpg`) backups — they need an OpenPGP implementation, and the existing clients use
-incompatible ones (Android talks to an external provider, the desktop embeds PGPainless). Hardware
-security keys over NFC. FairEmail account import/export. The password-vault and email entry kinds
-(preserved, not edited). Master-password change on device.
+Hardware security keys over NFC. FairEmail account import/export. The password-vault and email entry
+kinds (preserved, not edited). Master-password change on device.
+
+OpenPGP (`.json.gpg`) backups were previously a non-goal because the clients used incompatible
+implementations (Android via external OpenKeychain provider, desktop via embedded PGPainless, iOS with
+none). That gap is now closed by the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI)
+which provides one implementation for all five distributions. The crate, its Kotlin (JNA) and Swift
+(XCFramework) bindings, and the `OpenPgpPort` adapters exist; per-ABI packaging (Android NDK `cargo ndk`,
+Debian/Windows/macOS `cdylib`, iOS `XCFramework` via `uniffi-bindgen`) and the removal of PGPainless
+are the remaining steps, not a design gap. See `rust/offlineotp-openpgp/src/lib.rs` and
+`ios/Sources/OfflineOTPKit/OpenPgp.swift`.
 
 ## Risks
 

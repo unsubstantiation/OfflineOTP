@@ -123,7 +123,7 @@ Features:
 - Manage FairEmail-compatible mail accounts in the **Email** tab: add one by hand, view its connection details with the passwords masked until you ask for them, and import or export FairEmail backups. The same entries are created by Android's **Add email account** action.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
 - Restore a legacy unencrypted JSON backup with **Tools → Restore plain-text backup…**, behind Android's warning that such a file carries your secrets in the clear; like Android, the desktop client imports them but never writes one.
-- Save and restore password-encrypted and OpenPGP (PGPainless) backups. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
+- Save and restore password-encrypted and OpenPGP backups — currently PGPainless (`org.pgpainless:pgpainless-core:2.0.4`) on desktop and the external OpenKeychain provider on Android, with a unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI, 5/5) scaffolded for all five distributions. Every per-platform workflow now builds and tests the Rust crate; per-ABI packaging and removal of PGPainless remain. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
 - Deliberately out of desktop v1 scope: NFC, camera, screen capture, settings editor, inactivity lock, and password change.
 
@@ -278,7 +278,10 @@ OpenPGP backups use the same entry JSON and standard OpenPGP encryption, but pro
 compatibility must be tested on the actual devices. Desktop exports are encrypted but **unsigned**;
 Android's optional signature verification will reject them when enabled. Desktop currently does not
 verify OpenPGP signatures, including those on Android exports. Do not treat an OpenPGP restore on
-desktop as proof of who created it. Password backups are the simpler interchange path.
+desktop as proof of who created it. The unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 +
+UniFFI) closes the previous provider gap (Android external vs desktop embedded vs iOS none) with one
+implementation for all five distributions; until its per-ABI packaging lands, test with the current
+providers. Password backups are the simpler interchange path.
 
 Verification limits: the offline sandbox compiles every desktop source against narrow stubs and
 runs the headless suite under `java.awt.headless=true`, including lightweight Swing theme and
@@ -447,7 +450,11 @@ read from the keystore itself, what to re-publish afterwards, and the verificati
 release APKs are still built by `scripts/verify_reproducible_build.sh`.
 
 Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
-clients build for JVM 11 because the embedded PGPainless 2.x engine declares a JVM 11 requirement,
+clients build for JVM 11 because the embedded OpenPGP engine declares a JVM 11 requirement —
+currently `org.pgpainless:pgpainless-core:2.0.4` (JVM 11) with a Unified Rust fallback
+(`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI, 5/5) that will replace it once the per-ABI
+packaging (`cargo ndk` for Android, `XCFramework` + `uniffi-bindgen` for iOS, `cdylib` for desktop)
+and generated Kotlin/Swift bindings are committed —
 and the Android USB/NFC transport stays on YubiKit 3.1.0 because 3.2.x targets `compileSdk 37`
 while AGP 8.13.2 supports 36; the JVM YubiKit modules remain on 3.2.1.
 
