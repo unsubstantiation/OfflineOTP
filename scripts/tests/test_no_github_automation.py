@@ -45,7 +45,8 @@ class NoGithubAutomationTest(unittest.TestCase):
         android = (workflows / "android.yml").read_text(encoding="utf-8")
         windows = (workflows / "windows.yml").read_text(encoding="utf-8")
         debian = (workflows / "debian.yml").read_text(encoding="utf-8")
-        self.assertIn(":app:assembleFdroidDebug", android)
+        self.assertIn(":app:assembleFdroidRelease", android)
+        self.assertIn(":app:assemblePlayRelease", android)
         self.assertIn("apksigner", android)
         setup_pin = "android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4"
         setups = android.count("android-actions/setup-android@")

@@ -402,7 +402,8 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 Five GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
 per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
-from the workflow run: an F-Droid debug APK, a Windows x64 app-image zip, a Debian 12 x64 app-image
+from the workflow run: signed Android release APKs (F-Droid and Play, only on `master` when
+signing secrets are configured), a Windows x64 app-image zip, a Debian 12 x64 app-image
 tarball, a macOS arm64 app-bundle zip, and — for iOS — an unsigned simulator app bundle plus a
 checksummed source archive of the package the tests ran against. Each includes SHA-256 checksums; Android also includes the signing certificate
 details. The workflows do **not** publish GitHub releases or run device tests.

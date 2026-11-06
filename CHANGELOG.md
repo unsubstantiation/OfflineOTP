@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * CI: Remove Android debug build — the `build` job in `.github/workflows/android.yml` that produced `OfflineOTP-android-debug` is deleted; the workflow now only runs `signing-preflight`/`sign-release` on `master` with secrets. No debug artifact is uploaded — use `./gradlew :app:assembleFdroidDebug` locally. `scripts/tests/test_no_github_automation.py`, `README.md`, `docs/release-signing.md` and `scripts/packaging/README.md` are updated accordingly.
+
  * CI: Remove GitHub Deployments — the Android workflow no longer creates `android-release` deployments; release APKs are downloaded from **Actions → Android build → Artifacts** (`OfflineOTP-android-release`). Secrets are repository secrets, not environment secrets (see `docs/release-signing.md`). Existing deployments remain in the UI until deleted manually.
 
  * iOS: Fix mOTP tokens — `TokenCalculator.motp` was changed to SHA-256 by the CodeQL autofix for `swift/weak-sensitive-data-hashing`; mOTP is defined as `MD5(step + seed + PIN)` and SHA-256 broke every mOTP code (`693ae2` → `dc1b3a`, `0ebf99` → `44242f`, `20bba6` → `9a7dbb` in `token-vectors.json`). Restored `Insecure.MD5` with CodeQL suppressions (`codeql`/`lgtm`) and a spec comment; the Kotlin `TokenCalculator.MOTP` (MD5) is the reference. `TokenVectorTests` and `EntryDraftTests` now pass.

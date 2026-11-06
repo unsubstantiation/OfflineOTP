@@ -11,120 +11,6 @@ permissions:
   pull-requests: write
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
-        with:
-          toolchain: stable
-          components: rustfmt, clippy
-      - name: Check Rust toolchain
-        shell: bash
-        run: |
-          set -euo pipefail
-          rustc --version
-          cargo --version
-      - name: Test Rust crate (rpgp + UniFFI, 5/5)
-        shell: bash
-        run: |
-          set -euo pipefail
-          # The unified OpenPGP backend lives in rust/offlineotp-openpgp (rpgp 0.21 via UniFFI).
-          # It builds a cdylib for Android/JVM (JNA) and a staticlib/XCFramework for iOS. This
-          # job runs the host-target unit tests (keygen + round-trip + multi-recipient) so a
-          # broken crypto change fails here rather than in a later per-ABI NDK build.
-          set +e
-          cargo check --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
-          status=${PIPESTATUS[0]}
-          set -e
-          if [ $status -ne 0 ]; then
-            echo "::group::Rust test failure tail"
-            echo "--- tail 200 raw ---"
-            tail -n 200 rust-test.log || true
-            wc -l rust-test.log || true
-            echo "::group::Rust full tail as errors"
-            tail -n 150 rust-test.log | while IFS= read -r line; do
-              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-              [ -n "$safe" ] || continue
-              echo "::error title=Rust::$safe"
-            done || true
-            grep -n -i "error" rust-test.log | head -n 60 | while IFS= read -r line; do
-              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-              echo "::error title=Rust grep::$safe"
-            done || true
-            tail -n 200 rust-test.log | while IFS= read -r line; do
-              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-              [ -n "$safe" ] || continue
-              echo "::notice title=Rust tail::$safe"
-            done || true
-            echo "::endgroup::"
-            exit $status
-          fi
-      - name: Build Rust crate
-        shell: bash
-        run: |
-          set -euo pipefail
-          cargo build --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-build.log
-      - name: Report Rust diagnostics
-        if: always()
-        shell: bash
-        run: |
-          set -euo pipefail
-          echo "pwd=$(pwd)"; ls -la
-          for log in rust-test.log rust-build.log; do
-            if [ -f "$log" ]; then
-              echo "--- $log ---"
-              cat "$log"
-              # Emit the first 40 lines as annotations so `gh api .../annotations` is readable when blob logs EOF
-              head -n 40 "$log" | while IFS= read -r line; do
-                [ -n "$line" ] || continue
-                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-                [ -n "$safe" ] || continue
-                echo "::notice title=Rust log::$safe"
-              done || true
-              echo "::notice title=Rust::--- tail $log ---"
-              tail -n 80 "$log" | while IFS= read -r line; do
-                [ -n "$line" ] || continue
-                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-                [ -n "$safe" ] || continue
-                echo "::notice title=Rust tail::$safe"
-              done || true
-              grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
-                [ -n "$line" ] || continue
-                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-                [ -n "$safe" ] || continue
-                echo "::error title=Rust::$safe"
-              done || true
-            else
-              echo "::notice title=Rust::no log $log"
-            fi
-          done
-      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
-        with:
-          # Keep the v3 default SDK tools while updating the action runtime.
-          cmdline-tools-version: '12266719'
-          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
-      - name: Build F-Droid debug APK
-        run: ./gradlew --no-daemon :app:assembleFdroidDebug
-      - name: Prepare APK and checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p artifacts
-          cp app/build/outputs/apk/fdroid/debug/app-fdroid-debug.apk artifacts/OfflineOTP-fdroid-debug.apk
-          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs artifacts/OfflineOTP-fdroid-debug.apk > artifacts/signing-certificate.txt
-          (cd artifacts && sha256sum OfflineOTP-fdroid-debug.apk > SHA256SUMS.txt)
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: OfflineOTP-android-debug
-          path: artifacts/
-          if-no-files-found: error
-
   signing-preflight:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
@@ -132,6 +18,7 @@ jobs:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    environment: android-release
     outputs:
       enabled: ${{ steps.check.outputs.enabled }}
     steps:
@@ -153,12 +40,12 @@ jobs:
 
   sign-release:
     # Builds and verifies signed release APKs only when the keystore is configured; otherwise
-    # the job is skipped so the debug build and PR checks stay green. Never uploads release
-    # artifacts that were not actually signed with the release key.
+    # the job is skipped. No debug APK is built — use a local Gradle build for development.
     needs: signing-preflight
     if: needs.signing-preflight.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    environment: android-release
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5

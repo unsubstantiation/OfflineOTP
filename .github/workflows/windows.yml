@@ -45,7 +45,7 @@ jobs:
               [ -n "$safe" ] || continue
               echo "::error title=Rust::$safe"
             done || true
-            grep -n -i "error" rust-test.log | head -n 60 | while IFS= read -r line; do
+            grep -E -n -i '\berror\b' rust-test.log | head -n 60 | while IFS= read -r line; do
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
               echo "::error title=Rust grep::$safe"
             done || true
@@ -86,7 +86,7 @@ jobs:
                 [ -n "$safe" ] || continue
                 echo "::notice title=Rust tail::$safe"
               done || true
-              grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
+              grep -E -i '\berror\b' "$log" | head -20 | while IFS= read -r line; do
                 [ -n "$line" ] || continue
                 safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
                 [ -n "$safe" ] || continue

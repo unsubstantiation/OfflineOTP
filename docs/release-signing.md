@@ -1,18 +1,19 @@
 # Signed release APKs
 
-Release signing is **opt-in**. The Android workflow always builds and uploads the F-Droid debug
-APK. The separate `sign-release` job builds signed F-Droid and Play release APKs **only when the
-release keystore is configured**; otherwise it is skipped with a notice and the workflow stays
-green. This is why an unconfigured repository no longer shows a red Android build.
+Release signing is **opt-in**. The Android workflow only builds signed F-Droid and Play release
+APKs on `master` when the release keystore is configured; otherwise the workflow is skipped
+with a notice and stays green. No debug APK is built in CI — use a local
+`./gradlew :app:assembleFdroidDebug` build for development. This is why an unconfigured
+repository no longer shows a red Android build.
 
-The credentials live as **repository secrets** (previously the `android-release` environment):
+The credentials live in the **`android-release` environment** as repository/environment secrets:
 
 | Where | Name | Required | Contents |
 | --- | --- | --- | --- |
-| Repository secret | `ANDROID_KEYSTORE_BASE64` | yes | Base64 of the `.jks` keystore (single line or wrapped) |
-| Repository secret | `ANDROID_KEYSTORE_PASSWORD` | yes | Keystore password; also used as the key password |
-| Repository secret | `ANDROID_RELEASE_KEY_ALIAS` | no | Names the key when the keystore holds more than one; otherwise read from the keystore |
-| Repository secret | `ANDROID_RELEASE_KEY_PASSWORD` | no | Only when the key password differs from the store password |
+| Environment secret `android-release` | `ANDROID_KEYSTORE_BASE64` | yes | Base64 of the `.jks` keystore (single line or wrapped) |
+| Environment secret `android-release` | `ANDROID_KEYSTORE_PASSWORD` | yes | Keystore password; also used as the key password |
+| Environment secret `android-release` | `ANDROID_RELEASE_KEY_ALIAS` | no | Names the key when the keystore holds more than one; otherwise read from the keystore |
+| Environment secret `android-release` | `ANDROID_RELEASE_KEY_PASSWORD` | no | Only when the key password differs from the store password |
 
 `ANDROID_RELEASE_KEYSTORE`, `ANDROID_RELEASE_STORE_PASSWORD` and `ANDROID_RELEASE_KEY_PASSWORD` are
 still read as fallbacks, so a setup made with the older names keeps working. Two secrets are enough
@@ -53,10 +54,12 @@ Diagnostics the job prints before failing:
 | `::error::The release keystore holds no private key …` | The keystore opens but contains no signing key |
 | `::error::The release keystore holds N private keys; set ANDROID_RELEASE_KEY_ALIAS to name one` | Several keys, so the alias cannot be inferred |
 
-Every published release so far carries **debug** builds — the uploaded `OfflineOTP-android-debug`
-artifact and the `.apk` on `v2026-10-21`, for example. They are signed with the runner's ephemeral
-key and use the `.dev` application ID, so they cannot be installed over a release install
-(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) and different runs have different keys.
+Earlier publishes carried **debug** builds — the uploaded `OfflineOTP-android-debug`
+artifact and the `.apk` on `v2026-10-21`, for example. They were signed with the runner's ephemeral
+key and used the `.dev` application ID, so they could not be installed over a release install
+(`INSTALL_FAILED_UPDATE_INCOMPATIBLE`) and different runs had different keys. The workflow no longer
+produces debug artifacts — only signed release APKs on `master` — so use a local Gradle build for
+debug installs.
 
 ## Creating a keystore (once)
 
