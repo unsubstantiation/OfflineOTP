@@ -1,7 +1,7 @@
 import Foundation
 
 /// The entry mutations both existing clients perform when an entry is used — the port of
-/// `core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EntryUsage.kt`.
+/// `core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EntryUsage.kt`.
 ///
 /// The rules are shared for the same reason they are shared on the JVM: an entry copied on the phone
 /// and the same entry copied here have to end up with the same last-used stamp and the same usage

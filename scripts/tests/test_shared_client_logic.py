@@ -12,9 +12,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 
 
 def sources(root):

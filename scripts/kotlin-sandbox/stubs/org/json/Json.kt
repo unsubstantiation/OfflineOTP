@@ -191,7 +191,7 @@ internal class JSONReader(private val text: String) {
     /**
      * [JSONTokener.nextClean]: consumes and returns the next non-whitespace character, or NUL at the
      * end of the input. The platform class would also skip comments here; the vault parser rejects
-     * comment syntax before the tokener runs (see [org.shadowice.flocke.andotp.Utilities.InputPolicy.jsonDepth]).
+     * comment syntax before the tokener runs (see [com.fairuniversal.offlineotp.Utilities.InputPolicy.jsonDepth]).
      */
     internal fun nextCleanForTokener(): Char {
         while (position < text.length) {

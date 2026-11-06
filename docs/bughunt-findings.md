@@ -10,7 +10,7 @@ conversion of andOTP with the vault-security hardening from PR #23.
 
 ## 1. Confirmed defect — "Establish PIN" is unreachable from the card popup
 
-**File:** `app/src/main/kotlin/org/shadowice/flocke/andotp/View/EntriesCardAdapter.kt`
+**File:** `app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt`
 (`showPopupMenu`), **resource:** `app/src/main/res/menu/menu_popup.xml`
 
 `menu_popup.xml` declares six items in this order:

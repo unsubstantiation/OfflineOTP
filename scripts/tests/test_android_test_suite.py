@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ANDROID_TEST_ROOT = ROOT / "app/src/androidTest/kotlin"
-APPLICATION_TEST = ANDROID_TEST_ROOT / "org/shadowice/flocke/andotp/ApplicationTest.kt"
+APPLICATION_TEST = ANDROID_TEST_ROOT / "com/fairuniversal/offlineotp/ApplicationTest.kt"
 COMPILE_SCRIPT = ROOT / "scripts/kotlin-sandbox/compile-android-tests.sh"
 TEST_STUBS = ROOT / "scripts/kotlin-sandbox/stubs-android-test"
 BUILD_GRADLE = ROOT / "app/build.gradle"
@@ -86,7 +86,7 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
 
     def test_gcm_coverage_runs_on_host_and_android(self):
         """The NIST/backup vectors run on host; device tests still cover Android providers."""
-        host_text = (ROOT / "app/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptionHelperTest.kt") \
+        host_text = (ROOT / "app/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/EncryptionHelperTest.kt") \
             .read_text(encoding="utf-8")
         self.assertRegex(host_text, r"fun aesGcmUsesTheNistVector",
                          "the portable JCA NIST vector is missing from the host suite")

@@ -2,7 +2,7 @@ import SwiftUI
 
 /// The Dark Forest colour tokens, so the iOS client looks like the other three.
 ///
-/// These are the same numbers as `desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/
+/// These are the same numbers as `desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/
 /// ForestTheme.kt`, which itself mirrors the Android resources; `scripts/tests/test_ios_app.py`
 /// compares the two files so a theme change cannot land on one platform only.
 public enum ForestPalette {

@@ -5,7 +5,7 @@
         android:icon="@drawable/ic_camera_shortcut"
         android:shortcutShortLabel="@string/shortcut_name_scan_qr"
         android:shortcutLongLabel="@string/shortcut_name_scan_qr">
-        <intent android:action="org.shadowice.flocke.andotp.intent.SCAN_QR" />
+        <intent android:action="com.fairuniversal.offlineotp.intent.SCAN_QR" />
     </shortcut>
 
     <shortcut
@@ -14,7 +14,7 @@
         android:icon="@drawable/ic_image_shortcut"
         android:shortcutShortLabel="@string/shortcut_name_import_qr"
         android:shortcutLongLabel="@string/shortcut_name_import_qr">
-        <intent android:action="org.shadowice.flocke.andotp.intent.IMPORT_QR" />
+        <intent android:action="com.fairuniversal.offlineotp.intent.IMPORT_QR" />
     </shortcut>
 
     <shortcut
@@ -23,6 +23,6 @@
         android:icon="@drawable/ic_edit_shortcut"
         android:shortcutShortLabel="@string/shortcut_name_enter_details"
         android:shortcutLongLabel="@string/shortcut_name_enter_details">
-        <intent android:action="org.shadowice.flocke.andotp.intent.ENTER_DETAILS" />
+        <intent android:action="com.fairuniversal.offlineotp.intent.ENTER_DETAILS" />
     </shortcut>
 </shortcuts>

@@ -64,7 +64,7 @@ class SecretWidgetStateTest(unittest.TestCase):
 
 class SecretWidgetCleanupTest(unittest.TestCase):
     def app_source(self, relative):
-        return (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp" / relative).read_text(encoding="utf-8")
+        return (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp" / relative).read_text(encoding="utf-8")
 
     def test_authentication_clears_input_on_task_handoff_and_teardown(self):
         text = self.app_source("Activities/AuthenticateActivity.kt")

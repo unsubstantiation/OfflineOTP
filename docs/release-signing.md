@@ -143,7 +143,7 @@ The printed certificate DN (`CN=OfflineOTP` above) must match the key in the key
 build signed with a different key over an existing install fails with
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; users must export a portable backup, uninstall, and restore.
 
-Release builds use `com.fairuniversal.offlineotp` — a new package that does **not** collide with the upstream andOTP app (`org.shadowice.flocke.andotp`) from F-Droid/Play. Debug builds use `com.fairuniversal.offlineotp.dev` and also do not collide. If a signed release still shows **Update** instead of **Install**, it is colliding with a previous OfflineOTP release install (same `com.fairuniversal.offlineotp` but different signing key) or a lingering install:
+Release builds use `com.fairuniversal.offlineotp` — a package that does **not** collide with the upstream andOTP app from F-Droid/Play. Debug builds use `com.fairuniversal.offlineotp.dev` and also do not collide. If a signed release still shows **Update** instead of **Install**, it is colliding with a previous OfflineOTP release install (same `com.fairuniversal.offlineotp` but different signing key) or a lingering install:
 
 ```sh
 adb shell pm list packages --user all | grep offlineotp
@@ -153,7 +153,7 @@ adb shell dumpsys package com.fairuniversal.offlineotp | head -n 40
 
 An entry there — often in a work profile, secondary user, or as a disabled system app — must be
 removed first (`adb uninstall --user all com.fairuniversal.offlineotp` or `adb shell pm uninstall
---user 0 com.fairuniversal.offlineotp`), after exporting a backup. A leftover upstream andOTP install (`org.shadowice.flocke.andotp`) no longer collides, but installing a build signed with a different key over an existing OfflineOTP install still fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Installing with `adb install` prints the exact reason:
+--user 0 com.fairuniversal.offlineotp`), after exporting a backup. A leftover upstream andOTP install no longer collides, but installing a build signed with a different key over an existing OfflineOTP install still fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Installing with `adb install` prints the exact reason:
 
 ```sh
 adb install OfflineOTP-fdroid-release.apk

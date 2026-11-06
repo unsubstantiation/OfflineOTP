@@ -32,7 +32,7 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 "$KOTLINC" -nowarn -cp "$core_out" "$generator" -d "$work/gen"
 "$JAVA_BIN" -cp "$work/gen:$core_out:$STDLIB" \
-    org.shadowice.flocke.andotp.packaging.GoldenFixturesGeneratorKt "$golden" "$work/out"
+    com.fairuniversal.offlineotp.packaging.GoldenFixturesGeneratorKt "$golden" "$work/out"
 
 if [[ "${1:-}" == "--write" ]]; then
     cp "$work/out"/* "$golden"/

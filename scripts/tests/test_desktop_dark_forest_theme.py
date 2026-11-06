@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 COLORS = ROOT / "app/src/main/res/values/colors.xml"
-THEME = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/ForestTheme.kt"
+THEME = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/ForestTheme.kt"
 
 
 class DesktopDarkForestThemeTest(unittest.TestCase):
@@ -44,9 +44,9 @@ class DesktopDarkForestThemeTest(unittest.TestCase):
                 self.assertEqual(android[mobile], tokens[desktop])
 
     def test_theme_is_installed_before_desktop_components_and_startup_error(self):
-        window = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/MainWindow.kt")\
+        window = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt")\
             .read_text(encoding="utf-8")
-        main = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/Main.kt")\
+        main = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/Main.kt")\
             .read_text(encoding="utf-8")
         self.assertLess(window.index("ForestTheme.install()"), window.index("val table = JTable("))
         self.assertIn("ForestTheme.install()", main)

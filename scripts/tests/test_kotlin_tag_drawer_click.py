@@ -11,7 +11,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-MAIN = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt")
+MAIN = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt")
 
 
 def click_listener_body(text):

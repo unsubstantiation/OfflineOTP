@@ -4,7 +4,7 @@ import CryptoKit
 /// Bidirectional credential interchange with LinSCP (`LSCPVLT2` encrypted vault, portable
 /// `BackupBundle` JSON with `lscp1$` password decryption, and `sessions.ini`).
 ///
-/// Mirrors `core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/LinScpCredentials.kt`.
+/// Mirrors `core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/LinScpCredentials.kt`.
 public enum LinScpVault {
     public static let magicText = "LSCPVLT2"
     public static let magic: [UInt8] = Array(magicText.utf8)

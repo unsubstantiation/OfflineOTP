@@ -8,11 +8,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-RECEIVER = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Receivers"
+RECEIVER = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Receivers"
             "/EncryptedBackupBroadcastReceiver.kt")
-RECEIVER_BASE = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Receivers"
+RECEIVER_BASE = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Receivers"
                  "/BackupBroadcastReceiver.kt")
-WORKER = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Tasks/EncryptedBackupWorker.kt"
+WORKER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Tasks/EncryptedBackupWorker.kt"
 
 
 def ordered_index(haystack, needle):
@@ -54,7 +54,7 @@ class BackupBroadcastReceiverGuardTest(unittest.TestCase):
     def test_public_constants(self):
         self.assertIn('const val UNIQUE_WORK_NAME = "encrypted_backup"', self.text)
         self.assertIn(
-            'const val ACTION = "org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP"', self.text)
+            'const val ACTION = "com.fairuniversal.offlineotp.broadcast.ENCRYPTED_BACKUP"', self.text)
 
     def test_work_is_queued_keep_unique(self):
         self.assertIn("ExistingWorkPolicy.KEEP", self.text)

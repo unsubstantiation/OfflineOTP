@@ -17,7 +17,7 @@ than re-audited line by line. Two defects were found and fixed:
 
 ### Bug 1: the sandbox R stand-in was stale after the thumbnail batch
 
-`scripts/kotlin-sandbox/stubs/org/shadowice/flocke/andotp/R.kt` no longer listed every
+`scripts/kotlin-sandbox/stubs/com/fairuniversal/offlineotp/R.kt` no longer listed every
 `R.drawable.thumb_*` constant referenced by `EntryThumbnail.kt` (~83 of them), so
 `scripts/kotlin-sandbox/run.sh` failed before compiling anything — the one gate this
 environment has was dead. `generate-r-stub.py` was rewritten to walk the actual drawable

@@ -12,8 +12,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main"
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 
@@ -76,7 +76,7 @@ class CoreSshConnectionTest(unittest.TestCase):
 class AndroidSshConnectionEditorTest(unittest.TestCase):
     def setUp(self):
         self.layout = ET.parse(APP / "res/layout/dialog_manual_entry.xml").getroot()
-        self.dialog = read(APP / "kotlin/org/shadowice/flocke/andotp/Dialogs/ManualEntryDialog.kt")
+        self.dialog = read(APP / "kotlin/com/fairuniversal/offlineotp/Dialogs/ManualEntryDialog.kt")
         self.strings = read(APP / "res/values/strings_main.xml")
 
     def test_the_editor_has_a_row_for_each_field(self):
@@ -103,7 +103,7 @@ class AndroidSshConnectionEditorTest(unittest.TestCase):
         self.assertIn('name="hint_ssh_port"', self.strings)
 
     def test_the_copy_menu_offers_the_password_only_when_it_is_stored(self):
-        adapter = read(APP / "kotlin/org/shadowice/flocke/andotp/View/EntriesCardAdapter.kt")
+        adapter = read(APP / "kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
         self.assertIn("if (!connection?.password.isNullOrEmpty())", adapter)
         self.assertIn("SshField.PASSWORD -> actual.getSshConnection()?.password.orEmpty()", adapter)
 

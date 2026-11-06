@@ -7,7 +7,7 @@
     android:layout_height="match_parent"
     android:background="?attr/windowBackground"
     android:fitsSystemWindows="true"
-    tools:context="org.shadowice.flocke.andotp.Activities.MainActivity">
+    tools:context="com.fairuniversal.offlineotp.Activities.MainActivity">
 
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/main_app_bar"

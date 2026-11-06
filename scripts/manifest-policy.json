@@ -16,14 +16,14 @@
     "com.fairuniversal.offlineotp.permission.CONTROL_VAULT"
   ],
   "exported_components": {
-    "activity:org.shadowice.flocke.andotp.Activities.MainActivity": {
+    "activity:com.fairuniversal.offlineotp.Activities.MainActivity": {
       "permission": "",
       "actions": [
         "android.intent.action.MAIN",
         "android.intent.action.VIEW",
-        "org.shadowice.flocke.andotp.intent.SCAN_QR",
-        "org.shadowice.flocke.andotp.intent.IMPORT_QR",
-        "org.shadowice.flocke.andotp.intent.ENTER_DETAILS"
+        "com.fairuniversal.offlineotp.intent.SCAN_QR",
+        "com.fairuniversal.offlineotp.intent.IMPORT_QR",
+        "com.fairuniversal.offlineotp.intent.ENTER_DETAILS"
       ],
       "reason": "Launcher and confirmed, validated OTP import.",
       "data": [
@@ -49,17 +49,17 @@
         }
       ]
     },
-    "activity:org.shadowice.flocke.andotp.Activities.PanicResponderActivity": {
+    "activity:com.fairuniversal.offlineotp.Activities.PanicResponderActivity": {
       "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
         "info.guardianproject.panic.action.TRIGGER"
       ],
       "reason": "Same-signer control IPC; independently signed automation must not be authorized."
     },
-    "receiver:org.shadowice.flocke.andotp.Receivers.EncryptedBackupBroadcastReceiver": {
+    "receiver:com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver": {
       "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
-        "org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP"
+        "com.fairuniversal.offlineotp.broadcast.ENCRYPTED_BACKUP"
       ],
       "reason": "Same-signer control IPC; independently signed automation must not be authorized."
     },

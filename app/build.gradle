@@ -3,7 +3,7 @@ apply plugin: 'org.jetbrains.kotlin.android'
 apply plugin: 'com.mikepenz.aboutlibraries.plugin.android'
 
 android {
-    namespace = "org.shadowice.flocke.andotp"
+    namespace = "com.fairuniversal.offlineotp"
     compileSdk 36
     buildToolsVersion "36.0.0"
 

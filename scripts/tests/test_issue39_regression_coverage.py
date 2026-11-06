@@ -7,11 +7,11 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
-TEST = ROOT / "app/src/test/kotlin/org/shadowice/flocke/andotp"
-CORE_TEST = ROOT / "core/src/test/kotlin/org/shadowice/flocke/andotp"
-ANDROID_TEST = ROOT / "app/src/androidTest/kotlin/org/shadowice/flocke/andotp"
+APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
+TEST = ROOT / "app/src/test/kotlin/com/fairuniversal/offlineotp"
+CORE_TEST = ROOT / "core/src/test/kotlin/com/fairuniversal/offlineotp"
+ANDROID_TEST = ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp"
 
 
 def read(path: Path) -> str:

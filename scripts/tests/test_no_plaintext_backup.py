@@ -8,8 +8,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APP_KOTLIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+APP_KOTLIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 CONSTANTS = CORE_KOTLIN / "Utilities/Constants.kt"
 BACKUP_ACTIVITY = APP_KOTLIN / "Activities/BackupActivity.kt"
 

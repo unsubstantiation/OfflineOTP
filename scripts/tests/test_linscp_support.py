@@ -3,9 +3,9 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 APP = ROOT / "app/src/main"
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
 IOS = ROOT / "ios"
 
 
@@ -38,7 +38,7 @@ class LinScpSupportTest(unittest.TestCase):
         self.assertIn("LinScpCredentials.isEncryptedVault(data)", backup_codec)
 
     def test_android_linscp_import_and_export_are_session_guarded_and_wipe_secrets(self):
-        main = (APP / "kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
+        main = (APP / "kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
         for token in (
             "chooseLinScpImport()",
             "chooseLinScpExport()",

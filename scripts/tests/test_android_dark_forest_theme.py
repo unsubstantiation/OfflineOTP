@@ -166,7 +166,7 @@ class AndroidDarkForestThemeTest(unittest.TestCase):
             self.assertEqual("@color/forest_appbar", appbar.find(".//androidx.appcompat.widget.Toolbar").get(ANDROID + "background"))
 
     def test_setup_slides_and_add_menu_are_not_light_unreadable_surfaces(self):
-        intro = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/IntroScreenActivity.kt").read_text()
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
         self.assertEqual(5, intro.count(".background(R.color.forest_surface)"))
         self.assertNotIn(".background(R.color.colorPrimary)", intro)
         self.assertIn("getResources().getColor(R.color.forest_surface_variant)", intro)

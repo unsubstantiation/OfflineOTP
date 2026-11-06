@@ -1,0 +1,225 @@
+package com.fairuniversal.offlineotp.desktop.ui
+
+import com.fairuniversal.offlineotp.Utilities.BackupFileNames
+import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
+import com.fairuniversal.offlineotp.desktop.control.BackupCoordinator
+
+import java.awt.BorderLayout
+import java.io.File
+import java.util.Date
+import javax.swing.BorderFactory
+import javax.swing.JCheckBox
+import javax.swing.JFileChooser
+import javax.swing.JLabel
+import javax.swing.JPanel
+import javax.swing.JFrame
+import javax.swing.JOptionPane
+import javax.swing.filechooser.FileNameExtensionFilter
+
+/**
+ * Heavyweight file/password dialogs around the headless [BackupCoordinator]. These classes only
+ * collect file choices and passwords; every codec and import decision runs in `:core` or the
+ * headless control layer, so the dialogs are compile-verified rather than unit-tested.
+ */
+object BackupDialogs {
+
+    fun saveEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
+        // Confirmation + show-password toggle, as on Android: a mistyped backup password would make
+        // the file unreadable later, and there is no way to recover it.
+        val password = PasswordDialog.promptNewBackupPassword(parent) ?: return
+        // Dated like the Android backups, so exporting twice never overwrites an earlier file.
+        val target = chooseFile(parent, "Save Full Encrypted Backup", true,
+            BackupFileNames.encrypted(Date()), "aes") ?: return
+        try {
+            target.writeBytes(coordinator.encryptedBackup(password))
+            showResult(parent, "Full Encrypted Backup written to ${target.name}")
+        } catch (error: Exception) {
+            showError(parent, error)
+        }
+    }
+
+    fun restoreEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
+        val source = chooseFile(parent, "Open Full Encrypted Backup", false, null, "aes") ?: return
+        val password = PasswordDialog.prompt(parent, "Backup password") ?: return
+        val replace = confirmRestore(parent, "Restore Full Encrypted Backup") ?: return
+        try {
+            val count = coordinator.restoreEncrypted(password, readBounded(parent, source) ?: return, replace)
+            showResult(parent, restoreSummary(count, replace))
+        } catch (error: Exception) {
+            showError(parent, error)
+        }
+    }
+
+    /**
+     * The Android restore screen asks two things at once: the restore itself, and whether the
+     * backup replaces the current entries. Its **Replace existing entries** switch starts off, so
+     * merging is the default here as well. Returns null when the user cancels.
+     */
+    internal fun confirmRestore(parent: JFrame, title: String): Boolean? {
+        val replace = JCheckBox("Replace existing entries").apply {
+            isSelected = false
+            accessibleContext.accessibleName = "Replace existing entries"
+            toolTipText = "Replace current entries with the backup contents. " +
+                "When off, the backup is merged with the current entries."
+        }
+        val body = JPanel(BorderLayout(0, 8)).apply {
+            border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
+            add(JLabel("Restore this backup into the current vault?"), BorderLayout.NORTH)
+            add(replace, BorderLayout.CENTER)
+            add(JLabel("When off, the backup is merged with the current entries.").apply {
+                foreground = ForestTheme.TEXT_SECONDARY
+            }, BorderLayout.SOUTH)
+        }
+        val choice = JOptionPane.showConfirmDialog(parent, body, title,
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE)
+        return if (choice == JOptionPane.OK_OPTION) replace.isSelected else null
+    }
+
+    /** Result text for a restore; a merge reports only what it added, as Android's toast does. */
+    internal fun restoreSummary(count: Int, replace: Boolean): String = when {
+        replace -> "Restored $count entr${if (count == 1) "y" else "ies"}"
+        count == 0 -> "The backup had no entries the vault does not already hold."
+        else -> "Merged $count new entr${if (count == 1) "y" else "ies"} into the vault"
+    }
+
+    fun saveOpenPgpBackup(parent: JFrame, coordinator: BackupCoordinator) {
+        val certificate = chooseFile(parent, "Select recipient public key", false, null, "asc", "gpg", "pgp")
+            ?: return
+        val target = chooseFile(parent, "Save OpenPGP backup", true,
+            BackupFileNames.openPgp(Date()), "gpg") ?: return
+        try {
+            val message = coordinator.openPgpBackup(listOf(readBounded(parent, certificate) ?: return))
+            target.writeBytes(message)
+            showResult(parent, "OpenPGP backup written to ${target.name}")
+        } catch (error: Exception) {
+            showError(parent, error)
+        }
+    }
+
+    fun restoreOpenPgp(parent: JFrame, coordinator: BackupCoordinator) {
+        val message = chooseFile(parent, "Open OpenPGP backup", false, null, "gpg", "asc", "pgp") ?: return
+        val secretKey = chooseFile(parent, "Select secret key", false, null, "asc", "gpg", "pgp") ?: return
+        val passphrase = PasswordDialog.prompt(parent, "Secret key passphrase (blank if unprotected)") ?: return
+        val replace = confirmRestore(parent, "Restore OpenPGP backup") ?: return
+        try {
+            val count = coordinator.restoreOpenPgp(
+                readBounded(parent, message) ?: return,
+                readBounded(parent, secretKey) ?: return,
+                passphrase.takeIf { it.isNotEmpty() }?.toCharArray(),
+                replace)
+            showResult(parent, restoreSummary(count, replace))
+        } catch (error: Exception) {
+            showError(parent, error)
+        }
+    }
+
+    fun importQrImage(parent: JFrame, coordinator: BackupCoordinator) {
+        // Interactive counterpart of the Android duplicate-issuer confirmation dialog.
+        val policy = BackupCoordinator.DuplicateIssuerPolicy { issuer ->
+            JOptionPane.showConfirmDialog(
+                parent,
+                "An entry for \"$issuer\" already exists. Add another account with this issuer?",
+                "Duplicate issuer",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            ) == JOptionPane.YES_OPTION
+        }
+        try {
+            while (true) {
+                val image = chooseFile(parent, "Select a QR code image", false, null,
+                    "png", "jpg", "jpeg", "gif", "bmp", "webp") ?: return
+                val bytes = readBounded(parent, image) ?: return
+                when (val result = coordinator.importQrImage(bytes, policy)) {
+                    is BackupCoordinator.ImportResult.Imported -> {
+                        if (result.count == 0) {
+                            showResult(parent, "No new entries: every account was already in the vault.")
+                        } else {
+                            showResult(parent, "Imported ${result.count} entr${if (result.count == 1) "y" else "ies"}")
+                        }
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.Invalid -> {
+                        showError(parent, "The QR content was invalid: ${result.reason}")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.NotRecognized -> {
+                        showError(parent, "No importable QR code was found in that image.")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.DuplicateEntry -> {
+                        showError(parent, "That entry is already in the vault.")
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.DuplicateIssuerRejected -> {
+                        showResult(parent, "Skipped the entry for \"${result.issuer}\".")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.PersistenceFailed -> {
+                        showError(parent, "The vault could not be written; the import was rolled back.")
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.MigrationPart -> {
+                        // Keep collecting the remaining QR images; a partial batch is never saved.
+                        val continueChoosing = JOptionPane.showConfirmDialog(
+                            parent,
+                            "Scanned part ${result.received} of ${result.expected}. " +
+                                "Select the next QR code image.",
+                            "Multi-part export",
+                            JOptionPane.OK_CANCEL_OPTION,
+                            JOptionPane.INFORMATION_MESSAGE
+                        ) == JOptionPane.OK_OPTION
+                        if (!continueChoosing) {
+                            coordinator.cancelMigrationImport()
+                            showResult(parent, "The multi-part import was cancelled; nothing was imported.")
+                            return
+                        }
+                    }
+                    is BackupCoordinator.ImportResult.MigrationRejected -> {
+                        coordinator.cancelMigrationImport()
+                        showError(parent, "The export part was rejected (${result.why.name}).")
+                        return
+                    }
+                }
+            }
+        } finally {
+            // Never leave buffered migration seeds behind if the window flow ends unexpectedly.
+            coordinator.cancelMigrationImport()
+        }
+    }
+
+    /** Rejects files past the shared document bound before their bytes enter memory. */
+    private fun readBounded(parent: JFrame, file: File): ByteArray? {
+        if (file.length() > BoundedInputReader.MAX_DOCUMENT_BYTES) {
+            showError(parent, "The selected file is larger than the ${BoundedInputReader.MAX_DOCUMENT_BYTES}-byte limit.")
+            return null
+        }
+        return file.readBytes()
+    }
+
+    private fun chooseFile(
+        parent: JFrame, title: String, save: Boolean, suggested: String?,
+        vararg extensions: String
+    ): File? {
+        val chooser = JFileChooser().apply {
+            dialogTitle = title
+            if (extensions.isNotEmpty()) {
+                fileFilter = FileNameExtensionFilter("${extensions.joinToString().uppercase()} files", *extensions)
+            }
+            if (suggested != null) selectedFile = File(currentDirectory, suggested)
+        }
+        val choice = if (save) chooser.showSaveDialog(parent) else chooser.showOpenDialog(parent)
+        return if (choice == JFileChooser.APPROVE_OPTION) chooser.selectedFile else null
+    }
+
+    private fun showResult(parent: JFrame, message: String) {
+        JOptionPane.showMessageDialog(parent, message, MainWindow.TITLE, JOptionPane.INFORMATION_MESSAGE)
+    }
+
+    private fun showError(parent: JFrame, message: String) {
+        JOptionPane.showMessageDialog(parent, message, MainWindow.TITLE, JOptionPane.ERROR_MESSAGE)
+    }
+
+    private fun showError(parent: JFrame, error: Exception) {
+        showError(parent, error.message ?: error.javaClass.simpleName)
+    }
+}

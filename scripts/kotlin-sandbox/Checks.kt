@@ -2,122 +2,122 @@
 // Runs the converted utility classes on a desktop JVM against hand-written platform stubs and
 // mirrors the repository's own tests for them. It is not the Gradle unit/lint/instrumentation
 // gate, and no Android behaviour (Handler, KeyEvent, resources) is exercised here.
-import org.shadowice.flocke.andotp.Tasks.AuthenticationError
-import org.shadowice.flocke.andotp.Tasks.AuthenticationOutcome
-import org.shadowice.flocke.andotp.Tasks.AuthenticationTask
-import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
-import org.shadowice.flocke.andotp.Tasks.ChangeCredentialsTask
-import org.shadowice.flocke.andotp.Tasks.EncryptedBackupTask
-import org.shadowice.flocke.andotp.Tasks.LoginEncryptedBackupTask
-import org.shadowice.flocke.andotp.Utilities.HardwareKeyDiscovery
-import org.shadowice.flocke.andotp.Utilities.HardwareFidoClient
-import org.shadowice.flocke.andotp.Utilities.HardwareOathClient
-import org.shadowice.flocke.andotp.Utilities.HardwareUnlockEnvelope
-import org.shadowice.flocke.andotp.Utilities.HardwareUnlockStore
-import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
-import org.shadowice.flocke.andotp.Tasks.FinishIntroTask
-import org.shadowice.flocke.andotp.Tasks.GenericBackupTask
-import org.shadowice.flocke.andotp.Tasks.GenericRestoreTask
-import org.shadowice.flocke.andotp.Tasks.PGPBackupTask
-import org.shadowice.flocke.andotp.Tasks.PGPRestoreTask
-import org.shadowice.flocke.andotp.Tasks.TaskCancellation
-import org.shadowice.flocke.andotp.Tasks.TaskCompletion
-import org.shadowice.flocke.andotp.Tasks.TaskController
-import org.shadowice.flocke.andotp.Tasks.TaskFailure
-import org.shadowice.flocke.andotp.Tasks.TaskOutcome
-import org.shadowice.flocke.andotp.Tasks.TaskStart
-import org.shadowice.flocke.andotp.Tasks.TaskState
-import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
-import org.shadowice.flocke.andotp.Database.Entry
-import org.shadowice.flocke.andotp.Database.EntryDraft
-import org.shadowice.flocke.andotp.Database.EntryList
-import org.shadowice.flocke.andotp.Database.EntryJson
-import org.shadowice.flocke.andotp.Database.EntryJsonError
-import org.shadowice.flocke.andotp.Database.EntryJsonResult
-import org.shadowice.flocke.andotp.Database.ValidatedEntry
-import org.shadowice.flocke.andotp.Utilities.EntryThumbnail
-import org.shadowice.flocke.andotp.Utilities.LetterBitmap
-import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
-import org.shadowice.flocke.andotp.Utilities.BackupHelper
-import org.shadowice.flocke.andotp.Utilities.StorageAccessHelper
-import org.shadowice.flocke.andotp.Utilities.NotificationHelper
-import org.shadowice.flocke.andotp.Utilities.ScanQRCodeFromFile
-import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
-import org.shadowice.flocke.andotp.Utilities.EntryPersistence
-import org.shadowice.flocke.andotp.Utilities.EncryptionHelper
-import org.shadowice.flocke.andotp.Utilities.KeyStoreHelper
-import org.shadowice.flocke.andotp.Utilities.LoginBackupKey
-import org.shadowice.flocke.andotp.Utilities.LoginBackupPolicy
-import org.shadowice.flocke.andotp.Utilities.MigrationBatchCollector
-import org.shadowice.flocke.andotp.Utilities.MigrationPayload
-import org.shadowice.flocke.andotp.Utilities.PendingMigrationImport
-import org.shadowice.flocke.andotp.Utilities.PendingAutomaticBackup
-import org.shadowice.flocke.andotp.Utilities.VaultReadError
-import org.shadowice.flocke.andotp.Utilities.VaultReadResult
-import org.shadowice.flocke.andotp.Utilities.VaultCommitDecision
-import org.shadowice.flocke.andotp.Utilities.VaultCommitState
-import org.shadowice.flocke.andotp.Utilities.VaultWriteResult
-import org.shadowice.flocke.andotp.Utilities.ConfirmedPasswordTransformationHelper
-import org.shadowice.flocke.andotp.Utilities.DimensionConverter
-import org.shadowice.flocke.andotp.Utilities.SecretKeyWrapper
-import org.shadowice.flocke.andotp.Utilities.BoundedOutput
-import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
-import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
-import org.shadowice.flocke.andotp.Utilities.HandlerTimerScheduler
-import org.shadowice.flocke.andotp.Utilities.InputPolicy
-import org.shadowice.flocke.andotp.Utilities.OtpHashAlgorithm
-import org.shadowice.flocke.andotp.Utilities.OtpKind
-import org.shadowice.flocke.andotp.Utilities.OtpParseResult
-import org.shadowice.flocke.andotp.Utilities.OwnedSecret
-import org.shadowice.flocke.andotp.Utilities.SessionCommandResult
-import org.shadowice.flocke.andotp.Utilities.SessionController
-import org.shadowice.flocke.andotp.Utilities.SessionFailure
-import org.shadowice.flocke.andotp.Utilities.SessionLockReason
-import org.shadowice.flocke.andotp.Utilities.SessionRejection
-import org.shadowice.flocke.andotp.Utilities.SessionState
-import org.shadowice.flocke.andotp.Utilities.ValidatedOtp
-import org.shadowice.flocke.andotp.Utilities.VaultSession
-import org.shadowice.flocke.andotp.Utilities.ScreenTimerController
-import org.shadowice.flocke.andotp.Utilities.Settings
-import org.shadowice.flocke.andotp.Utilities.SshConnection
-import org.shadowice.flocke.andotp.Utilities.Constants
-import org.shadowice.flocke.andotp.Utilities.TokenCalculator
-import org.shadowice.flocke.andotp.Utilities.Tools
-import org.shadowice.flocke.andotp.Utilities.UIHelper
-import org.shadowice.flocke.andotp.View.ItemTouchHelper.ItemTouchHelperAdapter
-import org.shadowice.flocke.andotp.View.ItemTouchHelper.ItemTouchHelperViewHolder
-import org.shadowice.flocke.andotp.View.ItemTouchHelper.SimpleItemTouchHelperCallback
-import org.shadowice.flocke.andotp.View.TagsAdapter
-import org.shadowice.flocke.andotp.View.ThumbnailSelectionAdapter
-import org.shadowice.flocke.andotp.View.AutoFillable.AutoFillableTextInputEditText
-import org.shadowice.flocke.andotp.View.SimpleDoubleClickListener
-import org.shadowice.flocke.andotp.Preferences.NumberPickerPreference
-import org.shadowice.flocke.andotp.Preferences.PasswordEncryptedPreference
-import org.shadowice.flocke.andotp.Dialogs.HideableDialog
-import org.shadowice.flocke.andotp.Dialogs.PasswordEntryDialog
-import org.shadowice.flocke.andotp.Dialogs.TagsDialog
-import org.shadowice.flocke.andotp.Activities.AboutActivity
-import org.shadowice.flocke.andotp.Activities.BaseActivity
-import org.shadowice.flocke.andotp.Activities.PanicResponderActivity
-import org.shadowice.flocke.andotp.Activities.SecureCaptureActivity
-import org.shadowice.flocke.andotp.Fragments.AboutFragment
-import org.shadowice.flocke.andotp.Fragments.BaseAboutFragment
-import org.shadowice.flocke.andotp.Receivers.BackupBroadcastReceiver
-import org.shadowice.flocke.andotp.Receivers.EncryptedBackupBroadcastReceiver
-import org.shadowice.flocke.andotp.Tasks.EncryptedBackupWorker
-import org.shadowice.flocke.andotp.Utilities.BackupAgent
-import org.shadowice.flocke.andotp.Activities.AuthenticateActivity
-import org.shadowice.flocke.andotp.Activities.BackupActivity
-import org.shadowice.flocke.andotp.Activities.BackgroundTaskActivity
-import org.shadowice.flocke.andotp.Activities.IntroScreenActivity
-import org.shadowice.flocke.andotp.Activities.MainActivity
-import org.shadowice.flocke.andotp.Activities.SettingsActivity
-import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
-import org.shadowice.flocke.andotp.Preferences.CredentialsPreference
-import org.shadowice.flocke.andotp.View.EntriesCardAdapter
-import org.shadowice.flocke.andotp.View.EntryActionDialogs
-import org.shadowice.flocke.andotp.View.EntryViewHolder
-import org.shadowice.flocke.andotp.R
+import com.fairuniversal.offlineotp.Tasks.AuthenticationError
+import com.fairuniversal.offlineotp.Tasks.AuthenticationOutcome
+import com.fairuniversal.offlineotp.Tasks.AuthenticationTask
+import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
+import com.fairuniversal.offlineotp.Tasks.ChangeCredentialsTask
+import com.fairuniversal.offlineotp.Tasks.EncryptedBackupTask
+import com.fairuniversal.offlineotp.Tasks.LoginEncryptedBackupTask
+import com.fairuniversal.offlineotp.Utilities.HardwareKeyDiscovery
+import com.fairuniversal.offlineotp.Utilities.HardwareFidoClient
+import com.fairuniversal.offlineotp.Utilities.HardwareOathClient
+import com.fairuniversal.offlineotp.Utilities.HardwareUnlockEnvelope
+import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
+import com.fairuniversal.offlineotp.Tasks.EncryptedRestoreTask
+import com.fairuniversal.offlineotp.Tasks.FinishIntroTask
+import com.fairuniversal.offlineotp.Tasks.GenericBackupTask
+import com.fairuniversal.offlineotp.Tasks.GenericRestoreTask
+import com.fairuniversal.offlineotp.Tasks.PGPBackupTask
+import com.fairuniversal.offlineotp.Tasks.PGPRestoreTask
+import com.fairuniversal.offlineotp.Tasks.TaskCancellation
+import com.fairuniversal.offlineotp.Tasks.TaskCompletion
+import com.fairuniversal.offlineotp.Tasks.TaskController
+import com.fairuniversal.offlineotp.Tasks.TaskFailure
+import com.fairuniversal.offlineotp.Tasks.TaskOutcome
+import com.fairuniversal.offlineotp.Tasks.TaskStart
+import com.fairuniversal.offlineotp.Tasks.TaskState
+import com.fairuniversal.offlineotp.Tasks.UiBasedBackgroundTask
+import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Database.EntryDraft
+import com.fairuniversal.offlineotp.Database.EntryList
+import com.fairuniversal.offlineotp.Database.EntryJson
+import com.fairuniversal.offlineotp.Database.EntryJsonError
+import com.fairuniversal.offlineotp.Database.EntryJsonResult
+import com.fairuniversal.offlineotp.Database.ValidatedEntry
+import com.fairuniversal.offlineotp.Utilities.EntryThumbnail
+import com.fairuniversal.offlineotp.Utilities.LetterBitmap
+import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
+import com.fairuniversal.offlineotp.Utilities.BackupHelper
+import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
+import com.fairuniversal.offlineotp.Utilities.NotificationHelper
+import com.fairuniversal.offlineotp.Utilities.ScanQRCodeFromFile
+import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
+import com.fairuniversal.offlineotp.Utilities.EntryPersistence
+import com.fairuniversal.offlineotp.Utilities.EncryptionHelper
+import com.fairuniversal.offlineotp.Utilities.KeyStoreHelper
+import com.fairuniversal.offlineotp.Utilities.LoginBackupKey
+import com.fairuniversal.offlineotp.Utilities.LoginBackupPolicy
+import com.fairuniversal.offlineotp.Utilities.MigrationBatchCollector
+import com.fairuniversal.offlineotp.Utilities.MigrationPayload
+import com.fairuniversal.offlineotp.Utilities.PendingMigrationImport
+import com.fairuniversal.offlineotp.Utilities.PendingAutomaticBackup
+import com.fairuniversal.offlineotp.Utilities.VaultReadError
+import com.fairuniversal.offlineotp.Utilities.VaultReadResult
+import com.fairuniversal.offlineotp.Utilities.VaultCommitDecision
+import com.fairuniversal.offlineotp.Utilities.VaultCommitState
+import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
+import com.fairuniversal.offlineotp.Utilities.ConfirmedPasswordTransformationHelper
+import com.fairuniversal.offlineotp.Utilities.DimensionConverter
+import com.fairuniversal.offlineotp.Utilities.SecretKeyWrapper
+import com.fairuniversal.offlineotp.Utilities.BoundedOutput
+import com.fairuniversal.offlineotp.Utilities.EditorActionHelper
+import com.fairuniversal.offlineotp.Utilities.EncryptedBackupHeader
+import com.fairuniversal.offlineotp.Utilities.HandlerTimerScheduler
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.OtpHashAlgorithm
+import com.fairuniversal.offlineotp.Utilities.OtpKind
+import com.fairuniversal.offlineotp.Utilities.OtpParseResult
+import com.fairuniversal.offlineotp.Utilities.OwnedSecret
+import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
+import com.fairuniversal.offlineotp.Utilities.SessionController
+import com.fairuniversal.offlineotp.Utilities.SessionFailure
+import com.fairuniversal.offlineotp.Utilities.SessionLockReason
+import com.fairuniversal.offlineotp.Utilities.SessionRejection
+import com.fairuniversal.offlineotp.Utilities.SessionState
+import com.fairuniversal.offlineotp.Utilities.ValidatedOtp
+import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
+import com.fairuniversal.offlineotp.Utilities.Settings
+import com.fairuniversal.offlineotp.Utilities.SshConnection
+import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.TokenCalculator
+import com.fairuniversal.offlineotp.Utilities.Tools
+import com.fairuniversal.offlineotp.Utilities.UIHelper
+import com.fairuniversal.offlineotp.View.ItemTouchHelper.ItemTouchHelperAdapter
+import com.fairuniversal.offlineotp.View.ItemTouchHelper.ItemTouchHelperViewHolder
+import com.fairuniversal.offlineotp.View.ItemTouchHelper.SimpleItemTouchHelperCallback
+import com.fairuniversal.offlineotp.View.TagsAdapter
+import com.fairuniversal.offlineotp.View.ThumbnailSelectionAdapter
+import com.fairuniversal.offlineotp.View.AutoFillable.AutoFillableTextInputEditText
+import com.fairuniversal.offlineotp.View.SimpleDoubleClickListener
+import com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
+import com.fairuniversal.offlineotp.Preferences.PasswordEncryptedPreference
+import com.fairuniversal.offlineotp.Dialogs.HideableDialog
+import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
+import com.fairuniversal.offlineotp.Dialogs.TagsDialog
+import com.fairuniversal.offlineotp.Activities.AboutActivity
+import com.fairuniversal.offlineotp.Activities.BaseActivity
+import com.fairuniversal.offlineotp.Activities.PanicResponderActivity
+import com.fairuniversal.offlineotp.Activities.SecureCaptureActivity
+import com.fairuniversal.offlineotp.Fragments.AboutFragment
+import com.fairuniversal.offlineotp.Fragments.BaseAboutFragment
+import com.fairuniversal.offlineotp.Receivers.BackupBroadcastReceiver
+import com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver
+import com.fairuniversal.offlineotp.Tasks.EncryptedBackupWorker
+import com.fairuniversal.offlineotp.Utilities.BackupAgent
+import com.fairuniversal.offlineotp.Activities.AuthenticateActivity
+import com.fairuniversal.offlineotp.Activities.BackupActivity
+import com.fairuniversal.offlineotp.Activities.BackgroundTaskActivity
+import com.fairuniversal.offlineotp.Activities.IntroScreenActivity
+import com.fairuniversal.offlineotp.Activities.MainActivity
+import com.fairuniversal.offlineotp.Activities.SettingsActivity
+import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
+import com.fairuniversal.offlineotp.Preferences.CredentialsPreference
+import com.fairuniversal.offlineotp.View.EntriesCardAdapter
+import com.fairuniversal.offlineotp.View.EntryActionDialogs
+import com.fairuniversal.offlineotp.View.EntryViewHolder
+import com.fairuniversal.offlineotp.R
 
 import android.app.AlertDialog
 import android.app.NotificationManager
@@ -4359,8 +4359,8 @@ fun main() {
         val expectedPublic = listOf(
             "<init>(Landroid/content/Context;)V",
             "clear(Z)V",
-            "commitVaultSettings(Ljava/lang/String;Lorg/shadowice/flocke/andotp/Utilities/Constants\$EncryptionType;Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;Lorg/shadowice/flocke/andotp/Utilities/Settings\$PreparedCredentials;Z)Z",
-            "deriveVaultCredentials(Ljava/lang/String;)Lorg/shadowice/flocke/andotp/Utilities/EncryptionHelper\$PBKDF2Credentials;",
+            "commitVaultSettings(Ljava/lang/String;Lcom/fairuniversal/offlineotp/Utilities/Constants\$EncryptionType;Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;Lcom/fairuniversal/offlineotp/Utilities/Settings\$PreparedCredentials;Z)Z",
+            "deriveVaultCredentials(Ljava/lang/String;)Lcom/fairuniversal/offlineotp/Utilities/EncryptionHelper\$PBKDF2Credentials;",
             "disableAutomaticBackups()V",
             "getAllTagsToggle()Z",
             "getAndroidBackupServiceEnabled()Z",
@@ -4369,7 +4369,7 @@ fun main() {
             "getAuthInactivityDelay()I",
             "getAuthKdf()Ljava/lang/String;",
             "getAuthMemoryKiB()I",
-            "getAuthMethod()Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;",
+            "getAuthMethod()Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;",
             "getAuthParallelism()I",
             "getAutoBackupEncryptedFullEnabled()Z",
             "getAutoBackupEncryptedPasswordsEnabled()Z",
@@ -4382,18 +4382,18 @@ fun main() {
             "getBlockAccessibility()Z",
             "getBlockAutofill()Z",
             "getBoolean(IZ)Z",
-            "getCardLayout()Lorg/shadowice/flocke/andotp/Utilities/Constants\$CardLayouts;",
-            "getDefaultBackupType()Lorg/shadowice/flocke/andotp/Utilities/Constants\$BackupType;",
-            "getEncryption()Lorg/shadowice/flocke/andotp/Utilities/Constants\$EncryptionType;",
+            "getCardLayout()Lcom/fairuniversal/offlineotp/Utilities/Constants\$CardLayouts;",
+            "getDefaultBackupType()Lcom/fairuniversal/offlineotp/Utilities/Constants\$BackupType;",
+            "getEncryption()Lcom/fairuniversal/offlineotp/Utilities/Constants\$EncryptionType;",
             "getFirstTimeWarningShown()Z",
             "getHideInAppSwitcher()Z",
             "getIsAppendingDateTimeToBackups()Z",
             "getIterations()I",
-            "getLabelDisplay()Lorg/shadowice/flocke/andotp/Utilities/Constants\$LabelDisplay;",
+            "getLabelDisplay()Lcom/fairuniversal/offlineotp/Utilities/Constants\$LabelDisplay;",
             "getLabelSize()I",
             "getLocale()Ljava/util/Locale;",
             "getNoTagsToggle()Z",
-            "getOldCredentials(Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;)Ljava/lang/String;",
+            "getOldCredentials(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)Ljava/lang/String;",
             "getOpenPGPEncryptionUserIDs()Ljava/lang/String;",
             "getOpenPGPProvider()Ljava/lang/String;",
             "getOpenPGPSigningKey()J",
@@ -4405,12 +4405,12 @@ fun main() {
             "getScreenshotsEnabled()Z",
             "getSearchValues()Ljava/util/List;",
             "getShowPrevToken()Z",
-            "getSortMode()Lorg/shadowice/flocke/andotp/Utilities/Constants\$SortMode;",
+            "getSortMode()Lcom/fairuniversal/offlineotp/Utilities/Constants\$SortMode;",
             "getSpecialFeatures()Z",
-            "getTagFunctionality()Lorg/shadowice/flocke/andotp/Utilities/Constants\$TagFunctionality;",
+            "getTagFunctionality()Lcom/fairuniversal/offlineotp/Utilities/Constants\$TagFunctionality;",
             "getTagToggle(Ljava/lang/String;)Z",
-            "getTapDouble()Lorg/shadowice/flocke/andotp/Utilities/Constants\$TapMode;",
-            "getTapSingle()Lorg/shadowice/flocke/andotp/Utilities/Constants\$TapMode;",
+            "getTapDouble()Lcom/fairuniversal/offlineotp/Utilities/Constants\$TapMode;",
+            "getTapSingle()Lcom/fairuniversal/offlineotp/Utilities/Constants\$TapMode;",
             "getTapToReveal()Z",
             "getTapToRevealTimeout()I",
             "getTheme()I",
@@ -4426,25 +4426,25 @@ fun main() {
             "isHighlightTokenOptionEnabled()Z",
             "isMinimizeAppOnCopyEnabled()Z",
             "isShowIndividualTimeoutsEnabled()Z",
-            "prepareAuthCredentials(Ljava/lang/String;)Lorg/shadowice/flocke/andotp/Utilities/Settings\$PreparedCredentials;",
+            "prepareAuthCredentials(Ljava/lang/String;)Lcom/fairuniversal/offlineotp/Utilities/Settings\$PreparedCredentials;",
             "registerPreferenceChangeListener(Landroid/content/SharedPreferences\$OnSharedPreferenceChangeListener;)V",
             "removeAuthPasswordHash()V",
             "setAllTagsToggle(Ljava/lang/Boolean;)V",
             "setAndroidBackupServiceEnabled(Z)V",
             "setAuthCredentials(Ljava/lang/String;)[B",
             "setAuthCredentials(Ljava/lang/String;Ljava/util/function/BooleanSupplier;)[B",
-            "setAuthMethod(Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;)V",
+            "setAuthMethod(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)V",
             "setBackupLocation(Landroid/net/Uri;)V",
             "setBoolean(IZ)V",
-            "setDefaultBackupType(Lorg/shadowice/flocke/andotp/Utilities/Constants\$BackupType;)V",
+            "setDefaultBackupType(Lcom/fairuniversal/offlineotp/Utilities/Constants\$BackupType;)V",
             "setEncryption(Ljava/lang/String;)V",
-            "setEncryption(Lorg/shadowice/flocke/andotp/Utilities/Constants\$EncryptionType;)V",
+            "setEncryption(Lcom/fairuniversal/offlineotp/Utilities/Constants\$EncryptionType;)V",
             "setFirstTimeWarningShown(Z)V",
             "setIterations(I)V",
             "setLocale(Ljava/lang/String;)V",
             "setNoTagsToggle(Ljava/lang/Boolean;)V",
             "setSalt([B)V",
-            "setSortMode(Lorg/shadowice/flocke/andotp/Utilities/Constants\$SortMode;)V",
+            "setSortMode(Lcom/fairuniversal/offlineotp/Utilities/Constants\$SortMode;)V",
             "setSpecialFeatures(Z)V",
             "setTagToggle(Ljava/lang/String;Ljava/lang/Boolean;)V",
             "setUsedTokensDialogShown(Z)V",
@@ -4460,7 +4460,7 @@ fun main() {
         // Everything else stayed private, exactly as in the Java class: an accessor that had widened to
         // public or protected shows up in the list above, one that lost a modifier shows up here.
         val expectedPrivate = listOf(
-            "getAutoBackupEncryptedSetting()Lorg/shadowice/flocke/andotp/Utilities/Constants\$AutoBackup;",
+            "getAutoBackupEncryptedSetting()Lcom/fairuniversal/offlineotp/Utilities/Constants\$AutoBackup;",
             "getInt(II)I",
             "getIntValue(II)I",
             "getLong(IJ)J",
@@ -4500,7 +4500,7 @@ fun main() {
         // Two private collaborators, the two language lists and the single companion placeholder
         // Kotlin adds; nothing else may become a field.
         expect(compiled.fields.map { it.signature }.toSet() == setOf(
-                "Companion Lorg/shadowice/flocke/andotp/Utilities/Settings\$Companion;",
+                "Companion Lcom/fairuniversal/offlineotp/Utilities/Settings\$Companion;",
                 "context Landroid/content/Context;",
                 "settings Landroid/content/SharedPreferences;",
                 "LEGACY_AUTH_PIN_KEY Ljava/lang/String;",
@@ -5061,7 +5061,7 @@ fun main() {
         work.reset()
         val receiver = EncryptedBackupBroadcastReceiver()
         val foreign = Intent()
-        foreign.intentAction = "org.shadowice.flocke.andotp.broadcast.SOMETHING_ELSE"
+        foreign.intentAction = "com.fairuniversal.offlineotp.broadcast.SOMETHING_ELSE"
 
         receiver.onReceive(context, null)
         receiver.onReceive(context, foreign)
@@ -5113,7 +5113,7 @@ fun main() {
         // The two constants stay public static final fields: the panic responder and the settings
         // screen cancel the queued work by its name.
         for ((name, value) in listOf("UNIQUE_WORK_NAME" to "encrypted_backup",
-                "ACTION" to "org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP")) {
+                "ACTION" to "com.fairuniversal.offlineotp.broadcast.ENCRYPTED_BACKUP")) {
             val field = EncryptedBackupBroadcastReceiver::class.java.getDeclaredField(name)
             expect(Modifier.isPublic(field.modifiers) && Modifier.isStatic(field.modifiers)
                     && Modifier.isFinal(field.modifiers), { "$name must stay a public static final field" })
@@ -5463,7 +5463,7 @@ fun main() {
                 { "a missing version name became ${withoutVersion.version.text}" })
 
         resetAboutState()
-        PackageManager.missingPackage = "org.shadowice.flocke.andotp"
+        PackageManager.missingPackage = "com.fairuniversal.offlineotp"
         val missingPackage = AboutPageFixture()
         missingPackage.inflate(BaseAboutFragment())
         expect(missingPackage.version.text == "",
@@ -5875,7 +5875,7 @@ fun main() {
                 { "the manual entry callback is no longer an interface" })
 
         // The entry card: the same base classes and the same constructor.
-        val holder = load("org.shadowice.flocke.andotp.View.EntryViewHolder")
+        val holder = load("com.fairuniversal.offlineotp.View.EntryViewHolder")
         expect(!Modifier.isFinal(holder.modifiers), { "EntryViewHolder must stay extendable" })
         expect(RecyclerView.ViewHolder::class.java.isAssignableFrom(holder),
                 { "EntryViewHolder lost its RecyclerView.ViewHolder base" })
@@ -5885,7 +5885,7 @@ fun main() {
                 { "the card callback is no longer an interface" })
 
         // The card adapter: the same base classes, and the read/write key field.
-        val adapter = load("org.shadowice.flocke.andotp.View.EntriesCardAdapter")
+        val adapter = load("com.fairuniversal.offlineotp.View.EntriesCardAdapter")
         expect(!Modifier.isFinal(adapter.modifiers), { "EntriesCardAdapter must stay extendable" })
         expect(RecyclerView.Adapter::class.java.isAssignableFrom(adapter),
                 { "EntriesCardAdapter lost its RecyclerView.Adapter base" })
@@ -5897,30 +5897,30 @@ fun main() {
                 { "encryptionKey must stay a writable SecretKey field" })
 
         // The main activity stays extendable and keeps its base classes.
-        val main = load("org.shadowice.flocke.andotp.Activities.MainActivity")
+        val main = load("com.fairuniversal.offlineotp.Activities.MainActivity")
         expect(!Modifier.isFinal(main.modifiers), { "MainActivity must stay extendable" })
         expect(BaseActivity::class.java.isAssignableFrom(main),
                 { "MainActivity lost its BaseActivity base" })
 
         // The settings screen and its fragment keep their names, their nesting and their bases.
-        val settings = load("org.shadowice.flocke.andotp.Activities.SettingsActivity")
+        val settings = load("com.fairuniversal.offlineotp.Activities.SettingsActivity")
         expect(!Modifier.isFinal(settings.modifiers), { "SettingsActivity must stay extendable" })
         expect(BackgroundTaskActivity::class.java.isAssignableFrom(settings),
                 { "SettingsActivity lost its BackgroundTaskActivity base" })
-        val settingsFragment = load("org.shadowice.flocke.andotp.Activities.SettingsActivity\$SettingsFragment")
+        val settingsFragment = load("com.fairuniversal.offlineotp.Activities.SettingsActivity\$SettingsFragment")
         expect(Modifier.isStatic(settingsFragment.modifiers) && Modifier.isPublic(settingsFragment.modifiers),
                 { "SettingsFragment must stay a public static nested class" })
         expect(android.preference.PreferenceFragment::class.java.isAssignableFrom(settingsFragment),
                 { "SettingsFragment lost its PreferenceFragment base" })
 
         // The intro wizard keeps its four slides under their original names.
-        val intro = load("org.shadowice.flocke.andotp.Activities.IntroScreenActivity")
+        val intro = load("com.fairuniversal.offlineotp.Activities.IntroScreenActivity")
         expect(!Modifier.isFinal(intro.modifiers), { "IntroScreenActivity must stay extendable" })
         expect(IntroActivity::class.java.isAssignableFrom(intro),
                 { "IntroScreenActivity lost its IntroActivity base" })
         for (name in listOf("EncryptionFragment", "AuthenticationFragment", "AndroidSyncFragment",
                 "IntroFinishedFragment")) {
-            val nested = load("org.shadowice.flocke.andotp.Activities.IntroScreenActivity\$$name")
+            val nested = load("com.fairuniversal.offlineotp.Activities.IntroScreenActivity\$$name")
             expect(Modifier.isStatic(nested.modifiers) && Modifier.isPublic(nested.modifiers),
                     { "$name must stay a public static nested class" })
         }
@@ -5945,13 +5945,13 @@ fun main() {
         expectProtectedMethodArity(background, "cancelBackgroundTask", 0)
         expectProtectedMethodArity(background, "startBackgroundTask", 1)
 
-        val backup = load("org.shadowice.flocke.andotp.Activities.BackupActivity")
+        val backup = load("com.fairuniversal.offlineotp.Activities.BackupActivity")
         expect(!Modifier.isFinal(backup.modifiers), { "BackupActivity must stay extendable" })
         expect(BackgroundTaskActivity::class.java.isAssignableFrom(backup),
                 { "BackupActivity lost its BackgroundTaskActivity base" })
 
         // The retained task fragment keeps its name, its generic parameter and its members.
-        val taskFragment = load("org.shadowice.flocke.andotp.Activities.BackgroundTaskActivity\$TaskFragment")
+        val taskFragment = load("com.fairuniversal.offlineotp.Activities.BackgroundTaskActivity\$TaskFragment")
         expect(Modifier.isStatic(taskFragment.modifiers) && Modifier.isPublic(taskFragment.modifiers),
                 { "TaskFragment must stay a public static nested class" })
         expectMethod(taskFragment, "void startTask(UiBasedBackgroundTask)")
@@ -7228,7 +7228,7 @@ fun main() {
     }
 
     check("hardware account pickers sanitize directional and control characters") {
-        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
         val name = activity.javaClass.getDeclaredMethod("displayName", String::class.java, String::class.java)
         name.isAccessible = true
         val result = name.invoke(activity, "Example\u202e", "alice\n\u200fbob") as String
@@ -7238,7 +7238,7 @@ fun main() {
 
     check("hardware TOTP display rechecks clock rollback and does not copy a stale code") {
         Handler.posted.clear()
-        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
         val accountsView = android.widget.LinearLayout(activity)
         val key = SecretKeySpec(ByteArray(16) { 73 }, "AES")
         VaultSession.open(key)
@@ -7292,7 +7292,7 @@ fun main() {
 
     check("interrupted HOTP calculation discards the old displayed code and warns") {
         Handler.posted.clear()
-        val activity = org.shadowice.flocke.andotp.Activities.HardwareKeyActivity()
+        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
         val password = android.widget.EditText(activity)
         val status = android.widget.TextView()
         val accountsView = android.widget.LinearLayout(activity)
@@ -7570,13 +7570,13 @@ fun main() {
         legacyDerived.key?.fill(0)
         legacyDerived.password?.fill(0)
 
-        val sealed = org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.seal("backup-pass", "[{\"label\":\"a\"}]")
+        val sealed = com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.seal("backup-pass", "[{\"label\":\"a\"}]")
         val header = EncryptedBackupHeader.parse(sealed)
         expect(header.isArgon2id() && header.getMemoryKiB() == Constants.ARGON2_MEMORY_KIB &&
             header.getIterations() == Constants.ARGON2_ITERATIONS &&
             header.getParallelism() == Constants.ARGON2_PARALLELISM,
             { "EncryptedBackupCodec.seal did not write Argon2id header" })
-        expect(org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.open("backup-pass", sealed) == "[{\"label\":\"a\"}]",
+        expect(com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.open("backup-pass", sealed) == "[{\"label\":\"a\"}]",
             { "EncryptedBackupCodec.open failed on Argon2id backup" })
     }
 
@@ -7584,7 +7584,7 @@ fun main() {
         val masterKey = ByteArray(32) { it.toByte() }
         val lscp1Token =
             "lscp1\$EBESExQVFhcYGRobHB0eH2O4ezzmYH370G39JNEWV3UKmNy5iaxBwNro1exoTvVdvdwtDnFxSYetybMyM3aAIA=="
-        expect(org.shadowice.flocke.andotp.Utilities.LinScpCredentials.decryptLscp1Password(lscp1Token, masterKey) == "S3cr3t!Pass#2026",
+        expect(com.fairuniversal.offlineotp.Utilities.LinScpCredentials.decryptLscp1Password(lscp1Token, masterKey) == "S3cr3t!Pass#2026",
             { "lscp1$ decryption disagreed with LinSCP reference vector" })
 
         val ini = "[Edge Node]\nprotocol=sftp\nhost=edge.example\nport=2222\nusername=root\npassword=$lscp1Token\n"
@@ -7594,7 +7594,7 @@ fun main() {
             .put("sessions_key_b64", java.util.Base64.getEncoder().encodeToString(masterKey))
             .toString()
             .toByteArray(java.nio.charset.StandardCharsets.UTF_8)
-        val fromBundle = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.importBytes(bundle)
+        val fromBundle = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.importBytes(bundle)
         expect(fromBundle.size == 1 && fromBundle[0].getPasswordFields().value("password") == "S3cr3t!Pass#2026",
             { "BackupBundle import did not decrypt lscp1$ session password" })
 
@@ -7604,7 +7604,7 @@ fun main() {
             "",
             "Edge Node [LinSCP SSH key]",
             arrayListOf("infra"),
-            org.shadowice.flocke.andotp.Utilities.SshConnection.of("edge.example", 2222, "root", "")
+            com.fairuniversal.offlineotp.Utilities.SshConnection.of("edge.example", 2222, "root", "")
         )
         val linkedSession = Entry.passwordFields(
             "Edge Node",
@@ -7613,19 +7613,19 @@ fun main() {
                 "url" to "sftp://edge.example:2222",
                 "username" to "root",
                 "password" to "S3cr3t!Pass#2026",
-                org.shadowice.flocke.andotp.Utilities.LinScpCredentials.SESSION_JSON_COLUMN to
+                com.fairuniversal.offlineotp.Utilities.LinScpCredentials.SESSION_JSON_COLUMN to
                     "{\"name\":\"Edge Node\",\"protocol\":\"sftp\",\"host\":\"edge.example\",\"port\":2222,\"username\":\"root\"}",
-                org.shadowice.flocke.andotp.Utilities.LinScpCredentials.SSH_KEY_LABEL_COLUMN to "Edge Node [LinSCP SSH key]"
+                com.fairuniversal.offlineotp.Utilities.LinScpCredentials.SSH_KEY_LABEL_COLUMN to "Edge Node [LinSCP SSH key]"
             )
         )
-        val vaultBlob = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.exportVault(
+        val vaultBlob = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.exportVault(
             listOf(sshKey, linkedSession),
             "linscp-test-pass"
         )
-        val reopened = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.openVault(vaultBlob, "linscp-test-pass")
+        val reopened = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.openVault(vaultBlob, "linscp-test-pass")
         expect(reopened.size == 2 && reopened[0].getSshConnection()?.password == "S3cr3t!Pass#2026",
             { "LSCPVLT2 openVault did not enrich linked SSH key password" })
-        val viaBackupOpen = org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.open("linscp-test-pass", vaultBlob)
+        val viaBackupOpen = com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec.open("linscp-test-pass", vaultBlob)
         expect(viaBackupOpen.contains("Edge Node"), { "EncryptedBackupCodec.open did not open LSCPVLT2 vault" })
 
         fromBundle.forEach { it.destroy() }

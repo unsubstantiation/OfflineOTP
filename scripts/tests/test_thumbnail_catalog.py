@@ -11,8 +11,8 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-UTIL = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
-CORE_UTIL = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
+UTIL = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
+CORE_UTIL = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
 ENUM_FILE = UTIL / "EntryThumbnail.kt"  # stays in app: binds names to Android drawables
 CATALOG_FILE = CORE_UTIL / "ThumbnailCatalog.kt"
 TOKEN_FORMAT_FILE = CORE_UTIL / "TokenFormat.kt"

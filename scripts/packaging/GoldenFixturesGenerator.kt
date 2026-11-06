@@ -10,11 +10,11 @@
  *   source-resources-dir holds the canonical expected-vault.json (the shared plaintext)
  *   output-dir receives the generator's fixture files, overwriting any previous copy
  */
-package org.shadowice.flocke.andotp.packaging
+package com.fairuniversal.offlineotp.packaging
 
-import org.shadowice.flocke.andotp.Utilities.Constants
-import org.shadowice.flocke.andotp.Utilities.CryptoPrimitives
-import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
+import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.CryptoPrimitives
+import com.fairuniversal.offlineotp.Utilities.EncryptedBackupHeader
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.file.Files

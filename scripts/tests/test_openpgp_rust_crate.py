@@ -85,8 +85,8 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         self.assertIn("rejects_empty_recipient_set", text)
 
     def test_jvm_adapters_exist_and_fallback_gracefully(self):
-        desktop = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/openpgp/RpgpOpenPgpPort.kt"
-        android = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/openpgp/RpgpOpenPgpPort.kt"
+        desktop = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/openpgp/RpgpOpenPgpPort.kt"
+        android = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/openpgp/RpgpOpenPgpPort.kt"
         self.assertTrue(desktop.is_file(), "desktop RpgpOpenPgpPort must exist")
         self.assertTrue(android.is_file(), "android RpgpOpenPgpPort must exist")
         for path in (desktop, android):

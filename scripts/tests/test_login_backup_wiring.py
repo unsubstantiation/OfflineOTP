@@ -3,8 +3,8 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-K = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-CORE_K = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+K = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+CORE_K = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 
 
 def source(path):
@@ -77,7 +77,7 @@ class LoginBackupWiringTest(unittest.TestCase):
 
         self.assertNotIn("oldFormat", source("Tasks/EncryptedRestoreTask.kt"))
         self.assertNotIn("oldFormat", core_source("Utilities/EncryptedBackupCodec.kt"))
-        desktop = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
+        desktop = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
         dialog = (desktop / "ui/BackupDialogs.kt").read_text(encoding="utf-8")
         coordinator = (desktop / "control/BackupCoordinator.kt").read_text(encoding="utf-8")
         self.assertNotIn("Legacy format (headerless", dialog)

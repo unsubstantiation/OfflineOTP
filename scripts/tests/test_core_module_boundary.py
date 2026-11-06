@@ -50,7 +50,7 @@ class KotlinCoreBoundaryTest(unittest.TestCase):
                     continue
                 # The project's own package is first-party (core spans several subpackages), not a
                 # third-party dependency.
-                if imported.startswith("org.shadowice.flocke.andotp"):
+                if imported.startswith("com.fairuniversal.offlineotp"):
                     continue
                 if not any(imported == p or imported.startswith(p + ".") for p in allowed_prefixes):
                     offenders.append(f"{path.relative_to(ROOT)}:{idx} {imported}")
@@ -78,12 +78,12 @@ class KotlinCoreBoundaryTest(unittest.TestCase):
                     if line.strip().startswith('"')]
 
         core_listed = {
-            e.replace("$KOTLIN_CORE", "core/src/main/kotlin/org/shadowice/flocke/andotp")
+            e.replace("$KOTLIN_CORE", "core/src/main/kotlin/com/fairuniversal/offlineotp")
              .replace("$ROOT", ".")
             for e in parse("CORE_SOURCES")
         }
         app_listed = {
-            e.replace("$KOTLIN_APP", "app/src/main/kotlin/org/shadowice/flocke/andotp")
+            e.replace("$KOTLIN_APP", "app/src/main/kotlin/com/fairuniversal/offlineotp")
              .replace("$ROOT", ".")
             for e in parse("APP_SOURCES")
         }

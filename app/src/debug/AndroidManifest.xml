@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Visibility for the independently signed IPC regression caller; never in release. -->
-    <queries><package android:name="org.shadowice.flocke.andotp.securityclient" /></queries>
+    <queries><package android:name="com.fairuniversal.offlineotp.securityclient" /></queries>
 </manifest>

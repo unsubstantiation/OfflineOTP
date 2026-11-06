@@ -5,9 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 VALUES = ROOT / "app/src/main/res/values"
 LAYOUT = ROOT / "app/src/main/res/layout/fragment_about.xml"
-FRAGMENT = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Fragments/BaseAboutFragment.kt"
-DESKTOP_ABOUT = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/AboutDialog.kt"
-DESKTOP_WINDOW = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/MainWindow.kt"
+FRAGMENT = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Fragments/BaseAboutFragment.kt"
+DESKTOP_ABOUT = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/AboutDialog.kt"
+DESKTOP_WINDOW = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt"
 
 REQUIRED_COPYRIGHT = "Copyright (c) 2026 unsubstantiation"
 WEBSITE = "http://fairuniversal.com"

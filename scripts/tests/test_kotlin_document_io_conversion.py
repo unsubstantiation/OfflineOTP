@@ -10,11 +10,11 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BACKUP_HELPER = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/BackupHelper.kt"
-STORAGE = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/StorageAccessHelper.kt"
+BACKUP_HELPER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/BackupHelper.kt"
+STORAGE = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/StorageAccessHelper.kt"
 # The encrypted-backup framing was extracted into the Android-free :core codec so the desktop
 # client produces byte-identical backups; the framing guard therefore follows it there.
-BACKUP_CODEC = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptedBackupCodec.kt"
+BACKUP_CODEC = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EncryptedBackupCodec.kt"
 
 
 class BackupHelperGuardTest(unittest.TestCase):
@@ -36,7 +36,7 @@ class BackupHelperGuardTest(unittest.TestCase):
 
     def test_task_callers_supply_cancellation_or_permission_guards(self):
         """Legacy convenience overloads remain, but app tasks use the guarded versions."""
-        tasks = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Tasks"
+        tasks = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Tasks"
         pgp = (tasks / "PGPBackupTask.kt").read_text(encoding="utf-8")
         encrypted = (tasks / "EncryptedBackupTask.kt").read_text(encoding="utf-8")
         change = (tasks / "ChangeEncryptionTask.kt").read_text(encoding="utf-8")
@@ -56,7 +56,7 @@ class BackupHelperGuardTest(unittest.TestCase):
     def test_encrypted_backup_framing(self):
         """New backups use the versioned Argon2id header; legacy PBKDF2 backups remain readable."""
         codec = BACKUP_CODEC.read_text(encoding="utf-8")
-        header = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptedBackupHeader.kt").read_text(encoding="utf-8")
+        header = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EncryptedBackupHeader.kt").read_text(encoding="utf-8")
         self.assertIn("EncryptedBackupHeader.frameArgon2id(", codec)
         self.assertIn("CryptoPrimitives.generateSymmetricKeyArgon2id(", codec)
         self.assertIn(".allocate(ARGON2_HEADER_BYTES + encrypted.size)", header)

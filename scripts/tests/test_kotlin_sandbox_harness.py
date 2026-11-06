@@ -30,8 +30,8 @@ def run_sh_sources(variable="APP_SOURCES"):
 
 
 def expand_run_path(entry):
-    app = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-    core = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+    app = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+    core = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
     return (entry
             .replace("$KOTLIN_APP", str(app))
             .replace("$KOTLIN_CORE", str(core))

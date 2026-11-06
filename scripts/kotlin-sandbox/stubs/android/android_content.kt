@@ -75,7 +75,7 @@ open class Context {
     /** `open` so the about checks can report a package that is not installed. */
     open fun getPackageManager(): android.content.pm.PackageManager = android.content.pm.PackageManager
     open fun getApplicationInfo(): android.content.pm.ApplicationInfo = android.content.pm.ApplicationInfo()
-    open fun getPackageName(): String = "org.shadowice.flocke.andotp"
+    open fun getPackageName(): String = "com.fairuniversal.offlineotp"
     /** `open` so the about checks can record or refuse the activity start. */
     open fun startActivity(intent: Intent) {}
     open fun sendBroadcast(intent: Intent) {}

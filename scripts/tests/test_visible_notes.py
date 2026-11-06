@@ -29,7 +29,7 @@ class AndroidVisibleNoteTest(unittest.TestCase):
                 self.assertEqual("?android:attr/textColorPrimary", note.get(ANDROID + "textColor"))
 
     def test_the_card_shows_the_whole_note_instead_of_a_placeholder(self):
-        holder = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/View/EntryViewHolder.kt")\
+        holder = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
             .read_text(encoding="utf-8")
         self.assertIn("entry.getNote()", holder)
         self.assertIn("noteText.visibility = if (showWholeNote) View.VISIBLE else View.GONE", holder)
@@ -39,7 +39,7 @@ class AndroidVisibleNoteTest(unittest.TestCase):
         strings = (RES / "values/strings_main.xml").read_text(encoding="utf-8")
         self.assertNotIn("secure_note_hidden", strings)
         # The desktop client dropped its placeholder too.
-        model = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/model/EntryTableModel.kt")\
+        model = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt")\
             .read_text(encoding="utf-8")
         self.assertIn("entry.isNote() -> entry.getNote()", model)
         self.assertNotIn("[Note hidden]", model)
@@ -47,7 +47,7 @@ class AndroidVisibleNoteTest(unittest.TestCase):
 
 class DesktopVisibleNoteTest(unittest.TestCase):
     def setUp(self):
-        self.cards = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/EntryCards.kt")\
+        self.cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
             .read_text(encoding="utf-8")
 
     def test_notes_are_painted_wrapped_and_the_row_grows_to_fit(self):
@@ -72,7 +72,7 @@ class DesktopVisibleNoteTest(unittest.TestCase):
     def test_other_kinds_keep_their_redacted_placeholders(self):
         for placeholder in ("[Password hidden]", "[Password file]", "[SSH keys hidden]", "[Email account]"):
             self.assertIn(placeholder,
-                          (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/model/EntryTableModel.kt")
+                          (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt")
                           .read_text(encoding="utf-8"))
 
 

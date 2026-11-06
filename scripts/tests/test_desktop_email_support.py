@@ -10,10 +10,10 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
-DESKTOP_TEST = ROOT / "desktop/src/test/kotlin/org/shadowice/flocke/andotp/desktop"
-APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
+DESKTOP_TEST = ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop"
+APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 
 
 def text(path):
@@ -118,7 +118,7 @@ class DesktopEmailSupportTest(unittest.TestCase):
     def test_email_coverage_exists_at_every_layer(self):
         # Core: the material round trip. Desktop: the control layer and the form.
         self.assertIn("fun connectionDetailsMaskPasswordsAndNameTheProtocols",
-                      text("core/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/EmailMaterialTest.kt"))
+                      text("core/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/EmailMaterialTest.kt"))
         self.assertIn("class EmailAccountsTest",
                       (DESKTOP_TEST / "control/EmailAccountsTest.kt").read_text(encoding="utf-8"))
         self.assertIn("class EmailAccountFormTest",
