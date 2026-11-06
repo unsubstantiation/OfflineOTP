@@ -1,35 +1,26 @@
 package com.fairuniversal.offlineotp.desktop.openpgp
 
-import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.Utilities.OpenPgpPort
 
 import java.io.IOException
+import java.lang.reflect.InvocationTargetException
 import java.security.GeneralSecurityException
 
 /**
  * [OpenPgpPort] backed by the unified Rust backend (`offlineotp-openpgp`).
  *
- * This is the rpgp + UniFFI adapter that replaces the JVM-only PGPainless implementation
- * on all five distributions (Android, Debian, Windows, macOS, iOS). The Rust crate
- * (`rust/offlineotp-openpgp`) builds a `cdylib`/`staticlib` via UniFFI; the generated
- * Kotlin bindings (`uniffi.offlineotp_openpgp`) are loaded through JNA on JVM targets and
- * as an XCFramework on Apple targets.
+ * This is the default desktop OpenPGP engine. The Rust crate
+ * (`rust/offlineotp-openpgp`) builds a `cdylib` via UniFFI; the generated Kotlin
+ * bindings (`uniffi.offlineotp_openpgp`) are loaded through JNA. The byte-array
+ * facade `uniffi.offlineotp_openpgp.NativeApi` is compiled with the Gradle
+ * desktop build and the native library is bundled by `packageDesktop`.
  *
- * During the scaffolding phase the native library is optional: when it cannot be loaded
- * (e.g. a plain `cargo test` without `cargo build`, or an old checkout without the Rust
- * toolchain) this adapter falls back to [PgpainlessOpenPgpPort] so existing workflows
- * stay green. Once the Rust crate is wired into every per-platform workflow and the
- * generated bindings are committed, the fallback will be removed and PGPainless will be
- * dropped from `desktop/build.gradle`.
+ * PGPainless remains only as an explicit fallback for checkouts/builds where the
+ * native library is absent (for example the no-Gradle sandbox). A native crypto
+ * failure is never retried against a different engine: it is mapped and thrown.
  *
- * Key material is passed as standard-format byte blocks (armored or binary), keeping every
- * rpgp/BouncyCastle type inside the adapter. The class is compile-verified against narrow
- * stubs in the offline sandbox; the real crypto is exercised only under the Gradle build
- * that declares the native dependency.
- *
- * Interchange note: rpgp uses SEIPDv1 + AES-256, the same interoperable baseline PGPainless
- * uses and the most compatible with OpenKeychain on Android. SEIPDv2 (AEAD) would require
- * newer consumers and is not used here.
+ * Interchange note: rpgp uses SEIPDv1 + AES-256, the same interoperable baseline
+ * PGPainless uses and the most compatible with OpenKeychain on Android.
  */
 class RpgpOpenPgpPort(
     private val fallback: OpenPgpPort = PgpainlessOpenPgpPort()
@@ -37,63 +28,57 @@ class RpgpOpenPgpPort(
 
     @Throws(GeneralSecurityException::class, IOException::class)
     override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray {
-        // Try the unified Rust backend first; fall back to PGPainless when the native library
-        // is not yet available (offline sandbox, old checkout, or CI without Rust).
-        return tryLoadNative()?.let { native ->
-            try {
-                native.encrypt(plaintext, recipientKeyBlocks)
-            } catch (e: Exception) {
-                throw mapException(e)
-            }
-        } ?: fallback.encrypt(plaintext, recipientKeyBlocks)
+        val native = tryLoadNative() ?: return fallback.encrypt(plaintext, recipientKeyBlocks)
+        return try {
+            native.encrypt(plaintext, recipientKeyBlocks)
+        } catch (e: Exception) {
+            throw mapException(e)
+        }
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)
     override fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): ByteArray {
-        return tryLoadNative()?.let { native ->
-            try {
-                val pass = passphrase?.let { String(it) }
-                native.decrypt(message, secretKeyBlock, pass)
-            } catch (e: Exception) {
-                throw mapException(e)
-            } finally {
-                // Avoid leaving passphrase in a long-lived String; the Rust side copies it
-                // and the Kotlin caller is responsible for zeroizing the original char array.
-            }
-        } ?: fallback.decrypt(message, secretKeyBlock, passphrase)
+        val native = tryLoadNative() ?: return fallback.decrypt(message, secretKeyBlock, passphrase)
+        return try {
+            val pass = passphrase?.concatToString()
+            native.decrypt(message, secretKeyBlock, pass)
+        } catch (e: Exception) {
+            throw mapException(e)
+        }
     }
 
     private fun mapException(e: Exception): Exception {
-        // UniFFI-generated Kotlin throws a typed OpenPgpError; map it to the historical
-        // GeneralSecurityException / IOException boundary that BackupCoordinator expects.
-        val msg = e.message ?: e.toString()
+        val cause = (e as? InvocationTargetException)?.targetException ?: e
+        val name = cause.javaClass.simpleName
+        val msg = cause.message ?: cause.toString()
         return when {
-            msg.contains("RecipientKey", ignoreCase = true) ||
+            name.contains("InvalidRecipientKey") ||
+                name.contains("InvalidSecretKey") ||
+                name.contains("InvalidMessage") ||
+                name.contains("DecryptionFailed") ||
+                name.contains("EmptyOutput") ||
+                name.contains("TooLarge") ->
+                GeneralSecurityException(msg, cause)
+            msg.contains("TooLarge", ignoreCase = true) ||
                 msg.contains("InvalidRecipient", ignoreCase = true) ||
-                msg.contains("TooLarge", ignoreCase = true) ->
-                GeneralSecurityException(msg, e)
-            msg.contains("InvalidMessage", ignoreCase = true) ||
+                msg.contains("InvalidMessage", ignoreCase = true) ||
                 msg.contains("DecryptionFailed", ignoreCase = true) ->
-                GeneralSecurityException(msg, e)
-            else -> IOException(msg, e)
+                GeneralSecurityException(msg, cause)
+            else -> IOException(msg, cause)
         }
     }
 
     /**
-     * Attempts to load the native `offlineotp_openpgp` library via the UniFFI-generated
-     * Kotlin bindings. Returns null when the library is not present rather than throwing,
-     * so callers can fall back to the JVM implementation.
-     *
-     * The generated bindings live in `uniffi.offlineotp_openpgp` when the Rust crate has
-     * been built and `uniffi-bindgen` has run. In the offline sandbox they are absent, so
-     * this method uses reflection to avoid a hard compile-time dependency.
+     * Loads the generated byte-array facade and probes the native library once.
+     * Returns null only when the backend is unavailable, not when a crypto
+     * operation fails. The reflective seam keeps the no-Gradle sandbox compiling
+     * without JNA or the generated bindings.
      */
     private fun tryLoadNative(): NativeBridge? {
         return try {
-            // Reflective load avoids a hard dependency on the generated package, which does
-            // not exist in the offline sandbox or on a checkout without `cargo build`.
-            val clazz = Class.forName("uniffi.offlineotp_openpgp.offlineotp_openpgpKt")
-            @Suppress("UNCHECKED_CAST")
+            val clazz = Class.forName("uniffi.offlineotp_openpgp.NativeApi")
+            val available = clazz.getMethod("isAvailable").invoke(null) as Boolean
+            if (!available) return null
             val encryptMethod = clazz.getMethod(
                 "encrypt",
                 ByteArray::class.java,
@@ -105,22 +90,15 @@ class RpgpOpenPgpPort(
                 ByteArray::class.java,
                 String::class.java
             )
-            // If the class exists, we consider the native backend available; actual calls
-            // still go through the generated functions which handle JNA loading internally.
             object : NativeBridge {
                 override fun encrypt(plaintext: ByteArray, recipients: List<ByteArray>): ByteArray {
-                    @Suppress("UNCHECKED_CAST")
                     return encryptMethod.invoke(null, plaintext, recipients) as ByteArray
                 }
                 override fun decrypt(message: ByteArray, secretKey: ByteArray, passphrase: String?): ByteArray {
                     return decryptMethod.invoke(null, message, secretKey, passphrase) as ByteArray
                 }
             }
-        } catch (_: ClassNotFoundException) {
-            null
-        } catch (_: NoSuchMethodException) {
-            null
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             null
         }
     }

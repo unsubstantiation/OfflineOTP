@@ -1,0 +1,8 @@
+# The Rust lib output is `libofflineotp_openpgp` (see Cargo.toml [lib] name), not
+# UniFFI's default `uniffi_<namespace>`. Keep the generated loaders pointing at the
+# library the platform packaging actually stages.
+[bindings.kotlin]
+cdylib_name = "offlineotp_openpgp"
+
+[bindings.swift]
+cdylib_name = "offlineotp_openpgp"

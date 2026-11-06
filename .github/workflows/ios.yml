@@ -41,7 +41,7 @@ jobs:
         run: |
           set -euo pipefail
           set +e
-          cargo check --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
           status=${PIPESTATUS[0]}
           set -e
           if [ $status -ne 0 ]; then
@@ -71,7 +71,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-build.log
+          cargo build --manifest-path rust/Cargo.toml --release --verbose 2>&1 | tee rust-build.log
       - name: Report Rust diagnostics
         if: always()
         shell: bash
@@ -113,6 +113,11 @@ jobs:
           xcode-select -p
           xcodebuild -version
           swift --version
+      - name: Build OpenPGP XCFramework
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/openpgp/build-ios-xcframework.sh
       - name: Verify the token vectors are not stale
         shell: bash
         run: |

@@ -16,11 +16,11 @@ import Foundation
 // vault/backup JSON document, so only the outer envelope differs from the
 // password backup format.
 //
-// During scaffolding the Rust library is optional: when it cannot be loaded
-// (e.g. a checkout without `cargo build` or a simulator build before the
-// XCFramework is committed) this type throws a descriptive error rather than
-// linking against a missing symbol. Once the crate is wired into `ios.yml`
-// and the XCFramework is committed, the fallback will be removed.
+// The Rust library is packaged as an XCFramework by `scripts/openpgp/build-ios-xcframework.sh`
+// and built in `ios.yml`. When `ios/Frameworks/offlineotp_openpgp.xcframework` is present,
+// Package.swift defines `OFFLINEOTP_OPENPGP_NATIVE` and this port calls the generated UniFFI
+// bindings. Without that artifact the format layer still compiles and the port throws a
+// descriptive `backendUnavailable` error rather than linking against a missing symbol.
 
 /// Errors that the Rust backend surfaces. Mirrors `OpenPgpError` in `rust/offlineotp-openpgp/src/lib.rs`.
 public enum OpenPgpError: Error, LocalizedError, Equatable {
@@ -92,44 +92,84 @@ public enum OpenPgpBackupCodec {
     }
 }
 
-/// Unified Rust backend (scaffolding). Calls the UniFFI-generated `offlineotp_openpgp`
-/// Swift bindings when they exist, otherwise throws `backendUnavailable`.
+/// Unified Rust backend. Calls the UniFFI-generated `offlineotp_openpgp` Swift
+/// bindings when the XCFramework has been built, otherwise throws `backendUnavailable`.
 ///
-/// After `rust/offlineotp-openpgp` is built and the XCFramework is committed, this
-/// type will hold the generated `offlineotp_openpgp` module and forward directly.
-/// The scaffolding keeps the package compiling in the offline sandbox and on checkouts
-/// without the Rust toolchain.
+/// `OFFLINEOTP_OPENPGP_NATIVE` is defined by Package.swift only when
+/// `ios/Frameworks/offlineotp_openpgp.xcframework` exists. That keeps the portable
+/// format tests buildable on a checkout without the Rust toolchain while making the
+/// packaged iOS app use real rpgp cryptography.
+#if OFFLINEOTP_OPENPGP_NATIVE
+import offlineotp_openpgp
+#endif
+
 public struct RustOpenPgpPort: OpenPgpPort {
 
     public init() {}
 
+    /// True when this build links the Rust XCFramework.
+    public static var isBackendAvailable: Bool {
+        #if OFFLINEOTP_OPENPGP_NATIVE
+        return true
+        #else
+        return false
+        #endif
+    }
+
     public func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {
-        // Attempt to call the UniFFI-generated Swift bindings. When the XCFramework
-        // is not yet committed this symbol is absent; we throw a clear error rather
-        // than linking against a missing library.
-        // The generated module will be `import offlineotp_openpgp` and the function
-        // `encrypt(plaintext:recipientKeyBlocks:)`.
-        //
-        // During scaffolding we do not have the XCFramework, so we report unavailability.
-        // The compiler will not see `offlineotp_openpgp` as a target dependency yet.
-        throw OpenPgpError.backendUnavailable(reason:
-            "Unified OpenPGP backend not available: Rust XCFramework not built. " +
-            "Run `cargo build --manifest-path rust/Cargo.toml` and generate the " +
-            "UniFFI bindings, or restore via password backup. See docs/ios-client-plan.md."
-        )
-        // When the XCFramework is available, the body becomes:
-        // return try offlineotp_openpgp.encrypt(plaintext: plaintext, recipientKeyBlocks: recipientKeyBlocks)
+        #if OFFLINEOTP_OPENPGP_NATIVE
+        do {
+            let output = try offlineotp_openpgp.encrypt(
+                plaintext: [UInt8](plaintext),
+                recipientKeyBlocks: recipientKeyBlocks.map { [UInt8]($0) }
+            )
+            return Data(output)
+        } catch let error as offlineotp_openpgp.OpenPgpError {
+            throw Self.map(error)
+        }
+        #else
+        throw Self.unavailable()
+        #endif
     }
 
     public func decrypt(message: Data, secretKeyBlock: Data, passphrase: String?) throws -> Data {
-        throw OpenPgpError.backendUnavailable(reason:
-            "Unified OpenPGP backend not available: Rust XCFramework not built. " +
-            "Run `cargo build --manifest-path rust/Cargo.toml` and generate the " +
-            "UniFFI bindings. See docs/ios-client-plan.md."
-        )
-        // When available:
-        // return try offlineotp_openpgp.decrypt(message: message, secretKeyBlock: secretKeyBlock, passphrase: passphrase)
+        #if OFFLINEOTP_OPENPGP_NATIVE
+        do {
+            let output = try offlineotp_openpgp.decrypt(
+                message: [UInt8](message),
+                secretKeyBlock: [UInt8](secretKeyBlock),
+                passphrase: passphrase
+            )
+            return Data(output)
+        } catch let error as offlineotp_openpgp.OpenPgpError {
+            throw Self.map(error)
+        }
+        #else
+        throw Self.unavailable()
+        #endif
     }
+
+    private static func unavailable() -> OpenPgpError {
+        .backendUnavailable(reason:
+            "Unified OpenPGP backend not available: Rust XCFramework not built. " +
+            "Run scripts/openpgp/build-ios-xcframework.sh (or use the ios.yml artifact), " +
+            "or restore via password backup. See docs/ios-client-plan.md."
+        )
+    }
+
+    #if OFFLINEOTP_OPENPGP_NATIVE
+    private static func map(_ error: offlineotp_openpgp.OpenPgpError) -> OpenPgpError {
+        switch error {
+        case .InvalidRecipientKey(let reason): return .invalidRecipientKey(reason: reason)
+        case .InvalidSecretKey(let reason): return .invalidSecretKey(reason: reason)
+        case .InvalidMessage(let reason): return .invalidMessage(reason: reason)
+        case .DecryptionFailed(let reason): return .decryptionFailed(reason: reason)
+        case .EmptyOutput: return .emptyOutput
+        case .TooLarge: return .tooLarge
+        case .Internal(let reason): return .internal(reason: reason)
+        }
+    }
+    #endif
 }
 
 // MARK: - Availability helpers (mirror OpenPgpAvailability in :core)

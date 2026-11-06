@@ -74,6 +74,12 @@ android {
     }
     // Instrumentation and desktop tests consume the very same pinned interop vectors.
     sourceSets {
+        main {
+            // Generated UniFFI Kotlin bindings + NativeApi facade for the unified Rust
+            // OpenPGP backend. Per-ABI cdylibs are staged into jniLibs by CI (cargo ndk).
+            java.srcDir "$rootDir/rust/bindings/kotlin"
+            jniLibs.srcDir 'src/main/jniLibs'
+        }
         androidTest.resources.srcDir '../desktop/src/test/resources'
     }
     flavorDimensions 'market'
@@ -143,6 +149,9 @@ dependencies {
     implementation 'com.yubico.yubikit:fido:3.2.1'
     implementation "me.zhanghai.android.materialprogressbar:library:1.6.1"
     implementation "com.github.open-keychain.open-keychain:openpgp-api:v5.8.2"
+    // JNA loads the unified Rust OpenPGP cdylib through the generated UniFFI bindings.
+    // The AAR carries libjnidispatch.so for every Android ABI we package.
+    implementation 'net.java.dev.jna:jna:5.14.0@aar'
     implementation "com.leinardi.android:speed-dial:3.3.0"
     // The View UI requires MaterialCardView: all app themes inherit MaterialComponents.Bridge.
     // Keep this version aligned with the build-time plugin in the root build.gradle.

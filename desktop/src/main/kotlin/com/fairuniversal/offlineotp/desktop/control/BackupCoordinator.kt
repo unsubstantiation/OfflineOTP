@@ -11,7 +11,7 @@ import com.fairuniversal.offlineotp.Utilities.VaultRestoreMerge
 import com.fairuniversal.offlineotp.Utilities.OpenPgpPort
 import com.fairuniversal.offlineotp.Utilities.QrImageDecoder
 import com.fairuniversal.offlineotp.Utilities.QrImport
-import com.fairuniversal.offlineotp.desktop.openpgp.PgpainlessOpenPgpPort
+import com.fairuniversal.offlineotp.desktop.openpgp.RpgpOpenPgpPort
 import com.fairuniversal.offlineotp.desktop.qr.ZxingQrDecoder
 
 import java.io.IOException
@@ -31,7 +31,7 @@ import java.security.GeneralSecurityException
 class BackupCoordinator(
     private val controller: VaultController,
     private val state: DesktopVaultState,
-    private val pgpPort: OpenPgpPort = PgpainlessOpenPgpPort(),
+    private val pgpPort: OpenPgpPort = RpgpOpenPgpPort(),
     private val qrDecoder: QrImageDecoder = ZxingQrDecoder(),
     private val duplicateIssuerPolicy: DuplicateIssuerPolicy = DuplicateIssuerPolicy { false }
 ) {

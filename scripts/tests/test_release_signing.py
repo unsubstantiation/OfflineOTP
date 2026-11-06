@@ -141,7 +141,7 @@ class ReleaseSigningTest(unittest.TestCase):
     def test_preflight_gates_the_signed_release_job(self):
         workflow = self.workflow_text()
         self.assertIn("      enabled: ${{ steps.check.outputs.enabled }}\n", workflow)
-        self.assertIn("    needs: signing-preflight\n"
+        self.assertIn("    needs: [signing-preflight, openpgp]\n"
                       "    if: needs.signing-preflight.outputs.enabled == 'true'\n", workflow)
         # No job may build/sign release APKs without the keystore preflight gate.
         self.assertNotIn("sign-release:\n    if: github.ref == 'refs/heads/master'\n", workflow)

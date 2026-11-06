@@ -1,0 +1,4 @@
+module offlineotp_openpgpFFI {
+    header "offlineotp_openpgpFFI.h"
+    export *
+}

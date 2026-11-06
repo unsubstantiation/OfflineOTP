@@ -9,6 +9,27 @@ permissions:
   contents: read
 
 jobs:
+  openpgp:
+    # Host coverage for the unified Rust OpenPGP backend on every Android workflow run.
+    # The signed-release job below additionally builds the per-ABI Android cdylibs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+      - name: Test Rust crate (rpgp + UniFFI, 5/5)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --manifest-path rust/Cargo.toml --verbose
+      - name: Build Rust crate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --manifest-path rust/Cargo.toml --release --verbose
   signing-preflight:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
@@ -39,7 +60,7 @@ jobs:
   sign-release:
     # Builds and verifies signed release APKs only when the keystore is configured; otherwise
     # the job is skipped. No debug APK is built — use a local Gradle build for development.
-    needs: signing-preflight
+    needs: [signing-preflight, openpgp]
     if: needs.signing-preflight.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -54,7 +75,18 @@ jobs:
         with:
           # Keep the v3 default SDK tools while updating the action runtime.
           cmdline-tools-version: '12266719'
-          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018'
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
+        with:
+          toolchain: stable
+      - name: Build Android OpenPGP jniLibs
+        shell: bash
+        run: |
+          set -euo pipefail
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          test -d "$ANDROID_NDK_HOME"
+          cargo install cargo-ndk --locked
+          bash scripts/openpgp/build-android-jnilibs.sh
       - name: Install release signing keystore
         shell: bash
         env:

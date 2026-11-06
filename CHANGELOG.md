@@ -32,23 +32,23 @@ session changed before the save). A failing write keeps the previous entry and t
 `EntryEditorAndBackupTest.editsPersistViaReplace` and `VaultStoreTests.testDeletingAndEditingPersist`
 pin the round-trip.
 
- * OpenPGP: Scaffold the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) for all
-five distributions (Android, Debian, Windows, macOS, iOS). The crate exposes `encrypt`/`decrypt`
-over opaque key blocks (armored or binary) with the same document limits and empty-output rules as
-`OpenPgpBackupCodec`, using SEIPDv1 + AES-256 for compatibility with PGPainless and OpenKeychain.
-`RpgpOpenPgpPort` on desktop (`desktop/.../RpgpOpenPgpPort.kt`, fallback to PGPainless while the native
-lib is optional) and on Android (`app/.../RpgpOpenPgpPort.kt`, with OpenKeychain as the pre-existing
-fallback) and `RustOpenPgpPort`/`OpenPgpBackupCodec`/`OpenPgpAvailability` on iOS
-(`ios/Sources/OfflineOTPKit/OpenPgp.swift`) wrap it. Every per-platform workflow (`android.yml`,
-`debian.yml`, `windows.yml`, `macos.yml`, `ios.yml`, all still one-per-platform on `macos-15` arm64
-and `ubuntu-24.04`/`windows-2022`) now installs the Rust toolchain and runs `cargo test` + `cargo build`
-on the host; per-ABI packaging (`cargo ndk` for Android ABIs, `XCFramework` for iOS) and removal of
-`org.pgpainless:pgpainless-core` remain. `docs/ios-client-plan.md` M5 and Non-goals now reflect the
-choice (rpgp + UniFFI, 5/5) and `docs/client-parity-2026-11-02.md` no longer lists OpenPGP as an
-outstanding difference — the gap is closed by design, remaining work is bindings/packaging. The
-`rust/` workspace, its `offlineotp-openpgp` crate and its unit tests (keygen, round-trip, multi-
-recipient, blank-output, passphrase) are the corpus for the upcoming PGPainless/interop fixture: an
-ed25519 test key encrypted with PGPainless must decrypt with rpgp and vice versa
+ * OpenPGP: Complete the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) for all
+five distributions (Android, Debian, Windows, macOS, iOS). The crate now performs real rpgp
+cryptography: binary SEIPDv1 + AES-256 exports, binary/ASCII-armored imports, protected secret keys,
+recipient binding/revocation/expiration checks, bounded streaming decompression, and explicit
+rejection of plaintext, tampered, wrong-key, blank and oversized messages. The UDL contract
+(`src/offlineotp_openpgp.udl`) generates committed Kotlin/JNA and Swift bindings; `NativeApi.kt`
+adapts UniFFI's `List<UByte>` surface to the JVM `ByteArray` ports. Desktop defaults to
+`RpgpOpenPgpPort` (PGPainless only when the native library is absent) and packages the host cdylib
+with `-Djna.library.path=$APPDIR/native`. Android CI builds per-ABI `jniLibs` via `cargo ndk` while
+retaining the complete OpenKeychain provider flow. iOS CI builds
+`ios/Frameworks/offlineotp_openpgp.xcframework`; when present, Package.swift defines
+`OFFLINEOTP_OPENPGP_NATIVE` and `RustOpenPgpPort` calls the generated Swift bindings, otherwise it
+fails explicitly with `backendUnavailable`. Every per-platform workflow runs `cargo test` and
+`cargo build --release`; `scripts/openpgp/` documents regeneration and packaging. The crate's unit
+tests cover single/multi-recipient, armored, compressed, protected-key, wrong-key, tamper, plaintext,
+blank-output and document-bound cases. Native compilation and cross-implementation interop remain
+CI/device gates; the no-Gradle sandbox still exercises the explicit fallback/unavailable paths.
 
  * Android: Remove the PIN login. Authentication is now none, password or device credentials: the
 fourth entry is gone from Settings → Authentication and from the first-run wizard, the unlock screen
