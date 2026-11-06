@@ -235,6 +235,23 @@ jobs:
             -derivedDataPath build/DerivedData \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             test 2>&1 | tee -a build-log.txt
+      - name: Build the unsigned Release app for iOS devices
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          # Build for physical iPhone/iPad hardware (iphoneos, arm64, Release) with signing
+          # disabled so the .ipa can be sideloaded or signed locally without Apple credentials.
+          xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee -a build-log.txt
+          test -d build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app
+          test -x build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app/OfflineOTP
       - name: Package the sources that were tested
         shell: bash
         run: |
@@ -245,20 +262,43 @@ jobs:
           git archive HEAD ios | tar -x -C artifacts/stage
           git archive HEAD desktop/src/test/resources/golden | tar -x -C artifacts/stage
           (cd artifacts/stage && zip -q -r ../OfflineOTP-ios-kit-source.zip ios desktop)
-      - name: Package the simulator app and checksum everything
+      - name: Package the unsigned device IPA, simulator app, and checksums
         shell: bash
         run: |
           set -euo pipefail
-          APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
-          test -d "$APP"
-          # ditto, as on macOS: a bundle has structure a plain zip would flatten.
-          ditto -c -k --sequesterRsrc --keepParent "$APP" artifacts/OfflineOTP-ios-simulator.zip
+          SIM_APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
+          DEV_APP=ios/build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app
+          test -d "$SIM_APP"
+          test -d "$DEV_APP"
+
+          # Simulator bundle: ditto keeps the bundle structure a plain zip would flatten.
+          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" artifacts/OfflineOTP-ios-simulator.zip
           mkdir -p build/unpacked
           ditto -x -k artifacts/OfflineOTP-ios-simulator.zip build/unpacked
           test -f build/unpacked/OfflineOTP.app/Info.plist
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
             build/unpacked/OfflineOTP.app/Info.plist | grep -qx OfflineOTP
-          (cd artifacts && shasum -a 256 OfflineOTP-ios-kit-source.zip OfflineOTP-ios-simulator.zip \
+
+          # Unsigned physical-device .ipa: standard Payload/OfflineOTP.app layout without resource
+          # forks so sideloaders on macOS, Windows, and Linux accept it directly.
+          rm -rf build/ipa-stage build/unpacked-ipa
+          mkdir -p build/ipa-stage/Payload build/unpacked-ipa
+          ditto "$DEV_APP" build/ipa-stage/Payload/OfflineOTP.app
+          ditto -c -k --norsrc build/ipa-stage artifacts/OfflineOTP-ios-unsigned.ipa
+          ditto -x -k artifacts/OfflineOTP-ios-unsigned.ipa build/unpacked-ipa
+          test -x build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
+            build/unpacked-ipa/Payload/OfflineOTP.app/Info.plist | grep -qx OfflineOTP
+          /usr/libexec/PlistBuddy -c 'Print :DTPlatformName' \
+            build/unpacked-ipa/Payload/OfflineOTP.app/Info.plist | grep -qx iphoneos
+          xcrun lipo -archs build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP | grep -qw arm64
+          xcrun vtool -show-build build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP \
+            | grep -Eq '^[[:space:]]*platform[[:space:]]+IOS[[:space:]]*$'
+
+          (cd artifacts && shasum -a 256 \
+            OfflineOTP-ios-unsigned.ipa \
+            OfflineOTP-ios-simulator.zip \
+            OfflineOTP-ios-kit-source.zip \
             > SHA256SUMS.txt)
       - name: Report diagnostics
         if: always()
@@ -287,6 +327,13 @@ jobs:
             echo "::notice title=Build log::${line}"
           done <<< "$diagnostics"
           exit 0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: OfflineOTP-ios-unsigned
+          path: |
+            artifacts/OfflineOTP-ios-unsigned.ipa
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OfflineOTP-ios-kit-source

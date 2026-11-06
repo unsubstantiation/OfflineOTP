@@ -404,8 +404,10 @@ Five GitHub Actions workflows build on pushes to `master` or manual dispatch —
 per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
 from the workflow run: signed Android release APKs (F-Droid and Play, only on `master` when
 signing secrets are configured), a Windows x64 app-image zip, a Debian 12 x64 app-image
-tarball, a macOS arm64 app-bundle zip, and — for iOS — an unsigned simulator app bundle plus a
-checksummed source archive of the package the tests ran against. Each includes SHA-256 checksums; Android also includes the signing certificate
+tarball, a macOS arm64 app-bundle zip, and — for iOS — an unsigned physical-device Release IPA
+(`OfflineOTP-ios-unsigned`), an unsigned simulator app bundle (`OfflineOTP-ios-simulator`), and a
+checksummed source archive of the package the tests ran against (`OfflineOTP-ios-kit-source`). Each
+includes SHA-256 checksums; Android also includes the signing certificate
 details. The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
@@ -428,9 +430,11 @@ asks for the vault password: the app keeps the derived vault key in a Keychain i
 only after a successful check of the *currently enrolled* face and never leaves the device, so the
 vault file stays encrypted with the password and a forgotten face costs only the shortcut. OpenPGP
 backups are not there yet; that list, with milestones, is in
-[the iOS client plan](docs/ios-client-plan.md). Its workflow builds and tests both parts on a
-simulator and needs no signing identity, so the artifact it publishes is unsigned and not installable
-on a device: signing and TestFlight stay manual, as releases do everywhere else here. On a Mac,
+[the iOS client plan](docs/ios-client-plan.md). Its workflow tests both parts on a simulator and
+builds an unsigned `iphoneos` Release `.ipa` (`OfflineOTP-ios-unsigned.ipa`) alongside the simulator
+bundle with no signing identity: sideloaders (such as AltStore, SideStore, or Sideloadly) or local
+Mac signing tools sign the `.ipa` on your own machine, while Apple Developer distribution and
+TestFlight stay manual, as releases do everywhere else here. On a Mac,
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.
 
 The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when

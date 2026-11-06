@@ -47,12 +47,16 @@ xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
   -destination 'generic/platform=iOS Simulator' build
 xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
   -destination 'platform=iOS Simulator,name=<an iPhone that `xcrun simctl list devices` shows>' test
+xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
+  -configuration Release -destination 'generic/platform=iOS' \
+  CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 ```
 
-Neither needs a signing identity: a simulator build is unsigned, and the app target has no
-`DEVELOPMENT_TEAM`. Installing on a device, or shipping to TestFlight, is a separate step that the
-repository does not automate. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`, whose test
-action runs `OfflineOTPAppTests`.
+None of these need a signing identity: both the simulator build and the `iphoneos` Release build are
+unsigned (`OfflineOTP-ios-unsigned.ipa` in CI), and the app target has no `DEVELOPMENT_TEAM`. Signing
+for a physical device (via local Xcode/signing tools or sideloaders like AltStore/SideStore/Sideloadly)
+or shipping to TestFlight stays outside CI. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`,
+whose test action runs `OfflineOTPAppTests`.
 
 ## What the tests prove
 

@@ -189,9 +189,13 @@ configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15
    `generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**;
 5. `xcodebuild test` on the newest available iPhone simulator (picked with `simctl`, so an image that
    renames its devices does not break the job), which runs the app's unit tests;
-6. two checksummed artifacts: `OfflineOTP-ios-simulator` (the `.app`, packed with `ditto` and
-   re-extracted to prove the bundle survived) and `OfflineOTP-ios-kit-source` (the package plus the
-   fixtures it was verified against).
+6. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
+   `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to be an `arm64`
+   `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app` into an
+   unsigned `.ipa`;
+7. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
+   sideloaders or local signing), `OfflineOTP-ios-simulator` (the simulator `.app`, packed with
+   `ditto`), and `OfflineOTP-ios-kit-source` (the package plus the fixtures it was verified against).
 
 Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
 **`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the
