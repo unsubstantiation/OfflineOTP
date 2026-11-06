@@ -433,15 +433,17 @@ on a device: signing and TestFlight stay manual, as releases do everywhere else 
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.
 
 The Android workflow additionally builds **signed** F-Droid and Play release APKs, but only when
-the release keystore is configured in the `android-release` environment (which allows `master`
-only). Without `ANDROID_KEYSTORE_BASE64` the `sign-release` job is skipped with a notice instead of
+the release keystore is configured as repository secrets (see [release signing](docs/release-signing.md)).
+Without `ANDROID_KEYSTORE_BASE64` the `sign-release` job is skipped with a notice instead of
 failing, so an unconfigured fork or a fresh clone still gets a green Android build with the debug
 APK — but that also means **no signed release APK is produced**: the uploaded artifact and every
 asset on a current release are debug builds, made with an ephemeral runner key under the `.dev`
 application ID, which cannot update a release install. To enable signing, follow
 [release signing](docs/release-signing.md) — the keystore, the two secrets, the key alias that is
 read from the keystore itself, what to re-publish afterwards, and the verification steps; unsigned
-release APKs are still built by `scripts/verify_reproducible_build.sh`.
+release APKs are still built by `scripts/verify_reproducible_build.sh`. The workflow only uploads
+artifacts; it does not create GitHub Deployments or releases — download the signed APKs from the
+**Actions** run.
 
 Two dependency pins are deliberate and should not be "upgraded" casually: the Windows and Debian
 clients build for JVM 11 because the embedded OpenPGP engine declares a JVM 11 requirement —
