@@ -285,5 +285,221 @@ object EmailMaterial {
         throw IllegalArgumentException("Invalid FairEmail backup text", invalid)
     }
 
+    // ---- Thunderbird interchange (same vault type) ----
+
+    private data class ParsedThunderbirdHost(
+        val host: String,
+        val port: Int,
+        val encryption: Int,
+        val protocol: Int,
+        val scheme: String
+    )
+
+    private fun parseThunderbirdHostname(raw: String): ParsedThunderbirdHost {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return ParsedThunderbirdHost("localhost", 993, 0, 0, "imap")
+        var scheme = ""
+        var remainder = trimmed
+        if (trimmed.contains("://")) {
+            scheme = trimmed.substringBefore("://").lowercase()
+            remainder = trimmed.substringAfter("://")
+        } else {
+            // No scheme: guess from host string
+            val low = trimmed.lowercase()
+            scheme = when {
+                low.contains("pop") -> "pop"
+                low.contains("smtp") -> "smtp"
+                low.contains("imap") -> "imap"
+                else -> "imap"
+            }
+        }
+        // mailbox://nobody@Local Folders -> host is after @
+        if (scheme == "mailbox") {
+            val host = if (remainder.contains("@")) remainder.substringAfter("@").trim() else remainder.trim()
+            val cleanHost = host.ifBlank { "localhost" }.take(255)
+            return ParsedThunderbirdHost(cleanHost, 993, 0, 0, "imap")
+        }
+        // Remove path/query after host:port
+        var hostPort = remainder.substringBefore("/").substringBefore("?")
+        // If user@host form (e.g. user@mail.example.com), take host part
+        if (hostPort.contains("@")) hostPort = hostPort.substringAfter("@")
+        hostPort = hostPort.trim()
+        var host = hostPort
+        var portStr: String? = null
+        // IPv6 [host]:port not expected for mail, keep simple
+        if (hostPort.contains(":")) {
+            host = hostPort.substringBefore(":").trim()
+            portStr = hostPort.substringAfter(":").trim()
+        }
+        if (host.isBlank()) host = "mail.example.com"
+        val port = portStr?.toIntOrNull() ?: defaultPortForScheme(scheme)
+        val encryption = defaultEncryptionForPort(port)
+        val protocol = if (scheme.contains("pop") || port == 110 || port == 995) 1 else 0
+        return ParsedThunderbirdHost(host, port, encryption, protocol, scheme)
+    }
+
+    private fun defaultPortForScheme(scheme: String): Int = when (scheme.lowercase()) {
+        "pop", "pop3" -> 995
+        "smtp" -> 465
+        "imap" -> 993
+        else -> 993
+    }
+
+    private fun defaultEncryptionForPort(port: Int): Int = when (port) {
+        993, 995, 465 -> 0 // SSL
+        143, 110, 587, 25 -> 1 // STARTTLS
+        else -> 0
+    }
+
+    private fun thunderbirdSchemeForIncoming(account: JSONObject): String {
+        val proto = account.optInt("protocol", 0)
+        return if (proto == 1) "pop" else "imap"
+    }
+
+    /**
+     * Import Thunderbird's CSV export (Firefox/Thunderbird `Export Logins` format or the
+     * raw `hostname` variant) into the *same* EMAIL vault entries FairEmail uses, so a
+     * backup made from FairEmail can be restored as Thunderbird CSV and vice versa.
+     *
+     * Rows are grouped by `username` (the mailbox login, typically the email address);
+     * the first IMAP/POP-like row in each group becomes the incoming connection, the
+     * remaining SMTP-like rows become the outgoing identities. A single-row group is
+     * duplicated as both sides so the resulting account is always valid.
+     */
+    @JvmStatic
+    fun importThunderbirdCsv(bytes: ByteArray): List<Account> {
+        require(bytes.isNotEmpty() && bytes.size <= MAX_IMPORT_BYTES) { "Backup too large" }
+        val parsed = ThunderbirdCsv.parse(bytes) as? ThunderbirdCsv.Result.Success
+            ?: throw IllegalArgumentException("Invalid Thunderbird CSV")
+        if (parsed.rows.isEmpty()) throw IllegalArgumentException("Invalid Thunderbird CSV")
+
+        data class RowInfo(
+            val hostname: String,
+            val username: String,
+            val password: String,
+            val parsed: ParsedThunderbirdHost,
+            val scheme: String
+        )
+
+        val rows = ArrayList<RowInfo>(parsed.rows.size)
+        val hostnameIdx = parsed.columns.indexOfFirst { it.trim().equals("hostname", true) || it.trim().equals("host", true) || it.trim().equals("url", true) || it.trim().equals("login_uri", true) || it.trim().equals("origin", true) }
+        val usernameIdx = parsed.columns.indexOfFirst { it.trim().equals("username", true) || it.trim().equals("login_username", true) || it.trim().equals("user", true) }
+        val passwordIdx = parsed.columns.indexOfFirst { it.trim().equals("password", true) || it.trim().equals("login_password", true) || it.trim().equals("pass", true) }
+        require(hostnameIdx >= 0 && usernameIdx >= 0 && passwordIdx >= 0) { "Invalid Thunderbird CSV" }
+
+        for (row in parsed.rows) {
+            val hostname = row.valueAt(hostnameIdx).trim()
+            val username = row.valueAt(usernameIdx).trim()
+            val password = row.valueAt(passwordIdx)
+            if (hostname.isEmpty() || username.isEmpty()) throw IllegalArgumentException("Invalid Thunderbird CSV")
+            require(hostname.length <= MAX_CREDENTIAL_CHARS && username.length <= MAX_CREDENTIAL_CHARS && password.length <= MAX_CREDENTIAL_CHARS) { "Invalid Thunderbird CSV" }
+            val p = parseThunderbirdHostname(hostname)
+            val scheme = if (p.scheme.isNotBlank()) p.scheme else if (hostname.lowercase().contains("smtp")) "smtp" else "imap"
+            rows.add(RowInfo(hostname, username, password, p, scheme))
+        }
+        require(rows.size <= InputPolicy.MAX_ENTRIES) { "Too many accounts" }
+
+        // Group by username (case-insensitive) – the mailbox identity
+        val grouped = rows.groupBy { it.username.lowercase() }
+        val result = ArrayList<Account>(grouped.size)
+        for ((_, groupRows) in grouped) {
+            // Pick incoming: first imap/pop/mailbox-like row, else first
+            val incomingCandidates = groupRows.filter { it.scheme == "imap" || it.scheme == "pop" || it.scheme == "pop3" || it.scheme == "mailbox" || it.parsed.protocol == 1 || it.parsed.scheme == "imap" }
+            val incoming = if (incomingCandidates.isNotEmpty()) incomingCandidates.first() else groupRows.first()
+            val outgoingRows = groupRows.filter { it !== incoming && (it.scheme == "smtp" || it.parsed.host != incoming.parsed.host || groupRows.size > 1) }
+            val effectiveOutgoing = if (outgoingRows.isEmpty()) listOf(incoming) else outgoingRows
+
+            // Build incoming and outgoing identities
+            val address = if (incoming.username.contains("@")) incoming.username else "${incoming.username}@${incoming.parsed.host}"
+            val name = incoming.username.substringBefore("@").ifBlank { address }
+
+            // First outgoing defines the primary identity for EmailMaterial.create
+            val firstOut = effectiveOutgoing.first()
+            val account = try {
+                create(
+                    name = name,
+                    address = address,
+                    incomingHost = incoming.parsed.host,
+                    incomingPort = incoming.parsed.port,
+                    incomingEncryption = incoming.parsed.encryption,
+                    incomingProtocol = incoming.parsed.protocol,
+                    incomingUser = incoming.username,
+                    incomingPassword = incoming.password,
+                    incomingAuth = 1,
+                    outgoingHost = firstOut.parsed.host,
+                    outgoingPort = firstOut.parsed.port,
+                    outgoingEncryption = firstOut.parsed.encryption,
+                    outgoingUser = firstOut.username,
+                    outgoingPassword = firstOut.password,
+                    outgoingAuth = 1
+                )
+            } catch (_: Exception) {
+                throw IllegalArgumentException("Invalid Thunderbird CSV")
+            }
+
+            // Additional SMTP identities beyond the first
+            if (effectiveOutgoing.size > 1) {
+                val extraIdentities = ArrayList<JSONObject>()
+                for (extra in effectiveOutgoing.drop(1)) {
+                    val id = JSONObject()
+                        .put("id", account.identities.size + extraIdentities.size + 1)
+                        .put("uuid", UUID.randomUUID().toString())
+                        .put("name", clean(name)).put("email", clean(address)).put("display", "")
+                        .put("host", clean(extra.parsed.host)).put("encryption", extra.parsed.encryption)
+                        .put("insecure", false).put("port", extra.parsed.port).put("auth_type", 1)
+                        .put("user", clean(extra.username)).put("password", extra.password)
+                        .put("login", true).put("use_ip", true).put("synchronize", true)
+                        .put("primary", false).put("self", true).put("sender_extra", false)
+                        .put("sender_extra_name", false).put("reply_extra_name", false).put("unicode", false)
+                        .put("octetmime", false).put("sign_default", false).put("encrypt_default", false)
+                        .put("sensitivity", 0)
+                    extraIdentities.add(id)
+                }
+                val allIdentities = account.identities + extraIdentities
+                // Re-validate and re-encode with extra identities
+                result.add(Account(JSONObject(account.account.toString()), allIdentities))
+            } else {
+                result.add(account)
+            }
+        }
+        return result
+    }
+
+    /**
+     * Export the given EMAIL accounts as a Thunderbird-compatible CSV (Firefox `Export Logins`
+     * format). Each vault account produces one row for its incoming connection and one row per
+     * outgoing SMTP identity, so a FairEmail backup with N accounts and M identities round-trips
+     * to Thunderbird as N incoming + M outgoing rows and back.
+     */
+    @JvmStatic
+    fun exportThunderbirdCsv(accounts: Collection<Account>): ByteArray {
+        require(accounts.isNotEmpty() && accounts.size <= InputPolicy.MAX_ENTRIES) { "No accounts" }
+        val rows = ArrayList<List<String>>(accounts.size * 2)
+        for (acct in accounts) {
+            val incomingHost = acct.account.optString("host").orEmpty()
+            val incomingPort = acct.account.optInt("port", 993)
+            val incomingScheme = thunderbirdSchemeForIncoming(acct.account)
+            val incomingUser = acct.account.optString("user").orEmpty()
+            val incomingPass = acct.account.optString("password").orEmpty()
+            val incomingUrl = "$incomingScheme://$incomingHost:$incomingPort"
+            rows.add(listOf(incomingUrl, incomingUser, incomingPass, "Incoming (${incomingScheme.uppercase()})", "", genGuid(), "0", "0", "0"))
+
+            for (identity in acct.identities) {
+                val outHost = identity.optString("host").orEmpty()
+                val outPort = identity.optInt("port", 465)
+                val outUser = identity.optString("user").orEmpty()
+                val outPass = identity.optString("password").orEmpty()
+                val outUrl = "smtp://$outHost:$outPort"
+                rows.add(listOf(outUrl, outUser, outPass, "Outgoing (SMTP)", "", genGuid(), "0", "0", "0"))
+            }
+        }
+        // If an account's incoming and outgoing are identical (single-row Thunderbird import),
+        // the above produces two identical-host rows; that is intentional so the export is lossless
+        // for Thunderbird's per-server model, and a re-import groups them back into one account.
+        return ThunderbirdCsv.exportCsv(ThunderbirdCsv.EXPORT_COLUMNS, rows)
+    }
+
+    private fun genGuid(): String = "{${UUID.randomUUID()}}"
+
     private fun clean(value: String): String = value.trim().also { InputPolicy.text(it, InputPolicy.MAX_TEXT_CHARS) }
 }

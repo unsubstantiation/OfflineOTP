@@ -23,8 +23,8 @@ import javax.swing.JTextArea
  * Thunderbird stores email logins (hostname — mailbox://, imap://, smtp:// — plus username
  * and password) in its password manager, exportable as the same CSV Firefox uses (url,
  * username, password …) or the hostname-based variant from raw logins.json. OfflineOTP
- * keeps imported logins as PASSWORD entries so they round-trip through encrypted backups,
- * tag/search/sort, and the Passwords-tab details view without needing a separate vault kind.
+ * keeps Thunderbird and FairEmail credentials as the same EMAIL vault entries so either
+ * exporter can write the same account.
  */
 internal object ThunderbirdDialogs {
     private const val IMPORT_TITLE = "Import Thunderbird credentials"
@@ -74,13 +74,13 @@ internal object ThunderbirdDialogs {
     }
 
     fun exportBackup(parent: JFrame, entries: List<Entry>): Boolean {
-        val passwords = entries.filter { it.isPassword() }
-        if (passwords.isEmpty()) {
-            JOptionPane.showMessageDialog(parent, "No credentials to export.",
+        val emails = entries.filter { it.isEmail() }
+        if (emails.isEmpty()) {
+            JOptionPane.showMessageDialog(parent, "No email accounts to export.",
                 EXPORT_TITLE, JOptionPane.INFORMATION_MESSAGE)
             return false
         }
-        val boxes = passwords.map { JCheckBox(plainText("${it.getLabel()} (${it.getIssuer()})")) }
+        val boxes = emails.map { JCheckBox(plainText("${it.getLabel()} (${it.getIssuer()})")) }
         val list = JPanel().apply {
             layout = javax.swing.BoxLayout(this, javax.swing.BoxLayout.Y_AXIS)
             boxes.forEach { add(it) }
@@ -99,7 +99,7 @@ internal object ThunderbirdDialogs {
         }
         if (JOptionPane.showConfirmDialog(parent, body, EXPORT_TITLE,
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return false
-        val selected = passwords.filterIndexed { index, _ -> boxes[index].isSelected }
+        val selected = emails.filterIndexed { index, _ -> boxes[index].isSelected }
         if (selected.isEmpty()) {
             JOptionPane.showMessageDialog(parent, "Select at least one credential to export.",
                 EXPORT_TITLE, JOptionPane.WARNING_MESSAGE)

@@ -23,30 +23,56 @@ class ThunderbirdCsvTest {
         assertEquals("bob@example.com", firefoxStyle.rows[0].valueAt(1))
     }
 
-    @Test fun thunderbirdImportProducesPasswordEntriesAndRoundTrips() {
+    @Test fun thunderbirdImportProducesEmailEntriesAndRoundTrips() {
+        // Two rows with same username (imap + smtp) are grouped into one EMAIL account,
+        // exactly how FairEmail stores an account + its SMTP identity.
         val csv = "\"url\",\"username\",\"password\",\"httpRealm\"\n" +
             "\"imap://mail.example.com\",\"alice@example.com\",\"p@ss,word\",\"Mail\"\n" +
             "\"smtp://smtp.example.com\",\"alice@example.com\",\"s3cr3t\",\"Mail\"\n"
         val entries = ThunderbirdImport.prepare(csv.toByteArray(Charsets.UTF_8))
-        assertEquals(2, entries.size)
-        assertTrue(entries.all { it.isPassword() })
-        // Export should produce canonical Thunderbird CSV that can be re-imported
+        assertEquals(1, entries.size)
+        assertTrue(entries.all { it.isEmail() })
+        // Export should produce canonical Thunderbird CSV (incoming + outgoing rows) that re-imports to the same vault
         val exported = ThunderbirdImport.exportCsv(entries)
         val reparsed = ThunderbirdImport.prepare(exported)
-        assertEquals(2, reparsed.size)
+        assertEquals(1, reparsed.size)
+        assertEquals(entries[0].getEmailAccount().account.getString("host"), reparsed[0].getEmailAccount().account.getString("host"))
         entries.forEach { it.destroy() }
         reparsed.forEach { it.destroy() }
         exported.fill(0)
     }
 
-    @Test fun hostnameAliasIsMappedToUrl() {
+    @Test fun hostnameAliasBecomesEmailHost() {
         val csv = "hostname,username,password\n" +
-            "mailbox://localhost,alice,s3cret\n"
+            "mailbox://localhost,alice@example.com,s3cret\n"
         val entries = ThunderbirdImport.prepare(csv.toByteArray(Charsets.UTF_8))
         assertEquals(1, entries.size)
-        val fields = entries[0].getPasswordFields()
-        assertEquals("mailbox://localhost", fields.value("url"))
+        assertTrue(entries[0].isEmail())
+        val acct = entries[0].getEmailAccount()
+        assertTrue(acct.account.getString("host").isNotEmpty())
+        assertEquals("alice@example.com", acct.address)
         entries.forEach { it.destroy() }
+    }
+
+    @Test fun fairEmailAndThunderbirdShareTheSameEmailEntry() {
+        // A FairEmail account can be written as Thunderbird CSV and read back as the same vault account
+        val fairEmailAccount = EmailMaterial.create(
+            "Alice", "alice@example.com",
+            "mail.example.com", 993, 0, 0, "alice@example.com", "p@ssword", 1,
+            "smtp.example.com", 465, 0, "alice@example.com", "s3cret", 1
+        )
+        val fairEmailBytes = EmailMaterial.exportBackup(listOf(fairEmailAccount))
+        val fromFairEmail = EmailMaterial.importBackup(fairEmailBytes)
+        assertEquals(1, fromFairEmail.size)
+        // Export the same account as Thunderbird CSV
+        val tbBytes = EmailMaterial.exportThunderbirdCsv(fromFairEmail)
+        assertTrue(tbBytes.isNotEmpty())
+        val fromThunderbird = EmailMaterial.importThunderbirdCsv(tbBytes)
+        assertEquals(1, fromThunderbird.size)
+        assertEquals(fromFairEmail[0].address, fromThunderbird[0].address)
+        assertEquals(fromFairEmail[0].account.getString("host"), fromThunderbird[0].account.getString("host"))
+        fairEmailBytes.fill(0)
+        tbBytes.fill(0)
     }
 
     @Test fun rejectsMalformed() {

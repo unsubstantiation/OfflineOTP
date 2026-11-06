@@ -317,7 +317,7 @@ object MainWindow {
             val unlocked = requireUnlocked() ?: return
             val active = editor ?: return
             if (ThunderbirdDialogs.importBackup(frame, active)) {
-                screen.categories.selectedIndex = EntryListPresentation.Category.PASSWORDS.ordinal
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
                 refreshProjection(unlocked)
             }
         }

@@ -25,7 +25,8 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("object ThunderbirdImport", imp)
         self.assertIn("fun prepare(", imp)
         self.assertIn("fun exportCsv(", imp)
-        self.assertIn("Entry.password", imp)
+        # Thunderbird and FairEmail share EMAIL vault storage (unified)
+        self.assertTrue("Entry.email" in imp or "isEmail" in imp, "ThunderbirdImport must handle EMAIL entries")
         # Sandbox must compile the new core sources
         run_sh = (ROOT / "scripts/kotlin-sandbox/run.sh").read_text(encoding="utf-8")
         self.assertIn("ThunderbirdCsv.kt", run_sh)

@@ -1515,14 +1515,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 throw IllegalStateException()
             }
             Toast.makeText(this, R.string.thunderbird_import_success, Toast.LENGTH_LONG).show()
-            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
+            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
         } catch (_: Exception) {
             Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
         } finally { bytes?.fill(0) }
     }
 
     private fun chooseThunderbirdExport() {
-        val entries = adapter?.getEntries()?.filter { it.isPassword() } ?: emptyList()
+        val entries = adapter?.getEntries()?.filter { it.isEmail() } ?: emptyList()
         if (entries.isEmpty()) {
             Toast.makeText(this, R.string.thunderbird_export_empty, Toast.LENGTH_LONG).show()
             return

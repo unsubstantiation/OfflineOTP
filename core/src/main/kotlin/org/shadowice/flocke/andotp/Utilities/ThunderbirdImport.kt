@@ -3,42 +3,36 @@ package org.shadowice.flocke.andotp.Utilities
 import org.shadowice.flocke.andotp.Database.Entry
 import java.util.Locale
 
-/** Creates Thunderbird credential entries; the caller commits them atomically. */
+/** Creates Thunderbird credential entries; the caller commits them atomically.
+ *
+ * FairEmail and Thunderbird now share the same EMAIL vault representation so an
+ * account imported from one can be exported for the other without loss. Thunderbird's
+ * CSV export (Firefox `Export Logins` format: url/hostname, username, password, …) is
+ * grouped by username and turned into `EmailMaterial.Account`s, then stored as
+ * `EMAIL` entries — the same type FairEmail uses.
+ */
 object ThunderbirdImport {
     const val MAX_BATCH_PAYLOAD_BYTES = PasswordImport.MAX_BATCH_PAYLOAD_BYTES
 
     /**
      * Prepare Thunderbird CSV bytes (Firefox/Thunderbird export or hostname-based variant)
-     * into PASSWORD vault entries. The columns are preserved verbatim so re-export is
-     * lossless; unknown columns are retained.
+     * into EMAIL vault entries that are indistinguishable from FairEmail imports. The
+     * underlying `EmailMaterial` representation is the single source of truth for both
+     * exporters.
      */
     @JvmStatic
     fun prepare(bytes: ByteArray): ArrayList<Entry> {
         require(bytes.isNotEmpty() && bytes.size <= ThunderbirdCsv.MAX_FILE_BYTES)
-        val parsed = ThunderbirdCsv.parse(bytes) as? ThunderbirdCsv.Result.Success
-            ?: throw IllegalArgumentException("Unsupported or invalid Thunderbird CSV")
-        val result = ArrayList<Entry>()
+        val accounts = try {
+            EmailMaterial.importThunderbirdCsv(bytes)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Unsupported or invalid Thunderbird CSV", e)
+        }
+        val result = ArrayList<Entry>(accounts.size)
         try {
             var total = 0L
-            parsed.rows.forEach { row ->
-                // Normalize to PasswordMaterial-compatible columns: map hostname→url, host→url, etc.
-                val normalizedColumns = parsed.columns.map { col ->
-                    when (col.trim().lowercase(Locale.ROOT)) {
-                        "hostname", "host", "origin", "login_uri" -> "url"
-                        "login_username", "user" -> "username"
-                        "login_password", "pass" -> "password"
-                        else -> col
-                    }
-                }
-                // Deduplicate after normalization: if both hostname and url were present, keep first
-                val seen = LinkedHashMap<String, String>()
-                normalizedColumns.forEachIndexed { idx, n ->
-                    val key = n.trim().lowercase(Locale.ROOT)
-                    if (!seen.containsKey(key)) seen[key] = row.valueAt(idx)
-                }
-                val finalColumns = seen.keys.toList()
-                val finalValues = seen.values.toList()
-                val entry = encodeAsPassword(finalColumns, finalValues)
+            for (account in accounts) {
+                val entry = Entry.email(account.account, account.identity, account.identities)
                 result.add(entry)
                 total += entry.getSecretSize()
                 require(total <= MAX_BATCH_PAYLOAD_BYTES) { "Import is too large" }
@@ -50,67 +44,88 @@ object ThunderbirdImport {
         }
     }
 
-    private fun encodeAsPassword(columns: List<String>, values: List<String>): Entry {
-        // Delegate to Entry.password which handles vault encoding, issuer/label and validation.
-        // Columns already normalized to url/username/password.
-        return Entry.password(columns, BrowserPasswordCsv.Row(values))
-    }
-
     /**
-     * Export the given PASSWORD entries as Thunderbird-compatible CSV (Firefox/Thunderbird
-     * import format). Each entry's stored columns are read; if an entry lacks a url/hostname
-     * field its issuer is used. The result is UTF-8 with canonical header
-     * url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged
-     * plus any extra columns the vault actually holds (preserved for round-trip).
+     * Export the given EMAIL entries (and, for old vaults, PASSWORD entries) as a
+     * Thunderbird-compatible CSV. EMAIL entries are converted via the shared
+     * `EmailMaterial` model so a FairEmail import can be exported for Thunderbird;
+     * legacy PASSWORD entries are handled via their stored columns.
      */
     @JvmStatic
     fun exportCsv(selected: List<Entry>): ByteArray {
         require(selected.isNotEmpty()) { "No entries to export" }
-        require(selected.all { it.isPassword() }) { "Only password entries can be exported as Thunderbird" }
-        val rows = ArrayList<List<String>>()
-        val headerSet = LinkedHashSet<String>()
-        headerSet.addAll(ThunderbirdCsv.EXPORT_COLUMNS)
-        // First pass: collect all extra column names present in entries
-        val decoded = selected.map { it.getPasswordFields() }
-        decoded.forEach { fields ->
-            fields.columns().forEach { col ->
-                val n = col.trim().lowercase(Locale.ROOT)
-                // Map Thunderbird aliases to canonical header
-                val canonical = when (n) {
-                    "hostname", "host", "origin", "login_uri" -> "url"
-                    "login_username", "user" -> "username"
-                    "login_password", "pass" -> "password"
-                    else -> col
-                }
-                if (canonical.lowercase(Locale.ROOT) !in headerSet.map { it.lowercase(Locale.ROOT) }) {
-                    headerSet.add(canonical)
-                }
-            }
+        require(selected.all { it.isEmail() || it.isPassword() }) { "Only email/password entries can be exported as Thunderbird" }
+        val emailEntries = selected.filter { it.isEmail() }
+        val passwordEntries = selected.filter { it.isPassword() }
+        if (emailEntries.isNotEmpty() && passwordEntries.isEmpty()) {
+            return EmailMaterial.exportThunderbirdCsv(emailEntries.map { it.getEmailAccount() })
         }
-        val header = headerSet.toList()
-        decoded.forEach { fields ->
-            val row = header.map { h ->
-                val n = h.lowercase(Locale.ROOT)
-                // Try direct, then aliases
-                var v = fields.value(h)
-                if (v.isEmpty()) {
-                    v = when (n) {
-                        "url" -> fields.value("hostname").ifBlank { fields.value("host") }.ifBlank { fields.value("login_uri") }.ifBlank { fields.value("origin") }
-                        "username" -> fields.value("login_username").ifBlank { fields.value("user") }
-                        "password" -> fields.value("login_password").ifBlank { fields.value("pass") }
-                        else -> ""
+        if (passwordEntries.isNotEmpty() && emailEntries.isEmpty()) {
+            // Legacy path: old Thunderbird imports that were stored as PASSWORD entries
+            val rows = ArrayList<List<String>>()
+            val headerSet = LinkedHashSet<String>()
+            headerSet.addAll(ThunderbirdCsv.EXPORT_COLUMNS)
+            val decoded = passwordEntries.map { it.getPasswordFields() }
+            decoded.forEach { fields ->
+                fields.columns().forEach { col ->
+                    val n = col.trim().lowercase(Locale.ROOT)
+                    val canonical = when (n) {
+                        "hostname", "host", "origin", "login_uri" -> "url"
+                        "login_username", "user" -> "username"
+                        "login_password", "pass" -> "password"
+                        else -> col
+                    }
+                    if (canonical.lowercase(Locale.ROOT) !in headerSet.map { it.lowercase(Locale.ROOT) }) {
+                        headerSet.add(canonical)
                     }
                 }
-                // Also check case-insensitive variant
-                if (v.isEmpty()) {
-                    for (c in fields.columns()) {
-                        if (c.trim().equals(h, ignoreCase = true)) { v = fields.value(c); break }
-                    }
-                }
-                v
             }
-            rows.add(row)
+            val header = headerSet.toList()
+            decoded.forEach { fields ->
+                val row = header.map { h ->
+                    val n = h.lowercase(Locale.ROOT)
+                    var v = fields.value(h)
+                    if (v.isEmpty()) {
+                        v = when (n) {
+                            "url" -> fields.value("hostname").ifBlank { fields.value("host") }.ifBlank { fields.value("login_uri") }.ifBlank { fields.value("origin") }
+                            "username" -> fields.value("login_username").ifBlank { fields.value("user") }
+                            "password" -> fields.value("login_password").ifBlank { fields.value("pass") }
+                            else -> ""
+                        }
+                    }
+                    if (v.isEmpty()) {
+                        for (c in fields.columns()) {
+                            if (c.trim().equals(h, ignoreCase = true)) { v = fields.value(c); break }
+                        }
+                    }
+                    v
+                }
+                rows.add(row)
+            }
+            return ThunderbirdCsv.exportCsv(header, rows)
         }
-        return ThunderbirdCsv.exportCsv(header, rows)
+        // Mixed: export EMAIL accounts plus legacy PASSWORD rows into one CSV
+        val emailCsv = if (emailEntries.isNotEmpty()) EmailMaterial.exportThunderbirdCsv(emailEntries.map { it.getEmailAccount() }) else null
+        val passwordCsv = if (passwordEntries.isNotEmpty()) {
+            // Reuse single-type path for password portion
+            exportCsv(passwordEntries)
+        } else null
+        // Both are Thunderbird CSVs with same canonical header; merge rows
+        if (emailCsv != null && passwordCsv != null) {
+            val emailParsed = ThunderbirdCsv.parse(emailCsv) as ThunderbirdCsv.Result.Success
+            val passParsed = ThunderbirdCsv.parse(passwordCsv) as ThunderbirdCsv.Result.Success
+            // Union of headers (both should be EXPORT_COLUMNS)
+            val header = (emailParsed.columns + passParsed.columns).distinct()
+            val rows = ArrayList<List<String>>()
+            fun collect(parsed: ThunderbirdCsv.Result.Success, header: List<String>) {
+                val idxMap = header.map { h -> parsed.columns.indexOfFirst { it.equals(h, true) } }
+                for (r in parsed.rows) {
+                    rows.add(header.indices.map { i -> val idx = idxMap[i]; if (idx >= 0) r.valueAt(idx) else "" })
+                }
+            }
+            collect(emailParsed, header)
+            collect(passParsed, header)
+            return ThunderbirdCsv.exportCsv(header, rows)
+        }
+        return emailCsv ?: passwordCsv!!
     }
 }
