@@ -289,16 +289,18 @@ for the app switcher therefore contains no list, no label and no code. A blur wo
 hides — a large glyph stays readable through a modest radius — so the cover is opaque and complete.
 
 Not there yet: the hardware-key features that are Android-only by design and the App Store work.
-OpenPGP backups (`.json.gpg`) are now in progress via the unified Rust backend (`rust/offlineotp-openpgp`,
+OpenPGP backups (`.json.gpg`) are implemented via the unified Rust backend (`rust/offlineotp-openpgp`,
 rpgp 0.21 + UniFFI) that covers all five distributions — Android, Debian, Windows, macOS and iOS — from
 one crate. The crate builds a `cdylib` for JVM targets (JNA) and a `staticlib`/`XCFramework` for Apple
 targets; `RpgpOpenPgpPort` on desktop (`desktop/.../RpgpOpenPgpPort.kt`), `RpgpOpenPgpPort` on Android
 (`app/.../RpgpOpenPgpPort.kt`) and `RustOpenPgpPort`/`OpenPgpBackupCodec` on iOS (`ios/Sources/OfflineOTPKit/OpenPgp.swift`)
-wrap it. The desktop still ships PGPainless as a fallback while every per-platform workflow now
-builds and tests the Rust crate; once the generated bindings are committed PGPainless will be removed.
-The remaining format is:
+wrap it. Generated Kotlin/Swift bindings are committed. Desktop defaults to the native engine and
+keeps PGPainless only as an absent-library fallback; Android CI stages per-ABI `jniLibs`; iOS CI runs
+`scripts/openpgp/build-ios-xcframework.sh`, and Package.swift enables `OFFLINEOTP_OPENPGP_NATIVE`
+when the XCFramework is present. Without that artifact the Swift port fails explicitly with
+`backendUnavailable` rather than pretending to encrypt.
 
-- **OpenPGP backups** (`.json.gpg`) — implementation exists, bindings and per-ABI packaging remain (see Non-goals for the plan, not a non-goal).
+- **OpenPGP backups** (`.json.gpg`) — implemented and packaged by CI; native/interop verification remains a CI/device gate (see Non-goals for the plan, not a non-goal).
 
 Google Authenticator's multi-account export is now imported (M5's first item). A bounded, non-recursive
 reader parses one code of the export; `MigrationBatchCollector` holds the codes of a single export
@@ -348,10 +350,12 @@ kinds (preserved, not edited). Master-password change on device.
 OpenPGP (`.json.gpg`) backups were previously a non-goal because the clients used incompatible
 implementations (Android via external OpenKeychain provider, desktop via embedded PGPainless, iOS with
 none). That gap is now closed by the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI)
-which provides one implementation for all five distributions. The crate, its Kotlin (JNA) and Swift
-(XCFramework) bindings, and the `OpenPgpPort` adapters exist; per-ABI packaging (Android NDK `cargo ndk`,
-Debian/Windows/macOS `cdylib`, iOS `XCFramework` via `uniffi-bindgen`) and the removal of PGPainless
-are the remaining steps, not a design gap. See `rust/offlineotp-openpgp/src/lib.rs` and
+which provides one implementation for all five distributions. The crate, its committed Kotlin (JNA) and
+Swift (XCFramework) bindings, and the `OpenPgpPort` adapters are wired: desktop defaults to the native
+engine, Android CI packages `cargo ndk` `jniLibs`, Debian/Windows/macOS package the host `cdylib`, and
+iOS CI builds the `XCFramework`. PGPainless remains only as a desktop fallback when the native library
+is absent; OpenKeychain remains a supported Android provider path. See
+`rust/offlineotp-openpgp/src/lib.rs`, `scripts/openpgp/README.md` and
 `ios/Sources/OfflineOTPKit/OpenPgp.swift`.
 
 ## Risks

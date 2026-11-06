@@ -1,4 +1,6 @@
 fn main() {
-    // UniFFI scaffolding for `#[uniffi::export]` is handled via `uniffi::setup_scaffolding!`
-    // in src/lib.rs; no build-time UDL generation is needed for the proc-macro backend.
+    // UniFFI scaffolding is generated from the reviewed UDL contract. The same UDL
+    // generates the committed Kotlin/Swift bindings, so the ABI cannot drift from
+    // the Rust implementation.
+    uniffi::generate_scaffolding("src/offlineotp_openpgp.udl").expect("UniFFI scaffolding");
 }

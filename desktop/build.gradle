@@ -18,11 +18,48 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
     }
+    sourceSets {
+        main {
+            // Generated UniFFI Kotlin bindings + NativeApi byte-array facade for the
+            // unified Rust OpenPGP backend. The no-Gradle sandbox omits this directory
+            // and exercises RpgpOpenPgpPort's explicit PGPainless fallback instead.
+            kotlin.srcDir("$rootDir/rust/bindings/kotlin")
+        }
+    }
 }
 
 application {
     // Top-level main() in desktop/Main.kt compiles to the MainKt entry class.
     mainClass = 'com.fairuniversal.offlineotp.desktop.MainKt'
+}
+
+// Unified OpenPGP native library. CI runs `cargo build --manifest-path rust/Cargo.toml`
+// before Gradle; installDist/jpackage bundle the host cdylib next to the app jars and
+// the packaged launcher points JNA at it. A checkout without the Rust build still runs:
+// RpgpOpenPgpPort falls back to PGPainless only when the native library is absent.
+def openPgpNativeReleaseDir = file("$rootDir/rust/target/release")
+def openPgpOsName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def openPgpNativeFileName = openPgpOsName.startsWith('windows') ? 'offlineotp_openpgp.dll' :
+    (openPgpOsName.contains('mac') ? 'libofflineotp_openpgp.dylib' : 'libofflineotp_openpgp.so')
+def openPgpNativeFile = new File(openPgpNativeReleaseDir, openPgpNativeFileName)
+
+tasks.register('stageOpenPgpNative', Copy) {
+    from(openPgpNativeReleaseDir) {
+        include openPgpNativeFileName
+    }
+    into layout.buildDirectory.dir('openpgp-native')
+    onlyIf { openPgpNativeFile.isFile() }
+}
+
+tasks.named('installDist') {
+    dependsOn 'stageOpenPgpNative'
+    from(layout.buildDirectory.dir('openpgp-native')) {
+        into 'lib/native'
+    }
+}
+
+tasks.named('run') {
+    systemProperty 'jna.library.path', openPgpNativeReleaseDir.absolutePath
 }
 
 // Brand artwork: both clients show the same issuer logos. The marks are the Android vector
@@ -68,6 +105,8 @@ tasks.register('packageDesktop', Exec) {
         '--main-jar', "${project.name}.jar",
         '--main-class', 'com.fairuniversal.offlineotp.desktop.MainKt',
         '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
+        // jpackage copies --input into $APPDIR; installDist staged the cdylib in lib/native.
+        '--java-options', '-Djna.library.path=$APPDIR/native',
     ]
     // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated
     // from the shared PNG by the CI job (-PmacIconFile) because it is a binary container; a plain
@@ -99,6 +138,9 @@ dependencies {
     // external OpenPGP provider, but both produce standard RFC 4880 messages. BouncyCastle
     // (bcprov/bcpg/bcutil-jdk18on) and slf4j-api arrive transitively.
     implementation 'org.pgpainless:pgpainless-core:2.0.4'
+
+    // JNA loads the unified Rust OpenPGP cdylib through the generated UniFFI bindings.
+    implementation 'net.java.dev.jna:jna:5.14.0'
 
     // PC/SC security-key support through the yubikit desktop module. Raw HID is intentionally
     // excluded: OfflineOTP only uses javax.smartcardio (CCID) transports, never hid4java. The

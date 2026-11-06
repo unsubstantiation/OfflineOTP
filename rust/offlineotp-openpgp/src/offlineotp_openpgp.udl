@@ -1,0 +1,21 @@
+namespace offlineotp_openpgp {
+    [Throws=OpenPgpError]
+    sequence<u8> encrypt(sequence<u8> plaintext, sequence<sequence<u8>> recipient_key_blocks);
+
+    [Throws=OpenPgpError]
+    sequence<u8> decrypt(sequence<u8> message, sequence<u8> secret_key_block, string? passphrase);
+
+    string rpgp_version();
+    string crate_version();
+};
+
+[Error]
+interface OpenPgpError {
+    InvalidRecipientKey(string reason);
+    InvalidSecretKey(string reason);
+    InvalidMessage(string reason);
+    DecryptionFailed(string reason);
+    EmptyOutput();
+    TooLarge();
+    Internal(string reason);
+};

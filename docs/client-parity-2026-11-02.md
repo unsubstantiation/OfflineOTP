@@ -205,13 +205,14 @@ which is what the desktop client does, since Android's narrower search preferenc
 settings that neither other client reads.
 
 OpenPGP backups (`.json.gpg`) were the third difference — the clients used incompatible implementations
-(Android via external OpenKeychain, desktop via embedded PGPainless, iOS with none). That is now in
-progress via the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI) which provides
-one implementation for all five distributions. The crate builds a `cdylib` for JVM targets (JNA) and a
+(Android via external OpenKeychain, desktop via embedded PGPainless, iOS with none). That is closed by
+the unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI), which provides one implementation for all five distributions. The crate builds a `cdylib` for JVM targets (JNA) and a
 `staticlib`/`XCFramework` for Apple targets; `RpgpOpenPgpPort` on desktop and Android and
-`RustOpenPgpPort`/`OpenPgpBackupCodec` on iOS wrap it. Every per-platform workflow now builds and tests
-the crate on the host; per-ABI packaging and removal of PGPainless remain before the format is truly
-identical, but the design gap is closed.
+`RustOpenPgpPort`/`OpenPgpBackupCodec` on iOS wrap it. Generated Kotlin/Swift bindings are committed,
+desktop defaults to the native engine (PGPainless is only an absent-library fallback), Android CI
+stages per-ABI `jniLibs` while retaining OpenKeychain, and iOS CI builds the XCFramework. Every
+per-platform workflow runs `cargo test` and `cargo build --release`. The remaining honest limits are
+verification limits, not a design gap: native builds/interop run in CI, and exports are still unsigned.
 
 ### Fixed: entry edits now reliably autosave
 
