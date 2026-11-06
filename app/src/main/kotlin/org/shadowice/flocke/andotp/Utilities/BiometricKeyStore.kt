@@ -20,12 +20,13 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Fingerprint quick unlock, mirroring the iOS Face ID quick unlock.
+ * Biometric quick unlock (fingerprint or face), mirroring the iOS Face ID / Touch ID quick unlock.
  *
- * The vault stays password-encrypted (PBKDF2 + AES-GCM). What fingerprint releases is the
+ * The vault stays password-encrypted (PBKDF2 + AES-GCM). What biometrics releases is the
  * *derived vault key* — the 16-byte AES key that the password derives. The vault file, KDF,
  * salt, verifier and GCM tag are untouched; the password still opens the file and a lost or
- * invalidated shortcut costs only the shortcut.
+ * invalidated shortcut costs only the shortcut. Works with fingerprint or strong face
+ * (BIOMETRIC_STRONG) — the system prompt shows whichever is enrolled.
  *
  * Storage: a KeyStore AES key with `setUserAuthenticationRequired(true)` and
  * `setInvalidatedByBiometricEnrollment(true)` encrypts the vault key into SharedPreferences.
@@ -63,7 +64,7 @@ object BiometricKeyStore {
         } catch (_: RuntimeException) { false }
     }
 
-    /** Whether fingerprint unlock can be offered right now. */
+    /** Whether biometric unlock (fingerprint or face) can be offered right now. */
     enum class Availability {
         AVAILABLE,
         NOT_ENROLLED,
@@ -100,22 +101,24 @@ object BiometricKeyStore {
     object BiometricWording {
         const val reason = "Unlock your OfflineOTP vault."
         const val cancel = "Use password"
-        const val switchTitle = "Unlock with fingerprint"
+        const val switchTitle = "Unlock with fingerprint or face"
         const val switchDetail =
-            "Unlock this vault with fingerprint instead of typing the password. The vault stays encrypted " +
-                "with the password: fingerprint only releases a key this device keeps, and the password still " +
-                "works. A second account on this device cannot use it."
+            "Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted " +
+                "with the password: biometrics only releases a key this device keeps, and the password still " +
+                "works. A second account on this device cannot use it. Only strong biometrics are used."
         const val enableQuestion = "Enter the vault password to turn this on."
         const val wrongPassword = "That password does not open this vault."
         const val saveFailed = "This device could not keep the unlock key. Try again."
-        const val unavailable = "This device cannot use fingerprint unlock."
-        const val notEnrolled = "Set up fingerprint on this device first."
-        const val cancelled = "Fingerprint unlock was cancelled. Enter your password."
+        const val unavailable = "This device cannot use biometric unlock."
+        const val notEnrolled = "Set up fingerprint or face unlock on this device first."
+        const val cancelled = "Biometric unlock was cancelled. Enter your password."
         const val lockedOut = "Too many attempts. Enter your password to unlock."
         const val stale =
-            "Fingerprint unlock is no longer set up for this vault. Enter your password, then turn it on again."
-        const val turnedOn = "Fingerprint unlock is on for this vault."
-        const val turnedOff = "Fingerprint unlock is off."
+            "Biometric unlock is no longer set up for this vault. Enter your password, then turn it on again."
+        const val turnedOn = "Biometric unlock is on for this vault."
+        const val turnedOff = "Biometric unlock is off."
+        // Legacy aliases for callers that still reference the old names.
+        const val fingerprintTitle = switchTitle
     }
 
     fun availability(context: Context): Availability {
@@ -321,7 +324,7 @@ object BiometricKeyStore {
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle(switchTitle)
-            .setSubtitle("Confirm fingerprint to enable quick unlock")
+            .setSubtitle("Confirm biometrics to enable quick unlock")
             .setNegativeButtonText(cancel)
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
@@ -334,7 +337,7 @@ object BiometricKeyStore {
     }
 
     /**
-     * Unlock: prompt for biometric and decrypt the stored vault key.
+     * Unlock: prompt for biometric (fingerprint or face) and decrypt the stored vault key.
      * Calls [onResult] on the main thread with the vault key or a [BiometricError].
      */
     fun load(activity: FragmentActivity, onResult: (Result<ByteArray>) -> Unit) {

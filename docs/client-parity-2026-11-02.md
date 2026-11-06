@@ -211,9 +211,4 @@ then swaps the entry in the list, matching `EntryEditor.replace` on the desktop 
 `VaultStore.update` on iOS. `ManualEntryDialog` builds a new entry through `EntryDraft`
 instead of calling `applyEdit` on the live object.
 
-One thing the iOS client has and the other two do not: an optional **Face ID** unlock. It is not a
-format change and it does not touch the vault — it releases the derived key from a Keychain item that
-is bound to the currently enrolled face and never leaves the device, so the password still opens the
-vault and the other clients see exactly the bytes they wrote. It is iOS-only because it is a property
-of the platform's Keychain, not of the vault. The rules, and the reasons for them, are in
-[the iOS client plan](ios-client-plan.md#face-id-and-why-it-does-not-weaken-the-vault).
+Both mobile clients now have an optional **biometric** quick unlock — **Face ID / Touch ID** on iOS and **fingerprint or face** on Android — and the desktop has none. In both cases it is not a format change and it does not touch the vault — it releases the derived key from a platform-bound item (Keychain `kSecAccessControlBiometryCurrentSet` on iOS, KeyStore `BIOMETRIC_STRONG` on Android) that never leaves the device, so the password still opens the vault and the other clients see exactly the bytes they wrote. Android uses `USE_BIOMETRIC` and only strong biometrics; weak face is not accepted. The rules, and the reasons for them, are in [the iOS client plan](ios-client-plan.md#face-id-and-why-it-does-not-weaken-the-vault) and mirrored in `BiometricKeyStore.kt` on Android.

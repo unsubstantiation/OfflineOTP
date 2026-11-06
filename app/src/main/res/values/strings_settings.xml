@@ -120,14 +120,14 @@
     <string name="settings_toast_auth_device_not_secure">Set up a secure lock screen first (Settings → Security →
         Screen lock)</string>
 
-    <string name="settings_title_biometric">Unlock with fingerprint</string>
-    <string name="settings_desc_biometric">Unlock this vault with fingerprint instead of typing the password. The vault stays encrypted with the password: fingerprint only releases a key this device keeps, and the password still works.</string>
-    <string name="settings_toast_biometric_turned_on">Fingerprint unlock is on for this vault.</string>
-    <string name="settings_toast_biometric_turned_off">Fingerprint unlock is off.</string>
-    <string name="settings_toast_biometric_unavailable">This device cannot use fingerprint unlock.</string>
-    <string name="settings_toast_biometric_not_enrolled">Set up fingerprint on this device first.</string>
+    <string name="settings_title_biometric">Unlock with fingerprint or face</string>
+    <string name="settings_desc_biometric">Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted with the password: biometrics only releases a key this device keeps, and the password still works. Only strong biometrics are used.</string>
+    <string name="settings_toast_biometric_turned_on">Biometric unlock is on for this vault.</string>
+    <string name="settings_toast_biometric_turned_off">Biometric unlock is off.</string>
+    <string name="settings_toast_biometric_unavailable">This device cannot use biometric unlock.</string>
+    <string name="settings_toast_biometric_not_enrolled">Set up fingerprint or face unlock on this device first.</string>
     <string name="settings_toast_biometric_save_failed">This device could not keep the unlock key. Try again.</string>
-    <string name="settings_toast_biometric_stale">Fingerprint unlock is no longer set up for this vault. Enter your password, then turn it on again.</string>
+    <string name="settings_toast_biometric_stale">Biometric unlock is no longer set up for this vault. Enter your password, then turn it on again.</string>
 
 
     <string name="settings_toast_encryption_changing">Changing database encryption…</string>
