@@ -22,8 +22,8 @@ from collections import defaultdict
 
 SANDBOX = Path(__file__).resolve().parent
 ROOT = SANDBOX.parents[1]
-KOTLIN_APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-KOTLIN_CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+KOTLIN_CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 
 # Keep in sync with the APP_SOURCES list in run.sh. Parsing run.sh itself keeps the
 # two from drifting apart.
@@ -80,7 +80,7 @@ def render(groups):
         "// Sandbox-only stand-in for the generated resource class.",
         "// Regenerate with scripts/kotlin-sandbox/generate-r-stub.py after changing run.sh's",
         "// source lists. Ids are distinct stand-ins (0x7fTTEEEE), not aapt's resource ids.",
-        "package org.shadowice.flocke.andotp",
+        "package com.fairuniversal.offlineotp",
         "",
         "object R {",
     ]
@@ -106,7 +106,7 @@ def render(groups):
 
 
 def main():
-    stub_path = SANDBOX / "stubs/org/shadowice/flocke/andotp/R.kt"
+    stub_path = SANDBOX / "stubs/com/fairuniversal/offlineotp/R.kt"
     rendered = render(collect())
     if "--check" in sys.argv[1:]:
         current = stub_path.read_text()

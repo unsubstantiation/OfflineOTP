@@ -1,3 +1,5 @@
+import Combine
+import Foundation
 import SwiftUI
 
 /// The app shell.
@@ -29,6 +31,9 @@ struct RootView: View {
             ForestPalette.background.ignoresSafeArea()
             if store.isUnlocked {
                 EntryListView(store: store)
+                    .simultaneousGesture(
+                        TapGesture().onEnded { store.noteUserActivity() }
+                    )
             } else {
                 UnlockView(store: store)
             }
@@ -40,6 +45,16 @@ struct RootView: View {
                 Image(systemName: "lock.fill")
                     .font(.system(size: 44, weight: .light))
                     .foregroundColor(ForestPalette.textHint)
+            }
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                store.checkInactivityAutoLock()
+            }
+        }
+        .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { now in
+            if scenePhase == .active {
+                store.checkInactivityAutoLock(now: now)
             }
         }
     }

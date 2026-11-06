@@ -29,8 +29,8 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 MANIFEST = ROOT / "app/src/main/AndroidManifest.xml"
-KOTLIN_APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-KOTLIN_CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+KOTLIN_CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 LAYOUTS = ROOT / "app/src/main/res/layout"
 VALUES = ROOT / "app/src/main/res/values"
 

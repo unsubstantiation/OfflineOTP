@@ -11,8 +11,8 @@ set -euo pipefail
 
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
-KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
-KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_APP="$ROOT/app/src/main/kotlin/com/fairuniversal/offlineotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/com/fairuniversal/offlineotp"
 OUT="${KOTLIN_SANDBOX_OUT:-$ROOT/reports/kotlin-sandbox/out}"
 
 KOTLINC="${KOTLINC:-$(command -v kotlinc-jvm || command -v kotlinc || true)}"
@@ -183,7 +183,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/View/SimpleDoubleClickListener.kt"
     "$KOTLIN_APP/View/TagsAdapter.kt"
     "$KOTLIN_APP/View/ThumbnailSelectionAdapter.kt"
-    "$ROOT/app/src/fdroid/kotlin/org/shadowice/flocke/andotp/Fragments/AboutFragment.kt"
+    "$ROOT/app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Fragments/AboutFragment.kt"
 )
 
 STUBS=("$SANDBOX"/stubs/android/*.kt
@@ -220,7 +220,7 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/com/google/zxing/common/*.kt
     "$SANDBOX"/stubs/com/google/zxing/qrcode/*.kt
     "$SANDBOX"/stubs/com/mikepenz/aboutlibraries/*.kt
-    "$SANDBOX/stubs/org/shadowice/flocke/andotp/R.kt"
+    "$SANDBOX/stubs/com/fairuniversal/offlineotp/R.kt"
     "$SANDBOX"/stubs/com/yubico/yubikit/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt

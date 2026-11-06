@@ -143,6 +143,11 @@ public struct EntryListQuery: Equatable {
         self.tagFunctionality = tagFunctionality
         self.sortMode = sortMode
     }
+
+    /// Manual drag/move reordering is only valid in the unsorted, unfiltered view (`EntryListPresentation.canDrag`).
+    public var canReorder: Bool {
+        sortMode == .unsorted && text.isEmpty && selectedTags.isEmpty && !includeUntagged
+    }
 }
 
 /// The list projection: category, live search, tag filter and the five orders.

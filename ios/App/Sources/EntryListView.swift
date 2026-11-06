@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import OfflineOTPKit
 
 /// The unlocked vault: the five tabs, a live search, the tag filter, the five orders, and one row
@@ -13,6 +14,13 @@ struct EntryListView: View {
 
     @State private var toast: String?
     @State private var editor: EditorTarget?
+    @State private var tagTarget: IndexedTarget?
+    @State private var passwordTarget: IndexedTarget?
+    @State private var emailTarget: IndexedTarget?
+    @State private var addingEmailAccount = false
+    @State private var archiveExport: BackupFile?
+    @State private var archiveExportName = "passwords.csv"
+    @State private var exportingArchive = false
     @State private var deletion: DeletionTarget?
     @State private var backupsShown = false
     @State private var qrCode: QrTarget?
@@ -29,6 +37,12 @@ struct EntryListView: View {
     private struct EditorTarget: Identifiable {
         let id = UUID()
         let index: Int?
+        var initialKind: EntryKind = .totp
+    }
+
+    private struct IndexedTarget: Identifiable {
+        let id = UUID()
+        let index: Int
     }
 
     /// The confirmation a delete asks, naming the entry as both other clients do.
@@ -55,8 +69,23 @@ struct EntryListView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        editor = EditorTarget(index: nil)
+                    Menu {
+                        Button("Enter account details…") {
+                            editor = EditorTarget(index: nil, initialKind: .totp)
+                        }
+                        Button("Add secure note…") {
+                            editor = EditorTarget(index: nil, initialKind: .note)
+                        }
+                        Button("Add SSH key…") {
+                            editor = EditorTarget(index: nil, initialKind: .sshKey)
+                        }
+                        Button("Add email account…") {
+                            addingEmailAccount = true
+                        }
+                        Divider()
+                        Button("Backups, CSV & QR imports…") {
+                            backupsShown = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .foregroundColor(ForestPalette.textPrimary)
@@ -111,7 +140,27 @@ struct EntryListView: View {
             }
             .animation(.easeInOut(duration: 0.15), value: toast)
             .sheet(item: $editor) { target in
-                EntryEditorView(store: store, index: target.index)
+                EntryEditorView(store: store, index: target.index, initialKind: target.initialKind)
+            }
+            .sheet(item: $tagTarget) { target in
+                TagEditorSheet(store: store, index: target.index)
+            }
+            .sheet(item: $passwordTarget) { target in
+                if store.entries.indices.contains(target.index) {
+                    PasswordDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
+                        copySecret(secret, label: fieldName, from: target.index)
+                    }
+                }
+            }
+            .sheet(item: $emailTarget) { target in
+                if store.entries.indices.contains(target.index) {
+                    EmailDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
+                        copySecret(secret, label: fieldName, from: target.index)
+                    }
+                }
+            }
+            .sheet(isPresented: $addingEmailAccount) {
+                EmailAccountEditorSheet(store: store)
             }
             .sheet(isPresented: $backupsShown) {
                 BackupView(store: store)
@@ -121,6 +170,16 @@ struct EntryListView: View {
             }
             .sheet(item: $qrCode) { target in
                 QrCodeView(title: target.title, payload: target.payload)
+            }
+            .fileExporter(isPresented: $exportingArchive, document: archiveExport,
+                          contentType: .data, defaultFilename: archiveExportName) { result in
+                switch result {
+                case .success(let url):
+                    show("Password file exported to \(url.lastPathComponent)")
+                case .failure:
+                    show("The password file was not exported.")
+                }
+                archiveExport = nil
             }
             .alert("Remove entry?", isPresented: Binding(
                 get: { deletion != nil },
@@ -142,34 +201,48 @@ struct EntryListView: View {
     private var entryList: some View {
         let indices = store.visibleIndices
         if indices.isEmpty {
-            EmptyCategoryView(store: store, onAdd: { editor = EditorTarget(index: nil) })
+            EmptyCategoryView(store: store, onAdd: { openCategoryAdd() })
         } else {
             TimelineView(.periodic(from: Date(), by: 1)) { context in
                 List {
-                    ForEach(indices, id: \.self) { index in
+                    ForEach(Array(indices.enumerated()), id: \.element) { displayedPos, index in
                         let entry = store.entries[index]
                         EntryRowView(
                             entry: entry,
                             code: store.code(for: entry, at: context.date),
                             now: context.date,
                             onCopy: { code in copy(code, from: index) },
+                            onCopyNamed: { secret, itemName in copySecret(secret, label: itemName, from: index) },
                             onReveal: { reveal(index) },
-                            onStep: { step(at: index) }
+                            onStep: { step(at: index) },
+                            onDetails: { openDetails(at: index) }
                         )
                         .listRowBackground(ForestPalette.surface)
                         .contextMenu {
                             EntryMenu(
                                 entry: entry,
+                                canMoveUp: store.canReorder && displayedPos > 0,
+                                canMoveDown: store.canReorder && displayedPos < indices.count - 1,
                                 onCopy: { code in copy(code, from: index) },
+                                onCopyNamed: { secret, itemName in copySecret(secret, label: itemName, from: index) },
                                 onReveal: { reveal(index) },
                                 onStep: { step(at: index) },
                                 onEdit: { editor = EditorTarget(index: index) },
+                                onTags: { tagTarget = IndexedTarget(index: index) },
+                                onDetails: { openDetails(at: index) },
                                 onQr: { showQr(at: index) },
+                                onMoveUp: { _ = store.moveDisplayed(from: displayedPos, to: displayedPos - 1) },
+                                onMoveDown: { _ = store.moveDisplayed(from: displayedPos, to: displayedPos + 1) },
                                 onDelete: {
                                     deletion = DeletionTarget(index: index,
                                                               name: VaultStore.displayName(entry))
                                 })
                         }
+                    }
+                    .onMove { offsets, destination in
+                        guard store.canReorder, let first = offsets.first else { return }
+                        let target = destination > first ? destination - 1 : destination
+                        _ = store.moveDisplayed(from: first, to: target)
                     }
                 }
                 .listStyle(.plain)
@@ -181,6 +254,36 @@ struct EntryListView: View {
 
     // MARK: - Actions
 
+    private func openCategoryAdd() {
+        switch store.category {
+        case .otp: editor = EditorTarget(index: nil, initialKind: .totp)
+        case .notes: editor = EditorTarget(index: nil, initialKind: .note)
+        case .sshKeys: editor = EditorTarget(index: nil, initialKind: .sshKey)
+        case .passwords: backupsShown = true
+        case .emails: addingEmailAccount = true
+        }
+    }
+
+    private func openDetails(at index: Int) {
+        guard store.entries.indices.contains(index) else { return }
+        let entry = store.entries[index]
+        guard entry.detailsVisible else { return }
+        switch entry.kind {
+        case .password:
+            passwordTarget = IndexedTarget(index: index)
+        case .passwordArchive:
+            if let data = entry.passwordArchiveBytes {
+                archiveExportName = entry.label.isEmpty ? "passwords.csv" : entry.label
+                archiveExport = BackupFile(data: data)
+                exportingArchive = true
+            }
+        case .email:
+            emailTarget = IndexedTarget(index: index)
+        default:
+            break
+        }
+    }
+
     private func copy(_ code: String, from index: Int) {
         // A copy is a use: the stamp and the counter **Last used** and **Most used** read, exactly as
         // on the other clients.
@@ -189,6 +292,12 @@ struct EntryListView: View {
         }
         Clipboard.copy(code)
         show("Code copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
+    }
+
+    private func copySecret(_ secret: String, label: String, from index: Int) {
+        _ = store.recordUse(at: index)
+        Clipboard.copy(secret)
+        show("\(label) copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
     }
 
     private func reveal(_ index: Int) {
@@ -397,13 +506,37 @@ struct SortMenu: View {
 /// A concealed entry shows no code and offers no copy — the rule both other clients apply by gating
 /// the copy button on `details_visible`. Its issuer and label stay visible, because they are what
 /// identifies the row a person is trying to reveal.
+struct EntryAvatarView: View {
+    let text: String
+
+    private var initial: String {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let ch = trimmed.first else { return "?" }
+        return String(ch).uppercased()
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 8)
+                .fill(ForestPalette.surfaceVariant)
+                .frame(width: 36, height: 36)
+            Text(initial)
+                .font(.subheadline.weight(.bold))
+                .foregroundColor(ForestPalette.accent)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 struct EntryRowView: View {
     let entry: Entry
     let code: String?
     let now: Date
     let onCopy: (String) -> Void
+    var onCopyNamed: (String, String) -> Void = { _, _ in }
     let onReveal: () -> Void
     let onStep: () -> Void
+    var onDetails: () -> Void = {}
 
     private var kindName: String { entry.kind?.rawValue ?? "ENTRY" }
 
@@ -421,28 +554,47 @@ struct EntryRowView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(ForestPalette.textPrimary)
-                    .lineLimit(1)
-                if !entry.issuer.isEmpty, !entry.label.isEmpty {
-                    Text(entry.label)
-                        .font(.caption)
-                        .foregroundColor(ForestPalette.textSecondary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 14) {
+                EntryAvatarView(text: title)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundColor(ForestPalette.textPrimary)
                         .lineLimit(1)
+                    if !entry.issuer.isEmpty, !entry.label.isEmpty {
+                        Text(entry.label)
+                            .font(.caption)
+                            .foregroundColor(ForestPalette.textSecondary)
+                            .lineLimit(1)
+                    }
+                    if entry.detailsVisible, !entry.hiddenLabel.isEmpty {
+                        Text(entry.hiddenLabel)
+                            .font(.caption)
+                            .foregroundColor(ForestPalette.accent)
+                            .lineLimit(1)
+                    }
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundColor(ForestPalette.textHint)
                 }
-                Text(subtitle)
-                    .font(.caption2)
-                    .foregroundColor(ForestPalette.textHint)
+                // One stop for the name, so VoiceOver does not read three fragments as three items, and
+                // so a long issuer and a long label are read in the order they are drawn.
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("\(title), \(subtitle)")
+                Spacer(minLength: 8)
+                trailing
             }
-            // One stop for the name, so VoiceOver does not read three fragments as three items, and
-            // so a long issuer and a long label are read in the order they are drawn.
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel("\(title), \(subtitle)")
-            Spacer(minLength: 8)
-            trailing
+            if entry.detailsVisible, entry.kind == .note, let note = entry.noteText, !note.isEmpty {
+                Text(note)
+                    .font(.footnote)
+                    .foregroundColor(ForestPalette.textPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(ForestPalette.surfaceVariant)
+                    .cornerRadius(8)
+            }
         }
         .padding(.vertical, 6)
     }
@@ -490,6 +642,46 @@ struct EntryRowView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundColor(ForestPalette.warning)
                 .accessibilityLabel("This entry needs a PIN before it can show a code")
+        } else if entry.kind == .note, let note = entry.noteText {
+            Button("Copy") {
+                onCopyNamed(note, "Note")
+            }
+            .buttonStyle(.bordered)
+            .tint(ForestPalette.primary)
+            .accessibilityLabel("Copy note")
+        } else if entry.kind == .sshKey, let keys = try? entry.sshKeys() {
+            Menu {
+                if !keys.publicKey.isEmpty {
+                    Button("Copy public key") { onCopyNamed(keys.publicKey, "Public key") }
+                }
+                if !keys.privateKey.isEmpty {
+                    Button("Copy private key") { onCopyNamed(keys.privateKey, "Private key") }
+                }
+                if let pw = entry.sshConnection?.password, !pw.isEmpty {
+                    Button("Copy SSH password") { onCopyNamed(pw, "SSH password") }
+                }
+            } label: {
+                Image(systemName: "key.fill")
+                    .foregroundColor(ForestPalette.accent)
+                    .frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Copy SSH credential")
+        } else if entry.kind == .password || entry.kind == .email {
+            Button(action: onDetails) {
+                Text("Details")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .tint(ForestPalette.primary)
+            .accessibilityLabel("Open \(title) details")
+        } else if entry.kind == .passwordArchive {
+            Button(action: onDetails) {
+                Text("Export")
+                    .font(.caption.weight(.semibold))
+            }
+            .buttonStyle(.bordered)
+            .tint(ForestPalette.primary)
+            .accessibilityLabel("Export \(title)")
         } else {
             Image(systemName: "doc.text")
                 .foregroundColor(ForestPalette.textHint)
@@ -511,15 +703,20 @@ struct EntryRowView: View {
         return "Untitled entry"
     }
 
-    /// What the row says under the name: the kind, and for a note or key the reason there is no code.
+    /// What the row says under the name: the kind, and for an SSH key its destination summary when revealed.
     private var subtitle: String {
         guard let kind = entry.kind else { return "Unrecognised entry" }
         let concealed = entry.detailsVisible ? "" : " · concealed"
         switch kind {
-        case .note: return "Note — no code, open it on a client that shows notes" + concealed
-        case .sshKey: return "SSH key — no code" + concealed
-        case .password, .passwordArchive: return "Password archive — no code" + concealed
-        case .email: return "Email account — no code" + concealed
+        case .note: return "Secure note" + concealed
+        case .sshKey:
+            if entry.detailsVisible, let dest = entry.sshConnection?.summary {
+                return "SSH key · \(dest)"
+            }
+            return "SSH key" + concealed
+        case .password: return "Saved password" + concealed
+        case .passwordArchive: return "Password archive" + concealed
+        case .email: return "Email account" + concealed
         case .hotp: return "HOTP · counter \(entry.counter)" + concealed
         case .motp: return (entry.pin.isEmpty ? "mOTP · PIN required" : "mOTP · 10 s") + concealed
         case .steam: return "Steam · \(entry.period) s" + concealed
@@ -529,23 +726,26 @@ struct EntryRowView: View {
 }
 
 /// The row menu: the same actions the other clients offer, gated by the same rules.
-///
-/// Copy, Edit, Tags and QR are unavailable until the entry is revealed; Edit is also unavailable for
-/// the structured kinds this client can only preserve — Android and the desktop disable exactly
-/// those.
 struct EntryMenu: View {
     let entry: Entry
+    var canMoveUp: Bool = false
+    var canMoveDown: Bool = false
     let onCopy: (String) -> Void
+    var onCopyNamed: (String, String) -> Void = { _, _ in }
     let onReveal: () -> Void
     let onStep: () -> Void
     let onEdit: () -> Void
+    var onTags: () -> Void = {}
+    var onDetails: () -> Void = {}
     let onQr: () -> Void
+    var onMoveUp: () -> Void = {}
+    var onMoveDown: () -> Void = {}
     let onDelete: () -> Void
 
     private var editable: Bool {
         guard entry.detailsVisible else { return false }
         switch entry.kind {
-        case .password, .passwordArchive, .email, .sshKey, nil: return false
+        case .password, .passwordArchive, .email, nil: return false
         default: return true
         }
     }
@@ -554,8 +754,6 @@ struct EntryMenu: View {
         Button(entry.detailsVisible ? "Conceal" : "Reveal", action: onReveal)
         if entry.detailsVisible, entry.kind?.isOtp == true {
             Button("Copy code") {
-                // The row already holds the code it drew; the menu asks the same generator again so
-                // a stale value can never be copied from a menu that was open across a step.
                 if let code = try? entry.code(unixTime: Int64(Date().timeIntervalSince1970)) {
                     onCopy(code)
                 }
@@ -564,14 +762,48 @@ struct EntryMenu: View {
                 Button("Step counter", action: onStep)
             }
         }
-        // Only an entry with an `otpauth://` form has a code to show, and showing it means showing
-        // the secret, so it follows the same reveal gate as copying.
+        if entry.detailsVisible, entry.kind == .note, let note = entry.noteText {
+            Button("Copy note") { onCopyNamed(note, "Note") }
+        }
+        if entry.detailsVisible, entry.kind == .sshKey, let keys = try? entry.sshKeys() {
+            if !keys.publicKey.isEmpty {
+                Button("Copy public key") { onCopyNamed(keys.publicKey, "Public key") }
+            }
+            if !keys.privateKey.isEmpty {
+                Button("Copy private key") { onCopyNamed(keys.privateKey, "Private key") }
+            }
+            if let pw = entry.sshConnection?.password, !pw.isEmpty {
+                Button("Copy SSH password") { onCopyNamed(pw, "SSH password") }
+            }
+        }
+        if entry.kind == .password {
+            Button("View password details…", action: onDetails)
+                .disabled(!entry.detailsVisible)
+            if entry.detailsVisible, let pw = (try? entry.passwordFields())?.value("password"), !pw.isEmpty {
+                Button("Copy password") { onCopyNamed(pw, "Password") }
+            }
+        }
+        if entry.kind == .passwordArchive {
+            Button("Export password file…", action: onDetails)
+                .disabled(!entry.detailsVisible)
+        }
+        if entry.kind == .email {
+            Button("View email details…", action: onDetails)
+                .disabled(!entry.detailsVisible)
+        }
         if entry.kind?.isOtp == true {
             Button("Show QR code…", action: onQr)
                 .disabled(!entry.detailsVisible)
         }
         Button("Edit…", action: onEdit)
             .disabled(!editable)
+        Button("Tags…", action: onTags)
+            .disabled(!entry.detailsVisible)
+        if canMoveUp || canMoveDown {
+            Divider()
+            Button("Move up", action: onMoveUp).disabled(!canMoveUp)
+            Button("Move down", action: onMoveDown).disabled(!canMoveDown)
+        }
         Button("Remove…", role: .destructive, action: onDelete)
             .disabled(!entry.detailsVisible)
     }
@@ -650,10 +882,10 @@ struct EmptyCategoryView: View {
         }
         switch store.category {
         case .otp: return "Time-based and counter-based codes appear here."
-        case .notes: return "Secure notes are listed here; they have no code."
-        case .sshKeys: return "SSH keys are listed here. This build shows them but cannot create them."
-        case .passwords: return "Password archives are listed here; only an import creates them."
-        case .emails: return "Email accounts are listed here; only an import creates them."
+        case .notes: return "Add a secure note to store encrypted text in your vault."
+        case .sshKeys: return "Add an SSH key or import a LinSCP credential vault."
+        case .passwords: return "Import a browser password CSV or LinSCP session file."
+        case .emails: return "Add an email account or import FairEmail / Thunderbird credentials."
         }
     }
 }

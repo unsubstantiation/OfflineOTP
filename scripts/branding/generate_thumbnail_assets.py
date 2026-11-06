@@ -20,9 +20,9 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-ENUM_SOURCE = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EntryThumbnail.kt"
+ENUM_SOURCE = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/EntryThumbnail.kt"
 DRAWABLE_DIR = ROOT / "app/src/main/res/drawable"
-OUTPUT = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/ThumbnailAssets.kt"
+OUTPUT = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/ThumbnailAssets.kt"
 
 # `Name(R.drawable.thumb_x)` / `Name(R.drawable.thumb_x, AssetType.Bitmap)`.
 ENTRY = re.compile(r"^\s{8}(\w+)\(R\.(?:drawable|mipmap)\.(\w+)", re.MULTILINE)
@@ -44,7 +44,7 @@ def entries():
 
 def render():
     lines = [
-        "package org.shadowice.flocke.andotp.Utilities",
+        "package com.fairuniversal.offlineotp.Utilities",
         "",
         "/**",
         " * Bundled brand artwork shared by both clients: which Android vector drawable backs each",

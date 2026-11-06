@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DIALOG = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Dialogs/ManualEntryDialog.kt"
+DIALOG = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Dialogs/ManualEntryDialog.kt"
 LAYOUT = ROOT / "app/src/main/res/layout/dialog_manual_entry.xml"
 STRINGS = ROOT / "app/src/main/res/values/strings_main.xml"
 

@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-APP_KOTLIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
+APP_KOTLIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
 RES_MENU = ROOT / "app/src/main/res/menu"
 
 

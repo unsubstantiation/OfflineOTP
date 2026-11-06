@@ -20,9 +20,9 @@ SOURCES = APP / "Sources"
 APP_TESTS = APP / "Tests"
 PALETTE = (SOURCES / "ForestPalette.swift").read_text(encoding="utf-8")
 KIT = IOS / "Sources/OfflineOTPKit"
-UTILITIES = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
+UTILITIES = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
 ANDROID_VALUES = ROOT / "app/src/main/res/values"
-FOREST = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/ForestTheme.kt"
+FOREST = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/ForestTheme.kt"
 WORKFLOW = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
 
 
@@ -149,7 +149,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("InputPolicy.minVaultPasswordChars", store)
         policy = (IOS / "Sources/OfflineOTPKit/InputPolicy.swift").read_text(encoding="utf-8")
         self.assertIn("minVaultPasswordChars = 6", policy)
-        constants = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/Constants.kt"
+        constants = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Constants.kt"
                      ).read_text(encoding="utf-8")
         self.assertIn("const val AUTH_MIN_PASSWORD_LENGTH = 6", constants)
         # The PIN login was removed from the phone; no client may reintroduce a shorter minimum.
@@ -171,7 +171,7 @@ class IosAppTest(unittest.TestCase):
         """Five tabs, the same order, the same titles, and no entry kind without a home."""
         projection = (IOS / "Sources/OfflineOTPKit/EntryListProjection.swift").read_text(
             encoding="utf-8")
-        presentation = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/View/"
+        presentation = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/View/"
                         "EntryListPresentation.kt").read_text(encoding="utf-8")
         # The category set and its order come from the shared enum.
         kotlin_categories = [match.strip() for match in re.findall(
@@ -204,7 +204,7 @@ class IosAppTest(unittest.TestCase):
     def test_the_five_orders_and_the_tag_rules_match_the_shared_enums(self):
         projection = (IOS / "Sources/OfflineOTPKit/EntryListProjection.swift").read_text(
             encoding="utf-8")
-        constants = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/"
+        constants = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/"
                      "Constants.kt").read_text(encoding="utf-8")
         self.assertIn("enum class SortMode {", constants)
         self.assertIn("UNSORTED, ISSUER, LABEL, LAST_USED, MOST_USED", constants)
@@ -222,7 +222,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("includeUntagged", projection)
         # The sort preference is a client preference stored beside the vault, under the desktop
         # client's key, never inside `secrets.dat`.
-        controller = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/control/"
+        controller = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/"
                       "VaultController.kt").read_text(encoding="utf-8")
         self.assertIn('const val SORT_MODE_KEY = "ui_sort_mode"', controller)
         self.assertIn('public static let settingsKey = "ui_sort_mode"', projection)
@@ -232,7 +232,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_usage_rules_match_the_shared_entry_usage(self):
         usage = (IOS / "Sources/OfflineOTPKit/EntryUsage.swift").read_text(encoding="utf-8")
-        shared = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/"
+        shared = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/"
                   "EntryUsage.kt").read_text(encoding="utf-8")
         self.assertIn("const val MAX_COUNTER: Long = Long.MAX_VALUE - 1", shared)
         self.assertIn("maxCounter: Int64 = Int64.max - 1", usage)
@@ -258,13 +258,12 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_manual_form_offers_only_what_it_can_build(self):
         draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
-        shared = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/"
+        shared = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database/"
                   "EntryDraft.kt").read_text(encoding="utf-8")
         self.assertIn("it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && "
                       "it != Entry.OTPType.EMAIL", shared)
-        self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]", draft)
-        # SSH keys are the one kind the shared list has and this one does not: their seed is framed
-        # material this build cannot produce, and a wrong frame would be unreadable elsewhere.
+        self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note, .sshKey]",
+                      draft)
         self.assertIn("SshKeyMaterial", draft)
         editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
         self.assertIn("ForEach(EntryDraft.offerableKinds", editor)
@@ -276,7 +275,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_an_edit_keeps_the_metadata_the_form_does_not_show(self):
         draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
-        dialog = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/"
+        dialog = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/"
                   "EntryDialog.kt").read_text(encoding="utf-8")
         for field in ("setDetailsVisible", "setLastUsed", "setUsedFrequency"):
             self.assertIn(f"replacement.{field}(existing", dialog)
@@ -286,7 +285,8 @@ class IosAppTest(unittest.TestCase):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
                      "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
-                     "MigrationImportView.swift", "SettingsView.swift"):
+                     "MigrationImportView.swift", "SettingsView.swift",
+                     "CredentialDetailViews.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
@@ -383,7 +383,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_a_link_round_trips_through_the_shared_field_order(self):
         """`Entry.toUriString`'s order is what `Show QR code` shows, so it is pinned here too."""
-        kotlin = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt"
+        kotlin = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database/Entry.kt"
                   ).read_text(encoding="utf-8")
         for piece in ('query["secret"]', 'query["issuer"]', 'query["counter"]',
                       'query["period"]', 'query["digits"]', 'query["algorithm"]',
@@ -423,7 +423,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("replace ? fresh : fresh + current", swift)
         self.assertIn("Set(merged).count == merged.count", swift)
         # The summary is the desktop's sentence, because Android's toast says only "Backup restored."
-        dialogs = (ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui/"
+        dialogs = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/"
                    "BackupDialogs.kt").read_text(encoding="utf-8")
         self.assertIn('"Merged $count new entr', dialogs)
         self.assertIn('"The backup had no entries the vault does not already hold."', dialogs)
@@ -551,12 +551,12 @@ class IosAppTest(unittest.TestCase):
         self.assertIn('"This export has more accounts than the vault can import."', swift)
         self.assertIn('"Unnamed account"', swift)
         # Android keeps the progress sheet open for a refused code and shows the same sentence.
-        activity = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/"
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/"
                     "MainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("MigrationBatchStatus.DUPLICATE ->", activity)
         self.assertIn("dismissMigrationImport()", activity)
         # An identical account is skipped, not imported twice: Android's `importEntries` rule.
-        adapter = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/View/"
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/"
                    "EntriesCardAdapter.kt").read_text(encoding="utf-8")
         self.assertIn("if (!distinct.add(entry))", adapter)
         self.assertIn("EntryUsage.markImported(it, now)", adapter)
@@ -566,7 +566,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_an_identical_account_is_decided_the_way_entry_equals_decides_it(self):
         """Android compares the *account*, not the field bag, so the port has to compare the same."""
-        kotlin = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database/Entry.kt"
+        kotlin = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database/Entry.kt"
                   ).read_text(encoding="utf-8")
         equals = kotlin.split("override fun equals(other: Any?)", 1)[1].split("override fun hashCode",
                                                                             1)[0]

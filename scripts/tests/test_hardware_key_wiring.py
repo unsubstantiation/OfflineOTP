@@ -8,8 +8,8 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main"
-KOTLIN = APP / "kotlin/org/shadowice/flocke/andotp"
-CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN = APP / "kotlin/com/fairuniversal/offlineotp"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 

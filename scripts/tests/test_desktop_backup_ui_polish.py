@@ -15,9 +15,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DESKTOP_UI = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop/ui"
-CORE_KOTLIN = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
-APP_KOTLIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Utilities"
+DESKTOP_UI = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui"
+CORE_KOTLIN = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
+APP_KOTLIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
 
 
 def read(path):
@@ -49,7 +49,7 @@ class DatedBackupNameTest(unittest.TestCase):
                       read(ROOT / "scripts/kotlin-sandbox/run.sh"))
 
     def test_core_helper_has_a_jvm_test(self):
-        test = read(ROOT / "core/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/BackupFileNamesTest.kt")
+        test = read(ROOT / "core/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/BackupFileNamesTest.kt")
         self.assertIn("BackupFileNames.encrypted(", test)
         self.assertIn("BackupFileNames.openPgp(", test)
 
@@ -87,7 +87,7 @@ class NewBackupPasswordTest(unittest.TestCase):
         self.assertIn("panel.clear()", dialog)
 
     def test_desktop_tests_cover_the_panel(self):
-        test = read(ROOT / "desktop/src/test/kotlin/org/shadowice/flocke/andotp/desktop/ui/"
+        test = read(ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/ui/"
                            "NewBackupPasswordPanelTest.kt")
         self.assertIn("setPasswordVisible(true)", test)
         self.assertIn("confirmButtonEnabled", test)

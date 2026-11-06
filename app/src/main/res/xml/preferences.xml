@@ -8,7 +8,7 @@
         android:key="@string/settings_key_cat_security"
         android:title="@string/settings_category_title_security">
 
-        <org.shadowice.flocke.andotp.Preferences.NumberPickerPreference
+        <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
             android:key="@string/settings_key_tap_to_reveal_timeout"
             android:title="@string/settings_title_tap_to_reveal_timeout"
             android:dialogMessage="@string/settings_desc_tap_to_reveal_timeout"
@@ -17,7 +17,7 @@
             app:maxValue="@integer/settings_max_tap_to_reveal_timeout"
             app:wrapSelectorWheel="false" />
 
-        <org.shadowice.flocke.andotp.Preferences.CredentialsPreference
+        <com.fairuniversal.offlineotp.Preferences.CredentialsPreference
             android:key="@string/settings_key_auth"
             android:title="@string/settings_title_auth" />
 
@@ -67,7 +67,7 @@
             android:summary="@string/settings_desc_auth_inactivity"
             android:defaultValue="false" />
 
-        <org.shadowice.flocke.andotp.Preferences.NumberPickerPreference
+        <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
             android:key="@string/settings_key_auth_inactivity_delay"
             android:title="@string/settings_title_auth_inactivity_delay"
             android:dialogMessage="@string/settings_desc_auth_inactivity_delay"
@@ -161,7 +161,7 @@
             android:summary="@string/settings_desc_show_prev_token"
             android:defaultValue="false" />
 
-        <org.shadowice.flocke.andotp.Preferences.NumberPickerPreference
+        <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
             android:key="@string/settings_key_label_size"
             android:title="@string/settings_title_label_size"
             android:defaultValue="@integer/settings_default_label_size"
@@ -274,7 +274,7 @@
             android:title="@string/settings_title_backup_location"
             android:summary="@string/settings_desc_backup_location" />
 
-        <org.shadowice.flocke.andotp.Preferences.PasswordEncryptedPreference
+        <com.fairuniversal.offlineotp.Preferences.PasswordEncryptedPreference
             android:key="@string/settings_key_backup_password_enc"
             android:title="@string/settings_title_backup_password"
             android:summary="@string/settings_desc_backup_password" />

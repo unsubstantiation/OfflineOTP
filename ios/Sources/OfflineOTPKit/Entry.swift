@@ -128,8 +128,7 @@ public struct Entry: Equatable, Hashable {
     /// The SSH connection target that makes two otherwise identical SSH entries different accounts —
     /// `SshConnection.identityKey` on the JVM. The password is deliberately not part of it.
     private var sshIdentity: [String]? {
-        guard let host = sshHost else { return nil }
-        return [host, sshPort.map(String.init) ?? "", sshUsername ?? ""]
+        sshConnection?.identityKey
     }
 
     /// Equality as `Entry.equals` defines it on the JVM — the *account*, not the field bag.
@@ -177,6 +176,46 @@ public struct Entry: Equatable, Hashable {
     public var sshPort: Int? { fields["ssh_port"]?.intValue.map(Int.init) }
     public var sshUsername: String? { fields["ssh_username"]?.stringValue }
     public var sshPassword: String? { fields["ssh_password"]?.stringValue }
+
+    /// Validated SSH connection metadata when kind is `.sshKey` and at least one field is present.
+    public var sshConnection: SshConnection.Details? {
+        guard kind == .sshKey else { return nil }
+        let host = sshHost ?? ""
+        let port = sshPort ?? 0
+        let user = sshUsername ?? ""
+        let pass = sshPassword ?? ""
+        return try? SshConnection.of(host: host, port: port, username: user, password: pass)
+    }
+
+    /// Decodes the framed public/private SSH key pair for `.sshKey` entries.
+    public func sshKeys() throws -> SshKeyMaterial.Pair {
+        guard kind == .sshKey, let bytes = secretBytes else {
+            throw EntryError.invalidSecret
+        }
+        return try SshKeyMaterial.decode(bytes)
+    }
+
+    /// Decodes the `PWD1` column fields for `.password` entries.
+    public func passwordFields() throws -> PasswordMaterial.Fields {
+        guard kind == .password, let bytes = secretBytes else {
+            throw EntryError.invalidSecret
+        }
+        return try PasswordMaterial.decode(bytes)
+    }
+
+    /// Original unparsed file bytes for `.passwordArchive` entries.
+    public var passwordArchiveBytes: Data? {
+        guard kind == .passwordArchive, let bytes = secretBytes else { return nil }
+        return Data(bytes)
+    }
+
+    /// Decodes the FairEmail transport metadata for `.email` entries.
+    public func emailAccount() throws -> EmailMaterial.Account {
+        guard kind == .email, let bytes = secretBytes else {
+            throw EntryError.invalidSecret
+        }
+        return try EmailMaterial.decode(bytes)
+    }
 
     /// Shown instead of a code while an mOTP entry has no PIN before it. Same text and same rule as
     /// `Entry.MOTP_NO_PIN_CODE` in `:core`.
@@ -317,7 +356,169 @@ public struct Entry: Equatable, Hashable {
                 throw EntryError.invalidNote
             }
         }
+        if kind == .sshKey {
+            if let portVal = object["ssh_port"] {
+                guard let port = portVal.intValue,
+                      (Int64(SshConnection.minPort)...Int64(SshConnection.maxPort)).contains(port) else {
+                    throw EntryError.invalidParameters
+                }
+            }
+            for key in ["ssh_host", "ssh_username", "ssh_password"] where object[key] != nil {
+                guard object[key]?.stringValue != nil else { throw EntryError.invalidParameters }
+            }
+            do {
+                _ = try SshConnection.of(
+                    host: entry.sshHost ?? "",
+                    port: entry.sshPort ?? 0,
+                    username: entry.sshUsername ?? "",
+                    password: entry.sshPassword ?? ""
+                )
+            } catch {
+                throw EntryError.invalidParameters
+            }
+        }
         return entry
+    }
+
+    // MARK: - Credential Factories
+
+    public static func sshKey(
+        publicKey: String,
+        privateKey: String,
+        issuer: String,
+        label: String,
+        tags: [String] = [],
+        connection: SshConnection.Details? = nil,
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedIssuer = issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedLabel.isEmpty || !trimmedIssuer.isEmpty else {
+            throw EntryError.invalidParameters
+        }
+        let material = try SshKeyMaterial.encode(publicKey: publicKey, privateKey: privateKey)
+        var fields: [String: JSONValue] = [
+            "secret": .string(Base32.encode(material)),
+            "issuer": .string(issuer),
+            "label": .string(label),
+            "digits": .int(Int64(TokenCalculator.totpDefaultDigits)),
+            "type": .string(EntryKind.sshKey.rawValue),
+            "algorithm": .string(OtpHashAlgorithm.sha1.rawValue),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer.isEmpty ? label : issuer)),
+            "last_used": .int(now),
+            "used_frequency": .int(0),
+            "tags": .array(EntryDraft.cleanedTags(tags).map { .string($0) }),
+        ]
+        if let connection, connection.isSet {
+            if !connection.host.isEmpty { fields["ssh_host"] = .string(connection.host) }
+            if connection.port != 0 { fields["ssh_port"] = .int(Int64(connection.port)) }
+            if !connection.username.isEmpty { fields["ssh_username"] = .string(connection.username) }
+            if !connection.password.isEmpty { fields["ssh_password"] = .string(connection.password) }
+        }
+        return try parse(.object(fields))
+    }
+
+    public static func password(
+        columns: [String],
+        row: BrowserPasswordCsv.Row,
+        tags: [String] = [],
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        let material = try PasswordMaterial.encode(columns: columns, row: row)
+        let decoded = try PasswordMaterial.decode(material)
+        let nameVal = decoded.value("name").trimmingCharacters(in: .whitespacesAndNewlines)
+        let titleVal = decoded.value("title").trimmingCharacters(in: .whitespacesAndNewlines)
+        let urlVal = decoded.value("url").trimmingCharacters(in: .whitespacesAndNewlines)
+        let issuer = !nameVal.isEmpty ? decoded.value("name") : (!titleVal.isEmpty ? decoded.value("title") : decoded.value("url"))
+        let username = decoded.value("username")
+        let label = username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Password" : username
+        let fields: [String: JSONValue] = [
+            "secret": .string(Base32.encode(material)),
+            "issuer": .string(issuer),
+            "label": .string(label),
+            "digits": .int(Int64(TokenCalculator.totpDefaultDigits)),
+            "type": .string(EntryKind.password.rawValue),
+            "algorithm": .string(OtpHashAlgorithm.sha1.rawValue),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer.isEmpty ? urlVal : issuer)),
+            "last_used": .int(now),
+            "used_frequency": .int(0),
+            "tags": .array(EntryDraft.cleanedTags(tags).map { .string($0) }),
+        ]
+        return try parse(.object(fields))
+    }
+
+    public static func passwordFields(
+        label: String,
+        issuer: String,
+        fields columnFields: [PasswordMaterial.Field],
+        tags: [String] = [],
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        let material = try PasswordMaterial.encodeFields(columnFields)
+        _ = try PasswordMaterial.decode(material)
+        let thumbSeed = issuer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? label : issuer
+        let fields: [String: JSONValue] = [
+            "secret": .string(Base32.encode(material)),
+            "issuer": .string(issuer),
+            "label": .string(label),
+            "digits": .int(Int64(TokenCalculator.totpDefaultDigits)),
+            "type": .string(EntryKind.password.rawValue),
+            "algorithm": .string(OtpHashAlgorithm.sha1.rawValue),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(thumbSeed)),
+            "last_used": .int(now),
+            "used_frequency": .int(0),
+            "tags": .array(EntryDraft.cleanedTags(tags).map { .string($0) }),
+        ]
+        return try parse(.object(fields))
+    }
+
+    public static func passwordArchive(
+        filename: String,
+        data: Data,
+        tags: [String] = [],
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        guard !data.isEmpty, data.count <= PasswordMaterial.maxBytes else {
+            throw EntryError.invalidSecret
+        }
+        let cleanName = filename.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "passwords.csv" : filename
+        let fields: [String: JSONValue] = [
+            "secret": .string(Base32.encode([UInt8](data))),
+            "issuer": .string(""),
+            "label": .string(cleanName),
+            "digits": .int(Int64(TokenCalculator.totpDefaultDigits)),
+            "type": .string(EntryKind.passwordArchive.rawValue),
+            "algorithm": .string(OtpHashAlgorithm.sha1.rawValue),
+            "thumbnail": .string(ThumbnailCatalog.defaultName),
+            "last_used": .int(now),
+            "used_frequency": .int(0),
+            "tags": .array(EntryDraft.cleanedTags(tags).map { .string($0) }),
+        ]
+        return try parse(.object(fields))
+    }
+
+    public static func email(
+        account: EmailMaterial.Account,
+        tags: [String] = [],
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        let material = try EmailMaterial.encode(account: account.account, identities: account.identities)
+        let issuer = account.address
+        let rawName = account.account["name"]?.stringValue ?? ""
+        let label = rawName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? issuer : rawName
+        let fields: [String: JSONValue] = [
+            "secret": .string(Base32.encode(material)),
+            "issuer": .string(issuer),
+            "label": .string(label),
+            "digits": .int(Int64(TokenCalculator.totpDefaultDigits)),
+            "type": .string(EntryKind.email.rawValue),
+            "algorithm": .string(OtpHashAlgorithm.sha1.rawValue),
+            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer)),
+            "last_used": .int(now),
+            "used_frequency": .int(0),
+            "tags": .array(EntryDraft.cleanedTags(tags).map { .string($0) }),
+        ]
+        return try parse(.object(fields))
     }
 }
 

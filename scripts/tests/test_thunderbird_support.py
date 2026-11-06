@@ -4,9 +4,9 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
-APP = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
+APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 
 
 class ThunderbirdSupportTest(unittest.TestCase):
@@ -33,7 +33,7 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("ThunderbirdImport.kt", run_sh)
 
     def test_core_thunderbird_has_tests(self):
-        test = (ROOT / "core/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/ThunderbirdCsvTest.kt").read_text(encoding="utf-8")
+        test = (ROOT / "core/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/ThunderbirdCsvTest.kt").read_text(encoding="utf-8")
         self.assertIn("ThunderbirdCsv", test)
         self.assertIn("ThunderbirdImport", test)
         self.assertIn("hostname", test.lower())

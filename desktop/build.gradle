@@ -22,7 +22,7 @@ kotlin {
 
 application {
     // Top-level main() in desktop/Main.kt compiles to the MainKt entry class.
-    mainClass = 'org.shadowice.flocke.andotp.desktop.MainKt'
+    mainClass = 'com.fairuniversal.offlineotp.desktop.MainKt'
 }
 
 // Brand artwork: both clients show the same issuer logos. The marks are the Android vector
@@ -66,7 +66,7 @@ tasks.register('packageDesktop', Exec) {
         '--name', 'OfflineOTP',
         '--input', layout.buildDirectory.dir('install/desktop/lib').get().asFile.absolutePath,
         '--main-jar', "${project.name}.jar",
-        '--main-class', 'org.shadowice.flocke.andotp.desktop.MainKt',
+        '--main-class', 'com.fairuniversal.offlineotp.desktop.MainKt',
         '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
     ]
     // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated

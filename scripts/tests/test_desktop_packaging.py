@@ -31,7 +31,7 @@ class DesktopPackagingTest(unittest.TestCase):
     def test_jpackage_task_is_guarded_and_targets_the_main_class(self):
         self.assertIn("tasks.register('packageDesktop', Exec)", self.build)
         self.assertIn("bin/jpackage", self.build)
-        self.assertIn("--main-class', 'org.shadowice.flocke.andotp.desktop.MainKt'", self.build)
+        self.assertIn("--main-class', 'com.fairuniversal.offlineotp.desktop.MainKt'", self.build)
         self.assertIn("--type', 'app-image'", self.build)
         # A JRE without jpackage must skip the task instead of breaking other builds.
         self.assertIn("onlyIf { jpackage.canExecute() }", self.build)

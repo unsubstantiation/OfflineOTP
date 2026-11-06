@@ -3,7 +3,7 @@ import XCTest
 @testable import OfflineOTPKit
 
 /// RFC 7693 (BLAKE2b) and RFC 9106 (Argon2id v1.3) known-answer vectors plus cross-client parity
-/// vectors shared with `core/src/test/kotlin/org/shadowice/flocke/andotp/Utilities/Argon2idTest.kt`.
+/// vectors shared with `core/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/Argon2idTest.kt`.
 final class Argon2idTests: XCTestCase {
     private func hex(_ bytes: [UInt8]) -> String {
         bytes.map { String(format: "%02x", $0) }.joined()

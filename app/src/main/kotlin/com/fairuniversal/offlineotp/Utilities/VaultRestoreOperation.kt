@@ -1,0 +1,78 @@
+package com.fairuniversal.offlineotp.Utilities
+
+import android.content.Context
+import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
+import com.fairuniversal.offlineotp.Tasks.UiBasedBackgroundTask
+
+import java.util.ArrayList
+import java.util.function.BooleanSupplier
+import javax.crypto.SecretKey
+
+/**
+ * Synchronous restore use case. Owns all decoded/loaded entries until it destroys them; no secret
+ * payload escapes in the result. The screen owns consent, document access and rendering only.
+ */
+class VaultRestoreOperation(context: Context) {
+    enum class Result {
+        SAVED, EMPTY_IMPORT, INVALID_IMPORT, VAULT_UNAVAILABLE, SAVE_FAILED,
+        SESSION_REVOKED, RECOVERY_REQUIRED, OPERATION_FAILED
+    }
+
+    private val persistence: EntryPersistence = EntryPersistence(context)
+    private val settings: Settings = Settings(context.getApplicationContext())
+
+    private fun authorized(key: SecretKey?, generation: Long, permitted: BooleanSupplier): Boolean {
+        return permitted.getAsBoolean() && VaultSession.isCurrent(generation)
+                && key != null && VaultSession.getKey() === key
+    }
+
+    fun restore(text: String, replace: Boolean, key: SecretKey?, generation: Long,
+                permitted: BooleanSupplier): Result = restore(text, replace, key, generation, permitted, null)
+
+    fun restore(text: String, replace: Boolean, key: SecretKey?, generation: Long,
+                permitted: BooleanSupplier,
+                backupCallback: UiBasedBackgroundTask.OutcomeCallback<BackupTaskResult>?): Result {
+        val imported = ArrayList<Entry>()
+        val current = ArrayList<Entry>()
+        try {
+            if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
+            try {
+                imported.addAll(DatabaseHelper.stringToEntries(text))
+            } catch (invalid: RuntimeException) {
+                return Result.INVALID_IMPORT
+            }
+            if (imported.isEmpty()) return Result.EMPTY_IMPORT
+            // The read/merge/write is one mutation, not a stale read followed by a later save.
+            synchronized (VaultSession.MutationLock) {
+                if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
+                if (!replace) {
+                    val read = persistence.load(key!!)
+                    if (read is VaultReadResult.Unavailable) {
+                        return if (read.error == VaultReadError.RECOVERY_REQUIRED)
+                            Result.RECOVERY_REQUIRED else Result.VAULT_UNAVAILABLE
+                    }
+                    val loaded = (read as VaultReadResult.Loaded).takeEntries()
+                    current.addAll(loaded)
+                }
+                // The merge rule (imports first, an entry the vault already holds kept as it is,
+                // a replace dropping the current entries) is shared with the desktop restore.
+                val merged = VaultRestoreMerge.plan(imported, current, replace)
+                if (!authorized(key, generation, permitted)) return Result.SESSION_REVOKED
+                // An import is a real entry change. The persistence layer suppresses no-op imports.
+                val write = persistence.save(merged, key, settings.getAutoBackupEncryptedPasswordsEnabled(), backupCallback)
+                return when (write) {
+                    is VaultWriteResult.Saved -> Result.SAVED
+                    is VaultWriteResult.RecoveryRequired -> Result.RECOVERY_REQUIRED
+                    else -> Result.SAVE_FAILED
+                }
+            }
+        } catch (error: RuntimeException) {
+            // An unexpected policy/storage failure is not evidence of malformed import data.
+            return Result.OPERATION_FAILED
+        } finally {
+            for (entry in imported) entry.destroy()
+            for (entry in current) entry.destroy()
+        }
+    }
+}

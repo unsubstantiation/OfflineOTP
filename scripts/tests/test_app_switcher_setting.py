@@ -13,7 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / "app/src/main"
 RES = APP / "res"
-KOTLIN = APP / "kotlin/org/shadowice/flocke/andotp"
+KOTLIN = APP / "kotlin/com/fairuniversal/offlineotp"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 
 
@@ -63,7 +63,7 @@ class AppSwitcherSettingTest(unittest.TestCase):
 
     def test_the_policy_keeps_the_two_behaviours_separate(self):
         policy = read(ROOT / "core/src/main/kotlin/"
-                           "org/shadowice/flocke/andotp/Utilities/ScreenshotPolicy.kt")
+                           "com/fairuniversal/offlineotp/Utilities/ScreenshotPolicy.kt")
         self.assertIn("fun secureWhileVisible(screenshotsEnabled: Boolean)", policy)
         self.assertIn(
             "fun secureWhileBackgrounded(screenshotsEnabled: Boolean, hideInAppSwitcher: Boolean)",

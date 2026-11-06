@@ -5,8 +5,8 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
 RES = ROOT / "app/src/main/res"
-MAIN = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Activities/MainActivity.kt"
-EDITOR = ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Dialogs/ManualEntryDialog.kt"
+MAIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt"
+EDITOR = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Dialogs/ManualEntryDialog.kt"
 ANDROID = "{http://schemas.android.com/apk/res/android}"
 APP = "{http://schemas.android.com/apk/res-auto}"
 
@@ -75,7 +75,7 @@ class AddEntryMenuTest(unittest.TestCase):
         self.assertIn("activeDialog?.dismiss()", editor)
         for field in ("secretInput", "sshPublicInput", "otpUriInput"):
             self.assertIn(field + '.setText("")', editor)
-        adapter = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/View/EntriesCardAdapter.kt")
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
         self.assertIn("ManualEntryDialog.dismissActive()", adapter.read_text(encoding="utf-8"))
 
     def test_menu_is_bottom_anchored_scrollable_and_above_overlay(self):
@@ -105,7 +105,7 @@ class AddEntryMenuTest(unittest.TestCase):
                         prepare.index("focusFirstSpeedDialAction(dial)"))
 
     def test_direct_paths_and_small_viewport_have_device_coverage(self):
-        path = ROOT / "app/src/androidTest/kotlin/org/shadowice/flocke/andotp/AddEntryMenuDeviceTest.kt"
+        path = ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/AddEntryMenuDeviceTest.kt"
         test = path.read_text(encoding="utf-8")
         for expected in ("directActionsValidateSaveAndRelockWithoutChangingManualEntry",
                          "shortAddMenuScrollsAllActionsAndReceivesTouchesAboveOverlay",

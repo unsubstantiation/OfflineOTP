@@ -9,7 +9,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 PLAN = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
 GOLDEN = ROOT / "desktop/src/test/resources/golden"
 

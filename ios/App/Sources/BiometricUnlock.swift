@@ -159,7 +159,7 @@ public protocol BiometricKeyStore {
 ///   shortcut — the password opens the vault exactly as before.
 public struct KeychainBiometricKeyStore: BiometricKeyStore {
     /// The Keychain service name; the account is the vault's `vaultIdentifier`.
-    public static let service = "org.shadowice.flocke.andotp.vault-key"
+    public static let service = "com.fairuniversal.offlineotp.vault-key"
 
     public init() {}
 

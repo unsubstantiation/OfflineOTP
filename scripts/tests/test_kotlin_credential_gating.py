@@ -13,7 +13,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PREFERENCE = (ROOT / "app/src/main/kotlin/org/shadowice/flocke/andotp/Preferences"
+PREFERENCE = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Preferences"
               "/CredentialsPreference.kt")
 
 

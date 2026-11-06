@@ -125,6 +125,55 @@ public final class PasswordVault {
         }
     }
 
+    /// Verifies `currentPassword`, provisions fresh Argon2id credentials for `newPassword`,
+    /// and re-encrypts the vault atomically, rolling back settings + `.bck` on failure.
+    public func changePassword(currentPassword: String, newPassword: String) throws -> Unlocked {
+        guard !newPassword.isEmpty, newPassword.count <= InputPolicy.maxVaultPasswordChars else {
+            throw VaultWriteError.invalidInput
+        }
+        let unlocked = try open(password: currentPassword)
+        guard backup() else {
+            throw VaultWriteError.ioFailure
+        }
+        let priorStrings: [String: String?] = [
+            VaultSettingsKeys.authMethod: settings.string(VaultSettingsKeys.authMethod),
+            VaultSettingsKeys.encryption: settings.string(VaultSettingsKeys.encryption),
+            VaultSettingsKeys.authKdf: settings.string(VaultSettingsKeys.authKdf),
+            VaultSettingsKeys.authCredentials: settings.string(VaultSettingsKeys.authCredentials),
+            VaultSettingsKeys.authSalt: settings.string(VaultSettingsKeys.authSalt),
+        ]
+        let priorInts: [String: Int?] = [
+            VaultSettingsKeys.authMemoryKiB: settings.integer(VaultSettingsKeys.authMemoryKiB),
+            VaultSettingsKeys.authIterations: settings.integer(VaultSettingsKeys.authIterations),
+            VaultSettingsKeys.authParallelism: settings.integer(VaultSettingsKeys.authParallelism),
+        ]
+        func rollbackSettings() {
+            for (k, v) in priorStrings {
+                if let v { settings.setString(k, v) } else { settings.remove(k) }
+            }
+            for (k, v) in priorInts {
+                if let v { settings.setInteger(k, v) } else { settings.remove(k) }
+            }
+        }
+        do {
+            let newKey = try provisionCredentials(password: newPassword)
+            do {
+                try writeEncrypted(key: newKey, entries: unlocked.entries)
+                return Unlocked(entries: unlocked.entries, key: newKey)
+            } catch {
+                rollbackSettings()
+                _ = restoreBackup()
+                throw error
+            }
+        } catch let err as VaultWriteError {
+            rollbackSettings()
+            throw err
+        } catch {
+            rollbackSettings()
+            throw VaultWriteError.ioFailure
+        }
+    }
+
     // MARK: - Internals
 
     private func provisionCredentials(password: String) throws -> [UInt8] {

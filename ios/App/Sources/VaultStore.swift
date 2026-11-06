@@ -56,13 +56,18 @@ public final class VaultStore: ObservableObject {
 
     /// The client preference key, next to `ui_sort_mode` in the settings file.
     public static let biometricSettingKey = "biometric_unlock"
+    public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
+
+    @Published public private(set) var inactivityLockSeconds = 0
+    private var lastActivityDate = Date()
 
     private let vault: PasswordVault
     private let settings: PropertyListSettings
     private let directory: URL
     private let biometrics: BiometricKeyStore
+    private let openPgp: OpenPgpPort
     private var key: [UInt8] = []
 
     /// How many times this store has been unlocked. A Google Authenticator export can span several QR
@@ -74,11 +79,13 @@ public final class VaultStore: ObservableObject {
     private var migration: MigrationBatchCollector?
 
     /// `directory` is injectable so the app tests can use a temporary folder instead of Documents,
-    /// and `biometrics` so they can drive the quick unlock without a sensor.
+    /// and `biometrics` / `openPgp` so they can drive quick unlock and OpenPGP without external hardware.
     public init(directory: URL = VaultStore.defaultDirectory(),
-                biometrics: BiometricKeyStore = KeychainBiometricKeyStore()) {
+                biometrics: BiometricKeyStore = KeychainBiometricKeyStore(),
+                openPgp: OpenPgpPort = RustOpenPgpPort()) {
         self.directory = directory
         self.biometrics = biometrics
+        self.openPgp = openPgp
         let vaultFile = FileByteStore(url: directory.appendingPathComponent(VaultStore.vaultFilename))
         let backupFile = FileByteStore(
             url: directory.appendingPathComponent(VaultStore.backupFilename))
@@ -90,6 +97,7 @@ public final class VaultStore: ObservableObject {
         // A client preference, not vault data: it is written beside the vault, under the same key the
         // desktop client uses, and an unreadable value falls back to the vault order.
         self.sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
+        self.inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         // Both are read before the first unlock: the lock screen has to know whether to offer the
         // quick unlock.
         self.biometricUnlockEnabled =
@@ -291,6 +299,76 @@ public final class VaultStore: ObservableObject {
         generation += 1
         migration?.cancel()
         migration = nil
+        lastActivityDate = Date()
+    }
+
+    /// Persists the idle auto-lock timeout (`0` disables auto-lock).
+    public func setInactivityLockSeconds(_ seconds: Int) {
+        let clamped = max(0, seconds)
+        inactivityLockSeconds = clamped
+        if clamped == 0 {
+            settings.remove(VaultStore.inactivitySettingKey)
+        } else {
+            settings.setInteger(VaultStore.inactivitySettingKey, clamped)
+        }
+        lastActivityDate = Date()
+    }
+
+    /// Resets the inactivity clock when the person interacts with the app.
+    public func noteUserActivity(now: Date = Date()) {
+        lastActivityDate = now
+    }
+
+    /// Locks the vault if an inactivity timeout is configured and has elapsed.
+    public func checkInactivityAutoLock(now: Date = Date()) {
+        guard isUnlocked, inactivityLockSeconds > 0 else { return }
+        if now.timeIntervalSince(lastActivityDate) >= TimeInterval(inactivityLockSeconds) {
+            lock()
+        }
+    }
+
+    /// Changes the vault password in place, updating the Keychain biometric key if quick unlock is on.
+    @discardableResult
+    public func changePassword(currentPassword: String, newPassword: String, confirmation: String) -> Bool {
+        guard isUnlocked else { return false }
+        guard newPassword.count >= InputPolicy.minVaultPasswordChars else {
+            message = "Use at least \(InputPolicy.minVaultPasswordChars) characters."
+            return false
+        }
+        guard newPassword == confirmation else {
+            message = "The two passwords do not match."
+            return false
+        }
+        let priorIdentifier = vault.vaultIdentifier
+        do {
+            let changed = try vault.changePassword(currentPassword: currentPassword, newPassword: newPassword)
+            key = changed.key
+            entries = changed.entries
+            if biometricUnlockEnabled {
+                if let priorIdentifier { biometrics.remove(account: priorIdentifier) }
+                if let newAccount = vault.vaultIdentifier {
+                    do {
+                        try biometrics.save(key: changed.key, account: newAccount)
+                        message = "Vault password updated."
+                    } catch {
+                        disableBiometricUnlock(announcing: false)
+                        message = "Vault password updated. Turn quick unlock back on if desired."
+                    }
+                } else {
+                    disableBiometricUnlock(announcing: false)
+                    message = "Vault password updated."
+                }
+            } else {
+                message = "Vault password updated."
+            }
+            return true
+        } catch VaultOpenError.authenticationFailed {
+            message = "The current password is incorrect."
+            return false
+        } catch {
+            message = "The vault password could not be updated."
+            return false
+        }
     }
 
     // MARK: - The list
@@ -306,6 +384,11 @@ public final class VaultStore: ObservableObject {
     /// delete or an edit needs the vault's own position and the projection must own nothing.
     public var visibleIndices: [Int] {
         EntryListProjection.visibleIndices(entries, query: listQuery)
+    }
+
+    /// True when manual reordering is allowed (`UNSORTED`, no active search or tag filter).
+    public var canReorder: Bool {
+        listQuery.canReorder
     }
 
     /// Every tag in use, in the order both other clients list them.
@@ -474,6 +557,49 @@ public final class VaultStore: ObservableObject {
         return commit(proposed)
     }
 
+    /// Updates the tags on any entry kind (including `PASSWORD`, `PASSWORD_ARCHIVE`, and `EMAIL`).
+    @discardableResult
+    public func setTags(at index: Int, tags: [String]) -> Bool {
+        guard entries.indices.contains(index) else { return false }
+        let cleaned = EntryDraft.cleanedTags(tags)
+        guard cleaned.count <= InputPolicy.maxTags else {
+            message = "Use at most \(InputPolicy.maxTags) tags."
+            return false
+        }
+        for tag in cleaned {
+            do {
+                try InputPolicy.validateText(tag, limit: InputPolicy.maxTagChars)
+            } catch {
+                message = "Tags may contain at most \(InputPolicy.maxTagChars) characters."
+                return false
+            }
+        }
+        var proposed = entries
+        proposed[index].setTags(cleaned)
+        return commit(proposed)
+    }
+
+    /// Swaps or moves an entry within the displayed category slice when `canReorder` is true.
+    @discardableResult
+    public func moveDisplayed(from displayedOrigin: Int, to displayedDestination: Int) -> Bool {
+        guard canReorder else { return false }
+        let visible = visibleIndices
+        guard visible.indices.contains(displayedOrigin),
+              visible.indices.contains(displayedDestination),
+              displayedOrigin != displayedDestination else {
+            return false
+        }
+        var proposed = entries
+        let moving = proposed[visible[displayedOrigin]]
+        var reorderedSlice = visible.map { proposed[$0] }
+        reorderedSlice.remove(at: displayedOrigin)
+        reorderedSlice.insert(moving, at: displayedDestination)
+        for (slot, sourceIndex) in visible.enumerated() {
+            proposed[sourceIndex] = reorderedSlice[slot]
+        }
+        return commit(proposed)
+    }
+
     /// Reveals or conceals one entry and persists the choice, which is vault data
     /// (`details_visible`) in both other clients.
     ///
@@ -599,6 +725,172 @@ public final class VaultStore: ObservableObject {
             return nil
         } catch {
             message = "That file could not be imported as LinSCP credentials."
+            return nil
+        }
+    }
+
+    // MARK: - OpenPGP, Browser Passwords, FairEmail & Thunderbird
+
+    /// Encrypts the vault document to one or more OpenPGP recipient public keys (`.json.gpg`).
+    public func exportOpenPgpBackup(recipientKeyBlocks: [Data], now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            let document = try VaultDocument.encode(entries)
+            let data = try OpenPgpBackupCodec.seal(port: openPgp, plain: document, recipientKeyBlocks: recipientKeyBlocks)
+            return ExportedBackup(name: BackupFileNames.openPgp(now), data: data)
+        } catch let error as OpenPgpError {
+            message = error.errorDescription ?? "The OpenPGP backup could not be created."
+            return nil
+        } catch {
+            message = "The OpenPGP backup could not be created."
+            return nil
+        }
+    }
+
+    /// Decrypts and merges/replaces an OpenPGP `.json.gpg` backup.
+    public func restoreOpenPgpBackup(
+        message cipherData: Data,
+        secretKeyBlock: Data,
+        passphrase: String?,
+        replace: Bool = false
+    ) -> RestorePlan? {
+        do {
+            let document = try OpenPgpBackupCodec.open(
+                port: openPgp,
+                message: cipherData,
+                secretKeyBlock: secretKeyBlock,
+                passphrase: passphrase?.isEmpty == true ? nil : passphrase
+            )
+            return install(document: document, replace: replace)
+        } catch let error as OpenPgpError {
+            message = error.errorDescription ?? BackupWording.unreadableBackup
+            return nil
+        } catch {
+            message = BackupWording.unreadableBackup
+            return nil
+        }
+    }
+
+    /// Imports browser password CSV rows (Chrome, Firefox, Safari) or archives an arbitrary password file.
+    public func importBrowserPasswords(
+        filename: String,
+        data: Data,
+        mode: PasswordImport.Mode,
+        replace: Bool = false,
+        now: Date = Date()
+    ) -> RestorePlan? {
+        do {
+            var imported = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            let stamp = EntryUsage.nowMillis(now)
+            for idx in imported.indices {
+                EntryUsage.markImported(&imported[idx], now: stamp)
+            }
+            let document = try VaultDocument.encode(imported)
+            let plan = install(document: document, replace: replace)
+            if plan != nil { category = .passwords }
+            return plan
+        } catch {
+            message = mode == .individual
+                ? "That file is not a recognized browser password CSV."
+                : "That password file could not be archived."
+            return nil
+        }
+    }
+
+    /// Adds a manually entered FairEmail-compatible email account to the vault.
+    @discardableResult
+    public func addEmailAccount(_ account: EmailMaterial.Account, tags: [String] = [], now: Date = Date()) -> Bool {
+        do {
+            let entry = try Entry.email(account: account, tags: tags, now: EntryUsage.nowMillis(now))
+            return add(entry)
+        } catch {
+            message = "The email account settings are incomplete or invalid."
+            return false
+        }
+    }
+
+    /// True when `data` is an encrypted FairEmail `.efb` backup requiring a password.
+    public func needsFairEmailPassword(_ data: Data) -> Bool {
+        EmailMaterial.needsPassword(data)
+    }
+
+    /// Imports FairEmail `.json`, gzipped JSON, or `.efb` (v0 & v1) encrypted backups.
+    public func importFairEmailBackup(
+        data: Data,
+        password: String? = nil,
+        replace: Bool = false,
+        now: Date = Date()
+    ) -> RestorePlan? {
+        do {
+            let accounts = try EmailMaterial.importBackup(data, password: password)
+            let stamp = EntryUsage.nowMillis(now)
+            let imported = try accounts.map { try Entry.email(account: $0, now: stamp) }
+            let document = try VaultDocument.encode(imported)
+            let plan = install(document: document, replace: replace)
+            if plan != nil { category = .emails }
+            return plan
+        } catch EmailCredentialError.passwordRequired {
+            message = "Enter the password this FairEmail backup was encrypted with."
+            return nil
+        } catch EmailCredentialError.decryptionFailed {
+            message = BackupWording.wrongPassword
+            return nil
+        } catch {
+            message = "That file could not be read as a FairEmail backup."
+            return nil
+        }
+    }
+
+    /// Exports all `EMAIL` entries in FairEmail's unencrypted JSON backup format.
+    public func exportFairEmailBackup(now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            let accounts = try entries.filter { $0.kind == .email }.map { try $0.emailAccount() }
+            guard !accounts.isEmpty else {
+                message = "There are no email accounts in this vault to export."
+                return nil
+            }
+            let data = try EmailMaterial.exportBackup(accounts)
+            return ExportedBackup(name: BackupFileNames.fairEmail(now), data: data)
+        } catch {
+            message = "The FairEmail backup could not be written."
+            return nil
+        }
+    }
+
+    /// Imports Thunderbird CSV logins into `EMAIL` vault entries.
+    public func importThunderbirdBackup(
+        data: Data,
+        replace: Bool = false,
+        now: Date = Date()
+    ) -> RestorePlan? {
+        do {
+            var imported = try ThunderbirdImport.entries(from: data)
+            let stamp = EntryUsage.nowMillis(now)
+            for idx in imported.indices {
+                EntryUsage.markImported(&imported[idx], now: stamp)
+            }
+            let document = try VaultDocument.encode(imported)
+            let plan = install(document: document, replace: replace)
+            if plan != nil { category = .emails }
+            return plan
+        } catch {
+            message = "That file is not a valid Thunderbird CSV export."
+            return nil
+        }
+    }
+
+    /// Exports `EMAIL` (and legacy mail-scheme `PASSWORD`) entries as a Thunderbird CSV file.
+    public func exportThunderbirdBackup(now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            let data = try ThunderbirdImport.exportCsv(entries: entries)
+            return ExportedBackup(name: BackupFileNames.thunderbird(now), data: data)
+        } catch EmailCredentialError.noExportableAccounts {
+            message = "There are no email credentials in this vault to export."
+            return nil
+        } catch {
+            message = "The Thunderbird CSV export could not be written."
             return nil
         }
     }

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 IOS = ROOT / "ios"
 SOURCES = IOS / "Sources/OfflineOTPKit"
 TESTS = IOS / "Tests/OfflineOTPKitTests"
-CORE = ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp"
+CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
 GOLDEN = ROOT / "desktop/src/test/resources/golden"
 
 

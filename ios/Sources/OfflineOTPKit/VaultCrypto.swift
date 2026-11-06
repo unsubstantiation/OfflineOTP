@@ -5,7 +5,7 @@ import CommonCrypto
 /// The cryptographic primitives the vault and the encrypted backup use.
 ///
 /// Everything here produces the exact same bytes as
-/// `core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/CryptoPrimitives.kt`:
+/// `core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/CryptoPrimitives.kt`:
 ///
 ///  - Argon2id v1.3 (`64 MiB`, `t = 3`, `p = 4`, 16-byte salt) for all newly created vaults and
 ///    `.json.aes` backups, plus legacy PBKDF2-HMAC-SHA1 read/restore support. Under Argon2id, the

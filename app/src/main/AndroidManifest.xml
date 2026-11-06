@@ -51,9 +51,9 @@
                 <data android:scheme="otpauth-migration" android:host="offline" />
             </intent-filter>
             <intent-filter>
-                <action android:name="org.shadowice.flocke.andotp.intent.SCAN_QR" />
-                <action android:name="org.shadowice.flocke.andotp.intent.IMPORT_QR" />
-                <action android:name="org.shadowice.flocke.andotp.intent.ENTER_DETAILS" />
+                <action android:name="com.fairuniversal.offlineotp.intent.SCAN_QR" />
+                <action android:name="com.fairuniversal.offlineotp.intent.IMPORT_QR" />
+                <action android:name="com.fairuniversal.offlineotp.intent.ENTER_DETAILS" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data android:name="android.app.shortcuts"
@@ -102,7 +102,7 @@
             android:permission="${applicationId}.permission.CONTROL_VAULT"
             android:exported="true">
             <intent-filter>
-                <action android:name="org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP" />
+                <action android:name="com.fairuniversal.offlineotp.broadcast.ENCRYPTED_BACKUP" />
             </intent-filter>
         </receiver>
     </application>

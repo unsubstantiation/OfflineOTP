@@ -597,4 +597,93 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertFalse(preview.contains("12345678901234567890"))
         XCTAssertFalse(preview.contains(entries[0].secretBase32 ?? "\u{0}"))
     }
+
+    // MARK: - Parity: password change, auto-lock, tags, reorder, credentials & OpenPGP
+
+    func testChangePasswordAndAutoLockWorkInPlace() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice", issuer: "GitHub")))
+
+        store.setInactivityLockSeconds(60)
+        XCTAssertEqual(store.inactivityLockSeconds, 60)
+
+        let base = Date()
+        store.noteUserActivity(now: base)
+        store.checkInactivityAutoLock(now: base.addingTimeInterval(30))
+        XCTAssertTrue(store.isUnlocked)
+        store.checkInactivityAutoLock(now: base.addingTimeInterval(61))
+        XCTAssertFalse(store.isUnlocked)
+
+        store.unlock(password: "correct horse")
+        XCTAssertTrue(store.isUnlocked)
+        XCTAssertTrue(store.changePassword(
+            currentPassword: "correct horse",
+            newPassword: "new vault passphrase",
+            confirmation: "new vault passphrase"
+        ))
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertFalse(store.isUnlocked)
+        store.unlock(password: "new vault passphrase")
+        XCTAssertTrue(store.isUnlocked)
+        XCTAssertEqual(store.entries.count, 1)
+    }
+
+    func testManualReorderTagsAndCredentialInterchange() throws {
+        struct EchoOpenPgpPort: OpenPgpPort {
+            func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {
+                Data("PGP:".utf8) + plaintext
+            }
+            func decrypt(message: Data, secretKeyBlock: Data, passphrase: String?) throws -> Data {
+                guard message.starts(with: Data("PGP:".utf8)) else {
+                    throw OpenPgpError.decryptionFailed(reason: "bad header")
+                }
+                return message.dropFirst(4)
+            }
+        }
+
+        let store = VaultStore(directory: directory, openPgp: EchoOpenPgpPort())
+        store.unlock(password: "correct horse", confirmation: "correct horse", creating: true)
+        XCTAssertTrue(store.add(try draft("first", issuer: "Alpha")))
+        XCTAssertTrue(store.add(try draft("second", issuer: "Beta")))
+        XCTAssertTrue(store.canReorder)
+        XCTAssertTrue(store.moveDisplayed(from: 0, to: 1))
+        XCTAssertEqual(store.entries.map(\.label), ["second", "first"])
+
+        XCTAssertTrue(store.setTags(at: 0, tags: ["ops", "prod"]))
+        XCTAssertEqual(store.entries[0].tags, ["ops", "prod"])
+
+        let csv = Data("name,url,username,password\r\nGitLab,gitlab.example.com,alice,pw123\r\n".utf8)
+        XCTAssertNotNil(store.importBrowserPasswords(filename: "logins.csv", data: csv, mode: .individual))
+        XCTAssertEqual(store.category, .passwords)
+
+        let mail = try EmailMaterial.create(
+            name: "Ops Mail",
+            address: "ops@example.com",
+            incomingHost: "imap.example.com",
+            incomingPort: 993,
+            incomingEncryption: 0,
+            incomingProtocol: 0,
+            incomingUser: "ops@example.com",
+            incomingPassword: "in-pw",
+            outgoingHost: "smtp.example.com",
+            outgoingPort: 465,
+            outgoingEncryption: 0,
+            outgoingUser: "ops@example.com",
+            outgoingPassword: "out-pw"
+        )
+        XCTAssertTrue(store.addEmailAccount(mail))
+        XCTAssertNotNil(store.exportFairEmailBackup())
+        XCTAssertNotNil(store.exportThunderbirdBackup())
+
+        let pgpExport = try XCTUnwrap(store.exportOpenPgpBackup(recipientKeyBlocks: [Data("pub".utf8)]))
+        XCTAssertTrue(pgpExport.name.hasSuffix(".json.gpg"))
+        let restored = try XCTUnwrap(store.restoreOpenPgpBackup(
+            message: pgpExport.data,
+            secretKeyBlock: Data("sec".utf8),
+            passphrase: nil,
+            replace: true
+        ))
+        XCTAssertEqual(restored.entries.count, store.entries.count)
+    }
 }

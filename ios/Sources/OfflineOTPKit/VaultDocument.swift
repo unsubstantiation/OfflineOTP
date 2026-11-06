@@ -2,7 +2,7 @@ import Foundation
 
 /// The whole vault document: a compact JSON array of entries, encoded and decoded all-or-nothing.
 ///
-/// A port of `core/src/main/kotlin/org/shadowice/flocke/andotp/Database/VaultJson.kt`. A malformed
+/// A port of `core/src/main/kotlin/com/fairuniversal/offlineotp/Database/VaultJson.kt`. A malformed
 /// document never yields a prefix of the user's entries: either every entry parses or the load fails,
 /// because a half-loaded vault that is then saved would delete the rest.
 public enum VaultDocument {

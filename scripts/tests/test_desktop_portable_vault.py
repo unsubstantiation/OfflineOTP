@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DESKTOP = ROOT / "desktop/src/main/kotlin/org/shadowice/flocke/andotp/desktop"
+DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
 STORAGE = DESKTOP / "storage/DesktopStorage.kt"
 MAIN = DESKTOP / "Main.kt"
 
@@ -30,7 +30,11 @@ class DesktopPortableVaultTest(unittest.TestCase):
             with self.subTest(file=str(path.relative_to(ROOT))):
                 self.assertNotIn("user.home", source)
         # The old per-user dot-folder is gone from the live code, not just renamed.
-        self.assertNotIn(".offlineotp", self.storage)
+        non_header = "\n".join(
+            line for line in self.storage.splitlines()
+            if not line.strip().startswith(("package ", "import "))
+        )
+        self.assertNotIn(".offlineotp", non_header)
 
     def test_the_data_folder_sits_inside_the_program_folder(self):
         self.assertIn('const val DATA_DIRECTORY = "data"', self.storage)
@@ -80,7 +84,7 @@ class DesktopPortableVaultTest(unittest.TestCase):
         self.assertIn('DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"', script)
         self.assertIn('find "$DESKTOP_MAIN" "$DESKTOP_TEST"', script)
         self.assertTrue((DESKTOP / "storage/DesktopStorage.kt").is_file())
-        self.assertTrue((ROOT / "desktop/src/test/kotlin/org/shadowice/flocke/andotp/desktop"
+        self.assertTrue((ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop"
                          "/storage/DesktopPortableLocationsTest.kt").is_file())
 
 

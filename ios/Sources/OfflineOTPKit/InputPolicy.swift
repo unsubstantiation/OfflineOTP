@@ -2,7 +2,7 @@ import Foundation
 
 /// The input bounds `:core` enforces, restated for Swift.
 ///
-/// Every number here has a counterpart in `core/src/main/kotlin/org/shadowice/flocke/andotp/
+/// Every number here has a counterpart in `core/src/main/kotlin/com/fairuniversal/offlineotp/
 /// Utilities/InputPolicy.kt`, `Constants.kt` or `BoundedInputReader.kt`, and
 /// `scripts/tests/test_ios_plan.py` fails when the two disagree. A client that accepted what another
 /// rejects would either write a vault the other cannot open or silently drop data.

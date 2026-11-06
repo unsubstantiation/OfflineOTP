@@ -9,8 +9,8 @@ set -euo pipefail
 
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$SANDBOX/../.."
-KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
-KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_APP="$ROOT/app/src/main/kotlin/com/fairuniversal/offlineotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/com/fairuniversal/offlineotp"
 OUT="${KOTLIN_SANDBOX_OUT:-$ROOT/reports/kotlin-sandbox/compile-only}"
 
 export JAVA_HOME="${JAVA_HOME:-/tmp/ks-toolchain/jdk/jdk4py/java-runtime}"

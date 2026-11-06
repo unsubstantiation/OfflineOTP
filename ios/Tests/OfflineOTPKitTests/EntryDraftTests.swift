@@ -96,14 +96,31 @@ final class EntryDraftTests: XCTestCase {
         }
     }
 
-    func testTheStructuredKindsCannotBeTypedIn() throws {
-        for kind in [EntryKind.password, .passwordArchive, .email, .sshKey] {
+    func testTheStructuredKindsCannotBeTypedInAndSshKeysAreFramed() throws {
+        for kind in [EntryKind.password, .passwordArchive, .email] {
             XCTAssertThrowsError(try create(kind, secret: Base32.encode(Array("material".utf8)))) {
                 XCTAssertEqual($0 as? EntryDraftError, .kindNotOfferable, "\(kind)")
             }
             XCTAssertFalse(EntryDraft.offerableKinds.contains(kind))
         }
-        XCTAssertEqual(EntryDraft.offerableKinds, [.totp, .hotp, .motp, .steam, .note])
+        XCTAssertEqual(EntryDraft.offerableKinds, [.totp, .hotp, .motp, .steam, .note, .sshKey])
+
+        let ssh = try EntryDraft.create(
+            kind: .sshKey,
+            issuer: "Prod Bastion",
+            label: "deploy",
+            publicKey: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey deploy@bastion",
+            privateKey: "-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----",
+            sshHost: "bastion.example.com",
+            sshPortText: "2222",
+            sshUsername: "deploy",
+            sshPassword: "secret",
+            newEntry: true,
+            now: 1234
+        )
+        XCTAssertEqual(ssh.kind, .sshKey)
+        XCTAssertEqual(ssh.sshConnection?.summary, "deploy@bastion.example.com:2222")
+        XCTAssertEqual(try ssh.sshKeys().publicKey, "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey deploy@bastion")
     }
 
     func testASecretThatIsNotBase32IsRefusedRatherThanStored() throws {

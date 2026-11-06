@@ -33,7 +33,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         restricted to the libraries explicitly declared in desktop/build.gradle (allowlist)."""
         allowed = (
             "kotlin", "java", "javax",
-            "org.shadowice.flocke.andotp",
+            "com.fairuniversal.offlineotp",
             # Embedded OpenPGP engine (pgpainless-core plus its BouncyCastle transitives).
             "org.pgpainless", "org.bouncycastle",
             # PC/SC security-key discovery via the yubikit desktop module (smartcardio only).
@@ -71,19 +71,19 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
 
     def test_hardware_ports_are_implemented_without_hid(self):
         """Key wrapping and hardware-unlock storage have desktop adapters; PC/SC excludes HID."""
-        rsa = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+        rsa = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                "RsaKeyWrapPort.kt").read_text(encoding="utf-8")
         self.assertIn("class RsaKeyWrapPort", rsa)
         self.assertIn(": KeyWrapPort", rsa)
         # Same RSA/ECB/PKCS1Padding transformation as the Android KeyStore wrapper, via Constants.
         self.assertIn("Constants.ALGORITHM_ASYMMETRIC", rsa)
 
-        hw_store = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+        hw_store = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                     "DesktopHardwareUnlockStore.kt").read_text(encoding="utf-8")
         self.assertIn(": HardwareUnlockStoragePort", hw_store)
         self.assertIn("HardwareUnlockEnvelope.request", hw_store)
 
-        discovery = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/hardware/"
+        discovery = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/hardware/"
                      "PcscHardwareDiscovery.kt").read_text(encoding="utf-8")
         self.assertIn("PcscManager()", discovery)
         # javax.smartcardio is not aggregated by the java.se module, so the Kotlin JVM compiler
@@ -115,7 +115,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertNotIn("manager.close", discovery)
 
     def test_qr_decoder_uses_zxing_core_without_android_integration(self):
-        decoder = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/qr/"
+        decoder = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/qr/"
                    "ZxingQrDecoder.kt").read_text(encoding="utf-8")
         self.assertIn("class ZxingQrDecoder : QrImageDecoder", decoder)
         # Bounded ImageReader flow replaces the unbounded ImageIO.read so header dimensions
@@ -131,12 +131,12 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         gate = (SANDBOX / "compile-desktop.sh").read_text(encoding="utf-8")
         self.assertIn('not -path "*/integration/*"', gate)
         # The portable router lives in core and never references zxing.
-        core_router = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/"
+        core_router = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/"
                        "Utilities/QrImport.kt").read_text(encoding="utf-8")
         self.assertNotIn("com.google.zxing", core_router)
 
     def test_openpgp_adapter_implements_the_core_port_and_is_declared(self):
-        adapter = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/openpgp/"
+        adapter = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/openpgp/"
                    "PgpainlessOpenPgpPort.kt").read_text(encoding="utf-8")
         self.assertIn("class PgpainlessOpenPgpPort : OpenPgpPort", adapter)
         # PGPainless 2.x: instance builders replace the deprecated static encrypt/decrypt entry
@@ -182,8 +182,8 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
 
     def test_swing_shell_is_separated_from_headless_model(self):
         """Heavyweight frame construction lives outside the headless-tested table model package."""
-        model = DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/model/EntryTableModel.kt"
-        window = DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui/MainWindow.kt"
+        model = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt"
+        window = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt"
         self.assertTrue(model.is_file())
         self.assertTrue(window.is_file())
         # The headless model must not instantiate a heavyweight peer.
@@ -191,7 +191,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertNotIn("JFrame", model_text)
         self.assertIn("AbstractTableModel", model_text)
         # A real entry point exists for the application plugin's mainClass.
-        main = DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/Main.kt"
+        main = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/Main.kt"
         self.assertIn("fun main()", main.read_text(encoding="utf-8"))
 
     def test_compile_gate_exists_and_runs_headless(self):
@@ -204,7 +204,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
 
     def test_storage_adapters_implement_the_core_ports(self):
         """The desktop file and settings adapters are swappable implementations of core ports."""
-        nio = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+        nio = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                "NioAtomicFileStore.kt").read_text(encoding="utf-8")
         self.assertIn("class NioAtomicFileStore", nio)
         self.assertIn(": AtomicByteStore", nio)
@@ -212,12 +212,12 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("ATOMIC_MOVE", nio)
         self.assertIn("fd.sync()", nio)
 
-        settings = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+        settings = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                     "DesktopSettings.kt").read_text(encoding="utf-8")
         self.assertIn("class DesktopSettings", settings)
         self.assertIn(": KeyValueSettings", settings)
 
-        factory = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/storage/"
+        factory = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                    "DesktopStorage.kt").read_text(encoding="utf-8")
         self.assertIn("PasswordVault(", factory)
         # The same on-disk filenames the Android vault uses.
@@ -231,14 +231,14 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         forbidden = ("javax.swing", "java.awt.peer", "java.awt.Frame", "java.awt.Dialog",
                      "java.awt.Window", "java.awt.Panel", "java.awt.Canvas")
         for package in ("storage", "control", "hardware", "qr", "openpgp"):
-            for path in (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop" / package).rglob("*.kt"):
+            for path in (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop" / package).rglob("*.kt"):
                 text = path.read_text(encoding="utf-8")
                 for token in forbidden:
                     self.assertNotIn(token, text, f"{path.name} must stay headless ({token})")
 
     def test_hardware_stack_is_wired_into_the_swing_shell(self):
         """The previously dead hardware/key-wrap stack is reachable from production UI."""
-        control = DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/control"
+        control = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/control"
         manager = (control / "HardwareKeyManager.kt").read_text(encoding="utf-8")
         self.assertIn("class HardwareKeyManager", manager)
         # Headless logic must not drag Swing into the control package.
@@ -249,26 +249,26 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         # The PIN buffer handed in for one operation is wiped on every exit path.
         self.assertIn("pin?.fill(' ')", manager)
 
-        window = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui/MainWindow.kt")\
+        window = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt")\
             .read_text(encoding="utf-8")
         self.assertIn('JMenu("Hardware")', window)
         self.assertIn("HardwareKeyDialog.show", window)
         self.assertIn("HardwareKeyDialog.requestUnlock", window)
         self.assertIn("controller.unlockWithKey", window)
 
-        dialog = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui/"
+        dialog = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/"
                   "HardwareKeyDialog.kt").read_text(encoding="utf-8")
         self.assertIn("SwingWorker", dialog)
         self.assertIn("CancelToken", dialog)
         # The PC/SC discovery and envelope store are assembled in the entry point, not tests only.
-        main = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/Main.kt").read_text(
+        main = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/Main.kt").read_text(
             encoding="utf-8")
         self.assertIn("PcscHardwareDiscovery()", main)
         self.assertIn("DesktopHardwareUnlockStore(", main)
         self.assertIn("HardwareKeyManager(", main)
 
     def test_token_copy_logic_is_headless_with_clipboard_only_in_the_swing_shell(self):
-        editor = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/control"
+        editor = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/control"
                   / "EntryEditor.kt").read_text(encoding="utf-8")
         self.assertIn("fun copyToken(entry: Entry)", editor)
         self.assertIn("fun advanceHotp(entry: Entry): Boolean", editor)
@@ -280,12 +280,12 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertNotIn("javax.swing", editor)
         self.assertNotIn("java.awt", editor)
 
-        entry = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Database"
+        entry = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database"
                  / "Entry.kt").read_text(encoding="utf-8")
         self.assertIn("fun hasCopyableToken()", entry)
         self.assertIn("MOTP_NO_PIN_CODE", entry)
 
-        window = (DESKTOP_MAIN / "org/shadowice/flocke/andotp/desktop/ui"
+        window = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui"
                   / "MainWindow.kt").read_text(encoding="utf-8")
         self.assertIn('JButton("Copy selected")', window)
         self.assertIn("copySelectedToken()", window)

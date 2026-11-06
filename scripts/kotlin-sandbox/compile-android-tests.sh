@@ -11,8 +11,8 @@ set -euo pipefail
 
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
-KOTLIN_APP="$ROOT/app/src/main/kotlin/org/shadowice/flocke/andotp"
-KOTLIN_CORE="$ROOT/core/src/main/kotlin/org/shadowice/flocke/andotp"
+KOTLIN_APP="$ROOT/app/src/main/kotlin/com/fairuniversal/offlineotp"
+KOTLIN_CORE="$ROOT/core/src/main/kotlin/com/fairuniversal/offlineotp"
 ANDROID_TEST_ROOT="$ROOT/app/src/androidTest/kotlin"
 OUT="${KOTLIN_ANDROID_TEST_OUT:-$ROOT/reports/kotlin-sandbox/android-test-compile}"
 
