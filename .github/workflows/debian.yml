@@ -42,10 +42,11 @@ jobs:
           set -euo pipefail
           set +e
           cargo check --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          check_status=${PIPESTATUS[0]}
           # Also run the crate's own tests via `cargo test --lib` but do not require linker
           # for the check gate; the test binary will be built only where a linker exists.
           cargo test --manifest-path rust/Cargo.toml --lib --verbose 2>&1 | tee -a rust-test.log || true
-          status=${PIPESTATUS[0]}
+          status=$check_status
           set -e
           if [ $status -ne 0 ]; then
             echo "::group::Rust test failure tail"
