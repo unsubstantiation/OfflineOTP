@@ -4,18 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-  pull_request:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   signing-preflight:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
     # signed-release job be *skipped* instead of *failed* when signing is not configured.
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     environment: android-release

@@ -107,10 +107,10 @@ class ReleaseSigningTest(unittest.TestCase):
         for job in ("signing-preflight:", "sign-release:"):
             self.assertIn(f"    environment: {ENVIRONMENT}\n", self.job_block(job),
                           f"{job} must declare the {ENVIRONMENT} environment so signing secrets are visible")
-        # The environment allows master only, so every other dispatch reports a skip, not a gate
-        # failure it cannot explain.
-        self.assertIn("if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'\n",
-                      workflow)
+        # The environment allows master only, so non-master dispatches report a skip, not a gate
+        # failure they cannot explain, and pull requests do not trigger the workflow at all.
+        self.assertNotIn("pull_request", workflow)
+        self.assertIn("if: github.ref == 'refs/heads/master'\n", workflow)
 
     def test_the_repository_secret_names_are_accepted_with_the_old_ones_as_fallback(self):
         workflow = self.workflow_text()
@@ -143,9 +143,8 @@ class ReleaseSigningTest(unittest.TestCase):
         self.assertIn("      enabled: ${{ steps.check.outputs.enabled }}\n", workflow)
         self.assertIn("    needs: signing-preflight\n"
                       "    if: needs.signing-preflight.outputs.enabled == 'true'\n", workflow)
-        # No job may build/sign release APKs without the keystore; only the debug job is
-        # unconditional, and leaking the secret into a log is still forbidden.
-        self.assertNotIn("sign-release:\n    if: github.event_name != 'pull_request'\n", workflow)
+        # No job may build/sign release APKs without the keystore preflight gate.
+        self.assertNotIn("sign-release:\n    if: github.ref == 'refs/heads/master'\n", workflow)
         self.assertEqual(1, workflow.count("assembleFdroidRelease"))
 
     # -- preflight --------------------------------------------------------------------------

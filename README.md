@@ -400,7 +400,7 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## Build verification
 
-Five GitHub Actions workflows build on pushes to `master`, pull requests, or manual dispatch — one
+Five GitHub Actions workflows build on pushes to `master` or manual dispatch — one
 per platform, so a macOS regression cannot hide behind a green Linux job. Download their artifacts
 from the workflow run: signed Android release APKs (F-Droid and Play, only on `master` when
 signing secrets are configured), a Windows x64 app-image zip, a Debian 12 x64 app-image

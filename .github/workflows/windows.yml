@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-  pull_request:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   build:

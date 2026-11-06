@@ -4,11 +4,9 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-  pull_request:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   build:
@@ -269,7 +267,7 @@ jobs:
           set -uo pipefail
           # Attach the interesting lines of the build log to the run as annotations. This step exists
           # because a job log download is not always available (it is not for an automated agent), and
-          # because a Swift, XcodeGen or xcodebuild diagnostic should be readable on the pull request.
+          # because a Swift, XcodeGen or xcodebuild diagnostic should be readable on the workflow run.
           if [ ! -f ios/build-log.txt ]; then
             echo "::notice::No build log was produced."
             exit 0
