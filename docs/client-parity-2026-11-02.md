@@ -46,7 +46,7 @@ The manual order is a vault property, not a view property: a move is written thr
 `EntryEditor` path as every other mutation, so a failed write leaves the visible order untouched, and
 selecting any sort order disables the action (as Android hides the drag handle).
 
-## Fixed in the same pass: restore semantics and plain-text restore
+## Fixed in the same pass: restore semantics (plain-text restore removed)
 
 A later read of the backup surface found two more differences, both about what a restore does to the
 vault that is already open.
@@ -54,7 +54,7 @@ vault that is already open.
 | Behaviour | Android | Desktop before | Now |
 | --- | --- | --- | --- |
 | Merge versus replace | The backup screen has a **Replace existing entries** switch (`backup_title_replace`), off by default: a restore appends the backup's new entries and keeps the current ones | Restore always replaced the whole vault, after a warning that said so | `BackupCoordinator.restoreEncrypted`/`restoreOpenPgp` take `replace`; every restore dialog asks with the same switch wording and the same default, and the result text says *Merged N new entries* rather than claiming a restore |
-| Plain-text restore | **Restore plain-text backup…** imports a legacy unencrypted JSON file through `PlainTextBackupDecoder`, behind `backup_plaintext_warning_message` | No plain-text path at all | **Tools → Restore plain-text backup…** uses the same shared decoder and the same warning text, and still never *writes* an unencrypted backup |
+| Plain-text restore | **Restore plain-text backup…** imported a legacy unencrypted JSON file through `PlainTextBackupDecoder` | No plain-text path at all | Removed on all clients — only **Full Encrypted Backup** and **OpenPGP** remain; the decoder, task, and warning strings are deleted |
 
 Merging follows Android's branch exactly: an entry the vault already holds is not duplicated and
 keeps its counters, usage metadata and tags, the imported entries come first, and a backup whose
@@ -164,7 +164,7 @@ reinterpretation:
 | The logo name an entry stores is resolved from its issuer (exact, alias, whole word, default), so the other clients show the same mark | `ThumbnailCatalog.resolveName`, `Entry.initialize`, `Entry.setThumbnailFromIssuer` | `ThumbnailCatalog`, used by `EntryDraft` and `OtpUri.entry` | `ThumbnailCatalogTests`, `test_ios_app.py` |
 | A QR payload is classified before it is parsed; a migration export is named, not guessed at | `QrImport.classify` | `QrPayload.classify` | `OtpUriTests` |
 | A backup is dated (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`) with ASCII digits | `BackupFileNames` | `BackupFileNames` | `BackupRestoreTests`, `test_ios_app.py` |
-| A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
+| A plain-text backup was decoded strictly and never written — now removed | `PlainTextBackupDecoder` (deleted) | `PlainTextBackupDecoder` (deleted) | Plain-text tests deleted; guards assert the path is gone |
 | A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
 | A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
 | The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | iOS `KeychainBiometricKeyStore`, Android `BiometricKeyStore` | `VaultStore.unlockWithBiometrics` (iOS), `AuthenticateActivity` + `BiometricKeyStore` (Android) | `BiometricUnlockTests` / `test_ios_app.py` (iOS), `test_manifest_source_policy.py` + manual enrollment + `BiometricKeyStore` instrumentation (Android) |
