@@ -72,6 +72,7 @@
     <string name="settings_key_enable_screenshot" translatable="false">pref_enable_screenshot</string>
     <string name="settings_key_enable_android_backup_service" translatable="false">pref_enable_android_backup_service</string>
     <string name="settings_key_clear_keystore" translatable="false">pref_clear_keystore</string>
+    <string name="settings_key_biometric_enabled" translatable="false">pref_biometric_enabled</string>
 
     <string name="settings_key_last_used_dialog_shown" translatable="false">pref_last_used_dialog_shown</string>
     <string name="settings_key_android21_deprecation_notice_shown" translatable="false">pref_android21_deprecation_notice_shown</string>    <!-- Deprecated -->

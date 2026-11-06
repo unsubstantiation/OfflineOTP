@@ -28,6 +28,7 @@ import org.openintents.openpgp.util.OpenPgpAppPreference
 import org.openintents.openpgp.util.OpenPgpKeyPreference
 import org.shadowice.flocke.andotp.Preferences.CredentialsPreference
 import org.shadowice.flocke.andotp.R
+import org.shadowice.flocke.andotp.Utilities.BiometricKeyStore
 import org.shadowice.flocke.andotp.Receivers.EncryptedBackupBroadcastReceiver
 import org.shadowice.flocke.andotp.Tasks.ChangeEncryptionTask
 import org.shadowice.flocke.andotp.Utilities.BackupHelper
@@ -213,6 +214,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         clearingKeyStore = true
         try {
             KeyStoreHelper.wipeKeys(this)
+            try { BiometricKeyStore.clear(this) } catch (_: Exception) { }
             PreferenceManager.getDefaultSharedPreferences(this)
                 .edit()
                 .remove(getString(R.string.settings_key_backup_password_enc))
@@ -594,6 +596,48 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             if (androidSync?.isEnabled != true)
                 androidSync?.isChecked = false
 
+            // Fingerprint quick unlock — opt-in, password-confirmed, device-only vault key.
+            val biometricPref = findPreference(getString(R.string.settings_key_biometric_enabled)) as? CheckBoxPreference
+            if (biometricPref != null) {
+                val isPasswordVault = currentSettings.getEncryption() == EncryptionType.PASSWORD &&
+                    currentSettings.getAuthMethod() == org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod.PASSWORD
+                biometricPref.isEnabled = isPasswordVault
+                biometricPref.isChecked = isPasswordVault && BiometricKeyStore.isEnabled(getActivity()!!) &&
+                    BiometricKeyStore.hasStoredKey(getActivity()!!)
+                if (!isPasswordVault) {
+                    biometricPref.summary = getString(R.string.settings_desc_biometric) + " " +
+                        getString(R.string.settings_dialog_msg_encryption_invalid_with_auth)
+                } else {
+                    biometricPref.summary = getString(R.string.settings_desc_biometric)
+                }
+                biometricPref.setOnPreferenceChangeListener { _, newValue ->
+                    val enable = newValue as? Boolean ?: return@setOnPreferenceChangeListener false
+                    if (enable) {
+                        if (!isPasswordVault) {
+                            Toast.makeText(getActivity(), R.string.settings_dialog_msg_encryption_invalid_with_auth, Toast.LENGTH_LONG).show()
+                            return@setOnPreferenceChangeListener false
+                        }
+                        val avail = BiometricKeyStore.availability(getActivity()!!)
+                        if (!avail.isAvailable) {
+                            val msg = if (avail == BiometricKeyStore.Availability.NOT_ENROLLED)
+                                R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable
+                            Toast.makeText(getActivity(), msg, Toast.LENGTH_LONG).show()
+                            return@setOnPreferenceChangeListener false
+                        }
+                        // Ask for vault password first — an unlocked phone must not be enough to add a shortcut.
+                        val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
+                        promptBiometricEnrollment(biometricPref, activity)
+                        false
+                    } else {
+                        try {
+                            BiometricKeyStore.clear(getActivity()!!)
+                        } catch (_: Exception) { }
+                        Toast.makeText(getActivity(), R.string.settings_toast_biometric_turned_off, Toast.LENGTH_SHORT).show()
+                        true
+                    }
+                }
+            }
+
             if (sharedPref.contains(getString(R.string.settings_key_special_features)) &&
                     sharedPref.getBoolean(getString(R.string.settings_key_special_features), false)) {
                 addPreferencesFromResource(R.xml.preferences_special)
@@ -629,6 +673,88 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 else
                     catUI?.removePreference(themeBlack!!)
             }
+        }
+
+        private fun promptBiometricEnrollment(pref: CheckBoxPreference, host: SettingsActivity) {
+            val ctx = getActivity() ?: return
+            val passwordInput = android.widget.EditText(ctx).apply {
+                isSaveEnabled = false
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+                hint = getString(R.string.settings_hint_password)
+            }
+            AlertDialog.Builder(ctx)
+                .setTitle(R.string.settings_title_biometric)
+                .setMessage(BiometricKeyStore.BiometricWording.enableQuestion)
+                .setView(passwordInput)
+                .setPositiveButton(android.R.string.ok) { _, _ ->
+                    val typed = passwordInput.text?.toString() ?: ""
+                    passwordInput.setText("")
+                    if (typed.isEmpty()) {
+                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                    // Verify the typed password against the stored verifier (PBKDF2 split).
+                    val verified = try {
+                        verifyVaultPassword(typed)
+                    } catch (_: Exception) { false }
+                    if (!verified) {
+                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                    // Use the live vault key — the password matched, and the GCM tag is the real gate.
+                    val vaultKey = org.shadowice.flocke.andotp.Utilities.VaultSession.getKey()?.encoded?.clone()
+                    if (vaultKey == null || vaultKey.isEmpty()) {
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_save_failed, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                    try {
+                        // FragmentActivity required for BiometricPrompt.
+                        val fragmentActivity = host as androidx.fragment.app.FragmentActivity
+                        BiometricKeyStore.save(fragmentActivity, vaultKey) { success, error ->
+                            // Wipe copy of vault key after the store copies it.
+                            try { vaultKey.fill(0) } catch (_: Exception) { }
+                            if (success) {
+                                pref.isChecked = true
+                                Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on, Toast.LENGTH_SHORT).show()
+                            } else {
+                                pref.isChecked = false
+                                val msg = when (error) {
+                                    BiometricKeyStore.BiometricError.NOT_ENROLLED -> getString(R.string.settings_toast_biometric_not_enrolled)
+                                    BiometricKeyStore.BiometricError.UNAVAILABLE -> getString(R.string.settings_toast_biometric_unavailable)
+                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> BiometricKeyStore.BiometricWording.lockedOut
+                                    BiometricKeyStore.BiometricError.CANCELLED -> BiometricKeyStore.BiometricWording.cancelled
+                                    else -> getString(R.string.settings_toast_biometric_save_failed)
+                                }
+                                Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                            }
+                        }
+                    } catch (_: Exception) {
+                        try { vaultKey.fill(0) } catch (_: Exception) { }
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_save_failed, Toast.LENGTH_LONG).show()
+                    }
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> passwordInput.setText("") }
+                .setOnDismissListener { passwordInput.setText("") }
+                .show()
+        }
+
+        private fun verifyVaultPassword(plainPassword: String): Boolean {
+            val s = settings ?: return false
+            return try {
+                val salt = s.getSalt()
+                val iter = s.getIterations()
+                val storedVerifier = s.getAuthCredentials()
+                if (storedVerifier.isEmpty()) return false
+                val derived = org.shadowice.flocke.andotp.Utilities.EncryptionHelper.generatePBKDF2Credentials(plainPassword, salt, iter)
+                try {
+                    val storedBytes = android.util.Base64.decode(storedVerifier, android.util.Base64.URL_SAFE)
+                    java.security.MessageDigest.isEqual(storedBytes, derived.password)
+                } finally {
+                    try { derived.password.fill(0) } catch (_: Exception) { }
+                    try { derived.key.fill(0) } catch (_: Exception) { }
+                }
+            } catch (_: Exception) { false }
         }
     }
 }

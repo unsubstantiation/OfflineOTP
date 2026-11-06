@@ -84,7 +84,7 @@ desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared ru
 - **OpenSSH-key keystroke output.** Android's SSH popup can type the key through NFC or a YubiKey in
   OTP mode via `menu_send_keystrokes`. The desktop client has no hardware keystroke path (it
   supports PC/SC OATH only), which the README lists as out of scope.
-- **Settings editor, inactivity lock, automatic backups, biometrics, master-password change.**
+- **Settings editor, inactivity lock, automatic backups, master-password change.**
   Both are opt-in on Android and off by default (`getAuthInactivity()`, the automatic-backup keys),
   so an untouched Android install and the desktop client behave the same; only an Android user who
   turns them on gets behaviour the desktop client has no equivalent for.
@@ -167,7 +167,7 @@ reinterpretation:
 | A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
 | A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
 | A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
-| The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | (iOS only) | `KeychainBiometricKeyStore`, `VaultStore.unlockWithBiometrics` | `BiometricUnlockTests`, `test_ios_app.py` |
+| The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | iOS `KeychainBiometricKeyStore`, Android `BiometricKeyStore` | `VaultStore.unlockWithBiometrics` (iOS), `AuthenticateActivity` + `BiometricKeyStore` (Android) | `BiometricUnlockTests` / `test_ios_app.py` (iOS), `test_manifest_source_policy.py` + manual enrollment + `BiometricKeyStore` instrumentation (Android) |
 | Two entries are the same account when their kind, token parameters, seed, name, issuer and SSH target match — the usage stamp, counters of use, tags and reveal state are metadata | `Entry.equals`/`hashCode` | `Entry.==`/`hash(into:)` | `VaultStoreTests`, `test_ios_app.py` |
 | A Google Authenticator export is read code by code and written only when every code of it has arrived; a repeated or foreign code is refused without ending it, and an identical account is skipped | `GoogleAuthenticatorMigration`, `MigrationBatchCollector`, Android's `google_import_*` strings, `EntriesCardAdapter.importEntries` | `MigrationPayload`, `MigrationBatchCollector`, `MigrationWording`, `VaultStore.addMigrationImportCode`/`confirmMigrationImport` | `MigrationImportTests`, `VaultStoreTests`, `test_ios_app.py` |
 

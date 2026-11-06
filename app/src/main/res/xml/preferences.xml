@@ -21,6 +21,12 @@
             android:key="@string/settings_key_auth"
             android:title="@string/settings_title_auth" />
 
+        <CheckBoxPreference
+            android:key="@string/settings_key_biometric_enabled"
+            android:title="@string/settings_title_biometric"
+            android:summary="@string/settings_desc_biometric"
+            android:defaultValue="false" />
+
         <ListPreference
             android:key="@string/settings_key_encryption"
             android:title="@string/settings_title_encryption"

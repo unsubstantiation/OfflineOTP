@@ -354,8 +354,9 @@ object DatabaseHelper {
     fun wipeDatabase(context: Context) {
         VaultSession.lock(SessionLockReason.RESET)
         synchronized(DatabaseFileLock) {
-            // Invalidate the shortcut even if a subsequent file deletion fails partway through.
+            // Invalidate shortcuts even if a subsequent file deletion fails partway through.
             HardwareUnlockStore.clearAfterReset(context)
+            BiometricKeyStore.clearAfterReset(context)
             for (name in arrayOf(Constants.FILENAME_DATABASE, Constants.FILENAME_DATABASE_BACKUP, PENDING_FILE)) {
                 FileHelper.delete(file(context, name))
             }

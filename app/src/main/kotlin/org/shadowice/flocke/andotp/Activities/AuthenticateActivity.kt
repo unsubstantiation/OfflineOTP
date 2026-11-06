@@ -24,6 +24,7 @@ import org.shadowice.flocke.andotp.Tasks.AuthenticationError
 import org.shadowice.flocke.andotp.Tasks.AuthenticationOutcome
 import org.shadowice.flocke.andotp.Tasks.AuthenticationTask
 import org.shadowice.flocke.andotp.Tasks.TaskFailure
+import org.shadowice.flocke.andotp.Utilities.BiometricKeyStore
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.Constants.AuthMethod
 import org.shadowice.flocke.andotp.Utilities.EditorActionHelper
@@ -52,6 +53,10 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     private var hardwareButton: Button? = null
     private var hardwarePending = false
     private var hardwareGeneration = -1L
+    private var biometricButton: Button? = null
+    private var biometricPending = false
+    private var biometricGeneration = -1L
+    private var biometricAutoShown = false
     private var unlockProgress: ProgressBar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,6 +95,14 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         }
 
         getWindow().setSoftInputMode(LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+
+        // Auto-prompt fingerprint if it is the quick unlock for this vault. A cancel falls back
+        // to the password; the vault file is unchanged so the password still works.
+        if (shouldOfferBiometric() && !biometricAutoShown) {
+            biometricAutoShown = true
+            // Let the view inflate before the system prompt appears.
+            passwordInput?.postDelayed({ if (!isFinishing) triggerBiometricUnlock() }, 300)
+        }
     }
 
     private fun initToolbar() {
@@ -156,6 +169,78 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
                 startActivityForResult(Intent(this, HardwareUnlockActivity::class.java), Constants.INTENT_AUTH_HARDWARE)
             }
         }
+        val biometric = requireNotNull(v.findViewById<Button>(R.id.buttonBiometricUnlock))
+        biometricButton = biometric
+        val biometricAllowed = shouldOfferBiometric()
+        biometric.visibility = if (biometricAllowed) View.VISIBLE else View.GONE
+        biometric.setOnClickListener {
+            if (!biometricPending && biometricAllowed) {
+                clearPasswordInput()
+                triggerBiometricUnlock()
+            }
+        }
+    }
+
+    private fun shouldOfferBiometric(): Boolean {
+        if (!newEncryption.isNullOrEmpty()) return false
+        if (authMethod != AuthMethod.PASSWORD) return false
+        if (settings?.getEncryption() != Constants.EncryptionType.PASSWORD) return false
+        if (!BiometricKeyStore.isEnabled(this)) return false
+        if (!BiometricKeyStore.hasStoredKey(this)) return false
+        return BiometricKeyStore.availability(this).isAvailable
+    }
+
+    private fun triggerBiometricUnlock() {
+        if (biometricPending) return
+        biometricPending = true
+        biometricGeneration = VaultSession.generation()
+        BiometricKeyStore.load(this) { result ->
+            if (!VaultSession.isCurrent(biometricGeneration)) {
+                biometricPending = false
+                return@load
+            }
+            if (result.isSuccess) {
+                val vaultKey = result.getOrNull()
+                if (vaultKey != null && vaultKey.isNotEmpty()) {
+                    // Hand the vault key to the session; the GCM tag is the real gate, not the
+                    // biometric — a key that was re-encrypted after a password change will fail
+                    // to open the file and the load path will have already cleared the stale item.
+                    finishWithResult(true, vaultKey, biometricGeneration)
+                    try { vaultKey.fill(0) } catch (_: Exception) { }
+                } else {
+                    try { vaultKey?.fill(0) } catch (_: Exception) { }
+                    biometricPending = false
+                }
+                return@load
+            }
+            biometricPending = false
+            val error = BiometricKeyStore.errorFromResult(result)
+            when (error) {
+                BiometricKeyStore.BiometricError.MISSING -> {
+                    BiometricKeyStore.clear(this)
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.stale, Toast.LENGTH_LONG).show()
+                    biometricButton?.visibility = View.GONE
+                }
+                BiometricKeyStore.BiometricError.CANCELLED -> {
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.cancelled, Toast.LENGTH_SHORT).show()
+                }
+                BiometricKeyStore.BiometricError.LOCKED_OUT -> {
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.lockedOut, Toast.LENGTH_LONG).show()
+                }
+                BiometricKeyStore.BiometricError.NOT_ENROLLED -> {
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.notEnrolled, Toast.LENGTH_LONG).show()
+                    biometricButton?.visibility = View.GONE
+                }
+                BiometricKeyStore.BiometricError.UNAVAILABLE -> {
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.unavailable, Toast.LENGTH_LONG).show()
+                    biometricButton?.visibility = View.GONE
+                }
+                else -> {
+                    Toast.makeText(this, BiometricKeyStore.BiometricWording.stale, Toast.LENGTH_LONG).show()
+                    biometricButton?.visibility = View.GONE
+                }
+            }
+        }
     }
 
     override fun cancelTaskOnScreenOff(): Boolean {
@@ -180,6 +265,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         passwordInput?.isEnabled = !isTaskRunning
         unlockButton?.isEnabled = !isTaskRunning
         hardwareButton?.isEnabled = !isTaskRunning
+        biometricButton?.isEnabled = !isTaskRunning
         unlockButton?.visibility = if (isTaskRunning) View.INVISIBLE else View.VISIBLE
         unlockProgress?.visibility = if (isTaskRunning) View.VISIBLE else View.GONE
     }
@@ -283,6 +369,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     override fun onVaultLocked() {
         hardwarePending = false
+        biometricPending = false
         cancelBackgroundTask()
         clearPasswordInput()
         finish()

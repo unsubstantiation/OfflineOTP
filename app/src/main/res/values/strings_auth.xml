@@ -11,6 +11,9 @@
 
     <!-- Buttons -->
     <string name="auth_button_unlock">Unlock</string>
+    <string name="biometric_unlock_button">Unlock with fingerprint</string>
+    <string name="biometric_prompt_title">Unlock with fingerprint</string>
+    <string name="biometric_prompt_subtitle">Use fingerprint to unlock your vault</string>
 
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Set a password in Settings first.</string>
