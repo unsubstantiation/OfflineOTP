@@ -138,7 +138,7 @@ class MainWindowDisplayTest {
         // The prompt runnable is exposed on the frame for tests so this helper still works
         // even when the window hasn't yet auto-fired, and without clicking removed buttons.
         edt {
-            (fixture.frame.getClientProperty("offlineotp.promptOpenVault") as? Runnable)?.let { runnable ->
+            (fixture.frame.rootPane.getClientProperty("offlineotp.promptOpenVault") as? Runnable)?.let { runnable ->
                 if (dialog("Open vault") == null) SwingUtilities.invokeLater { runnable.run() }
             }
         }

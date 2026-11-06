@@ -385,8 +385,8 @@ object MainWindow {
         }
         // Auto-prompt like Android: first launch → Create, later → Open.
         // Exposed for display tests so they do not click header buttons that no longer exist.
-        frame.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
-        frame.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
+        frame.rootPane.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
+        frame.rootPane.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
         val addMenu = JPopupMenu().apply {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
