@@ -41,13 +41,18 @@ jobs:
           set -e
           if [ $status -ne 0 ]; then
             echo "::group::Rust test failure tail"
-            tail -n 120 rust-test.log || true
+            echo "--- tail 200 ---"
+            tail -n 200 rust-test.log | cat -A | head -n 40 || true
             wc -l rust-test.log || true
-            grep -n -i "error" rust-test.log | head -n 20 | while IFS= read -r line; do
+            grep -n -i "error" rust-test.log | head -n 40 | while IFS= read -r line; do
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
               echo "::error title=Rust test::$safe"
             done || true
-            tail -n 80 rust-test.log | while IFS= read -r line; do
+            grep -n "^error" rust-test.log | head -n 40 | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              echo "::error title=Rust err2::$safe"
+            done || true
+            tail -n 200 rust-test.log | while IFS= read -r line; do
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
               [ -n "$safe" ] || continue
               echo "::notice title=Rust tail::$safe"
