@@ -329,6 +329,27 @@ object MainWindow {
             }
         }
 
+        fun importLinScp() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            when (LinScpDialogs.importBackup(frame, active)) {
+                LinScpDialogs.ImportedTab.SSH_KEYS -> {
+                    screen.categories.selectedIndex = EntryListPresentation.Category.SSH_KEYS.ordinal
+                    refreshProjection(unlocked)
+                }
+                LinScpDialogs.ImportedTab.PASSWORDS -> {
+                    screen.categories.selectedIndex = EntryListPresentation.Category.PASSWORDS.ordinal
+                    refreshProjection(unlocked)
+                }
+                LinScpDialogs.ImportedTab.NONE -> {}
+            }
+        }
+
+        fun exportLinScp() {
+            val unlocked = requireUnlocked() ?: return
+            LinScpDialogs.exportVault(frame, unlocked.snapshot())
+        }
+
         fun showPasswordDetails() {
             requireUnlocked() ?: return
             val row = table.selectedRow
@@ -395,6 +416,8 @@ object MainWindow {
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
             add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
             add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
+            add(JMenuItem("Import LinSCP SSH & sessions…").apply { addActionListener { importLinScp() } })
+            add(JMenuItem("Export to LinSCP vault…").apply { addActionListener { exportLinScp() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
         }
@@ -566,6 +589,8 @@ object MainWindow {
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
                 add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
                 add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
+                add(JMenuItem("Import LinSCP SSH & sessions…").apply { addActionListener { importLinScp() } })
+                add(JMenuItem("Export to LinSCP vault…").apply { addActionListener { exportLinScp() } })
                 addSeparator()
                 add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
                 add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })

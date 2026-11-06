@@ -744,11 +744,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         private fun verifyVaultPassword(plainPassword: String): Boolean {
             val s = settings ?: return false
             return try {
-                val salt = s.getSalt()
-                val iter = s.getIterations()
                 val storedVerifier = s.getAuthCredentials()
                 if (storedVerifier.isEmpty()) return false
-                val derived = org.shadowice.flocke.andotp.Utilities.EncryptionHelper.generatePBKDF2Credentials(plainPassword, salt, iter)
+                val derived = s.deriveVaultCredentials(plainPassword)
                 try {
                     val storedBytes = android.util.Base64.decode(storedVerifier, android.util.Base64.URL_SAFE)
                     java.security.MessageDigest.isEqual(storedBytes, derived.password)

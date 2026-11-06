@@ -38,7 +38,7 @@ final class VaultRoundTripTests: XCTestCase {
         XCTAssertTrue(vault.isInitialized)
         let unlocked = try vault.open(password: "correct horse battery")
         XCTAssertTrue(unlocked.entries.isEmpty)
-        XCTAssertEqual(unlocked.key.count, 16)
+        XCTAssertEqual(unlocked.key.count, 32)
     }
 
     func testTheProvisionedSettingsAreTheSharedOnes() throws {
@@ -50,13 +50,31 @@ final class VaultRoundTripTests: XCTestCase {
 
         XCTAssertEqual(settings.string(VaultSettingsKeys.authMethod), "password")
         XCTAssertEqual(settings.string(VaultSettingsKeys.encryption), "password")
+        XCTAssertEqual(settings.string(VaultSettingsKeys.authKdf), VaultCrypto.kdfArgon2id)
+        XCTAssertEqual(settings.integer(VaultSettingsKeys.authMemoryKiB),
+                       VaultCrypto.argon2MemoryKiB)
         XCTAssertEqual(settings.integer(VaultSettingsKeys.authIterations),
-                       VaultCrypto.minAuthIterations)
+                       VaultCrypto.argon2Iterations)
+        XCTAssertEqual(settings.integer(VaultSettingsKeys.authParallelism),
+                       VaultCrypto.argon2Parallelism)
         let salt = VaultCrypto.base64URLDecode(settings.string(VaultSettingsKeys.authSalt) ?? "")
-        XCTAssertEqual(salt?.count, VaultCrypto.saltBytes)
+        XCTAssertEqual(salt?.count, VaultCrypto.argon2SaltBytes)
         let verifier = VaultCrypto.base64URLDecode(
             settings.string(VaultSettingsKeys.authCredentials) ?? "")
-        XCTAssertEqual(verifier?.count, VaultCrypto.halfBytes)
+        XCTAssertEqual(verifier?.count, VaultCrypto.vaultKeyBytes)
+    }
+
+    func testUnknownAuthKdfIsReportedAsCorrupt() throws {
+        let settings = MemorySettings()
+        let store = MemoryByteStore(data: nil)
+        let vault = PasswordVault(vaultFile: store,
+                                  backupFile: MemoryByteStore(data: nil),
+                                  settings: settings)
+        try vault.create(password: "correct horse battery")
+        settings.setString(VaultSettingsKeys.authKdf, "scrypt")
+        XCTAssertThrowsError(try vault.open(password: "correct horse battery")) { error in
+            XCTAssertEqual(error as? VaultOpenError, .corrupt)
+        }
     }
 
     func testSavingAndReopeningKeepsEveryEntry() throws {

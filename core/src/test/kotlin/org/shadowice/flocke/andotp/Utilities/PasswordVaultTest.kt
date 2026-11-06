@@ -42,7 +42,9 @@ class PasswordVaultTest {
 
         val opened = vault.open(password)
         assertTrue(opened is PasswordVault.Open.Unlocked)
-        assertEquals(0, (opened as PasswordVault.Open.Unlocked).entries.size)
+        val unlocked = opened as PasswordVault.Open.Unlocked
+        assertEquals(0, unlocked.entries.size)
+        assertEquals(32, unlocked.key.encoded.size)
     }
 
     @Test
@@ -149,18 +151,48 @@ class PasswordVaultTest {
 
     @Test
     fun provisionedSettingsUseTheSharedKeysAndUrlSafeBase64() {
-        val (_, _, vault) = newHarness()
         val settings = InMemorySettings()
         PasswordVault(InMemoryByteStore(), InMemoryByteStore(), settings).create(password)
 
         assertEquals("password", settings.strings[VaultSettingsKeys.AUTH_METHOD])
         assertEquals("password", settings.strings[VaultSettingsKeys.ENCRYPTION])
+        assertEquals(Constants.KDF_ARGON2ID, settings.strings[VaultSettingsKeys.AUTH_KDF])
         val verifier = settings.strings[VaultSettingsKeys.AUTH_CREDENTIALS]!!
         val salt = settings.strings[VaultSettingsKeys.AUTH_SALT]!!
         assertTrue(verifier.all { it.isLetterOrDigit() || it == '-' || it == '_' || it == '=' })
         assertTrue(salt.all { it.isLetterOrDigit() || it == '-' || it == '_' || it == '=' })
-        assertEquals(Constants.PBKDF2_MIN_AUTH_ITERATIONS,
+        assertEquals(Constants.ARGON2_MEMORY_KIB,
+            settings.ints[VaultSettingsKeys.AUTH_MEMORY_KIB])
+        assertEquals(Constants.ARGON2_ITERATIONS,
             settings.ints[VaultSettingsKeys.AUTH_ITERATIONS])
+        assertEquals(Constants.ARGON2_PARALLELISM,
+            settings.ints[VaultSettingsKeys.AUTH_PARALLELISM])
+    }
+
+    @Test
+    fun legacyPbkdf2VaultStillOpensWithoutAuthKdfKey() {
+        val vaultFile = InMemoryByteStore()
+        val settings = InMemorySettings()
+        val salt = ByteArray(16) { (it + 1).toByte() }
+        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, 4096)
+        settings.putString(VaultSettingsKeys.AUTH_METHOD, "password")
+        settings.putString(VaultSettingsKeys.ENCRYPTION, "password")
+        settings.putString(VaultSettingsKeys.AUTH_CREDENTIALS,
+            java.util.Base64.getUrlEncoder().encodeToString(derived.password))
+        settings.putString(VaultSettingsKeys.AUTH_SALT,
+            java.util.Base64.getUrlEncoder().encodeToString(salt))
+        settings.putInt(VaultSettingsKeys.AUTH_ITERATIONS, 4096)
+        vaultFile.writeAtomic(CryptoPrimitives.encrypt(
+            javax.crypto.spec.SecretKeySpec(derived.key, "AES"),
+            org.shadowice.flocke.andotp.Database.VaultJson.entriesToString(
+                arrayListOf(entry("Legacy", "pbkdf2"))
+            ).toByteArray(StandardCharsets.UTF_8)
+        ))
+
+        val vault = PasswordVault(vaultFile, InMemoryByteStore(), settings)
+        val opened = vault.open(password) as PasswordVault.Open.Unlocked
+        assertEquals(1, opened.entries.size)
+        assertEquals("Legacy", opened.entries[0].getIssuer())
     }
 
     private class InMemoryByteStore : AtomicByteStore {

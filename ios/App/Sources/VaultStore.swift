@@ -541,6 +541,68 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// True when `data` is a LinSCP `LSCPVLT2` encrypted vault requiring a backup password.
+    public func isLinScpEncryptedVault(_ data: Data) -> Bool {
+        LinScpVault.isEncryptedVault(data)
+    }
+
+    /// True when `data` is a LinSCP `sessions.ini` (or bundle) requiring a `sessions.key` secret.
+    public func needsLinScpMasterKey(_ data: Data) -> Bool {
+        LinScpVault.needsSessionMasterKey(data)
+    }
+
+    /// Exports SSH keys and login sessions in LinSCP's `LSCPVLT2` encrypted credential-vault format.
+    public func exportLinScpVault(password: String, now: Date = Date()) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        guard !password.isEmpty, password.count <= InputPolicy.maxVaultPasswordChars else {
+            message = "The backup password is empty or too long."
+            return nil
+        }
+        do {
+            let data = try LinScpVault.sealWithFreshParameters(entries: entries, password: password)
+            return ExportedBackup(name: LinScpVault.exportFilename(now), data: data)
+        } catch LinScpVaultError.emptyCredentials {
+            message = "There are no SSH keys or login sessions to export."
+            return nil
+        } catch {
+            message = "The LinSCP vault could not be written."
+            return nil
+        }
+    }
+
+    /// Imports SSH keys and saved sessions from a LinSCP `LSCPVLT2` vault, `BackupBundle`, or `sessions.ini`.
+    public func importLinScp(
+        data: Data,
+        password: String? = nil,
+        masterKeyText: String? = nil,
+        replace: Bool = false
+    ) -> RestorePlan? {
+        do {
+            let keyData = masterKeyText?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .data(using: .utf8)
+            let imported = try LinScpVault.importData(
+                data,
+                password: password,
+                masterKeyData: (keyData?.isEmpty == false) ? keyData : nil
+            )
+            let document = try VaultDocument.encode(imported)
+            return install(document: document, replace: replace)
+        } catch VaultCryptoError.authenticationFailed {
+            message = BackupWording.wrongPassword
+            return nil
+        } catch EncryptedBackupError.invalidPassword {
+            message = "The backup password is empty or too long."
+            return nil
+        } catch LinScpVaultError.missingMasterKey, LinScpVaultError.invalidMasterKey {
+            message = "A valid Base64 LinSCP sessions.key is required to decrypt saved passwords."
+            return nil
+        } catch {
+            message = "That file could not be imported as LinSCP credentials."
+            return nil
+        }
+    }
+
     private func install(document: String, replace: Bool) -> RestorePlan? {
         let imported: [Entry]
         do {

@@ -127,7 +127,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * The replacement is validated and checked for duplicates (excluding the entry being replaced).
      * On any failure the replacement is destroyed and the vault is left unchanged.
      */
-    fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+    open fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
         synchronized(VaultSession.MutationLock) {
             val key = encryptionKey
             if (key == null || VaultSession.getKey() !== key) {
@@ -967,7 +967,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 withTarget(popupTarget, Consumer { actual ->
                     if (!actual.isPassword()) return@Consumer
                     val fields = actual.getPasswordFields()
-                    val text = fields.columns().indices.joinToString("\n\n") { "${fields.columns()[it]}: ${fields.valueAt(it)}" }
+                    val text = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
                     activePasswordDialog?.dismiss()
                     val dialog = AlertDialog.Builder(context).setTitle(R.string.password_details)
                         .setMessage(text).setPositiveButton(android.R.string.ok, null).create()

@@ -12,7 +12,9 @@
  */
 package org.shadowice.flocke.andotp.packaging
 
+import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.CryptoPrimitives
+import org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader
 import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.file.Files
@@ -67,7 +69,52 @@ fun main(args: Array<String>) {
         .array()
     write(output.resolve("otp_accounts.json.aes"), backup)
 
-    // The JSON document is the source of truth for the plaintext shared by all three blobs.
+    // Argon2id vault (64 MiB, t=3, p=4): salt 00..0f, GCM nonce 10..1b, lower half = AES key, upper half = verifier.
+    val argonVaultCredentials = CryptoPrimitives.generateArgon2idCredentials(
+        password = PASSWORD,
+        salt = vaultSalt,
+        memoryKiB = Constants.ARGON2_MEMORY_KIB,
+        iterations = Constants.ARGON2_ITERATIONS,
+        parallelism = Constants.ARGON2_PARALLELISM
+    )
+    val argonVaultKey = SecretKeySpec(argonVaultCredentials.key, "AES")
+    val argonSecrets = vaultNonce +
+        CryptoPrimitives.encrypt(argonVaultKey, IvParameterSpec(vaultNonce), plaintext)
+    write(output.resolve("argon2id-secrets.dat"), argonSecrets)
+
+    val argonProperties = Properties().apply {
+        setProperty("auth_method", "password")
+        setProperty("encryption", "password")
+        setProperty("auth_kdf", Constants.KDF_ARGON2ID)
+        setProperty("auth_credentials", Base64.getUrlEncoder().encodeToString(argonVaultCredentials.password))
+        setProperty("auth_salt", Base64.getUrlEncoder().encodeToString(vaultSalt))
+        setProperty("auth_memory_kib", Constants.ARGON2_MEMORY_KIB.toString())
+        setProperty("auth_iterations", Constants.ARGON2_ITERATIONS.toString())
+        setProperty("auth_parallelism", Constants.ARGON2_PARALLELISM.toString())
+    }
+    write(output.resolve("argon2id-vault.properties"), deterministicProperties(argonProperties))
+
+    // Argon2id backup frame: "OOTP" || 0x01 || BE32(65536) || BE32(3) || 0x04 || 16B salt || nonce-prefixed AES-GCM.
+    val argonBackupSalt = byteRange(0x40, Constants.ARGON2_SALT_LENGTH)
+    val argonBackupNonce = byteRange(0x50, Constants.ENCRYPTION_IV_LENGTH)
+    val argonBackupKey = CryptoPrimitives.generateSymmetricKeyArgon2id(
+        password = PASSWORD,
+        salt = argonBackupSalt,
+        memoryKiB = Constants.ARGON2_MEMORY_KIB,
+        iterations = Constants.ARGON2_ITERATIONS,
+        parallelism = Constants.ARGON2_PARALLELISM
+    )
+    val argonBackupCipher = CryptoPrimitives.encrypt(argonBackupKey, IvParameterSpec(argonBackupNonce), plaintext)
+    val argonBackup = EncryptedBackupHeader.frameArgon2id(
+        memoryKiB = Constants.ARGON2_MEMORY_KIB,
+        iterations = Constants.ARGON2_ITERATIONS,
+        parallelism = Constants.ARGON2_PARALLELISM,
+        salt = argonBackupSalt,
+        encrypted = argonBackupNonce + argonBackupCipher
+    )
+    write(output.resolve("argon2id-otp_accounts.json.aes"), argonBackup)
+
+    // The JSON document is the source of truth for the plaintext shared by all blobs.
     write(output.resolve("expected-vault.json"), plaintext)
 }
 

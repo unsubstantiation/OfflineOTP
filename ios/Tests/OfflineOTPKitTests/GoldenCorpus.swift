@@ -11,15 +11,26 @@ enum GoldenCorpus {
     /// The throwaway password every fixture uses. Test data only; it protects nothing.
     static let password = "golden-interop-password"
 
-    /// Fixed parameters of the vault fixture, from `golden/vault.properties` and `golden/README.md`.
+    /// Fixed parameters of the legacy PBKDF2 vault fixture (`golden/secrets.dat` + `golden/vault.properties`).
     static let vaultSalt: [UInt8] = Array(0x00...0x0F)
     static let vaultIterations = 4096
     static let vaultVerifierBase64URL = "TJU9JVeBdEaFFFYX0KW4XA=="
 
-    /// Fixed parameters of `otp_accounts.json.aes`.
+    /// Fixed parameters of the Argon2id vault fixture (`golden/argon2id-secrets.dat` + `golden/argon2id-vault.properties`).
+    static let argon2VaultSalt: [UInt8] = Array(0x00...0x0F)
+    static let argon2VaultMemoryKiB = 65_536
+    static let argon2VaultIterations = 3
+    static let argon2VaultParallelism = 4
+    static let argon2VaultVerifierBase64URL = "VSf8r3Yzwk4Ho1i1AQA6HstSMmmDSf7kFEcU-T0xw5k="
+
+    /// Fixed parameters of legacy `otp_accounts.json.aes`.
     static let backupIterations = 140_000
     static let backupSalt: [UInt8] = Array(0x20...0x2B)
     static let backupNonce: [UInt8] = Array(0x30...0x3B)
+
+    /// Fixed parameters of `argon2id-otp_accounts.json.aes`.
+    static let argon2BackupSalt: [UInt8] = Array(0x40...0x4F)
+    static let argon2BackupNonce: [UInt8] = Array(0x50...0x5B)
 
     /// The repository root, found from this file's own path: `<root>/ios/Tests/OfflineOTPKitTests/`.
     static var repositoryRoot: URL {
@@ -57,7 +68,7 @@ enum GoldenCorpus {
         return try Data(contentsOf: url)
     }
 
-    /// A vault backed by the golden `secrets.dat`, with the fixture's own salt/iterations/verifier.
+    /// A vault backed by the legacy PBKDF2 golden `secrets.dat`.
     static func fixtureVault(secrets: Data) -> (PasswordVault, MemoryByteStore) {
         let store = MemoryByteStore(data: secrets)
         let settings = MemorySettings(values: [
@@ -66,6 +77,23 @@ enum GoldenCorpus {
             VaultSettingsKeys.authSalt: .string(VaultCrypto.base64URLEncode(vaultSalt)),
             VaultSettingsKeys.authIterations: .int(vaultIterations),
             VaultSettingsKeys.authCredentials: .string(vaultVerifierBase64URL),
+        ])
+        let backup = MemoryByteStore(data: nil)
+        return (PasswordVault(vaultFile: store, backupFile: backup, settings: settings), store)
+    }
+
+    /// A vault backed by the Argon2id golden `argon2id-secrets.dat`.
+    static func argon2FixtureVault(secrets: Data) -> (PasswordVault, MemoryByteStore) {
+        let store = MemoryByteStore(data: secrets)
+        let settings = MemorySettings(values: [
+            VaultSettingsKeys.authMethod: .string("password"),
+            VaultSettingsKeys.encryption: .string("password"),
+            VaultSettingsKeys.authKdf: .string(VaultCrypto.kdfArgon2id),
+            VaultSettingsKeys.authSalt: .string(VaultCrypto.base64URLEncode(argon2VaultSalt)),
+            VaultSettingsKeys.authMemoryKiB: .int(argon2VaultMemoryKiB),
+            VaultSettingsKeys.authIterations: .int(argon2VaultIterations),
+            VaultSettingsKeys.authParallelism: .int(argon2VaultParallelism),
+            VaultSettingsKeys.authCredentials: .string(argon2VaultVerifierBase64URL),
         ])
         let backup = MemoryByteStore(data: nil)
         return (PasswordVault(vaultFile: store, backupFile: backup, settings: settings), store)

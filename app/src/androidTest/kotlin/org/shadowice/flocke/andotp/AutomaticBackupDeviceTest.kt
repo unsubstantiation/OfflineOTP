@@ -169,8 +169,7 @@ class AutomaticBackupDeviceTest {
             newLease.close()
             for ((frame, password) in listOf(oldFrame to PASSWORD, newFrame to NEW_PASSWORD)) {
                 val header = EncryptedBackupHeader.parse(frame)
-                val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password,
-                    header.getIterations(), header.getSalt())
+                val backupKey = header.deriveKey(password)
                 assertEquals("[]", String(EncryptionHelper.decrypt(backupKey, header.getEncrypted())))
             }
         } finally {

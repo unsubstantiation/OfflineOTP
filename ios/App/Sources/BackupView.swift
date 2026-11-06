@@ -18,11 +18,14 @@ struct BackupView: View {
     @State private var status: String?
     @State private var exportPassword = ""
     @State private var exportConfirmation = ""
+    @State private var linScpExportPassword = ""
+    @State private var linScpExportConfirmation = ""
     @State private var exportFile: BackupFile?
     @State private var exportName = ""
     @State private var showingExporter = false
 
     @State private var pickingEncrypted = false
+    @State private var pickingLinScp = false
     @State private var pickingImage = false
     @State private var pending: PendingRestore?
     @State private var link = ""
@@ -50,6 +53,7 @@ struct BackupView: View {
             Form {
                 exportSection
                 restoreSection
+                linScpSection
                 linkSection
                 imageSection
 
@@ -83,6 +87,10 @@ struct BackupView: View {
             .fileImporter(isPresented: $pickingEncrypted, allowedContentTypes: [.data],
                           allowsMultipleSelection: true) { result in
                 handlePicked(result, kind: .encrypted)
+            }
+            .fileImporter(isPresented: $pickingLinScp, allowedContentTypes: [.data],
+                          allowsMultipleSelection: true) { result in
+                handlePicked(result, kind: .linScp)
             }
             .fileImporter(isPresented: $pickingImage, allowedContentTypes: [.image],
                           allowsMultipleSelection: true) { result in
@@ -155,6 +163,26 @@ struct BackupView: View {
         }
     }
 
+    private var linScpSection: some View {
+        Section {
+            Button("Import LinSCP SSH & sessions…") { pickingLinScp = true }
+            SecureField("LinSCP vault password", text: $linScpExportPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField("Confirm LinSCP password", text: $linScpExportConfirmation)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Export to LinSCP encrypted vault") { createLinScpExport() }
+                .disabled(linScpExportPassword.isEmpty)
+        } header: {
+            Text("LinSCP SSH & Sessions")
+        } footer: {
+            Text("Imports LinSCP encrypted credential vaults (.json.aes), BackupBundle JSON, or "
+                 + "sessions.ini, and exports SSH keys and login sessions in LinSCP's Argon2id + "
+                 + "AES-256-GCM vault format.")
+        }
+    }
+
     private var linkSection: some View {
         Section {
             TextField("otpauth://totp/…", text: $link)
@@ -199,6 +227,22 @@ struct BackupView: View {
         // The typed password is not kept in this view once the file exists.
         exportPassword = ""
         exportConfirmation = ""
+        exportName = exported.name
+        exportFile = BackupFile(data: exported.data)
+        showingExporter = true
+    }
+
+    private func createLinScpExport() {
+        guard linScpExportPassword == linScpExportConfirmation else {
+            status = "The two passwords do not match."
+            return
+        }
+        guard let exported = store.exportLinScpVault(password: linScpExportPassword) else {
+            status = store.message ?? "The LinSCP vault could not be written."
+            return
+        }
+        linScpExportPassword = ""
+        linScpExportConfirmation = ""
         exportName = exported.name
         exportFile = BackupFile(data: exported.data)
         showingExporter = true
@@ -272,6 +316,15 @@ struct BackupView: View {
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
             let data = try Data(contentsOf: url)
+            if kind == .linScp, !store.isLinScpEncryptedVault(data),
+               !store.needsLinScpMasterKey(data) {
+                if let plan = store.importLinScp(data: data, replace: false) {
+                    status = BackupWording.restoreSummary(plan, replace: false)
+                } else {
+                    status = store.message ?? BackupWording.unreadableBackup
+                }
+                return
+            }
             pending = PendingRestore(kind: kind, data: data)
         } catch {
             status = "The file could not be read."
@@ -307,6 +360,7 @@ struct PendingRestore: Identifiable {
 /// Which parser a picked file goes through.
 enum RestoreKind: Equatable {
     case encrypted
+    case linScp
 }
 
 /// A file handed to the system's exporter. The bytes are already encrypted; nothing here decrypts.
@@ -353,6 +407,19 @@ struct RestorePromptView: View {
                     } footer: {
                         Text("The password this backup was created with.")
                     }
+                } else if kind == .linScp {
+                    Section {
+                        SecureField(store.isLinScpEncryptedVault(data)
+                                    ? "LinSCP vault password"
+                                    : "Base64 LinSCP sessions.key",
+                                    text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } footer: {
+                        Text(store.isLinScpEncryptedVault(data)
+                             ? "The password this LinSCP credential vault was exported with."
+                             : "The Base64 sessions.key needed to decrypt lscp1$ saved passwords.")
+                    }
                 }
                 Section {
                     Toggle(BackupWording.replaceSwitch, isOn: $replace)
@@ -372,15 +439,15 @@ struct RestorePromptView: View {
             }
             .scrollContentBackground(.hidden)
             .background(ForestPalette.background)
-            .navigationTitle("Restore Full Encrypted Backup")
+            .navigationTitle(kind == .linScp ? "Import LinSCP Credentials" : "Restore Full Encrypted Backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel", action: onCancel)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Restore", action: restore)
-                        .disabled(kind == .encrypted && password.isEmpty)
+                    Button(kind == .linScp ? "Import" : "Restore", action: restore)
+                        .disabled(password.isEmpty)
                 }
             }
         }
@@ -392,6 +459,12 @@ struct RestorePromptView: View {
         switch kind {
         case .encrypted:
             plan = store.restore(encrypted: data, password: password, replace: replace)
+        case .linScp:
+            if store.isLinScpEncryptedVault(data) {
+                plan = store.importLinScp(data: data, password: password, replace: replace)
+            } else {
+                plan = store.importLinScp(data: data, masterKeyText: password, replace: replace)
+            }
         }
         guard let plan else {
             errorText = store.message ?? BackupWording.unreadableBackup

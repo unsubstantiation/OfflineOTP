@@ -10,10 +10,13 @@ All blobs use the password `golden-interop-password` and the same two-entry vaul
 
 | File | Format | Fixed parameters |
 | --- | --- | --- |
-| `secrets.dat` | nonce-prefixed AES-GCM over the vault JSON | PBKDF2 salt `00..0f`, 4096 iterations; GCM nonce `10..1b`; key = lower PBKDF2 half |
-| `vault.properties` | desktop settings for the vault | Base64 URL-safe verifier (upper PBKDF2 half) and salt, iteration count 4096 |
-| `otp_accounts.json.aes` | `4-byte BE iterations ‖ 12-byte salt ‖ 12-byte nonce ‖ GCM ct ‖ 16-byte tag` | 140000 iterations, salt `20..2b`, nonce `30..3b` |
-| `expected-vault.json` | compact `VaultJson` document | plaintext shared by all three encrypted blobs |
+| `argon2id-secrets.dat` | nonce-prefixed AES-256-GCM over the vault JSON | Argon2id v1.3 (`65536` KiB, `t = 3`, `p = 4`, 512-bit output), salt `00..0f`; GCM nonce `10..1b`; key = lower 32 bytes |
+| `argon2id-vault.properties` | desktop settings for the Argon2id vault | `auth_kdf=argon2id`, `auth_memory_kib=65536`, `auth_iterations=3`, `auth_parallelism=4`, Base64 URL-safe 32-byte verifier and 16-byte salt |
+| `argon2id-otp_accounts.json.aes` | `"OOTP" ‖ 0x01 ‖ BE32(65536) ‖ BE32(3) ‖ 0x04 ‖ 16-byte salt ‖ 12-byte nonce ‖ GCM ct ‖ 16-byte tag` | Argon2id v1.3 (`65536` KiB, `t = 3`, `p = 4`, 256-bit key), salt `40..4f`, nonce `50..5b` |
+| `secrets.dat` | legacy nonce-prefixed AES-128-GCM over the vault JSON | PBKDF2 salt `00..0f`, 4096 iterations; GCM nonce `10..1b`; key = lower 16-byte PBKDF2 half |
+| `vault.properties` | legacy desktop settings for the PBKDF2 vault | Base64 URL-safe verifier (upper PBKDF2 half) and salt, iteration count 4096 |
+| `otp_accounts.json.aes` | legacy `4-byte BE iterations ‖ 12-byte salt ‖ 12-byte nonce ‖ GCM ct ‖ 16-byte tag` | 140000 iterations, salt `20..2b`, nonce `30..3b` |
+| `expected-vault.json` | compact `VaultJson` document | plaintext shared by all encrypted blobs |
 
 ## Regeneration
 

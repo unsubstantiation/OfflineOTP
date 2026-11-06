@@ -48,6 +48,7 @@ import org.shadowice.flocke.andotp.Database.Entry
 import org.shadowice.flocke.andotp.Dialogs.HideableDialog
 import org.shadowice.flocke.andotp.Dialogs.ManualEntryDialog
 import org.shadowice.flocke.andotp.Dialogs.EmailEntryDialog
+import org.shadowice.flocke.andotp.Dialogs.PasswordEntryDialog
 import org.shadowice.flocke.andotp.R
 import org.shadowice.flocke.andotp.Utilities.Constants
 import org.shadowice.flocke.andotp.Utilities.EntryUsage
@@ -57,6 +58,7 @@ import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
 import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
 import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
+import org.shadowice.flocke.andotp.Utilities.LinScpCredentials
 import org.shadowice.flocke.andotp.Utilities.PasswordImport
 import org.shadowice.flocke.andotp.Utilities.ThunderbirdCsv
 import org.shadowice.flocke.andotp.Utilities.ThunderbirdImport
@@ -104,6 +106,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var thunderbirdExportPending: ByteArray? = null
     private var thunderbirdExportGeneration: Long = -1L
     private var thunderbirdExportSelectionDialog: AlertDialog? = null
+    private var linScpPendingUri: Uri? = null
+    private var linScpImportBytes: ByteArray? = null
+    private var linScpImportPrompt: AlertDialog? = null
+    private var linScpExportPending: ByteArray? = null
+    private var linScpExportGeneration: Long = -1L
+    private var linScpExportSelectionDialog: AlertDialog? = null
+    private var linScpExportPasswordDialog: PasswordEntryDialog? = null
     private var sortMenu: MenuItem? = null
     private var searchMenu: MenuItem? = null
     private var touchHelperCallback: SimpleItemTouchHelperCallback? = null
@@ -206,6 +215,18 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdPendingUri = null
         thunderbirdExportSelectionDialog?.dismiss()
         thunderbirdExportSelectionDialog = null
+        linScpImportBytes?.fill(0)
+        linScpImportBytes = null
+        linScpImportPrompt?.dismiss()
+        linScpImportPrompt = null
+        linScpPendingUri = null
+        linScpExportPending?.fill(0)
+        linScpExportPending = null
+        linScpExportGeneration = -1L
+        linScpExportSelectionDialog?.dismiss()
+        linScpExportSelectionDialog = null
+        linScpExportPasswordDialog?.dismiss()
+        linScpExportPasswordDialog = null
         emailExportPending?.fill(0)
         emailExportPending = null
         emailExportGeneration = -1L
@@ -235,6 +256,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             resumePasswordOperation()
             resumeEmailImport()
             resumeThunderbirdOperation()
+            resumeLinScpOperation()
         }
     }
 
@@ -357,6 +379,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             passwordExportDigest = savedInstanceState.getString("password_export_digest")
             passwordPendingUri = savedInstanceState.getParcelable("password_pending_uri")
             thunderbirdPendingUri = savedInstanceState.getParcelable("thunderbird_pending_uri")
+            linScpPendingUri = savedInstanceState.getParcelable("linscp_pending_uri")
             pendingBackupActionCode = savedInstanceState.getInt(STATE_PENDING_BACKUP_ACTION, INVALID_BACKUP_ACTION)
                 .takeIf { it != INVALID_BACKUP_ACTION }
             pendingBackupUri = savedInstanceState.getParcelable(STATE_PENDING_BACKUP_URI)
@@ -431,6 +454,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 chooseThunderbirdImport()
             else if (actionId == R.id.fabExportThunderbird)
                 chooseThunderbirdExport()
+            else if (actionId == R.id.fabImportLinScp)
+                chooseLinScpImport()
+            else if (actionId == R.id.fabExportLinScp)
+                chooseLinScpExport()
             else if (actionId == R.id.fabAddEmail)
                 EmailEntryDialog.show(this) { entry -> adapter?.addEntry(entry) }
             else if (actionId == R.id.fabImportEmail)
@@ -718,6 +745,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         outState.putString("password_export_digest", passwordExportDigest)
         outState.putParcelable("password_pending_uri", passwordPendingUri)
         outState.putParcelable("thunderbird_pending_uri", thunderbirdPendingUri)
+        outState.putParcelable("linscp_pending_uri", linScpPendingUri)
         outState.putInt(STATE_PENDING_BACKUP_ACTION, pendingBackupActionCode ?: INVALID_BACKUP_ACTION)
         outState.putParcelable(STATE_PENDING_BACKUP_URI, pendingBackupUri)
         outState.putBoolean(STATE_PENDING_BACKUP_REPLACE, pendingBackupReplace)
@@ -858,6 +886,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } else if (requestCode == Constants.INTENT_MAIN_THUNDERBIRD_EXPORT) {
             if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") saveThunderbirdExport(intent.data!!)
             else { thunderbirdExportPending?.fill(0); thunderbirdExportPending = null; thunderbirdExportGeneration = -1L }
+        } else if (requestCode == Constants.INTENT_MAIN_LINSCP_IMPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") {
+                linScpPendingUri = intent.data
+                resumeLinScpOperation()
+            }
+        } else if (requestCode == Constants.INTENT_MAIN_LINSCP_EXPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") saveLinScpExport(intent.data!!)
+            else { linScpExportPending?.fill(0); linScpExportPending = null; linScpExportGeneration = -1L }
         } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE) {
             val wasAwaiting = awaitingMigrationQr
             awaitingMigrationQr = false
@@ -1571,6 +1607,177 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         Toast.makeText(this, if (saved) R.string.thunderbird_export_success else R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
     }
 
+    private fun chooseLinScpImport() {
+        if (VaultSession.getKey() == null) return
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try { startActivityForResult(intent, Constants.INTENT_MAIN_LINSCP_IMPORT) }
+        catch (_: Exception) { Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun resumeLinScpOperation() {
+        val uri = linScpPendingUri ?: return
+        val current = adapter ?: return
+        if (authenticationPending || introPending || VaultSession.getKey() == null ||
+            current.encryptionKey !== VaultSession.getKey() || inactivityRelockExpired()) return
+        linScpPendingUri = null
+        importLinScpDocument(uri)
+    }
+
+    private fun importLinScpDocument(uri: Uri) {
+        val bytes = try {
+            getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, LinScpCredentials.MAX_FILE_BYTES) }
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        val promptGeneration = VaultSession.generation()
+        if (LinScpCredentials.isEncryptedVault(bytes)) {
+            promptLinScpSecret(bytes, R.string.linscp_backup_password) { secretText ->
+                if (!VaultSession.isCurrent(promptGeneration) || VaultSession.getKey() == null) return@promptLinScpSecret
+                finishLinScpImport(LinScpCredentials.importBytes(bytes, password = secretText))
+            }
+        } else if (LinScpCredentials.needsSessionMasterKey(bytes)) {
+            promptLinScpSecret(bytes, R.string.linscp_master_key_prompt) { keyText ->
+                if (!VaultSession.isCurrent(promptGeneration) || VaultSession.getKey() == null) return@promptLinScpSecret
+                val keyBytes = keyText.toByteArray(java.nio.charset.StandardCharsets.US_ASCII)
+                try {
+                    finishLinScpImport(LinScpCredentials.importBytes(bytes, masterKeyBytes = keyBytes))
+                } finally {
+                    keyBytes.fill(0)
+                }
+            }
+        } else {
+            try {
+                finishLinScpImport(LinScpCredentials.importBytes(bytes))
+            } catch (_: Exception) {
+                Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
+            } finally {
+                bytes.fill(0)
+            }
+        }
+    }
+
+    private fun promptLinScpSecret(bytes: ByteArray, titleRes: Int, onSubmitted: (String) -> Unit) {
+        val secretInput = android.widget.EditText(this).apply {
+            isSaveEnabled = false
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+            transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+        }
+        linScpImportBytes?.fill(0)
+        linScpImportBytes = bytes
+        val dialog = AlertDialog.Builder(this).setTitle(titleRes)
+            .setView(secretInput)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                try { onSubmitted(secretInput.text.toString()) }
+                catch (_: Exception) { Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show() }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        linScpImportPrompt = dialog
+        dialog.setOnDismissListener {
+            secretInput.setText("")
+            bytes.fill(0)
+            if (linScpImportBytes === bytes) linScpImportBytes = null
+            if (linScpImportPrompt === dialog) linScpImportPrompt = null
+        }
+        dialog.show()
+    }
+
+    private fun finishLinScpImport(incoming: ArrayList<Entry>) {
+        val hasSsh = incoming.any { it.isSshKey() }
+        val current = adapter
+        if (current == null) {
+            incoming.forEach { it.destroy() }
+            throw IllegalStateException()
+        }
+        current.importEntries(incoming)
+        Toast.makeText(this, R.string.linscp_import_success, Toast.LENGTH_LONG).show()
+        val targetCategory = if (hasSsh) EntryListPresentation.Category.SSH_KEYS else EntryListPresentation.Category.PASSWORDS
+        findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(targetCategory.ordinal)?.select()
+    }
+
+    private fun chooseLinScpExport() {
+        val entries = adapter?.getEntries()?.filter { it.isSshKey() || it.isPassword() } ?: emptyList()
+        if (entries.isEmpty()) {
+            Toast.makeText(this, R.string.linscp_export_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        val selectionGeneration = VaultSession.generation()
+        val selected = BooleanArray(entries.size) { true }
+        val labels = entries.map { entry ->
+            val kind = if (entry.isSshKey()) "SSH" else "Session"
+            val host = entry.getIssuer()
+            if (host.isNotBlank()) "[$kind] ${entry.getLabel()} ($host)" else "[$kind] ${entry.getLabel()}"
+        }.toTypedArray()
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.linscp_export_select)
+            .setMessage(R.string.linscp_export_info)
+            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
+            .setPositiveButton(R.string.linscp_export) { _, _ ->
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
+                val chosen = entries.filterIndexed { index, _ -> selected[index] }
+                if (chosen.isEmpty()) return@setPositiveButton
+                promptLinScpExportPassword(chosen, selectionGeneration)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+        linScpExportSelectionDialog = dialog
+        dialog.setOnDismissListener { if (linScpExportSelectionDialog === dialog) linScpExportSelectionDialog = null }
+        dialog.show()
+    }
+
+    private fun promptLinScpExportPassword(chosen: List<Entry>, selectionGeneration: Long) {
+        var pwdDialog: PasswordEntryDialog? = null
+        pwdDialog = PasswordEntryDialog(
+            this,
+            PasswordEntryDialog.Mode.UPDATE,
+            settings?.getBlockAccessibility() ?: false,
+            settings?.getBlockAutofill() ?: true,
+            { exportPassword ->
+                if (linScpExportPasswordDialog === pwdDialog) linScpExportPasswordDialog = null
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@PasswordEntryDialog
+                val encrypted = try {
+                    LinScpCredentials.exportVault(chosen, exportPassword)
+                } catch (_: Exception) {
+                    Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
+                    return@PasswordEntryDialog
+                }
+                val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("application/octet-stream")
+                    .putExtra(Intent.EXTRA_TITLE, LinScpCredentials.exportFilename())
+                try {
+                    linScpExportPending?.fill(0)
+                    linScpExportPending = encrypted
+                    linScpExportGeneration = VaultSession.generation()
+                    startActivityForResult(uriIntent, Constants.INTENT_MAIN_LINSCP_EXPORT)
+                } catch (_: Exception) {
+                    encrypted.fill(0)
+                    linScpExportPending = null
+                    linScpExportGeneration = -1L
+                    Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
+                }
+            },
+            { if (linScpExportPasswordDialog === pwdDialog) linScpExportPasswordDialog = null }
+        )
+        linScpExportPasswordDialog = pwdDialog
+        pwdDialog.show()
+    }
+
+    private fun saveLinScpExport(uri: Uri) {
+        val bytes = linScpExportPending ?: return
+        linScpExportPending = null
+        val generation = linScpExportGeneration
+        linScpExportGeneration = -1L
+        val authorized = VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+        val saved = authorized && try {
+            StorageAccessHelper.saveFile(this, uri, bytes, java.util.function.BooleanSupplier {
+                VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+            })
+        } catch (_: Exception) { false }
+        bytes.fill(0)
+        if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
+        Toast.makeText(this, if (saved) R.string.linscp_export_success else R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
+    }
+
     /** Called only from a revealed archive's action menu. */
     fun requestPasswordArchiveExport(entry: Entry) {
         val generation = VaultSession.generation()
@@ -1978,6 +2185,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 StorageAccessHelper.deleteContentFile(this, passwordPendingUri)
             if (thunderbirdExportPending != null && thunderbirdPendingUri != null)
                 StorageAccessHelper.deleteContentFile(this, thunderbirdPendingUri)
+            linScpImportBytes?.fill(0)
+            linScpExportPending?.fill(0)
             VaultSession.lock()
         }
         super.onDestroy()

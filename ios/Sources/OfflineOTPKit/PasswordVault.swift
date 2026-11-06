@@ -20,18 +20,22 @@ public protocol KeyValueSettings: AnyObject {
 public enum VaultSettingsKeys {
     public static let authMethod = "auth_method"
     public static let encryption = "encryption"
+    public static let authKdf = "auth_kdf"
     public static let authCredentials = "auth_credentials"
     public static let authSalt = "auth_salt"
     public static let authIterations = "auth_iterations"
+    public static let authMemoryKiB = "auth_memory_kib"
+    public static let authParallelism = "auth_parallelism"
 }
 
 /// A password-encrypted vault, byte-compatible with the Android app and the desktop client.
 ///
-/// `secrets.dat` is a nonce-prefixed AES-GCM blob over the compact vault document, keyed by the lower
-/// half of the PBKDF2 output; the settings hold the 16-byte salt, the iteration count and the Base64
-/// URL-safe verifier (the upper half). The verifier is only a fast pre-check — the GCM tag is the
-/// real gate, which is why an unknown password is reported as an authentication failure and nothing
-/// else is revealed.
+/// `secrets.dat` is a nonce-prefixed AES-256-GCM blob over the compact vault document, keyed by the
+/// lower 32 bytes (256 bits) of the 64-byte Argon2id output (legacy PBKDF2 vaults use the lower 16
+/// bytes of the 32-byte PBKDF2 output with AES-128-GCM); the settings hold the 16-byte salt, the KDF
+/// parameters and the Base64 URL-safe verifier (the upper half). The verifier is only a fast
+/// pre-check — the GCM tag is the real gate, which is why an unknown password is reported as an
+/// authentication failure and nothing else is revealed.
 ///
 /// Android KeyStore vaults are out of scope: they have no portable equivalent.
 public final class PasswordVault {
@@ -124,18 +128,26 @@ public final class PasswordVault {
     // MARK: - Internals
 
     private func provisionCredentials(password: String) throws -> [UInt8] {
-        let salt = VaultCrypto.randomBytes(VaultCrypto.saltBytes)
-        // The fixed minimum, as the desktop client provisions, so the count is deterministic and
-        // every reader honours the stored value.
-        let iterations = VaultCrypto.minAuthIterations
-        let credentials = try VaultCrypto.credentials(password: password, salt: salt,
-                                                      iterations: iterations)
+        let salt = VaultCrypto.randomBytes(VaultCrypto.argon2SaltBytes)
+        let memoryKiB = VaultCrypto.argon2MemoryKiB
+        let iterations = VaultCrypto.argon2Iterations
+        let parallelism = VaultCrypto.argon2Parallelism
+        let credentials = try VaultCrypto.argon2idCredentials(
+            password: password,
+            salt: salt,
+            memoryKiB: memoryKiB,
+            iterations: iterations,
+            parallelism: parallelism
+        )
         settings.setString(VaultSettingsKeys.authMethod, "password")
         settings.setString(VaultSettingsKeys.encryption, "password")
+        settings.setString(VaultSettingsKeys.authKdf, VaultCrypto.kdfArgon2id)
         settings.setString(VaultSettingsKeys.authCredentials,
                            VaultCrypto.base64URLEncode(credentials.verifier))
         settings.setString(VaultSettingsKeys.authSalt, VaultCrypto.base64URLEncode(salt))
+        settings.setInteger(VaultSettingsKeys.authMemoryKiB, memoryKiB)
         settings.setInteger(VaultSettingsKeys.authIterations, iterations)
+        settings.setInteger(VaultSettingsKeys.authParallelism, parallelism)
         return credentials.key
     }
 
@@ -147,10 +159,47 @@ public final class PasswordVault {
               !salt.isEmpty, !verifier.isEmpty else {
             throw VaultOpenError.corrupt
         }
-        let iterations = settings.integer(VaultSettingsKeys.authIterations)
-            ?? VaultCrypto.minAuthIterations
-        let credentials = try VaultCrypto.credentials(password: password, salt: salt,
-                                                      iterations: iterations)
+        let rawKdf = settings.string(VaultSettingsKeys.authKdf)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased() ?? ""
+        let kdf = rawKdf.isEmpty ? VaultCrypto.kdfPbkdf2 : rawKdf
+
+        let credentials: VaultCrypto.Credentials
+        switch kdf {
+        case VaultCrypto.kdfArgon2id:
+            let memoryKiB = settings.integer(VaultSettingsKeys.authMemoryKiB)
+                ?? VaultCrypto.argon2MemoryKiB
+            let iterations = settings.integer(VaultSettingsKeys.authIterations)
+                ?? VaultCrypto.argon2Iterations
+            let parallelism = settings.integer(VaultSettingsKeys.authParallelism)
+                ?? VaultCrypto.argon2Parallelism
+            do {
+                credentials = try VaultCrypto.argon2idCredentials(
+                    password: password,
+                    salt: salt,
+                    memoryKiB: memoryKiB,
+                    iterations: iterations,
+                    parallelism: parallelism
+                )
+            } catch {
+                throw VaultOpenError.corrupt
+            }
+        case VaultCrypto.kdfPbkdf2:
+            let iterations = settings.integer(VaultSettingsKeys.authIterations)
+                ?? VaultCrypto.minAuthIterations
+            do {
+                credentials = try VaultCrypto.credentials(
+                    password: password,
+                    salt: salt,
+                    iterations: iterations
+                )
+            } catch {
+                throw VaultOpenError.corrupt
+            }
+        default:
+            throw VaultOpenError.corrupt
+        }
+
         guard VaultCrypto.constantTimeEquals(verifier, credentials.verifier) else {
             throw VaultOpenError.authenticationFailed
         }

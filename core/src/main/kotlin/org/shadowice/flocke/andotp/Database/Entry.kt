@@ -784,6 +784,33 @@ open class Entry {
             } finally { material.fill(0) }
         }
 
+        /** Creates one encrypted Password entry from explicit named columns (e.g. LinSCP sessions). */
+        @JvmStatic
+        @JvmOverloads
+        fun passwordFields(
+            label: String,
+            issuer: String,
+            fields: List<Pair<String, String>>,
+            tags: MutableList<String> = ArrayList()
+        ): Entry {
+            val material = PasswordMaterial.encodeFields(fields)
+            val value = Entry()
+            try {
+                PasswordMaterial.decode(material)
+                value.type = OTPType.PASSWORD
+                value.secret = material.copyOf()
+                value.issuer = issuer
+                value.label = label
+                value.tags = ArrayList(tags)
+                value.setThumbnailFromIssuer(issuer.ifBlank { label })
+                value.validate()
+                return value
+            } catch (error: RuntimeException) {
+                value.destroy()
+                throw error
+            } finally { material.fill(0) }
+        }
+
         /** The payload is the original file, byte for byte; it is encrypted with the vault. */
         @JvmStatic
         fun passwordArchive(filename: String, data: ByteArray): Entry {

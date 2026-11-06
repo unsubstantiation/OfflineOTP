@@ -26,6 +26,21 @@ final class GoldenVaultTests: XCTestCase {
         XCTAssertEqual(unlocked.entries[1].counter, 9)
     }
 
+    func testTheArgon2idGoldenVaultUnlocksToTheSharedDocument() throws {
+        let (vault, _) = GoldenCorpus.argon2FixtureVault(
+            secrets: try GoldenCorpus.golden("argon2id-secrets.dat")
+        )
+        let unlocked = try vault.open(password: GoldenCorpus.password)
+
+        XCTAssertEqual(unlocked.entries.count, 2)
+        XCTAssertEqual(unlocked.entries[0].kind, .totp)
+        XCTAssertEqual(unlocked.entries[0].issuer, "Golden Issuer")
+        XCTAssertEqual(unlocked.entries[0].label, "alice@example.com")
+        XCTAssertEqual(unlocked.entries[0].secretBase32, "JBSWY3DPEHPK3PXP")
+        XCTAssertEqual(unlocked.entries[1].kind, .hotp)
+        XCTAssertEqual(unlocked.entries[1].counter, 9)
+    }
+
     func testTheDerivedVerifierMatchesTheGoldenSettings() throws {
         let credentials = try VaultCrypto.credentials(password: GoldenCorpus.password,
                                                      salt: GoldenCorpus.vaultSalt,
@@ -34,6 +49,18 @@ final class GoldenVaultTests: XCTestCase {
         XCTAssertEqual(credentials.verifier.count, 16)
         XCTAssertEqual(VaultCrypto.base64URLEncode(credentials.verifier),
                        GoldenCorpus.vaultVerifierBase64URL)
+
+        let argonCredentials = try VaultCrypto.argon2idCredentials(
+            password: GoldenCorpus.password,
+            salt: GoldenCorpus.argon2VaultSalt,
+            memoryKiB: GoldenCorpus.argon2VaultMemoryKiB,
+            iterations: GoldenCorpus.argon2VaultIterations,
+            parallelism: GoldenCorpus.argon2VaultParallelism
+        )
+        XCTAssertEqual(argonCredentials.key.count, 32)
+        XCTAssertEqual(argonCredentials.verifier.count, 32)
+        XCTAssertEqual(VaultCrypto.base64URLEncode(argonCredentials.verifier),
+                       GoldenCorpus.argon2VaultVerifierBase64URL)
     }
 
     func testDecodingAndReencodingReproducesTheGoldenBytesExactly() throws {
@@ -46,8 +73,9 @@ final class GoldenVaultTests: XCTestCase {
     func testReencodingIsStableForEveryFixtureBackup() throws {
         // decode → encode → decode → encode must settle immediately, or a save would keep rewriting
         // the vault with different bytes each time.
-        for name in ["otp_accounts.json.aes", "desktop-note-export.json.aes",
-                     "desktop-ssh-export.json.aes", "desktop-privacy-export.json.aes"] {
+        for name in ["argon2id-otp_accounts.json.aes", "otp_accounts.json.aes",
+                     "desktop-note-export.json.aes", "desktop-ssh-export.json.aes",
+                     "desktop-privacy-export.json.aes"] {
             let text = try EncryptedBackup.open(password: GoldenCorpus.password,
                                                 data: try GoldenCorpus.golden(name))
             let once = try VaultDocument.encode(try VaultDocument.decode(text))

@@ -23,6 +23,26 @@ class EncryptionHelperTest {
     private val salt = byteArrayOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
 
     @Test
+    fun argon2idCredentialsAndBackupKeysRoundTrip() {
+        val salt16 = ByteArray(16) { (it + 1).toByte() }
+        val credentials = EncryptionHelper.generateArgon2idCredentials("correct horse battery staple", salt16, 64, 2, 2)
+        assertEquals(32, credentials.key.size)
+        assertEquals(32, credentials.password.size)
+
+        val backupKey = EncryptionHelper.generateSymmetricKeyArgon2id("correct horse battery staple", salt16, 64, 2, 2)
+        assertEquals(32, backupKey.encoded.size)
+        assertArrayEquals(
+            Argon2id.deriveFromPassword("correct horse battery staple", salt16, 64, 2, 2, Constants.ARGON2_AUTH_HASH_LENGTH),
+            credentials.key + credentials.password
+        )
+        assertArrayEquals(
+            Argon2id.deriveFromPassword("correct horse battery staple", salt16, 64, 2, 2, Constants.ARGON2_HASH_LENGTH),
+            backupKey.encoded
+        )
+        assertFalse(credentials.key.contentEquals(backupKey.encoded))
+    }
+
+    @Test
     fun pbkdf2CredentialsSplitTheOutput() {
         val credentials = EncryptionHelper.generatePBKDF2Credentials("correct horse battery staple", salt, 1000)
         assertEquals(16, credentials.key.size)

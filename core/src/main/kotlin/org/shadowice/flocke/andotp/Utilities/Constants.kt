@@ -86,6 +86,8 @@ object Constants {
     const val INTENT_MAIN_EMAIL_EXPORT = 108
     const val INTENT_MAIN_THUNDERBIRD_IMPORT = 109
     const val INTENT_MAIN_THUNDERBIRD_EXPORT = 110
+    const val INTENT_MAIN_LINSCP_IMPORT = 111
+    const val INTENT_MAIN_LINSCP_EXPORT = 112
 
     const val INTENT_BACKUP_OPEN_DOCUMENT_CRYPT = 202
     const val INTENT_BACKUP_SAVE_DOCUMENT_CRYPT = 203
@@ -117,22 +119,32 @@ object Constants {
     internal const val ALGORITHM_SYMMETRIC = "AES/GCM/NoPadding"
     const val ALGORITHM_ASYMMETRIC = "RSA/ECB/PKCS1Padding"
 
-    const val ENCRYPTION_KEY_LENGTH = 16 // 128-bit AES key, wrapped by the KeyStore key pair
-    const val ENCRYPTION_IV_LENGTH = 12 // 96-bit GCM nonce, also the salt length of encrypted backups
+    const val ENCRYPTION_KEY_LENGTH = 32 // 256-bit AES-256-GCM vault key (password Argon2id or KeyStore-wrapped)
+    const val ENCRYPTION_IV_LENGTH = 12 // 96-bit GCM nonce, also the salt length of legacy PBKDF2 backups
 
-    const val INT_LENGTH = 4 // Byte length of the PBKDF2 iteration count in encrypted backups
+    const val INT_LENGTH = 4 // Byte length of 32-bit big-endian integer fields in backup headers
 
-    // Global PBKDF2 settings
+    // KDF identifiers & Argon2id settings (RFC 9106 v1.3: 64 MiB memory, 3 passes, 4 lanes)
+    const val KDF_ARGON2ID = "argon2id"
+    const val KDF_PBKDF2 = "pbkdf2"
+    const val ARGON2_MEMORY_KIB = 65536
+    const val ARGON2_ITERATIONS = 3
+    const val ARGON2_PARALLELISM = 4
+    const val ARGON2_SALT_LENGTH = 16
+    const val ARGON2_AUTH_HASH_LENGTH = 64 // 512 bits: auth splits into 32-byte AES-256 key + 32-byte verifier
+    const val ARGON2_HASH_LENGTH = 32 // 256 bits: backups use all 32 bytes as an AES-256 key
+
+    // Legacy PBKDF2 settings (retained for reading/restoring existing vaults and backups)
     const val PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA1"
     const val PBKDF2_LENGTH = 256 // PBKDF2 output in bits: auth splits it into two 128-bit halves, backup keys use all 32 bytes
     const val PBKDF2_SALT_LENGTH = 16
 
-    // PBKDF2 settings for authentication
+    // Legacy PBKDF2 settings for authentication
     const val PBKDF2_TARGET_AUTH_TIME = 1000 // ms
     const val PBKDF2_MIN_AUTH_ITERATIONS = 30000
     const val PBKDF2_BENCHMARK_ITERATIONS = 50000
 
-    // PBKDF2 settings for backups
+    // Legacy PBKDF2 settings for backups
     const val PBKDF2_MIN_BACKUP_ITERATIONS = 140000
     const val PBKDF2_MAX_BACKUP_ITERATIONS = 160000
 
