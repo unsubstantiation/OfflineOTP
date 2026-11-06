@@ -56,8 +56,10 @@ import org.shadowice.flocke.andotp.Utilities.Constants.EncryptionType
 import org.shadowice.flocke.andotp.Utilities.Constants.SortMode
 import org.shadowice.flocke.andotp.Utilities.AuthenticationResultPolicy
 import org.shadowice.flocke.andotp.Utilities.BrowserPasswordCsv
-import org.shadowice.flocke.andotp.Utilities.PasswordImport
 import org.shadowice.flocke.andotp.Utilities.EmailMaterial
+import org.shadowice.flocke.andotp.Utilities.PasswordImport
+import org.shadowice.flocke.andotp.Utilities.ThunderbirdCsv
+import org.shadowice.flocke.andotp.Utilities.ThunderbirdImport
 import org.shadowice.flocke.andotp.Utilities.BoundedInputReader
 import org.shadowice.flocke.andotp.View.EntryListPresentation
 import org.shadowice.flocke.andotp.Utilities.DatabaseHelper
@@ -98,6 +100,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var passwordExportName: String? = null
     private var passwordExportDigest: String? = null
     private var passwordPendingUri: Uri? = null
+    private var thunderbirdPendingUri: Uri? = null
+    private var thunderbirdExportPending: ByteArray? = null
+    private var thunderbirdExportGeneration: Long = -1L
+    private var thunderbirdExportSelectionDialog: AlertDialog? = null
     private var sortMenu: MenuItem? = null
     private var searchMenu: MenuItem? = null
     private var touchHelperCallback: SimpleItemTouchHelperCallback? = null
@@ -194,6 +200,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     override fun onVaultLocked() {
+        thunderbirdExportPending?.fill(0)
+        thunderbirdExportPending = null
+        thunderbirdExportGeneration = -1L
+        thunderbirdPendingUri = null
+        thunderbirdExportSelectionDialog?.dismiss()
+        thunderbirdExportSelectionDialog = null
         emailExportPending?.fill(0)
         emailExportPending = null
         emailExportGeneration = -1L
@@ -222,6 +234,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             launchPendingBackupActionIfReady()
             resumePasswordOperation()
             resumeEmailImport()
+            resumeThunderbirdOperation()
         }
     }
 
@@ -343,6 +356,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             passwordExportName = savedInstanceState.getString("password_export_name")
             passwordExportDigest = savedInstanceState.getString("password_export_digest")
             passwordPendingUri = savedInstanceState.getParcelable("password_pending_uri")
+            thunderbirdPendingUri = savedInstanceState.getParcelable("thunderbird_pending_uri")
             pendingBackupActionCode = savedInstanceState.getInt(STATE_PENDING_BACKUP_ACTION, INVALID_BACKUP_ACTION)
                 .takeIf { it != INVALID_BACKUP_ACTION }
             pendingBackupUri = savedInstanceState.getParcelable(STATE_PENDING_BACKUP_URI)
@@ -413,6 +427,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabImportPasswords)
                 choosePasswordImport()
+            else if (actionId == R.id.fabImportThunderbird)
+                chooseThunderbirdImport()
+            else if (actionId == R.id.fabExportThunderbird)
+                chooseThunderbirdExport()
             else if (actionId == R.id.fabAddEmail)
                 EmailEntryDialog.show(this) { entry -> adapter?.addEntry(entry) }
             else if (actionId == R.id.fabImportEmail)
@@ -699,6 +717,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         outState.putString("password_export_name", passwordExportName)
         outState.putString("password_export_digest", passwordExportDigest)
         outState.putParcelable("password_pending_uri", passwordPendingUri)
+        outState.putParcelable("thunderbird_pending_uri", thunderbirdPendingUri)
         outState.putInt(STATE_PENDING_BACKUP_ACTION, pendingBackupActionCode ?: INVALID_BACKUP_ACTION)
         outState.putParcelable(STATE_PENDING_BACKUP_URI, pendingBackupUri)
         outState.putBoolean(STATE_PENDING_BACKUP_REPLACE, pendingBackupReplace)
@@ -831,6 +850,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 passwordExportName = null
                 passwordExportDigest = null
             }
+        } else if (requestCode == Constants.INTENT_MAIN_THUNDERBIRD_IMPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") {
+                thunderbirdPendingUri = intent.data
+                resumeThunderbirdOperation()
+            }
+        } else if (requestCode == Constants.INTENT_MAIN_THUNDERBIRD_EXPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") saveThunderbirdExport(intent.data!!)
+            else { thunderbirdExportPending?.fill(0); thunderbirdExportPending = null; thunderbirdExportGeneration = -1L }
         } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE) {
             val wasAwaiting = awaitingMigrationQr
             awaitingMigrationQr = false
@@ -1462,6 +1489,88 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } finally { bytes?.fill(0) }
     }
 
+    private fun chooseThunderbirdImport() {
+        if (VaultSession.getKey() == null) return
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try { startActivityForResult(intent, Constants.INTENT_MAIN_THUNDERBIRD_IMPORT) }
+        catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show() }
+    }
+
+    private fun resumeThunderbirdOperation() {
+        val uri = thunderbirdPendingUri ?: return
+        val current = adapter ?: return
+        if (authenticationPending || introPending || VaultSession.getKey() == null ||
+            current.encryptionKey !== VaultSession.getKey() || inactivityRelockExpired()) return
+        thunderbirdPendingUri = null
+        importThunderbirdDocument(uri)
+    }
+
+    private fun importThunderbirdDocument(uri: Uri) {
+        var bytes: ByteArray? = null
+        try {
+            bytes = contentResolver.openInputStream(uri).use { BoundedInputReader.read(it, ThunderbirdCsv.MAX_FILE_BYTES) }
+            val incoming = ThunderbirdImport.prepare(bytes)
+            val outcome = adapter?.importEntries(incoming) ?: run {
+                incoming.forEach { it.destroy() }
+                throw IllegalStateException()
+            }
+            Toast.makeText(this, R.string.thunderbird_import_success, Toast.LENGTH_LONG).show()
+            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
+        } finally { bytes?.fill(0) }
+    }
+
+    private fun chooseThunderbirdExport() {
+        val entries = adapter?.getEntries()?.filter { it.isPassword() } ?: emptyList()
+        if (entries.isEmpty()) {
+            Toast.makeText(this, R.string.thunderbird_export_empty, Toast.LENGTH_LONG).show()
+            return
+        }
+        val selectionGeneration = VaultSession.generation()
+        val selected = BooleanArray(entries.size)
+        val labels = entries.map { "${it.getLabel()} (${it.getIssuer()})" }.toTypedArray()
+        val dialog = AlertDialog.Builder(this).setTitle(R.string.thunderbird_export_select)
+            .setMessage(R.string.thunderbird_export_warning)
+            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
+            .setPositiveButton(R.string.thunderbird_export) { _, _ ->
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
+                val chosen = entries.filterIndexed { index, _ -> selected[index] }
+                if (chosen.isEmpty()) return@setPositiveButton
+                val file = try { ThunderbirdImport.exportCsv(chosen) }
+                    catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("text/csv").putExtra(Intent.EXTRA_TITLE, "thunderbird-credentials.csv")
+                try {
+                    thunderbirdExportPending = file
+                    thunderbirdExportGeneration = VaultSession.generation()
+                    startActivityForResult(uriIntent, Constants.INTENT_MAIN_THUNDERBIRD_EXPORT)
+                } catch (_: Exception) {
+                    file.fill(0); thunderbirdExportPending = null; thunderbirdExportGeneration = -1L
+                    Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).create()
+        thunderbirdExportSelectionDialog = dialog
+        dialog.setOnDismissListener { if (thunderbirdExportSelectionDialog === dialog) thunderbirdExportSelectionDialog = null }
+        dialog.show()
+    }
+
+    private fun saveThunderbirdExport(uri: Uri) {
+        val bytes = thunderbirdExportPending ?: return
+        thunderbirdExportPending = null
+        val generation = thunderbirdExportGeneration
+        thunderbirdExportGeneration = -1L
+        val authorized = VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+        val saved = authorized && try {
+            StorageAccessHelper.saveFile(this, uri, bytes, java.util.function.BooleanSupplier {
+                VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+            })
+        } catch (_: Exception) { false }
+        bytes.fill(0)
+        if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
+        Toast.makeText(this, if (saved) R.string.thunderbird_export_success else R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
+    }
+
     /** Called only from a revealed archive's action menu. */
     fun requestPasswordArchiveExport(entry: Entry) {
         val generation = VaultSession.generation()
@@ -1867,6 +1976,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (isFinishing()) {
             if (passwordExportDigest != null && passwordPendingUri != null)
                 StorageAccessHelper.deleteContentFile(this, passwordPendingUri)
+            if (thunderbirdExportPending != null && thunderbirdPendingUri != null)
+                StorageAccessHelper.deleteContentFile(this, thunderbirdPendingUri)
             VaultSession.lock()
         }
         super.onDestroy()

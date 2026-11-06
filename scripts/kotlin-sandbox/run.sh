@@ -56,6 +56,8 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/PasswordMaterial.kt"
     "$KOTLIN_CORE/Utilities/EmailMaterial.kt"
     "$KOTLIN_CORE/Utilities/PasswordImport.kt"
+    "$KOTLIN_CORE/Utilities/ThunderbirdCsv.kt"
+    "$KOTLIN_CORE/Utilities/ThunderbirdImport.kt"
     "$KOTLIN_CORE/Utilities/BoundedOutput.kt"
     "$KOTLIN_CORE/Utilities/Constants.kt"
     "$KOTLIN_CORE/Utilities/CryptoPrimitives.kt"

@@ -313,6 +313,22 @@ object MainWindow {
             }
         }
 
+        fun importThunderbird() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (ThunderbirdDialogs.importBackup(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.PASSWORDS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun exportThunderbird() {
+            val unlocked = requireUnlocked() ?: return
+            if (ThunderbirdDialogs.exportBackup(frame, unlocked.snapshot())) {
+                // Export does not mutate vault; no projection refresh needed.
+            }
+        }
+
         fun showPasswordDetails() {
             requireUnlocked() ?: return
             val row = table.selectedRow
@@ -377,6 +393,8 @@ object MainWindow {
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
             add(JMenuItem("Add email account…").apply { addActionListener { addEmailAccount() } })
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
+            add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
+            add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
         }
@@ -546,6 +564,8 @@ object MainWindow {
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
+                add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
+                add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
                 addSeparator()
                 add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
                 add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })

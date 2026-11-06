@@ -163,6 +163,10 @@ CSV; both modes reject oversized files or failed vault writes without committing
 CSV support requires the browser's standard
 headers, including URL, username and password; files with unsupported headers are rejected.
 
+### Thunderbird email login credentials
+
+Thunderbird keeps each saved email login as a hostname (e.g. `mailbox://`, `imap://imap.gmail.com`, `smtp://smtp.gmail.com`) plus a username (the email address) and a password, exportable from Thunderbird/ Firefox as a CSV with `url` (or `hostname`), `username` and `password` plus optional `httpRealm`, `formActionOrigin`, `guid` and timestamps — the same format Firefox's **Export Logins** writes. OfflineOTP imports and exports that CSV on both clients: on Android **+ → Import Thunderbird credentials** and **+ → Export Thunderbird credentials**, on desktop **Tools → Import Thunderbird credentials…** and **Tools → Export Thunderbird credentials…** (the **Add entry** menu also has the import). Import reads either `url` or `hostname`/`host` as the origin, keeps every column verbatim inside the vault as a **Passwords** entry (so `httpRealm`, notes, GUIDs and custom columns round-trip), and skips identical entries; export writes the selected **Passwords** entries as a Thunderbird-compatible CSV with the canonical header `url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged` plus any extra columns the vault holds. The 4 MiB / 2,000-row limits and the plaintext warning match the browser import. Like browser passwords, Thunderbird credentials are encrypted in the vault and travel inside Full Encrypted backups.
+
 **Browser exports and exported archive files are plaintext.** Anyone who can read the file can read
 its passwords. Transfer them securely and remove unneeded plaintext copies. Passwords and archives
 are encrypted in the vault and included in encrypted backups; revealing details or copying a password

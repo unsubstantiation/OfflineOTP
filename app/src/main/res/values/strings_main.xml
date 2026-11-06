@@ -214,4 +214,13 @@
     <string name="password_export_warning">The exported file is plaintext. Anyone with access to it can read its passwords. Continue?</string>
     <string name="password_export_success">Password file exported. Protect or delete the plaintext copy securely.</string>
     <string name="password_export_failed">The password file could not be exported.</string>
+    <string name="thunderbird_import">Import Thunderbird credentials</string>
+    <string name="thunderbird_export">Export Thunderbird credentials</string>
+    <string name="thunderbird_import_success">Thunderbird credentials imported</string>
+    <string name="thunderbird_import_failed">Could not import Thunderbird credentials</string>
+    <string name="thunderbird_export_select">Select credentials to export</string>
+    <string name="thunderbird_export_empty">No Thunderbird credentials to export</string>
+    <string name="thunderbird_export_success">Thunderbird credentials exported</string>
+    <string name="thunderbird_export_failed">Could not export Thunderbird credentials</string>
+    <string name="thunderbird_export_warning">This Thunderbird-compatible CSV is not encrypted and contains passwords. Store it securely.</string>
 </resources>
