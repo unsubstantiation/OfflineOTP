@@ -48,11 +48,21 @@ jobs:
             if [ -f "$log" ]; then
               echo "--- $log ---"
               cat "$log"
-              # Emit annotations for the few error lines GitHub can surface without the blob log
-              grep -E -i ": error|error\[|failed|cannot find" "$log" | head -20 | while IFS= read -r line; do
+              # Emit the first 40 lines as annotations so `gh api .../annotations` is readable when blob logs EOF
+              head -n 40 "$log" | while IFS= read -r line; do
                 [ -n "$line" ] || continue
-                echo "::error title=Rust::$line"
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::notice title=Rust log::$safe"
               done || true
+              grep -E -i "error" "$log" | head -20 | while IFS= read -r line; do
+                [ -n "$line" ] || continue
+                safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+                [ -n "$safe" ] || continue
+                echo "::error title=Rust::$safe"
+              done || true
+            else
+              echo "::notice title=Rust::no log $log"
             fi
           done
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
