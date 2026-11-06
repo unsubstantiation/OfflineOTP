@@ -4,7 +4,7 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="GoogleAppIndexingWarning"
     android:installLocation="auto"
-    package="org.shadowice.flocke.andotp">
+    package="com.fairuniversal.offlineotp">
 
     <!-- External destructive/automation IPC is only available to same-signer apps. -->
     <permission android:name="${applicationId}.permission.CONTROL_VAULT"

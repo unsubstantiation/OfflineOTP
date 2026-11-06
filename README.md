@@ -12,11 +12,7 @@ Android-free `:core` engine and password-backup codec. Use exported backups to t
 between distributions; copying an Android app-data vault is not a substitute for a backup. See
 [Desktop client](#desktop-client) for its scope and build instructions.
 
-The Android application ID and Kotlin namespace intentionally remain
-`org.shadowice.flocke.andotp`; changing the application ID would create a separate installation
-rather than update an existing one. Legacy notification channel IDs and intent/broadcast action
-names are also retained to preserve notification settings and integrations. Updating an existing
-installation additionally requires the same signing key.
+The Android application ID is now `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app (`org.shadowice.flocke.andotp`) instead of being detected as its update. The Kotlin package/namespaces stay `org.shadowice.flocke.andotp` for code compatibility; legacy notification channel IDs and intent/broadcast action names are retained. Updating an existing OfflineOTP installation still requires the same signing key, but it no longer collides with andOTP.
 
 ## Features
 

@@ -149,29 +149,23 @@ The printed certificate DN (`CN=OfflineOTP` above) must match the key in the key
 build signed with a different key over an existing install fails with
 `INSTALL_FAILED_UPDATE_INCOMPATIBLE`; users must export a portable backup, uninstall, and restore.
 
-Release builds use `org.shadowice.flocke.andotp` — the same package as the upstream andOTP app from
-F-Droid/Play — so a device that still has the original andOTP installed will show **Update** instead
-of **Install** and then fail with `App not installed` (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`,
-`INSTALL_FAILED_DUPLICATE_PERMISSION` or `INSTALL_FAILED_VERSION_DOWNGRADE`). Debug builds use
-`org.shadowice.flocke.andotp.dev` and do not collide. If a signed release shows **Update** even
-though it looks uninstalled, check for a lingering install:
+Release builds use `com.fairuniversal.offlineotp` — a new package that does **not** collide with the upstream andOTP app (`org.shadowice.flocke.andotp`) from F-Droid/Play. Debug builds use `com.fairuniversal.offlineotp.dev` and also do not collide. If a signed release still shows **Update** instead of **Install**, it is colliding with a previous OfflineOTP release install (same `com.fairuniversal.offlineotp` but different signing key) or a lingering install:
 
 ```sh
-adb shell pm list packages --user all | grep andotp
-adb shell pm list packages -u | grep andotp
-adb shell dumpsys package org.shadowice.flocke.andotp | head -n 40
+adb shell pm list packages --user all | grep offlineotp
+adb shell pm list packages -u | grep offlineotp
+adb shell dumpsys package com.fairuniversal.offlineotp | head -n 40
 ```
 
 An entry there — often in a work profile, secondary user, or as a disabled system app — must be
-removed first (`adb uninstall --user all org.shadowice.flocke.andotp` or `adb shell pm uninstall
---user 0 org.shadowice.flocke.andotp`), after exporting a backup. Installing with `adb install`
-instead of the file manager prints the exact reason:
+removed first (`adb uninstall --user all com.fairuniversal.offlineotp` or `adb shell pm uninstall
+--user 0 com.fairuniversal.offlineotp`), after exporting a backup. A leftover upstream andOTP install (`org.shadowice.flocke.andotp`) no longer collides, but installing a build signed with a different key over an existing OfflineOTP install still fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Installing with `adb install` prints the exact reason:
 
 ```sh
 adb install OfflineOTP-fdroid-release.apk
-adb logcat | grep -i -E "PackageManager|andotp"
+adb logcat | grep -i -E "PackageManager|offlineotp"
 ```
 
 The CI `Verify APK signatures` step now dumps `aapt2 dump badging` (package, `testOnly`, `uses-sdk`)
 and `apksigner verify --verbose` (v1/v2/v3/v4) for every release APK, and fails the job if the
-package is `org.shadowice.flocke.andotp.dev` or the APK is `testOnly`.
+package is not `com.fairuniversal.offlineotp` or the APK is `testOnly`.

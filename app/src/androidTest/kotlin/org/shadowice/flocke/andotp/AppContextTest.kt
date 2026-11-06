@@ -23,7 +23,7 @@ class AppContextTest {
         val testApk = instrumentation.context
         assertTrue("target context must not be the instrumentation APK",
             testApk.getPackageName() != target.getPackageName())
-        assertTrue(target.getPackageName().startsWith("org.shadowice.flocke.andotp"))
+        assertTrue(target.getPackageName().startsWith("com.fairuniversal.offlineotp"))
     }
 
     @Test

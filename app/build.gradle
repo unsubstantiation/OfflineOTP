@@ -8,7 +8,7 @@ android {
     buildToolsVersion "36.0.0"
 
     defaultConfig {
-        applicationId "org.shadowice.flocke.andotp"
+        applicationId "com.fairuniversal.offlineotp"
         minSdkVersion 28
         targetSdkVersion 35
         versionCode 39

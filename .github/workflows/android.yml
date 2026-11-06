@@ -274,12 +274,26 @@ jobs:
           for apk in app/build/outputs/apk/fdroid/release/app-fdroid-release.apk \
                      app/build/outputs/apk/play/release/app-play-release.apk; do
             test -f "$apk"
-            echo \"::group::Verifying $apk\"
-            \"$ANDROID_HOME/build-tools/36.0.0/apksigner\" verify --verbose --print-certs \"$apk\"
-            \"$ANDROID_HOME/build-tools/36.0.0/zipalign\" -c -v 4 \"$apk\"
-            echo \"--- badging for $apk ---\"
-            \"$ANDROID_HOME/build-tools/36.0.0/aapt2\" dump badging \"$apk\" | grep -E \"package:|application:|uses-sdk\" || true
-            # Release must be org.shadowice.flocke.andotp (no .dev) and not testOnly - debug is .dev\n            if \"$ANDROID_HOME/build-tools/36.0.0/aapt2\" dump badging \"$apk\" | grep -q \"name='org.shadowice.flocke.andotp.dev'\"; then\n              echo \"::error::Release APK has .dev applicationId: $apk\"\n              exit 1\n            fi\n            if ! \"$ANDROID_HOME/build-tools/36.0.0/aapt2\" dump badging \"$apk\" | grep -q \"name='org.shadowice.flocke.andotp'\"; then\n              echo \"::error::Release APK package is not org.shadowice.flocke.andotp: $apk\"\n              \"$ANDROID_HOME/build-tools/36.0.0/aapt2\" dump badging \"$apk\" | head -n 20\n              exit 1\n            fi\n            if \"$ANDROID_HOME/build-tools/36.0.0/aapt2\" dump badging \"$apk\" | grep -q \"testOnly='1'\"; then\n              echo \"::error::Release APK is testOnly: $apk\"\n              exit 1\n            fi\n            echo \"::endgroup::\"\n          done
+            echo "::group::Verifying $apk"
+            "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs "$apk"
+            "$ANDROID_HOME/build-tools/36.0.0/zipalign" -c -v 4 "$apk"
+            echo "--- badging for $apk ---"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -E "package:|application:|uses-sdk" || true
+            if "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp.dev'"; then
+              echo "::error::Release APK has .dev applicationId: $apk"
+              exit 1
+            fi
+            if ! "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "name='com.fairuniversal.offlineotp'"; then
+              echo "::error::Release APK package is not com.fairuniversal.offlineotp: $apk"
+              "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | head -n 20
+              exit 1
+            fi
+            if "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging "$apk" | grep -q "testOnly='1'"; then
+              echo "::error::Release APK is testOnly: $apk"
+              exit 1
+            fi
+            echo "::endgroup::"
+          done
       - name: Prepare signed APKs and checksums
         shell: bash
         run: |
