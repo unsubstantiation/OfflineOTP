@@ -1,3 +1,4 @@
 fn main() {
-    uniffi::generate_scaffolding("src/lib.rs").expect("uniffi scaffolding");
+    // UniFFI scaffolding for `#[uniffi::export]` is handled via `uniffi::setup_scaffolding!`
+    // in src/lib.rs; no build-time UDL generation is needed for the proc-macro backend.
 }
