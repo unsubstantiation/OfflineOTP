@@ -65,4 +65,11 @@
         android:visibility="gone"
         android:text="@string/hardware_unlock_button" />
 
+    <Button
+        android:id="@+id/buttonBiometricUnlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:visibility="gone"
+        android:text="@string/biometric_unlock_button" />
+
 </LinearLayout>

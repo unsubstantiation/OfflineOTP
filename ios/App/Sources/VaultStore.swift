@@ -541,18 +541,6 @@ public final class VaultStore: ObservableObject {
         }
     }
 
-    /// Restores a legacy unencrypted JSON backup. The client reads one; it never writes one.
-    public func restore(plainText data: Data, replace: Bool) -> RestorePlan? {
-        let document: String
-        do {
-            document = try PlainTextBackupDecoder.decode(data)
-        } catch {
-            message = BackupWording.plainTextInvalid
-            return nil
-        }
-        return install(document: document, replace: replace)
-    }
-
     private func install(document: String, replace: Bool) -> RestorePlan? {
         let imported: [Entry]
         do {

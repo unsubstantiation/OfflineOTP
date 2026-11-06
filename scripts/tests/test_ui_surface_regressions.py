@@ -59,7 +59,7 @@ class ManualEntryEditSaveTest(unittest.TestCase):
     def test_new_entries_are_built_through_the_shared_draft(self):
         """The dialog no longer assembles a type itself; every new branch asks ``EntryDraft``."""
         text = self.DIALOG.read_text(encoding="utf-8")
-        self.assertEqual(5, text.count("EntryDraft.create(type, issuer, label, secret,"),
+        self.assertEqual(7, text.count("EntryDraft.create(type, issuer, label, secret,"),
                          "every type branch must build its new entry through EntryDraft")
         self.assertEqual(5, text.count("newEntry = true"),
                          "a new entry must be stamped through EntryDraft, never by hand")
@@ -79,12 +79,15 @@ class ManualEntryEditSaveTest(unittest.TestCase):
 
     def test_edit_branches_keep_updating_the_old_entry(self):
         text = self.DIALOG.read_text(encoding="utf-8")
-        self.assertEqual(5, text.count("oldEntry!!.applyEdit"),
-                         "every type branch must keep its edit path")
-        self.assertEqual(5, text.count("edited.setIssuer(issuer, true)"),
-                         "every type branch must still apply the typed issuer")
-        self.assertEqual(5, text.count("updateCallback?.onUpdate()"),
-                         "every type branch must report the edit to the callback")
+        # 0d9f5ece: edits now go through EntriesCardAdapter.replaceEntry so a failing
+        # write never leaves a dirty in-memory entry. The dialog builds a replacement
+        # via EntryDraft and asks the adapter to swap it under MutationLock.
+        self.assertEqual(5, text.count("adapter.replaceEntry(oldEntry"),
+                         "every type branch must replace through the adapter")
+        self.assertEqual(5, text.count("newEntry = false"),
+                         "every edit must build its replacement as an update, not a new entry")
+        self.assertNotIn("oldEntry!!.applyEdit", text,
+                         "edits must not mutate the live entry outside the lock")
 
     def test_edit_branches_go_through_the_rollback_wrapper(self):
         """A rejected edit must not stay on the live entry (see Entry.applyEdit).

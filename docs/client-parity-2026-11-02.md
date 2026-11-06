@@ -46,7 +46,7 @@ The manual order is a vault property, not a view property: a move is written thr
 `EntryEditor` path as every other mutation, so a failed write leaves the visible order untouched, and
 selecting any sort order disables the action (as Android hides the drag handle).
 
-## Fixed in the same pass: restore semantics and plain-text restore
+## Fixed in the same pass: restore semantics (plain-text restore removed)
 
 A later read of the backup surface found two more differences, both about what a restore does to the
 vault that is already open.
@@ -54,7 +54,7 @@ vault that is already open.
 | Behaviour | Android | Desktop before | Now |
 | --- | --- | --- | --- |
 | Merge versus replace | The backup screen has a **Replace existing entries** switch (`backup_title_replace`), off by default: a restore appends the backup's new entries and keeps the current ones | Restore always replaced the whole vault, after a warning that said so | `BackupCoordinator.restoreEncrypted`/`restoreOpenPgp` take `replace`; every restore dialog asks with the same switch wording and the same default, and the result text says *Merged N new entries* rather than claiming a restore |
-| Plain-text restore | **Restore plain-text backup…** imports a legacy unencrypted JSON file through `PlainTextBackupDecoder`, behind `backup_plaintext_warning_message` | No plain-text path at all | **Tools → Restore plain-text backup…** uses the same shared decoder and the same warning text, and still never *writes* an unencrypted backup |
+| Plain-text restore | **Restore plain-text backup…** imported a legacy unencrypted JSON file through `PlainTextBackupDecoder` | No plain-text path at all | Removed on all clients — only **Full Encrypted Backup** and **OpenPGP** remain; the decoder, task, and warning strings are deleted |
 
 Merging follows Android's branch exactly: an entry the vault already holds is not duplicated and
 keeps its counters, usage metadata and tags, the imported entries come first, and a backup whose
@@ -84,7 +84,7 @@ desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared ru
 - **OpenSSH-key keystroke output.** Android's SSH popup can type the key through NFC or a YubiKey in
   OTP mode via `menu_send_keystrokes`. The desktop client has no hardware keystroke path (it
   supports PC/SC OATH only), which the README lists as out of scope.
-- **Settings editor, inactivity lock, automatic backups, biometrics, master-password change.**
+- **Settings editor, inactivity lock, automatic backups, master-password change.**
   Both are opt-in on Android and off by default (`getAuthInactivity()`, the automatic-backup keys),
   so an untouched Android install and the desktop client behave the same; only an Android user who
   turns them on gets behaviour the desktop client has no equivalent for.
@@ -133,7 +133,21 @@ duplicate-issuer confirmation, the password and SSH editors, entry metadata (las
 frequency, details visibility) preserved by every edit, the master-password vault format
 (`secrets.dat`, PBKDF2 + AES-GCM) and the reveal/copy rules. Each of these is covered by shared
 `:core` code or by existing desktop tests, so the review checked the call sites rather than
-re-deriving the behaviour.
+re-deriving the behaviour. Thunderbird email credentials and FairEmail accounts share the same
+`EMAIL` vault representation (`EmailMaterial.Account` → `ENTRY_EMAIL`), so an account imported
+from one can be exported for the other: `EmailMaterial.importThunderbirdCsv` groups Thunderbird
+CSV rows by username (parsing `mailbox://`, `imap://`, `smtp://`, default ports/encryption) into
+the same `Account` that `importBackup` builds, `prepare` stores it as `EMAIL`, and
+`exportThunderbirdCsv`/`exportBackup` round-trip either way (inferred defaults aside); legacy
+PASSWORD-stored Thunderbird vaults remain exportable via the compatibility path. The About screen
+is the same attribution on both clients — `Copyright (c) 2026 unsubstantiation — http://fairuniversal.com
+and https://github.com/unsubstantiation/OfflineOTP/releases` in the header (Android
+`strings_about.xml:about_copyright`, desktop `AboutDialog.COPYRIGHT`) with tappable **Website**
+(`http://fairuniversal.com`) and **Releases**
+(`https://github.com/unsubstantiation/OfflineOTP/releases`) rows (Android
+`fragment_about.xml` + `BaseAboutFragment.WEBSITE_URI/RELEASES_URI`, desktop `Help → About
+OfflineOTP` via `AboutDialog` with `Desktop.browse` + clipboard fallback) — so a binary always
+carries the required notice.
 
 ## A third client
 
@@ -164,10 +178,10 @@ reinterpretation:
 | The logo name an entry stores is resolved from its issuer (exact, alias, whole word, default), so the other clients show the same mark | `ThumbnailCatalog.resolveName`, `Entry.initialize`, `Entry.setThumbnailFromIssuer` | `ThumbnailCatalog`, used by `EntryDraft` and `OtpUri.entry` | `ThumbnailCatalogTests`, `test_ios_app.py` |
 | A QR payload is classified before it is parsed; a migration export is named, not guessed at | `QrImport.classify` | `QrPayload.classify` | `OtpUriTests` |
 | A backup is dated (`otp_accounts_<yyyy-MM-dd_HH-mm-ss>.json.aes`) with ASCII digits | `BackupFileNames` | `BackupFileNames` | `BackupRestoreTests`, `test_ios_app.py` |
-| A plain-text backup is decoded strictly (UTF-8, one byte-order mark, not blank, bounded) and never written | `PlainTextBackupDecoder`, Android's `backup_plaintext_warning_message` | `PlainTextBackupDecoder`, `BackupWording` | `BackupRestoreTests`, `test_ios_app.py` |
+| A plain-text backup was decoded strictly and never written — now removed | `PlainTextBackupDecoder` (deleted) | `PlainTextBackupDecoder` (deleted) | Plain-text tests deleted; guards assert the path is gone |
 | A restore merges by default (imported first, the vault's copies kept) or replaces; an empty import is refused | `VaultRestoreMerge`, `VaultRestoreOperation` | `VaultRestoreMerge` | `BackupRestoreTests`, `test_ios_app.py` |
 | A second account from a known issuer asks **Issuer already exists** / **Add anyway** before it is added | Android `showDuplicateIssuerConfirmation`, `dialog_msg_duplicate_issuer`, desktop `DuplicateIssuerPolicy` | `VaultStore.importUri`/`importPayload` and `ImportOutcome` | `VaultStoreTests`, `test_ios_app.py` |
-| The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | (iOS only) | `KeychainBiometricKeyStore`, `VaultStore.unlockWithBiometrics` | `BiometricUnlockTests`, `test_ios_app.py` |
+| The vault key is released by the platform after a biometric check, never derived from anything stored on the device: the file, the KDF and the password are unchanged | iOS `KeychainBiometricKeyStore`, Android `BiometricKeyStore` | `VaultStore.unlockWithBiometrics` (iOS), `AuthenticateActivity` + `BiometricKeyStore` (Android) | `BiometricUnlockTests` / `test_ios_app.py` (iOS), `test_manifest_source_policy.py` + manual enrollment + `BiometricKeyStore` instrumentation (Android) |
 | Two entries are the same account when their kind, token parameters, seed, name, issuer and SSH target match — the usage stamp, counters of use, tags and reveal state are metadata | `Entry.equals`/`hashCode` | `Entry.==`/`hash(into:)` | `VaultStoreTests`, `test_ios_app.py` |
 | A Google Authenticator export is read code by code and written only when every code of it has arrived; a repeated or foreign code is refused without ending it, and an identical account is skipped | `GoogleAuthenticatorMigration`, `MigrationBatchCollector`, Android's `google_import_*` strings, `EntriesCardAdapter.importEntries` | `MigrationPayload`, `MigrationBatchCollector`, `MigrationWording`, `VaultStore.addMigrationImportCode`/`confirmMigrationImport` | `MigrationImportTests`, `VaultStoreTests`, `test_ios_app.py` |
 
@@ -198,9 +212,25 @@ one implementation for all five distributions. The crate builds a `cdylib` for J
 the crate on the host; per-ABI packaging and removal of PGPainless remain before the format is truly
 identical, but the design gap is closed.
 
-One thing the iOS client has and the other two do not: an optional **Face ID** unlock. It is not a
-format change and it does not touch the vault — it releases the derived key from a Keychain item that
-is bound to the currently enrolled face and never leaves the device, so the password still opens the
-vault and the other clients see exactly the bytes they wrote. It is iOS-only because it is a property
-of the platform's Keychain, not of the vault. The rules, and the reasons for them, are in
-[the iOS client plan](ios-client-plan.md#face-id-and-why-it-does-not-weaken-the-vault).
+### Fixed: entry edits now reliably autosave
+
+All three clients autosave on entry edits (issuer, label, secret parameters, tags, SSH
+connection) — the vault file is written before the in-memory list is published, so a failed
+write leaves the previous entry unchanged. On Android the edit path previously mutated the live
+entry outside the vault lock and relied on a two-step callback; if the session changed between
+the dialog closing and the save, the in-memory entry stayed dirty while the file was untouched.
+`EntriesCardAdapter` now exposes `replaceEntry(existing,replacement)` which validates the
+draft, checks for duplicates, writes the whole vault atomically under `MutationLock` and only
+then swaps the entry in the list, matching `EntryEditor.replace` on the desktop and
+`VaultStore.update` on iOS. `ManualEntryDialog` builds a new entry through `EntryDraft`
+instead of calling `applyEdit` on the live object.
+
+The desktop **New vault** / **Open vault** header buttons and **Vault** menu did not exist on Android. Android shows its first-run wizard or lock screen automatically; the desktop had two always-visible buttons that did the same work through a different shell path. The header buttons and menu are removed and `MainWindow` now auto-prompts (create on first launch, open while locked) like `MainActivity`/`AuthenticateActivity`, reusing the existing controller paths so an older build still opens the same `secrets.dat`/`vault.properties`.
+
+Both mobile clients now have an optional **biometric** quick unlock — **Face ID / Touch ID** on iOS and **fingerprint or face** on Android — and the desktop has none. In both cases it is not a format change and it does not touch the vault — it releases the derived key from a platform-bound item (Keychain `kSecAccessControlBiometryCurrentSet` on iOS, KeyStore `BIOMETRIC_STRONG` on Android) that never leaves the device, so the password still opens the vault and the other clients see exactly the bytes they wrote. Android uses `USE_BIOMETRIC` and only strong biometrics; weak face is not accepted. The rules, and the reasons for them, are in [the iOS client plan](ios-client-plan.md#face-id-and-why-it-does-not-weaken-the-vault) and mirrored in `BiometricKeyStore.kt` on Android.
+
+### Fixed: OTP cards hide Type and add Hidden label
+
+The desktop OTP card showed the **Type** (`TOTP` etc) alongside the token, even though the kind is already implied by the tab and is editable only in the edit dialog — Android never showed it on the card. The desktop `EntryCards` detail row now omits the OTP type (non-OTP kinds still label the card as `Secure note`/`SSH key` etc), matching Android's `component_card_*` which has no type row.
+
+Both clients also gain an editable **Hidden label** (`hidden_label` in the vault JSON, after `tags`): it behaves exactly like **Label** — up to 1024 characters, included in **Label** search, persisted through save/restore/QR and in `Entry.equals`/`hashCode` — but is only shown when the OTP entry is revealed (`areDetailsVisible`/`details_visible`). On Android it is a second row in `dialog_manual_entry` (`manual_hidden_label`, `label_hidden_label`) and an italic `textViewHiddenLabel` in the three card layouts (`component_card_default/compact/full`), hidden otherwise; on desktop it is a row in `EntryDialog` and appended to the title (`Issuer – Label – Hidden label`) when revealed; on iOS it is `Entry.hiddenLabel` in `canonicalFieldOrder` after `tags`, offered in `EntryDraft` and in `EntryListProjection` search. For `NOTE`/`SSH_KEY` the field is hidden and forced empty, as those kinds have no OTP visibility.

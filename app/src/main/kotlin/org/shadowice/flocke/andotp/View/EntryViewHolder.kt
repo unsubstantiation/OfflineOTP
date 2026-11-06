@@ -55,6 +55,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private val valuePrev: TextView
     private val noteText: TextView
     private val label: TextView
+    private val hiddenLabel: TextView
     private val counter: TextView
     private val customPeriodLayout: LinearLayout
     private val customPeriod: TextView
@@ -71,6 +72,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         thumbnailImg = requireNotNull(v.findViewById<ImageView>(R.id.thumbnailImg))
         coverLayout = requireNotNull(v.findViewById<LinearLayout>(R.id.coverLayout))
         label = requireNotNull(v.findViewById<TextView>(R.id.textViewLabel))
+        hiddenLabel = requireNotNull(v.findViewById<TextView>(R.id.textViewHiddenLabel))
         tags = requireNotNull(v.findViewById<TextView>(R.id.textViewTags))
         counterLayout = requireNotNull(v.findViewById<LinearLayout>(R.id.counterLayout))
         counter = requireNotNull(v.findViewById<TextView>(R.id.counter))
@@ -183,6 +185,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
             noteText.setText("")
             noteText.visibility = View.GONE
             tags.setText("")
+            hiddenLabel.setText("")
+            hiddenLabel.visibility = View.GONE
             counter.setText("")
             customPeriod.setText("")
             thumbnailImg.setImageDrawable(null)
@@ -265,6 +269,14 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         tags.setText(stringBuilder.toString())
 
         tags.visibility = if (entryTags.isEmpty()) View.GONE else View.VISIBLE
+        val hidden = entry.getHiddenLabel()
+        if (detailsVisible && hidden.isNotEmpty() && (entry.isTimeBased() || entry.isCounterBased())) {
+            hiddenLabel.setText(hidden)
+            hiddenLabel.visibility = View.VISIBLE
+        } else {
+            hiddenLabel.setText("")
+            hiddenLabel.visibility = View.GONE
+        }
         thumbnailFrame.visibility = if (settings.getThumbnailVisible()) View.VISIBLE else View.GONE
 
         val thumbnailSize = settings.getThumbnailSize()

@@ -154,7 +154,7 @@ class EntryList {
             // Locale-independent folding: lowercase(Locale.getDefault()) made the match depend on
             // the app language (under Turkish, "I" folds to "ı", so searching "i" missed it).
             for (i in 0 until entries.size) {
-                if (filterValues.contains(Constants.SearchIncludes.LABEL) && entries[i].getLabel().contains(constraint, ignoreCase = true)) {
+                if (filterValues.contains(Constants.SearchIncludes.LABEL) && (entries[i].getLabel().contains(constraint, ignoreCase = true) || entries[i].getHiddenLabel().contains(constraint, ignoreCase = true))) {
                     filtered.add(entries[i])
                 } else if (filterValues.contains(Constants.SearchIncludes.ISSUER) && entries[i].getIssuer().contains(constraint, ignoreCase = true)) {
                     filtered.add(entries[i])

@@ -1,8 +1,7 @@
-"""Plain-text backups may be restored, but must never be exported.
+"""Plain-text backups must not be created or imported.
 
-The vault-security hardening removed plain-text backup creation because it would expose every seed.
-Legacy plaintext JSON import is intentionally supported as a separately labeled, warning-confirmed
-restore path. These guards reject any plaintext save route while keeping that import available.
+Plain-text backup support has been removed: neither export nor import may exist.
+These guards reject any plaintext save or restore route.
 """
 import re
 import unittest
@@ -29,18 +28,16 @@ class NoPlainTextBackupTest(unittest.TestCase):
         for banned in ("BACKUP_MIMETYPE_PLAIN", "BACKUP_FILENAME_PLAIN",
                        "BACKUP_MIMETYPE_JSON", "INTENT_BACKUP_SAVE_DOCUMENT_PLAIN"):
             self.assertNotIn(banned, text, f"{banned} reintroduced a plain-text export path")
-        self.assertIn("INTENT_BACKUP_OPEN_DOCUMENT_PLAIN", text,
-                      "the explicit, import-only legacy restore route is missing")
+        for banned in ("INTENT_BACKUP_OPEN_DOCUMENT_PLAIN",):
+            self.assertNotIn(banned, text, f"{banned} reintroduced a plain-text import path")
 
     def test_plaintext_route_is_restore_only_and_warning_confirmed(self):
         text = BACKUP_ACTIVITY.read_text(encoding="utf-8")
         self.assertNotIn("BackupType.PLAIN", text)
-        for banned in ("SAVE_DOCUMENT_PLAIN", "BACKUP_MIMETYPE_JSON", "backupPlain", "loadFileString"):
-            self.assertNotIn(banned, text, f"{banned} reintroduced a plain-text export path")
-        self.assertIn("restorePlainText(intent.data)", text)
-        self.assertIn("PlainTextRestoreTask(this, uri)", text)
-        self.assertIn("backup_plaintext_warning_message", text)
-        self.assertIn("setPositiveButton(R.string.backup_button_restore_plaintext)", text)
+        for banned in ("SAVE_DOCUMENT_PLAIN", "BACKUP_MIMETYPE_JSON", "backupPlain", "loadFileString",
+                       "PlainTextRestoreTask", "PlainTextBackupDecoder", "buttonRestorePlainText",
+                       "backup_button_restore_plaintext", "backup_plaintext_warning", "restorePlainText"):
+            self.assertNotIn(banned, text, f"{banned} reintroduced a plain-text path")
         # Every `when (backupType)` branch set must cover the encrypted and OpenPGP types.
         for branch in re.finditer(r"when \(backupType\) \{(.*?)\n        \}", text, re.DOTALL):
             for expected in ("BackupType.ENCRYPTED", "BackupType.OPEN_PGP", "BackupType.UNAVAILABLE"):

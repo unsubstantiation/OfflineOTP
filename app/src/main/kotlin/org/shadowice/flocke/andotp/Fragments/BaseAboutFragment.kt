@@ -91,11 +91,15 @@ open class BaseAboutFragment : Fragment() {
         val license = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_license))
         val changelog = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_changelog))
         val source = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_source))
+        val website = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_website))
+        val releases = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_releases))
         val faq = requireNotNull(v.findViewById<LinearLayout>(R.id.about_layout_faq))
 
         license.setOnClickListener { openURI(LICENSE_URI) }
         changelog.setOnClickListener { openURI(CHANGELOG_URI) }
         source.setOnClickListener { openURI(GITHUB_URI) }
+        website.setOnClickListener { openURI(WEBSITE_URI) }
+        releases.setOnClickListener { openURI(RELEASES_URI) }
         faq.setOnClickListener { openURI(ISSUES_URI) }
 
         val author1Layout = requireNotNull(v.findViewById<LinearLayout>(R.id.aboutLayoutAuthor1))
@@ -160,6 +164,8 @@ open class BaseAboutFragment : Fragment() {
 
     companion object {
         private const val GITHUB_URI = "https://github.com/unsubstantiation/OfflineOTP"
+        const val WEBSITE_URI = "http://fairuniversal.com"
+        const val RELEASES_URI = "https://github.com/unsubstantiation/OfflineOTP/releases"
         private const val CHANGELOG_URI = "$GITHUB_URI/blob/master/CHANGELOG.md"
         private const val LICENSE_URI = "$GITHUB_URI/blob/master/LICENSE.txt"
         private const val ISSUES_URI = "$GITHUB_URI/issues"
@@ -178,6 +184,7 @@ open class BaseAboutFragment : Fragment() {
         @JvmField
         val imageResources: IntArray = intArrayOf(
                 R.id.aboutImgVersion, R.id.aboutImgLicense, R.id.aboutImgChangelog, R.id.aboutImgSource,
+                R.id.aboutImgWebsite, R.id.aboutImgReleases,
                 R.id.aboutImgFaq, R.id.aboutImgAuthor2, R.id.aboutImgAuthorOriginal,
                 R.id.aboutImgContributors, R.id.aboutImgSupport
         )

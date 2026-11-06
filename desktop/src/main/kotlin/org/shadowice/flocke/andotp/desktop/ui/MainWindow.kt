@@ -313,6 +313,22 @@ object MainWindow {
             }
         }
 
+        fun importThunderbird() {
+            val unlocked = requireUnlocked() ?: return
+            val active = editor ?: return
+            if (ThunderbirdDialogs.importBackup(frame, active)) {
+                screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal
+                refreshProjection(unlocked)
+            }
+        }
+
+        fun exportThunderbird() {
+            val unlocked = requireUnlocked() ?: return
+            if (ThunderbirdDialogs.exportBackup(frame, unlocked.snapshot())) {
+                // Export does not mutate vault; no projection refresh needed.
+            }
+        }
+
         fun showPasswordDetails() {
             requireUnlocked() ?: return
             val row = table.selectedRow
@@ -361,18 +377,24 @@ object MainWindow {
             EmailDialogs.showDetails(frame, entry)
         }
 
-        screen.newVaultButton.addActionListener {
+        fun promptCreateVault() {
             PasswordDialog.prompt(frame, "Create a new vault")?.let { accept(controller.createVault(it)) }
         }
-        screen.openVaultButton.addActionListener {
+        fun promptOpenVault() {
             PasswordDialog.prompt(frame, "Open vault")?.let { accept(controller.openVault(it)) }
         }
+        // Auto-prompt like Android: first launch → Create, later → Open.
+        // Exposed for display tests so they do not click header buttons that no longer exist.
+        frame.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
+        frame.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
         val addMenu = JPopupMenu().apply {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
             add(JMenuItem("Add email account…").apply { addActionListener { addEmailAccount() } })
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
+            add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
+            add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
         }
@@ -537,23 +559,20 @@ object MainWindow {
         })
 
         val menuBar = JMenuBar().apply {
-            add(JMenu("Vault").apply {
-                mnemonic = KeyEvent.VK_V
-                add(JMenuItem("New vault…").apply { addActionListener { screen.newVaultButton.doClick() } })
-                add(JMenuItem("Open vault…").apply { addActionListener { screen.openVaultButton.doClick() } })
-            })
             add(JMenu("Tools").apply {
                 mnemonic = KeyEvent.VK_T
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
+                add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
+                add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
                 addSeparator()
                 add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
                 add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })
-                add(JMenuItem("Encrypted backup…").apply {
+                add(JMenuItem("Full Encrypted Backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })
-                add(JMenuItem("Restore encrypted backup…").apply {
+                add(JMenuItem("Restore Full Encrypted Backup…").apply {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreEncryptedBackup(frame, it)
@@ -568,14 +587,6 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreOpenPgp(frame, it)
-                            state?.let { unlocked -> refreshProjection(unlocked) }
-                        }
-                    }
-                })
-                add(JMenuItem("Restore plain-text backup…").apply {
-                    addActionListener {
-                        coordinator?.let {
-                            BackupDialogs.restorePlainText(frame, it)
                             state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }
@@ -603,6 +614,9 @@ object MainWindow {
                     }
                 })
             })
+            add(JMenu("Help").apply {
+                add(JMenuItem("About OfflineOTP").apply { addActionListener { AboutDialog.show(frame) } })
+            })
         }
 
         frame = JFrame(TITLE).apply {
@@ -613,6 +627,14 @@ object MainWindow {
                 override fun windowClosing(event: java.awt.event.WindowEvent) {
                     ticker?.close()
                     hardware.close()
+                }
+                override fun windowOpened(event: java.awt.event.WindowEvent) {
+                    // Parity with Android: no persistent New/Open buttons. First launch auto-asks to
+                    // create, later launches auto-ask to open – the header and Vault menu stay vault-free.
+                    javax.swing.SwingUtilities.invokeLater {
+                        if (!controller.isInitialized()) promptCreateVault()
+                        else if (state == null) promptOpenVault()
+                    }
                 }
             })
             contentPane = screen.panel

@@ -107,7 +107,7 @@
 
     <string name="settings_desc_openpgp_key_encrypt">Comma-separated OpenPGP user IDs used to
         encrypt backups</string>
-    <string name="settings_desc_openpgp_verify">Encrypted backups are only imported if they are
+    <string name="settings_desc_openpgp_verify">Full Encrypted Backups are only imported if they are
         signed with a valid key</string>
 
     <string name="settings_desc_special_features">Shows screenshot and KeyStore options in Settings</string>
@@ -119,6 +119,15 @@
     <!-- Toasts -->
     <string name="settings_toast_auth_device_not_secure">Set up a secure lock screen first (Settings → Security →
         Screen lock)</string>
+
+    <string name="settings_title_biometric">Unlock with fingerprint or face</string>
+    <string name="settings_desc_biometric">Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted with the password: biometrics only releases a key this device keeps, and the password still works. Only strong biometrics are used.</string>
+    <string name="settings_toast_biometric_turned_on">Biometric unlock is on for this vault.</string>
+    <string name="settings_toast_biometric_turned_off">Biometric unlock is off.</string>
+    <string name="settings_toast_biometric_unavailable">This device cannot use biometric unlock.</string>
+    <string name="settings_toast_biometric_not_enrolled">Set up fingerprint or face unlock on this device first.</string>
+    <string name="settings_toast_biometric_save_failed">This device could not keep the unlock key. Try again.</string>
+    <string name="settings_toast_biometric_stale">Biometric unlock is no longer set up for this vault. Enter your password, then turn it on again.</string>
 
 
     <string name="settings_toast_encryption_changing">Changing database encryption…</string>
@@ -245,7 +254,7 @@
     </string-array>
 
     <string-array name="settings_entries_backup_broadcasts">
-        <item>Encrypted backups</item>
+        <item>Full Encrypted Backups</item>
     </string-array>
     
     <!-- Special -->

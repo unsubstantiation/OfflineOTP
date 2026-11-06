@@ -309,8 +309,9 @@ open class Settings(private val context: Context) {
         val editor = settings.edit()
         if (transaction != null) {
             editor.putString(DatabaseHelper.TRANSACTION_ID, transaction)
-            // Existing hardware wrappers contain the previous vault key; require re-enrollment.
+            // Existing hardware/biometric wrappers contain the previous vault key; require re-enrollment.
             HardwareUnlockStore.clearOnVaultChange(editor)
+            BiometricKeyStore.clearOnVaultChange(editor)
         }
         editor.putString(getResString(R.string.settings_key_encryption), type.name.lowercase(Locale.ROOT))
         if (auth != null) editor.putString(getResString(R.string.settings_key_auth), auth.name.lowercase(Locale.ROOT))

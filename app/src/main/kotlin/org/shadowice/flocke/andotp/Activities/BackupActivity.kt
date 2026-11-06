@@ -35,7 +35,6 @@ import org.shadowice.flocke.andotp.Tasks.LoginEncryptedBackupTask
 import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
 import org.shadowice.flocke.andotp.Tasks.PGPBackupTask
 import org.shadowice.flocke.andotp.Tasks.PGPRestoreTask
-import org.shadowice.flocke.andotp.Tasks.PlainTextRestoreTask
 import org.shadowice.flocke.andotp.Tasks.TaskFailure
 import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
@@ -83,7 +82,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private var btnBackup: Button? = null
     private var btnRestore: Button? = null
-    private var btnRestorePlainText: Button? = null
     private var spBackupTypeView: Spinner? = null
     private var txtBackupLabel: TextView? = null
     private var txtBackupWarning: TextView? = null
@@ -171,7 +169,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         spBackupTypeView = spBackupType
         btnBackup = requireNotNull(v.findViewById<Button>(R.id.buttonBackup))
         btnRestore = requireNotNull(v.findViewById<Button>(R.id.buttonRestore))
-        btnRestorePlainText = requireNotNull(v.findViewById<Button>(R.id.buttonRestorePlainText))
         txtBackupLabel = requireNotNull(v.findViewById<TextView>(R.id.backupLabel))
         txtBackupWarning = requireNotNull(v.findViewById<TextView>(R.id.backupErrorLabel))
         swReplace = requireNotNull(v.findViewById<SwitchMaterial>(R.id.backup_replace))
@@ -188,7 +185,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             spBackupType.isEnabled = false
             btnBackup?.isEnabled = false
             btnRestore?.isEnabled = false
-            btnRestorePlainText?.isEnabled = false
         }
 
         spBackupType.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
@@ -220,17 +216,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
                 Constants.BackupType.UNAVAILABLE -> Unit
             }
-        }
-
-        btnRestorePlainText?.setOnClickListener {
-            AlertDialog.Builder(this)
-                .setTitle(R.string.backup_plaintext_warning_title)
-                .setMessage(R.string.backup_plaintext_warning_message)
-                .setNegativeButton(android.R.string.cancel, null)
-                .setPositiveButton(R.string.backup_button_restore_plaintext) { _, _ ->
-                    showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PLAIN)
-                }
-                .show()
         }
 
         if (encryptionKey != null) tryResumePendingPickerAction()
@@ -434,7 +419,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> Constants.BackupType.ENCRYPTED
         Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
         Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> Constants.BackupType.OPEN_PGP
-        Constants.INTENT_BACKUP_OPEN_DOCUMENT_PLAIN -> Constants.BackupType.ENCRYPTED
         else -> null
     }
 
@@ -463,7 +447,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         when (requestCode) {
             Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT -> doRestoreCrypt(uri)
             Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP -> restoreEncryptedWithPGP(uri, null)
-            Constants.INTENT_BACKUP_OPEN_DOCUMENT_PLAIN -> restorePlainText(uri)
             Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> doBackupCrypt(uri)
             Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> backupEncryptedWithPGP(uri, null)
             else -> {
@@ -581,7 +564,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             txtBackupWarning?.visibility = View.VISIBLE
             btnBackup?.isEnabled = false
             btnRestore?.isEnabled = false
-            btnRestorePlainText?.isEnabled = false
             return
         }
         val activeCode = activeActionRequestCode
@@ -700,7 +682,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         btnBackup?.isEnabled = !running
         btnRestore?.isEnabled = !running
         swReplace?.isEnabled = !running
-        btnRestorePlainText?.isEnabled = !running
         if (!running && backupType == Constants.BackupType.OPEN_PGP) {
             updateOpenPgpAvailability()
         }
@@ -747,9 +728,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         } else if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP && resultCode == RESULT_OK) {
             if (intent != null)
                 restoreEncryptedWithPGP(intent.data, null)
-        } else if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PLAIN && resultCode == RESULT_OK) {
-            if (intent != null)
-                restorePlainText(intent.data)
         } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP && resultCode == RESULT_OK) {
             if (intent != null)
                 backupEncryptedWithPGP(intent.data, null)
@@ -861,12 +839,6 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         else
             notifyBackupState(R.string.backup_toast_import_failed)
         return false
-    }
-
-    /** Imports an explicitly selected plain-text backup; no corresponding export path exists. */
-    private fun restorePlainText(uri: Uri?) {
-        if (!canOperate()) return
-        startBackgroundTask(PlainTextRestoreTask(this, uri), BackupTaskResult.ResultType.RESTORE)
     }
 
     /* Encrypted backup functions */

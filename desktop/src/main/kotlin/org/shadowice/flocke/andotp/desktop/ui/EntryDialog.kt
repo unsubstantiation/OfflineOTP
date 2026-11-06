@@ -47,6 +47,7 @@ object EntryDialog {
 
         val issuer = JTextField(existing?.getIssuer().orEmpty(), 24)
         val label = JTextField(existing?.getLabel().orEmpty(), 24)
+        val hiddenLabel = JTextField(existing?.getHiddenLabel().orEmpty(), 24)
         val sshKeys = existing?.takeIf { it.isSshKey() }?.getSshKeys()
         val secret = JTextArea(if (sshKeys != null) sshKeys.privateKey
             else existing?.takeIf { it.isNote() }?.getNote().orEmpty(), 3, 24)
@@ -60,6 +61,7 @@ object EntryDialog {
         val sshPassword = JPasswordField(sshConnection?.password.orEmpty(), 24)
         val issuerLabel = JLabel("Issuer")
         val labelLabel = JLabel("Label")
+        val hiddenLabelLabel = JLabel("Hidden Label (visible only when revealed)")
         val publicKeyLabel = JLabel("SSH public key (optional)")
         val sshHostLabel = JLabel("Host name (optional)")
         val sshPortLabel = JLabel("Port (optional, default 22)")
@@ -128,18 +130,19 @@ object EntryDialog {
             }
             row(0, issuerLabel, issuer)
             row(1, labelLabel, label)
-            row(2, typeLabel, type)
-            row(3, secretLabel, secretScroll, secret)
-            row(4, publicKeyLabel, publicKeyScroll, publicKey)
-            row(5, sshHostLabel, sshHost)
-            row(6, sshPortLabel, sshPort)
-            row(7, sshUsernameLabel, sshUsername)
-            row(8, sshPasswordLabel, sshPassword)
-            row(9, digitsLabel, digits)
-            row(10, timingLabel, periodOrCounter)
-            row(11, algorithmLabel, algorithm)
-            row(12, pinLabel, pin)
-            row(13, tagsLabel, tagsControl, tagsButton)
+            row(2, hiddenLabelLabel, hiddenLabel)
+            row(3, typeLabel, type)
+            row(4, secretLabel, secretScroll, secret)
+            row(5, publicKeyLabel, publicKeyScroll, publicKey)
+            row(6, sshHostLabel, sshHost)
+            row(7, sshPortLabel, sshPort)
+            row(8, sshUsernameLabel, sshUsername)
+            row(9, sshPasswordLabel, sshPassword)
+            row(10, digitsLabel, digits)
+            row(11, timingLabel, periodOrCounter)
+            row(12, algorithmLabel, algorithm)
+            row(13, pinLabel, pin)
+            row(14, tagsLabel, tagsControl, tagsButton)
         }
         val formScroll = JScrollPane(panel).apply {
             border = BorderFactory.createEmptyBorder()
@@ -185,6 +188,8 @@ object EntryDialog {
                 .forEach { it.isVisible = ssh }
             listOf(digitsLabel, digits, timingLabel, periodOrCounter, algorithmLabel, algorithm)
                 .forEach { it.isVisible = otp }
+            hiddenLabelLabel.isVisible = otp
+            hiddenLabel.isVisible = otp
             pinLabel.isVisible = motp
             pin.isVisible = motp
             // A fresh Steam entry always uses the fixed 5-digit/SHA1 contract.
@@ -217,6 +222,7 @@ object EntryDialog {
                 publicKey.text = ""
                 sshPassword.text = ""
                 pin.text = ""
+                hiddenLabel.text = ""
                 return null
             }
 
@@ -232,7 +238,7 @@ object EntryDialog {
                     enteredSecret(type.selectedItem as Entry.OTPType, secret.text, existing),
                     digits.text, periodOrCounter.text,
                     TokenCalculator.HashAlgorithm.valueOf(algorithm.selectedItem as String),
-                    pin.text, publicKey.text, connection, selectedTags,
+                    pin.text, publicKey.text, connection, selectedTags, if ((type.selectedItem as Entry.OTPType) == Entry.OTPType.NOTE || (type.selectedItem as Entry.OTPType) == Entry.OTPType.SSH_KEY) "" else hiddenLabel.text,
                     newEntry = existing == null)
                     .also { if (existing != null) preserveEditMetadata(existing, it) }
             } catch (error: IllegalArgumentException) {
@@ -245,6 +251,7 @@ object EntryDialog {
                 publicKey.text = ""
                 sshPassword.text = ""
                 pin.text = ""
+                hiddenLabel.text = ""
                 return built
             }
         }
@@ -276,9 +283,9 @@ object EntryDialog {
         type: Entry.OTPType, issuer: String, label: String, secret: String?,
         digitsText: String, timingText: String, algorithm: TokenCalculator.HashAlgorithm,
         pinText: String, publicKeyText: String,
-        sshConnection: SshConnection.Details?, tags: List<String>, newEntry: Boolean
+        sshConnection: SshConnection.Details?, tags: List<String>, hiddenLabel: String = "", newEntry: Boolean
     ): Entry = EntryDraft.create(
         type, issuer, label, secret, digitsText, timingText, algorithm,
         pin = pinText, publicKey = publicKeyText, sshConnection = sshConnection,
-        tags = ArrayList(tags), newEntry = newEntry)
+        tags = ArrayList(tags), hiddenLabel = hiddenLabel, newEntry = newEntry)
 }

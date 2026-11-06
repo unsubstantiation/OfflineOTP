@@ -17,6 +17,14 @@
         android:title="@string/password_import"
         android:icon="@drawable/ic_password_import_white" />
     <item
+        android:id="@+id/fabImportThunderbird"
+        android:title="@string/thunderbird_import"
+        android:icon="@drawable/ic_email_import_white" />
+    <item
+        android:id="@+id/fabExportThunderbird"
+        android:title="@string/thunderbird_export"
+        android:icon="@drawable/ic_email_export_white" />
+    <item
         android:id="@+id/fabAddEmail"
         android:title="@string/email_add_title"
         android:icon="@drawable/ic_email_white" />

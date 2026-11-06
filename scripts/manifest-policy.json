@@ -1,5 +1,5 @@
 {
-  "package": "org.shadowice.flocke.andotp",
+  "package": "com.fairuniversal.offlineotp",
   "min_sdk": 28,
   "target_sdk": 35,
   "allowed_permissions": [
@@ -11,11 +11,12 @@
     "android.permission.ACCESS_NETWORK_STATE",
     "android.permission.RECEIVE_BOOT_COMPLETED",
     "android.permission.FOREGROUND_SERVICE",
-    "org.shadowice.flocke.andotp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
-    "org.shadowice.flocke.andotp.permission.CONTROL_VAULT"
+    "android.permission.USE_BIOMETRIC",
+    "com.fairuniversal.offlineotp.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION",
+    "com.fairuniversal.offlineotp.permission.CONTROL_VAULT"
   ],
   "exported_components": {
-    "activity:org.shadowice.flocke.andotp.Activities.MainActivity": {
+    "activity:com.fairuniversal.offlineotp.Activities.MainActivity": {
       "permission": "",
       "actions": [
         "android.intent.action.MAIN",
@@ -48,15 +49,15 @@
         }
       ]
     },
-    "activity:org.shadowice.flocke.andotp.Activities.PanicResponderActivity": {
-      "permission": "org.shadowice.flocke.andotp.permission.CONTROL_VAULT",
+    "activity:com.fairuniversal.offlineotp.Activities.PanicResponderActivity": {
+      "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
         "info.guardianproject.panic.action.TRIGGER"
       ],
       "reason": "Same-signer control IPC; independently signed automation must not be authorized."
     },
-    "receiver:org.shadowice.flocke.andotp.Receivers.EncryptedBackupBroadcastReceiver": {
-      "permission": "org.shadowice.flocke.andotp.permission.CONTROL_VAULT",
+    "receiver:com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver": {
+      "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
         "org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP"
       ],

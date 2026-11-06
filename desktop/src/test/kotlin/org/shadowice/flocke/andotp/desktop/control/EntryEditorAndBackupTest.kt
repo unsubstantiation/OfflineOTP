@@ -179,6 +179,20 @@ class EntryEditorAndBackupTest {
     }
 
     @Test
+    fun editsPersistViaReplace() {
+        val (dir, controller, state) = harness()
+        val editor = EntryEditor(controller, state)
+        val original = entry("Issuer A", "alice")
+        assertTrue(editor.add(original))
+        val replacement = entry("Issuer A", "alice-renamed")
+        assertTrue(editor.replace(original, replacement))
+        assertEquals("alice-renamed", state.snapshot().single().getLabel())
+        val reopened = VaultController(DesktopStorage.open(dir)).openVault(password)
+                as VaultController.Session.Loaded
+        assertEquals("alice-renamed", reopened.entries.single().getLabel())
+    }
+
+    @Test
     fun encryptedBackupRoundTripsThroughTheSharedCodec() {
         val (_, controller, state) = harness()
         EntryEditor(controller, state).add(entry("Issuer", "label"))
@@ -834,28 +848,6 @@ class EntryEditorAndBackupTest {
             assertEquals(2, BackupCoordinator(controller, state)
                 .restoreEncrypted(password, backup, replace = true))
             assertEquals(listOf("alice", "bob"), state.snapshot().map { it.getLabel() })
-        } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
-    }
-
-    @Test
-    fun aPlainTextBackupRestoresThroughTheSharedDecoder() {
-        val (dir, controller, state) = harness()
-        try {
-            val document = VaultJson.entriesToString(listOf(entry("Legacy", "carol")))
-            // A byte-order mark is accepted, as it is by Android's PlainTextBackupDecoder.
-            val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
-                document.toByteArray(Charsets.UTF_8)
-            val coordinator = BackupCoordinator(controller, state)
-            assertEquals(1, coordinator.restorePlainText(bytes))
-            assertEquals("Legacy", state.snapshot().single().getIssuer())
-
-            // Invalid UTF-8 and an empty document are refused before anything is written.
-            val before = VaultJson.entriesToString(state.snapshot())
-            for (invalid in listOf(byteArrayOf(0xC3.toByte()), ByteArray(0))) {
-                try { coordinator.restorePlainText(invalid); throw AssertionError("accepted invalid text") }
-                catch (_: IllegalArgumentException) { }
-            }
-            assertEquals(before, VaultJson.entriesToString(state.snapshot()))
         } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
     }
 

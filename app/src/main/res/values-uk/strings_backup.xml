@@ -46,7 +46,7 @@
     <string name="backup_button_backup">Create backup</string>
     <string name="backup_button_restore">Restore backup</string>
     <string-array name="backup_list_type_names">
-        <item>Encrypted</item>
+        <item>Full Encrypted Backup</item>
         <item>OpenPGP</item>
     </string-array>
 </resources>

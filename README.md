@@ -12,11 +12,7 @@ Android-free `:core` engine and password-backup codec. Use exported backups to t
 between distributions; copying an Android app-data vault is not a substitute for a backup. See
 [Desktop client](#desktop-client) for its scope and build instructions.
 
-The Android application ID and Kotlin namespace intentionally remain
-`org.shadowice.flocke.andotp`; changing the application ID would create a separate installation
-rather than update an existing one. Legacy notification channel IDs and intent/broadcast action
-names are also retained to preserve notification settings and integrations. Updating an existing
-installation additionally requires the same signing key.
+The Android application ID is now `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app (`org.shadowice.flocke.andotp`) instead of being detected as its update. The Kotlin package/namespaces stay `org.shadowice.flocke.andotp` for code compatibility; legacy notification channel IDs and intent/broadcast action names are retained. Updating an existing OfflineOTP installation still requires the same signing key, but it no longer collides with andOTP.
 
 ## Features
 
@@ -122,8 +118,8 @@ Features:
 - Copy a token with the **Copy selected** button, a card double-click, or the row context menu. Copying records last-used time and usage frequency and re-persists the vault; the mOTP no-PIN placeholder is never copied. HOTP counters advance through an explicit context-menu action, matching the Android counter chip.
 - Manage FairEmail-compatible mail accounts in the **Email** tab: add one by hand, view its connection details with the passwords masked until you ask for them, and import or export FairEmail backups. The same entries are created by Android's **Add email account** action.
 - Import accounts from QR **image files** only — there is no camera or screen capture. Google Authenticator multi-image exports are buffered and only committed once the whole batch is present, with duplicate-issuer confirmation.
-- Restore a legacy unencrypted JSON backup with **Tools → Restore plain-text backup…**, behind Android's warning that such a file carries your secrets in the clear; like Android, the desktop client imports them but never writes one.
-- Save and restore password-encrypted and OpenPGP backups — currently PGPainless (`org.pgpainless:pgpainless-core:2.0.4`) on desktop and the external OpenKeychain provider on Android, with a unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI, 5/5) scaffolded for all five distributions. Every per-platform workflow now builds and tests the Rust crate; per-ABI packaging and removal of PGPainless remain. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
+- Plain-text (unencrypted JSON) backup import has been removed on all clients; only **Full Encrypted Backup** and **OpenPGP** backups are offered, matching Android's retained restore-only path removal.
+- Save and restore Full Encrypted and OpenPGP backups — currently PGPainless (`org.pgpainless:pgpainless-core:2.0.4`) on desktop and the external OpenKeychain provider on Android, with a unified Rust backend (`rust/offlineotp-openpgp`, rpgp 0.21 + UniFFI, 5/5) scaffolded for all five distributions. Every per-platform workflow now builds and tests the Rust crate; per-ABI packaging and removal of PGPainless remain. New exports are suggested with the same dated name Android uses (`otp_accounts_<timestamp>.json.aes`), so a second export never overwrites the first, and a new backup password is typed twice behind a **Show password** toggle so a typo cannot lock you out of your own file. The headerless format written before andOTP 0.6.3 is no longer restorable. All file reads are bounded.
 - Experimental USB security-key support over **PC/SC only** (no raw HID, no NFC): list and calculate OATH accounts, copy a vault entry to a key, and enroll/use a FIDO2 PRF envelope as an alternative vault unlock. Key operations run on background threads with cancellation; provider error text is never surfaced.
 - Deliberately out of desktop v1 scope: NFC, camera, screen capture, settings editor, inactivity lock, and password change.
 
@@ -162,6 +158,10 @@ limited to 2,000 entries and its existing document-size bound. Individual import
 CSV; both modes reject oversized files or failed vault writes without committing a partial batch.
 CSV support requires the browser's standard
 headers, including URL, username and password; files with unsupported headers are rejected.
+
+### Thunderbird email login credentials
+
+Thunderbird keeps each saved email login as a hostname (e.g. `mailbox://`, `imap://imap.gmail.com`, `smtp://smtp.gmail.com`) plus a username (the email address) and a password, exportable from Thunderbird/Firefox as a CSV with `url` (or `hostname`), `username` and `password` plus optional `httpRealm`, `formActionOrigin`, `guid` and timestamps — the same format Firefox's **Export Logins** writes. OfflineOTP imports and exports that CSV on both clients: on Android **+ → Import Thunderbird credentials** and **+ → Export Thunderbird credentials**, on desktop **Tools → Import Thunderbird credentials…** and **Tools → Export Thunderbird credentials…** (the **Add entry** menu also has the import). Thunderbird and FairEmail now share the same **Emails** vault type (`EmailMaterial.Account`): import reads either `url` or `hostname`/`host`, parses the scheme/`mailbox://` host, default ports and encryption, groups rows by username into one account per address (first `imap`/`pop` as incoming, `smtp` rows as outgoing identities), and stores them as `EMAIL` entries indistinguishable from a FairEmail import — so an account imported from FairEmail can be exported for Thunderbird and vice versa without loss beyond inferred defaults. Export writes the selected **Emails** entries as a Thunderbird-compatible CSV with the canonical header `url,username,password,httpRealm,formActionOrigin,guid,timeCreated,timeLastUsed,timePasswordChanged` (incoming `imap|pop://host:port` plus one `smtp://host:port` row per identity, with GUIDs). Old vaults with PASSWORD-stored Thunderbird logins remain exportable via the legacy path. The 4 MiB / 2,000-row limits, per-import 8 MiB payload bound and plaintext warning match the browser import.
 
 **Browser exports and exported archive files are plaintext.** Anyone who can read the file can read
 its passwords. Transfer them securely and remove unneeded plaintext copies. Passwords and archives
@@ -213,13 +213,7 @@ independently tested backup.
 Each Android card has an eye button; the desktop card has a **Show** checkbox. On desktop, select
 a card and press Space to toggle it; right-click or press Shift+F10 for the card menu. New entries and
 older entries without a saved choice start hidden. A hidden row still displays its issuer and label,
-but not its token, type, tags, counter, note contents or SSH keys; reveal it before copying or
-editing. On Android, the separate **Hide issuer** setting also applies to hidden rows (an entry with
-no label will then have no identity text). Each choice is saved in the encrypted vault and included
-in portable backups, so a revealed entry remains revealed after a restart or restore. Older releases
-ignore this choice and may show details; do not rely on it when opening a backup in an older app.
-If a visibility change cannot be saved, the entry stays hidden for the current session, but its
-previously saved state may return after restart.
+but not its token, tags, counter, note contents or SSH keys — and on desktop the OTP **Type** (TOTP etc) is not shown even when revealed, only while editing; reveal an entry before copying or editing. OTP entries can store an optional **Hidden label** that behaves like **Label** but is shown only when the entry is revealed (and hidden otherwise, including from search when concealed); add or edit it in **Enter details** / **Enter account details** (OTP types only, up to 1024 characters). On Android, the separate **Hide issuer** setting also applies to hidden rows (an entry with no label will then have no identity text). Each choice is saved in the encrypted vault and included in portable backups, so a revealed entry remains revealed after a restart or restore. Older releases ignore this choice and may show details; do not rely on it when opening a backup in an older app. If a visibility change cannot be saved, the entry stays hidden for the current session, but its previously saved state may return after restart.
 
 This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
 titles, searches and other app screens may still expose information. Android blocks screenshots
@@ -421,7 +415,7 @@ the token maths, verified against the same fixed vectors in
 `desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
 labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
-entries, dated encrypted backups, restores that merge by default or replace, legacy plain-text import,
+entries, dated Full Encrypted Backups, restores that merge by default or replace,
 `otpauth://` and QR-image import, Google Authenticator export import (every code of a multi-code
 export, committed together once the last one is in), optional Face ID unlock, and an entry shown as a
 QR code. A concealed entry shows no code and offers no copy, exactly as on the phone and the desktop
@@ -505,7 +499,14 @@ reproduction steps, and relevant logs; remove secrets and account data before sh
 
 ## Credits and license
 
-Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com)
+Copyright (c) 2026 unsubstantiation — [http://fairuniversal.com](http://fairuniversal.com) and [https://github.com/unsubstantiation/OfflineOTP/releases](https://github.com/unsubstantiation/OfflineOTP/releases)
+
+In-app **About** shows the same notice on both clients: Android **⋮ → About → About** displays
+`Copyright (c) 2026 unsubstantiation — http://fairuniversal.com and https://github.com/unsubstantiation/OfflineOTP/releases`
+with tappable **Website** (`http://fairuniversal.com`) and **Releases** (`https://github.com/unsubstantiation/OfflineOTP/releases`)
+rows (plus Source, Changelog, License and Issues); desktop **Help → About OfflineOTP** shows
+the identical copyright line with clickable **Website**, **Releases** and **Source** links that
+open in the system browser or copy to the clipboard.
 
 This project is licensed under the **OfflineOTP Custom Noncommercial License with Attribution
 and Artificial Intelligence Restrictions, Version 1.0**. The complete, binding terms are in

@@ -8,6 +8,7 @@ from xml.etree import ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 VALUES = ROOT / "app/src/main/res/values"
 LEGACY_PACKAGE = "org.shadowice.flocke.andotp"
+NEW_PACKAGE = "com.fairuniversal.offlineotp"
 
 
 def resource(filename, name):
@@ -21,17 +22,17 @@ def resource(filename, name):
 class ProjectBrandingTest(unittest.TestCase):
     def test_gradle_project_and_app_are_named_offlineotp(self):
         settings = (ROOT / "settings.gradle").read_text(encoding="utf-8")
-        self.assertRegex(settings, r'(?m)^\s*rootProject\.name\s*=\s*["\']OfflineOTP["\']\s*$')
+        self.assertRegex(settings, r'(?m)^\s*rootProject\.name\s*=\s*[\"\']OfflineOTP[\"\']\s*$')
         self.assertEqual("OfflineOTP", resource("strings_main.xml", "app_name"))
 
     def test_android_app_identity_remains_compatible(self):
         gradle = (ROOT / "app/build.gradle").read_text(encoding="utf-8")
-        for name in ("namespace", "applicationId"):
-            self.assertRegex(gradle, rf'(?m)^\s*{name}\s+(?:=\s*)?["\']{re.escape(LEGACY_PACKAGE)}["\']\s*$')
+        self.assertRegex(gradle, rf'(?m)^\s*namespace\s+(?:=\s*)?[\"\']{re.escape(LEGACY_PACKAGE)}[\"\']\s*$')
+        self.assertRegex(gradle, rf'(?m)^\s*applicationId\s+(?:=\s*)?[\"\']{re.escape(NEW_PACKAGE)}[\"\']\s*$')
         manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
         policy = json.loads((ROOT / "scripts/manifest-policy.json").read_text(encoding="utf-8"))
-        self.assertEqual(LEGACY_PACKAGE, manifest.get("package"))
-        self.assertEqual(LEGACY_PACKAGE, policy["package"])
+        self.assertEqual(NEW_PACKAGE, manifest.get("package"))
+        self.assertEqual(NEW_PACKAGE, policy["package"])
 
     def test_upstream_attribution_is_not_rebranded(self):
         self.assertIn("andOTP", resource("strings_about.xml", "about_label_main_developer"))

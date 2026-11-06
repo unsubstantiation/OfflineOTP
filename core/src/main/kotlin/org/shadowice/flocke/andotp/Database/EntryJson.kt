@@ -34,6 +34,7 @@ object EntryJson {
     private const val JSON_THUMBNAIL = "thumbnail"
     private const val JSON_LAST_USED = "last_used"
     private const val JSON_USED_FREQUENCY = "used_frequency"
+    private const val JSON_HIDDEN_LABEL = "hidden_label"
     private const val JSON_PIN = "pin"
     private const val JSON_DETAILS_VISIBLE = "details_visible"
     private const val JSON_SSH_HOST = "ssh_host"
@@ -104,6 +105,8 @@ object EntryJson {
             val thumbnailName = thumbnailName(json)
             val lastUsed = usage(json, JSON_LAST_USED)
             val usedFrequency = usage(json, JSON_USED_FREQUENCY)
+            // Hidden label is only relevant when the entry is revealed; older documents default to empty.
+            val hiddenLabel = if (json.has(JSON_HIDDEN_LABEL)) text(json, JSON_HIDDEN_LABEL) else ""
             // Missing, malformed or unrecognized values are hidden, not revealed.
             val detailsVisible = json.opt(JSON_DETAILS_VISIBLE) == true
             // Absent on non-mOTP documents and older mOTP documents; defaults to empty. Also forced
@@ -122,11 +125,12 @@ object EntryJson {
                 reject(EntryJsonError.INVALID_PARAMETERS)
             bounded(issuer, InputPolicy.MAX_TEXT_CHARS)
             bounded(label, InputPolicy.MAX_TEXT_CHARS)
+            bounded(hiddenLabel, InputPolicy.MAX_TEXT_CHARS)
             bounded(pin, InputPolicy.MAX_TAG_CHARS)
             if (tags.size > InputPolicy.MAX_TAGS) reject(EntryJsonError.TOO_MANY_TAGS)
             for (tag in tags) bounded(tag, InputPolicy.MAX_TAG_CHARS)
 
-            return ValidatedEntry.create(kind, seed, period, digits, counter, issuer, label, algorithm,
+            return ValidatedEntry.create(kind, seed, period, digits, counter, issuer, label, hiddenLabel, algorithm,
                 thumbnailName, lastUsed, usedFrequency, tags, pin, detailsVisible, sshConnection)
         } catch (invalid: Rejected) {
             seed.fill(0)
@@ -145,7 +149,7 @@ object EntryJson {
     @JvmStatic
     @JvmOverloads
     @Throws(JSONException::class)
-    fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, digits: Int,
+    fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, hiddenLabel: String = "", digits: Int,
                   period: Int, counter: Long, algorithm: OtpHashAlgorithm, thumbnailName: String,
                   lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String,
                   detailsVisible: Boolean = false,
@@ -178,6 +182,7 @@ object EntryJson {
             tagsArray.put(tag)
         }
         jsonObj.put(JSON_TAGS, tagsArray)
+        if (hiddenLabel.isNotEmpty()) jsonObj.put(JSON_HIDDEN_LABEL, hiddenLabel)
         // Preserve legacy bytes for the default (concealed) state.
         if (detailsVisible) jsonObj.put(JSON_DETAILS_VISIBLE, true)
 

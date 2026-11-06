@@ -4,13 +4,14 @@
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="GoogleAppIndexingWarning"
     android:installLocation="auto"
-    package="org.shadowice.flocke.andotp">
+    package="com.fairuniversal.offlineotp">
 
     <!-- External destructive/automation IPC is only available to same-signer apps. -->
     <permission android:name="${applicationId}.permission.CONTROL_VAULT"
         android:protectionLevel="signature" />
 
     <uses-permission android:name="${applicationId}.permission.CONTROL_VAULT" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

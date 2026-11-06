@@ -366,20 +366,28 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
             expiring -> ForestTheme.WARNING
             else -> ForestTheme.OTP_AMBER
         }
-        title.text = listOf(issuer, label).filter { it.isNotBlank() }.joinToString(" – ")
-            .ifBlank { "Unnamed entry" }
+        title.text = if (shown && entry.getHiddenLabel().isNotBlank()) {
+            listOf(issuer, label, entry.getHiddenLabel()).filter { it.isNotBlank() }.joinToString(" – ")
+                .ifBlank { "Unnamed entry" }
+        } else {
+            listOf(issuer, label).filter { it.isNotBlank() }.joinToString(" – ")
+                .ifBlank { "Unnamed entry" }
+        }
         title.foreground = ForestTheme.TEXT_PRIMARY
         detail.text = if (shown) {
-            val kind = when (type) {
-                "PASSWORD" -> "Password"
-                "PASSWORD_ARCHIVE" -> "Password file"
-                "SSH_KEY" -> "SSH key"
-                "NOTE" -> "Secure note"
-                else -> type
-            }
-            // An SSH key entry also names the host it connects to (`user@host:port`).
             val parts = ArrayList<String>(3)
-            parts.add(kind)
+            // OTP type (TOTP/HOTP/etc) is not shown on the card; it is visible only while editing.
+            // Other kinds (Secure note, SSH key, etc) remain as an identifier in their own tabs.
+            if (!entry.isTimeBased() && !entry.isCounterBased()) {
+                val kind = when (type) {
+                    "PASSWORD" -> "Password"
+                    "PASSWORD_ARCHIVE" -> "Password file"
+                    "SSH_KEY" -> "SSH key"
+                    "NOTE" -> "Secure note"
+                    else -> type
+                }
+                parts.add(kind)
+            }
             entry.getSshConnection()?.summary()?.let { parts.add(it) }
             val tags = entry.getTags()
             if (tags.isNotEmpty()) parts.add(tags.joinToString(", "))

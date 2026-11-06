@@ -148,6 +148,17 @@
                             tools:ignore="HardcodedText" />
 
                         <TextView
+                            android:id="@+id/textViewHiddenLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:ellipsize="end"
+                            android:textSize="13.5sp"
+                            android:textStyle="italic"
+                            android:visibility="gone"
+                            tools:ignore="HardcodedText" />
+
+                        <TextView
                             android:id="@+id/textViewTags"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"

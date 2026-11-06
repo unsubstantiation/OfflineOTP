@@ -5,11 +5,11 @@ import OfflineOTPKit
 /// Backups, restores and links: the M4 surface.
 ///
 /// The sheet only collects a password, a file and one switch. Every byte-level decision — the backup
-/// framing, the merge rule, the plain-text decoder, the URI parser — lives in `OfflineOTPKit`, which
+/// framing, the merge rule, the URI parser — lives in `OfflineOTPKit`, which
 /// mirrors `:core`, so a file written here opens on the phone and a file written there opens here.
 ///
 /// The wording is the other clients' wording: the **Replace existing entries** switch starts off
-/// (merging), the plain-text warning is Android's sentence verbatim, and a merge reports only what it
+/// (merging), a merge reports only what it
 /// added.
 struct BackupView: View {
     @ObservedObject var store: VaultStore
@@ -23,10 +23,8 @@ struct BackupView: View {
     @State private var showingExporter = false
 
     @State private var pickingEncrypted = false
-    @State private var pickingPlainText = false
     @State private var pickingImage = false
     @State private var pending: PendingRestore?
-    @State private var warningPlainText = false
     @State private var link = ""
     @State private var importRequest: ImportRequest?
     @State private var duplicateIssuer: String?
@@ -86,10 +84,6 @@ struct BackupView: View {
                           allowsMultipleSelection: true) { result in
                 handlePicked(result, kind: .encrypted)
             }
-            .fileImporter(isPresented: $pickingPlainText, allowedContentTypes: [.json, .plainText],
-                          allowsMultipleSelection: true) { result in
-                handlePicked(result, kind: .plainText)
-            }
             .fileImporter(isPresented: $pickingImage, allowedContentTypes: [.image],
                           allowsMultipleSelection: true) { result in
                 handlePickedImage(result)
@@ -101,12 +95,6 @@ struct BackupView: View {
                 } onCancel: {
                     pending = nil
                 }
-            }
-            .alert("Restore plain-text backup?", isPresented: $warningPlainText) {
-                Button("Choose a file") { pickingPlainText = true }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text(BackupWording.plainTextWarning)
             }
             .sheet(item: $migration) { prompt in
                 MigrationImportView(received: prompt.received, expected: prompt.expected,
@@ -144,10 +132,10 @@ struct BackupView: View {
             SecureField("Confirm the password", text: $exportConfirmation)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Button("Create encrypted backup") { createBackup() }
+            Button("Create Full Encrypted Backup") { createBackup() }
                 .disabled(exportPassword.isEmpty)
         } header: {
-            Text("Export an encrypted backup")
+            Text("Export a Full Encrypted Backup")
         } footer: {
             // Both other clients ask for a separate backup password rather than reusing the vault's,
             // because a leaked backup must not open the vault.
@@ -158,11 +146,7 @@ struct BackupView: View {
 
     private var restoreSection: some View {
         Section {
-            Button("Restore an encrypted backup…") { pickingEncrypted = true }
-            Button("Restore a plain-text backup…") {
-                // The warning comes before the file choice, as it does on the other clients.
-                warningPlainText = true
-            }
+            Button("Restore a Full Encrypted Backup…") { pickingEncrypted = true }
         } header: {
             Text("Restore")
         } footer: {
@@ -323,7 +307,6 @@ struct PendingRestore: Identifiable {
 /// Which parser a picked file goes through.
 enum RestoreKind: Equatable {
     case encrypted
-    case plainText
 }
 
 /// A file handed to the system's exporter. The bytes are already encrypted; nothing here decrypts.
@@ -389,8 +372,7 @@ struct RestorePromptView: View {
             }
             .scrollContentBackground(.hidden)
             .background(ForestPalette.background)
-            .navigationTitle(kind == .encrypted ? "Restore encrypted backup"
-                                                : "Restore plain-text backup")
+            .navigationTitle("Restore Full Encrypted Backup")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -410,8 +392,6 @@ struct RestorePromptView: View {
         switch kind {
         case .encrypted:
             plan = store.restore(encrypted: data, password: password, replace: replace)
-        case .plainText:
-            plan = store.restore(plainText: data, replace: replace)
         }
         guard let plan else {
             errorText = store.message ?? BackupWording.unreadableBackup

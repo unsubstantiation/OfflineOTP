@@ -75,18 +75,19 @@ object EntryDraft {
         publicKey: String = "",
         sshConnection: SshConnection.Details? = null,
         tags: MutableList<String> = ArrayList(),
+        hiddenLabel: String = "",
         newEntry: Boolean = false
     ): Entry {
         // Notes, SSH keys and mOTP entries carry no typed OTP parameter set, so a digits field
         // they cannot show must not be able to reject them.
         if (type == Entry.OTPType.NOTE || type == Entry.OTPType.SSH_KEY || type == Entry.OTPType.MOTP) {
             val draft = when (type) {
-                Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, tags)
+                Entry.OTPType.NOTE -> Entry(type, secret ?: "", issuer, label, tags, hiddenLabel)
                 Entry.OTPType.SSH_KEY ->
-                    Entry.sshKey(publicKey, secret ?: "", issuer, label, tags, sshConnection)
+                    Entry.sshKey(publicKey, secret ?: "", issuer, label, tags, sshConnection).apply { setHiddenLabel(hiddenLabel) }
                 // mOTP seeds are raw strings rather than Base32; the simple constructor stores them
                 // verbatim and validate() enforces the seed bounds.
-                else -> Entry(type, secret ?: "", issuer, label, tags).apply {
+                else -> Entry(type, secret ?: "", issuer, label, tags, hiddenLabel).apply {
                     if (pin.isNotEmpty()) setPin(pin)
                 }
             }
@@ -101,9 +102,9 @@ object EntryDraft {
             Entry.OTPType.EMAIL ->
                 throw IllegalArgumentException("Email entries must be managed through FairEmail import/export")
             Entry.OTPType.HOTP ->
-                Entry(type, secret, counter(timingText), digits, issuer, label, algorithm, tags)
+                Entry(type, secret, counter(timingText), digits, issuer, label, algorithm, tags, hiddenLabel)
             Entry.OTPType.TOTP, Entry.OTPType.STEAM ->
-                Entry(type, secret, period(timingText), digits, issuer, label, algorithm, tags)
+                Entry(type, secret, period(timingText), digits, issuer, label, algorithm, tags, hiddenLabel)
             // Handled above; listed so a new kind cannot silently fall through.
             Entry.OTPType.NOTE, Entry.OTPType.SSH_KEY, Entry.OTPType.MOTP ->
                 throw IllegalStateException("unreachable")
