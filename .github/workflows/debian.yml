@@ -49,13 +49,14 @@ jobs:
             echo "--- tail 200 ---"
             tail -n 200 rust-test.log | cat -A | head -n 40 || true
             wc -l rust-test.log || true
-            grep -n -i "error\|failed\|FAILED\|panicked\|assertion" rust-test.log | head -n 60 | while IFS= read -r line; do
+            echo "::group::Rust grep error context"
+            grep -n -i -A3 -B3 "error\[.*\]\|error:" rust-test.log | head -n 100 | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              echo "::error title=Rust ctx::$safe"
+            done || true
+            grep -n -i "error\|failed\|FAILED" rust-test.log | head -n 60 | while IFS= read -r line; do
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
               echo "::error title=Rust test::$safe"
-            done || true
-            grep -n "^error\|test result" rust-test.log | head -n 40 | while IFS= read -r line; do
-              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
-              echo "::error title=Rust err2::$safe"
             done || true
             tail -n 200 rust-test.log | while IFS= read -r line; do
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
