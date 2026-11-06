@@ -104,27 +104,6 @@ jobs:
               echo "::notice title=Rust::no log $log"
             fi
           done
-      - name: Comment PR on Rust failure
-        if: failure() && github.event_name == 'pull_request'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          echo "Posting Rust failure tail to PR for diagnostics"
-          for log in rust-test.log rust-build.log; do
-            if [ -f "$log" ]; then
-              echo "--- $log tail 300 START ---"
-              tail -n 300 "$log"
-              echo "--- $log tail 300 END ---"
-              # Post as PR comment (truncated to 6000 chars)
-              body=$(tail -n 200 "$log" | head -c 6000 | sed 's/`/\`/g')
-              gh pr comment ${{ github.event.pull_request.number }} --body "**Rust $log failure on ${{ runner.os }}**
-\`\`\`
-$body
-\`\`\`" || true
-            fi
-          done
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
