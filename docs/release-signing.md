@@ -66,7 +66,7 @@ debug installs.
 ```sh
 keytool -genkeypair -v \
   -keystore OfflineOTP-release-keystore.jks \
-  -alias offlineotp \
+  -alias android-release \
   -keyalg RSA -keysize 4096 -validity 10000 \
   -storepass "$STORE_PASSWORD" -keypass "$STORE_PASSWORD" \
   -dname "CN=OfflineOTP"
