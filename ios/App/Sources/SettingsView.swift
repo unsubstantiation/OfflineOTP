@@ -1,12 +1,8 @@
 import SwiftUI
 import OfflineOTPKit
 
-/// The settings sheet: the one preference this build has, plus where the vault lives.
-///
-/// **Unlock with Face ID** is off until it is turned on, and turning it on asks for the vault password
-/// even though the vault is already open. That is the rule this screen exists to enforce: an unlocked
-/// phone must not be enough to add a face that keeps access after the vault is locked again. Turning it
-/// off asks nothing — it only takes a shortcut away.
+/// Settings sheet: biometric quick unlock, vault password change, inactivity auto-lock, vault
+/// diagnostics, and offline About information.
 struct SettingsView: View {
     @ObservedObject var store: VaultStore
     @Environment(\.dismiss) private var dismiss
@@ -15,13 +11,29 @@ struct SettingsView: View {
     @State private var password = ""
     @FocusState private var passwordFocused: Bool
 
-    private var switchTitle: String { "Unlock with \\(store.biometryTitle)" }
+    @State private var currentVaultPassword = ""
+    @State private var newVaultPassword = ""
+    @State private var confirmVaultPassword = ""
+
+    private var switchTitle: String { "Unlock with \(store.biometryTitle)" }
+
+    private static let autoLockChoices: [(seconds: Int, label: String)] = [
+        (0, "Disabled"),
+        (30, "30 seconds"),
+        (60, "1 minute"),
+        (120, "2 minutes"),
+        (300, "5 minutes"),
+        (900, "15 minutes"),
+    ]
 
     var body: some View {
         NavigationStack {
             Form {
                 unlockSection
+                autoLockSection
+                passwordSection
                 vaultSection
+                aboutSection
                 if let message = store.message {
                     Section {
                         Text(message).font(.footnote).foregroundColor(ForestPalette.accent)
@@ -49,7 +61,6 @@ struct SettingsView: View {
                     set: { on in
                         store.clearMessage()
                         if on {
-                            // The toggle only moves once the password has confirmed the choice.
                             askingPassword = true
                             passwordFocused = true
                         } else {
@@ -68,7 +79,7 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .focused($passwordFocused)
-                    Button("Turn on \\(store.biometryTitle)") { confirm() }
+                    Button("Turn on \(store.biometryTitle)") { confirm() }
                         .disabled(password.isEmpty)
                     Button("Cancel", role: .cancel) {
                         askingPassword = false
@@ -91,9 +102,46 @@ struct SettingsView: View {
         }
     }
 
+    private var autoLockSection: some View {
+        Section {
+            Picker("Auto-lock after inactivity", selection: Binding(
+                get: { store.inactivityLockSeconds },
+                set: { store.setInactivityLockSeconds($0) }
+            )) {
+                ForEach(SettingsView.autoLockChoices, id: \.seconds) { option in
+                    Text(option.label).tag(option.seconds)
+                }
+            }
+        } header: {
+            Text("Security")
+        } footer: {
+            Text("Automatically locks the vault when no interaction occurs for the chosen interval.")
+        }
+    }
+
+    private var passwordSection: some View {
+        Section {
+            SecureField("Current vault password", text: $currentVaultPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField("New vault password", text: $newVaultPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            SecureField("Confirm new password", text: $confirmVaultPassword)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Change vault password") { changeVaultPassword() }
+                .disabled(currentVaultPassword.isEmpty || newVaultPassword.isEmpty || confirmVaultPassword.isEmpty)
+        } header: {
+            Text("Vault Password")
+        } footer: {
+            Text("Re-encrypts the vault under Argon2id + AES-256-GCM with a fresh random salt.")
+        }
+    }
+
     private var vaultSection: some View {
         Section {
-            LabeledContent("Entries", value: "\\(store.entries.count)")
+            LabeledContent("Entries", value: "\(store.entries.count)")
             Text(store.folderPath)
                 .font(.caption2.monospaced())
                 .foregroundColor(ForestPalette.textSecondary)
@@ -102,16 +150,40 @@ struct SettingsView: View {
         } header: {
             Text("Vault")
         } footer: {
-            Text("The folder holding \\(VaultStore.vaultFilename) and its settings.")
+            Text("The folder holding \(VaultStore.vaultFilename) and its settings.")
+        }
+    }
+
+    private var aboutSection: some View {
+        Section {
+            LabeledContent("Application", value: "OfflineOTP")
+            LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
+            LabeledContent("Network access", value: "None (100% offline)")
+            Text("Compatible with OfflineOTP on Android and Desktop, FairEmail, Thunderbird, and LinSCP. "
+                 + "Originally derived from andOTP under the MIT License.")
+                .font(.footnote)
+                .foregroundColor(ForestPalette.textSecondary)
+        } header: {
+            Text("About")
         }
     }
 
     private func confirm() {
-        // The key is only filed when the password opens *this* vault; a wrong one leaves the switch
-        // off and says so.
         if store.enableBiometricUnlock(password: password) {
             askingPassword = false
             password = ""
+        }
+    }
+
+    private func changeVaultPassword() {
+        if store.changePassword(
+            currentPassword: currentVaultPassword,
+            newPassword: newVaultPassword,
+            confirmation: confirmVaultPassword
+        ) {
+            currentVaultPassword = ""
+            newVaultPassword = ""
+            confirmVaultPassword = ""
         }
     }
 }

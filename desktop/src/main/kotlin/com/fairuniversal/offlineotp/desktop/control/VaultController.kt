@@ -4,6 +4,7 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.PasswordVault
 import com.fairuniversal.offlineotp.Utilities.VaultReadError
+import com.fairuniversal.offlineotp.Utilities.VaultSettingsKeys
 import com.fairuniversal.offlineotp.Utilities.VaultWriteError
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
 
@@ -40,6 +41,16 @@ class VaultController(private val vault: PasswordVault) {
     }
 
     /**
+     * Re-keys the vault from [currentPassword] to [newPassword] using fresh Argon2id parameters
+     * and returns the preserved entries + new session key so an open session stays valid.
+     */
+    fun changePassword(currentPassword: String, newPassword: String): Session =
+        when (val outcome = vault.changePassword(currentPassword, newPassword)) {
+            is PasswordVault.ReKey.Changed -> Session.Loaded(outcome.entries, outcome.key)
+            is PasswordVault.ReKey.Failed -> Session.Error(mapWrite(outcome.error))
+        }
+
+    /**
      * Opens the vault from a hardware-derived key (FIDO2 PRF envelope). The key never touches the
      * settings verifier; GCM authentication is the access check, exactly as on Android's
      * hardware-unlock path.
@@ -68,6 +79,26 @@ class VaultController(private val vault: PasswordVault) {
             vault.preferences.putString(SORT_MODE_KEY, mode.name)
         } catch (_: Exception) {
             // The order still applies to the open session.
+        }
+    }
+
+    /** Configured idle auto-lock timeout in seconds (`0` disables auto-lock). */
+    fun savedInactivityLockSeconds(): Int = try {
+        vault.preferences.getInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, 0).coerceAtLeast(0)
+    } catch (_: RuntimeException) {
+        0
+    }
+
+    /** Persists the idle auto-lock timeout (`0` or negative removes the preference). */
+    fun saveInactivityLockSeconds(seconds: Int) {
+        try {
+            if (seconds <= 0) {
+                vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
+            } else {
+                vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
+            }
+        } catch (_: Exception) {
+            // The timeout still applies to the open session.
         }
     }
 

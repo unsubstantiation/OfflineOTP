@@ -130,7 +130,13 @@ class BackupCoordinator(
      *  confirmation dialog uses this; headless tests inject a fixed policy). */
     fun importQrImage(imageBytes: ByteArray, policy: DuplicateIssuerPolicy): ImportResult {
         val decoded = qrDecoder.decode(imageBytes) ?: return ImportResult.NotRecognized
-        val outcome = QrImport.classify(decoded)
+        return importQrPayload(decoded, policy)
+    }
+
+    /** Classifies and imports a pasted `otpauth://` or `otpauth-migration://` URI string. */
+    @JvmOverloads
+    fun importQrPayload(payload: String, policy: DuplicateIssuerPolicy = duplicateIssuerPolicy): ImportResult {
+        val outcome = QrImport.classify(payload.trim())
         // While a multi-part export is open, only another migration QR may join it (Android parity).
         if (migration != null && outcome !is QrImport.Outcome.Migration) {
             if (outcome is QrImport.Outcome.Otp) outcome.result.value.close()

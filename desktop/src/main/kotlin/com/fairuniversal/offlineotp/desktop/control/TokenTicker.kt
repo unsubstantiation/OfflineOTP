@@ -11,8 +11,15 @@ import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 class TokenTicker(
     scheduler: ScreenTimerController.Scheduler,
     private val state: DesktopVaultState,
+    private val onInactivity: () -> Unit,
     private val onTick: () -> Unit
 ) : AutoCloseable {
+
+    constructor(
+        scheduler: ScreenTimerController.Scheduler,
+        state: DesktopVaultState,
+        onTick: () -> Unit
+    ) : this(scheduler, state, {}, onTick)
 
     private val timer = ScreenTimerController(
         scheduler,
@@ -20,12 +27,16 @@ class TokenTicker(
             state.tickTokens()
             onTick()
         },
-        Runnable { }
+        Runnable { onInactivity() }
     )
 
     fun start() = timer.startTicks()
 
     fun stop() = timer.stopTicks()
+
+    fun restartInactivity(delayMillis: Long) = timer.restartInactivity(delayMillis)
+
+    fun cancelInactivity() = timer.cancelInactivity()
 
     override fun close() = timer.close()
 }

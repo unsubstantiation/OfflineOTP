@@ -42,6 +42,12 @@ class PasswordVault(
         data class Failed(val error: VaultReadError) : Open()
     }
 
+    /** Outcome of [changePassword]: the preserved entries re-keyed under [key], or a failure. */
+    sealed class ReKey {
+        class Changed(val entries: ArrayList<Entry>, val key: SecretKey) : ReKey()
+        data class Failed(val error: VaultWriteError) : ReKey()
+    }
+
     fun isInitialized(): Boolean = vaultFile.exists()
 
     /**
@@ -160,6 +166,70 @@ class PasswordVault(
         false
     } catch (error: IOException) {
         false
+    }
+
+    /**
+     * Verifies [currentPassword], provisions fresh Argon2id credentials for [newPassword], and
+     * re-encrypts the vault atomically. If writing the re-encrypted vault fails, both the
+     * credential settings and `secrets.dat` (from `.bck`) are restored before returning.
+     */
+    fun changePassword(currentPassword: String, newPassword: String): ReKey {
+        if (newPassword.isEmpty() || newPassword.length > InputPolicy.MAX_TEXT_CHARS) {
+            return ReKey.Failed(VaultWriteError.INVALID_INPUT)
+        }
+        val unlocked = when (val opened = open(currentPassword)) {
+            is Open.Unlocked -> opened
+            is Open.Failed -> return ReKey.Failed(when (opened.error) {
+                VaultReadError.MISSING, VaultReadError.MISSING_KEY -> VaultWriteError.MISSING
+                VaultReadError.AUTHENTICATION_FAILED -> VaultWriteError.AUTHENTICATION_FAILED
+                VaultReadError.CORRUPT, VaultReadError.RECOVERY_REQUIRED -> VaultWriteError.CORRUPT
+                VaultReadError.IO_FAILURE -> VaultWriteError.IO_FAILURE
+            })
+        }
+        if (!backup()) {
+            unlocked.entries.forEach { it.destroy() }
+            return ReKey.Failed(VaultWriteError.BACKUP_FAILED)
+        }
+        val priorStrings = mapOf(
+            VaultSettingsKeys.AUTH_METHOD to settings.getString(VaultSettingsKeys.AUTH_METHOD, ""),
+            VaultSettingsKeys.ENCRYPTION to settings.getString(VaultSettingsKeys.ENCRYPTION, ""),
+            VaultSettingsKeys.AUTH_KDF to settings.getString(VaultSettingsKeys.AUTH_KDF, ""),
+            VaultSettingsKeys.AUTH_CREDENTIALS to settings.getString(VaultSettingsKeys.AUTH_CREDENTIALS, ""),
+            VaultSettingsKeys.AUTH_SALT to settings.getString(VaultSettingsKeys.AUTH_SALT, "")
+        )
+        val priorInts = mapOf(
+            VaultSettingsKeys.AUTH_MEMORY_KIB to settings.getInt(VaultSettingsKeys.AUTH_MEMORY_KIB, -1),
+            VaultSettingsKeys.AUTH_ITERATIONS to settings.getInt(VaultSettingsKeys.AUTH_ITERATIONS, -1),
+            VaultSettingsKeys.AUTH_PARALLELISM to settings.getInt(VaultSettingsKeys.AUTH_PARALLELISM, -1)
+        )
+        fun rollbackSettings() {
+            for ((k, v) in priorStrings) {
+                if (v.isEmpty()) settings.remove(k) else settings.putString(k, v)
+            }
+            for ((k, v) in priorInts) {
+                if (v < 0) settings.remove(k) else settings.putInt(k, v)
+            }
+        }
+        return try {
+            val newKey = provisionCredentials(newPassword)
+            try {
+                writeEncrypted(newKey, unlocked.entries)
+                ReKey.Changed(unlocked.entries, newKey)
+            } catch (error: Exception) {
+                rollbackSettings()
+                restoreBackup()
+                unlocked.entries.forEach { it.destroy() }
+                ReKey.Failed(VaultWriteError.IO_FAILURE)
+            }
+        } catch (error: IllegalArgumentException) {
+            rollbackSettings()
+            unlocked.entries.forEach { it.destroy() }
+            ReKey.Failed(VaultWriteError.INVALID_INPUT)
+        } catch (error: Exception) {
+            rollbackSettings()
+            unlocked.entries.forEach { it.destroy() }
+            ReKey.Failed(VaultWriteError.IO_FAILURE)
+        }
     }
 
     /**

@@ -195,6 +195,48 @@ class PasswordVaultTest {
         assertEquals("Legacy", opened.entries[0].getIssuer())
     }
 
+    @Test
+    fun changePasswordReKeysVaultAndUpgradesLegacyPbkdf2ToArgon2id() {
+        val vaultFile = InMemoryByteStore()
+        val backupFile = InMemoryByteStore()
+        val settings = InMemorySettings()
+        val salt = ByteArray(16) { (it + 1).toByte() }
+        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, 4096)
+        settings.putString(VaultSettingsKeys.AUTH_METHOD, "password")
+        settings.putString(VaultSettingsKeys.ENCRYPTION, "password")
+        settings.putString(VaultSettingsKeys.AUTH_CREDENTIALS,
+            java.util.Base64.getUrlEncoder().encodeToString(derived.password))
+        settings.putString(VaultSettingsKeys.AUTH_SALT,
+            java.util.Base64.getUrlEncoder().encodeToString(salt))
+        settings.putInt(VaultSettingsKeys.AUTH_ITERATIONS, 4096)
+        vaultFile.writeAtomic(CryptoPrimitives.encrypt(
+            javax.crypto.spec.SecretKeySpec(derived.key, "AES"),
+            com.fairuniversal.offlineotp.Database.VaultJson.entriesToString(
+                arrayListOf(entry("GitHub", "alice"), entry("GitLab", "bob"))
+            ).toByteArray(StandardCharsets.UTF_8)
+        ))
+
+        val vault = PasswordVault(vaultFile, backupFile, settings)
+        val wrongCurrent = vault.changePassword("wrong-password", "new-strong-password")
+        assertEquals(VaultWriteError.AUTHENTICATION_FAILED,
+            (wrongCurrent as PasswordVault.ReKey.Failed).error)
+        assertTrue(vault.open(password) is PasswordVault.Open.Unlocked)
+
+        val nextPassword = "new-argon2id-master-password"
+        val changed = vault.changePassword(password, nextPassword)
+        assertTrue(changed is PasswordVault.ReKey.Changed)
+        val reKeyed = changed as PasswordVault.ReKey.Changed
+        assertEquals(32, reKeyed.key.encoded.size)
+        assertEquals(Constants.KDF_ARGON2ID, settings.strings[VaultSettingsKeys.AUTH_KDF])
+
+        assertEquals(VaultReadError.AUTHENTICATION_FAILED,
+            (vault.open(password) as PasswordVault.Open.Failed).error)
+        val reopened = vault.open(nextPassword) as PasswordVault.Open.Unlocked
+        assertEquals(2, reopened.entries.size)
+        assertEquals("GitHub", reopened.entries[0].getIssuer())
+        assertEquals("GitLab", reopened.entries[1].getIssuer())
+    }
+
     private class InMemoryByteStore : AtomicByteStore {
         var bytes: ByteArray? = null
 

@@ -15,7 +15,10 @@ import javax.crypto.SecretKey
  * only observes [presentation] through its table model, so every branch here is unit-testable
  * without a display.
  */
-class DesktopVaultState(val key: SecretKey, private val entries: EntryList = EntryList()) {
+class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryList()) {
+
+    var key: SecretKey = key
+        private set
 
     val entryList: EntryList get() = entries
     private var query = ""
@@ -27,6 +30,30 @@ class DesktopVaultState(val key: SecretKey, private val entries: EntryList = Ent
     val presentation: EntryListPresentation = EntryListPresentation(entries).apply {
         showReorderedEntries()
     }
+
+    /** Replaces the session key after a password change without losing open UI state. */
+    fun updateKey(newKey: SecretKey) {
+        val oldKey = this.key
+        this.key = newKey
+        if (oldKey !== newKey) runCatching { oldKey.destroy() }
+    }
+
+    /** Zeroizes every in-memory entry and clears the projection when locking the vault. */
+    fun lock() {
+        val current = ArrayList(entries.getEntries())
+        while (entries.getEntries().isNotEmpty()) entries.removeEntry(entries.getEntries().size - 1)
+        current.forEach { it.destroy() }
+        query = ""
+        selectedTags = emptyList()
+        includeUntagged = false
+        tagMode = Constants.TagFunctionality.OR
+        refreshProjection()
+        runCatching { key.destroy() }
+    }
+
+    /** Returns the active tag filter tuple (`selectedTags`, `includeUntagged`, `functionality`). */
+    fun activeTagFilter(): Triple<List<String>, Boolean, Constants.TagFunctionality> =
+        Triple(selectedTags, includeUntagged, tagMode)
 
     /** Replaces the list contents after an unlock or restore and resets the projection. */
     fun load(loaded: ArrayList<Entry>) {

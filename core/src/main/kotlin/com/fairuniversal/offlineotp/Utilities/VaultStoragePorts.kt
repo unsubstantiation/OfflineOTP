@@ -63,4 +63,5 @@ object VaultSettingsKeys {
     const val AUTH_ITERATIONS = "auth_iterations"
     const val AUTH_MEMORY_KIB = "auth_memory_kib"
     const val AUTH_PARALLELISM = "auth_parallelism"
+    const val UI_INACTIVITY_LOCK_SECONDS = "ui_inactivity_lock_seconds"
 }

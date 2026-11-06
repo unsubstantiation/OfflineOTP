@@ -50,4 +50,25 @@ class TagEditorTest {
         assertEquals(null, label.getClientProperty("html"))
         assertFalse(TagChoice(TagChoice.Kind.TAG, "All tags").sameFilter(TagChoice(TagChoice.Kind.ALL)))
     }
+
+    @Test fun multiTagFilterPanelSupportsOrAndSingleModes() = onEdt {
+        ForestTheme.install()
+        val panel = MultiTagFilterPanel(
+            counts = mapOf("work" to 2, "ops" to 1),
+            untaggedCount = 3,
+            initialTags = listOf("work", "ops"),
+            initialIncludeUntagged = true,
+            initialFunctionality = com.fairuniversal.offlineotp.Utilities.Constants.TagFunctionality.AND
+        )
+        val initial = panel.selection()
+        assertEquals(listOf("ops", "work"), initial.selectedTags)
+        assertTrue(initial.includeUntagged)
+        assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.TagFunctionality.AND, initial.functionality)
+
+        // Switching to SINGLE enforces at most one selection.
+        panel.modeBox.selectedIndex = 2
+        val narrowed = panel.selection()
+        assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.TagFunctionality.SINGLE, narrowed.functionality)
+        assertTrue(narrowed.selectedTags.size + (if (narrowed.includeUntagged) 1 else 0) <= 1)
+    }
 }

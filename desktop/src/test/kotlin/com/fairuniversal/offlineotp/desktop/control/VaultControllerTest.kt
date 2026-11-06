@@ -85,4 +85,45 @@ class VaultControllerTest {
         assertTrue(controller.backup())
         assertTrue(File(dir, Constants.FILENAME_DATABASE_BACKUP).exists())
     }
+
+    @Test
+    fun changePasswordReKeysVaultAndPersistsInactivityTimeout() {
+        val (dir, controller) = newController()
+        val session = controller.createVault(password) as VaultController.Session.Loaded
+        assertTrue(controller.save(session.key, arrayListOf(entry("GitHub", "alice"))))
+
+        assertEquals(0, controller.savedInactivityLockSeconds())
+        controller.saveInactivityLockSeconds(120)
+        assertEquals(120, controller.savedInactivityLockSeconds())
+
+        val nextPassword = "updated-controller-password"
+        val changed = controller.changePassword(password, nextPassword)
+        assertTrue(changed is VaultController.Session.Loaded)
+        val reKeyed = changed as VaultController.Session.Loaded
+        assertEquals(1, reKeyed.entries.size)
+
+        val reopened = VaultController(DesktopStorage.open(dir))
+        assertEquals(120, reopened.savedInactivityLockSeconds())
+        assertTrue(reopened.openVault(password) is VaultController.Session.Error)
+        val unlocked = reopened.openVault(nextPassword) as VaultController.Session.Loaded
+        assertEquals("GitHub", unlocked.entries[0].getIssuer())
+    }
+
+    @Test
+    fun importQrPayloadImportsOtpAuthTextLink() {
+        val (_, controller) = newController()
+        val session = controller.createVault(password) as VaultController.Session.Loaded
+        val state = DesktopVaultState(session.key)
+        val coordinator = BackupCoordinator(controller, state)
+
+        val result = coordinator.importQrPayload(
+            "otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub"
+        )
+        assertEquals(BackupCoordinator.ImportResult.Imported(1), result)
+        assertEquals(1, state.snapshot().size)
+        assertEquals("GitHub", state.snapshot()[0].getIssuer())
+
+        state.lock()
+        assertEquals(0, state.snapshot().size)
+    }
 }

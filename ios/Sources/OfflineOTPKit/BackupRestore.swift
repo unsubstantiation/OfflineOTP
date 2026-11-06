@@ -12,6 +12,10 @@ public enum BackupFileNames {
     public static let timestampPattern = "yyyy-MM-dd_HH-mm-ss"
     public static let encryptedPrefix = "otp_accounts_"
     public static let encryptedSuffix = ".json.aes"
+    public static let openPgpSuffix = ".json.gpg"
+    public static let fairEmailPrefix = "fairemail_backup_"
+    public static let thunderbirdPrefix = "thunderbird_logins_"
+    public static let linScpPrefix = "linscp_vault_"
 
     public static func timestamp(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
         let formatter = DateFormatter()
@@ -24,6 +28,26 @@ public enum BackupFileNames {
     /// Dated encrypted-backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.aes`.
     public static func encrypted(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
         encryptedPrefix + timestamp(date, timeZone: timeZone) + encryptedSuffix
+    }
+
+    /// Dated OpenPGP backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.gpg`.
+    public static func openPgp(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
+        encryptedPrefix + timestamp(date, timeZone: timeZone) + openPgpSuffix
+    }
+
+    /// Dated FairEmail JSON backup name.
+    public static func fairEmail(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
+        fairEmailPrefix + timestamp(date, timeZone: timeZone) + ".json"
+    }
+
+    /// Dated Thunderbird CSV export name.
+    public static func thunderbird(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
+        thunderbirdPrefix + timestamp(date, timeZone: timeZone) + ".csv"
+    }
+
+    /// Dated LinSCP `LSCPVLT2` vault export name.
+    public static func linScp(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
+        linScpPrefix + timestamp(date, timeZone: timeZone) + encryptedSuffix
     }
 }
 

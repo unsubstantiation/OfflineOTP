@@ -262,9 +262,8 @@ class IosAppTest(unittest.TestCase):
                   "EntryDraft.kt").read_text(encoding="utf-8")
         self.assertIn("it != Entry.OTPType.PASSWORD && it != Entry.OTPType.PASSWORD_ARCHIVE && "
                       "it != Entry.OTPType.EMAIL", shared)
-        self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]", draft)
-        # SSH keys are the one kind the shared list has and this one does not: their seed is framed
-        # material this build cannot produce, and a wrong frame would be unreadable elsewhere.
+        self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note, .sshKey]",
+                      draft)
         self.assertIn("SshKeyMaterial", draft)
         editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
         self.assertIn("ForEach(EntryDraft.offerableKinds", editor)
@@ -286,7 +285,8 @@ class IosAppTest(unittest.TestCase):
         """A view asks the store or the format layer; it never reimplements either."""
         for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
                      "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
-                     "MigrationImportView.swift", "SettingsView.swift"):
+                     "MigrationImportView.swift", "SettingsView.swift",
+                     "CredentialDetailViews.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
             self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)

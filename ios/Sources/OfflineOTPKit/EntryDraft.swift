@@ -10,6 +10,9 @@ public enum EntryDraftError: Error, Equatable {
     case periodNotANumber
     case counterNotANumber
     case titleRequired
+    case sshKeyRequired
+    case invalidSshPort
+    case invalidSshConnection
 
     public var message: String {
         switch self {
@@ -19,6 +22,9 @@ public enum EntryDraftError: Error, Equatable {
         case .periodNotANumber: return "Period must be a number"
         case .counterNotANumber: return "HOTP counter must be a number"
         case .titleRequired: return "This entry needs a title"
+        case .sshKeyRequired: return "Provide a public key, a private key, or both"
+        case .invalidSshPort: return "SSH port must be between 1 and 65535"
+        case .invalidSshConnection: return "Invalid SSH host, user name, or password"
         }
     }
 }
@@ -31,15 +37,11 @@ public enum EntryDraftError: Error, Equatable {
 /// iOS client that decides what a form means, and it writes the field set `EntryJson.serialize`
 /// writes, so a hand-typed entry is byte-identical to one the phone would have written.
 public enum EntryDraft {
-    /// The kinds a manual form offers.
+    /// The kinds a manual form offers, matching `EntryDraft.offerableTypes` in `:core`.
     ///
-    /// `PASSWORD`, `PASSWORD_ARCHIVE` and `EMAIL` are structured credentials that only an import can
-    /// produce, exactly as `EntryDraft.offerableTypes` says. `SSH_KEY` is excluded too, and that one
-    /// is an iOS-specific limit: its seed is `SshKeyMaterial`-framed (a public key and a private key
-    /// with length prefixes), which this client does not implement — writing an unframed blob would
-    /// create an entry the other clients cannot decode. Such entries are still listed, revealed and
-    /// preserved untouched.
-    public static let offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note]
+    /// `PASSWORD`, `PASSWORD_ARCHIVE` and `EMAIL` are structured credentials created via their
+    /// dedicated import/account workflows; `SSH_KEY` is framed via `SshKeyMaterial` + `SshConnection`.
+    public static let offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note, .sshKey]
 
     /// The stored thumbnail name when nothing better is known — `ThumbnailCatalog.DEFAULT_NAME`.
     ///
@@ -93,12 +95,51 @@ public enum EntryDraft {
     ///   - timing: the period for TOTP/Steam, the counter for HOTP, ignored for the other kinds.
     ///   - newEntry: stamps the entry as used now, as a new entry is; an edit passes `false` and
     ///     keeps the stamp it already carries (see `preservingMetadata`).
-    public static func create(kind: EntryKind, issuer: String, label: String, hiddenLabel: String = "", secret: String,
-                              digits digitsText: String, timing timingText: String,
-                              algorithm: OtpHashAlgorithm, pin: String = "", tags: [String] = [],
+    public static func create(kind: EntryKind, issuer: String, label: String, hiddenLabel: String = "", secret: String = "",
+                              digits digitsText: String = "6", timing timingText: String = "30",
+                              algorithm: OtpHashAlgorithm = .sha1, pin: String = "", tags: [String] = [],
+                              publicKey: String = "", privateKey: String = "",
+                              sshHost: String = "", sshPortText: String = "",
+                              sshUsername: String = "", sshPassword: String = "",
                               newEntry: Bool = false,
                               now: Int64 = EntryUsage.nowMillis()) throws -> Entry {
         guard offerableKinds.contains(kind) else { throw EntryDraftError.kindNotOfferable }
+
+        if kind == .sshKey {
+            let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
+            let trimmedIssuer = issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmedLabel.isEmpty || !trimmedIssuer.isEmpty else {
+                throw EntryDraftError.titleRequired
+            }
+            let effectivePrivate = !privateKey.isEmpty ? privateKey : secret
+            let port: Int
+            do {
+                port = try SshConnection.parsePort(sshPortText)
+            } catch {
+                throw EntryDraftError.invalidSshPort
+            }
+            let conn: SshConnection.Details?
+            do {
+                conn = try SshConnection.of(host: sshHost, port: port, username: sshUsername, password: sshPassword)
+            } catch {
+                throw EntryDraftError.invalidSshConnection
+            }
+            do {
+                return try Entry.sshKey(
+                    publicKey: publicKey,
+                    privateKey: effectivePrivate,
+                    issuer: issuer,
+                    label: label,
+                    tags: tags,
+                    connection: conn,
+                    now: newEntry ? now : 0
+                )
+            } catch SshMaterialError.emptyKeys {
+                throw EntryDraftError.sshKeyRequired
+            } catch {
+                throw EntryDraftError.invalidSecret
+            }
+        }
 
         let cleaned = sanitizedSecret(kind, secret)
         var entryDigits = TokenCalculator.totpDefaultDigits

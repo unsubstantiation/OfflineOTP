@@ -309,13 +309,13 @@ and every sentence are `:core`'s, and `scripts/tests/test_ios_app.py` compares t
 Plain-text export stays unimplemented on purpose: the client *reads* a legacy plain-text backup, warns
 with Android's sentence before the file picker, and writes only encrypted backups.
 
-One iOS-specific limit, and it is a limit rather than a parity gap: **an SSH key cannot be created
-here**. Its seed is `SshKeyMaterial`-framed — a public key and a private key with length prefixes —
-which this build does not implement, so the form would have to write a frame it cannot reproduce.
-Such an entry is still read, listed, revealed and written back unchanged. Writing an unframed blob
-into that field would produce an entry the other clients cannot decode, which is worse than a form
-with one option missing. The password and email kinds are excluded for the shared reason: only an
-import can produce them.
+All nine entry kinds now have full cross-client support in `OfflineOTPKit` and the iOS app:
+`SshKeyMaterial` + `SshConnection` frame and edit SSH keys and destination metadata, `PasswordMaterial`
++ `BrowserPasswordCsv` + `PasswordImport` import and display browser passwords and encrypted password
+archives, and `EmailMaterial` + `ThunderbirdCsv` + `ThunderbirdImport` create, view, import, and export
+FairEmail and Thunderbird email accounts alongside LinSCP credential vaults. The manual form offers the
+same six kinds as `:core` (`TOTP`, `HOTP`, `MOTP`, `STEAM`, `NOTE`, `SSH_KEY`), while `PASSWORD`,
+`PASSWORD_ARCHIVE`, and `EMAIL` are created via their dedicated import and account sheets.
 
 The vault lives in `Documents/data/`, the same three filenames the desktop client uses, so the folder
 readable by the Files app is self-explanatory. It is therefore included in an encrypted device backup,

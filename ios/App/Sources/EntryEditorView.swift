@@ -17,13 +17,21 @@ struct EntryEditorView: View {
     @ObservedObject var store: VaultStore
     /// nil to add, or the stored position being replaced.
     let index: Int?
+    var initialKind: EntryKind = .totp
 
     @Environment(\.dismiss) private var dismiss
 
     @State private var kind: EntryKind = .totp
     @State private var issuer = ""
     @State private var label = ""
+    @State private var hiddenLabel = ""
     @State private var secret = ""
+    @State private var publicKey = ""
+    @State private var privateKey = ""
+    @State private var sshHost = ""
+    @State private var sshPort = ""
+    @State private var sshUsername = ""
+    @State private var sshPassword = ""
     @State private var digits = "6"
     @State private var timing = "30"
     @State private var algorithm: OtpHashAlgorithm = .sha1
@@ -41,29 +49,74 @@ struct EntryEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Type", selection: $kind) {
-                        ForEach(EntryDraft.offerableKinds, id: \.self) { kind in
-                            Text(kindTitle(kind)).tag(kind)
+                    if existing == nil {
+                        Picker("Type", selection: $kind) {
+                            ForEach(EntryDraft.offerableKinds, id: \.self) { kind in
+                                Text(kindTitle(kind)).tag(kind)
+                            }
                         }
+                    } else {
+                        LabeledContent("Type", value: kindTitle(kind))
                     }
                     TextField("Issuer", text: $issuer)
                     TextField(kind == .note ? "Title" : "Label", text: $label)
+                    if kind.isOtp {
+                        TextField("Hidden label (shown when revealed)", text: $hiddenLabel)
+                    }
                 }
 
-                Section {
-                    if kind == .note {
-                        TextEditor(text: $secret)
-                            .frame(minHeight: 120)
-                            .textInputAutocapitalization(.sentences)
-                    } else {
-                        TextField(kind == .motp ? "Hex seed" : "Secret (Base32)", text: $secret)
+                if kind == .sshKey {
+                    Section {
+                        TextEditor(text: $publicKey)
+                            .frame(minHeight: 72)
+                            .font(.system(.footnote, design: .monospaced))
                             .textInputAutocapitalization(.never)
                             .autocorrectionDisabled()
+                    } header: {
+                        Text("Public key (optional if private key is set)")
                     }
-                } header: {
-                    Text(kind == .note ? "Note" : "Secret")
-                } footer: {
-                    Text(secretHint)
+                    Section {
+                        TextEditor(text: $privateKey)
+                            .frame(minHeight: 110)
+                            .font(.system(.footnote, design: .monospaced))
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } header: {
+                        Text("Private key (optional if public key is set)")
+                    } footer: {
+                        Text(secretHint)
+                    }
+                    Section {
+                        TextField("Host (bastion.example.com)", text: $sshHost)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        TextField("Port (default 22)", text: $sshPort)
+                            .keyboardType(.numberPad)
+                        TextField("User name", text: $sshUsername)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        SecureField("SSH password / passphrase", text: $sshPassword)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } header: {
+                        Text("SSH connection (optional)")
+                    }
+                } else {
+                    Section {
+                        if kind == .note {
+                            TextEditor(text: $secret)
+                                .frame(minHeight: 120)
+                                .textInputAutocapitalization(.sentences)
+                        } else {
+                            TextField(kind == .motp ? "Hex seed" : "Secret (Base32)", text: $secret)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                    } header: {
+                        Text(kind == .note ? "Note" : "Secret")
+                    } footer: {
+                        Text(secretHint)
+                    }
                 }
 
                 if kind == .totp || kind == .steam || kind == .hotp {
@@ -137,12 +190,17 @@ struct EntryEditorView: View {
 
     private var title: String {
         if existing != nil { return "Edit entry" }
-        return kind == .note ? "Add secure note" : "Add entry"
+        switch kind {
+        case .note: return "Add secure note"
+        case .sshKey: return "Add SSH key"
+        default: return "Add entry"
+        }
     }
 
     private var secretHint: String {
         switch kind {
         case .note: return "The note is stored encrypted with the rest of the vault."
+        case .sshKey: return "Keys and connection metadata are stored encrypted inside the vault."
         case .motp: return "The mOTP seed is hexadecimal text, exactly as the other clients store it."
         default: return "Spaces and line breaks are ignored, so a wrapped secret can be pasted."
         }
@@ -168,11 +226,28 @@ struct EntryEditorView: View {
         guard !loaded else { return }
         loaded = true
         guard let existing, let existingKind = existing.kind,
-              EntryDraft.offerableKinds.contains(existingKind) else { return }
+              EntryDraft.offerableKinds.contains(existingKind) else {
+            kind = EntryDraft.offerableKinds.contains(initialKind) ? initialKind : .totp
+            return
+        }
         kind = existingKind
         issuer = existing.issuer
         label = existing.label
-        secret = editableSecret(of: existing, kind: existingKind)
+        hiddenLabel = existing.hiddenLabel
+        if existingKind == .sshKey {
+            if let keys = try? existing.sshKeys() {
+                publicKey = keys.publicKey
+                privateKey = keys.privateKey
+            }
+            if let conn = existing.sshConnection {
+                sshHost = conn.host
+                sshPort = conn.port == 0 ? "" : String(conn.port)
+                sshUsername = conn.username
+                sshPassword = conn.password
+            }
+        } else {
+            secret = editableSecret(of: existing, kind: existingKind)
+        }
         digits = String(existing.digits)
         switch existingKind {
         case .hotp:
@@ -209,16 +284,30 @@ struct EntryEditorView: View {
             } else {
                 typedSecret = secret
             }
+            var typedPublic = publicKey
+            var typedPrivate = privateKey
+            if kind == .sshKey, typedPublic.isEmpty, typedPrivate.isEmpty,
+               let existing, existing.kind == .sshKey, let keys = try? existing.sshKeys() {
+                typedPublic = keys.publicKey
+                typedPrivate = keys.privateKey
+            }
             let built = try EntryDraft.create(
                 kind: kind,
                 issuer: issuer.trimmingCharacters(in: .whitespacesAndNewlines),
                 label: label,
+                hiddenLabel: kind.isOtp ? hiddenLabel : "",
                 secret: typedSecret,
                 digits: digits,
                 timing: timing,
                 algorithm: algorithm,
                 pin: pin,
                 tags: splitTags(tags),
+                publicKey: typedPublic,
+                privateKey: typedPrivate,
+                sshHost: sshHost,
+                sshPortText: sshPort,
+                sshUsername: sshUsername,
+                sshPassword: sshPassword,
                 newEntry: existing == nil)
 
             if let index, let existing {

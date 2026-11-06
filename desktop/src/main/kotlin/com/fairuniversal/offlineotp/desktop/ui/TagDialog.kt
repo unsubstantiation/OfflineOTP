@@ -1,16 +1,19 @@
 package com.fairuniversal.offlineotp.desktop.ui
 
 import com.fairuniversal.offlineotp.Database.EntryTagFilter
+import com.fairuniversal.offlineotp.Utilities.Constants
 
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import java.awt.BorderLayout
 import java.awt.Component
 import java.awt.Dimension
 import java.awt.FlowLayout
+import java.awt.GridLayout
 import javax.swing.BorderFactory
 import javax.swing.DefaultListCellRenderer
 import javax.swing.DefaultListModel
 import javax.swing.JButton
+import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JList
 import javax.swing.JPanel
@@ -91,6 +94,101 @@ internal class TagEditorPanel(current: List<String>, private val known: List<Str
     }
 }
 
+internal data class MultiTagFilterSelection(
+    val selectedTags: List<String>,
+    val includeUntagged: Boolean,
+    val functionality: Constants.TagFunctionality
+)
+
+/**
+ * Headless-testable multi-tag filter panel matching Android's tag drawer (`OR`, `AND`, `SINGLE`
+ * plus `Untagged`).
+ */
+internal class MultiTagFilterPanel(
+    counts: Map<String, Int>,
+    untaggedCount: Int,
+    initialTags: List<String>,
+    initialIncludeUntagged: Boolean,
+    initialFunctionality: Constants.TagFunctionality
+) : JPanel(BorderLayout(8, 8)) {
+
+    internal data class ModeOption(val value: Constants.TagFunctionality, val label: String) {
+        override fun toString(): String = label
+    }
+
+    private val modeOptions = arrayOf(
+        ModeOption(Constants.TagFunctionality.OR, "Match any selected tag (OR)"),
+        ModeOption(Constants.TagFunctionality.AND, "Match every selected tag (AND)"),
+        ModeOption(Constants.TagFunctionality.SINGLE, "Single tag at a time")
+    )
+
+    val modeBox = JComboBox(modeOptions).apply {
+        selectedIndex = modeOptions.indexOfFirst { it.value == initialFunctionality }.coerceAtLeast(0)
+        accessibleContext.accessibleName = "Tag match mode"
+    }
+    val untaggedBox = JCheckBox("Untagged ($untaggedCount)", initialIncludeUntagged).apply {
+        putClientProperty("html.disable", true)
+    }
+    private val tagChecks = LinkedHashMap<String, JCheckBox>()
+
+    init {
+        border = BorderFactory.createEmptyBorder(4, 4, 4, 4)
+        val top = JPanel(BorderLayout(8, 6)).apply {
+            add(JLabel("Match rule:").apply { labelFor = modeBox }, BorderLayout.WEST)
+            add(modeBox, BorderLayout.CENTER)
+            add(untaggedBox, BorderLayout.SOUTH)
+        }
+        add(top, BorderLayout.NORTH)
+
+        val checkColumn = JPanel(GridLayout(0, 1, 0, 4))
+        for (name in EntryTagFilter.sortedNames(counts.keys)) {
+            val check = JCheckBox("$name (${counts.getValue(name)})", name in initialTags).apply {
+                putClientProperty("html.disable", true)
+            }
+            check.addActionListener {
+                if (check.isSelected && selectedMode() == Constants.TagFunctionality.SINGLE) {
+                    untaggedBox.isSelected = false
+                    tagChecks.values.filter { it !== check }.forEach { it.isSelected = false }
+                }
+            }
+            tagChecks[name] = check
+            checkColumn.add(check)
+        }
+        untaggedBox.addActionListener {
+            if (untaggedBox.isSelected && selectedMode() == Constants.TagFunctionality.SINGLE) {
+                tagChecks.values.forEach { it.isSelected = false }
+            }
+        }
+        modeBox.addActionListener {
+            if (selectedMode() == Constants.TagFunctionality.SINGLE) {
+                if (untaggedBox.isSelected) {
+                    tagChecks.values.forEach { it.isSelected = false }
+                } else {
+                    val checked = tagChecks.values.filter { it.isSelected }
+                    checked.drop(1).forEach { it.isSelected = false }
+                }
+            }
+        }
+        add(JScrollPane(checkColumn).apply { preferredSize = Dimension(380, 180) }, BorderLayout.CENTER)
+        val clearButton = JButton("Clear filter").apply {
+            addActionListener {
+                untaggedBox.isSelected = false
+                tagChecks.values.forEach { it.isSelected = false }
+            }
+        }
+        add(JPanel(FlowLayout(FlowLayout.LEFT, 0, 0)).apply { add(clearButton) }, BorderLayout.SOUTH)
+    }
+
+    private fun selectedMode(): Constants.TagFunctionality =
+        (modeBox.selectedItem as? ModeOption)?.value ?: Constants.TagFunctionality.OR
+
+    fun selection(): MultiTagFilterSelection = MultiTagFilterSelection(
+        selectedTags = tagChecks.entries.filter { it.value.isSelected }.map { it.key },
+        includeUntagged = untaggedBox.isSelected,
+        functionality = selectedMode()
+    )
+}
+
 internal object TagDialog {
     /** Cancel leaves the caller's tags unchanged; pending typed text is added on Save. */
     fun prompt(parent: Component, current: List<String>, known: List<String>): List<String>? {
@@ -105,5 +203,20 @@ internal object TagDialog {
                 JOptionPane.showMessageDialog(parent, error.message, "Invalid tag", JOptionPane.ERROR_MESSAGE)
             }
         }
+    }
+
+    /** Multi-tag filter dialog with OR / AND / SINGLE + Untagged parity. */
+    fun promptFilter(
+        parent: Component,
+        counts: Map<String, Int>,
+        untaggedCount: Int,
+        currentTags: List<String>,
+        includeUntagged: Boolean,
+        functionality: Constants.TagFunctionality
+    ): MultiTagFilterSelection? {
+        val panel = MultiTagFilterPanel(counts, untaggedCount, currentTags, includeUntagged, functionality)
+        if (JOptionPane.showConfirmDialog(parent, panel, "Filter by tags",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return null
+        return panel.selection()
     }
 }

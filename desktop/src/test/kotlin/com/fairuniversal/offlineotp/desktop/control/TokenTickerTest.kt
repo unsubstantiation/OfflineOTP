@@ -68,4 +68,23 @@ class TokenTickerTest {
             assertTrue(!scheduler.hasTickScheduled())
         }
     }
+
+    @Test
+    fun inactivityDeadlineInvokesAutoLockCallback() {
+        val scheduler = FakeScheduler()
+        val state = DesktopVaultState(KeyGenerator.getInstance("AES").generateKey())
+        state.add(entry())
+        var locked = 0
+        TokenTicker(scheduler, state, onTick = {}, onInactivity = { locked++ }).use { ticker ->
+            ticker.restartInactivity(5_000L)
+            assertTrue(scheduler.hasTickScheduled())
+            scheduler.now += 2_000L
+            scheduler.runOneTick()
+            assertEquals(0, locked)
+
+            scheduler.now += 4_000L
+            scheduler.runOneTick()
+            assertEquals(1, locked)
+        }
+    }
 }

@@ -14,9 +14,13 @@ import com.fairuniversal.offlineotp.desktop.control.VaultController
 import com.fairuniversal.offlineotp.desktop.model.EntryTableModel
 import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
 
+import java.awt.AWTEvent
+import java.awt.Component
 import java.awt.Dimension
 import java.awt.Toolkit
+import java.awt.datatransfer.DataFlavor
 import java.awt.datatransfer.StringSelection
+import java.awt.event.AWTEventListener
 import java.awt.event.ActionEvent
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
@@ -33,6 +37,8 @@ import javax.swing.JOptionPane
 import javax.swing.JPopupMenu
 import javax.swing.JTable
 import javax.swing.KeyStroke
+import javax.swing.SwingUtilities
+import javax.swing.Timer
 import javax.swing.WindowConstants
 
 /**
@@ -57,8 +63,41 @@ object MainWindow {
         var ticker: TokenTicker? = null
         var coordinator: BackupCoordinator? = null
         var editor: EntryEditor? = null
+        var clipboardClearTimer: Timer? = null
+        var lastCopiedClipboardSecret: String? = null
         var updatingTagChoices = false
         var updatingSortChoice = false
+
+        fun scheduleClipboardClear(secret: String) {
+            lastCopiedClipboardSecret = secret
+            clipboardClearTimer?.stop()
+            clipboardClearTimer = Timer(30_000) {
+                val expected = lastCopiedClipboardSecret ?: return@Timer
+                try {
+                    val clipboard = Toolkit.getDefaultToolkit().systemClipboard
+                    val current = clipboard.getData(DataFlavor.stringFlavor) as? String
+                    if (current == expected) {
+                        clipboard.setContents(StringSelection(""), null)
+                    }
+                } catch (_: Exception) {
+                    // Ignore unavailable clipboard or non-text flavors.
+                } finally {
+                    if (lastCopiedClipboardSecret == expected) lastCopiedClipboardSecret = null
+                }
+            }.apply {
+                isRepeats = false
+                start()
+            }
+        }
+
+        fun armInactivityTimer() {
+            val seconds = controller.savedInactivityLockSeconds()
+            if (state != null && seconds > 0) {
+                ticker?.restartInactivity(seconds * 1000L)
+            } else {
+                ticker?.cancelInactivity()
+            }
+        }
 
         fun showError(failure: VaultController.Failure) {
             val message = when (failure) {
@@ -81,14 +120,34 @@ object MainWindow {
             EntryTagFilter.sortedNames(counts.keys).forEach { name ->
                 choices.add(TagChoice(TagChoice.Kind.TAG, name, counts.getValue(name)))
             }
-            val selected = previous?.let { old -> choices.firstOrNull { it.sameFilter(old) } } ?: choices.first()
+            val retainedMulti = if (previous?.kind == TagChoice.Kind.MULTIPLE) {
+                val surviving = previous.selectedTags.filter { it in counts }
+                if (surviving.isNotEmpty() || previous.includeUntagged) {
+                    TagChoice(
+                        TagChoice.Kind.MULTIPLE,
+                        selectedTags = surviving,
+                        includeUntagged = previous.includeUntagged,
+                        functionality = previous.functionality
+                    )
+                } else null
+            } else null
+            val multiChoice = retainedMulti ?: TagChoice(TagChoice.Kind.MULTIPLE)
+            choices.add(multiChoice)
+            val selected = when {
+                retainedMulti != null -> retainedMulti
+                previous != null -> choices.firstOrNull { it.sameFilter(previous) } ?: choices.first()
+                else -> choices.first()
+            }
             updatingTagChoices = true
             try {
                 screen.tagFilter.model = javax.swing.DefaultComboBoxModel(choices.toTypedArray())
                 screen.tagFilter.selectedItem = selected
             } finally { updatingTagChoices = false }
-            if (reset || (previous != null && !selected.sameFilter(previous)))
+            if (reset || (previous != null && selected.kind == TagChoice.Kind.ALL && previous.kind != TagChoice.Kind.ALL)) {
                 unlocked.applyTagFilter(emptyList(), false)
+            } else if (retainedMulti != null && retainedMulti != previous) {
+                unlocked.applyTagFilter(retainedMulti.selectedTags, retainedMulti.includeUntagged, retainedMulti.functionality)
+            }
         }
 
         /** The combo is a view of the saved preference; setting it must not re-apply the order. */
@@ -102,7 +161,28 @@ object MainWindow {
             } finally { updatingSortChoice = false }
         }
 
+        fun lockVault() {
+            val active = state ?: return
+            coordinator?.cancelMigrationImport()
+            ticker?.close()
+            ticker = null
+            coordinator = null
+            editor = null
+            state = null
+            active.lock()
+            search.text = ""
+            updatingTagChoices = true
+            try {
+                screen.tagFilter.model = javax.swing.DefaultComboBoxModel(arrayOf(TagChoice(TagChoice.Kind.ALL)))
+            } finally { updatingTagChoices = false }
+            table.model = EntryTableModel(EntryListPresentation(EntryList()).apply {
+                showReorderedEntries()
+            })
+            screen.setUnlocked(false)
+        }
+
         fun bind(session: VaultController.Session.Loaded) {
+            state?.lock()
             val savedSort = controller.savedSortMode()
             selectSortChoice(savedSort)
             val unlocked = DesktopVaultState(session.key).apply {
@@ -126,10 +206,16 @@ object MainWindow {
             search.text = ""
             screen.setUnlocked(true)
             ticker?.close()
-            ticker = TokenTicker(SwingScheduler(), unlocked) {
-                // A tick changes cached values, not the projection. Preserve the selected row.
-                (table.model as? EntryTableModel)?.refreshValues()
-            }.also { it.start() }
+            ticker = TokenTicker(
+                scheduler = SwingScheduler(),
+                state = unlocked,
+                onInactivity = { lockVault() },
+                onTick = {
+                    // A tick changes cached values, not the projection. Preserve the selected row.
+                    (table.model as? EntryTableModel)?.refreshValues()
+                }
+            ).also { it.start() }
+            armInactivityTimer()
         }
 
         fun accept(session: VaultController.Session) {
@@ -188,6 +274,7 @@ object MainWindow {
                 is EntryEditor.TokenCopyResult.Copied -> {
                     Toolkit.getDefaultToolkit().systemClipboard
                         .setContents(StringSelection(result.token), null)
+                    scheduleClipboardClear(result.token)
                     (table.model as? EntryTableModel)?.refresh()
                 }
                 EntryEditor.TokenCopyResult.Unavailable ->
@@ -276,15 +363,70 @@ object MainWindow {
             refreshProjection(unlocked)
         }
 
+        fun importOtpUri() {
+            val unlocked = requireUnlocked() ?: return
+            val active = coordinator ?: return
+            BackupDialogs.importOtpUri(frame, active)
+            refreshProjection(unlocked)
+        }
+
+        fun openMultiTagFilterDialog() {
+            val unlocked = requireUnlocked() ?: return
+            val counts = unlocked.entryList.getTagCounts()
+            val untagged = unlocked.snapshot().count { it.getTags().isEmpty() }
+            val (currentTags, currentUntagged, currentMode) = unlocked.activeTagFilter()
+            val chosen = TagDialog.promptFilter(frame, counts, untagged, currentTags, currentUntagged, currentMode)
+            if (chosen == null) {
+                refreshTagChoices(unlocked)
+                return
+            }
+            if (chosen.selectedTags.isEmpty() && !chosen.includeUntagged) {
+                unlocked.applyTagFilter(emptyList(), false)
+                updatingTagChoices = true
+                try { screen.tagFilter.selectedIndex = 0 } finally { updatingTagChoices = false }
+            } else {
+                unlocked.applyTagFilter(chosen.selectedTags, chosen.includeUntagged, chosen.functionality)
+                updatingTagChoices = true
+                try {
+                    val model = screen.tagFilter.model as javax.swing.DefaultComboBoxModel<TagChoice>
+                    val multiIndex = (0 until model.size).firstOrNull { model.getElementAt(it).kind == TagChoice.Kind.MULTIPLE }
+                    val updated = TagChoice(
+                        TagChoice.Kind.MULTIPLE,
+                        selectedTags = chosen.selectedTags,
+                        includeUntagged = chosen.includeUntagged,
+                        functionality = chosen.functionality
+                    )
+                    if (multiIndex != null) {
+                        model.removeElementAt(multiIndex)
+                        model.insertElementAt(updated, multiIndex)
+                    } else {
+                        model.addElement(updated)
+                    }
+                    screen.tagFilter.selectedItem = updated
+                } finally { updatingTagChoices = false }
+            }
+            unlocked.applySearch(search.text)
+            (table.model as? EntryTableModel)?.refresh()
+        }
+
         screen.tagFilter.addActionListener {
             if (!updatingTagChoices) state?.let { unlocked ->
                 val choice = screen.tagFilter.selectedItem as? TagChoice ?: return@let
                 when (choice.kind) {
-                    TagChoice.Kind.ALL -> unlocked.applyTagFilter(emptyList(), false)
-                    TagChoice.Kind.UNTAGGED -> unlocked.applyTagFilter(emptyList(), true)
-                    TagChoice.Kind.TAG -> unlocked.applyTagFilter(listOf(choice.tag), false)
+                    TagChoice.Kind.ALL -> {
+                        unlocked.applyTagFilter(emptyList(), false)
+                        (table.model as? EntryTableModel)?.refresh()
+                    }
+                    TagChoice.Kind.UNTAGGED -> {
+                        unlocked.applyTagFilter(emptyList(), true)
+                        (table.model as? EntryTableModel)?.refresh()
+                    }
+                    TagChoice.Kind.TAG -> {
+                        unlocked.applyTagFilter(listOf(choice.tag), false)
+                        (table.model as? EntryTableModel)?.refresh()
+                    }
+                    TagChoice.Kind.MULTIPLE -> openMultiTagFilterDialog()
                 }
-                (table.model as? EntryTableModel)?.refresh()
             }
         }
 
@@ -404,10 +546,59 @@ object MainWindow {
         fun promptOpenVault() {
             PasswordDialog.prompt(frame, "Open vault")?.let { accept(controller.openVault(it)) }
         }
-        // Auto-prompt like Android: first launch → Create, later → Open.
-        // Exposed for display tests so they do not click header buttons that no longer exist.
-        frame.rootPane.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
-        frame.rootPane.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
+        fun unlockOrCreateVault() {
+            if (state != null) {
+                JOptionPane.showMessageDialog(frame, "The vault is already unlocked.", TITLE,
+                    JOptionPane.INFORMATION_MESSAGE)
+                return
+            }
+            if (!controller.isInitialized()) promptCreateVault() else promptOpenVault()
+        }
+        fun changeVaultPassword() {
+            val unlocked = requireUnlocked() ?: return
+            val current = PasswordDialog.prompt(frame, "Current vault password") ?: return
+            val next = PasswordDialog.promptNewBackupPassword(frame, "New vault password") ?: return
+            when (val outcome = controller.changePassword(current, next)) {
+                is VaultController.Session.Loaded -> {
+                    outcome.entries.forEach { it.destroy() }
+                    unlocked.updateKey(outcome.key)
+                    val clearedHardware = hardware.removeEnrollment()
+                    val note = if (clearedHardware) {
+                        "Vault password updated. Your previous security-key unlock envelope was cleared; re-enroll under Hardware → Security key… if desired."
+                    } else {
+                        "Vault password updated."
+                    }
+                    JOptionPane.showMessageDialog(frame, note, TITLE, JOptionPane.INFORMATION_MESSAGE)
+                }
+                is VaultController.Session.Error -> showError(outcome.failure)
+            }
+        }
+        fun configureAutoLock() {
+            data class AutoLockOption(val seconds: Int, val label: String) {
+                override fun toString(): String = label
+            }
+            val options = arrayOf(
+                AutoLockOption(0, "Disabled"),
+                AutoLockOption(30, "30 seconds"),
+                AutoLockOption(60, "1 minute"),
+                AutoLockOption(120, "2 minutes"),
+                AutoLockOption(300, "5 minutes"),
+                AutoLockOption(900, "15 minutes")
+            )
+            val currentSeconds = controller.savedInactivityLockSeconds()
+            val initial = options.firstOrNull { it.seconds == currentSeconds } ?: options.first()
+            val chosen = JOptionPane.showInputDialog(
+                frame,
+                "Lock the vault automatically after inactivity:",
+                "Auto-lock timeout",
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                options,
+                initial
+            ) as? AutoLockOption ?: return
+            controller.saveInactivityLockSeconds(chosen.seconds)
+            armInactivityTimer()
+        }
         val addMenu = JPopupMenu().apply {
             add(JMenuItem("Enter account details…").apply { addActionListener { addEntry(Entry.OTPType.TOTP) } })
             add(JMenuItem("Add secure note…").apply { addActionListener { addEntry(Entry.OTPType.NOTE) } })
@@ -420,6 +611,7 @@ object MainWindow {
             add(JMenuItem("Export to LinSCP vault…").apply { addActionListener { exportLinScp() } })
             addSeparator()
             add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
+            add(JMenuItem("Import otpauth:// link…").apply { addActionListener { importOtpUri() } })
         }
         screen.addButton.addActionListener {
             if (requireUnlocked() != null) {
@@ -585,6 +777,9 @@ object MainWindow {
             add(JMenu("Tools").apply {
                 mnemonic = KeyEvent.VK_T
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
+                add(JMenuItem("Import otpauth:// link…").apply { addActionListener { importOtpUri() } })
+                add(JMenuItem("Filter by tags…").apply { addActionListener { openMultiTagFilterDialog() } })
+                addSeparator()
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
                 add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
@@ -616,6 +811,15 @@ object MainWindow {
                         }
                     }
                 })
+                addSeparator()
+                add(JMenuItem("Lock vault").apply {
+                    accelerator = KeyStroke.getKeyStroke(KeyEvent.VK_L,
+                        Toolkit.getDefaultToolkit().menuShortcutKeyMaskEx)
+                    addActionListener { lockVault() }
+                })
+                add(JMenuItem("Unlock vault…").apply { addActionListener { unlockOrCreateVault() } })
+                add(JMenuItem("Change vault password…").apply { addActionListener { changeVaultPassword() } })
+                add(JMenuItem("Auto-lock timeout…").apply { addActionListener { configureAutoLock() } })
             })
             add(JMenu("Hardware").apply {
                 mnemonic = KeyEvent.VK_H
@@ -644,13 +848,29 @@ object MainWindow {
             })
         }
 
+        val activityListener = AWTEventListener { event ->
+            val src = event.source as? Component
+            if (src != null && state != null && SwingUtilities.isDescendingFrom(src, frame)) {
+                armInactivityTimer()
+            }
+        }
+        val activityMask = AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or AWTEvent.MOUSE_MOTION_EVENT_MASK
+        Toolkit.getDefaultToolkit().addAWTEventListener(activityListener, activityMask)
+
         frame = JFrame(TITLE).apply {
             iconImage = DesktopIcon.load()
             jMenuBar = menuBar
             defaultCloseOperation = WindowConstants.EXIT_ON_CLOSE
+            // Auto-prompt like Android: first launch → Create, later → Open.
+            // Exposed for display tests so they do not click header buttons that no longer exist.
+            rootPane.putClientProperty("offlineotp.promptCreateVault", Runnable { promptCreateVault() })
+            rootPane.putClientProperty("offlineotp.promptOpenVault", Runnable { promptOpenVault() })
             addWindowListener(object : java.awt.event.WindowAdapter() {
                 override fun windowClosing(event: java.awt.event.WindowEvent) {
+                    Toolkit.getDefaultToolkit().removeAWTEventListener(activityListener)
+                    clipboardClearTimer?.stop()
                     ticker?.close()
+                    state?.lock()
                     hardware.close()
                 }
                 override fun windowOpened(event: java.awt.event.WindowEvent) {

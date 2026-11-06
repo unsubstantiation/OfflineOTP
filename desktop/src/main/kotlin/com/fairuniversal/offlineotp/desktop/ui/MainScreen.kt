@@ -34,14 +34,29 @@ import javax.swing.event.TableModelListener
 import javax.swing.table.TableModel
 
 /** A tag name remains separate from its label/count, so special names never collide with All. */
-internal data class TagChoice(val kind: Kind, val tag: String = "", val count: Int = 0) {
-    enum class Kind { ALL, UNTAGGED, TAG }
+internal data class TagChoice(
+    val kind: Kind,
+    val tag: String = "",
+    val count: Int = 0,
+    val selectedTags: List<String> = emptyList(),
+    val includeUntagged: Boolean = false,
+    val functionality: Constants.TagFunctionality = Constants.TagFunctionality.OR
+) {
+    enum class Kind { ALL, UNTAGGED, TAG, MULTIPLE }
     override fun toString(): String = when (kind) {
         Kind.ALL -> "All tags"
         Kind.UNTAGGED -> "Untagged ($count)"
         Kind.TAG -> "$tag ($count)"
+        Kind.MULTIPLE -> {
+            val total = selectedTags.size + if (includeUntagged) 1 else 0
+            if (total == 0) "Multiple tags…" else "Multiple ($total)"
+        }
     }
-    fun sameFilter(other: TagChoice): Boolean = kind == other.kind && tag == other.tag
+    fun sameFilter(other: TagChoice): Boolean =
+        kind == other.kind && tag == other.tag &&
+            selectedTags == other.selectedTags &&
+            includeUntagged == other.includeUntagged &&
+            functionality == other.functionality
 }
 
 /**

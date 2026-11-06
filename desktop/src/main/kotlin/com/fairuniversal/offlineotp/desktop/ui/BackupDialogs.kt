@@ -187,6 +187,72 @@ object BackupDialogs {
         }
     }
 
+    /**
+     * Imports a pasted `otpauth://` or `otpauth-migration://` URI string (including multi-part
+     * Google Authenticator exports), matching Android's `otpUriInput` and iOS's manual URI import.
+     */
+    fun importOtpUri(parent: JFrame, coordinator: BackupCoordinator) {
+        val policy = BackupCoordinator.DuplicateIssuerPolicy { issuer ->
+            JOptionPane.showConfirmDialog(
+                parent,
+                "An entry for \"$issuer\" already exists. Add another account with this issuer?",
+                "Duplicate issuer",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE
+            ) == JOptionPane.YES_OPTION
+        }
+        try {
+            var prompt = "Paste an otpauth:// or otpauth-migration:// URI:"
+            while (true) {
+                val input = JOptionPane.showInputDialog(
+                    parent, prompt, "Import otpauth:// link", JOptionPane.PLAIN_MESSAGE
+                )?.toString()?.trim() ?: return
+                if (input.isEmpty()) return
+                when (val result = coordinator.importQrPayload(input, policy)) {
+                    is BackupCoordinator.ImportResult.Imported -> {
+                        if (result.count == 0) {
+                            showResult(parent, "No new entries: every account was already in the vault.")
+                        } else {
+                            showResult(parent, "Imported ${result.count} entr${if (result.count == 1) "y" else "ies"}")
+                        }
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.Invalid -> {
+                        showError(parent, "The URI content was invalid: ${result.reason}")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.NotRecognized -> {
+                        showError(parent, "Expected an otpauth:// or otpauth-migration:// link.")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.DuplicateEntry -> {
+                        showError(parent, "That entry is already in the vault.")
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.DuplicateIssuerRejected -> {
+                        showResult(parent, "Skipped the entry for \"${result.issuer}\".")
+                        return
+                    }
+                    BackupCoordinator.ImportResult.PersistenceFailed -> {
+                        showError(parent, "The vault could not be written; the import was rolled back.")
+                        return
+                    }
+                    is BackupCoordinator.ImportResult.MigrationPart -> {
+                        prompt = "Received part ${result.received} of ${result.expected}. " +
+                            "Paste the next otpauth-migration:// URI:"
+                    }
+                    is BackupCoordinator.ImportResult.MigrationRejected -> {
+                        coordinator.cancelMigrationImport()
+                        showError(parent, "The export part was rejected (${result.why.name}).")
+                        return
+                    }
+                }
+            }
+        } finally {
+            coordinator.cancelMigrationImport()
+        }
+    }
+
     /** Rejects files past the shared document bound before their bytes enter memory. */
     private fun readBounded(parent: JFrame, file: File): ByteArray? {
         if (file.length() > BoundedInputReader.MAX_DOCUMENT_BYTES) {
