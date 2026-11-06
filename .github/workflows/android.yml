@@ -96,35 +96,13 @@ jobs:
             echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured; it is required once the keystore is set."
             exit 1
           fi
-          # The alias is not a secret: read it from the keystore instead of asking for a third
-          # secret. A keystore holding several private keys still needs the explicit secret.
-          # -storepass:env keeps the password off the command line, where `ps` would show it.
+          # android-release is the canonical alias; the previous offlineotp-* value is obsolete.
+          # The alias is not a secret: if ANDROID_RELEASE_KEY_ALIAS is not set we default to
+          # android-release (matches docs/release-signing.md -alias android-release).
+          # A keystore holding several private keys still needs the explicit secret.
           if [[ -z "$KEY_ALIAS" ]]; then
-            export STORE_PASSWORD
-            set +e
-            LISTING="$(keytool -list -keystore signing/OfflineOTP-release-keystore.jks \
-              -storepass:env STORE_PASSWORD 2>&1)"
-            STATUS=$?
-            set -e
-            if [[ "$STATUS" -ne 0 ]]; then
-              echo "::error::keytool could not open the release keystore: ANDROID_KEYSTORE_PASSWORD is wrong, or ANDROID_KEYSTORE_BASE64 is not a keystore."
-              exit 1
-            fi
-            ALIASES="$(printf '%s\n' "$LISTING" | awk -F, '/PrivateKeyEntry/ { print $1 }')"
-            COUNT="$(printf '%s\n' "$ALIASES" | grep -c . || true)"
-            if [[ "$COUNT" == "0" ]]; then
-              echo "::error::The release keystore holds no private key; it needs one signing key."
-              exit 1
-            fi
-            if [[ "$COUNT" != "1" ]]; then
-              echo "::error::The release keystore holds $COUNT private keys; set ANDROID_RELEASE_KEY_ALIAS to name one."
-              exit 1
-            fi
-            KEY_ALIAS="$ALIASES"
-            echo "::notice::Using key alias '$KEY_ALIAS' from the keystore (set ANDROID_RELEASE_KEY_ALIAS to override)."
-            if [[ "$KEY_ALIAS" != "android-release" ]]; then
-              echo "::warning::Key alias is '$KEY_ALIAS', expected 'android-release'. If Gradle fails, set ANDROID_RELEASE_KEY_ALIAS=android-release in the android-release environment or recreate the keystore with -alias android-release."
-            fi
+            KEY_ALIAS="android-release"
+            echo "::notice::Using key alias '$KEY_ALIAS' (set ANDROID_RELEASE_KEY_ALIAS to override for a different keystore)."
           fi
           echo "::add-mask::$KEY_ALIAS"
           {
