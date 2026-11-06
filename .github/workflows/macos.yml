@@ -36,6 +36,23 @@ jobs:
         run: |
           set -euo pipefail
           cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          status=${PIPESTATUS[0]}
+          if [ $status -ne 0 ]; then
+            echo "::group::Rust test failure tail"
+            tail -n 120 rust-test.log || true
+            wc -l rust-test.log || true
+            grep -n -i "error" rust-test.log | head -n 20 | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              echo "::error title=Rust test::$safe"
+            done || true
+            tail -n 80 rust-test.log | while IFS= read -r line; do
+              safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
+              [ -n "$safe" ] || continue
+              echo "::notice title=Rust tail::$safe"
+            done || true
+            echo "::endgroup::"
+            exit $status
+          fi
       - name: Build Rust crate
         shell: bash
         run: |
