@@ -138,23 +138,10 @@ pub fn encrypt(plaintext: Vec<u8>, recipient_key_blocks: Vec<Vec<u8>>) -> Result
             }
         }
         if !added {
-            // No subkey could encrypt; try the primary.
+            // No subkey could encrypt; try the primary (RSA primary-only keys, etc.).
             if cert.primary_key.algorithm().can_encrypt() {
-                // SignedPublicKey itself can be used as an encryption key in rpgp via
-                // encrypt_to_key with the primary. The builder accepts any KeyDetails that
-                // implements the encryption capability; primary does when its algorithm allows.
-                // If the builder's type bounds reject it, we surface a clear error rather
-                // than silently skipping the recipient.
-                // Note: rpgp's encrypt_to_key for the primary is reached via deref to its
-                // underlying key; we use a workaround: if no subkey, attempt primary.
-                // Some certificates use the primary for encryption (e.g. RSA primary-only keys).
-                // We attempt to encrypt to the certificate's primary by wrapping it.
-                // rpgp exposes `EncryptToKey` for `SignedPublicKey` via its primary_key accessor
-                // — we fallback to a helper that extracts the raw key material.
-                // For now, try to encrypt to the cert's primary via `cert` itself if it implements
-                // the trait; otherwise report.
                 builder
-                    .encrypt_to_key(rand::thread_rng(), cert.primary_key())
+                    .encrypt_to_key(rand::thread_rng(), cert)
                     .map_err(|e| OpenPgpError::Internal {
                         reason: format!("primary encrypt_to_key failed: {e}"),
                     })?;
