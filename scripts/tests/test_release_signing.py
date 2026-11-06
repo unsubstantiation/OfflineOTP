@@ -102,11 +102,11 @@ class ReleaseSigningTest(unittest.TestCase):
         self.assertIn("if (releaseSigningConfigured) {", between)
 
     def test_credentials_live_in_the_android_release_environment(self):
-        """Environment secrets are only readable by a job that names the environment."""
+        """Deployments are not needed - artifacts are downloaded from Actions."""
         workflow = self.workflow_text()
         for job in ("signing-preflight:", "sign-release:"):
-            self.assertIn(f"    environment: {ENVIRONMENT}\n", self.job_block(job),
-                          f"{job} must declare the {ENVIRONMENT} environment")
+            self.assertNotIn(f"    environment: {ENVIRONMENT}\n", self.job_block(job),
+                             f"{job} must not declare the {ENVIRONMENT} environment (would create deployments)")
         # The environment allows master only, so every other dispatch reports a skip, not a gate
         # failure it cannot explain.
         self.assertIn("if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'\n",
