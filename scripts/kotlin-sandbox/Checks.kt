@@ -1232,6 +1232,8 @@ private class ManualDialogRoot(host: Context) : View() {
     val applyUri = Button(host)
     val issuer = EditText(host)
     val label = EditText(host)
+    val hiddenLabel = EditText(host)
+    val hiddenLabelLayout = LinearLayout(host)
     val secret = EditText(host)
     val sshPublic = EditText(host)
     val sshLayout = LinearLayout(host)
@@ -1262,7 +1264,9 @@ private class ManualDialogRoot(host: Context) : View() {
     }
     private val children = mapOf(
         R.id.manual_type to type, R.id.manual_otp_uri to otpUri, R.id.manual_apply_otp_uri to applyUri,
-        R.id.manual_issuer to issuer, R.id.manual_label to label, R.id.manual_secret to secret,
+        R.id.manual_issuer to issuer, R.id.manual_label to label,
+        R.id.manual_hidden_label to hiddenLabel, R.id.manual_layout_hidden_label to hiddenLabelLayout,
+        R.id.manual_secret to secret,
         R.id.manual_ssh_public to sshPublic, R.id.manual_layout_ssh_public to sshLayout,
         R.id.manual_ssh_host to sshHost, R.id.manual_layout_ssh_host to sshHostLayout,
         R.id.manual_ssh_port to sshPort, R.id.manual_layout_ssh_port to sshPortLayout,
@@ -1368,6 +1372,8 @@ private class AboutPageFixture {
     val license = LinearLayout(host)
     val changelog = LinearLayout(host)
     val source = LinearLayout(host)
+    val website = LinearLayout(host)
+    val releases = LinearLayout(host)
     val faq = LinearLayout(host)
     val author1 = LinearLayout(host)
     val author2 = LinearLayout(host)
@@ -1387,6 +1393,8 @@ private class AboutPageFixture {
         root.children[R.id.about_layout_license] = license
         root.children[R.id.about_layout_changelog] = changelog
         root.children[R.id.about_layout_source] = source
+        root.children[R.id.about_layout_website] = website
+        root.children[R.id.about_layout_releases] = releases
         root.children[R.id.about_layout_faq] = faq
         root.children[R.id.aboutLayoutAuthor1] = author1
         root.children[R.id.aboutLayoutAuthor2] = author2
@@ -2700,15 +2708,15 @@ fun main() {
             // Read back through the same content-provider boundary used by import, not a raw path.
             resolver.input = ByteArrayInputStream(document.readBytes())
             val header = EncryptedBackupHeader.parse(StorageAccessHelper.loadFile(context, uri))
-            expect(header.getIterations() in Constants.PBKDF2_MIN_BACKUP_ITERATIONS..
-                    Constants.PBKDF2_MAX_BACKUP_ITERATIONS, { "unexpected iteration count ${header.getIterations()}" })
-            val key = EncryptionHelper.generateSymmetricKeyPBKDF2(password,
-                    header.getIterations(), header.getSalt())
+            expect(header.isArgon2id() && header.getMemoryKiB() == Constants.ARGON2_MEMORY_KIB &&
+                    header.getIterations() == Constants.ARGON2_ITERATIONS &&
+                    header.getParallelism() == Constants.ARGON2_PARALLELISM,
+                    { "unexpected Argon2id backup header" })
+            val key = header.deriveKey(password)
             val restored = String(EncryptionHelper.decrypt(key, header.getEncrypted()), StandardCharsets.UTF_8)
             expect(restored == plaintext, { "backup plaintext changed: $restored" })
 
-            val wrongKey = EncryptionHelper.generateSymmetricKeyPBKDF2("$password-wrong",
-                    header.getIterations(), header.getSalt())
+            val wrongKey = header.deriveKey("$password-wrong")
             expectThrows(GeneralSecurityException::class.java) {
                 EncryptionHelper.decrypt(wrongKey, header.getEncrypted())
             }
@@ -4352,13 +4360,17 @@ fun main() {
             "<init>(Landroid/content/Context;)V",
             "clear(Z)V",
             "commitVaultSettings(Ljava/lang/String;Lorg/shadowice/flocke/andotp/Utilities/Constants\$EncryptionType;Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;Lorg/shadowice/flocke/andotp/Utilities/Settings\$PreparedCredentials;Z)Z",
+            "deriveVaultCredentials(Ljava/lang/String;)Lorg/shadowice/flocke/andotp/Utilities/EncryptionHelper\$PBKDF2Credentials;",
             "disableAutomaticBackups()V",
             "getAllTagsToggle()Z",
             "getAndroidBackupServiceEnabled()Z",
             "getAuthCredentials()Ljava/lang/String;",
             "getAuthInactivity()Z",
             "getAuthInactivityDelay()I",
+            "getAuthKdf()Ljava/lang/String;",
+            "getAuthMemoryKiB()I",
             "getAuthMethod()Lorg/shadowice/flocke/andotp/Utilities/Constants\$AuthMethod;",
+            "getAuthParallelism()I",
             "getAutoBackupEncryptedFullEnabled()Z",
             "getAutoBackupEncryptedPasswordsEnabled()Z",
             "getAutoUnlockAfterAutofill()Z",
@@ -4491,6 +4503,9 @@ fun main() {
                 "Companion Lorg/shadowice/flocke/andotp/Utilities/Settings\$Companion;",
                 "context Landroid/content/Context;",
                 "settings Landroid/content/SharedPreferences;",
+                "LEGACY_AUTH_PIN_KEY Ljava/lang/String;",
+                "LEGACY_AUTH_PIN_HASH_KEY Ljava/lang/String;",
+                "LEGACY_PIN_KEYS Ljava/util/List;",
                 "newLangs Ljava/util/List;",
                 "oldLangs Ljava/util/List;"),
                 { "the fields changed: ${compiled.fields.map { it.signature }}" })
@@ -4517,10 +4532,22 @@ fun main() {
         expect(Modifier.isPublic(prepared.flags) && Modifier.isFinal(prepared.flags) &&
                 !Modifier.isAbstract(prepared.flags), { "PreparedCredentials must stay a public final class" })
         expect(prepared.methods.map { it.signature }.toSet() ==
-                setOf("<init>([BLjava/lang/String;Ljava/lang/String;I)V", "destroy()V"),
+                setOf(
+                    "<init>([BLjava/lang/String;Ljava/lang/String;I)V",
+                    "<init>([BLjava/lang/String;Ljava/lang/String;ILjava/lang/String;II)V",
+                    "destroy()V"
+                ),
                 { "PreparedCredentials methods changed: ${prepared.methods.map { it.signature }}" })
         expect(prepared.fields.map { it.signature }.toSet() ==
-                setOf("key [B", "verifier Ljava/lang/String;", "salt Ljava/lang/String;", "iterations I"),
+                setOf(
+                    "key [B",
+                    "verifier Ljava/lang/String;",
+                    "salt Ljava/lang/String;",
+                    "iterations I",
+                    "kdf Ljava/lang/String;",
+                    "memoryKiB I",
+                    "parallelism I"
+                ),
                 { "PreparedCredentials fields changed: ${prepared.fields.map { it.signature }}" })
         expect(prepared.fields.all { it.isPublic && it.isFinal },
                 { "a PreparedCredentials field stopped being public final" })
@@ -4765,7 +4792,7 @@ fun main() {
             val first = runBackup()
             expect(first.first.success && first.second == true && created.size == 1, { "first backup failed" })
             val header = EncryptedBackupHeader.parse(created.single().readBytes())
-            val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+            val backupKey = header.deriveKey(password)
             val restored = String(EncryptionHelper.decrypt(backupKey, header.getEncrypted()), Charsets.UTF_8)
             expect(restored.contains("alice"), { "login password could not restore snapshot" })
 
@@ -4783,7 +4810,7 @@ fun main() {
             expect((manualOutcome as? TaskOutcome.Value<BackupTaskResult>)?.value?.success == true,
                     { "manual login-password export failed" })
             val manualHeader = EncryptedBackupHeader.parse(manual.readBytes())
-            val manualKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, manualHeader.getIterations(), manualHeader.getSalt())
+            val manualKey = manualHeader.deriveKey(password)
             expect(String(EncryptionHelper.decrypt(manualKey, manualHeader.getEncrypted()), Charsets.UTF_8).contains("alice"),
                     { "manual export did not use the app password" })
             var defaultManualOutcome: TaskOutcome<BackupTaskResult>? = null
@@ -4936,12 +4963,16 @@ fun main() {
 
         val prepared = settings.prepareAuthCredentials("synthetic-password")
         try {
-            // PBKDF2_LENGTH is 256 bits, split into the 128-bit key and the 128-bit password half.
-            expect(prepared.key.size == 16, { "the derived key must stay 128 bits, was ${prepared.key.size}" })
-            expect(prepared.iterations >= 30000, { "iterations must stay bounded: ${prepared.iterations}" })
+            // Argon2id 512-bit output is split into the 256-bit (32-byte) AES-256 vault key and the 256-bit verifier.
+            expect(prepared.key.size == 32, { "the derived key must be 256 bits (32 bytes), was ${prepared.key.size}" })
+            expect(prepared.kdf == Constants.KDF_ARGON2ID, { "prepared KDF must be argon2id: ${prepared.kdf}" })
+            expect(prepared.memoryKiB == Constants.ARGON2_MEMORY_KIB, { "prepared memoryKiB: ${prepared.memoryKiB}" })
+            expect(prepared.iterations == Constants.ARGON2_ITERATIONS, { "prepared iterations: ${prepared.iterations}" })
+            expect(prepared.parallelism == Constants.ARGON2_PARALLELISM, { "prepared parallelism: ${prepared.parallelism}" })
             val salt = Base64.decode(prepared.salt, Base64.URL_SAFE)
             expect(salt.size == 16, { "the stored salt must be 16 bytes, was ${salt.size}" })
-            val derived = EncryptionHelper.generatePBKDF2Credentials("synthetic-password", salt, prepared.iterations)
+            val derived = EncryptionHelper.generateArgon2idCredentials(
+                "synthetic-password", salt, prepared.memoryKiB, prepared.iterations, prepared.parallelism)
             try {
                 expect(derived.key.contentEquals(prepared.key),
                         { "the prepared key must be the derived key for the stored salt/iterations" })
@@ -5571,7 +5602,14 @@ fun main() {
     check("direct note and SSH editors preselect and validate the existing fields") {
         val fixture = SettingsFixture()
         val host = ManualDialogHost()
-        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val replaced = ArrayList<Pair<Entry, Entry>>()
+        val adapter = object : EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())) {
+            override fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+                replacement.validate()
+                replaced.add(existing to replacement)
+                return true
+            }
+        }
 
         fun open(type: Entry.OTPType? = null, old: Entry? = null,
                  callback: ManualEntryDialog.UpdateCallback? = null): Pair<ManualDialogRoot, AlertDialog> {
@@ -5669,13 +5707,21 @@ fun main() {
             { "ordinary manual entry no longer defaults to TOTP" })
         close(manual, manualDialog)
 
-        val old = Entry(Entry.OTPType.NOTE, "existing\nnote", "", "Title", arrayListOf())
+        val old = Entry(Entry.OTPType.NOTE, "existing\nnote", "", "Title", arrayListOf()).apply {
+            setDetailsVisible(true)
+        }
+        val storedConnection = requireNotNull(
+            SshConnection.of("old.example.com", 2222, "alice", "s3cret"))
+        val sshEntry = Entry.sshKey("ssh-ed25519 stored\n", "PRIVATE", "",
+            "Server", arrayListOf(), storedConnection).apply {
+            setDetailsVisible(true)
+        }
         val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
         val unlock = VaultSession.beginUnlock()
         expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
         try {
-            var updates = 0
-            val (edit, editDialog) = open(old = old, callback = ManualEntryDialog.UpdateCallback { updates++ })
+            val (edit, editDialog) = open(old = old)
             expect(edit.type.getSelectedItem() == Entry.OTPType.NOTE && !edit.type.isEnabled &&
                 edit.secret.text.toString() == "existing\nnote", { "editing an existing note changed" })
             edit.deliverSelection()
@@ -5683,16 +5729,13 @@ fun main() {
             edit.secret.dispatchAfterTextChanged()
             val save = requireNotNull(editDialog.getButton(AlertDialog.BUTTON_POSITIVE))
             expect(save.isEnabled && save.performClick(), { "the existing note could not be saved" })
-            expect(old.getNote() == "edited\nnote" && updates == 1 && !editDialog.isShowing,
-                { "edit Save did not update the original entry" })
+            expect(replaced.size == 1 && replaced[0].first === old &&
+                replaced[0].second.getNote() == "edited\nnote" && !editDialog.isShowing,
+                { "edit Save did not replace the original note entry" })
             close(edit, editDialog)
 
             // An existing SSH key entry preselects its stored connection details and saves the edits.
-            val storedConnection = requireNotNull(
-                SshConnection.of("old.example.com", 2222, "alice", "s3cret"))
-            val sshEntry = Entry.sshKey("ssh-ed25519 stored\n", "PRIVATE", "",
-                "Server", arrayListOf(), storedConnection)
-            val (sshEdit, sshEditDialog) = open(old = sshEntry, callback = ManualEntryDialog.UpdateCallback { updates++ })
+            val (sshEdit, sshEditDialog) = open(old = sshEntry)
             expect(sshEdit.sshHost.text.toString() == "old.example.com" &&
                 sshEdit.sshPort.text.toString() == "2222" &&
                 sshEdit.sshUsername.text.toString() == "alice" &&
@@ -5708,16 +5751,19 @@ fun main() {
             val sshEditSave = requireNotNull(sshEditDialog.getButton(AlertDialog.BUTTON_POSITIVE))
             expect(sshEditSave.isEnabled && sshEditSave.performClick(),
                 { "the existing SSH entry could not be saved" })
-            val edited = requireNotNull(sshEntry.getSshConnection())
+            expect(replaced.size == 2 && replaced[1].first === sshEntry, { "SSH replacement was not recorded" })
+            val updatedSsh = replaced[1].second
+            val edited = requireNotNull(updatedSsh.getSshConnection())
             expect(edited.host == "new.example.com" && edited.port == 2200 &&
-                edited.username == "alice" && edited.password == "s3cret" && updates == 2,
+                edited.username == "alice" && edited.password == "s3cret",
                 { "the connection details were not updated: $edited" })
-            expect(sshEntry.getSshKeys().publicKey == "ssh-ed25519 stored\n",
+            expect(updatedSsh.getSshKeys().publicKey == "ssh-ed25519 stored\n",
                 { "the keys changed while editing the connection details" })
             close(sshEdit, sshEditDialog)
-            sshEntry.destroy()
+            replaced.forEach { it.second.destroy() }
         } finally {
             old.destroy()
+            sshEntry.destroy()
             adapter.lockEntries()
             VaultSession.lock()
         }
@@ -6135,6 +6181,7 @@ fun main() {
         root.children[R.id.thumbnailFrame] = thumbnailFrame
         root.children[R.id.thumbnailImg] = thumbnail
         root.children[R.id.textViewLabel] = label
+        root.children[R.id.textViewHiddenLabel] = TextView()
         root.children[R.id.textViewTags] = tags
         root.children[R.id.counter] = counter
         root.children[R.id.cardProgressBar] = progress
@@ -7398,7 +7445,7 @@ fun main() {
                 PendingAutomaticBackup.read(context) == null && created.size == 1,
                 { "password session did not finish the retained backup" })
             val header = EncryptedBackupHeader.parse(created.single().readBytes())
-            val backupKey = EncryptionHelper.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+            val backupKey = header.deriveKey(password)
             expect(String(EncryptionHelper.decrypt(backupKey, header.getEncrypted()), Charsets.UTF_8).contains("alice"),
                 { "retained backup did not use the app password" })
         } finally {
@@ -7480,6 +7527,111 @@ fun main() {
         } finally {
             totp.destroy(); hotp.destroy(); note.destroy(); motp.destroy()
         }
+    }
+
+    check("Argon2id credentials and backups round-trip while legacy PBKDF2 remains readable") {
+        val fixture = SettingsFixture()
+        val prepared = fixture.settings.prepareAuthCredentials("argon2id-passphrase")
+        expect(prepared.key.size == 32 &&
+            prepared.kdf == Constants.KDF_ARGON2ID &&
+            prepared.memoryKiB == Constants.ARGON2_MEMORY_KIB &&
+            prepared.iterations == Constants.ARGON2_ITERATIONS &&
+            prepared.parallelism == Constants.ARGON2_PARALLELISM,
+            { "prepared credentials did not use Argon2id profile" })
+        expect(fixture.settings.commitVaultSettings(
+            "tx-argon2id", Constants.EncryptionType.PASSWORD, Constants.AuthMethod.PASSWORD, prepared, true),
+            { "commitVaultSettings failed for Argon2id" })
+        expect(fixture.settings.getAuthKdf() == Constants.KDF_ARGON2ID, { "stored KDF was not argon2id" })
+        val derived = fixture.settings.deriveVaultCredentials("argon2id-passphrase")
+        val derivedVerifier = android.util.Base64.encodeToString(derived.password, android.util.Base64.URL_SAFE)
+        expect(java.security.MessageDigest.isEqual(prepared.key, derived.key) &&
+            derivedVerifier == prepared.verifier,
+            { "Settings.deriveVaultCredentials did not match Argon2id prepared material" })
+        derived.key?.fill(0)
+        derived.password?.fill(0)
+        prepared.destroy()
+
+        // Legacy PBKDF2 vault settings without auth_kdf continue to derive through PBKDF2.
+        val legacyFixture = SettingsFixture()
+        val legacySalt = ByteArray(16) { it.toByte() }
+        val legacyDerived = EncryptionHelper.generatePBKDF2Credentials("legacy-pass", legacySalt, 4096)
+        legacyFixture.settings.setSalt(legacySalt)
+        legacyFixture.settings.setIterations(4096)
+        legacyFixture.seed(R.string.settings_key_auth_password_hash,
+            android.util.Base64.encodeToString(legacyDerived.password!!, android.util.Base64.URL_SAFE))
+        expect(legacyFixture.settings.getAuthKdf() == Constants.KDF_PBKDF2,
+            { "unset auth_kdf did not default to pbkdf2" })
+        val reopenedLegacy = legacyFixture.settings.deriveVaultCredentials("legacy-pass")
+        expect(java.security.MessageDigest.isEqual(legacyDerived.key, reopenedLegacy.key) &&
+            java.security.MessageDigest.isEqual(legacyDerived.password, reopenedLegacy.password),
+            { "legacy PBKDF2 settings failed to derive" })
+        reopenedLegacy.key?.fill(0)
+        reopenedLegacy.password?.fill(0)
+        legacyDerived.key?.fill(0)
+        legacyDerived.password?.fill(0)
+
+        val sealed = org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.seal("backup-pass", "[{\"label\":\"a\"}]")
+        val header = EncryptedBackupHeader.parse(sealed)
+        expect(header.isArgon2id() && header.getMemoryKiB() == Constants.ARGON2_MEMORY_KIB &&
+            header.getIterations() == Constants.ARGON2_ITERATIONS &&
+            header.getParallelism() == Constants.ARGON2_PARALLELISM,
+            { "EncryptedBackupCodec.seal did not write Argon2id header" })
+        expect(org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.open("backup-pass", sealed) == "[{\"label\":\"a\"}]",
+            { "EncryptedBackupCodec.open failed on Argon2id backup" })
+    }
+
+    check("LinSCP LSCPVLT2 vault, BackupBundle lscp1$, and sessions.ini round-trip cleanly") {
+        val masterKey = ByteArray(32) { it.toByte() }
+        val lscp1Token =
+            "lscp1\$EBESExQVFhcYGRobHB0eH2O4ezzmYH370G39JNEWV3UKmNy5iaxBwNro1exoTvVdvdwtDnFxSYetybMyM3aAIA=="
+        expect(org.shadowice.flocke.andotp.Utilities.LinScpCredentials.decryptLscp1Password(lscp1Token, masterKey) == "S3cr3t!Pass#2026",
+            { "lscp1$ decryption disagreed with LinSCP reference vector" })
+
+        val ini = "[Edge Node]\nprotocol=sftp\nhost=edge.example\nport=2222\nusername=root\npassword=$lscp1Token\n"
+        val bundle = org.json.JSONObject()
+            .put("version", 1)
+            .put("sessions_ini", ini)
+            .put("sessions_key_b64", java.util.Base64.getEncoder().encodeToString(masterKey))
+            .toString()
+            .toByteArray(java.nio.charset.StandardCharsets.UTF_8)
+        val fromBundle = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.importBytes(bundle)
+        expect(fromBundle.size == 1 && fromBundle[0].getPasswordFields().value("password") == "S3cr3t!Pass#2026",
+            { "BackupBundle import did not decrypt lscp1$ session password" })
+
+        val sshKey = Entry.sshKey(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEdge root@edge.example",
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nZWRnZS1rZXk=\n-----END OPENSSH PRIVATE KEY-----\n",
+            "",
+            "Edge Node [LinSCP SSH key]",
+            arrayListOf("infra"),
+            org.shadowice.flocke.andotp.Utilities.SshConnection.of("edge.example", 2222, "root", "")
+        )
+        val linkedSession = Entry.passwordFields(
+            "Edge Node",
+            "",
+            listOf(
+                "url" to "sftp://edge.example:2222",
+                "username" to "root",
+                "password" to "S3cr3t!Pass#2026",
+                org.shadowice.flocke.andotp.Utilities.LinScpCredentials.SESSION_JSON_COLUMN to
+                    "{\"name\":\"Edge Node\",\"protocol\":\"sftp\",\"host\":\"edge.example\",\"port\":2222,\"username\":\"root\"}",
+                org.shadowice.flocke.andotp.Utilities.LinScpCredentials.SSH_KEY_LABEL_COLUMN to "Edge Node [LinSCP SSH key]"
+            )
+        )
+        val vaultBlob = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.exportVault(
+            listOf(sshKey, linkedSession),
+            "linscp-test-pass"
+        )
+        val reopened = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.openVault(vaultBlob, "linscp-test-pass")
+        expect(reopened.size == 2 && reopened[0].getSshConnection()?.password == "S3cr3t!Pass#2026",
+            { "LSCPVLT2 openVault did not enrich linked SSH key password" })
+        val viaBackupOpen = org.shadowice.flocke.andotp.Utilities.EncryptedBackupCodec.open("linscp-test-pass", vaultBlob)
+        expect(viaBackupOpen.contains("Edge Node"), { "EncryptedBackupCodec.open did not open LSCPVLT2 vault" })
+
+        fromBundle.forEach { it.destroy() }
+        reopened.forEach { it.destroy() }
+        sshKey.destroy()
+        linkedSession.destroy()
     }
 
     if (failures == 0) {

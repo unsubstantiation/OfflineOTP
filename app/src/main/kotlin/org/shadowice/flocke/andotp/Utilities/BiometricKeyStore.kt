@@ -22,8 +22,8 @@ import javax.crypto.spec.GCMParameterSpec
 /**
  * Biometric quick unlock (fingerprint or face), mirroring the iOS Face ID / Touch ID quick unlock.
  *
- * The vault stays password-encrypted (PBKDF2 + AES-GCM). What biometrics releases is the
- * *derived vault key* — the 16-byte AES key that the password derives. The vault file, KDF,
+ * The vault stays password-encrypted (Argon2id + AES-256-GCM, or legacy PBKDF2 + AES-128-GCM). What biometrics releases is the
+ * *derived vault key* — the 32-byte AES-256 key (or 16-byte legacy key) that the password derives. The vault file, KDF,
  * salt, verifier and GCM tag are untouched; the password still opens the file and a lost or
  * invalidated shortcut costs only the shortcut. Works with fingerprint or strong face
  * (BIOMETRIC_STRONG) — the system prompt shows whichever is enrolled.

@@ -17,10 +17,10 @@ The Android application ID is now `com.fairuniversal.offlineotp` (debug `com.fai
 ## Features
 
 - Add accounts by scanning a QR code, importing a QR image or `otpauth://` URI, or entering details manually. Google Authenticator export QR codes are supported, including multi-code exports.
-- Keep the vault encrypted with Android KeyStore-backed protection or a password.
-- Create password-encrypted or OpenPGP-encrypted backups, including automatic encrypted backups.
+- Keep the vault encrypted with **AES-256-GCM**, backed by either Android KeyStore protection or a password (Argon2id v1.3: 64 MiB memory, 3 iterations, 4 lanes; existing legacy PBKDF2 / AES-128-GCM vaults continue to open).
+- Create password-encrypted (`.json.aes`, Argon2id v1.3 + AES-256-GCM; existing PBKDF2 backups continue to restore) or OpenPGP-encrypted backups, including automatic encrypted backups.
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
-- Store standalone secure notes, SSH keys, browser-exported passwords and FairEmail mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
+- Store standalone secure notes, SSH keys, browser-exported passwords, LinSCP SSH keys & saved sessions, and FairEmail/Thunderbird mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
 - Search within the selected tab or filter by tags, and see per-tag entry counts. On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
 - Stay offline: the app declares no `INTERNET` permission.
@@ -252,6 +252,17 @@ original passphrase; the passphrase is not managed by this entry. SSH keys are i
 and encrypted backups but cannot be exported as OTP QR codes or copied to an OATH hardware key.
 Both Android and desktop must be updated to a version that understands `SSH_KEY` before restoring
 such backups. Older versions reject them; keep a separately tested backup before transferring.
+
+### LinSCP SSH keys and saved sessions
+
+OfflineOTP supports bidirectional encrypted credential interchange with [LinSCP](https://github.com/unsubstantiation/LinSCP) across Android, desktop, and iOS:
+
+- **Import from LinSCP**:
+  - **LinSCP `LSCPVLT2` encrypted credential vault (`.json.aes`)**: exported from LinSCP via **Options → Credential vault → Export** (Argon2id v1.3 `64 MiB, t = 3, p = 1` + AES-256-GCM with `"LSCPVLT2"` AAD). Imports both `SSH_KEY` entries (main session keys and jump-host keys, automatically enriched with their linked session/jump-host connection target and login password) and saved `PASSWORD` session entries (`linscp_session_json`, `linscp_ssh_key_label`, `linscp_tunnel_key_label`). Standard encrypted backup restore also opens `LSCPVLT2` `.json.aes` files directly.
+  - **LinSCP `BackupBundle` JSON (`.json`)**: imports saved SFTP/SCP/SSH/FTP/FTPS/WebDAV/S3/RDP/VNC/SPICE/X2Go/X11 sessions and decrypts `lscp1$` saved-session passwords using `sessions_key_b64`.
+  - **LinSCP `sessions.ini`**: imports saved `[SiteName]` sections directly (with `sessions.key` decryption when `lscp1$` encrypted passwords are present).
+- **Export to LinSCP**:
+  - **Android** (**+ → Export to LinSCP vault**), **desktop** (**Add entry** / **Tools → Export to LinSCP vault…**), and **iOS** (**Backups and links → Export to LinSCP encrypted vault**) write selected `SSH_KEY` and `PASSWORD` entries into a `LSCPVLT2` Argon2id + AES-256-GCM `.json.aes` file ready for **Options → Credential vault → Import** in LinSCP.
 
 ### Transferring backups
 

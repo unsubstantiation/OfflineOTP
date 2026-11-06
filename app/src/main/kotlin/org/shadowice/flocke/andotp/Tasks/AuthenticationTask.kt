@@ -79,12 +79,12 @@ open class AuthenticationTask(context: Context, private val isAuthUpgrade: Boole
         }
     }
 
-    /** Checks the entered password/PIN against the stored PBKDF2 credentials. */
+    /** Checks the entered password/PIN against the stored Argon2id (or legacy PBKDF2) credentials. */
     private fun confirmAuthentication(): AuthenticationOutcome {
         var credentials: PBKDF2Credentials? = null
         var passwordArray: ByteArray? = null
         try {
-            val derived = EncryptionHelper.generatePBKDF2Credentials(plainPassword, settings.getSalt(), settings.getIterations())
+            val derived = settings.deriveVaultCredentials(plainPassword)
             credentials = derived
             passwordArray = Base64.decode(existingAuthCredentials, Base64.URL_SAFE)
             if (MessageDigest.isEqual(passwordArray, derived.password)) {

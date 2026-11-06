@@ -25,6 +25,14 @@
         android:title="@string/thunderbird_export"
         android:icon="@drawable/ic_email_export_white" />
     <item
+        android:id="@+id/fabImportLinScp"
+        android:title="@string/linscp_import"
+        android:icon="@drawable/ic_linscp_import_white" />
+    <item
+        android:id="@+id/fabExportLinScp"
+        android:title="@string/linscp_export"
+        android:icon="@drawable/ic_linscp_export_white" />
+    <item
         android:id="@+id/fabAddEmail"
         android:title="@string/email_add_title"
         android:icon="@drawable/ic_email_white" />

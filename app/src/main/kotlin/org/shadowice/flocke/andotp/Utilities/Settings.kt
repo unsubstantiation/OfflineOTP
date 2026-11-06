@@ -193,9 +193,17 @@ open class Settings(private val context: Context) {
             val authMethod = getAuthMethod()
             val authCredentials = getAuthCredentials()
             val authSalt = getString(R.string.settings_key_auth_salt, "")
+            val hasAuthKdf = settings.contains(getResString(R.string.settings_key_auth_kdf))
+            val authKdf = getAuthKdf()
+            val authMemoryKiB = getAuthMemoryKiB()
+            val authParallelism = getAuthParallelism()
             val legacyPassword = getOldCredentials(Constants.AuthMethod.PASSWORD)
             val encryptionType = getEncryption()
-            val authIterations = getIterations()
+            val authIterations = getIntValue(
+                R.string.settings_key_auth_iterations,
+                if (hasAuthKdf && authKdf == Constants.KDF_ARGON2ID) Constants.ARGON2_ITERATIONS
+                else Constants.PBKDF2_MIN_AUTH_ITERATIONS
+            )
 
             val warningShown = getFirstTimeWarningShown()
 
@@ -213,8 +221,14 @@ open class Settings(private val context: Context) {
                 if (!authCredentials.isEmpty()) {
                     editor.putString(getResString(R.string.settings_key_auth_credentials), authCredentials)
                     editor.putInt(getResString(R.string.settings_key_auth_iterations), authIterations)
-
                     editor.putString(getResString(R.string.settings_key_auth_salt), authSalt)
+                    if (hasAuthKdf) {
+                        editor.putString(getResString(R.string.settings_key_auth_kdf), authKdf)
+                        if (authKdf == Constants.KDF_ARGON2ID) {
+                            editor.putInt(getResString(R.string.settings_key_auth_memory_kib), authMemoryKiB)
+                            editor.putInt(getResString(R.string.settings_key_auth_parallelism), authParallelism)
+                        }
+                    }
                 }
             }
 
@@ -270,31 +284,48 @@ open class Settings(private val context: Context) {
         return getString(R.string.settings_key_auth_credentials, "")
     }
 
-    /** Uncommitted PBKDF2 authentication material and derived encryption key. */
+    /** Uncommitted Argon2id (or legacy PBKDF2) authentication material and derived encryption key. */
     class PreparedCredentials(
         @JvmField val key: ByteArray,
         @JvmField val verifier: String,
         @JvmField val salt: String,
-        @JvmField val iterations: Int
+        @JvmField val iterations: Int,
+        @JvmField val kdf: String,
+        @JvmField val memoryKiB: Int,
+        @JvmField val parallelism: Int
     ) {
+        constructor(key: ByteArray, verifier: String, salt: String, iterations: Int) :
+            this(key, verifier, salt, iterations, Constants.KDF_PBKDF2, 0, 0)
+
         fun destroy() {
             key.fill(0)
         }
     }
 
-    /** Derive without changing the currently usable credentials. */
+    /** Derive Argon2id credentials without changing the currently usable credentials. */
     @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
     open fun prepareAuthCredentials(password: String?): PreparedCredentials {
         if (password == null || password.isEmpty() || password.length > InputPolicy.MAX_TEXT_CHARS) throw IllegalArgumentException("Invalid password length")
-        val salt = EncryptionHelper.generateRandom(Constants.PBKDF2_SALT_LENGTH)
-        val iterations = EncryptionHelper.benchmarkIterations(password, salt)
-        val derived = EncryptionHelper.generatePBKDF2Credentials(password, salt, iterations)
+        val salt = EncryptionHelper.generateRandom(Constants.ARGON2_SALT_LENGTH)
+        val memoryKiB = Constants.ARGON2_MEMORY_KIB
+        val iterations = Constants.ARGON2_ITERATIONS
+        val parallelism = Constants.ARGON2_PARALLELISM
+        val derived = EncryptionHelper.generateArgon2idCredentials(
+            password = password,
+            salt = salt,
+            memoryKiB = memoryKiB,
+            iterations = iterations,
+            parallelism = parallelism
+        )
         try {
             return PreparedCredentials(
                 derived.key,
                 Base64.encodeToString(derived.password, Base64.URL_SAFE),
                 Base64.encodeToString(salt, Base64.URL_SAFE),
-                iterations
+                iterations,
+                Constants.KDF_ARGON2ID,
+                memoryKiB,
+                parallelism
             )
         } finally {
             derived.password.fill(0)
@@ -319,8 +350,16 @@ open class Settings(private val context: Context) {
             editor.putString(getResString(R.string.settings_key_auth_credentials), credentials.verifier)
                 .putString(getResString(R.string.settings_key_auth_salt), credentials.salt)
                 .putInt(getResString(R.string.settings_key_auth_iterations), credentials.iterations)
+                .putString(getResString(R.string.settings_key_auth_kdf), credentials.kdf)
                 .remove(getResString(R.string.settings_key_auth_password_hash))
                 .remove(LEGACY_AUTH_PIN_HASH_KEY)
+            if (credentials.kdf == Constants.KDF_ARGON2ID) {
+                editor.putInt(getResString(R.string.settings_key_auth_memory_kib), credentials.memoryKiB)
+                    .putInt(getResString(R.string.settings_key_auth_parallelism), credentials.parallelism)
+            } else {
+                editor.remove(getResString(R.string.settings_key_auth_memory_kib))
+                    .remove(getResString(R.string.settings_key_auth_parallelism))
+            }
         }
         if (initialize) editor.putBoolean(getResString(R.string.settings_key_security_backup_warning), true)
         editor.putBoolean(getResString(R.string.settings_key_enable_android_backup_service), false)
@@ -374,6 +413,41 @@ open class Settings(private val context: Context) {
 
     open fun setIterations(value: Int) {
         setInt(R.string.settings_key_auth_iterations, value)
+    }
+
+    open fun getAuthKdf(): String {
+        val stored = getString(R.string.settings_key_auth_kdf, Constants.KDF_PBKDF2)
+            .trim()
+            .lowercase(Locale.ROOT)
+        return stored.ifEmpty { Constants.KDF_PBKDF2 }
+    }
+
+    open fun getAuthMemoryKiB(): Int {
+        return getIntValue(R.string.settings_key_auth_memory_kib, Constants.ARGON2_MEMORY_KIB)
+    }
+
+    open fun getAuthParallelism(): Int {
+        return getIntValue(R.string.settings_key_auth_parallelism, Constants.ARGON2_PARALLELISM)
+    }
+
+    @Throws(NoSuchAlgorithmException::class, InvalidKeySpecException::class)
+    open fun deriveVaultCredentials(plainPassword: String?): EncryptionHelper.PBKDF2Credentials {
+        val salt = getSalt()
+        return when (val kdf = getAuthKdf()) {
+            Constants.KDF_ARGON2ID -> EncryptionHelper.generateArgon2idCredentials(
+                password = plainPassword,
+                salt = salt,
+                memoryKiB = getAuthMemoryKiB(),
+                iterations = getIntValue(R.string.settings_key_auth_iterations, Constants.ARGON2_ITERATIONS),
+                parallelism = getAuthParallelism()
+            )
+            Constants.KDF_PBKDF2 -> EncryptionHelper.generatePBKDF2Credentials(
+                plainPassword,
+                salt,
+                getIterations()
+            )
+            else -> throw IllegalStateException("Unsupported authentication KDF: $kdf")
+        }
     }
 
     open fun getEncryption(): Constants.EncryptionType {

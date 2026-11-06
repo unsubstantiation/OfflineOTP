@@ -8,6 +8,33 @@ import XCTest
 /// produced: a Unicode note, an SSH key larger than the OTP seed limit, and entries whose details are
 /// marked visible.
 final class GoldenBackupTests: XCTestCase {
+    func testTheArgon2idGoldenBackupOpensAndReframesToTheSameBytes() throws {
+        let goldenBytes = try GoldenCorpus.golden("argon2id-otp_accounts.json.aes")
+        let expectedText = try GoldenCorpus.goldenText("expected-vault.json")
+        let header = try EncryptedBackup.parse(goldenBytes)
+        XCTAssertEqual(header.kdf, .argon2id)
+        XCTAssertEqual(header.memoryKiB, VaultCrypto.argon2MemoryKiB)
+        XCTAssertEqual(header.iterations, VaultCrypto.argon2Iterations)
+        XCTAssertEqual(header.parallelism, VaultCrypto.argon2Parallelism)
+        XCTAssertEqual(header.salt, GoldenCorpus.argon2BackupSalt)
+        XCTAssertEqual(header.encrypted.count,
+                       goldenBytes.count - EncryptedBackup.argon2HeaderBytes)
+
+        let opened = try EncryptedBackup.open(password: GoldenCorpus.password, data: goldenBytes)
+        XCTAssertEqual(opened, expectedText)
+
+        let resealed = try EncryptedBackup.sealArgon2id(
+            password: GoldenCorpus.password,
+            plain: expectedText,
+            memoryKiB: VaultCrypto.argon2MemoryKiB,
+            iterations: VaultCrypto.argon2Iterations,
+            parallelism: VaultCrypto.argon2Parallelism,
+            salt: GoldenCorpus.argon2BackupSalt,
+            nonce: GoldenCorpus.argon2BackupNonce
+        )
+        XCTAssertEqual(Array(resealed), Array(goldenBytes))
+    }
+
     func testTheGoldenBackupOpensToTheSharedDocument() throws {
         let opened = try EncryptedBackup.open(password: GoldenCorpus.password,
                                               data: try GoldenCorpus.golden("otp_accounts.json.aes"))
@@ -98,6 +125,24 @@ final class GoldenBackupTests: XCTestCase {
         data.append(contentsOf: rest)
         XCTAssertThrowsError(try EncryptedBackup.parse(data)) { error in
             XCTAssertEqual(error as? EncryptedBackupError, .unsupportedIterations)
+        }
+    }
+
+    func testUnsupportedArgon2BackupHeadersAreRefusedBeforeAnyDerivation() throws {
+        var wrongVersion = try GoldenCorpus.golden("argon2id-otp_accounts.json.aes")
+        wrongVersion[4] = 2
+        XCTAssertThrowsError(try EncryptedBackup.parse(wrongVersion)) { error in
+            XCTAssertEqual(error as? EncryptedBackupError, .unsupportedVersion)
+        }
+
+        var absurdMemory = try GoldenCorpus.golden("argon2id-otp_accounts.json.aes")
+        // Set memoryKiB = 1_048_576 (1 GiB, above the 256 MiB ceiling).
+        absurdMemory[5] = 0x00
+        absurdMemory[6] = 0x10
+        absurdMemory[7] = 0x00
+        absurdMemory[8] = 0x00
+        XCTAssertThrowsError(try EncryptedBackup.parse(absurdMemory)) { error in
+            XCTAssertEqual(error as? EncryptedBackupError, .invalidParameters)
         }
     }
 }

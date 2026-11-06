@@ -152,6 +152,46 @@ object EncryptionHelper {
     @JvmStatic
     fun generateRandom(length: Int): ByteArray = CryptoPrimitives.generateRandom(length)
 
+    /** Derives an Argon2id output and splits it into [PBKDF2Credentials.password] and [PBKDF2Credentials.key]. */
+    @JvmStatic
+    @JvmOverloads
+    fun generateArgon2idCredentials(
+        password: String?,
+        salt: ByteArray?,
+        memoryKiB: Int = Constants.ARGON2_MEMORY_KIB,
+        iterations: Int = Constants.ARGON2_ITERATIONS,
+        parallelism: Int = Constants.ARGON2_PARALLELISM
+    ): PBKDF2Credentials {
+        val derived = CryptoPrimitives.generateArgon2idCredentials(
+            password = password,
+            salt = salt,
+            memoryKiB = memoryKiB,
+            iterations = iterations,
+            parallelism = parallelism
+        )
+        return PBKDF2Credentials().apply {
+            this.password = derived.password
+            this.key = derived.key
+        }
+    }
+
+    /** Derives the 256-bit AES key used for Argon2id password-encrypted backups. */
+    @JvmStatic
+    @JvmOverloads
+    fun generateSymmetricKeyArgon2id(
+        password: String?,
+        salt: ByteArray?,
+        memoryKiB: Int = Constants.ARGON2_MEMORY_KIB,
+        iterations: Int = Constants.ARGON2_ITERATIONS,
+        parallelism: Int = Constants.ARGON2_PARALLELISM
+    ): SecretKey = CryptoPrimitives.generateSymmetricKeyArgon2id(
+        password = password,
+        salt = salt,
+        memoryKiB = memoryKiB,
+        iterations = iterations,
+        parallelism = parallelism
+    )
+
     /** Derives a PBKDF2 output and splits it into [PBKDF2Credentials.password] and [PBKDF2Credentials.key].
      *  The portable derivation lives in [CryptoPrimitives]; the nested return type keeps callers unchanged. */
     @JvmStatic

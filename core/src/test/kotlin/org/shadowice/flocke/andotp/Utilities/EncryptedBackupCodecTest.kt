@@ -36,12 +36,32 @@ class EncryptedBackupCodecTest {
         val blob = EncryptedBackupCodec.seal(password, plaintext)
         val header = EncryptedBackupHeader.parse(blob)
 
-        // 4-byte iteration count, 12-byte salt, then the nonce-prefixed GCM blob (>= 12 + 16).
-        assertTrue(blob.size >= Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH +
-                Constants.ENCRYPTION_IV_LENGTH + 16)
-        assertTrue(header.getIterations() in
-                Constants.PBKDF2_MIN_BACKUP_ITERATIONS..Constants.PBKDF2_MAX_BACKUP_ITERATIONS)
-        assertEquals(Constants.ENCRYPTION_IV_LENGTH, header.getSalt().size)
+        // 30-byte Argon2id header + nonce-prefixed GCM blob (>= 12 + 16).
+        assertTrue(blob.size >= EncryptedBackupHeader.MIN_ARGON2_BACKUP_BYTES)
+        assertTrue(header.isArgon2id())
+        assertEquals(EncryptedBackupHeader.Kdf.ARGON2ID, header.getKdf())
+        assertEquals(Constants.ARGON2_MEMORY_KIB, header.getMemoryKiB())
+        assertEquals(Constants.ARGON2_ITERATIONS, header.getIterations())
+        assertEquals(Constants.ARGON2_PARALLELISM, header.getParallelism())
+        assertEquals(Constants.ARGON2_SALT_LENGTH, header.getSalt().size)
+    }
+
+    @Test
+    fun legacyPbkdf2BackupStillOpensCleanly() {
+        val iter = 140_000
+        val salt = ByteArray(Constants.ENCRYPTION_IV_LENGTH) { (it + 3).toByte() }
+        val key = CryptoPrimitives.generateSymmetricKeyPBKDF2(password, iter, salt)
+        val encrypted = CryptoPrimitives.encrypt(key, plaintext.toByteArray(Charsets.UTF_8))
+        val legacyBlob = ByteBuffer.allocate(Constants.INT_LENGTH + salt.size + encrypted.size)
+            .putInt(iter)
+            .put(salt)
+            .put(encrypted)
+            .array()
+
+        val header = EncryptedBackupHeader.parse(legacyBlob)
+        assertFalse(header.isArgon2id())
+        assertEquals(EncryptedBackupHeader.Kdf.PBKDF2, header.getKdf())
+        assertEquals(plaintext, EncryptedBackupCodec.open(password, legacyBlob))
     }
 
     @Test

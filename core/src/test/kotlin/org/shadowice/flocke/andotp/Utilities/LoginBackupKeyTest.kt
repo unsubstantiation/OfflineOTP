@@ -16,18 +16,21 @@ class LoginBackupKeyTest {
 
     private fun decrypt(frame: ByteArray, password: String): ByteArray {
         val header = EncryptedBackupHeader.parse(frame)
-        val key = CryptoPrimitives.generateSymmetricKeyPBKDF2(password, header.getIterations(), header.getSalt())
+        val key = header.deriveKey(password)
         return CryptoPrimitives.decrypt(key, header.getEncrypted())
     }
 
     @Test
-    fun snapshotsUseExistingFramingAndTheLoginPassword() {
+    fun snapshotsUseArgon2idFramingAndTheLoginPassword() {
         LoginBackupKey.derive(password).use { key ->
             val first = key.encrypt(plaintext)
             val second = key.encrypt(plaintext)
             val header1 = EncryptedBackupHeader.parse(first)
             val header2 = EncryptedBackupHeader.parse(second)
-            assertEquals(Constants.PBKDF2_MAX_BACKUP_ITERATIONS, header1.getIterations())
+            assertTrue(header1.isArgon2id())
+            assertEquals(Constants.ARGON2_MEMORY_KIB, header1.getMemoryKiB())
+            assertEquals(Constants.ARGON2_ITERATIONS, header1.getIterations())
+            assertEquals(Constants.ARGON2_PARALLELISM, header1.getParallelism())
             assertArrayEquals(header1.getSalt(), header2.getSalt())
             assertFalse(header1.getEncrypted().copyOfRange(0, 12).contentEquals(header2.getEncrypted().copyOfRange(0, 12)))
             assertArrayEquals(plaintext, decrypt(first, password))

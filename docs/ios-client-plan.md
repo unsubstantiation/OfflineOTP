@@ -38,11 +38,11 @@ Every constant below is enforced by `:core` and by a Python guard
 | Property | Value |
 | --- | --- |
 | Plaintext | the compact `VaultJson` document: a UTF-8 JSON array of entries |
-| Key derivation | PBKDF2-HMAC-**SHA1**, **256-bit** output, **16-byte** salt, iteration count from the settings file |
-| Written iteration count | at least **30000** (`PBKDF2_MIN_AUTH_ITERATIONS`); a reader accepts 1 – 20000000 |
-| AES key | the **first 16 bytes** of that 32-byte output (lower half) |
-| Verifier | the **last 16 bytes** (upper half), stored Base64 URL-safe |
-| Cipher | AES-**GCM**, **128-bit** tag, **96-bit** nonce |
+| Key derivation (writer) | **Argon2id** v1.3 (`0x13`, RFC 9106), **512-bit** (64-byte) output, **16-byte** salt, **65536** KiB (64 MiB) memory, **3** iterations, **4** lanes |
+| Legacy reader compatibility | when `auth_kdf` is unset or `pbkdf2`, reads legacy PBKDF2-HMAC-**SHA1** (**256-bit** output, **16-byte** salt; legacy writer floor **30000** `PBKDF2_MIN_AUTH_ITERATIONS`, reader ceiling 1 – 20000000) |
+| AES key | the **first 32 bytes** (256-bit AES-256-GCM key) of the 64-byte Argon2id output (legacy PBKDF2: first 16 bytes / AES-128-GCM) |
+| Verifier | the **last 32 bytes** (upper half, 256 bits; legacy PBKDF2: last 16 bytes), stored Base64 URL-safe |
+| Cipher | AES-256-**GCM** (legacy PBKDF2: AES-128-GCM), **128-bit** tag, **96-bit** nonce |
 | Framing | `nonce (12 bytes) ‖ ciphertext ‖ tag (16 bytes)`; nothing else, no header |
 
 **Field order in the document.** The stored field order is part of the format, not an accident:
@@ -59,18 +59,20 @@ one the phone wrote — that is what `expected-vault.json` pins, and what the ro
 Byte identity with a *desktop*-written vault is not a goal and could not be, short of reimplementing
 Java's `HashMap` iteration.
 
-Settings beside the vault (Android `SharedPreferences`, desktop `data/vault.properties`) hold
-`auth_method=password`, `encryption=password`, `auth_salt` (Base64 URL-safe, 16 bytes),
-`auth_iterations` (int) and `auth_credentials` (Base64 URL-safe verifier, compared in constant
+Settings beside the vault (Android `SharedPreferences`, desktop `data/vault.properties`, iOS
+`data/vault.plist`) hold `auth_method=password`, `encryption=password`, `auth_kdf=argon2id`
+(omitted or `pbkdf2` on legacy vaults), `auth_salt` (Base64 URL-safe, 16 bytes),
+`auth_memory_kib` (65536), `auth_iterations` (int: 3 for Argon2id, ≥ 30000 for legacy PBKDF2),
+`auth_parallelism` (4) and `auth_credentials` (Base64 URL-safe verifier, compared in constant
 time). The verifier is a fast pre-check; the GCM tag is the real gate.
 
 ### 2. Encrypted backup: `otp_accounts_<timestamp>.json.aes`
 
 | Property | Value |
 | --- | --- |
-| Framing | `4-byte big-endian iterations ‖ 12-byte salt ‖ 12-byte nonce ‖ ciphertext ‖ 16-byte tag` |
-| Key | PBKDF2-HMAC-SHA1, **all 32 bytes** (no split — unlike the vault key) |
-| Iterations | writer picks 140000 – 160000; reader accepts 1 – 1000000 |
+| Current framing (Argon2id v1) | `"OOTP" (4 bytes) ‖ 0x01 ‖ 4-byte big-endian memoryKiB ‖ 4-byte big-endian iterations ‖ 1-byte parallelism ‖ 16-byte salt ‖ 12-byte nonce ‖ ciphertext ‖ 16-byte tag` (30-byte KDF header) |
+| Current key | **Argon2id** v1.3 (`65536` KiB, `t = 3`, `p = 4`), **all 32 bytes** (no split — unlike the vault key) |
+| Legacy framing (read-only) | `4-byte big-endian iterations ‖ 12-byte salt ‖ 12-byte nonce ‖ ciphertext ‖ 16-byte tag` (PBKDF2-HMAC-SHA1, all 32 bytes; legacy writer range 140000 – 160000, reader accepts 1 – 1000000) |
 | Plaintext | the same UTF-8 `VaultJson` document |
 
 ### 3. Entry JSON
@@ -119,9 +121,11 @@ time). The verifier is a fast pre-check; the GCM tag is the real gate.
 
 | File | What the iOS test must do with it |
 | --- | --- |
-| `secrets.dat` + `vault.properties` | unlock, decode, and re-encode to exactly `expected-vault.json` |
+| `argon2id-secrets.dat` + `argon2id-vault.properties` | unlock Argon2id vault (`65536` KiB, `t = 3`, `p = 4`), decode, and verify verifier parity |
+| `argon2id-otp_accounts.json.aes` | decrypt Argon2id v1 backup to `expected-vault.json` and re-seal deterministically |
+| `secrets.dat` + `vault.properties` | unlock legacy PBKDF2 vault, decode, and re-encode to exactly `expected-vault.json` |
 | `expected-vault.json` | compare bytes after a round-trip, not just parsed values |
-| `otp_accounts.json.aes` | decrypt to the same document, then re-seal deterministically |
+| `otp_accounts.json.aes` | decrypt legacy PBKDF2 backup to the same document, then re-seal deterministically |
 | `desktop-note-export.json.aes`, `desktop-ssh-export.json.aes`, `desktop-privacy-export.json.aes` | open a real backup containing a Unicode note, a >5 KiB SSH key and hidden/revealed entries |
 
 A Swift test target reads those files **from the repository path** (no copies), so a format change
@@ -149,7 +153,8 @@ what remains.
 | Path | What it is |
 | --- | --- |
 | `ios/Package.swift` | The Swift package, iOS 17 / macOS 14, one library and one test target |
-| `ios/Sources/OfflineOTPKit/VaultCrypto.swift` | PBKDF2-HMAC-SHA1 through CommonCrypto, AES-GCM through CryptoKit, the credential split, Base64 URL-safe, constant-time compare |
+| `ios/Sources/OfflineOTPKit/Argon2id.swift` | Pure-Swift RFC 7693 BLAKE2b and RFC 9106 Argon2id v1.3, byte-identical to `:core` |
+| `ios/Sources/OfflineOTPKit/VaultCrypto.swift` | Argon2id v1.3 + legacy PBKDF2-HMAC-SHA1 (CommonCrypto), AES-GCM through CryptoKit, the credential split, Base64 URL-safe, constant-time compare |
 | `ios/Sources/OfflineOTPKit/PasswordVault.swift` | The vault engine over `AtomicByteStore` / `KeyValueSettings` ports, plus a file-backed store and a plist settings store |
 | `ios/Sources/OfflineOTPKit/VaultDocument.swift`, `Entry.swift` | The entry document: parse with the shared bounds, write in the canonical field order, keep what this build cannot display |
 | `ios/Sources/OfflineOTPKit/EncryptedBackup.swift` | The backup header, seal and open |
@@ -321,7 +326,8 @@ nothing about that backup is weaker than the vault file itself.
 
 - Vault password and keys stay in the **Keychain** with `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`;
   the derived key is never written to disk, `UserDefaults`, or a log.
-- PBKDF2 through CommonCrypto (`CCKeyDerivationPBKDF`), AES-GCM through CryptoKit; no third-party
+- Argon2id v1.3 (RFC 9106) + BLAKE2b (RFC 7693) in pure Swift, legacy PBKDF2 through CommonCrypto
+  (`CCKeyDerivationPBKDF`), and AES-GCM through CryptoKit; no third-party
   crypto dependency.
 - No networking code at all, matching the other clients (the app is offline by design; that is also
   why the App Store privacy answers are short).

@@ -155,8 +155,7 @@ class AuthenticationFlowDeviceTest {
             lease!!.use {
                 val plaintext = "[]".toByteArray(Charsets.UTF_8)
                 val frame = EncryptedBackupHeader.parse(it.key.encrypt(plaintext))
-                val recoveryKey = EncryptionHelper.generateSymmetricKeyPBKDF2(PASSWORD,
-                    frame.getIterations(), frame.getSalt())
+                val recoveryKey = frame.deriveKey(PASSWORD)
                 assertTrue(EncryptionHelper.decrypt(recoveryKey, frame.getEncrypted()).contentEquals(plaintext))
             }
             VaultSession.lock()

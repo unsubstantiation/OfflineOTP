@@ -46,6 +46,63 @@ object CryptoPrimitives {
     }
 
     /**
+     * Derives the 256-bit AES key used for Argon2id password-encrypted backups.
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun generateSymmetricKeyArgon2id(
+        password: String?,
+        salt: ByteArray?,
+        memoryKiB: Int = Constants.ARGON2_MEMORY_KIB,
+        iterations: Int = Constants.ARGON2_ITERATIONS,
+        parallelism: Int = Constants.ARGON2_PARALLELISM
+    ): SecretKey {
+        val raw = Argon2id.deriveFromPassword(
+            password = password,
+            salt = salt,
+            memoryKiB = memoryKiB,
+            iterations = iterations,
+            parallelism = parallelism,
+            tagLength = Constants.ARGON2_HASH_LENGTH
+        )
+        return try {
+            SecretKeySpec(raw, "AES")
+        } finally {
+            Arrays.fill(raw, 0.toByte())
+        }
+    }
+
+    /**
+     * Derives a 512-bit (64-byte) Argon2id output and splits it into [PBKDF2Credentials.key]
+     * (lower 256 bits / 32 bytes, the AES-256-GCM vault key) and [PBKDF2Credentials.password]
+     * (upper 256 bits / 32 bytes, the stored authentication verifier).
+     */
+    @JvmStatic
+    @JvmOverloads
+    fun generateArgon2idCredentials(
+        password: String?,
+        salt: ByteArray?,
+        memoryKiB: Int = Constants.ARGON2_MEMORY_KIB,
+        iterations: Int = Constants.ARGON2_ITERATIONS,
+        parallelism: Int = Constants.ARGON2_PARALLELISM
+    ): PBKDF2Credentials {
+        val array = Argon2id.deriveFromPassword(
+            password = password,
+            salt = salt,
+            memoryKiB = memoryKiB,
+            iterations = iterations,
+            parallelism = parallelism,
+            tagLength = Constants.ARGON2_AUTH_HASH_LENGTH
+        )
+        val halfPoint = array.size / 2
+        val credentials = PBKDF2Credentials()
+        credentials.password = Arrays.copyOfRange(array, halfPoint, array.size)
+        credentials.key = Arrays.copyOfRange(array, 0, halfPoint)
+        Arrays.fill(array, 0.toByte())
+        return credentials
+    }
+
+    /**
      * Derives the AES key used for password-encrypted backups. Same credential bounds as the
      * app-side PBKDF2 factories.
      */
@@ -172,6 +229,32 @@ object CryptoPrimitives {
         val encrypted = Arrays.copyOfRange(cipherText, Constants.ENCRYPTION_IV_LENGTH, cipherText.size)
 
         return decrypt(secretKey, IvParameterSpec(iv), encrypted)
+    }
+
+    /** Encrypts with an explicit nonce, optional GCM associated data, and a 128-bit authentication tag. */
+    @JvmStatic
+    @Throws(NoSuchPaddingException::class, NoSuchAlgorithmException::class, InvalidAlgorithmParameterException::class,
+        InvalidKeyException::class, BadPaddingException::class, IllegalBlockSizeException::class)
+    fun encryptWithAad(secretKey: SecretKey, nonce: ByteArray, plainText: ByteArray, aad: ByteArray?): ByteArray {
+        val cipher = Cipher.getInstance(Constants.ALGORITHM_SYMMETRIC)
+        cipher.init(Cipher.ENCRYPT_MODE, secretKey, GCMParameterSpec(128, nonce))
+        if (aad != null && aad.isNotEmpty()) {
+            cipher.updateAAD(aad)
+        }
+        return cipher.doFinal(plainText)
+    }
+
+    /** Decrypts with an explicit nonce, optional GCM associated data, and a 128-bit authentication tag. */
+    @JvmStatic
+    @Throws(NoSuchPaddingException::class, NoSuchAlgorithmException::class, InvalidAlgorithmParameterException::class,
+        InvalidKeyException::class, BadPaddingException::class, IllegalBlockSizeException::class)
+    fun decryptWithAad(secretKey: SecretKey, nonce: ByteArray, cipherText: ByteArray, aad: ByteArray?): ByteArray {
+        val cipher = Cipher.getInstance(Constants.ALGORITHM_SYMMETRIC)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(128, nonce))
+        if (aad != null && aad.isNotEmpty()) {
+            cipher.updateAAD(aad)
+        }
+        return cipher.doFinal(cipherText)
     }
 
     /**

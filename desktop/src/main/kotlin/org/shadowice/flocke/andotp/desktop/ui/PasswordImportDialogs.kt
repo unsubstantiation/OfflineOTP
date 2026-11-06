@@ -38,8 +38,8 @@ internal object PasswordImportDialogs {
     fun showDetails(parent: JFrame, entry: Entry) {
         if (!entry.isPassword() || !entry.areDetailsVisible()) return
         val fields = entry.getPasswordFields()
-        val columns = fields.columns()
-        val text = javax.swing.JTextArea(columns.indices.joinToString("\n\n") { "${columns[it]}: ${fields.valueAt(it)}" }, 15, 48)
+        val body = org.shadowice.flocke.andotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
+        val text = javax.swing.JTextArea(body, 15, 48)
         text.isEditable = false
         text.lineWrap = true
         text.wrapStyleWord = true

@@ -54,14 +54,19 @@ class BackupHelperGuardTest(unittest.TestCase):
                          "framing must live in the core codec, not be rebuilt in BackupHelper")
 
     def test_encrypted_backup_framing(self):
-        """The framed layout is iteration count, then salt, then the AES-GCM output."""
+        """New backups use the versioned Argon2id header; legacy PBKDF2 backups remain readable."""
         codec = BACKUP_CODEC.read_text(encoding="utf-8")
-        self.assertIn(
-            ".allocate(Constants.INT_LENGTH + Constants.ENCRYPTION_IV_LENGTH + encrypted.size)",
-            codec)
-        self.assertIn(".putInt(iter)", codec)
-        self.assertIn(".put(salt)", codec)
-        self.assertIn(".put(encrypted)", codec)
+        header = (ROOT / "core/src/main/kotlin/org/shadowice/flocke/andotp/Utilities/EncryptedBackupHeader.kt").read_text(encoding="utf-8")
+        self.assertIn("EncryptedBackupHeader.frameArgon2id(", codec)
+        self.assertIn("CryptoPrimitives.generateSymmetricKeyArgon2id(", codec)
+        self.assertIn(".allocate(ARGON2_HEADER_BYTES + encrypted.size)", header)
+        self.assertIn(".put(MAGIC_0)", header)
+        self.assertIn(".put(FORMAT_VERSION_ARGON2ID.toByte())", header)
+        self.assertIn(".putInt(memoryKiB)", header)
+        self.assertIn(".putInt(iterations)", header)
+        self.assertIn(".put(parallelism.toByte())", header)
+        self.assertIn(".put(salt)", header)
+        self.assertIn(".put(encrypted)", header)
 
 
 class StorageAccessHelperGuardTest(unittest.TestCase):

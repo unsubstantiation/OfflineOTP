@@ -31,6 +31,9 @@ class GoldenInteropTest {
         "secrets.dat" to "f2d570403c9644864a316bff851bf578029fb1b4b834b5f6ef5eba7820fba556",
         "vault.properties" to "14f37ba98dfae0f07b8cbc317ec3d4ab4b667e5f7f43462aabc054fbd943e0ac",
         "otp_accounts.json.aes" to "a2451ff086486ff3cb0e82ae9d19d55c10de6943924ffab13143273a432d760f",
+        "argon2id-secrets.dat" to "2869d0debe4f8dd686695572f6eb11bbde2e3c3cc22fc7ed564294d2e2cbd437",
+        "argon2id-vault.properties" to "b93abf2e7323af5dd32cbf22936075589b58fbc76371cb28a84879c4bc8f9a39",
+        "argon2id-otp_accounts.json.aes" to "834abc43d097ed344a17e572d1f3a7bb11e5e84cdf7976efa4fbcb5cc6fffd5b",
         "desktop-export.json.aes" to "44ed6234519c772056ad314fb454415cb216b03431ccea25b34a88ff2751cbc9",
         "desktop-note-export.json.aes" to "8f0491db28888e5a5f729be396db6b6e16336f24a42ba05185fe44c3d27e25cc",
         "desktop-privacy-export.json.aes" to "62505c92f5ebfff957488bdf6cb5bbbc7f1054ca90ba5229c7cd74ad95971c2b",
@@ -88,6 +91,32 @@ class GoldenInteropTest {
         val denied = controller.openVault("$password-wrong")
         assertEquals(VaultController.Failure.AUTHENTICATION_FAILED,
             (denied as VaultController.Session.Error).failure)
+    }
+
+    @Test
+    fun argon2idGoldenVaultAndBackupOpenThroughTheDesktopStack() {
+        val expected = String(resource("expected-vault.json"), Charsets.UTF_8)
+
+        val dir = Files.createTempDirectory("offlineotp-argon2id-golden-").toFile()
+        File(dir, Constants.FILENAME_DATABASE).writeBytes(resource("argon2id-secrets.dat"))
+        File(dir, DesktopStorage.SETTINGS_FILE).writeBytes(resource("argon2id-vault.properties"))
+
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.openVault(password) as VaultController.Session.Loaded
+        assertEquals(2, loaded.entries.size)
+        assertEquals(expected, VaultJson.entriesToString(loaded.entries))
+
+        val denied = controller.openVault("$password-wrong")
+        assertEquals(VaultController.Failure.AUTHENTICATION_FAILED,
+            (denied as VaultController.Session.Error).failure)
+
+        val argonBackup = resource("argon2id-otp_accounts.json.aes")
+        val header = org.shadowice.flocke.andotp.Utilities.EncryptedBackupHeader.parse(argonBackup)
+        assertTrue(header.isArgon2id())
+        assertEquals(Constants.ARGON2_MEMORY_KIB, header.getMemoryKiB())
+        assertEquals(Constants.ARGON2_ITERATIONS, header.getIterations())
+        assertEquals(Constants.ARGON2_PARALLELISM, header.getParallelism())
+        assertEquals(expected, EncryptedBackupCodec.open(password, argonBackup))
     }
 
     @Test

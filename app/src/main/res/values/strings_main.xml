@@ -225,4 +225,15 @@
     <string name="thunderbird_export_success">Thunderbird credentials exported</string>
     <string name="thunderbird_export_failed">Could not export Thunderbird credentials</string>
     <string name="thunderbird_export_warning">This Thunderbird-compatible CSV is not encrypted and contains passwords. Store it securely.</string>
+    <string name="linscp_import">Import LinSCP SSH &amp; sessions</string>
+    <string name="linscp_export">Export to LinSCP vault</string>
+    <string name="linscp_backup_password">LinSCP vault password</string>
+    <string name="linscp_master_key_prompt">Enter Base64 LinSCP sessions.key</string>
+    <string name="linscp_import_success">LinSCP SSH keys and sessions imported</string>
+    <string name="linscp_import_failed">Could not import LinSCP credentials</string>
+    <string name="linscp_export_select">Select SSH keys and sessions for LinSCP</string>
+    <string name="linscp_export_info">Exports selected SSH keys and login sessions in LinSCP\'s Argon2id + AES-256-GCM vault format (Options \u2192 Credential vault \u2192 Import).</string>
+    <string name="linscp_export_empty">No SSH keys or login sessions to export</string>
+    <string name="linscp_export_success">LinSCP encrypted vault exported</string>
+    <string name="linscp_export_failed">Could not export LinSCP encrypted vault</string>
 </resources>

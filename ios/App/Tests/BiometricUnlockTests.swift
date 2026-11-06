@@ -79,7 +79,7 @@ final class BiometricUnlockTests: XCTestCase {
         XCTAssertTrue(store.enableBiometricUnlock(password: password))
 
         let saved = try XCTUnwrap(fake.savedKeys.last)
-        XCTAssertEqual(saved.count, 16, "the vault's session key, as the JVM derives it")
+        XCTAssertEqual(saved.count, 32, "the 256-bit AES-256-GCM vault session key, as the JVM derives it")
         XCTAssertNotEqual(saved, Array(password.utf8))
         // It is the key the password derives: that is what makes it open the file below.
         let second = makeStore(biometrics: FakeBiometricKeyStore())
@@ -193,7 +193,7 @@ final class BiometricUnlockTests: XCTestCase {
         let account = try XCTUnwrap(fake.storedAccount)
         // The enrolled face changed, or the vault was re-created: the key the device hands back is
         // not this vault's key.
-        fake.storedKey = [UInt8](repeating: 7, count: 16)
+        fake.storedKey = [UInt8](repeating: 7, count: 32)
         store.lock()
 
         store.unlockWithBiometrics()

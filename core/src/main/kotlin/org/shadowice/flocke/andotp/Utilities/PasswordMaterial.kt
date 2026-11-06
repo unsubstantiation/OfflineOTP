@@ -17,9 +17,12 @@ object PasswordMaterial {
         override fun toString(): String = "PasswordMaterial.Fields(redacted)"
     }
 
-    fun encode(columns: List<String>, row: BrowserPasswordCsv.Row): ByteArray {
-        require(columns.size in 1..BrowserPasswordCsv.MAX_COLUMNS && columns.size == row.size)
-        val fields = ArrayList<ByteArray>(columns.size * 2)
+    fun encode(columns: List<String>, row: BrowserPasswordCsv.Row): ByteArray =
+        encodeFields(columns.indices.map { columns[it] to row.valueAt(it) })
+
+    fun encodeFields(pairs: List<Pair<String, String>>): ByteArray {
+        require(pairs.size in 1..BrowserPasswordCsv.MAX_COLUMNS)
+        val fields = ArrayList<ByteArray>(pairs.size * 2)
         try {
             var size = 8L
             fun field(value: String) {
@@ -29,8 +32,8 @@ object PasswordMaterial {
                 size += 4L + bytes.size
                 require(size <= MAX_BYTES)
             }
-            for (i in columns.indices) { field(columns[i]); field(row.valueAt(i)) }
-            val result = ByteBuffer.allocate(size.toInt()).putInt(MAGIC).putInt(columns.size)
+            for ((name, value) in pairs) { field(name); field(value) }
+            val result = ByteBuffer.allocate(size.toInt()).putInt(MAGIC).putInt(pairs.size)
             for (bytes in fields) result.putInt(bytes.size).put(bytes)
             return result.array().also { decode(it) }
         } finally { fields.forEach { it.fill(0) } }

@@ -16,15 +16,18 @@ import javax.crypto.spec.SecretKeySpec
 
 /**
  * Password-encrypted vault engine, shared by the Android file store's password mode and the
- * desktop client. It owns only portable work — PBKDF2 credentials, AES-GCM vault framing and the
- * [VaultJson] document — and reaches the platform through [AtomicByteStore] and [KeyValueSettings]
- * ports, so the on-disk formats are identical everywhere.
+ * desktop client. It owns only portable work — Argon2id (and legacy PBKDF2) credentials, AES-GCM
+ * vault framing and the [VaultJson] document — and reaches the platform through [AtomicByteStore]
+ * and [KeyValueSettings] ports, so the on-disk formats are identical everywhere.
  *
- * On-disk layout, matching the historical Android vault:
- *  - `secrets.dat`: nonce-prefixed AES-GCM over the compact `VaultJson` document, keyed by the
- *    lower 128 bits of the PBKDF2-HMAC-SHA1 output;
- *  - settings: a 16-byte PBKDF2 salt, the iteration count and the Base64 URL-safe verifier (the
- *    upper 128 bits), compared in constant time.
+ * On-disk layout:
+ *  - `secrets.dat`: nonce-prefixed AES-256-GCM over the compact `VaultJson` document, keyed by the
+ *    lower 256 bits (32 bytes) of the 512-bit Argon2id output (legacy PBKDF2 vaults use the lower
+ *    128 bits of the 256-bit PBKDF2 output);
+ *  - settings: `auth_kdf = "argon2id"` (absent or `"pbkdf2"` on legacy vaults), a 16-byte salt,
+ *    the Argon2id memory/iteration/parallelism parameters (or legacy PBKDF2 iteration count), and
+ *    the Base64 URL-safe verifier (the upper 256 bits for Argon2id, upper 128 bits for legacy
+ *    PBKDF2), compared in constant time.
  *
  * Android KeyStore vaults have no portable equivalent and are intentionally out of scope here.
  */
@@ -160,23 +163,32 @@ class PasswordVault(
     }
 
     /**
-     * Generates the salt/verifier/iteration settings for a new password and returns the matching
-     * AES key. The desktop uses the fixed minimum iteration count rather than the Android wall
-     * clock benchmark, so provisioning stays deterministic and testable off-device; the count is
-     * stored with the vault and every reader honors it.
+     * Generates the Argon2id salt/verifier/parameter settings for a new password and returns the
+     * matching AES key.
      */
     private fun provisionCredentials(password: String): SecretKey {
-        val salt = CryptoPrimitives.generateRandom(Constants.PBKDF2_SALT_LENGTH)
-        val iterations = Constants.PBKDF2_MIN_AUTH_ITERATIONS
-        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, iterations)
+        val salt = CryptoPrimitives.generateRandom(Constants.ARGON2_SALT_LENGTH)
+        val memoryKiB = Constants.ARGON2_MEMORY_KIB
+        val iterations = Constants.ARGON2_ITERATIONS
+        val parallelism = Constants.ARGON2_PARALLELISM
+        val derived = CryptoPrimitives.generateArgon2idCredentials(
+            password = password,
+            salt = salt,
+            memoryKiB = memoryKiB,
+            iterations = iterations,
+            parallelism = parallelism
+        )
         try {
             settings.putString(VaultSettingsKeys.AUTH_METHOD,
                 Constants.AuthMethod.PASSWORD.name.lowercase())
             settings.putString(VaultSettingsKeys.ENCRYPTION,
                 Constants.EncryptionType.PASSWORD.name.lowercase())
+            settings.putString(VaultSettingsKeys.AUTH_KDF, Constants.KDF_ARGON2ID)
             settings.putString(VaultSettingsKeys.AUTH_CREDENTIALS, base64Url(derived.password))
             settings.putString(VaultSettingsKeys.AUTH_SALT, base64Url(salt))
+            settings.putInt(VaultSettingsKeys.AUTH_MEMORY_KIB, memoryKiB)
             settings.putInt(VaultSettingsKeys.AUTH_ITERATIONS, iterations)
+            settings.putInt(VaultSettingsKeys.AUTH_PARALLELISM, parallelism)
             // SecretKeySpec copies the bytes, so wiping the derived material leaves the key intact.
             return SecretKeySpec(derived.key, "AES")
         } finally {
@@ -189,10 +201,32 @@ class PasswordVault(
         val salt = base64UrlDecode(settings.getString(VaultSettingsKeys.AUTH_SALT, ""))
         val verifier = base64UrlDecode(settings.getString(VaultSettingsKeys.AUTH_CREDENTIALS, ""))
         if (salt.isEmpty() || verifier.isEmpty()) throw IllegalStateException("Missing vault credentials")
-        val iterations = settings.getInt(VaultSettingsKeys.AUTH_ITERATIONS,
-            Constants.PBKDF2_MIN_AUTH_ITERATIONS)
 
-        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, iterations)
+        val kdf = settings.getString(VaultSettingsKeys.AUTH_KDF, Constants.KDF_PBKDF2)
+            .trim()
+            .lowercase()
+            .ifEmpty { Constants.KDF_PBKDF2 }
+
+        val derived = when (kdf) {
+            Constants.KDF_ARGON2ID -> {
+                val memoryKiB = settings.getInt(VaultSettingsKeys.AUTH_MEMORY_KIB, Constants.ARGON2_MEMORY_KIB)
+                val iterations = settings.getInt(VaultSettingsKeys.AUTH_ITERATIONS, Constants.ARGON2_ITERATIONS)
+                val parallelism = settings.getInt(VaultSettingsKeys.AUTH_PARALLELISM, Constants.ARGON2_PARALLELISM)
+                CryptoPrimitives.generateArgon2idCredentials(
+                    password = password,
+                    salt = salt,
+                    memoryKiB = memoryKiB,
+                    iterations = iterations,
+                    parallelism = parallelism
+                )
+            }
+            Constants.KDF_PBKDF2 -> {
+                val iterations = settings.getInt(VaultSettingsKeys.AUTH_ITERATIONS,
+                    Constants.PBKDF2_MIN_AUTH_ITERATIONS)
+                CryptoPrimitives.generatePBKDF2Credentials(password, salt, iterations)
+            }
+            else -> throw IllegalStateException("Unsupported vault KDF: $kdf")
+        }
         try {
             if (!MessageDigest.isEqual(verifier, derived.password))
                 throw BadPaddingException("Vault password verification failed")

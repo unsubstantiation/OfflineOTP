@@ -57,7 +57,10 @@ interface KeyValueSettings {
 object VaultSettingsKeys {
     const val AUTH_METHOD = "auth_method"
     const val ENCRYPTION = "encryption"
+    const val AUTH_KDF = "auth_kdf"
     const val AUTH_CREDENTIALS = "auth_credentials"
     const val AUTH_SALT = "auth_salt"
     const val AUTH_ITERATIONS = "auth_iterations"
+    const val AUTH_MEMORY_KIB = "auth_memory_kib"
+    const val AUTH_PARALLELISM = "auth_parallelism"
 }

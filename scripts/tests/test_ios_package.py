@@ -48,12 +48,20 @@ class IosPackageTest(unittest.TestCase):
 
     def test_the_crypto_constants_match_the_shared_core(self):
         crypto = (SOURCES / "VaultCrypto.swift").read_text(encoding="utf-8")
+        argon = (SOURCES / "Argon2id.swift").read_text(encoding="utf-8")
         expectations = {
             "derivedKeyBytes": 256 // 8,
+            "vaultKeyBytes": kotlin_const("Utilities/Constants.kt", "ENCRYPTION_KEY_LENGTH"),
             "halfBytes": 16,
             "saltBytes": kotlin_const("Utilities/Constants.kt", "PBKDF2_SALT_LENGTH"),
             "nonceBytes": kotlin_const("Utilities/Constants.kt", "ENCRYPTION_IV_LENGTH"),
             "tagBytes": 128 // 8,
+            "argon2MemoryKiB": kotlin_const("Utilities/Constants.kt", "ARGON2_MEMORY_KIB"),
+            "argon2Iterations": kotlin_const("Utilities/Constants.kt", "ARGON2_ITERATIONS"),
+            "argon2Parallelism": kotlin_const("Utilities/Constants.kt", "ARGON2_PARALLELISM"),
+            "argon2SaltBytes": kotlin_const("Utilities/Constants.kt", "ARGON2_SALT_LENGTH"),
+            "argon2AuthDerivedBytes": kotlin_const("Utilities/Constants.kt",
+                                                   "ARGON2_AUTH_HASH_LENGTH"),
             "minAuthIterations": kotlin_const("Utilities/Constants.kt",
                                               "PBKDF2_MIN_AUTH_ITERATIONS"),
             "minBackupIterations": kotlin_const("Utilities/Constants.kt",
@@ -64,6 +72,8 @@ class IosPackageTest(unittest.TestCase):
         for name, value in expectations.items():
             self.assertIn(f"static let {name} = {value}", crypto, f"{name} drifted from :core")
         self.assertIn("maxIterations = 20_000_000", crypto)
+        self.assertIn("typeArgon2id: UInt32 = 2", argon)
+        self.assertIn("version: UInt32 = 0x13", argon)
         self.assertIn("PBKDF2WithHmacSHA1".replace("PBKDF2WithHmacSHA1", "kCCPRFHmacAlgSHA1"), crypto)
         self.assertIn("CCKeyDerivationPBKDF", crypto)
         self.assertIn("AES.GCM", crypto)
@@ -71,17 +81,23 @@ class IosPackageTest(unittest.TestCase):
     def test_the_backup_header_constants_match_the_codec(self):
         backup = (SOURCES / "EncryptedBackup.swift").read_text(encoding="utf-8")
         header = (CORE / "Utilities/EncryptedBackupHeader.kt").read_text(encoding="utf-8")
-        for name, value in (("iterationBytes", 4), ("saltBytes", 12)):
+        for name, value in (("iterationBytes", 4), ("saltBytes", 12), ("argon2SaltBytes", 16)):
             self.assertIn(f"public static let {name} = {value}", backup)
+        self.assertIn("public static let formatVersionArgon2id: UInt8 = 1", backup)
         self.assertIn("public static let minBytes = "
                       "iterationBytes + saltBytes + nonceBytes + tagBytes", backup)
+        self.assertIn("public static let minArgon2Bytes = argon2HeaderBytes + nonceBytes + tagBytes",
+                      backup)
         for line in ("const val ITERATION_BYTES = 4", "const val SALT_BYTES = 12",
+                     "const val ARGON2_SALT_BYTES = 16",
+                     "const val ARGON2_HEADER_BYTES = 4 + 1 + 4 + 4 + 1 + ARGON2_SALT_BYTES",
                      "const val NONCE_BYTES = 12", "const val TAG_BYTES = 16"):
             self.assertIn(line, header)
         self.assertEqual(1_000_000, kotlin_const("Utilities/EncryptedBackupHeader.kt",
                                                  "MAX_ITERATIONS"))
         self.assertIn("maxReadIterations = 1_000_000", backup)
-        # The backup key is the whole PBKDF2 output, unlike the vault's halved key.
+        # Backup keys use the full 32-byte KDF output (Argon2id for new writes, PBKDF2 for legacy).
+        self.assertIn("VaultCrypto.argon2id(", backup)
         self.assertIn("pbkdf2(password: password, salt: salt, iterations: iterations)", backup)
 
     def test_the_input_bounds_match_input_policy(self):
