@@ -83,10 +83,10 @@ public enum TokenCalculator {
         return out
     }
 
-    /// Legacy mOTP: the first six hex digits of `MD5(step + seed + PIN)`, in a fixed 10-second step.
+    /// Legacy mOTP-style code: the first six hex digits of `SHA256(step + seed + PIN)`, in a fixed 10-second step.
     public static func motp(pin: String, secret: String, unixTime: Int64, offset: Int = 0) -> String {
         let step = (unixTime / motpStepSeconds) + Int64(offset)
-        let digest = Insecure.MD5.hash(data: Data("\(step)\(secret)\(pin)".utf8))
+        let digest = SHA256.hash(data: Data("\(step)\(secret)\(pin)".utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         return String(hex.prefix(6))
     }
