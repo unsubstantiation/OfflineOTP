@@ -3,8 +3,7 @@
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="GoogleAppIndexingWarning"
-    android:installLocation="auto"
-    package="com.fairuniversal.offlineotp">
+    android:installLocation="auto">
 
     <!-- External destructive/automation IPC is only available to same-signer apps. -->
     <permission android:name="${applicationId}.permission.CONTROL_VAULT"

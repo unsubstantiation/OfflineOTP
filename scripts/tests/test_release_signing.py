@@ -86,7 +86,7 @@ class ReleaseSigningTest(unittest.TestCase):
         self.assertLess(configs, build_types)
         self.assertLess(declaration, gradle.index("if (releaseSigningConfigured)"))
         self.assertIn("if (releaseSigningConfigured) {\n"
-                      "                signingConfig signingConfigs.release", gradle)
+                      "                signingConfig = signingConfigs.release", gradle)
 
     def test_a_keystore_without_credentials_fails_before_signing(self):
         """Gradle must name the missing property, not fail later inside apksigner."""
@@ -102,11 +102,11 @@ class ReleaseSigningTest(unittest.TestCase):
         self.assertIn("if (releaseSigningConfigured) {", between)
 
     def test_credentials_live_in_the_android_release_environment(self):
-        """Deployments are not needed - artifacts are downloaded from Actions."""
+        """Signing secrets live in the `android-release` GitHub Environment."""
         workflow = self.workflow_text()
         for job in ("signing-preflight:", "sign-release:"):
-            self.assertNotIn(f"    environment: {ENVIRONMENT}\n", self.job_block(job),
-                             f"{job} must not declare the {ENVIRONMENT} environment (would create deployments)")
+            self.assertIn(f"    environment: {ENVIRONMENT}\n", self.job_block(job),
+                          f"{job} must declare the {ENVIRONMENT} environment so signing secrets are visible")
         # The environment allows master only, so every other dispatch reports a skip, not a gate
         # failure it cannot explain.
         self.assertIn("if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'\n",

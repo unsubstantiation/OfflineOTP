@@ -19,19 +19,42 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import check_manifest  # noqa: E402
 
 MANIFEST = ROOT / "app/src/main/AndroidManifest.xml"
+BUILD_GRADLE = ROOT / "app/build.gradle"
 POLICY = json.loads((ROOT / "scripts/manifest-policy.json").read_text(encoding="utf-8"))
 PACKAGE = POLICY["package"]
+NAMESPACE = re.search(
+    r'(?m)^\s*namespace\s+(?:=\s*)?["\']([^"\']+)["\']\s*$',
+    BUILD_GRADLE.read_text(encoding="utf-8"),
+).group(1)
 
 
 def check_source(text):
-    """Run the packaged-manifest policy on source XML with the application ID resolved."""
+    """Run the packaged-manifest policy on source XML with AGP namespace/applicationId applied."""
+    android = check_manifest.ANDROID
+    root = ET.fromstring(text.replace("${applicationId}", PACKAGE))
+    root.set("package", PACKAGE)
+    for app in root.findall("application"):
+        for component in app:
+            if component.tag in ("activity", "activity-alias", "service", "receiver", "provider"):
+                raw_name = component.get(android + "name", "")
+                if raw_name:
+                    component.set(android + "name", check_manifest.qualified(raw_name, NAMESPACE))
     with tempfile.TemporaryDirectory() as directory:
         path = Path(directory) / "AndroidManifest.xml"
-        path.write_text(text.replace("${applicationId}", PACKAGE), encoding="utf-8")
+        ET.ElementTree(root).write(path, encoding="utf-8", xml_declaration=True)
         return check_manifest.check_manifest(path, POLICY, require_sdk=False)
 
 
 class ManifestSourcePolicyTest(unittest.TestCase):
+    def test_source_manifests_do_not_declare_package_attribute(self):
+        """AGP 8+ forbids `package` in source manifests; namespace/applicationId live in Gradle."""
+        source_root = ROOT / "app/src"
+        manifests = sorted(source_root.glob("*/AndroidManifest.xml"))
+        self.assertIn(MANIFEST, manifests)
+        for manifest in manifests:
+            with self.subTest(manifest=manifest):
+                self.assertIsNone(ET.parse(manifest).getroot().get("package"))
+
     def test_source_manifest_matches_release_policy(self):
         errors = check_source(MANIFEST.read_text(encoding="utf-8"))
         # Library components are only added during Gradle manifest merging.

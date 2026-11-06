@@ -149,9 +149,10 @@ object EntryJson {
     @JvmStatic
     @JvmOverloads
     @Throws(JSONException::class)
-    fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, hiddenLabel: String = "", digits: Int,
+    fun serialize(kind: OtpKind, secret: ByteArray, issuer: String, label: String, digits: Int,
                   period: Int, counter: Long, algorithm: OtpHashAlgorithm, thumbnailName: String,
                   lastUsed: Long, usedFrequency: Long, tags: List<String>, pin: String,
+                  hiddenLabel: String = "",
                   detailsVisible: Boolean = false,
                   sshConnection: SshConnection.Details? = null): JSONObject {
         val jsonObj = JSONObject()

@@ -323,9 +323,9 @@ object BiometricKeyStore {
         })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(switchTitle)
+            .setTitle(BiometricWording.switchTitle)
             .setSubtitle("Confirm biometrics to enable quick unlock")
-            .setNegativeButtonText(cancel)
+            .setNegativeButtonText(BiometricWording.cancel)
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
 
@@ -453,9 +453,9 @@ object BiometricKeyStore {
         })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(switchTitle)
-            .setSubtitle(reason)
-            .setNegativeButtonText(cancel)
+            .setTitle(BiometricWording.switchTitle)
+            .setSubtitle(BiometricWording.reason)
+            .setNegativeButtonText(BiometricWording.cancel)
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
 

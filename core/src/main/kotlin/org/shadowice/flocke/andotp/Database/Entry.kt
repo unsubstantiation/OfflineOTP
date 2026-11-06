@@ -85,6 +85,7 @@ open class Entry {
 
     constructor()
 
+    @JvmOverloads
     constructor(type: OTPType, secret: String?, period: Int, digits: Int, issuer: String?, label: String?,
                 algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>,
                 hiddenLabel: String? = null) {
@@ -101,6 +102,7 @@ open class Entry {
         validate()
     }
 
+    @JvmOverloads
     constructor(type: OTPType, secret: String?, counter: Long, digits: Int, issuer: String?, label: String?,
                 algorithm: TokenCalculator.HashAlgorithm, tags: MutableList<String>,
                 hiddenLabel: String? = null) {
@@ -117,6 +119,7 @@ open class Entry {
         validate()
     }
 
+    @JvmOverloads
     constructor(type: OTPType, secret: String, issuer: String?, label: String?,
                 tags: MutableList<String>, hiddenLabel: String? = null) {
         this.type = type

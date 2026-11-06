@@ -612,27 +612,28 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 }
                 biometricPref.setOnPreferenceChangeListener { _, newValue ->
                     val enable = newValue as? Boolean ?: return@setOnPreferenceChangeListener false
+                    val activity = getActivity() ?: return@setOnPreferenceChangeListener false
                     if (enable) {
                         if (!isPasswordVault) {
-                            Toast.makeText(getActivity(), R.string.settings_dialog_msg_encryption_invalid_with_auth, Toast.LENGTH_LONG).show()
+                            Toast.makeText(activity, R.string.settings_dialog_msg_encryption_invalid_with_auth, Toast.LENGTH_LONG).show()
                             return@setOnPreferenceChangeListener false
                         }
-                        val avail = BiometricKeyStore.availability(getActivity()!!)
+                        val avail = BiometricKeyStore.availability(activity)
                         if (!avail.isAvailable) {
                             val msg = if (avail == BiometricKeyStore.Availability.NOT_ENROLLED)
                                 R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable
-                            Toast.makeText(getActivity(), msg, Toast.LENGTH_LONG).show()
+                            Toast.makeText(activity, msg, Toast.LENGTH_LONG).show()
                             return@setOnPreferenceChangeListener false
                         }
                         // Ask for vault password first — an unlocked phone must not be enough to add a shortcut.
-                        val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                        promptBiometricEnrollment(biometricPref, activity)
+                        val settingsActivity = activity as? SettingsActivity ?: return@setOnPreferenceChangeListener false
+                        promptBiometricEnrollment(biometricPref, settingsActivity)
                         false
                     } else {
                         try {
-                            BiometricKeyStore.clear(getActivity()!!)
+                            BiometricKeyStore.clear(activity)
                         } catch (_: Exception) { }
-                        Toast.makeText(getActivity(), R.string.settings_toast_biometric_turned_off, Toast.LENGTH_SHORT).show()
+                        Toast.makeText(activity, R.string.settings_toast_biometric_turned_off, Toast.LENGTH_SHORT).show()
                         true
                     }
                 }
@@ -683,7 +684,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
                 hint = getString(R.string.settings_hint_password)
             }
-            AlertDialog.Builder(ctx)
+            val dialog = AlertDialog.Builder(ctx)
                 .setTitle(R.string.settings_title_biometric)
                 .setMessage(BiometricKeyStore.BiometricWording.enableQuestion)
                 .setView(passwordInput)
@@ -735,8 +736,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     }
                 }
                 .setNegativeButton(android.R.string.cancel) { _, _ -> passwordInput.setText("") }
-                .setOnDismissListener { passwordInput.setText("") }
-                .show()
+                .create()
+            dialog.setOnDismissListener { passwordInput.setText("") }
+            dialog.show()
         }
 
         private fun verifyVaultPassword(plainPassword: String): Boolean {

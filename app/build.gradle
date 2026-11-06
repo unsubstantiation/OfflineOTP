@@ -39,10 +39,10 @@ android {
                 storePassword project.properties['RELEASE_STORE_PASSWORD'] ?: ''
                 keyAlias project.property('RELEASE_KEY_ALIAS')
                 keyPassword project.properties['RELEASE_KEY_PASSWORD'] ?: ''
-                enableV1Signing true
-                enableV2Signing true
-                enableV3Signing true
-                enableV4Signing true
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             }
         }
     }
@@ -51,7 +51,7 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
             if (releaseSigningConfigured) {
-                signingConfig signingConfigs.release
+                signingConfig = signingConfigs.release
             }
         }
         debug {
@@ -63,11 +63,11 @@ android {
         }
     }
     lint {
-        abortOnError true
+        abortOnError = true
         // An initial focused gate, not a fabricated full-project lint baseline.
         checkOnly 'NewApi', 'InlinedApi', 'TrustAllX509TrustManager',
                 'BadHostnameVerifier'
-        warningsAsErrors true
+        warningsAsErrors = true
     }
     buildFeatures {
         dataBinding = true
@@ -88,7 +88,7 @@ android {
     }
     compileOptions {
         // Flag to enable support for the new language APIs
-        coreLibraryDesugaringEnabled true
+        coreLibraryDesugaringEnabled = true
 
         // Sets Java compatibility to Java 8
         sourceCompatibility JavaVersion.VERSION_1_8
