@@ -20,7 +20,7 @@
     <string name="backup_receiver_title_backup_success">Backup successful</string>
     <string name="backup_receiver_unexpected_error">Could not start the backup.</string>
 
-    <string name="backup_receiver_encrypted_disabled">Encrypted backups are disabled. Enable them in Settings.</string>
+    <string name="backup_receiver_encrypted_disabled">Full Encrypted Backups are disabled. Enable them in Settings.</string>
 
     <string name="backup_receiver_custom_encryption_failed">Broadcast backups require Android KeyStore encryption.</string>
     <string name="backup_receiver_no_location_set">No backup location set. Set one in Settings.</string>
@@ -57,7 +57,7 @@
 
     <string name="backup_label_type">Backup type: </string>
 
-    <string name="backup_label_crypt">The backup is encrypted with a custom password using AES-256. Set a
+    <string name="backup_label_crypt">The Full Encrypted Backup is encrypted with a custom password using AES-256. Set a
         default password in Settings to avoid entering it every time.</string>
     <string name="backup_label_pgp">The backup is encrypted with the OpenPGP key selected in Settings,
         using a separate OpenPGP app.</string>
@@ -65,16 +65,13 @@
 
     <string name="backup_button_backup">Create backup</string>
     <string name="backup_button_restore">Restore backup</string>
-    <string name="backup_button_restore_plaintext">Restore plain-text backup…</string>
-    <string name="backup_plaintext_warning_title">Restore plain-text backup?</string>
-    <string name="backup_plaintext_warning_message">Plain-text backups contain your OTP secrets without encryption. Only restore a file you trust. OfflineOTP imports the entries but does not create plain-text backups.</string>
     <string name="backup_desc_openpgp_connecting">Connecting to the selected OpenPGP provider…</string>
     <string name="backup_desc_openpgp_unavailable">Could not connect to the selected OpenPGP provider. Check that it is installed and enabled, then try again.</string>
     <string name="backup_desc_vault_locked_picker">The vault locked while the file picker was open. The selected file will continue after you unlock.</string>
-    <string name="backup_toast_plaintext_invalid">The plain-text backup is empty or is not valid UTF-8.</string>
+
 
     <string-array name="backup_list_type_names">
-        <item>Encrypted</item>
+        <item>Full Encrypted Backup</item>
         <item>OpenPGP</item>
     </string-array>
 

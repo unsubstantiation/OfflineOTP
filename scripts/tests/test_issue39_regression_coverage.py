@@ -119,14 +119,11 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
 
     def test_entry_tap_policy_and_plaintext_restore_failures_are_covered(self):
         taps = read(CORE_TEST / "View/TapSequenceControllerTest.kt")
-        decoder = read(CORE_TEST / "Utilities/PlainTextBackupDecoderTest.kt")
-        task = read(APP / "Tasks/PlainTextRestoreTask.kt")
         backup = read(APP / "Activities/BackupActivity.kt")
         self.assertIn("singleClickRunsAfterTheDoubleTapWindow", taps)
         self.assertIn("twoClicksOnTheSameTargetCancelThePendingSingle", taps)
-        self.assertIn("rejectsMalformedUtf8InsteadOfReplacingSecretBytes", decoder)
-        self.assertIn("PlainTextBackupDecoder.decode(bytes)", task)
-        self.assertIn("backup_toast_plaintext_invalid", task)
+        self.assertNotIn("PlainTextBackupDecoder", (APP / "Tasks/PlainTextRestoreTask.kt").read_text() if (APP / "Tasks/PlainTextRestoreTask.kt").exists() else "")
+        self.assertNotIn("PlainTextBackupDecoder", (CORE / "Utilities/PlainTextBackupDecoder.kt").read_text() if (CORE / "Utilities/PlainTextBackupDecoder.kt").exists() else "")
         self.assertIn("handleRestoreTaskResult", backup)
         task_host = read(APP / "Activities/BackgroundTaskActivity.kt")
         outcome = task_host[task_host.index("private fun handleTaskOutcome"):task_host.index("private fun checkBackgroundTask")]
@@ -185,14 +182,12 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
             "aWrongPasswordIsRejected",
             "aTruncatedEncryptedBackupIsRejected",
             "aMissingDocumentFailsWithoutCrashing",
-            "aLegacyPlaintextBackupIsRestored",
-            "malformedPlaintextIsRejected",
         ):
             self.assertIn(needle, restore)
+        for gone in ("aLegacyPlaintextBackupIsRestored", "malformedPlaintextIsRejected", "PlainTextRestoreTask", "backup_toast_plaintext_invalid"):
+            self.assertNotIn(gone, restore)
         self.assertIn("EncryptedRestoreTask(", restore)
-        self.assertIn("PlainTextRestoreTask(", restore)
         self.assertIn("backup_toast_import_decryption_failed", restore)
-        self.assertIn("backup_toast_plaintext_invalid", restore)
 
     def test_screen_off_lock_has_a_device_regression(self):
         device_test = read(ANDROID_TEST / "ScreenOffLockDeviceTest.kt")

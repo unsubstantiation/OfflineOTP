@@ -28,46 +28,23 @@ object BackupDialogs {
         // the file unreadable later, and there is no way to recover it.
         val password = PasswordDialog.promptNewBackupPassword(parent) ?: return
         // Dated like the Android backups, so exporting twice never overwrites an earlier file.
-        val target = chooseFile(parent, "Save encrypted backup", true,
+        val target = chooseFile(parent, "Save Full Encrypted Backup", true,
             BackupFileNames.encrypted(Date()), "aes") ?: return
         try {
             target.writeBytes(coordinator.encryptedBackup(password))
-            showResult(parent, "Encrypted backup written to ${target.name}")
+            showResult(parent, "Full Encrypted Backup written to ${target.name}")
         } catch (error: Exception) {
             showError(parent, error)
         }
     }
 
     fun restoreEncryptedBackup(parent: JFrame, coordinator: BackupCoordinator) {
-        val source = chooseFile(parent, "Open encrypted backup", false, null, "aes") ?: return
+        val source = chooseFile(parent, "Open Full Encrypted Backup", false, null, "aes") ?: return
         val password = PasswordDialog.prompt(parent, "Backup password") ?: return
-        val replace = confirmRestore(parent, "Restore encrypted backup") ?: return
+        val replace = confirmRestore(parent, "Restore Full Encrypted Backup") ?: return
         try {
             val count = coordinator.restoreEncrypted(password, readBounded(parent, source) ?: return, replace)
             showResult(parent, restoreSummary(count, replace))
-        } catch (error: Exception) {
-            showError(parent, error)
-        }
-    }
-
-    /**
-     * Restores a legacy unencrypted JSON backup, the desktop counterpart of Android's **Restore
-     * plain-text backup…**: the same warning, the same merge/replace choice, and no writer — the
-     * desktop never creates a plain-text backup either.
-     */
-    fun restorePlainText(parent: JFrame, coordinator: BackupCoordinator) {
-        val source = chooseFile(parent, "Open plain-text backup", false, null, "json", "txt") ?: return
-        if (JOptionPane.showConfirmDialog(parent,
-                "Plain-text backups contain your OTP secrets without encryption. Only restore a file you trust. " +
-                    "OfflineOTP imports the entries but does not create plain-text backups.",
-                "Restore plain-text backup?", JOptionPane.OK_CANCEL_OPTION,
-                JOptionPane.WARNING_MESSAGE) != JOptionPane.OK_OPTION) return
-        val replace = confirmRestore(parent, "Restore plain-text backup") ?: return
-        try {
-            val count = coordinator.restorePlainText(readBounded(parent, source) ?: return, replace)
-            showResult(parent, restoreSummary(count, replace))
-        } catch (error: IllegalArgumentException) {
-            showError(parent, "The plain-text backup is empty or is not valid UTF-8.")
         } catch (error: Exception) {
             showError(parent, error)
         }

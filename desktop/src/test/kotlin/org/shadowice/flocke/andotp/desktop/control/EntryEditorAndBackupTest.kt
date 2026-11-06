@@ -851,26 +851,4 @@ class EntryEditorAndBackupTest {
         } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
     }
 
-    @Test
-    fun aPlainTextBackupRestoresThroughTheSharedDecoder() {
-        val (dir, controller, state) = harness()
-        try {
-            val document = VaultJson.entriesToString(listOf(entry("Legacy", "carol")))
-            // A byte-order mark is accepted, as it is by Android's PlainTextBackupDecoder.
-            val bytes = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
-                document.toByteArray(Charsets.UTF_8)
-            val coordinator = BackupCoordinator(controller, state)
-            assertEquals(1, coordinator.restorePlainText(bytes))
-            assertEquals("Legacy", state.snapshot().single().getIssuer())
-
-            // Invalid UTF-8 and an empty document are refused before anything is written.
-            val before = VaultJson.entriesToString(state.snapshot())
-            for (invalid in listOf(byteArrayOf(0xC3.toByte()), ByteArray(0))) {
-                try { coordinator.restorePlainText(invalid); throw AssertionError("accepted invalid text") }
-                catch (_: IllegalArgumentException) { }
-            }
-            assertEquals(before, VaultJson.entriesToString(state.snapshot()))
-        } finally { state.snapshot().forEach { it.destroy() }; dir.deleteRecursively() }
-    }
-
 }

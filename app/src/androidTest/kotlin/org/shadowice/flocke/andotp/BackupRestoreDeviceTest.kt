@@ -6,9 +6,7 @@
  *  - #376 "Cannot restore encrypted backup": the current [iteration][salt][nonce+ciphertext]
  *    frame is decoded through the task that the backup screen runs; wrong passwords, truncated
  *    documents, missing documents, and pre-0.6.3 headerless backups are rejected.
- *  - #976 "Cannot restore Plain-text backup": a legacy unencrypted JSON document is read through
- *    the bounded document reader and the strict UTF-8 decoder, and malformed input is refused.
- *
+  *
  * The fixtures are written to the app's private cache directory, which is the only `file:` path
  * StorageAccessHelper accepts; the encryption, bounded reads and UTF-8 handling are the real
  * Android implementations. Writing to a user-selected SAF provider still needs a provider/device
@@ -30,7 +28,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.shadowice.flocke.andotp.Tasks.BackupTaskResult
 import org.shadowice.flocke.andotp.Tasks.EncryptedRestoreTask
-import org.shadowice.flocke.andotp.Tasks.PlainTextRestoreTask
 import org.shadowice.flocke.andotp.Tasks.TaskOutcome
 import org.shadowice.flocke.andotp.Tasks.UiBasedBackgroundTask
 import org.shadowice.flocke.andotp.Database.Entry
@@ -215,32 +212,6 @@ class BackupRestoreDeviceTest {
         val result = restoreEncrypted(missing, PASSWORD)
         assertFalse("a missing document reported success", result.success)
         assertEquals(R.string.backup_toast_import_decryption_failed, result.messageId)
-    }
-
-    @Test
-    fun aLegacyPlaintextBackupIsRestored() {
-        val file = writeDocument(document.toByteArray(StandardCharsets.UTF_8))
-        try {
-            val outcome = runTask(PlainTextRestoreTask(context, Uri.fromFile(file)))
-            val result = valueOf(outcome, "plain-text restore")
-            assertTrue("the plain-text backup was not restored", result.success)
-            assertEquals(document, result.payload)
-        } finally {
-            file.delete()
-        }
-    }
-
-    @Test
-    fun malformedPlaintextIsRejected() {
-        val file = writeDocument(byteArrayOf('['.code.toByte(), 0xC3.toByte(), 0x28))
-        try {
-            val outcome = runTask(PlainTextRestoreTask(context, Uri.fromFile(file)))
-            val result = valueOf(outcome, "malformed plain-text restore")
-            assertFalse("malformed plain text was accepted", result.success)
-            assertEquals(R.string.backup_toast_plaintext_invalid, result.messageId)
-        } finally {
-            file.delete()
-        }
     }
 
     private fun restoreEncrypted(file: File, password: String): BackupTaskResult {

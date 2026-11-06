@@ -107,7 +107,7 @@
 
     <string name="settings_desc_openpgp_key_encrypt">Comma-separated OpenPGP user IDs used to
         encrypt backups</string>
-    <string name="settings_desc_openpgp_verify">Encrypted backups are only imported if they are
+    <string name="settings_desc_openpgp_verify">Full Encrypted Backups are only imported if they are
         signed with a valid key</string>
 
     <string name="settings_desc_special_features">Shows screenshot and KeyStore options in Settings</string>
@@ -254,7 +254,7 @@
     </string-array>
 
     <string-array name="settings_entries_backup_broadcasts">
-        <item>Encrypted backups</item>
+        <item>Full Encrypted Backups</item>
     </string-array>
     
     <!-- Special -->

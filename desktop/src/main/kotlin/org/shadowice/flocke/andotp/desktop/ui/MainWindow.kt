@@ -549,10 +549,10 @@ object MainWindow {
                 addSeparator()
                 add(JMenuItem("Import FairEmail backup…").apply { addActionListener { importEmailBackup() } })
                 add(JMenuItem("Export FairEmail backup…").apply { addActionListener { exportEmailBackup() } })
-                add(JMenuItem("Encrypted backup…").apply {
+                add(JMenuItem("Full Encrypted Backup…").apply {
                     addActionListener { coordinator?.let { BackupDialogs.saveEncryptedBackup(frame, it) } }
                 })
-                add(JMenuItem("Restore encrypted backup…").apply {
+                add(JMenuItem("Restore Full Encrypted Backup…").apply {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreEncryptedBackup(frame, it)
@@ -567,14 +567,6 @@ object MainWindow {
                     addActionListener {
                         coordinator?.let {
                             BackupDialogs.restoreOpenPgp(frame, it)
-                            state?.let { unlocked -> refreshProjection(unlocked) }
-                        }
-                    }
-                })
-                add(JMenuItem("Restore plain-text backup…").apply {
-                    addActionListener {
-                        coordinator?.let {
-                            BackupDialogs.restorePlainText(frame, it)
                             state?.let { unlocked -> refreshProjection(unlocked) }
                         }
                     }

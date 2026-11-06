@@ -27,35 +27,6 @@ public enum BackupFileNames {
     }
 }
 
-public enum PlainTextBackupError: Error, Equatable {
-    case invalidSize
-    case invalidUTF8
-    case empty
-}
-
-/// Strict, bounded reading of the import-only legacy plain-text backup — the port of
-/// `PlainTextBackupDecoder`.
-///
-/// The client never *writes* an unencrypted backup; this only reads a file someone else produced.
-/// Invalid UTF-8 is an error rather than replacement characters, and a leading byte-order mark is
-/// accepted, because general-purpose text editors add one.
-public enum PlainTextBackupDecoder {
-    public static func decode(_ data: Data) throws -> String {
-        guard !data.isEmpty, data.count <= InputPolicy.maxDocumentBytes else {
-            throw PlainTextBackupError.invalidSize
-        }
-        guard let decoded = String(data: data, encoding: .utf8) else {
-            throw PlainTextBackupError.invalidUTF8
-        }
-        var text = decoded
-        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw PlainTextBackupError.empty
-        }
-        return text
-    }
-}
-
 public enum VaultRestoreMergeError: Error, Equatable {
     /// A backup with no entries is refused: restoring it would either wipe the vault (replace) or do
     /// nothing, and an empty file is far more likely to be a mistake than an intention.
@@ -100,10 +71,6 @@ public enum BackupWording {
     public static let replaceSwitch = "Replace existing entries"
     public static let replaceSwitchDetail = "When off, the backup is merged with the current entries."
     public static let restoreQuestion = "Restore this backup into the current vault?"
-    public static let plainTextWarning =
-        "Plain-text backups contain your OTP secrets without encryption. Only restore a file you "
-        + "trust. OfflineOTP imports the entries but does not create plain-text backups."
-    public static let plainTextInvalid = "The plain-text backup is empty or is not valid UTF-8."
     public static let emptyBackup = "The backup contains no entries."
     public static let duplicateBackup =
         "The restored entries would duplicate entries already in the vault."

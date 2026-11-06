@@ -404,11 +404,9 @@ class IosAppTest(unittest.TestCase):
         # ASCII digits in every language, as `Locale.ENGLISH` gives the JVM clients.
         self.assertIn('Locale(identifier: "en_US_POSIX")', swift)
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
-        self.assertIn("PlainTextBackupDecoder.decode", store)
-        # Import only: there is no plain-text writer in this client, by design.
-        self.assertNotIn("plainTextBackup(", store)
-        self.assertNotIn("encodePlainText", store)
-        self.assertNotIn("PlainTextBackupEncoder", store)
+        # Plain-text backups are removed: neither import nor export may exist.
+        for banned in ("PlainTextBackupDecoder", "plainTextBackup", "encodePlainText", "PlainTextBackupEncoder"):
+            self.assertNotIn(banned, store)
 
     def test_a_restore_merges_the_way_the_shared_rule_does(self):
         swift = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
@@ -429,19 +427,14 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_plain_text_warning_is_the_android_sentence(self):
         strings = (ANDROID_VALUES / "strings_backup.xml").read_text(encoding="utf-8")
-        warning = ("Plain-text backups contain your OTP secrets without encryption. Only restore a "
-                   "file you trust. OfflineOTP imports the entries but does not create plain-text "
-                   "backups.")
-        self.assertIn(warning, strings)
+        for banned in ("backup_plaintext_warning", "backup_button_restore_plaintext", "backup_toast_plaintext_invalid", "Plain-text backups contain"):
+            self.assertNotIn(banned, strings)
         wording = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
-        # The Swift literal is wrapped across lines, so the pieces are checked one at a time.
-        for piece in ("Plain-text backups contain your OTP secrets without encryption. Only restore "
-                      "a file you ", "trust. OfflineOTP imports the entries but does not create ",
-                      "plain-text backups."):
-            self.assertIn(piece, wording)
-        # The warning comes before the file picker, as on the phone.
+        for banned in ("Plain-text backups contain", "plain-text backups", "warningPlainText"):
+            self.assertNotIn(banned, wording)
         view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
-        self.assertIn("warningPlainText = true", view)
+        for banned in ("warningPlainText", "Plain-text"):
+            self.assertNotIn(banned, view)
 
     def test_a_second_account_from_an_issuer_is_a_question(self):
         strings = (ANDROID_VALUES / "strings_main.xml").read_text(encoding="utf-8")

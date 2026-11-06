@@ -36,33 +36,6 @@ final class BackupRestoreTests: XCTestCase {
         XCTAssertTrue(name.unicodeScalars.allSatisfy { $0.isASCII })
     }
 
-    // MARK: - Plain text
-
-    func testPlainTextIsReadStrictly() throws {
-        let text = "[{\"secret\":\"\(seed)\"}]"
-        XCTAssertEqual(try PlainTextBackupDecoder.decode(Data(text.utf8)), text)
-        // One leading byte-order mark is dropped, because an editor may add one.
-        XCTAssertEqual(try PlainTextBackupDecoder.decode(Data(("\u{FEFF}" + text).utf8)), text)
-    }
-
-    func testPlainTextRefusesWhatItCannotTrust() {
-        XCTAssertThrowsError(try PlainTextBackupDecoder.decode(Data())) {
-            XCTAssertEqual($0 as? PlainTextBackupError, .invalidSize)
-        }
-        XCTAssertThrowsError(try PlainTextBackupDecoder.decode(Data(" \n\t ".utf8))) {
-            XCTAssertEqual($0 as? PlainTextBackupError, .empty)
-        }
-        // Invalid UTF-8 is an error rather than replacement characters: a seed that silently changes
-        // would produce wrong codes.
-        XCTAssertThrowsError(try PlainTextBackupDecoder.decode(Data([0x5B, 0xFF, 0x5D]))) {
-            XCTAssertEqual($0 as? PlainTextBackupError, .invalidUTF8)
-        }
-        let oversized = Data(repeating: 0x20, count: InputPolicy.maxDocumentBytes + 1)
-        XCTAssertThrowsError(try PlainTextBackupDecoder.decode(oversized)) {
-            XCTAssertEqual($0 as? PlainTextBackupError, .invalidSize)
-        }
-    }
-
     // MARK: - Merging
 
     func testAMergePutsTheImportedEntriesFirstAndKeepsTheRest() throws {
@@ -137,11 +110,6 @@ final class BackupRestoreTests: XCTestCase {
     }
 
     func testTheWordingMatchesTheOtherClients() {
-        // Android's sentence, verbatim: the same promise about plain-text files on every platform.
-        XCTAssertEqual(BackupWording.plainTextWarning,
-                       "Plain-text backups contain your OTP secrets without encryption. Only restore "
-                       + "a file you trust. OfflineOTP imports the entries but does not create "
-                       + "plain-text backups.")
         XCTAssertEqual(BackupWording.replaceSwitch, "Replace existing entries")
         XCTAssertEqual(BackupWording.duplicateBackup,
                        "The restored entries would duplicate entries already in the vault.")

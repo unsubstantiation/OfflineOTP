@@ -7,7 +7,6 @@ import org.shadowice.flocke.andotp.Utilities.MigrationBatchCollector
 import org.shadowice.flocke.andotp.Utilities.MigrationBatchStatus
 import org.shadowice.flocke.andotp.Utilities.MigrationParseResult
 import org.shadowice.flocke.andotp.Utilities.OpenPgpBackupCodec
-import org.shadowice.flocke.andotp.Utilities.PlainTextBackupDecoder
 import org.shadowice.flocke.andotp.Utilities.VaultRestoreMerge
 import org.shadowice.flocke.andotp.Utilities.OpenPgpPort
 import org.shadowice.flocke.andotp.Utilities.QrImageDecoder
@@ -72,16 +71,6 @@ class BackupCoordinator(
     @Throws(GeneralSecurityException::class, IOException::class)
     fun restoreEncrypted(password: String, data: ByteArray, replace: Boolean = false): Int {
         return restoreDocument(EncryptedBackupCodec.open(password, data), replace)
-    }
-
-    /**
-     * Restores a legacy unencrypted JSON backup, the desktop counterpart of Android's **Restore
-     * plain-text backup…**. Decoding is the shared [PlainTextBackupDecoder], so a file Android
-     * accepts is accepted here and a file it rejects is rejected for the same reason.
-     */
-    @Throws(IllegalArgumentException::class, IOException::class)
-    fun restorePlainText(data: ByteArray, replace: Boolean = false): Int {
-        return restoreDocument(PlainTextBackupDecoder.decode(data), replace)
     }
 
     @Throws(GeneralSecurityException::class, IOException::class)
