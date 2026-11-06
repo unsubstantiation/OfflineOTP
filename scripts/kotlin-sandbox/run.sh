@@ -145,6 +145,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/Tasks/UiBasedBackgroundTask.kt"
     "$KOTLIN_APP/Utilities/BackupAgent.kt"
     "$KOTLIN_APP/Utilities/BackupHelper.kt"
+    "$KOTLIN_APP/Utilities/BiometricKeyStore.kt"
     "$KOTLIN_APP/Utilities/ConfirmedPasswordTransformationHelper.kt"
     "$KOTLIN_APP/Utilities/DatabaseHelper.kt"
     "$KOTLIN_APP/Utilities/DimensionConverter.kt"
@@ -198,6 +199,7 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/androidx/core/content/res/*.kt
     "$SANDBOX"/stubs/androidx/drawerlayout/widget/*.kt
     "$SANDBOX"/stubs/androidx/cardview/widget/*.kt
+    "$SANDBOX"/stubs/androidx/biometric/*.kt
     "$SANDBOX"/stubs/com/google/zxing/integration/android/*.kt
     "$SANDBOX"/stubs/com/leinardi/android/speeddial/*.kt
     "$SANDBOX"/stubs/com/github/aakira/expandablelayout/*.kt

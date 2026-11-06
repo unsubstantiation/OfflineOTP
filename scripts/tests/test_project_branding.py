@@ -31,7 +31,7 @@ class ProjectBrandingTest(unittest.TestCase):
         self.assertRegex(gradle, rf'(?m)^\s*applicationId\s+(?:=\s*)?[\"\']{re.escape(NEW_PACKAGE)}[\"\']\s*$')
         manifest = ET.parse(ROOT / "app/src/main/AndroidManifest.xml").getroot()
         policy = json.loads((ROOT / "scripts/manifest-policy.json").read_text(encoding="utf-8"))
-        self.assertEqual(NEW_PACKAGE, manifest.get("package"))
+        self.assertIsNone(manifest.get("package"))
         self.assertEqual(NEW_PACKAGE, policy["package"])
 
     def test_upstream_attribution_is_not_rebranded(self):

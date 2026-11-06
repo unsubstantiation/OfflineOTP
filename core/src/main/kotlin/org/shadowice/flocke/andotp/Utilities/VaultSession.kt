@@ -47,7 +47,7 @@ object VaultSession {
     fun takeDerivedKey(expected: Long): ByteArray? {
         val result = consumeDerived(expected)
         if (result !is SessionHandoff.Available) return null
-        (result as SessionHandoff.Available).use { available ->
+        result.use { available ->
             return available.secret.takeBytes()
         }
     }

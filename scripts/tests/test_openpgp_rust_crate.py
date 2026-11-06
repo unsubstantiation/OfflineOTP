@@ -129,7 +129,9 @@ class OpenPgpRustCrateTest(unittest.TestCase):
 
     def test_every_workflow_builds_and_tests_the_rust_crate(self):
         workflows = ROOT / ".github/workflows"
-        for name in ("android.yml", "debian.yml", "windows.yml", "macos.yml", "ios.yml"):
+        # android.yml only runs opt-in release APK signing on master (no debug/host build job);
+        # the remaining four platform workflows build and test the Rust crate on the host.
+        for name in ("debian.yml", "windows.yml", "macos.yml", "ios.yml"):
             text = (workflows / name).read_text(encoding="utf-8")
             # Each per-platform workflow must now build the unified backend on the host
             # (cargo test + cargo build). Per-ABI packaging (cargo ndk, XCFramework) is a

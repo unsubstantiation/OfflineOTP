@@ -10,4 +10,8 @@ object ContextCompat {
 
     @JvmStatic
     fun getColor(context: Context, id: Int): Int = context.resources.getColor(id)
+
+    @JvmStatic
+    fun getMainExecutor(context: Context): java.util.concurrent.Executor =
+        java.util.concurrent.Executor { command -> command.run() }
 }

@@ -1508,7 +1508,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun importThunderbirdDocument(uri: Uri) {
         var bytes: ByteArray? = null
         try {
-            bytes = contentResolver.openInputStream(uri).use { BoundedInputReader.read(it, ThunderbirdCsv.MAX_FILE_BYTES) }
+            bytes = getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, ThunderbirdCsv.MAX_FILE_BYTES) }
             val incoming = ThunderbirdImport.prepare(bytes)
             val outcome = adapter?.importEntries(incoming) ?: run {
                 incoming.forEach { it.destroy() }

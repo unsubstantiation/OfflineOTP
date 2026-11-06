@@ -79,7 +79,7 @@ class ThunderbirdCsvTest {
         fails("hostname,username,password\na,b", ThunderbirdCsv.Error.INVALID_CSV)
         fails("hostname,username,password\n", ThunderbirdCsv.Error.INVALID_CSV)
         fails("url,username,password\na,b,c,\"unterminated", ThunderbirdCsv.Error.INVALID_CSV)
-        fails("hostname,username,PASSWORD\na,b,c", ThunderbirdCsv.Error.INVALID_CSV)
+        fails("hostname,username,password,PASSWORD\na,b,c,d", ThunderbirdCsv.Error.INVALID_CSV)
     }
 
     @Test fun boundedInput() {

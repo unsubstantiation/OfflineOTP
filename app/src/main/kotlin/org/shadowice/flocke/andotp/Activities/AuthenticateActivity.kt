@@ -101,7 +101,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         if (shouldOfferBiometric() && !biometricAutoShown) {
             biometricAutoShown = true
             // Let the view inflate before the system prompt appears.
-            passwordInput?.postDelayed({ if (!isFinishing) triggerBiometricUnlock() }, 300)
+            passwordInput?.postDelayed({ if (!isFinishing()) triggerBiometricUnlock() }, 300)
         }
     }
 

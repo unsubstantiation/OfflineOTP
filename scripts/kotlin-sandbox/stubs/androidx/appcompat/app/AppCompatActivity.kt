@@ -13,10 +13,11 @@ import android.os.Bundle
 import android.view.MotionEvent
 import android.view.View
 import androidx.appcompat.widget.Toolbar
+import androidx.fragment.app.FragmentActivity
 import androidx.fragment.app.FragmentManager
 
 /** Stand-in for the AppCompat activity. */
-open class AppCompatActivity : android.app.Activity() {
+open class AppCompatActivity : FragmentActivity() {
     /** The receivers the activity registered, in registration order. */
     val registeredReceivers = ArrayList<Pair<BroadcastReceiver, IntentFilter>>()
 
@@ -88,7 +89,7 @@ open class AppCompatActivity : android.app.Activity() {
      */
     open fun <T : View> findViewById(id: Int): T? = null
 
-    open fun getSupportFragmentManager(): FragmentManager = supportFragmentManager
+    override fun getSupportFragmentManager(): FragmentManager = supportFragmentManager
 
     /** The up-navigation hook; the converted about screen finishes instead of navigating. */
     open fun onSupportNavigateUp(): Boolean = false

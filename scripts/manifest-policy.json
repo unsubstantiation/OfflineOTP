@@ -16,7 +16,7 @@
     "com.fairuniversal.offlineotp.permission.CONTROL_VAULT"
   ],
   "exported_components": {
-    "activity:com.fairuniversal.offlineotp.Activities.MainActivity": {
+    "activity:org.shadowice.flocke.andotp.Activities.MainActivity": {
       "permission": "",
       "actions": [
         "android.intent.action.MAIN",
@@ -49,14 +49,14 @@
         }
       ]
     },
-    "activity:com.fairuniversal.offlineotp.Activities.PanicResponderActivity": {
+    "activity:org.shadowice.flocke.andotp.Activities.PanicResponderActivity": {
       "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
         "info.guardianproject.panic.action.TRIGGER"
       ],
       "reason": "Same-signer control IPC; independently signed automation must not be authorized."
     },
-    "receiver:com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver": {
+    "receiver:org.shadowice.flocke.andotp.Receivers.EncryptedBackupBroadcastReceiver": {
       "permission": "com.fairuniversal.offlineotp.permission.CONTROL_VAULT",
       "actions": [
         "org.shadowice.flocke.andotp.broadcast.ENCRYPTED_BACKUP"
