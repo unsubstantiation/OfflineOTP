@@ -96,7 +96,7 @@ jobs:
                 [ -n "$line" ] || continue
                 safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
                 [ -n "$safe" ] || continue
-                echo "::error title=Rust::$safe"
+                echo "::notice title=Rust::$safe"
               done || true
             else
               echo "::notice title=Rust::no log $log"
