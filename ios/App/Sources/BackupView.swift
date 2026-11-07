@@ -90,9 +90,9 @@ struct BackupView: View {
                           contentType: .data, defaultFilename: exportName) { result in
                 switch result {
                 case .success(let url):
-                    status = "Encrypted backup written to \(url.lastPathComponent)"
+                    status = "Export written to \(url.lastPathComponent)"
                 case .failure:
-                    status = "The backup was not written."
+                    status = "The export was not written."
                 }
                 exportFile = nil
             }
@@ -236,7 +236,8 @@ struct BackupView: View {
         } footer: {
             Text("Imports Chrome, Firefox, or Safari CSV rows as individual searchable password "
                  + "entries, exports revealed browser-imported passwords back to CSV, or stores a "
-                 + "password file byte-for-byte inside the encrypted vault.")
+                 + "password file byte-for-byte inside the encrypted vault. Exported CSV files "
+                 + "contain unencrypted passwords.")
         }
     }
 
@@ -452,9 +453,9 @@ struct BackupView: View {
             status = store.message
             return
         }
-        exported = BackupDocument(backup.data)
-        exportFilename = backup.name
-        exporting = true
+        exportName = backup.name
+        exportFile = BackupFile(data: backup.data)
+        showingExporter = true
     }
 
     private func addLink() {
