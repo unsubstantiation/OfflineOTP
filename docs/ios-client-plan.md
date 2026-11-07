@@ -178,29 +178,39 @@ what remains.
 ## What the iOS build action does
 
 `ios.yml` exists now that there is a project to build — a workflow before that could only fail or sit
-permanently skipped, which is indistinguishable from coverage that does not exist. It follows the same
-per-platform shape as the other four, on `runs-on: macos-15`: the arm64 image, as `macos-14` was
-until GitHub retired that configuration — jobs on it are cancelled at 0 steps with *The
-configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15.8.2 with Xcode 16.4
-(`macos-15-intel` is the x86_64 variant; the app is Apple silicon only, like the desktop build):
+permanently skipped, which is indistinguishable from coverage that does not exist. It has two jobs.
+`openpgp-host` runs the Rust crate's host tests and release build on `ubuntu-24.04` in parallel, so
+that coverage does not spend the Apple job's budget. The Apple job runs on `runs-on: macos-15`: the
+arm64 image, as `macos-14` was until GitHub retired that configuration — jobs on it are cancelled at
+0 steps with *The configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15.8.2
+with Xcode 16.4 (`macos-15-intel` is the x86_64 variant; the app is Apple silicon only, like the
+desktop build). Its hard budget is **10 minutes**:
 
-1. `swift build --build-tests` and `swift test`, which run the format and fixture tests on the macOS
-   host;
+1. `scripts/openpgp/build-ios-xcframework.sh --arm64-only`, which builds the arm64 device, arm64
+   simulator, and arm64 macOS slices consumed by this Apple-silicon workflow;
 2. `scripts/ios/generate-token-vectors.py` and `scripts/ios/generate-thumbnail-catalog.py`, which
    refuse a stale generated file;
-3. `xcodebuild -scheme OfflineOTPKit -destination 'generic/platform=iOS Simulator'`, which proves the
-   format layer compiles for iOS itself;
+3. `swift build -c release --build-tests -Xswiftc -enable-testing` and
+   `swift test -c release --parallel -Xswiftc -enable-testing`, which run the format and fixture
+   tests on the macOS host with the production KDF parameters but optimized code;
 4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
-   `generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**;
-5. `xcodebuild test` on the newest available iPhone simulator (picked with `simctl`, so an image that
-   renames its devices does not break the job), which runs the app's unit tests;
-6. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
-   `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to be an `arm64`
-   `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app` into an
-   unsigned `.ipa`;
-7. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
-   sideloaders or local signing), `OfflineOTP-ios-simulator` (the simulator `.app`, packed with
+   `generic/platform=iOS Simulator` with `ARCHS=arm64 CODE_SIGNING_ALLOWED=NO` — **no signing
+   identity at all**. This proves the app and its package compile for iOS; there is no separate
+   kit-only simulator build and no simulator boot;
+5. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
+   `ARCHS=arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to
+   be an `arm64` `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app`
+   into an unsigned `.ipa`;
+6. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
+   sideloaders or local signing), `OfflineOTP-ios-simulator` (the arm64 simulator `.app`, packed with
    `ditto`), and `OfflineOTP-ios-kit-source` (the package plus the fixtures it was verified against).
+   A separate `OfflineOTP-ios-diagnostics` artifact keeps the build log for seven days, including on
+   failure.
+
+The simulator XCTest step is deliberately absent: in the cancelled 30-minute run the app compiled
+in 41 seconds, then simulator app tests consumed the remaining ~17 minutes. The generated
+`OfflineOTPAppTests` target remains available locally/manual runs, but CI does not boot a simulator
+or execute those tests.
 
 Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
 **`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the

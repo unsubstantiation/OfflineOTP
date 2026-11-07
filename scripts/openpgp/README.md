@@ -59,7 +59,8 @@ rpgp path and fails explicitly when the native library is not packaged.
 ## iOS / macOS Swift package
 
 ```sh
-scripts/openpgp/build-ios-xcframework.sh
+scripts/openpgp/build-ios-xcframework.sh               # universal Apple slices
+scripts/openpgp/build-ios-xcframework.sh --arm64-only  # Apple-silicon CI path
 ```
 
 This writes `ios/Frameworks/offlineotp_openpgp.xcframework`. When that directory
@@ -67,3 +68,6 @@ exists, `ios/Package.swift` compiles the generated Swift bindings and defines
 `OFFLINEOTP_OPENPGP_NATIVE`; `RustOpenPgpPort` then performs real rpgp operations.
 Without the artifact the portable format layer still builds and tests, and the
 OpenPGP port throws `backendUnavailable` instead of pretending to encrypt.
+
+The iOS workflow uses `--arm64-only` because its macOS host tests and shipped device/simulator
+artifacts are arm64; the default local build still includes the Intel slices.

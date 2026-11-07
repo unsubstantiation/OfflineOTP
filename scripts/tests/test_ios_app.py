@@ -315,13 +315,14 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("-configuration Release", WORKFLOW)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", WORKFLOW)
         self.assertIn("CODE_SIGNING_REQUIRED=NO", WORKFLOW)
-        self.assertIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
+        self.assertNotIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
         self.assertIn("Payload/OfflineOTP.app", WORKFLOW)
         self.assertIn("OfflineOTP-ios-unsigned", WORKFLOW)
         self.assertIn("OfflineOTP-ios-unsigned.ipa", WORKFLOW)
         self.assertIn("OfflineOTP-ios-simulator", WORKFLOW)
         self.assertIn("OfflineOTP-ios-kit-source", WORKFLOW)
-        self.assertEqual(3, WORKFLOW.count("actions/upload-artifact@"))
+        self.assertEqual(4, WORKFLOW.count("actions/upload-artifact@"))
+        self.assertIn("name: OfflineOTP-ios-diagnostics", WORKFLOW)
         self.assertIn("SHA256SUMS.txt", WORKFLOW)
         # Unsigned builds need no certificate; device signing and TestFlight stay manual.
         for forbidden in ("codesign", "xcodebuild archive", "exportArchive", "notarytool",
@@ -740,6 +741,29 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".fileExporter(", vault)
         self.assertIn(".alert(", vault)
         self.assertNotIn(".sheet(", vault)
+
+    def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
+        """The simulator XCTest step consumed the old job after the app had already compiled.
+
+        CI now builds the simulator app but does not boot a simulator or run app XCTest. The
+        remaining macOS work is bounded at ten minutes: arm64-only Apple slices, optimized host
+        format tests, and no separate kit-only simulator build. Rust host coverage moves to a
+        parallel Linux job instead of spending the macOS budget.
+        """
+        self.assertIn("timeout-minutes: 10", WORKFLOW)
+        self.assertNotIn("simctl", WORKFLOW)
+        self.assertNotIn("Boot the app test simulator", WORKFLOW)
+        self.assertNotIn("Run the app unit tests", WORKFLOW)
+        self.assertNotIn("-resultBundlePath", WORKFLOW)
+        self.assertNotIn("ENABLE_TESTABILITY=YES", WORKFLOW)
+        self.assertIn("openpgp-host:", WORKFLOW)
+        self.assertIn("runs-on: ubuntu-24.04", WORKFLOW)
+        self.assertIn("build-ios-xcframework.sh --arm64-only", WORKFLOW)
+        self.assertIn("ARCHS=arm64", WORKFLOW)
+        self.assertIn("swift build -c release --build-tests", WORKFLOW)
+        self.assertIn("swift test -c release --parallel", WORKFLOW)
+        self.assertIn("-Xswiftc -enable-testing", WORKFLOW)
+        self.assertNotIn("-scheme OfflineOTPKit", WORKFLOW)
 
     def test_the_password_edit_sheet_matches_its_initializer(self):
         """Both entry points must supply the editor's arguments in order and its save callback.

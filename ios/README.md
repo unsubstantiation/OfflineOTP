@@ -20,7 +20,8 @@ the milestones.
 ## Requirements
 
 - macOS with Xcode 15 or later (Swift 5.9).
-- No Apple developer account, no signing identity, no simulator: the tests run on the host.
+- No Apple developer account and no signing identity. The package/format tests run on the host;
+  the optional app XCTest target needs a simulator locally, but CI does not run it.
 
 The Xcode project is **generated**, not committed: `project.yml` is the reviewable definition and a
 `.pbxproj` is an opaque file that conflicts on every merge. `xcodegen` writes `OfflineOTP.xcodeproj`
@@ -57,6 +58,12 @@ unsigned (`OfflineOTP-ios-unsigned.ipa` in CI), and the app target has no `DEVEL
 for a physical device (via local Xcode/signing tools or sideloaders like AltStore/SideStore/Sideloadly)
 or shipping to TestFlight stays outside CI. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`,
 whose test action runs `OfflineOTPAppTests`.
+
+CI does **not** boot a simulator or run the app XCTest target: that step consumed the previous
+30-minute job after the app had already compiled. The iOS job has a hard 10-minute budget, builds
+only the arm64 Apple slices, runs the host format tests optimized with testability enabled, and
+builds both the simulator app and the unsigned device app. The command above remains the local way
+to run `OfflineOTPAppTests`. Build logs are retained as `OfflineOTP-ios-diagnostics` even on failure.
 
 ## What the tests prove
 

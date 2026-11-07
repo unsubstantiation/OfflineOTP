@@ -76,7 +76,8 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
     scheme:
-      # One shared scheme drives both the simulator build and the app unit tests.
+      # One shared scheme drives the simulator build and local/manual app unit tests.
+      # CI builds the app but does not run the simulator XCTest step.
       testTargets:
         - OfflineOTPAppTests
       gatherCoverageData: false
