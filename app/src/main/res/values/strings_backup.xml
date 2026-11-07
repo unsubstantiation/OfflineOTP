@@ -59,6 +59,16 @@
 
     <string name="backup_label_crypt">The Full Encrypted Backup is encrypted with a custom password using AES-256. Set a
         default password in Settings to avoid entering it every time.</string>
+    <string name="backup_label_pgp_keyfiles">The backup is encrypted in this app to the recipient key files selected in <b>Settings</b>. Restoring needs your secret key file and its passphrase.</string>
+    <string name="backup_desc_openpgp_backend_unavailable">The in-app OpenPGP engine is not available in this build. Use the separate OpenPGP app mode in <b>Settings</b>, or install a build that includes it.</string>
+    <string name="backup_desc_openpgp_keyfiles_recipients">Select at least one recipient key file in <b>Settings</b> before creating a backup.</string>
+    <string name="backup_desc_openpgp_keyfiles_secret">Select a secret key file in <b>Settings</b> before restoring a backup.</string>
+    <string name="backup_toast_openpgp_no_secret_key">Select a secret key file in Settings before restoring.</string>
+    <string name="backup_dialog_openpgp_passphrase_title">Secret key passphrase</string>
+    <string name="backup_dialog_openpgp_passphrase_message">Is your secret key file protected with a passphrase? It is used once to unlock the key and is never stored.</string>
+    <string name="backup_dialog_openpgp_passphrase_protected">Enter passphrase</string>
+    <string name="backup_dialog_openpgp_passphrase_unprotected">No passphrase</string>
+    <string name="backup_dialog_openpgp_passphrase_cancel">Cancel</string>
     <string name="backup_label_pgp">The backup is encrypted with the OpenPGP key selected in Settings,
         using a separate OpenPGP app.</string>
 

@@ -41,6 +41,8 @@ import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.Utilities.BackupHelper
 import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
 import com.fairuniversal.offlineotp.Utilities.NotificationHelper
+import com.fairuniversal.offlineotp.Utilities.OpenPgpMode
+import com.fairuniversal.offlineotp.Utilities.OpenPgpKeyFilePolicy
 import com.fairuniversal.offlineotp.Utilities.ScanQRCodeFromFile
 import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
 import com.fairuniversal.offlineotp.Utilities.EntryPersistence
@@ -4395,7 +4397,10 @@ fun main() {
             "getNoTagsToggle()Z",
             "getOldCredentials(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)Ljava/lang/String;",
             "getOpenPGPEncryptionUserIDs()Ljava/lang/String;",
+            "getOpenPGPMode()Lcom/fairuniversal/offlineotp/Utilities/OpenPgpMode;",
             "getOpenPGPProvider()Ljava/lang/String;",
+            "getOpenPGPRecipientFiles()Ljava/util/List;",
+            "getOpenPGPSecretFile()Ljava/lang/String;",
             "getOpenPGPSigningKey()J",
             "getOpenPGPVerify()Z",
             "getPanicResponse()Ljava/util/Set;",
@@ -4443,6 +4448,9 @@ fun main() {
             "setIterations(I)V",
             "setLocale(Ljava/lang/String;)V",
             "setNoTagsToggle(Ljava/lang/Boolean;)V",
+            "setOpenPGPMode(Lcom/fairuniversal/offlineotp/Utilities/OpenPgpMode;)V",
+            "setOpenPGPRecipientFiles(Ljava/util/Set;)V",
+            "setOpenPGPSecretFile(Ljava/lang/String;)V",
             "setSalt([B)V",
             "setSortMode(Lcom/fairuniversal/offlineotp/Utilities/Constants\$SortMode;)V",
             "setSpecialFeatures(Z)V",
@@ -4588,6 +4596,29 @@ fun main() {
         expect(settings.getOpenPGPSigningKey() == 0L, { "OpenPGP signing key" })
         expect(settings.getOpenPGPProvider() == "" && settings.getOpenPGPEncryptionUserIDs() == "",
                 { "the OpenPGP selectors must default to empty" })
+        // An existing install keeps its provider; the in-app engine is opt-in.
+        expect(settings.getOpenPGPMode() == OpenPgpMode.PROVIDER,
+                { "the OpenPGP engine must default to the external provider" })
+        expect(settings.getOpenPGPRecipientFiles().isEmpty() && settings.getOpenPGPSecretFile() == "",
+                { "no OpenPGP key document is selected by default" })
+        settings.setOpenPGPMode(OpenPgpMode.KEY_FILE)
+        expect(settings.getOpenPGPMode() == OpenPgpMode.KEY_FILE, { "the key-file mode must round-trip" })
+        settings.setOpenPGPMode(OpenPgpMode.PROVIDER)
+        expect(settings.getOpenPGPMode() == OpenPgpMode.PROVIDER, { "the provider mode must round-trip" })
+        // Only bounded content grants are kept; a raw path must never become a key document.
+        settings.setOpenPGPRecipientFiles(setOf(
+            "content://keys/document/2", "content://keys/document/1",
+            "content://keys/document/2", "/sdcard/secret.asc", ""))
+        expect(settings.getOpenPGPRecipientFiles() ==
+                listOf("content://keys/document/1", "content://keys/document/2"),
+                { "recipient grants must be filtered, de-duplicated and ordered" })
+        settings.setOpenPGPSecretFile("/sdcard/secret.asc")
+        expect(settings.getOpenPGPSecretFile() == "", { "a raw path must be rejected as a secret key" })
+        settings.setOpenPGPSecretFile("content://keys/document/secret")
+        expect(settings.getOpenPGPSecretFile() == "content://keys/document/secret",
+                { "a content grant must be kept as the secret key document" })
+        settings.setOpenPGPRecipientFiles(emptySet())
+        settings.setOpenPGPSecretFile("")
         expect(!settings.isBackupLocationSet(), { "no backup location is configured by default" })
         expect(settings.getBackupPassword() == "" && settings.getBackupPasswordEnc() == "",
                 { "the backup password must default to empty" })
@@ -7632,6 +7663,49 @@ fun main() {
         reopened.forEach { it.destroy() }
         sshKey.destroy()
         linkedSession.destroy()
+    }
+
+    check("in-app OpenPGP availability needs a backend and the right key documents") {
+        // Neither action is offered without the engine: the buttons must explain themselves rather
+        // than let the user pick a destination that cannot be written.
+        val offline = OpenPgpKeyFilePolicy.availability(
+            backendAvailable = false, recipientCount = 2, secretKeyConfigured = true)
+        expect(!offline.canEncrypt && !offline.canRestore,
+            { "a missing backend must disable both OpenPGP actions" })
+        val recipientsOnly = OpenPgpKeyFilePolicy.availability(true, 1, false)
+        expect(recipientsOnly.canEncrypt && !recipientsOnly.canRestore,
+            { "recipients enable export but not restore" })
+        val secretOnly = OpenPgpKeyFilePolicy.availability(true, 0, true)
+        expect(!secretOnly.canEncrypt && secretOnly.canRestore,
+            { "a secret key enables restore but not export" })
+        expect(!OpenPgpKeyFilePolicy.availability(true, OpenPgpKeyFilePolicy.MAX_RECIPIENTS + 1, true).canEncrypt,
+            { "the recipient ceiling must match the native backend" })
+
+        // Only bounded content grants become key documents; a raw path is never read.
+        expect(OpenPgpKeyFilePolicy.isUsableKeyUri("content://keys/document/1"),
+            { "a content grant must be usable" })
+        for (rejected in listOf(null, "", "content://", "/sdcard/key.asc", "file:///sdcard/key.asc",
+                "https://example.test/key.asc")) {
+            expect(!OpenPgpKeyFilePolicy.isUsableKeyUri(rejected),
+                { "an unusable key document was accepted: $rejected" })
+        }
+        val recipients = OpenPgpKeyFilePolicy.recipients(
+            setOf("content://keys/2", "content://keys/1", "content://keys/2", "/sdcard/key.asc"))
+        expect(recipients == listOf("content://keys/1", "content://keys/2"),
+            { "recipients must be filtered, de-duplicated and stably ordered" })
+
+        // The packaged adapter is compiled here without the native library, so it must report
+        // unavailable and refuse to encrypt rather than silently falling back to another engine.
+        val port = com.fairuniversal.offlineotp.openpgp.RpgpOpenPgpPort()
+        expect(!port.isBackendAvailable(),
+            { "the sandbox has no jniLibs, so the backend must report unavailable" })
+        val refused = try {
+            port.encrypt(byteArrayOf(1, 2, 3), listOf(byteArrayOf(4, 5, 6)))
+            false
+        } catch (error: java.security.GeneralSecurityException) {
+            true
+        }
+        expect(refused, { "an unavailable backend must refuse to encrypt, not pretend success" })
     }
 
     if (failures == 0) {

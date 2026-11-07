@@ -18,9 +18,11 @@ internal object AtomicFiles {
 
     @Throws(IOException::class)
     fun writeAtomic(target: File, data: ByteArray) {
-        target.parentFile?.mkdirs()
+        target.parentFile?.let { PrivateFiles.ensureDirectory(it) }
         val staging = File(target.parentFile, target.name + STAGING_SUFFIX + UUID.randomUUID())
         try {
+            // Owner-only before the first byte, so the document is never briefly world-readable.
+            PrivateFiles.createPrivate(staging)
             FileOutputStream(staging).use { output ->
                 output.write(data)
                 output.flush()
@@ -32,6 +34,8 @@ internal object AtomicFiles {
             } catch (error: AtomicMoveNotSupportedException) {
                 Files.move(staging.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
+            // A non-atomic promotion can leave the destination's older, looser mode in place.
+            PrivateFiles.restrict(target)
         } catch (error: Exception) {
             staging.delete()
             throw error

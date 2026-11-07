@@ -1,24 +1,5 @@
 package com.fairuniversal.offlineotp.Utilities
 
-import java.security.GeneralSecurityException
-import javax.crypto.SecretKey
-
-/**
- * Platform port for wrapping the vault's symmetric key under an asymmetric key pair. On Android
- * the pair lives in the hardware-backed KeyStore; the desktop client generates and persists a
- * software RSA pair in its private data directory. Both use the same RSA/ECB/PKCS1Padding
- * transformation ([Constants.ALGORITHM_ASYMMETRIC]), so a wrapped `otp.key` blob keeps one format.
- */
-interface KeyWrapPort {
-    /** Wraps [key] for later recovery with [unwrap]; throws on a provider failure. */
-    @Throws(GeneralSecurityException::class)
-    fun wrap(key: SecretKey): ByteArray
-
-    /** Recovers a key previously produced by [wrap]. */
-    @Throws(GeneralSecurityException::class)
-    fun unwrap(wrapped: ByteArray): SecretKey
-}
-
 /**
  * Platform port for the hardware-unlock envelope record. Only the authenticated envelope — an
  * [HardwareUnlockEnvelope] blob, Base64-encoded — is stored; the FIDO2 PRF output and the vault

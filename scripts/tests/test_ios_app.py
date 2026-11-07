@@ -708,6 +708,26 @@ class IosAppTest(unittest.TestCase):
         unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
         self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
 
+    def test_openpgp_buttons_are_gated_by_the_backend(self):
+        """The availability helpers must actually gate the UI, not sit unused beside it."""
+        view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
+        self.assertIn("let availability = store.openPgpAvailability", view)
+        self.assertIn(".disabled(!availability.canEncrypt)", view)
+        self.assertIn(".disabled(!availability.canRestore)", view)
+        # An unbuilt engine explains itself instead of offering a picker that cannot succeed.
+        self.assertIn("does not include the ", view)
+
+        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
+        self.assertIn("public var openPgpAvailability: OpenPgpAvailability", store)
+        self.assertIn(".inApp(backendAvailable: openPgp.isAvailable)", store)
+
+        port = (KIT / "OpenPgp.swift").read_text(encoding="utf-8")
+        self.assertIn("var isAvailable: Bool { get }", port)
+        self.assertIn("public var isAvailable: Bool { Self.isBackendAvailable }", port)
+        self.assertIn("public static func inApp(backendAvailable: Bool)", port)
+        # The injected-port default keeps in-process implementations usable.
+        self.assertIn("var isAvailable: Bool { true }", port)
+
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
         self.assertIn("M1.5", plan)

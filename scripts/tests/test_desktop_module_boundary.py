@@ -69,15 +69,34 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
                     offenders.append(f"{path.relative_to(ROOT)}:{idx} {stripped}")
         self.assertEqual([], offenders)
 
-    def test_hardware_ports_are_implemented_without_hid(self):
-        """Key wrapping and hardware-unlock storage have desktop adapters; PC/SC excludes HID."""
-        rsa = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
-               "RsaKeyWrapPort.kt").read_text(encoding="utf-8")
-        self.assertIn("class RsaKeyWrapPort", rsa)
-        self.assertIn(": KeyWrapPort", rsa)
-        # Same RSA/ECB/PKCS1Padding transformation as the Android KeyStore wrapper, via Constants.
-        self.assertIn("Constants.ALGORITHM_ASYMMETRIC", rsa)
+    def test_private_storage_is_owner_only(self):
+        """The desktop must ask for the 0700/0600 modes Android gets from the platform."""
+        storage = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage"
+        private = (storage / "PrivateFiles.kt").read_text(encoding="utf-8")
+        self.assertIn("rwx------", private)
+        self.assertIn("rw-------", private)
+        # A staging file is restricted before the first byte is written, not after.
+        self.assertIn("fun createPrivate(", private)
+        for name in ("AtomicFiles.kt", "NioAtomicFileStore.kt"):
+            text = (storage / name).read_text(encoding="utf-8")
+            self.assertIn("PrivateFiles.ensureDirectory", text, name)
+            self.assertIn("PrivateFiles.createPrivate(staging)", text, name)
+            self.assertIn("PrivateFiles.restrict(target)", text, name)
+            self.assertLess(text.index("PrivateFiles.createPrivate(staging)"),
+                            text.index("FileOutputStream(staging)"),
+                            f"{name} must restrict the staging file before writing to it")
+        desktop_storage = (storage / "DesktopStorage.kt").read_text(encoding="utf-8")
+        self.assertIn("PrivateFiles.ensureDirectory(directory)", desktop_storage)
+        self.assertIn("PrivateFiles.restrict(File(directory, name))", desktop_storage)
+        # The retired software key-wrapper must not come back: a key file next to the vault would
+        # let any process running as the user unlock it without the password.
+        self.assertFalse((storage / "RsaKeyWrapPort.kt").exists())
+        core_ports = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/"
+                      "SecurityPorts.kt").read_text(encoding="utf-8")
+        self.assertNotIn("interface KeyWrapPort", core_ports)
 
+    def test_hardware_ports_are_implemented_without_hid(self):
+        """Hardware-unlock storage has a desktop adapter; PC/SC excludes HID."""
         hw_store = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/storage/"
                     "DesktopHardwareUnlockStore.kt").read_text(encoding="utf-8")
         self.assertIn(": HardwareUnlockStoragePort", hw_store)

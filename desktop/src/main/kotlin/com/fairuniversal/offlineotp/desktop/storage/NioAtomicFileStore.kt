@@ -41,8 +41,11 @@ class NioAtomicFileStore(private val target: File) : AtomicByteStore {
 
     @Throws(IOException::class)
     override fun writeAtomic(data: ByteArray) {
+        target.parentFile?.let { PrivateFiles.ensureDirectory(it) }
         val staging = File(target.parentFile, target.name + STAGING_SUFFIX + UUID.randomUUID())
         try {
+            // Owner-only before the first byte, matching Android's app-private storage.
+            PrivateFiles.createPrivate(staging)
             FileOutputStream(staging).use { output ->
                 output.write(data)
                 output.flush()
@@ -55,6 +58,8 @@ class NioAtomicFileStore(private val target: File) : AtomicByteStore {
                 // Some file systems (e.g. certain network mounts) cannot promise atomicity.
                 Files.move(staging.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
             }
+            // A non-atomic promotion can leave the destination's older, looser mode in place.
+            PrivateFiles.restrict(target)
             if (!read().contentEquals(data)) {
                 throw IOException("Atomic write verification failed for ${target.name}")
             }

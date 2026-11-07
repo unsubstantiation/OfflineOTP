@@ -53,6 +53,9 @@
     <string name="settings_title_auto_backup_use_login">Use app password for encrypted backups</string>
 
     <string name="settings_title_backup_broadcasts">Backup broadcasts</string>
+    <string name="settings_title_openpgp_mode">OpenPGP engine</string>
+    <string name="settings_title_openpgp_recipient_files">Recipient key files</string>
+    <string name="settings_title_openpgp_secret_file">Secret key file</string>
     <string name="settings_title_openpgp_provider">OpenPGP provider</string>
     <string name="settings_title_openpgp_key_encrypt">OpenPGP encryption key</string>
     <string name="settings_title_openpgp_key_sign">OpenPGP signing key (optional)</string>
@@ -105,6 +108,11 @@
 
     <string name="settings_desc_backup_broadcasts">Allow same-signature apps to retry pending legacy backups</string>
 
+    <string name="settings_desc_openpgp_mode">Use a separate OpenPGP app, or encrypt in this app with key files you select. Both produce standard OpenPGP backups.</string>
+    <string name="settings_desc_openpgp_recipient_files">Public key files backups are encrypted to. Select one file per recipient.</string>
+    <string name="settings_desc_openpgp_secret_file">Secret key file used to restore OpenPGP backups. Its passphrase is asked for each time and never stored.</string>
+    <string name="settings_desc_openpgp_files_unset">No key file selected</string>
+    <string name="settings_desc_openpgp_recipient_count">%d recipient key file(s) selected</string>
     <string name="settings_desc_openpgp_key_encrypt">Comma-separated OpenPGP user IDs used to
         encrypt backups</string>
     <string name="settings_desc_openpgp_verify">Full Encrypted Backups are only imported if they are
@@ -218,6 +226,16 @@
         <item>Off</item>
         <item>New Entries</item>
         <item>Any Edits</item>
+    </string-array>
+
+    <string-array name="settings_entries_openpgp_mode">
+        <item>Separate OpenPGP app</item>
+        <item>In this app (key files)</item>
+    </string-array>
+
+    <string-array name="settings_values_openpgp_mode" translatable="false">
+        <item>provider</item>
+        <item>key_file</item>
     </string-array>
 
     <string-array name="settings_entries_theme">

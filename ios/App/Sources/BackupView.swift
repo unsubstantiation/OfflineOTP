@@ -204,14 +204,25 @@ struct BackupView: View {
     }
 
     private var openPgpSection: some View {
-        Section {
+        let availability = store.openPgpAvailability
+        return Section {
             Button("Export OpenPGP backup (.json.gpg)…") { pickingOpenPgpRecipient = true }
+                .disabled(!availability.canEncrypt)
             Button("Restore OpenPGP backup…") { pickingOpenPgpMessage = true }
+                .disabled(!availability.canRestore)
         } header: {
             Text("OpenPGP Backup")
         } footer: {
-            Text("Encrypts the vault to one or more OpenPGP recipient public keys, or restores an "
-                 + "encrypted .json.gpg message with your OpenPGP secret key.")
+            // Android disables both buttons and explains why rather than offering an action that
+            // cannot succeed; this is the same rule on iOS.
+            if availability.canEncrypt || availability.canRestore {
+                Text("Encrypts the vault to one or more OpenPGP recipient public keys, or restores an "
+                     + "encrypted .json.gpg message with your OpenPGP secret key.")
+            } else {
+                Text("OpenPGP backups are not available in this build because it does not include the "
+                     + "OpenPGP engine. Use a Full Encrypted Backup instead, or install a build that "
+                     + "includes it.")
+            }
         }
     }
 
