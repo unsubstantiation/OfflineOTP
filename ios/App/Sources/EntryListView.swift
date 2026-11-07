@@ -246,7 +246,11 @@ struct EntryListView: View {
     @ViewBuilder
     private func passwordEditSheet(_ target: IndexedTarget) -> some View {
         if store.entries.indices.contains(target.index) {
-            PasswordEditSheet(store: store, index: target.index, entry: store.entries[target.index])
+            PasswordEditSheet(entry: store.entries[target.index],
+                              index: target.index,
+                              store: store) {
+                passwordEditTarget = nil
+            }
         }
     }
 
