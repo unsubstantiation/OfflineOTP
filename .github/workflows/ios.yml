@@ -139,6 +139,15 @@ jobs:
           HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_CLEANUP=1 brew install xcodegen \
             2>&1 | tee -a build-log.txt
           xcodegen --version
+      - name: Generate the app icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The iOS client used to ship no icon at all. Like the macOS .icns, it is generated from
+          # the shared artwork rather than committed: sips resamples the 1254x1254 mark that
+          # assets/logo_legacy.svg embeds into the 1024x1024 slot the asset catalog declares.
+          python3 scripts/ios/generate-app-icon.py
+          python3 scripts/ios/generate-app-icon.py --check
       - name: Generate the Xcode project
         shell: bash
         run: |
@@ -189,6 +198,7 @@ jobs:
             -destination 'generic/platform=iOS' \
             -derivedDataPath build/DerivedData \
             ARCHS=arm64 \
+            LD_GENERATE_MAP_FILE=YES \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
@@ -220,6 +230,16 @@ jobs:
           xcrun lipo -archs build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP | grep -qw arm64
           xcrun vtool -show-build build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP \
             | grep -Eq '^[[:space:]]*platform[[:space:]]+IOS[[:space:]]*$'
+
+          # Say what is in the archive, on the run page, so "2.5 MB looks incomplete" is answerable
+          # without a Mac or a download — and fail if the icon or the Rust OpenPGP backend is
+          # missing. Package.swift compiles the OpenPGP port out silently when the XCFramework is
+          # absent, so a green build alone never proved the cryptography shipped. The link map the
+          # device build just wrote is the direct evidence; this publishes no artifact.
+          python3 scripts/ios/report-ipa-contents.py \
+            --ipa artifacts/OfflineOTP-ios-unsigned.ipa \
+            --link-map-dir ios/build/DerivedData \
+            --annotate
       - name: Report diagnostics
         if: ${{ !success() }}
         shell: bash

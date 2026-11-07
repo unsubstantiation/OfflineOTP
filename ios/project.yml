@@ -41,6 +41,10 @@ targets:
     platform: iOS
     sources:
       - path: App/Sources
+      # The asset catalog carries the app icon. Its PNG is generated from the shared artwork by
+      # scripts/ios/generate-app-icon.py (like the macOS .icns) and is not committed; the
+      # Contents.json beside it is, so the catalog is reviewable and XcodeGen can wire it up.
+      - path: App/Resources
     dependencies:
       - package: OfflineOTPKit
         product: OfflineOTPKit
@@ -75,6 +79,9 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.fairuniversal.offlineotp
         TARGETED_DEVICE_FAMILY: "1,2"
         ENABLE_USER_SCRIPT_SANDBOXING: YES
+        # Without this the catalog compiles but no icon is chosen, and iOS draws the blank
+        # placeholder — which is what every build before this shipped.
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       # One shared scheme drives the simulator build and local/manual app unit tests.
       # CI builds the app but does not run the simulator XCTest step.
