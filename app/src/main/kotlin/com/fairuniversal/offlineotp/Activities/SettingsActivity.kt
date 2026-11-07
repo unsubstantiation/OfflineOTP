@@ -28,6 +28,8 @@ import org.openintents.openpgp.util.OpenPgpAppPreference
 import org.openintents.openpgp.util.OpenPgpKeyPreference
 import com.fairuniversal.offlineotp.Preferences.CredentialsPreference
 import com.fairuniversal.offlineotp.R
+import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
+import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.Utilities.BiometricKeyStore
 import com.fairuniversal.offlineotp.Receivers.EncryptedBackupBroadcastReceiver
 import com.fairuniversal.offlineotp.Tasks.ChangeEncryptionTask
@@ -42,6 +44,8 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.KeyStoreHelper
 import com.fairuniversal.offlineotp.Utilities.LoginBackupPolicy
 import com.fairuniversal.offlineotp.Utilities.NotificationHelper
+import com.fairuniversal.offlineotp.Utilities.PreferencesExport
+import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
 import com.fairuniversal.offlineotp.Utilities.OpenPgpKeyFilePolicy
 import com.fairuniversal.offlineotp.Utilities.OpenPgpMode
 import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
@@ -53,6 +57,7 @@ import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
 
 import java.util.Arrays
+import java.util.function.BooleanSupplier
 import java.util.Locale
 
 import javax.crypto.SecretKey
@@ -407,6 +412,146 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         fragment?.refreshOpenPgpKeyFileSummaries()
     }
 
+    /** Pending preferences export; serialised before the picker so a failure is reported first. */
+    private var preferencesExportPending: PreferencesExport.Export? = null
+
+    /** Asks whether the file should carry the backup password, then opens the picker. */
+    fun confirmPreferencesExport() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.settings_title_preferences_export)
+            .setMessage(getString(R.string.preferences_export_question) + "\n\n" +
+                getString(R.string.preferences_export_question_detail))
+            .setPositiveButton(R.string.preferences_export_with_secrets) { _, _ ->
+                startPreferencesExport(includeSecrets = true)
+            }
+            .setNegativeButton(R.string.preferences_export_without_secrets) { _, _ ->
+                startPreferencesExport(includeSecrets = false)
+            }
+            .setNeutralButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun startPreferencesExport(includeSecrets: Boolean) {
+        val export = try {
+            PreferencesExport.export(AndroidPreferencesPort(this, Settings(this)), includeSecrets,
+                platform = PreferencesExport.PLATFORM_ANDROID)
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        preferencesExportPending?.zero()
+        preferencesExportPending = export
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/json").putExtra(Intent.EXTRA_TITLE, "offlineotp-preferences.json")
+        try {
+            startActivityForResult(intent, Constants.INTENT_SETTINGS_PREFERENCES_EXPORT)
+        } catch (_: RuntimeException) {
+            export.zero()
+            preferencesExportPending = null
+            Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun savePreferencesExport(uri: Uri) {
+        val pending = preferencesExportPending ?: return
+        preferencesExportPending = null
+        val saved = try {
+            StorageAccessHelper.saveFile(this, uri, pending.bytes, BooleanSupplier { !isFinishing() })
+        } catch (_: RuntimeException) {
+            false
+        } finally {
+            pending.zero()
+        }
+        when {
+            !saved -> Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+            pending.includesSecrets ->
+                Toast.makeText(this, R.string.preferences_export_success_with_secrets, Toast.LENGTH_LONG).show()
+            else -> Toast.makeText(this,
+                getString(R.string.preferences_export_success, pending.keysWritten), Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Opens the picker; the confirmation happens once the file is known to be readable. */
+    fun requestPreferencesImport() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try {
+            startActivityForResult(intent, Constants.INTENT_SETTINGS_PREFERENCES_IMPORT)
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    private fun confirmPreferencesImport(uri: Uri) {
+        val bytes = try {
+            getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, PreferencesExport.MAX_BYTES) }
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        // Validate before asking, so a wrong file is rejected without a dialog the user cannot act on.
+        if (!isReadablePreferences(bytes)) {
+            bytes.fill(0)
+            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        val dialog = AlertDialog.Builder(this)
+            .setTitle(R.string.preferences_import_question)
+            .setMessage(R.string.preferences_import_question_detail)
+            .setPositiveButton(android.R.string.ok) { _, _ -> applyPreferencesImport(bytes) }
+            .setNeutralButton(android.R.string.cancel, null)
+            .create()
+        // Back or a tap outside is a cancel too, and the read bytes must not outlive the dialog.
+        dialog.setOnDismissListener { bytes.fill(0) }
+        dialog.show()
+    }
+
+    /**
+     * A dry run against a port that writes nowhere: the codec validates the whole document before
+     * applying anything, so this rejects a bad file without a second import attempt.
+     */
+    private fun isReadablePreferences(bytes: ByteArray): Boolean {
+        val probe = object : PreferencesExport.SettingsPort {
+            override fun storedKeys(): Set<String> = emptySet()
+            override fun read(key: String): PreferencesExport.Value? = null
+            override fun readBackupPassword(): String? = null
+            override fun write(key: String, value: PreferencesExport.Value) { }
+        }
+        return try {
+            PreferencesExport.import(bytes, probe, PreferencesExport.PLATFORM_ANDROID)
+            true
+        } catch (error: IllegalArgumentException) {
+            // Say which failure it was: a file for another client is not a corrupt file.
+            if (error is PreferencesExport.WrongPlatformException) {
+                Toast.makeText(this, R.string.preferences_import_wrong_platform, Toast.LENGTH_LONG).show()
+            }
+            false
+        }
+    }
+
+    private fun applyPreferencesImport(bytes: ByteArray) {
+        val result = try {
+            PreferencesExport.import(bytes, AndroidPreferencesPort(this, Settings(this)),
+                PreferencesExport.PLATFORM_ANDROID)
+        } catch (_: RuntimeException) {
+            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            return
+        } finally {
+            bytes.fill(0)
+        }
+        if (result.includesSecrets) {
+            Toast.makeText(this, R.string.preferences_import_success_with_secrets, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, getString(R.string.preferences_import_success, result.applied),
+                Toast.LENGTH_LONG).show()
+        }
+        if (result.unknownKeys.isNotEmpty()) {
+            Toast.makeText(this, getString(R.string.preferences_import_skipped, result.unknownKeys.size),
+                Toast.LENGTH_LONG).show()
+        }
+        // The screen the user is looking at may now describe settings that changed underneath it.
+        fragment?.refreshOpenPgpKeyFileSummaries()
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
 
@@ -429,6 +574,11 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_auth_failed,
                     BaseTransientBottomBar.LENGTH_SHORT).show()
             }
+        } else if (requestCode == Constants.INTENT_SETTINGS_PREFERENCES_EXPORT) {
+            if (resultCode == RESULT_OK && data?.data != null) savePreferencesExport(data.data!!)
+            else { preferencesExportPending?.zero(); preferencesExportPending = null }
+        } else if (requestCode == Constants.INTENT_SETTINGS_PREFERENCES_IMPORT) {
+            if (resultCode == RESULT_OK && data?.data != null) confirmPreferencesImport(data.data!!)
         } else if (requestCode == Constants.INTENT_SETTINGS_BACKUP_LOCATION && resultCode == RESULT_OK) {
             val treeUri: Uri? = data?.data
             if (treeUri != null && "content" == treeUri.getScheme() &&
@@ -629,6 +779,18 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 true
             }
 
+            // Portable preferences: the file is plaintext, so the export asks about the backup
+            // password before writing and the import says what it will overwrite.
+            findPreference(getString(R.string.settings_key_preferences_export))?.setOnPreferenceClickListener {
+                (getActivity()!! as SettingsActivity).confirmPreferencesExport()
+                true
+            }
+
+            findPreference(getString(R.string.settings_key_preferences_import))?.setOnPreferenceClickListener {
+                (getActivity()!! as SettingsActivity).requestPreferencesImport()
+                true
+            }
+
             // OpenPGP
             val pgpProvider = findPreference(getString(R.string.settings_key_openpgp_provider)) as? OpenPgpAppPreference
             pgpProviderPreference = pgpProvider
@@ -805,13 +967,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             }
             val dialog = AlertDialog.Builder(ctx)
                 .setTitle(R.string.settings_title_biometric)
-                .setMessage(BiometricKeyStore.BiometricWording.enableQuestion)
+                .setMessage(R.string.settings_dialog_biometric_enable)
                 .setView(passwordInput)
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     val typed = passwordInput.text?.toString() ?: ""
                     passwordInput.setText("")
                     if (typed.isEmpty()) {
-                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
                         return@setPositiveButton
                     }
                     // Verify the typed password against the stored verifier (PBKDF2 split).
@@ -819,7 +981,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         verifyVaultPassword(typed)
                     } catch (_: Exception) { false }
                     if (!verified) {
-                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
                         return@setPositiveButton
                     }
                     // Use the live vault key — the password matched, and the GCM tag is the real gate.
@@ -842,8 +1004,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                                 val msg = when (error) {
                                     BiometricKeyStore.BiometricError.NOT_ENROLLED -> getString(R.string.settings_toast_biometric_not_enrolled)
                                     BiometricKeyStore.BiometricError.UNAVAILABLE -> getString(R.string.settings_toast_biometric_unavailable)
-                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> BiometricKeyStore.BiometricWording.lockedOut
-                                    BiometricKeyStore.BiometricError.CANCELLED -> BiometricKeyStore.BiometricWording.cancelled
+                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> getString(R.string.settings_toast_biometric_locked_out)
+                                    BiometricKeyStore.BiometricError.CANCELLED -> getString(R.string.settings_toast_biometric_cancelled)
                                     else -> getString(R.string.settings_toast_biometric_save_failed)
                                 }
                                 Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()

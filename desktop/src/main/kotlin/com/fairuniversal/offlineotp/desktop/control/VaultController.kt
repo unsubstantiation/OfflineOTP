@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.KeyValueSettings
 import com.fairuniversal.offlineotp.Utilities.PasswordVault
 import com.fairuniversal.offlineotp.Utilities.VaultReadError
 import com.fairuniversal.offlineotp.Utilities.VaultSettingsKeys
@@ -27,6 +28,12 @@ class VaultController(private val vault: PasswordVault) {
     }
 
     fun isInitialized(): Boolean = vault.isInitialized()
+
+    /**
+     * The portable preference store beside the vault, exposed for the preferences export/import.
+     * It is available whether or not the vault is unlocked: these are app settings, not secrets.
+     */
+    val preferences: KeyValueSettings get() = vault.preferences
 
     /** Provisions a new empty vault and immediately unlocks it so the window can render. */
     fun createVault(password: String): Session = when (val result = vault.create(password)) {

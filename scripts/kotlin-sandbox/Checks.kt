@@ -38,6 +38,7 @@ import com.fairuniversal.offlineotp.Database.ValidatedEntry
 import com.fairuniversal.offlineotp.Utilities.EntryThumbnail
 import com.fairuniversal.offlineotp.Utilities.LetterBitmap
 import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
+import com.fairuniversal.offlineotp.Utilities.AutomaticBackupPruner
 import com.fairuniversal.offlineotp.Utilities.BackupHelper
 import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
 import com.fairuniversal.offlineotp.Utilities.NotificationHelper
@@ -67,6 +68,9 @@ import com.fairuniversal.offlineotp.Utilities.EditorActionHelper
 import com.fairuniversal.offlineotp.Utilities.EncryptedBackupHeader
 import com.fairuniversal.offlineotp.Utilities.HandlerTimerScheduler
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.BrowserPasswordCsv
+import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
+import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.Utilities.OtpHashAlgorithm
 import com.fairuniversal.offlineotp.Utilities.OtpKind
 import com.fairuniversal.offlineotp.Utilities.OtpParseResult
@@ -81,6 +85,8 @@ import com.fairuniversal.offlineotp.Utilities.ValidatedOtp
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 import com.fairuniversal.offlineotp.Utilities.Settings
+import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
+import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.Utilities.SshConnection
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
@@ -4396,6 +4402,7 @@ fun main() {
             "getLocale()Ljava/util/Locale;",
             "getNoTagsToggle()Z",
             "getOldCredentials(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)Ljava/lang/String;",
+            "getAutoBackupKeepCount()I",
             "getOpenPGPEncryptionUserIDs()Ljava/lang/String;",
             "getOpenPGPMode()Lcom/fairuniversal/offlineotp/Utilities/OpenPgpMode;",
             "getOpenPGPProvider()Ljava/lang/String;",
@@ -4440,6 +4447,7 @@ fun main() {
             "setAuthCredentials(Ljava/lang/String;Ljava/util/function/BooleanSupplier;)[B",
             "setAuthMethod(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)V",
             "setBackupLocation(Landroid/net/Uri;)V",
+            "setBackupPassword(Ljava/lang/String;)Z",
             "setBoolean(IZ)V",
             "setDefaultBackupType(Lcom/fairuniversal/offlineotp/Utilities/Constants\$BackupType;)V",
             "setEncryption(Ljava/lang/String;)V",
@@ -7706,6 +7714,253 @@ fun main() {
             true
         }
         expect(refused, { "an unavailable backend must refuse to encrypt, not pretend success" })
+    }
+
+    check("automatic backup retention prunes only this app's old automatic backups") {
+        val uuidEnd = "-9b4d-4f6a-8e21-7c5d0b9a1e33"
+        val treeUri = contentUri("tree", "retention-folder")
+        val deleted = ArrayList<String>()
+        val documents = ArrayList<DocumentFile>()
+        // Fixed timestamps so the plan is deterministic: older index = older file.
+        fun add(name: String, modified: Long, deletable: Boolean = true) {
+            documents.add(object : DocumentFile() {
+                override fun getUri(): Uri = contentUri("document", name)
+                override fun getName(): String = name
+                override fun lastModified(): Long = modified
+                override fun isDirectory(): Boolean = false
+                override fun delete(): Boolean {
+                    if (!deletable) return false
+                    deleted.add(name)
+                    return true
+                }
+            })
+        }
+        for (i in 1..6) add("otp_accounts_0000000$i$uuidEnd.json.aes", i * 1_000L)
+        // A user's own dated export and unrelated files are older than everything and must survive.
+        add("otp_accounts_2026-01-01_00-00-00.json.aes", 1L)
+        add("otp_accounts.json.aes", 1L)
+        add("holiday.jpg", 1L)
+        // An automatic backup the provider refuses to delete: it is the oldest, so it is in the
+        // plan, and the run must count the refusal instead of claiming success. (A timestamp of 0
+        // would mean "unknown" and would be treated as newest — covered by the unit test.)
+        add("otp_accounts_00000000$uuidEnd.json.aes", 500L, deletable = false)
+        val tree = object : DocumentFile() {
+            override fun getUri(): Uri = treeUri
+            override fun delete(): Boolean = false
+            override fun listFiles(): Array<DocumentFile> = documents.toTypedArray()
+        }
+        DocumentFile.treeFactory = { _, _ -> tree }
+        val context = BackupSettingsContext(FakeResolver())
+        val fixture = SettingsFixture(context)
+        try {
+            // Off by default: nothing is deleted and the setting reads as "keep everything".
+            expect(fixture.settings.getAutoBackupKeepCount() == 0, { "retention must default to off" })
+            expect(AutomaticBackupPruner.pruneTree(context, treeUri, 0).deleted == 0 && deleted.isEmpty(),
+                { "retention off deleted files" })
+
+            // Keep 3: the 7 automatic backups leave the 3 newest and delete the 4 oldest.
+            deleted.clear()
+            val result = AutomaticBackupPruner.pruneTree(context, treeUri, 3)
+            expect(result.deleted == 3 && result.failed == 1,
+                { "unexpected prune result $result" })
+            expect(deleted.all { it.startsWith("otp_accounts_0000000") },
+                { "a non-automatic file was pruned: $deleted" })
+            expect("otp_accounts_00000004$uuidEnd.json.aes" !in deleted &&
+                "otp_accounts_00000005$uuidEnd.json.aes" !in deleted &&
+                "otp_accounts_00000006$uuidEnd.json.aes" !in deleted,
+                { "the newest copies were pruned: $deleted" })
+            expect("otp_accounts_2026-01-01_00-00-00.json.aes" !in deleted &&
+                "otp_accounts.json.aes" !in deleted && "holiday.jpg" !in deleted,
+                { "a user file was pruned: $deleted" })
+
+            // A provider refusal is counted, never reported as success, and never retried blindly.
+            expect(deleted.none { it == "otp_accounts_00000000$uuidEnd.json.aes" },
+                { "the read-only copy was reported as deleted" })
+
+            // The stored setting is read through the core normalizer.
+            fixture.seed(R.string.settings_key_auto_backup_keep, "10")
+            expect(fixture.settings.getAutoBackupKeepCount() == 10, { "stored retention was not read" })
+            fixture.seed(R.string.settings_key_auto_backup_keep, "9999")
+            expect(fixture.settings.getAutoBackupKeepCount() == 0,
+                { "an out-of-range retention must fall back to keeping everything" })
+            fixture.seed(R.string.settings_key_auto_backup_keep, "not a number")
+            expect(fixture.settings.getAutoBackupKeepCount() == 0,
+                { "an unparsable retention must fall back to keeping everything" })
+        } finally {
+            DocumentFile.treeFactory = null
+        }
+    }
+
+    check("browser passwords can be edited and re-exported without losing their columns") {
+        // The same CSV the browser import accepts, one row per browser dialect.
+        val chrome = ("name,url,username,password,note\n"
+                + "Site,https://site.test,alice,s3cret,first note\n").toByteArray()
+        val firefox = ("url,username,password,httpRealm,formActionOrigin,guid\n"
+                + "https://ff.test,bob,ffpw,,,ABC-123\n").toByteArray()
+        val safari = ("Title,URL,Username,Password,Notes,OTPAuth\n"
+                + "Site,https://site.test,alice,pw,note,otpauth://example\n").toByteArray()
+        fun entry(bytes: ByteArray): Entry =
+            PasswordImport.prepare(bytes, "passwords.csv", PasswordImport.Mode.INDIVIDUAL).single()
+
+        val chromeEntry = entry(chrome)
+        val firefoxEntry = entry(firefox)
+        val safariEntry = entry(safari)
+        val session = Entry.passwordFields("alice@host", "host",
+            listOf("url" to "ssh://host:22", "username" to "alice", "password" to "pw",
+                "linscp_session_json" to "{}"))
+        try {
+            // Only browser-shaped column sets may leave as a browser CSV: a LinSCP session would
+            // lose its session JSON, so it is refused instead of silently flattened.
+            val chromeSupport = PasswordCsvExport.support(chromeEntry)
+            expect(chromeSupport is PasswordCsvExport.Support.Exportable &&
+                (chromeSupport as PasswordCsvExport.Support.Exportable).dialect == PasswordCsvExport.Dialect.CHROME,
+                { "a Chrome import was not recognised as a Chrome CSV: $chromeSupport" })
+            expect((PasswordCsvExport.support(firefoxEntry) as PasswordCsvExport.Support.Exportable).dialect ==
+                PasswordCsvExport.Dialect.FIREFOX, { "a Firefox import lost its dialect" })
+            expect((PasswordCsvExport.support(safariEntry) as PasswordCsvExport.Support.Exportable).dialect ==
+                PasswordCsvExport.Dialect.SAFARI, { "a Safari import lost its dialect" })
+            expect(PasswordCsvExport.support(session) is PasswordCsvExport.Support.Foreign,
+                { "a LinSCP session claimed a browser CSV form" })
+            try {
+                PasswordCsvExport.exportCsv(listOf(session), PasswordCsvExport.Dialect.FIREFOX)
+                throw AssertionError("a foreign column set was exported")
+            } catch (_: IllegalArgumentException) { }
+
+            // A single entry keeps its own header: no column is renamed, added or dropped.
+            val single = PasswordCsvExport.exportCsv(listOf(chromeEntry), PasswordCsvExport.Dialect.CHROME)
+            val parsed = BrowserPasswordCsv.parse(single) as BrowserPasswordCsv.Result.Success
+            expect(parsed.columns == chromeEntry.getPasswordFields().columns(),
+                { "the exported header changed: ${parsed.columns}" })
+            expect(parsed.rows.size == 1 && parsed.rows[0].valueAt(3) == "s3cret" &&
+                parsed.rows[0].valueAt(4) == "first note",
+                { "the exported row lost a column" })
+
+            // Editing changes exactly the three shared fields, keeping notes, GUIDs and OTPAuth.
+            val edited = PasswordCsvExport.withEditedFields(chromeEntry, username = "carol", password = "new pw")
+            try {
+                val fields = edited.getPasswordFields()
+                expect(fields.value("username") == "carol" && fields.value("password") == "new pw" &&
+                    fields.value("url") == "https://site.test" && fields.value("note") == "first note",
+                    { "the edit touched an unrequested column" })
+                expect(edited.getLabel() == "carol", { "the card label did not follow the username" })
+                val safariEdited = PasswordCsvExport.withEditedFields(safariEntry, url = "https://moved.test")
+                try {
+                    expect(safariEdited.getPasswordFields().value("otpauth") == "otpauth://example",
+                        { "editing dropped the stored OTPAuth column" })
+                } finally { safariEdited.destroy() }
+            } finally { edited.destroy() }
+
+            // An empty password is refused rather than written as a login that cannot work.
+            try {
+                PasswordCsvExport.withEditedFields(chromeEntry, password = "")
+                throw AssertionError("an empty password was accepted")
+            } catch (_: IllegalArgumentException) { }
+
+            // Mixed column sets still produce one importable file under the dialect's own header.
+            val mixed = PasswordCsvExport.exportCsv(listOf(chromeEntry, safariEntry),
+                PasswordCsvExport.Dialect.FIREFOX)
+            val mixedParsed = BrowserPasswordCsv.parse(mixed) as BrowserPasswordCsv.Result.Success
+            expect(mixedParsed.columns == PasswordCsvExport.canonicalHeader(PasswordCsvExport.Dialect.FIREFOX),
+                { "a mixed export did not use the canonical header: ${mixedParsed.columns}" })
+            expect(mixedParsed.rows[0].valueAt(0) == "https://site.test" &&
+                mixedParsed.rows[1].valueAt(0) == "https://site.test",
+                { "a mixed export lost an entry's URL" })
+
+            // The dialog exposes the entry menu items the adapter now offers.
+            expect(R.id.menu_popup_edit_password != R.id.menu_popup_export_password_csv,
+                { "the edit and export menu items share an id" })
+        } finally {
+            chromeEntry.destroy(); firefoxEntry.destroy(); safariEntry.destroy(); session.destroy()
+        }
+    }
+
+    // --- portable preferences export ---------------------------------------------------------
+    // The codec's own semantics live in `PreferencesExportTest` (twelve cases, run by
+    // compile-core.sh); what is executed here is the *Android* half, which the core suite cannot
+    // reach: reading a real SharedPreferences store through the port and writing back into it.
+    check("portable preferences export reads and writes the real Android store") {
+        val fixture = SettingsFixture()
+        // A setting the catalog declares, plus two the port must not touch.
+        fixture.store.edit().putString("pref_auth", "password").apply()
+        fixture.store.edit().putInt("pref_auth_inactivity_timeout", 600).apply()
+        fixture.store.edit().putBoolean("pref_enable_screenshot", true).apply()
+        fixture.store.edit().putString("pref_auth_salt", "device-salt").apply()
+        val port = AndroidPreferencesPort(fixture.context, fixture.settings)
+
+        // The enumeration is the store's, not the catalog's: a newer release's key is still seen
+        // (and so lands in `skipped`) instead of vanishing.
+        expect(port.storedKeys().contains("pref_auth_salt"),
+            { "the port does not enumerate the whole store" })
+
+        val plain = PreferencesExport.export(port, includeSecrets = false)
+        expect(!plain.includesSecrets, { "a secrets-free export claimed to hold a secret" })
+        expect(plain.keysWritten == 3, { "expected 3 portable settings, got ${plain.keysWritten}" })
+        expect("device-salt" !in String(plain.bytes), { "a device-bound value reached the file" })
+        expect("pref_auth_salt" !in String(plain.bytes), { "a device-bound key was named in the file" })
+        // The salt is in the store but not in the file: the wrapped password cannot be attacked
+        // offline, which is the whole reason it is device-bound.
+        expect(fixture.store.getString("pref_auth_salt", null) == "device-salt",
+            { "the fixture store is not the one the port read" })
+
+        val roundTrip = SettingsFixture()
+        roundTrip.store.edit().putString("pref_auth", "none").apply()
+        roundTrip.store.edit().putInt("pref_auth_inactivity_timeout", 30).apply()
+        val restore = PreferencesExport.import(plain.bytes, AndroidPreferencesPort(roundTrip.context, roundTrip.settings))
+        expect(restore.applied == 3, { "expected 3 applied settings, got ${restore.applied}" })
+        expect(roundTrip.store.getString("pref_auth", null) == "password",
+            { "the imported value did not reach the store" })
+        expect(roundTrip.store.getInt("pref_auth_inactivity_timeout", -1) == 600,
+            { "the imported integer lost its type" })
+        expect(roundTrip.store.getBoolean("pref_enable_screenshot", false),
+            { "the imported boolean did not reach the store" })
+        expect(roundTrip.store.getString("pref_auth_salt", null) == null,
+            { "an import invented a device-bound value" })
+        plain.zero()
+
+        // A file for the desktop client is refused before a single write, so the store is intact.
+        val foreign = PreferencesExport.export(port, includeSecrets = false,
+            platform = PreferencesExport.PLATFORM_DESKTOP)
+        val before = roundTrip.store.getAll().toMap()
+        var refused = false
+        try {
+            PreferencesExport.import(foreign.bytes, AndroidPreferencesPort(roundTrip.context, roundTrip.settings))
+        } catch (_: PreferencesExport.WrongPlatformException) {
+            refused = true
+        }
+        expect(refused, { "a desktop document was applied to Android" })
+        expect(roundTrip.store.getAll().toMap() == before, { "a refused import still wrote" })
+        foreign.zero()
+
+        // The one movable secret goes through Settings, so it stays wrapped by the Keystore.
+        expect(port.readBackupPassword() == null, { "an unset backup password read back as a value" })
+    }
+
+    check("the removal prompt names an entry the way every client does") {
+        // Android, desktop (removalConfirmationMessage) and iOS (VaultStore.displayName) all ask
+        // "remove the account \"<name>\"?" and all name it by the label, or by the issuer when the
+        // label is blank. The shared rule is Entry.privacyTitle(); the adapter must use it, because
+        // getLabel() alone asked to remove the account "" for a scanned entry.
+        fun totp(issuer: String, label: String): Entry =
+            Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, issuer, label,
+                TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        val labelled = totp("GitHub", "alice")
+        val unlabelled = totp("GitHub", "")
+        val anonymous = totp("", "")
+        expect(labelled.privacyTitle() == "alice", { "a label identifies the entry" })
+        expect(unlabelled.privacyTitle() == "GitHub", { "a blank label falls back to the issuer" })
+        expect(unlabelled.privacyTitle() != unlabelled.getLabel(),
+            { "the raw label is still blank, which is what the prompt used to print" })
+        expect(anonymous.privacyTitle() == "", { "no label and no issuer names nothing" })
+        for (entry in listOf(labelled, unlabelled, anonymous)) entry.destroy()
+
+        // Read from the repository root, which is where run.sh starts this program.
+        val adapter = java.io.File(
+            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt").readText()
+        val removal = adapter.substringAfter("fun removeItem(").substringBefore("\n    }\n")
+        expect(removal.contains("dialogs.delete(entry.privacyTitle(),"),
+            { "the Android removal prompt must use the shared identity rule" })
+        expect(!removal.contains("dialogs.delete(entry.getLabel()"),
+            { "the raw label re-introduces the empty-quote prompt" })
     }
 
     if (failures == 0) {

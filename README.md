@@ -22,7 +22,7 @@ The Android application ID, namespace, and Kotlin/Java packages use `com.fairuni
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
 - Store standalone secure notes, SSH keys, browser-exported passwords, LinSCP SSH keys & saved sessions, and FairEmail/Thunderbird mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
-- Search within the selected tab or filter by tags, and see per-tag entry counts. On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
+- Search within the selected tab or filter by tags, and see per-tag entry counts on all three clients (Android's drawer rows, the desktop **Tag** dropdown and filter panel, the iOS tag chips). On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
 - Stay offline: the app declares no `INTERNET` permission.
 - Show a bundled brand logo per account, resolved from the issuer name (editable per entry on Android); unknown issuers get a letter tile. Debian and Windows use the same artwork as the phone.
 
@@ -147,8 +147,15 @@ passwords** on Android or **Add entry → Import passwords** on desktop. Choose 
 
 - **Individual passwords:** the CSV is parsed into separate vault entries. Source columns, including
   notes and Safari OTPAuth fields, are retained in each entry; reveal a card to copy the password or
-  use its menu to view its fields. Identical entries are skipped. Individual entries cannot yet be
-  edited or exported as a browser CSV; delete an outdated entry and reimport to change it.
+  use its menu to view its fields. Identical entries are skipped. Every entry keeps its file's own
+  dialect (Chrome, Firefox or Safari), so it can be edited and written back out: **Edit password…**
+  changes the URL, username and password and leaves notes, GUIDs, timestamps and OTPAuth untouched,
+  and **Export as … CSV…** (Android: *Export as `<browser>` CSV…* in the entry menu, plus
+  **+ → Export passwords…** for all of them; desktop: the same entry-menu item and **Tools → Export
+  passwords as browser CSV…**; iOS: **Export as `<browser>` CSV…** in the entry menu) writes the
+  selection as a CSV the same browser imports. Entries that did not come from a browser — a LinSCP
+  session, for example — have no browser CSV form and are refused rather than written with their
+  columns dropped; use the LinSCP or Thunderbird export for those.
 - **Keep original file:** the file is stored byte-for-byte as a single encrypted vault entry without
   parsing or converting it. Reveal it and use **Export password file** in its menu to save the
   original bytes for import into another program. This option accepts any file up to the limit.
@@ -276,8 +283,8 @@ current vault, its new entries first, while entries the vault already holds keep
 metadata; turn it on to replace the vault with the backup contents.
 Keep a separate, tested backup before restoring. Desktop rejects backups containing duplicate
 account identities (even when their tags or usage metadata differ) rather than silently dropping
-one. HOTP counters in different copies do not sync. Hardware-key-held accounts and local device
-settings are not included.
+one. HOTP counters in different copies do not sync. Hardware-key-held accounts are not included, and
+a backup carries no device settings — use **Export preferences…** below for those.
 
 OpenPGP backups use the same entry JSON and standard OpenPGP encryption, but provider and key
 compatibility must be tested on the actual devices. Desktop exports are encrypted but **unsigned**;
@@ -295,6 +302,37 @@ privacy checks. Display tests are opt-in on a host with a real or virtual displa
 `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'`.
 Gradle builds, real PC/SC keys, jpackage packaging and lint require a networked host with a full
 JDK. See [Desktop packaging and release](scripts/packaging/README.md).
+
+### Moving your preferences to a new device
+
+The vault is the accounts; the settings are everything else — theme, language, auto-lock delay,
+screenshot and autofill policy, the backup password. **Export preferences…** writes them as a small
+JSON document (`offlineotp.preferences`, version 1) that the same client can re-import, so a new
+phone starts from your configuration instead of the defaults where that is meaningful:
+
+| | where | what it asks |
+|---|---|---|
+| Android | Settings → **Export preferences…** / **Import preferences…** | whether to include the backup password |
+| Desktop | **Tools → Export preferences…** / **Import preferences…** | nothing — the desktop stores no backup password |
+| iOS | Settings → **Preferences** → **Export preferences…** / **Import preferences…** | nothing — the delay is the only portable setting |
+
+The backup password is the one secret a file can carry, and only when you ask for it: the export
+dialog says plainly when the file will hold a password, and importing one sets your backup password
+from the file. Everything bound to a device stays on it and is **not written, nor even named** in the
+file — the wrapped backup password, the vault's salt and KDF parameters, OpenPGP key-file grants and
+the hardware-unlock envelope. Keying an import with a file that lacks your salt cannot weaken
+anything, because a file that names the salt is not one this app writes.
+
+A preferences file belongs to one client. The three apps do not share a key set (Android's
+`pref_*` names, the desktop's `ui_*`), so importing a desktop file on Android — or the reverse — is
+refused outright with a message saying which client it came from, before anything is written. Moving
+settings between platforms needs a real mapping of each setting's meaning, which does not exist yet;
+silently applying the one or two names that happen to collide would be worse than a refusal.
+
+Settings this version does not know are reported as skipped, never guessed at. On Android the file
+is picked through the Storage Access Framework and the import is validated against a no-write trial
+first, so a corrupt document leaves the vault untouched; the serialised bytes are zeroed once the
+file is written or the picker is cancelled.
 
 ## Importing from Google Authenticator
 
@@ -331,6 +369,10 @@ KeyStore key. Export a portable backup and verify that it restores before changi
 reinstalling, clearing app data, or switching to a build signed with a different key. A signing
 key change requires uninstalling the old build and can erase its data.
 
+Paper will not be added as a backup medium: the encrypted file is already the offline copy, and a
+printed sheet of per-entry QR codes is a factor anyone who finds it can use. See
+[the fourth-pass audit](docs/incomplete-feature-audit-2026-11-06-fourth-pass.md) for the reasoning.
+
 For automatic backups, choose a backup folder and enable **Automatic backup** in Settings. With
 password login, **Use app password for encrypted backups** uses that password for automatic and
 manual password-encrypted backups without storing the password. If the session key is unavailable,
@@ -343,9 +385,14 @@ backups. Automatic backup is off by default.
 Existing separate backup passwords remain selected for compatibility until explicitly changed.
 Device authentication does not supply a login password for this mode; use a strong separate
 backup password or choose password login. OpenPGP backups use their selected recipients instead.
-Previously created backups keep their original passwords, and completed snapshots are not deleted
-automatically. Old snapshots can still contain accounts you later delete. Always test restoring
-backups and keep track of their passwords. Overlapping exports may finish out of order, so the
+Previously created backups keep their original passwords. **Keep automatic backups** in Settings
+(default *Keep all*) can prune old automatic snapshots, keeping the newest 5, 10, 20 or 50 and
+deleting the rest after each successful automatic export. Only files this app names
+`otp_accounts_<uuid>.json.aes` / `.json.gpg` are candidates — a dated manual export, the
+`otp_accounts.json.aes` file and anything else in the folder are never touched, nothing is deleted
+for a backup the user asked for, and a provider that refuses a delete leaves the file in place. Old
+snapshots can still contain accounts you later delete. Always test restoring backups and keep track
+of their passwords. Overlapping exports may finish out of order, so the
 provider's last-modified order does not always identify the newest vault state.
 
 A stolen backup permits offline password guessing. Use a strong, unique passphrase; no design can
@@ -428,7 +475,8 @@ The iOS client is a working daily-use app short of Face ID: `ios/` holds a Swift
 the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
 the token maths, verified against the same fixed vectors in
 `desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
-labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
+labels, issuers and tags, the same tag rules and the same per-tag entry counts (`tag (n)`) on the tag
+chips, the same five orders (remembered beside the vault, never
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
 entries, dated Full Encrypted Backups, restores that merge by default or replace,
 `otpauth://` and QR-image import, Google Authenticator export import (every code of a multi-code
@@ -504,6 +552,7 @@ bash scripts/verify_reproducible_build.sh
 - [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
 - [iOS client plan](docs/ios-client-plan.md) — the vault/backup format contract a native SwiftUI client must implement, the fixed-vector corpus it is verified against, and the milestones up to TestFlight.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
+- [Incomplete-feature audits](docs/incomplete-feature-audit-2026-11-06-third-pass.md) — the third pass (naming the removed entry, iOS tag counts, translatable biometric wording); it links the [first](docs/incomplete-feature-audit-2026-11-06.md) and [second](docs/scaffold-audit-2026-11-06-second-pass.md) 2026-11-06 passes and the [2026-11-01](docs/incomplete-feature-audit-2026-11-01.md) pass, which closed the OpenPGP backend, three unreachable scaffolds and the desktop's at-rest permissions.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
 - [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
 

@@ -12,6 +12,9 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+
+import com.fairuniversal.offlineotp.R
+
 import java.security.KeyStore
 import java.security.MessageDigest
 import javax.crypto.Cipher
@@ -40,7 +43,7 @@ object BiometricKeyStore {
 
     // Preference key for the toggle — stored beside ui_sort_mode, never inside secrets.dat.
     fun prefKeyEnabled(context: Context): String =
-        context.getString(com.fairuniversal.offlineotp.R.string.settings_key_biometric_enabled)
+        context.getString(R.string.settings_key_biometric_enabled)
 
     fun isEnabled(context: Context): Boolean {
         return try {
@@ -78,6 +81,9 @@ object BiometricKeyStore {
                 NOT_ENROLLED -> BiometricWording.notEnrolled
                 UNAVAILABLE -> BiometricWording.unavailable
             }
+
+        /** [refusal] localized for [context]; empty when the shortcut can be used. */
+        fun refusal(context: Context): String = BiometricWording.localized(context, refusal)
     }
 
     enum class BiometricError {
@@ -96,16 +102,26 @@ object BiometricKeyStore {
                 LOCKED_OUT -> BiometricWording.lockedOut
                 FAILED, MISSING -> BiometricWording.stale
             }
+
+        /** The same sentence, localized for [context]; [message] stays the English original. */
+        fun message(context: Context): String = BiometricWording.localized(context, message)
     }
 
+    /**
+     * The sentences the biometric screens show. Each one is a string resource
+     * (`strings_auth.xml`, `strings_settings.xml`) so the text is translated with the rest of the
+     * app; the constants below are the English originals used where no [Context] is available
+     * (a vault-rekey transaction that only holds a `SharedPreferences.Editor`).
+     */
     object BiometricWording {
+        const val unlockTitle = "Unlock with biometrics"
         const val reason = "Unlock your OfflineOTP vault."
         const val cancel = "Use password"
         const val switchTitle = "Unlock with fingerprint or face"
         const val switchDetail =
-            "Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted " +
-                "with the password: biometrics only releases a key this device keeps, and the password still " +
-                "works. A second account on this device cannot use it. Only strong biometrics are used."
+            "Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted" +
+                " with the password: biometrics only releases a key this device keeps, and the password still" +
+                " works. A second account on this device cannot use it. Only strong biometrics are used."
         const val enableQuestion = "Enter the vault password to turn this on."
         const val wrongPassword = "That password does not open this vault."
         const val saveFailed = "This device could not keep the unlock key. Try again."
@@ -117,8 +133,37 @@ object BiometricKeyStore {
             "Biometric unlock is no longer set up for this vault. Enter your password, then turn it on again."
         const val turnedOn = "Biometric unlock is on for this vault."
         const val turnedOff = "Biometric unlock is off."
-        // Legacy aliases for callers that still reference the old names.
-        const val fingerprintTitle = switchTitle
+        const val confirmEnable = "Confirm biometrics to enable quick unlock"
+
+        /** The localized form of [text]; falls back to the constant when the resource is missing. */
+        fun localized(context: Context, text: String): String {
+            val id = resourceIdFor(text)
+            if (id == 0) return text
+            return try {
+                context.getString(id)
+            } catch (_: RuntimeException) {
+                text
+            }
+        }
+
+        private fun resourceIdFor(text: String): Int = when (text) {
+            switchTitle -> R.string.settings_title_biometric
+            switchDetail -> R.string.settings_desc_biometric
+            wrongPassword -> R.string.settings_toast_biometric_wrong_password
+            cancelled -> R.string.settings_toast_biometric_cancelled
+            lockedOut -> R.string.settings_toast_biometric_locked_out
+            enableQuestion -> R.string.settings_dialog_biometric_enable
+            confirmEnable -> R.string.biometric_prompt_enable_subtitle
+            saveFailed -> R.string.settings_toast_biometric_save_failed
+            unavailable -> R.string.settings_toast_biometric_unavailable
+            notEnrolled -> R.string.settings_toast_biometric_not_enrolled
+            stale -> R.string.settings_toast_biometric_stale
+            turnedOn -> R.string.settings_toast_biometric_turned_on
+            turnedOff -> R.string.settings_toast_biometric_turned_off
+            unlockTitle -> R.string.biometric_prompt_title
+            reason -> R.string.biometric_prompt_subtitle
+            else -> 0
+        }
     }
 
     fun availability(context: Context): Availability {
@@ -323,9 +368,9 @@ object BiometricKeyStore {
         })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(BiometricWording.switchTitle)
-            .setSubtitle("Confirm biometrics to enable quick unlock")
-            .setNegativeButtonText(BiometricWording.cancel)
+            .setTitle(BiometricWording.localized(activity, BiometricWording.switchTitle))
+            .setSubtitle(BiometricWording.localized(activity, BiometricWording.confirmEnable))
+            .setNegativeButtonText(BiometricWording.localized(activity, BiometricWording.cancel))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
 
@@ -453,9 +498,9 @@ object BiometricKeyStore {
         })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle(BiometricWording.switchTitle)
-            .setSubtitle(BiometricWording.reason)
-            .setNegativeButtonText(BiometricWording.cancel)
+            .setTitle(BiometricWording.localized(activity, BiometricWording.unlockTitle))
+            .setSubtitle(BiometricWording.localized(activity, BiometricWording.reason))
+            .setNegativeButtonText(BiometricWording.localized(activity, BiometricWording.cancel))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
             .build()
 

@@ -56,6 +56,65 @@ public final class VaultStore: ObservableObject {
 
     /// The client preference key, next to `ui_sort_mode` in the settings file.
     public static let biometricSettingKey = "biometric_unlock"
+    /// The portable-preferences port over this vault's plist, the peer of Android's
+    /// `AndroidPreferencesPort` and the desktop's `DesktopPreferencesPort`.
+    ///
+    /// This client stores no backup password and no OpenPGP key grants, so the only setting that
+    /// moves is the inactivity delay; `auth_*` entries live in the same file but belong to the
+    /// vault and are never readable through this port.
+    public var preferencesPort: PreferencesExport.SettingsPort { PreferencesPort(settings: settings) }
+
+    private final class PreferencesPort: PreferencesExport.SettingsPort {
+        private let settings: PropertyListSettings
+        init(settings: PropertyListSettings) { self.settings = settings }
+
+        func storedKeys() -> Set<String> { settings.keys() }
+
+        func read(_ key: String) -> PreferencesExport.Value? {
+            guard let entry = PreferencesExport.setting(key) else { return nil }
+            switch entry.kind {
+            case .integer:
+                // 0 is how this app spells "disabled", so an explicit zero is a value, not absence.
+                guard let value = settings.integer(key) else { return nil }
+                return .integer(value)
+            case .string:
+                guard let value = settings.string(key) else { return nil }
+                return .text(value)
+            case .boolean:
+                guard let value = settings.string(key) else { return nil }
+                return .boolean(value == "true")
+            case .stringSet:
+                guard let value = settings.string(key) else { return nil }
+                return .textSet(value.split(separator: "\n").map(String.init))
+            case .secret, .deviceBound:
+                return nil
+            }
+        }
+
+        /// Writes one value.
+        ///
+        /// The port contract is deliberately non-throwing: `PreferencesExport.apply` validates and
+        /// types every value *before* it calls this, so a key or type that does not match the
+        /// catalog cannot reach here. Writing nothing is the safe outcome if that ever changes —
+        /// it is strictly better than crashing a settings import, and the codec's own tests pin the
+        /// validation that makes this branch unreachable.
+        func write(_ key: String, _ value: PreferencesExport.Value) {
+            guard let entry = PreferencesExport.setting(key) else { return }
+            switch (entry.kind, value) {
+            case (.integer, .integer(let number)):
+                settings.setInteger(key, number)
+            case (.string, .text(let text)):
+                settings.setString(key, text)
+            case (.boolean, .boolean(let flag)):
+                settings.setString(key, flag ? "true" : "false")
+            case (.stringSet, .textSet(let values)):
+                settings.setString(key, values.joined(separator: "\n"))
+            default:
+                return
+            }
+        }
+    }
+
     public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
@@ -299,6 +358,13 @@ public final class VaultStore: ObservableObject {
         generation += 1
         migration?.cancel()
         migration = nil
+        lastActivityDate = Date()
+    }
+
+    /// Re-reads the delay from the store, for a setting a preferences import just replaced
+    /// underneath the UI.
+    public func reloadInactivityLock() {
+        inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         lastActivityDate = Date()
     }
 

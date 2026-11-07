@@ -142,13 +142,18 @@ struct TagEditorSheet: View {
     }
 }
 
-/// Read-only `PASSWORD` credential detail sheet with secret masking and one-tap clipboard copy.
+/// `PASSWORD` credential detail sheet: every stored column with secret masking and one-tap copy,
+/// plus the edit form for the three columns every browser shares (arrow into `PasswordCsvExport`).
 struct PasswordDetailSheet: View {
     let entry: Entry
+    /// Position of the entry in the vault, so an edit can be written back where it was.
+    let index: Int
+    @ObservedObject var store: VaultStore
     let onCopy: (String, String) -> Void
     @Environment(\.dismiss) private var dismiss
 
     @State private var revealSecrets = false
+    @State private var editing = false
 
     private var decodedFields: PasswordMaterial.Fields? {
         try? entry.passwordFields()
@@ -205,10 +210,18 @@ struct PasswordDetailSheet: View {
             .navigationTitle("Password details")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    if decodedFields != nil {
+                        Button("Edit") { editing = true }
+                    }
+                }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
                 }
             }
+        }
+        .sheet(isPresented: $editing) {
+            PasswordEditSheet(entry: entry, index: index, store: store) { dismiss() }
         }
         .preferredColorScheme(.dark)
     }
@@ -441,6 +454,110 @@ struct EmailAccountEditorSheet: View {
             }
         } catch {
             errorText = "Provide a valid email address and incoming/outgoing mail servers."
+        }
+    }
+}
+
+/// Edits the URL, username and password of a stored browser-imported password.
+///
+/// The password box starts empty and keeps the stored value when left blank, so opening the form
+/// never puts a secret on screen; the other stored columns are carried over by `PasswordCsvExport`.
+struct PasswordEditSheet: View {
+    let entry: Entry
+    let index: Int
+    @ObservedObject var store: VaultStore
+    /// Called after the write succeeds, so the caller can dismiss this sheet and its parent.
+    let onSaved: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var url: String
+    @State private var username: String
+    @State private var password = ""
+    @State private var revealPassword = false
+    @State private var errorText: String?
+
+    private let maxFieldChars = 64 * 1024
+
+    init(entry: Entry, index: Int, store: VaultStore, onSaved: @escaping () -> Void) {
+        self.entry = entry
+        self.index = index
+        self.store = store
+        self.onSaved = onSaved
+        let fields = (try? entry.passwordFields()) ?? PasswordMaterial.Fields(items: [])
+        _url = State(initialValue: fields.value(PasswordCsvExport.fieldURL))
+        _username = State(initialValue: fields.value(PasswordCsvExport.fieldUsername))
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    TextField("URL", text: $url)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .keyboardType(.URL)
+                    TextField("Username", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                    if revealPassword {
+                        TextField("New password (blank keeps the stored one)", text: $password)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                    } else {
+                        SecureField("New password (blank keeps the stored one)", text: $password)
+                    }
+                    Toggle("Show password", isOn: $revealPassword)
+                } footer: {
+                    Text("Notes, GUIDs, timestamps and other stored columns are kept as they are.")
+                }
+                if let errorText {
+                    Section {
+                        Text(errorText).foregroundColor(ForestPalette.warning)
+                    }
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(ForestPalette.background)
+            .navigationTitle("Edit password")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { password = ""; dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save", action: save)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .onDisappear { password = "" }
+    }
+
+    private func save() {
+        guard url.count <= maxFieldChars, username.count <= maxFieldChars, password.count <= maxFieldChars else {
+            errorText = "Every value must fit the entry limits."
+            return
+        }
+        let replacement: Entry
+        do {
+            replacement = try PasswordCsvExport.withEditedFields(
+                entry,
+                url: url,
+                username: username,
+                password: password.isEmpty ? nil : password
+            )
+        } catch {
+            errorText = "The password entry could not be updated. A password cannot be empty."
+            password = ""
+            return
+        }
+        password = ""
+        // The store replaces the entry in place, so the vault order and every other entry survive.
+        if store.update(at: index, with: replacement) {
+            onSaved()
+            dismiss()
+        } else {
+            errorText = store.message ?? "The password entry could not be saved to the vault."
         }
     }
 }

@@ -600,6 +600,34 @@ open class Settings(private val context: Context) {
         }
     }
 
+    /**
+     * Stores the backup password the way the settings screen does: wrapped by the device's Keystore
+     * key, then Base64. Returns false when there is no usable key or the store rejects the write, so
+     * a caller importing preferences can report that the password did not arrive instead of
+     * assuming it did.
+     */
+    open fun setBackupPassword(value: String): Boolean {
+        return try {
+            val pair = KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
+                ?: return false
+            if (value.isEmpty()) {
+                setString(R.string.settings_key_backup_password_enc, "")
+                return true
+            }
+            val plain = value.toByteArray(StandardCharsets.UTF_8)
+            try {
+                val encrypted = EncryptionHelper.encrypt(pair.public, plain)
+                setString(R.string.settings_key_backup_password_enc,
+                    Base64.encodeToString(encrypted, Base64.URL_SAFE))
+                true
+            } finally {
+                plain.fill(0)
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     open fun tryAcquireBroadcastBackupSlot(): Boolean {
         synchronized(DatabaseHelper.DatabaseFileLock) {
             val now = SystemClock.elapsedRealtime()
@@ -787,6 +815,21 @@ open class Settings(private val context: Context) {
 
     open fun getAutoBackupEncryptedFullEnabled(): Boolean {
         return getAutoBackupEncryptedSetting() == Constants.AutoBackup.ALL_EDITS
+    }
+
+    /**
+     * How many automatic backups the folder keeps; `0` (the default) keeps everything.
+     *
+     * A stored value that is not a number, or one outside [BackupRetention.MAX_KEEP], reads as
+     * `0` rather than asking the pruner to interpret it — retaining is always the safe direction.
+     */
+    open fun getAutoBackupKeepCount(): Int {
+        val stored = try {
+            getString(R.string.settings_key_auto_backup_keep, "0").trim().toIntOrNull()
+        } catch (_: RuntimeException) {
+            null
+        } ?: return BackupRetention.DEFAULT_KEEP
+        return BackupRetention.normalizeKeep(stored)
     }
 
     open fun isHighlightTokenOptionEnabled(): Boolean {

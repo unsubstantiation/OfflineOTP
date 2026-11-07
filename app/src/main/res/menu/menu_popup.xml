@@ -29,6 +29,16 @@
         android:visible="false" />
 
     <item
+        android:id="@+id/menu_popup_edit_password"
+        android:title="@string/password_edit"
+        android:visible="false" />
+
+    <item
+        android:id="@+id/menu_popup_export_password_csv"
+        android:title="@string/password_export_csv"
+        android:visible="false" />
+
+    <item
         android:id="@+id/menu_popup_export_password_file"
         android:title="@string/password_export"
         android:visible="false" />

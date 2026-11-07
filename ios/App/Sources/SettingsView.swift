@@ -1,5 +1,25 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import OfflineOTPKit
+
+/// The exported preferences file, handed to the system's exporter. Plain JSON by design — this is
+/// the one document the app writes unencrypted, which is why the backup password is opt-in.
+struct PreferencesDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    static var writableContentTypes: [UTType] { [.json] }
+
+    var data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
 
 /// Settings sheet: biometric quick unlock, vault password change, inactivity auto-lock, vault
 /// diagnostics, and offline About information.
@@ -14,6 +34,11 @@ struct SettingsView: View {
     @State private var currentVaultPassword = ""
     @State private var newVaultPassword = ""
     @State private var confirmVaultPassword = ""
+
+    @State private var preferencesExport: PreferencesDocument?
+    @State private var exportingPreferences = false
+    @State private var importingPreferences = false
+    @State private var preferencesMessage: String?
 
     private var switchTitle: String { "Unlock with \(store.biometryTitle)" }
 
@@ -33,6 +58,7 @@ struct SettingsView: View {
                 autoLockSection
                 passwordSection
                 vaultSection
+                preferencesSection
                 aboutSection
                 if let message = store.message {
                     Section {
@@ -151,6 +177,70 @@ struct SettingsView: View {
             Text("Vault")
         } footer: {
             Text("The folder holding \(VaultStore.vaultFilename) and its settings.")
+        }
+    }
+
+    private var preferencesSection: some View {
+        Section {
+            Button("Export preferences…") { exportPreferences() }
+            Button("Import preferences…") { importingPreferences = true }
+            if let preferencesMessage {
+                Text(preferencesMessage)
+                    .font(.footnote)
+                    .foregroundColor(ForestPalette.textSecondary)
+            }
+        } header: {
+            Text("Preferences")
+        } footer: {
+            Text("Moves the app settings this client can carry — the inactivity delay — between iOS "
+                 + "installs. The vault, its password and its accounts are never included, and a file "
+                 + "written by another client is refused rather than half-applied.")
+        }
+        .fileExporter(isPresented: $exportingPreferences, document: preferencesExport,
+                      contentType: .json, defaultFilename: "offlineotp-preferences.json") { result in
+            switch result {
+            case .success(let url):
+                preferencesMessage = "Preferences exported to \(url.lastPathComponent)."
+            case .failure:
+                preferencesMessage = "The preferences could not be exported."
+            }
+        }
+        .fileImporter(isPresented: $importingPreferences, allowedContentTypes: [.json]) { result in
+            switch result {
+            case .success(let url):
+                importPreferences(from: url)
+            case .failure:
+                preferencesMessage = "The preferences could not be imported."
+            }
+        }
+    }
+
+    private func exportPreferences() {
+        do {
+            let export = try PreferencesExport.export(store.preferencesPort)
+            preferencesExport = PreferencesDocument(data: export.bytes)
+            exportingPreferences = true
+        } catch {
+            preferencesMessage = "The preferences could not be exported."
+        }
+    }
+
+    private func importPreferences(from url: URL) {
+        // A file picked outside the app's container needs an explicit security scope.
+        let scoped = url.startAccessingSecurityScopedResource()
+        defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let result = try PreferencesExport.apply(data, into: store.preferencesPort)
+            let skipped = result.unknownKeys.isEmpty ? ""
+                : " \(result.unknownKeys.count) settings are not known to this version and were skipped."
+            preferencesMessage = "\(result.applied) settings imported.\(skipped)"
+            // The auto-lock picker must reflect a value that just changed underneath it.
+            store.reloadInactivityLock()
+        } catch PreferencesExport.PreferencesError.wrongPlatform(let source, _) {
+            preferencesMessage = "That file holds \(source) preferences; this client can only import iOS ones."
+        } catch {
+            preferencesMessage = "That file is not an OfflineOTP preferences file this version can read."
         }
     }
 

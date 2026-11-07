@@ -13,6 +13,11 @@ abstract class DocumentFile {
     open fun canWrite(): Boolean = false
     open fun findFile(name: String?): DocumentFile? = null
     open fun createFile(mimeType: String?, name: String?): DocumentFile? = null
+    /** Retention pruning reads these three; the compile-only default reports an empty folder. */
+    open fun listFiles(): Array<DocumentFile> = emptyArray()
+    open fun getName(): String? = null
+    open fun lastModified(): Long = 0L
+    open fun isDirectory(): Boolean = false
     open fun exists(): Boolean = false
 
     companion object {

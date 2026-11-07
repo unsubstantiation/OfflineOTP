@@ -76,6 +76,9 @@ open class EncryptedBackupTask : GenericBackupTask {
         return Constants.BackupType.ENCRYPTED
     }
 
+    /** Only the automatic modes (settings-driven or broadcast retry) prune; [Mode.USER] never does. */
+    protected override fun isAutomatic(): Boolean = mode != Mode.USER
+
     protected override fun doBackup(): Boolean {
         val payload = synchronized(entries) { DatabaseHelper.entriesToString(entries) }
         return BackupHelper.backupToFile(applicationContext, uri, password, payload, this::canWrite)

@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 
 import com.fairuniversal.offlineotp.R
+import com.fairuniversal.offlineotp.Utilities.AutomaticBackupPruner
 import com.fairuniversal.offlineotp.Utilities.BackupHelper
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.Settings
@@ -39,14 +40,36 @@ abstract class GenericBackupTask(context: Context, uri: Uri?) :
                 fileName = StorageAccessHelper.getContentFileName(applicationContext, uri)
             } else fileName = StorageAccessHelper.getContentFileName(applicationContext, uri)
             success = canWrite() && doBackup() && canWrite()
-            return if (success) BackupTaskResult.success(BackupTaskResult.ResultType.BACKUP, fileName)
-            else BackupTaskResult.failure(BackupTaskResult.ResultType.BACKUP, R.string.backup_toast_export_failed)
+            if (success) {
+                // Only an automatic export prunes, and only after this one is safely written: the
+                // fresh document is part of the kept set, so a failed export can never be the
+                // reason an older copy disappears. Best-effort — a provider that refuses to delete
+                // must not turn a completed backup into a reported failure.
+                if (isAutomatic()) pruneOldAutomaticBackups()
+                return BackupTaskResult.success(BackupTaskResult.ResultType.BACKUP, fileName)
+            }
+            return BackupTaskResult.failure(BackupTaskResult.ResultType.BACKUP, R.string.backup_toast_export_failed)
         } catch (error: RuntimeException) {
             return BackupTaskResult.failure(BackupTaskResult.ResultType.BACKUP, R.string.backup_toast_export_failed)
         } finally {
             if (!success && created != null) {
                 try { created.delete() } catch (ignored: RuntimeException) { }
             }
+        }
+    }
+
+    /**
+     * True when this run is an automatic export. Only those prune: a backup the user asked for is
+     * theirs, and deleting anything on the strength of it would be a surprise.
+     */
+    protected open fun isAutomatic(): Boolean = false
+
+    /** Applies the retention setting to the folder; see [AutomaticBackupPruner]. */
+    private fun pruneOldAutomaticBackups() {
+        try {
+            AutomaticBackupPruner.prune(applicationContext, settings, settings.getAutoBackupKeepCount())
+        } catch (_: RuntimeException) {
+            // The backup itself succeeded; retention is a housekeeping step.
         }
     }
 

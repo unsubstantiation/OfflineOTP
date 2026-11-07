@@ -190,16 +190,19 @@ public final class Blake2b {
         (x >> n) | (x << (64 - n))
     }
 
+    /// Reads eight bytes as a little-endian word.
+    ///
+    /// Each byte is widened in its own statement rather than folded into one eight-term `|` chain:
+    /// a single expression of that shape makes the Swift type checker exhaust itself (it has to
+    /// consider every integer-literal type for every operand) and the compiler reports
+    /// "unable to type-check this expression in reasonable time" instead of building the module.
     @inline(__always)
     internal static func loadLe64(_ bytes: [UInt8], offset: Int) -> UInt64 {
-        UInt64(bytes[offset])
-            | (UInt64(bytes[offset + 1]) << 8)
-            | (UInt64(bytes[offset + 2]) << 16)
-            | (UInt64(bytes[offset + 3]) << 24)
-            | (UInt64(bytes[offset + 4]) << 32)
-            | (UInt64(bytes[offset + 5]) << 40)
-            | (UInt64(bytes[offset + 6]) << 48)
-            | (UInt64(bytes[offset + 7]) << 56)
+        var value: UInt64 = 0
+        for index in 0..<8 {
+            value |= UInt64(bytes[offset + index]) << UInt64(index * 8)
+        }
+        return value
     }
 
     @inline(__always)
@@ -292,7 +295,7 @@ public enum Argon2id {
         let memory = UnsafeMutablePointer<UInt64>.allocate(capacity: totalWords)
         memory.initialize(repeating: 0, count: totalWords)
         defer {
-            memory.assign(repeating: 0, count: totalWords)
+            memory.update(repeating: 0, count: totalWords)
             memory.deallocate()
         }
 
@@ -432,7 +435,7 @@ public enum Argon2id {
         let scratch = UnsafeMutablePointer<UInt64>.allocate(capacity: scratchWords)
         scratch.initialize(repeating: 0, count: scratchWords)
         defer {
-            scratch.assign(repeating: 0, count: scratchWords)
+            scratch.update(repeating: 0, count: scratchWords)
             scratch.deallocate()
         }
 
@@ -544,7 +547,7 @@ public enum Argon2id {
         iterations: Int,
         counter: UInt64
     ) {
-        zIn.assign(repeating: 0, count: blockQwords)
+        zIn.update(repeating: 0, count: blockQwords)
         zIn[0] = UInt64(pass)
         zIn[1] = UInt64(lane)
         zIn[2] = UInt64(slice)

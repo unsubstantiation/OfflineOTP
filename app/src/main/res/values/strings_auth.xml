@@ -14,6 +14,7 @@
     <string name="biometric_unlock_button">Unlock with biometrics</string>
     <string name="biometric_prompt_title">Unlock with biometrics</string>
     <string name="biometric_prompt_subtitle">Use fingerprint or face to unlock your vault</string>
+    <string name="biometric_prompt_enable_subtitle">Confirm biometrics to enable quick unlock</string>
 
     <!-- Toast messages -->
     <string name="auth_toast_password_missing">Set a password in Settings first.</string>

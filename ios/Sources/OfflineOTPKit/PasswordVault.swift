@@ -14,6 +14,25 @@ public protocol KeyValueSettings: AnyObject {
     func setString(_ key: String, _ value: String)
     func integer(_ key: String) -> Int?
     func setInteger(_ key: String, _ value: Int)
+
+    /// Deletes a value.
+    ///
+    /// A rollback needs this: `PasswordVault.changePassword` restores the settings it replaced, and
+    /// a setting that was *absent* before has to go back to being absent rather than to a default.
+    /// Defaulted to doing nothing so an adapter that cannot delete still compiles — a store that
+    /// can, must.
+    func remove(_ key: String)
+
+    /// The keys this store holds. Defaulted so existing adapters keep compiling; a store that can
+    /// enumerate itself should override it, because the preferences export uses it to tell an
+    /// *absent* setting from one stored at its default.
+    func keys() -> Set<String>
+}
+
+extension KeyValueSettings {
+    public func remove(_ key: String) { }
+
+    public func keys() -> Set<String> { [] }
 }
 
 /// Stable setting names, shared with `VaultSettingsKeys` in `:core`.
@@ -388,6 +407,13 @@ public final class PropertyListSettings: KeyValueSettings {
 
     public func setString(_ key: String, _ value: String) {
         values[key] = value
+        persist()
+    }
+
+    public func keys() -> Set<String> { Set(values.keys) }
+
+    public func remove(_ key: String) {
+        guard values.removeValue(forKey: key) != nil else { return }
         persist()
     }
 

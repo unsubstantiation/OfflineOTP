@@ -45,6 +45,9 @@ class DesktopSettings(private val file: File) : KeyValueSettings {
     }
 
     @Synchronized
+    override fun keys(): Set<String> = properties.stringPropertyNames().toSet()
+
+    @Synchronized
     override fun remove(key: String) {
         if (properties.remove(key) != null) persist()
     }

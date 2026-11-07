@@ -5,7 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
-        android:key="@string/settings_key_cat_security"
+        android:key="pref_cat_security"
         android:title="@string/settings_category_title_security">
 
         <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
@@ -256,6 +256,16 @@
             android:summary="@string/settings_desc_enable_android_backup_service"
             android:defaultValue="false" />
 
+        <Preference
+            android:key="@string/settings_key_preferences_export"
+            android:title="@string/settings_title_preferences_export"
+            android:summary="@string/settings_desc_preferences_export" />
+
+        <Preference
+            android:key="@string/settings_key_preferences_import"
+            android:title="@string/settings_title_preferences_import"
+            android:summary="@string/settings_desc_preferences_import" />
+
         <CheckBoxPreference
             android:key="@string/settings_key_backup_append_date_time"
             android:title="@string/settings_title_backup_append_date"
@@ -291,6 +301,14 @@
             android:entries="@array/settings_entries_auto_backup_password_enc"
             android:entryValues="@array/settings_values_auto_backup_password_enc"
             android:defaultValue="@string/settings_default_auto_backup_password_enc" />
+
+        <ListPreference
+            android:key="@string/settings_key_auto_backup_keep"
+            android:title="@string/settings_title_auto_backup_keep"
+            android:summary="@string/settings_desc_auto_backup_keep"
+            android:entries="@array/settings_entries_auto_backup_keep"
+            android:entryValues="@array/settings_values_auto_backup_keep"
+            android:defaultValue="0" />
 
         <MultiSelectListPreference
             android:key="@string/settings_key_backup_broadcasts"
