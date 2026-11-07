@@ -49,17 +49,19 @@ The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists 
   third-party stubs that `core/build.gradle` declares) and runs the core JVM tests.
 - `scripts/run-jvm-tests.sh` runs the JVM unit tests under both `app/src/test/kotlin` and
   `core/src/test/kotlin`.
-- `scripts/kotlin-sandbox/compile-desktop.sh` is the desktop Swing gate: it compiles `:core` first
-  with no Android stubs, then compiles `desktop/src/main` and `desktop/src/test` against core's
-  output using only the JDK's `java.desktop` (Swing/AWT) module, and runs the desktop tests
-  headless (`-Djava.awt.headless=true`). Lightweight Swing theme, card, and table-model tests run
+- `scripts/kotlin-sandbox/compile-desktop.sh` is the desktop Swing gate: it compiles `:core` and
+  `:ui-model` (the shared labels the Swing client renders) first with no Android or Compose stubs,
+  then compiles `desktop/src/main` and `desktop/src/test` against that output using only the JDK's
+  `java.desktop` (Swing/AWT) module, and runs the desktop tests headless
+  (`-Djava.awt.headless=true`). Lightweight Swing theme, card, and table-model tests run
   here; heavyweight `JFrame` display tests are skipped. On a host with a display and Gradle, run
   `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'` for the
   opt-in window, dialog, menu, visibility, search and clipboard checks.
-- `scripts/kotlin-sandbox/compile-ui.sh` is the shared Compose Multiplatform gate: it compiles
-  `:core` first, then `ui/src/commonMain` against the compile-only Compose stubs in
-  [`stubs-compose/`](stubs-compose/README.md), then runs the Compose-free projection tests from
-  `ui/src/desktopTest/kotlin`. A Compose screen that reaches for `android.*`, Swing, storage, crypto
+- `scripts/kotlin-sandbox/compile-ui.sh` is the shared UI gate: it compiles `:core`, then
+  `:ui-model` (the frame layer) with **no Compose artifact on the classpath**, then
+  `ui/src/commonMain` against the compile-only Compose stubs in
+  [`stubs-compose/`](stubs-compose/README.md), then runs the frame-layer tests from
+  `ui-model/src/desktopTest/kotlin`. A Compose screen that reaches for `android.*`, Swing, storage, crypto
   or session types fails to compile, and the frame-model tests (grouping, countdown arithmetic,
   expiry window, masking, tab/tag counts, empty-state wording, both filter combinations) run on a
   plain JVM. A fourth phase type-checks `desktop-compose` against the compiled `:desktop` gate

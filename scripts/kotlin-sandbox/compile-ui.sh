@@ -6,13 +6,15 @@
 # and no Compose artifacts:
 #
 #   phase 1  compiles :core with its portable third-party stubs, exactly like compile-desktop.sh;
-#   phase 2  compiles ui/src/commonMain against phase 1 plus hand-written Compose Multiplatform
-#            stubs (scripts/kotlin-sandbox/stubs-compose). A file that reaches for android.*, Swing,
-#            AWT, storage or session types fails to compile here;
-#   phase 3  compiles the pure projection tests in ui/src/desktopTest (JUnit 4 shim) and runs them;
-#   phase 4  compiles the :desktop-compose host against the compiled :desktop gate output and the
+#   phase 2  compiles ui-model/src/commonMain with NO Compose artifact on the classpath at all. This
+#            is the strong boundary: the frame layer cannot import Compose, Android, Swing, storage
+#            or session types even if it wanted to, because nothing provides them;
+#   phase 3  compiles ui/src/commonMain (the Compose widgets) against phase 1+2 plus hand-written
+#            Compose Multiplatform stubs (scripts/kotlin-sandbox/stubs-compose);
+#   phase 4  compiles the frame-layer tests in ui-model/src/desktopTest (JUnit 4 shim) and runs them;
+#   phase 5  compiles the :desktop-compose host against the compiled :desktop gate output and the
 #            Compose Desktop window stubs, so the host cannot drift out of the shared screen's API;
-#   phase 5  compiles ui/src/androidMain (the ComposeView seam) against the Android stubs and the
+#   phase 6  compiles ui/src/androidMain (the ComposeView seam) against the Android stubs and the
 #            Compose Android platform stubs, so the Android host cannot rot before the cutover.
 #
 # What a green run means: the shared UI type-checks under `-jvm-target 1.8`, and the frame builder
@@ -25,8 +27,9 @@ set -euo pipefail
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SANDBOX/../.." && pwd)"
 CORE_MAIN="$ROOT/core/src/main/kotlin"
+MODEL_MAIN="$ROOT/ui-model/src/commonMain/kotlin"
+MODEL_TEST="$ROOT/ui-model/src/desktopTest/kotlin"
 UI_MAIN="$ROOT/ui/src/commonMain/kotlin"
-UI_TEST="$ROOT/ui/src/desktopTest/kotlin"
 COMPOSE_STUBS="$SANDBOX/stubs-compose"
 OUT="${KOTLIN_UI_OUT:-$ROOT/reports/kotlin-sandbox/ui}"
 
@@ -75,8 +78,9 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
 
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" -name '*.kt' -print0 | sort -z)
+mapfile -d '' MODEL_SOURCES < <(find "$MODEL_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' UI_SOURCES < <(find "$UI_MAIN" -name '*.kt' -print0 | sort -z)
-mapfile -d '' UI_TEST_SOURCES < <(find "$UI_TEST" -name '*.kt' -print0 | sort -z)
+mapfile -d '' MODEL_TEST_SOURCES < <(find "$MODEL_TEST" -name '*.kt' -print0 | sort -z)
 # Only the multiplatform stubs: the desktop window and Android platform stubs are compiled with the
 # host phases that need them (and the Android ones need the app's Android stubs on the classpath).
 mapfile -d '' COMPOSE_STUB_SOURCES < <(find "$COMPOSE_STUBS" -name '*.kt' \
@@ -90,11 +94,12 @@ mapfile -d '' COMPOSE_ANDROID_STUB_SOURCES < <(find "$COMPOSE_STUBS/android" -na
 mapfile -d '' ANDROID_STUBS < <(find "$SANDBOX/stubs/android" -name '*.kt' -print0 2>/dev/null | sort -z)
 
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources under $CORE_MAIN" >&2; exit 2; }
+[[ ${#MODEL_SOURCES[@]} -gt 0 ]] || { echo "no frame-layer sources under $MODEL_MAIN" >&2; exit 2; }
 [[ ${#UI_SOURCES[@]} -gt 0 ]] || { echo "no ui sources under $UI_MAIN" >&2; exit 2; }
 [[ ${#COMPOSE_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose stubs under $COMPOSE_STUBS" >&2; exit 2; }
 
 rm -rf "$OUT"
-mkdir -p "$OUT/core" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android"
+mkdir -p "$OUT/core" "$OUT/model" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android"
 
 echo "kotlinc: $KOTLINC"
 echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
@@ -102,18 +107,23 @@ echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
     "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" \
     -d "$OUT/core"
 
-echo "phase 2: shared ui (${#UI_SOURCES[@]} files, Compose Multiplatform stubs)"
+echo "phase 2: frame layer (${#MODEL_SOURCES[@]} files, deliberately NO Compose stubs)"
 "$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
+    "${MODEL_SOURCES[@]}" \
+    -d "$OUT/model"
+
+echo "phase 3: shared ui widgets (${#UI_SOURCES[@]} files, Compose Multiplatform stubs)"
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$OUT/model:$STDLIB" \
     "${UI_SOURCES[@]}" "${COMPOSE_STUB_SOURCES[@]}" \
     -d "$OUT/ui"
 
-echo "phase 3: projection tests (${#UI_TEST_SOURCES[@]} files, JUnit 4 shim)"
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$OUT/ui:$STDLIB" \
-    "${UI_TEST_SOURCES[@]}" "${JUNIT_SHIM[@]}" \
+echo "phase 4: frame-layer tests (${#MODEL_TEST_SOURCES[@]} files, JUnit 4 shim)"
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$OUT/model:$STDLIB" \
+    "${MODEL_TEST_SOURCES[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT/tests"
 
-echo "headless projection tests:"
-"$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/tests:$OUT/ui:$OUT/core:$STDLIB" \
+echo "headless frame-layer tests:"
+"$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/tests:$OUT/model:$OUT/core:$STDLIB" \
     JvmTestRunnerKt "$OUT/tests"
 
 # Phase 4 needs the desktop gate's compiled output because the host drives the real
@@ -121,24 +131,24 @@ echo "headless projection tests:"
 # stays self-contained instead of silently skipping the host.
 DESKTOP_OUT="${KOTLIN_DESKTOP_OUT:-$ROOT/reports/kotlin-sandbox/desktop}"
 if [[ ! -d "$DESKTOP_OUT/desktop" || ! -d "$DESKTOP_OUT/core" ]]; then
-    echo "phase 4: desktop gate output missing, running compile-desktop.sh first"
+    echo "phase 5: desktop gate output missing, running compile-desktop.sh first"
     bash "$SANDBOX/compile-desktop.sh" > /dev/null
 fi
 
-echo "phase 4: desktop-compose host (${#HOST_SOURCES[@]} files, Compose Desktop window stubs)"
+echo "phase 5: desktop-compose host (${#HOST_SOURCES[@]} files, Compose Desktop window stubs)"
 [[ ${#HOST_SOURCES[@]} -gt 0 ]] || { echo "no host sources under desktop-compose/src/main/kotlin" >&2; exit 2; }
 [[ ${#COMPOSE_DESKTOP_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose Desktop stubs under $COMPOSE_STUBS/desktop" >&2; exit 2; }
 "$KOTLINC" -jvm-target 1.8 -nowarn \
-    -cp "$DESKTOP_OUT/core:$DESKTOP_OUT/desktop:$OUT/ui:$STDLIB" \
+    -cp "$DESKTOP_OUT/core:$DESKTOP_OUT/desktop:$OUT/ui:$OUT/model:$STDLIB" \
     "${HOST_SOURCES[@]}" "${COMPOSE_DESKTOP_STUB_SOURCES[@]}" \
     -d "$OUT/host"
 echo "host type-checked (never run: the window stubs are inert)"
 
-echo "phase 5: android host seam (${#ANDROID_UI_SOURCES[@]} files, Android + Compose platform stubs)"
+echo "phase 6: android host seam (${#ANDROID_UI_SOURCES[@]} files, Android + Compose platform stubs)"
 [[ ${#ANDROID_UI_SOURCES[@]} -gt 0 ]] || { echo "no sources under ui/src/androidMain/kotlin" >&2; exit 2; }
 [[ ${#ANDROID_STUBS[@]} -gt 0 ]] || { echo "no Android stubs under $SANDBOX/stubs/android" >&2; exit 2; }
 [[ ${#COMPOSE_ANDROID_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose Android stubs under $COMPOSE_STUBS/android" >&2; exit 2; }
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/ui:$STDLIB" \
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/ui:$OUT/model:$STDLIB" \
     "${ANDROID_UI_SOURCES[@]}" "${COMPOSE_ANDROID_STUB_SOURCES[@]}" "${ANDROID_STUBS[@]}" \
     -d "$OUT/android"
 echo "android seam type-checked (no View is ever attached: the stubs have no framework)"

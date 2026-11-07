@@ -1,24 +1,31 @@
-"""Guards for the shared Compose Multiplatform ``:ui`` module.
+"""Guards for the shared Compose Multiplatform UI: the ``:ui-model`` frame layer and ``:ui`` widgets.
 
-The module is the single implementation of the vault screen for every client, so its boundary is
-what keeps it shareable: no Android or desktop-toolkit import, no storage/crypto/session access, no
-host package references, and a pure projection layer that carries no Compose import at all. These
-checks fail loudly if a later change quietly turns the shared UI into a second client.
+The frame layer is the contract between the vault and every renderer, so its boundary is what keeps
+the UI shareable. Two kinds of check live here:
+
+* source checks, because a template string, an import or a Gradle line can reintroduce a dependency
+  that the compile gates only catch later; and
+* wording parity against the Android resources, because the Compose screen, the Swing window and the
+  phone must label the same tab the same way, and the Android values are the localised source of
+  truth.
 """
 import re
 import unittest
 from pathlib import Path
+from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[2]
+MODEL_MAIN = ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
+MODEL_TEST = ROOT / "ui-model/src/desktopTest/kotlin/com/fairuniversal/offlineotp/ui"
 UI_MAIN = ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
 UI_ANDROID = ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui"
-UI_TEST = ROOT / "ui/src/desktopTest/kotlin/com/fairuniversal/offlineotp/ui"
 COMPOSE_HOST = ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose"
 SANDBOX = ROOT / "scripts/kotlin-sandbox"
 COMPOSE_STUBS = SANDBOX / "stubs-compose"
+ANDROID_STRINGS = ROOT / "app/src/main/res/values/strings_main.xml"
 
 # Frame/model files: no Compose, no platform, testable on a plain JVM.
-PURE_FILES = {
+FRAME_FILES = {
     "vault/TokenDisplay.kt",
     "vault/VaultCardState.kt",
     "vault/VaultUiState.kt",
@@ -26,6 +33,15 @@ PURE_FILES = {
     "vault/VaultActions.kt",
     "vault/VaultProjection.kt",
 }
+
+HOST_PACKAGES = (
+    "com.fairuniversal.offlineotp.desktop",
+    "com.fairuniversal.offlineotp.Activities",
+    "com.fairuniversal.offlineotp.Tasks",
+    "com.fairuniversal.offlineotp.Fragments",
+    "com.fairuniversal.offlineotp.Dialogs",
+    "com.fairuniversal.offlineotp.Preferences",
+)
 
 
 def kotlin_files(directory):
@@ -41,97 +57,149 @@ def imports(path):
     return found
 
 
-class ComposeUiBoundaryTest(unittest.TestCase):
+def android_strings():
+    root = ET.parse(ANDROID_STRINGS).getroot()
+    return {element.get("name"): "".join(element.itertext()) for element in root.findall("string")}
 
-    def test_ui_sources_never_import_a_platform_toolkit(self):
-        """The shared UI must build for Android and desktop from the same sources."""
+
+def kotlin_label_map(constant_function):
+    """The `case -> "label"` pairs inside one `when` in VaultStrings.kt."""
+    source = (MODEL_MAIN / "vault/VaultStrings.kt").read_text(encoding="utf-8")
+    start = source.index(f"fun {constant_function}(")
+    body = source[start:]
+    body = body[:body.index("\n    }")]
+    return {key: label for key, label in re.findall(r"(\w+)\s*->\s*\"([^\"]*)\"", body)}
+
+
+class FrameLayerBoundaryTest(unittest.TestCase):
+
+    def test_frame_layer_never_imports_a_toolkit_or_platform_api(self):
+        """`:ui-model` is the only UI code a non-Compose client may depend on."""
         forbidden = (
-            "android", "androidx.activity", "androidx.appcompat", "androidx.recyclerview",
-            "java.awt", "javax.swing", "java.io", "java.nio", "java.security", "javax.crypto",
-            "org.json", "com.yubico",
+            "android", "androidx", "java.awt", "javax.swing", "java.io", "java.nio",
+            "java.security", "javax.crypto", "org.json", "com.yubico",
         )
         offenders = []
-        for path in kotlin_files(UI_MAIN):
+        for path in kotlin_files(MODEL_MAIN):
             for number, imported in imports(path):
-                if imported == forbidden[0] or imported.startswith(tuple(f + "." for f in forbidden)):
+                if imported.split(".")[0] in forbidden or imported.startswith(tuple(f + "." for f in forbidden)):
                     offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
-        self.assertEqual([], offenders, "shared UI must not depend on a client toolkit or platform API")
+        self.assertEqual([], offenders, "the frame layer must stay toolkit-free")
 
-    def test_shared_ui_never_references_a_host_package(self):
-        """Screens render state and report actions; they do not reach into a client's internals."""
-        forbidden = (
-            "com.fairuniversal.offlineotp.desktop",
-            "com.fairuniversal.offlineotp.Activities",
-            "com.fairuniversal.offlineotp.Tasks",
-            "com.fairuniversal.offlineotp.Fragments",
-            "com.fairuniversal.offlineotp.Dialogs",
-            "com.fairuniversal.offlineotp.Preferences",
-        )
-        offenders = []
-        for path in kotlin_files(UI_MAIN):
-            for number, imported in imports(path):
-                if imported.startswith(forbidden):
-                    offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
-        self.assertEqual([], offenders, "the shared UI must not import a host package")
+    def test_frame_layer_module_declares_no_compose(self):
+        build = (ROOT / "ui-model/build.gradle").read_text(encoding="utf-8")
+        self.assertNotIn("org.jetbrains.compose", build)
+        self.assertNotIn("org.jetbrains.kotlin.plugin.compose", build)
+        self.assertNotIn("compose.", build)
+        self.assertIn("project(':core')", build)
+        self.assertIn("org.jetbrains.kotlin.multiplatform", build)
 
-    def test_projection_layer_carries_no_compose_import(self):
-        """The frame builder and its model are what the host JVM tests execute."""
-        missing = [name for name in PURE_FILES if not (UI_MAIN / name).is_file()]
-        self.assertEqual([], missing, "a pure projection file was renamed or removed")
-        offenders = []
-        for name in PURE_FILES:
-            for number, imported in imports(UI_MAIN / name):
-                if imported.startswith("androidx.compose"):
-                    offenders.append(f"{name}:{number} {imported}")
-        self.assertEqual([], offenders, "frame/model files must stay Compose-free so a plain JVM can test them")
+    def test_frame_layer_is_the_only_ui_dependency_of_a_non_compose_client(self):
+        desktop = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("project(':ui-model')", desktop)
+        self.assertNotIn("project(':ui')", desktop)
+        ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("api project(':ui-model')", ui)
 
-    def test_projection_tests_cover_grouping_privacy_and_filtering(self):
-        """The behaviours the two old clients each implemented are pinned here, not per client."""
-        names = {path.name for path in kotlin_files(UI_TEST)}
+    def test_projection_tests_live_with_the_frame_layer(self):
+        names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt"}, names
         )
-        filter_test = (UI_TEST / "vault/VaultFilterTest.kt").read_text(encoding="utf-8")
+        filter_test = (MODEL_TEST / "vault/VaultFilterTest.kt").read_text(encoding="utf-8")
         # The tag-tap rules that used to live twice: OR/AND accumulate, SINGLE replaces, a second
         # tap on the only SINGLE chip clears it, and the untagged switch is separate.
         for expected in ("withTagToggled", "withUntaggedToggled", "clearedFilters",
                          "singleReplacesTheSelection", "singleClearsWhenTheOnlyChipIsTappedAgain"):
             self.assertIn(expected, filter_test)
 
-    def test_ui_never_reads_a_clock_or_owns_a_coroutine_scope(self):
-        """The host supplies time and session cancellation; the module only renders frames."""
+    def test_frame_files_are_all_present_and_compose_free(self):
+        missing = [name for name in FRAME_FILES if not (MODEL_MAIN / name).is_file()]
+        self.assertEqual([], missing, "a frame-layer file was renamed or removed")
         offenders = []
-        for path in kotlin_files(UI_MAIN):
-            text = path.read_text(encoding="utf-8")
-            # `kotlin.time.TimeSource` is allowed in the countdown; wall-clock reads are not.
-            for marker in ("System.currentTimeMillis()", "java.util.Date", "Calendar.getInstance"):
-                if marker in text:
-                    offenders.append(f"{path.relative_to(ROOT)} uses {marker}")
-            if re.search(r"^\s*expect\s", text, re.MULTILINE):
-                offenders.append(f"{path.relative_to(ROOT)} declares an expect declaration")
-        self.assertEqual([], offenders, "platform time belongs to the host, not the shared UI")
+        for name in FRAME_FILES:
+            for number, imported in imports(MODEL_MAIN / name):
+                if imported.startswith("androidx.compose"):
+                    offenders.append(f"{name}:{number} {imported}")
+        self.assertEqual([], offenders)
 
     def test_codes_are_masked_until_revealed(self):
         """A card's digits are drawn only through the reveal flag, never by default."""
-        card = (UI_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
+        card = (MODEL_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
         components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
         self.assertIn("val tokenVisible: Boolean get() = token != null && revealed", card)
-        self.assertIn("if (card.tokenVisible) card.token else TokenDisplay.mask(card.token)", components)
+        self.assertIn("if (card.tokenVisible) token else TokenDisplay.mask(token)", components)
 
     def test_secret_bearing_state_redacts_its_diagnostics(self):
-        card = (UI_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
-        state = (UI_MAIN / "vault/VaultUiState.kt").read_text(encoding="utf-8")
-        self.assertIn("override fun toString(): String", card)
+        card = (MODEL_MAIN / "vault/VaultCardState.kt").read_text(encoding="utf-8")
+        state = (MODEL_MAIN / "vault/VaultUiState.kt").read_text(encoding="utf-8")
         self.assertIn('"VaultCardState(id=$id, kind=$kind, redacted)"', card)
         self.assertIn("override fun toString(): String", state)
+
+    def test_neither_module_reads_a_wall_clock(self):
+        """The host supplies the clock anchor; the shared code only counts elapsed time."""
+        offenders = []
+        for directory in (MODEL_MAIN, UI_MAIN, UI_ANDROID):
+            for path in kotlin_files(directory):
+                text = path.read_text(encoding="utf-8")
+                for marker in ("System.currentTimeMillis()", "System.nanoTime()",
+                               "java.util.Date", "Calendar.getInstance"):
+                    if marker in text:
+                        offenders.append(f"{path.relative_to(ROOT)} uses {marker}")
+                if re.search(r"^\s*expect\s", text, re.MULTILINE):
+                    offenders.append(f"{path.relative_to(ROOT)} declares an expect declaration")
+        self.assertEqual([], offenders)
+
+
+class VaultWordingParityTest(unittest.TestCase):
+    """The shared defaults are the Android resources' own words, so no client can relabel a tab."""
+
+    def test_tab_labels_match_the_android_resources(self):
+        strings = android_strings()
+        labels = kotlin_label_map("categoryTitle")
+        expected = {
+            "OTP": strings["tab_otp"],
+            "NOTES": strings["tab_notes"],
+            "SSH_KEYS": strings["tab_ssh_keys"],
+            "PASSWORDS": strings["tab_passwords"],
+            "EMAILS": strings["tab_email"],
+        }
+        self.assertEqual(expected, labels)
+
+    def test_sort_labels_match_the_android_resources(self):
+        strings = android_strings()
+        labels = kotlin_label_map("sortTitle")
+        expected = {
+            "UNSORTED": strings["menu_sort_none"],
+            "ISSUER": strings["menu_sort_issuer"],
+            "LABEL": strings["menu_sort_label"],
+            "LAST_USED": strings["menu_sort_last_used"],
+            "MOST_USED": strings["menu_sort_most_used"],
+        }
+        self.assertEqual(expected, labels)
+
+    def test_desktop_client_takes_its_labels_from_the_shared_table(self):
+        screen = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainScreen.kt")
+        text = screen.read_text(encoding="utf-8")
+        self.assertIn("VaultStrings.English.categoryTitle(category)", text)
+        self.assertIn("VaultStrings.English.sortTitle(mode)", text)
+        # No second label table may reappear in the Swing client.
+        self.assertNotIn('"SSH Keys"', text)
+        self.assertNotIn('"Most used"', text)
 
 
 class ComposeUiWiringTest(unittest.TestCase):
 
     def test_modules_are_listed_and_layered(self):
         settings = (ROOT / "settings.gradle").read_text(encoding="utf-8")
-        self.assertIn('include ":ui"', settings)
-        self.assertIn('include ":desktop-compose"', settings)
+        for module in ('":ui-model"', '":ui"', '":desktop-compose"'):
+            self.assertIn(f"include {module}", settings)
+
+        model = (ROOT / "ui-model/build.gradle").read_text(encoding="utf-8")
+        self.assertIn("org.jetbrains.kotlin.multiplatform", model)
+        self.assertIn("com.android.library", model)
+        self.assertIn("project(':core')", model)
+        self.assertNotIn("project(':ui')", model)
 
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         for plugin in (
@@ -144,7 +212,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("project(':core')", ui)
         self.assertIn("androidTarget", ui)
         self.assertIn("jvm('desktop')", ui)
-        # The shared module must not depend on either host.
+        # The widget module must not depend on either host.
         self.assertNotIn("project(':app')", ui)
         self.assertNotIn("project(':desktop')", ui)
 
@@ -162,7 +230,6 @@ class ComposeUiWiringTest(unittest.TestCase):
             f"org.jetbrains.kotlin:compose-compiler-gradle-plugin:{kotlin_version}", root,
             "the Compose compiler plugin must match the Kotlin compiler version",
         )
-        # No dynamic Compose version may sneak in anywhere.
         for path in ("build.gradle", "ui/build.gradle", "desktop-compose/build.gradle"):
             text = (ROOT / path).read_text(encoding="utf-8")
             self.assertNotRegex(text, r"compose[^'\n]*:[\.\+]")
@@ -173,6 +240,28 @@ class ComposeUiWiringTest(unittest.TestCase):
         for path in kotlin_files(ROOT / "desktop/src"):
             for number, imported in imports(path):
                 if imported.startswith("androidx.compose"):
+                    offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
+        self.assertEqual([], offenders)
+
+    def test_shared_ui_never_references_a_host_package(self):
+        offenders = []
+        for directory in (MODEL_MAIN, UI_MAIN, UI_ANDROID):
+            for path in kotlin_files(directory):
+                for number, imported in imports(path):
+                    if imported.startswith(HOST_PACKAGES):
+                        offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
+        self.assertEqual([], offenders, "the shared UI must not import a host package")
+
+    def test_ui_widgets_never_import_a_platform_toolkit(self):
+        forbidden = ("android", "androidx.activity", "androidx.appcompat", "androidx.recyclerview",
+                     "java.awt", "javax.swing", "java.io", "java.nio", "java.security",
+                     "javax.crypto", "org.json", "com.yubico")
+        offenders = []
+        for path in kotlin_files(UI_MAIN):
+            for number, imported in imports(path):
+                if imported.split(".")[0] == "android" or imported.startswith(
+                    tuple(f + "." for f in forbidden)
+                ):
                     offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
         self.assertEqual([], offenders)
 
@@ -197,25 +286,25 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("fun clear()", text)
         self.assertIn("DisposeOnViewTreeLifecycleDestroyed", text)
         self.assertIn("VaultScreenHost(", text)
-        # No session, storage, key or settings reach the seam: the Activity keeps that authority.
         for forbidden in ("SecretKey", "VaultSession", "DesktopVaultState", "PasswordVault",
                           "SharedPreferences", "Settings"):
             self.assertNotIn(forbidden, text)
-        # The seam adds no widget of its own: everything still comes from :ui.
         self.assertNotIn("VaultEntryCard(", text)
         self.assertNotIn("Column(", text)
 
-    def test_sandbox_gate_exists_and_uses_the_compose_stubs(self):
+    def test_sandbox_gate_compiles_the_frame_layer_without_compose(self):
         gate = SANDBOX / "compile-ui.sh"
         self.assertTrue(gate.is_file(), "missing the :ui sandbox compile gate")
         text = gate.read_text(encoding="utf-8")
         self.assertIn("stubs-compose", text)
-        self.assertIn("ui/src/desktopTest/kotlin", text)
+        self.assertIn("MODEL_MAIN", text)
+        self.assertIn("deliberately NO Compose stubs", text)
         self.assertIn("JvmTestRunnerKt", text)
         # Discovery is by find, so a new source file cannot silently sit outside the gate.
+        self.assertIn('find "$MODEL_MAIN" -name', text)
         self.assertIn('find "$UI_MAIN" -name', text)
-        # The host is part of the same gate: it must be compiled against the compiled :desktop
-        # engine and the Compose Desktop stubs, not left to the first real Gradle build.
+        # The host is part of the same gate: it is compiled against the compiled :desktop engine
+        # and the Compose Desktop stubs, not left to the first real Gradle build.
         self.assertIn("desktop-compose/src/main/kotlin", text)
         self.assertTrue((COMPOSE_STUBS / "desktop").is_dir(), "missing Compose Desktop window stubs")
         # The Android seam is type-checked too, against the app's own Android stubs.

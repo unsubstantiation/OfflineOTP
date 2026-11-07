@@ -1,10 +1,11 @@
 // Shared Compose Multiplatform UI: the single implementation of the vault screen for every client.
 //
-// Layering: :core (Android-free engine) <- :ui (this module) <- :app (Android) / :desktop-compose
-// (desktop host). This module must stay free of android.*, androidx.activity, Swing/AWT, storage,
-// crypto and session authority: it renders one immutable VaultUiState and reports interactions back
-// through VaultActions. The pure projection files under `ui/vault/` carry no Compose import at all,
-// so they are unit-tested on a plain JVM (see scripts/kotlin-sandbox/compile-ui.sh).
+// Layering: :core (Android-free engine) <- :ui-model (toolkit-free frame layer) <- :ui (this
+// module) <- :app (Android) / :desktop-compose (desktop host). This module holds only Compose code:
+// theming, screens and widgets. Everything a row *shows* lives in :ui-model, which is compiled with
+// no Compose artifact on the classpath, so a widget cannot quietly re-derive a code, a countdown or
+// an empty-state sentence. The module must stay free of android.*, androidx.activity, Swing/AWT,
+// storage, crypto and session authority.
 //
 // Versions are pinned, never dynamic: the root build rejects dynamic/changing versions.
 //   Compose Multiplatform 1.10.3 is the newest stable 1.10 line; 1.13 is still a beta line and
@@ -33,6 +34,8 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation project(':core')
+            // api so hosts can build frames and filters without depending on :ui-model themselves.
+            api project(':ui-model')
 
             // The `compose.*` aliases are deprecated in Compose Multiplatform 1.10 in favour of
             // explicit coordinates, but the plugin still resolves them to one consistent set of

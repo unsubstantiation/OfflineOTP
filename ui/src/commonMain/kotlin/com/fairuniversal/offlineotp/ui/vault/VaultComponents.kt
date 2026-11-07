@@ -285,9 +285,11 @@ internal fun VaultEntryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                if (card.revealedContent != null) {
+                // Read once into a local: a property from another module cannot be smart-cast.
+                val revealedContent = card.revealedContent
+                if (revealedContent != null) {
                     Text(
-                        text = card.revealedContent,
+                        text = revealedContent,
                         style = ForestType.mono,
                         color = ForestPalette.textSecondary,
                         maxLines = 3,
@@ -338,18 +340,21 @@ internal fun VaultEntryCard(
 @Composable
 private fun VaultCodeArea(card: VaultCardState, strings: VaultStrings) {
     val codeColor = if (card.showsExpiry) ForestPalette.warning else ForestPalette.otpAmber
+    // Locals, because these properties come from :ui-model and cannot be smart-cast here.
+    val token = card.token
+    val previousToken = card.previousToken
     Column(horizontalAlignment = Alignment.End) {
         when {
-            card.token != null -> {
+            token != null -> {
                 Text(
-                    text = if (card.tokenVisible) card.token else TokenDisplay.mask(card.token),
+                    text = if (card.tokenVisible) token else TokenDisplay.mask(token),
                     style = ForestType.code,
                     color = if (card.tokenVisible) codeColor else ForestPalette.textHint,
                     maxLines = 1
                 )
-                if (card.previousToken != null && card.tokenVisible) {
+                if (previousToken != null && card.tokenVisible) {
                     Text(
-                        text = card.previousToken,
+                        text = previousToken,
                         style = ForestType.previousCode,
                         color = ForestPalette.otpAmberMuted,
                         maxLines = 1

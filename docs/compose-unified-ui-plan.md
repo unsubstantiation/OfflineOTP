@@ -1,7 +1,8 @@
 # Unified Compose Multiplatform UI
 
-> **Status:** stage 1 is in the checkout — a shared `:ui` Compose Multiplatform module plus a desktop
-> preview host (`:desktop-compose`). The Android app still renders the View/RecyclerView UI and the
+> **Status:** stage 1 is in the checkout — a shared `:ui-model` frame layer (toolkit-free), a `:ui`
+> Compose Multiplatform widget module plus a desktop preview host (`:desktop-compose`); the Swing
+> desktop client already takes its tab and sort wording from the shared table. The Android app still renders the View/RecyclerView UI and the
 > shipping desktop client is still Swing, so **no client has been deleted yet**: this stage adds the
 > shared screen and the gates that keep it shareable. Stage 2 (Android cutover) and stage 4 (Swing
 > deletion) are the changes that actually shrink the codebase; their exit criteria are below.
@@ -27,13 +28,22 @@ session, its clipboard, its language resources, its window chrome).
 ## Layering
 
 ```
-:core  (Android-free engine: entries, OTP, parsers, vault, backups)
+:core        (Android-free engine: entries, OTP, parsers, vault, backups)
   ↑
-:ui    (Compose Multiplatform: theme, screens, projection)          ← this stage
-  ↑                              ↑
-:app   (Android host, stage 2)   :desktop-compose (desktop host, this stage)
-                                  :desktop (Swing client, still shipping until stage 4)
+:ui-model    (toolkit-free frame layer: cards, filters, strings — no Compose, no Android)
+  ↑
+:ui          (Compose Multiplatform: theme, screens, widgets)
+  ↑                                ↑
+:app  (Android host, stage 2)      :desktop-compose  (Compose desktop host)
+                                   :desktop          (Swing client, still shipping until stage 4)
+
+:desktop also depends on :ui-model — labels and the frame model only, never :ui.
 ```
+
+The split between `:ui-model` and `:ui` is what makes the boundary structural instead of textual: the
+frame layer is compiled with **no Compose artifact on the classpath at all**, so a widget or a
+card-state file physically cannot reach for one, and a host that does not use Compose (the Swing
+client today) can still share the model and the wording.
 
 `:desktop` stays Compose-free so its Swing-only sandbox gate and its Swing tests keep working while
 both desktop clients share one engine; the Compose desktop host lives in its own module instead of
@@ -44,7 +54,7 @@ growing a second UI inside `:desktop`.
 | Area | Files | Notes |
 | --- | --- | --- |
 | Design system | `ui/src/commonMain/.../ui/theme/ForestPalette.kt`, `ForestTheme.kt` | The Dark Forest tokens and a named type scale, replacing the duplicated `colors.xml`/`ForestTheme` values and the Material 3 colour scheme. |
-| Frame model | `ui/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection}.kt` | Compose-free. Everything a row shows is computed here, so it is unit-tested on a host JVM. |
+| Frame model | `ui-model/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
 | Screen | `ui/src/commonMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
 | Unlock | `ui/src/commonMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
 | Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `ComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
@@ -57,14 +67,18 @@ shows a button that does nothing.
 
 ## Decisions and their reasons
 
-1. **The projection is separate from the composables.** `VaultProjection` turns borrowed entries into
-   a `VaultUiState`; no file in that layer imports Compose. That is what makes the behaviour
-   (grouping, expiry window, empty-state choice, tag counts, masking) testable with the same JUnit
-   runner the rest of the repository uses, instead of requiring a device.
-2. **Strings are passed in.** Android ships thirty translated `values-*` lists; a Compose resource
-   bundle would orphan them. Hosts pass a `VaultStrings` value (Android from its resources, the
-   desktop preview from `VaultStrings.English`), so localisation stays a host concern and the module
-   keeps one default for previews and tests.
+1. **The projection is a separate module from the composables.** `VaultProjection` turns borrowed
+   entries into a `VaultUiState` inside `:ui-model`, which is compiled without Compose on the
+   classpath. That makes the behaviour (grouping, expiry window, empty-state choice, tag counts,
+   masking) testable with the same JUnit runner the rest of the repository uses, instead of requiring
+   a device, and it lets a non-Compose host — the Swing client — share the model without pulling a
+   UI toolkit it does not use.
+2. **Strings are passed in, and their English defaults are the Android resources' words.** Android
+   ships thirty translated `values-*` lists; a Compose resource bundle would orphan them. Hosts pass
+   a `VaultStrings` value (Android from its resources, the desktops from `VaultStrings.English`), so
+   localisation stays a host concern. The English defaults are checked against
+   `app/src/main/res/values/strings_main.xml` by the guard test, and the Swing client now renders its
+   tab and sort labels from the same table, so `OTP`/`SSH Keys` cannot be spelled three ways.
 3. **The host supplies time.** There is no `expect fun currentTimeMillis()`: the host anchors the
    countdown with its own wall clock and `rememberNowMillis` counts elapsed time from
    `TimeSource.Monotonic`. Fewer platform actuals, and a clock change cannot make the ring run
@@ -95,15 +109,15 @@ Verified in the checkout that produced this stage (no Maven Central, no Android 
 
 ```sh
 bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
-bash scripts/kotlin-sandbox/compile-ui.sh          # five phases, 40 projection tests
+bash scripts/kotlin-sandbox/compile-ui.sh          # six phases, 40 frame-layer tests
 python3 -m unittest scripts.tests.test_compose_ui_module -v
 ```
 
-`compile-ui.sh` runs five phases: it compiles `:core`, then `ui/src/commonMain` against the
-hand-written Compose stubs in
-[`scripts/kotlin-sandbox/stubs-compose`](../scripts/kotlin-sandbox/stubs-compose/README.md), runs the
-projection tests with the JUnit shim, type-checks `desktop-compose` against the compiled `:desktop`
-gate output and the Compose Desktop window stubs, and finally type-checks the Android seam
+`compile-ui.sh` runs six phases: it compiles `:core`; compiles `:ui-model` **with no Compose
+artifact on the classpath**; compiles `ui/src/commonMain` against the hand-written Compose stubs in
+[`scripts/kotlin-sandbox/stubs-compose`](../scripts/kotlin-sandbox/stubs-compose/README.md); runs the
+frame-layer tests with the JUnit shim; type-checks `desktop-compose` against the compiled `:desktop`
+gate output and the Compose Desktop window stubs; and type-checks the Android seam
 (`ui/src/androidMain`) against the app's own Android stubs plus a Compose platform stub. A green run means the shared sources type-check against
 `:core` with no Android/desktop/storage dependency, and that the frame builder behaves as asserted.
 It does **not** prove layout, rendering, accessibility, composition, resource resolution or that the
@@ -154,6 +168,13 @@ Card menus, manual entry, tag and thumbnail pickers and confirmation dialogs mov
 `VaultActions.onEntryActions`. Each dialog migrates with its own characterization coverage; the
 security rules in [`vault-security-hardening.md`](vault-security-hardening.md) (delayed confirmation,
 redaction, screen privacy) apply unchanged.
+
+### Stage 3b — Swing adopts the frame model
+
+Already started: the Swing client takes its tab and sort labels from `VaultStrings` and depends on
+`:ui-model` only. The remaining Swing adoption is the row model — `EntryTableModel`/`CardRenderer`
+deriving a row's token, expiry colour and tags from `VaultCardState` instead of re-reading the entry —
+which is the change that lets stage 4 delete the Swing screen rather than port it.
 
 ### Stage 4 — desktop parity, then delete Swing
 

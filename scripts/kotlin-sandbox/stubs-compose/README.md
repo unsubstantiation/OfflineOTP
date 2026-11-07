@@ -19,4 +19,7 @@ record. Anything these stubs accept that the real API rejects (for example an ar
 default that differs) is a gap to fix here, not evidence the code is correct.
 
 Files are grouped by the package they stand in for, under the real package names, so the imports in
-`ui/src/commonMain` are unchanged between this gate and Gradle.
+`ui/src/commonMain` are unchanged between this gate and Gradle. Two subdirectories are compiled only
+by the phases that need them: `desktop/` (the Compose Desktop window APIs the `:desktop-compose` host
+calls) and `android/` (the Compose Android platform types the `ComposeView` seam calls, which need the
+app's own Android stubs on the classpath).

@@ -41,11 +41,17 @@ data class VaultStrings(
     /** Noun after the entry count in the app bar. */
     val entriesSuffix: String = "entries"
 ) {
-    /** Tab label for one category, matching the order of `EntryListPresentation.Category`. */
+    /**
+     * Tab label for one category, in `EntryListPresentation.Category` order.
+     *
+     * The wording is the Android resources' own (`tab_otp`…`tab_email`), which the desktop client
+     * also shows, so the three renderers cannot label the same tab differently. `scripts/tests/
+     * test_compose_ui_module.py` fails if these defaults drift from `strings_main.xml`.
+     */
     fun categoryTitle(category: EntryListPresentation.Category): String = when (category) {
-        EntryListPresentation.Category.OTP -> "Codes"
+        EntryListPresentation.Category.OTP -> "OTP"
         EntryListPresentation.Category.NOTES -> "Notes"
-        EntryListPresentation.Category.SSH_KEYS -> "SSH keys"
+        EntryListPresentation.Category.SSH_KEYS -> "SSH Keys"
         EntryListPresentation.Category.PASSWORDS -> "Passwords"
         EntryListPresentation.Category.EMAILS -> "Email"
     }

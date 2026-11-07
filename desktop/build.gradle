@@ -1,5 +1,5 @@
-// Desktop Swing client. Pure-JVM: it depends on the Android-free :core and never references
-// android.* or androidx.*. The kotlin-sandbox desktop compile (no Android stubs on the classpath)
+// Desktop Swing client. Pure-JVM: it depends on the Android-free :core plus the toolkit-free
+// :ui-model (labels and frame model only), and never references android.*, androidx.* or Compose. The kotlin-sandbox desktop compile (no Android stubs on the classpath)
 // and a Python source guard enforce that boundary. Swing/AWT are JDK java.desktop modules, not
 // third-party dependencies, so this module declares no UI library of its own.
 apply plugin: 'org.jetbrains.kotlin.jvm'
@@ -133,6 +133,11 @@ dependencies {
     // All domain, OTP, parser, session and hardware logic comes from the shared module. Core's api
     // dependencies (org.json and the portable yubikit surface) arrive transitively.
     implementation project(':core')
+
+    // The toolkit-free frame layer, so the Swing client's tab, sort and tag wording comes from the
+    // same strings the Compose screen uses instead of a second table (see ui/…/VaultStrings.kt).
+    // It is pure Kotlin: no Compose artifact reaches this module.
+    implementation project(':ui-model')
 
     // Embedded OpenPGP engine for .json.gpg backups; the Android build instead talks to an
     // external OpenPGP provider, but both produce standard RFC 4880 messages. BouncyCastle

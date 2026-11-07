@@ -12,10 +12,11 @@ Android-free `:core` engine and password-backup codec. Use exported backups to t
 between distributions; copying an Android app-data vault is not a substitute for a backup. See
 [Desktop client](#desktop-client) for its scope and build instructions.
 
-The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui` module holds
-the vault screen, its Dark Forest design tokens, the unlock screen, the shared filter transitions and
-the frame projection both clients render from, plus the `ComposeView` seam the Android app will host
-it through; `:desktop-compose` runs that screen over the existing desktop engine as a preview
+The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui-model` module holds
+the toolkit-free frame layer — what a row shows, the shared filter transitions and the tab/sort
+wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
+tokens, the unlock screen and the `ComposeView` seam the Android app will host it through, and
+`:desktop-compose` runs that screen over the existing desktop engine as a preview
 (`./gradlew :desktop-compose:run`). The Android app and the shipping Swing client keep their
 own UI until the staged cutover in the [Compose UI plan](docs/compose-unified-ui-plan.md) completes,
 so no client has lost a feature to the migration.
@@ -463,10 +464,11 @@ bash scripts/kotlin-sandbox/bootstrap-toolchain.sh   # one-time, needs pypi and 
 bash scripts/kotlin-sandbox/compile-desktop.sh
 ```
 
-The shared Compose UI has its own boundary gate: it compiles `:core`, then `ui/src/commonMain`
-against the compile-only Compose stubs in `scripts/kotlin-sandbox/stubs-compose`, then runs the
-frame-projection tests. It proves the shared sources need no Android, Swing, storage or session API;
-it does not render a single pixel.
+The shared UI has its own boundary gate: it compiles `:core`, then `:ui-model` with no Compose
+artifact on the classpath, then `ui/src/commonMain` against the compile-only Compose stubs in
+`scripts/kotlin-sandbox/stubs-compose`, then runs the frame-layer tests, then type-checks both hosts.
+It proves the shared sources need no Android, Swing, storage or session API; it does not render a
+single pixel.
 
 ```sh
 bash scripts/kotlin-sandbox/compile-ui.sh
@@ -572,7 +574,7 @@ bash scripts/verify_reproducible_build.sh
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
-- [Unified Compose UI plan](docs/compose-unified-ui-plan.md) — the shared `:ui` module, what stage 1 covers, the cutover stages and their exit criteria.
+- [Unified Compose UI plan](docs/compose-unified-ui-plan.md) — the shared `:ui-model`/`:ui` modules, what stage 1 covers, the cutover stages and their exit criteria.
 - [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
 - [iOS client plan](docs/ios-client-plan.md) — the vault/backup format contract a native SwiftUI client must implement, the fixed-vector corpus it is verified against, and the milestones up to TestFlight.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
