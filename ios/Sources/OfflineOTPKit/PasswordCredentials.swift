@@ -218,7 +218,9 @@ public enum BrowserPasswordCsv {
                     currentField = ""
                     guard currentRow.count <= maxColumns else { throw PasswordCredentialError.invalidCsv }
                     i += 1
-                } else if ch == "\r" || ch == "\n" {
+                } else if ch == "\r\n" || ch == "\r" || ch == "\n" {
+                    // Swift treats CRLF as one extended grapheme cluster (Character).
+                    // Recognise it explicitly; quoted fields preserve their embedded newlines.
                     if ch == "\r" && i + 1 < chars.count && chars[i + 1] == "\n" {
                         i += 1
                     }
