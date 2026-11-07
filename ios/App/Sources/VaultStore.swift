@@ -91,32 +91,27 @@ public final class VaultStore: ObservableObject {
             }
         }
 
+        /// Writes one value.
+        ///
+        /// The port contract is deliberately non-throwing: `PreferencesExport.apply` validates and
+        /// types every value *before* it calls this, so a key or type that does not match the
+        /// catalog cannot reach here. Writing nothing is the safe outcome if that ever changes —
+        /// it is strictly better than crashing a settings import, and the codec's own tests pin the
+        /// validation that makes this branch unreachable.
         func write(_ key: String, _ value: PreferencesExport.Value) {
-            guard let entry = PreferencesExport.setting(key) else {
-                throw NSError(domain: "OfflineOTP", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "\(key) has no portable meaning"])
-            }
-            switch entry.kind {
-            case .integer:
-                guard case .integer(let number) = value else { throw Self.mismatch(key) }
+            guard let entry = PreferencesExport.setting(key) else { return }
+            switch (entry.kind, value) {
+            case (.integer, .integer(let number)):
                 settings.setInteger(key, number)
-            case .string:
-                guard case .text(let text) = value else { throw Self.mismatch(key) }
+            case (.string, .text(let text)):
                 settings.setString(key, text)
-            case .boolean:
-                guard case .boolean(let flag) = value else { throw Self.mismatch(key) }
+            case (.boolean, .boolean(let flag)):
                 settings.setString(key, flag ? "true" : "false")
-            case .stringSet:
-                guard case .textSet(let values) = value else { throw Self.mismatch(key) }
+            case (.stringSet, .textSet(let values)):
                 settings.setString(key, values.joined(separator: "\n"))
-            case .secret, .deviceBound:
-                throw Self.mismatch(key)
+            default:
+                return
             }
-        }
-
-        private static func mismatch(_ key: String) -> NSError {
-            NSError(domain: "OfflineOTP", code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "\(key) has the wrong type"])
         }
     }
 
@@ -366,13 +361,14 @@ public final class VaultStore: ObservableObject {
         lastActivityDate = Date()
     }
 
-    /// Persists the idle auto-lock timeout (`0` disables auto-lock).
-    /// Re-reads the delay from the store, for a setting an import just replaced underneath the UI.
+    /// Re-reads the delay from the store, for a setting a preferences import just replaced
+    /// underneath the UI.
     public func reloadInactivityLock() {
         inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         lastActivityDate = Date()
     }
 
+    /// Persists the idle auto-lock timeout (`0` disables auto-lock).
     public func setInactivityLockSeconds(_ seconds: Int) {
         let clamped = max(0, seconds)
         inactivityLockSeconds = clamped

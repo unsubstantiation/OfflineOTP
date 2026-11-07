@@ -143,6 +143,18 @@ class PreferencesWiringTest(unittest.TestCase):
         self.assertIn("public var preferencesPort: PreferencesExport.SettingsPort", store)
         # The vault's own material is not readable through the port.
         self.assertIn("case .secret, .deviceBound:", store)
+        # The port's write is non-throwing, so a port must not `throw` inside it.
+        port_body = store.split("func write(_ key: String, _ value: PreferencesExport.Value) {")[1]
+        self.assertNotIn("throw", port_body.split("\n    }\n")[0])
+
+    def test_the_ios_settings_store_can_delete(self):
+        # `PasswordVault.changePassword` rolls back by *removing* a setting that was absent before,
+        # and `VaultStore.setInactivityLockSeconds(0)` relies on the same call. Without a declared
+        # `remove` the kit does not compile, so it is pinned here as well as in the protocol.
+        kit = read(IOS_KIT / "PasswordVault.swift")
+        self.assertIn("func remove(_ key: String)", kit)
+        self.assertIn("public func remove(_ key: String) { }", kit)
+        self.assertIn("public func remove(_ key: String) {\n        guard values.removeValue(forKey: key) != nil else { return }", kit)
 
     def test_the_sandbox_executes_the_ports(self):
         run = read(SANDBOX / "run.sh")
