@@ -35,7 +35,10 @@ class NoGithubAutomationTest(unittest.TestCase):
                 uploads,
                 text.count("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"))
             self.assertIn("if-no-files-found: error", text)
-            self.assertIn("SHA256SUMS.txt", text)
+            # iOS ships exactly one file, the unsigned .ipa, so it carries no checksum manifest.
+            # The archive it uploads is unpacked and verified in the job instead.
+            if name != "ios.yml":
+                self.assertIn("SHA256SUMS.txt", text)
             self.assertNotIn("contents: write", text)
             self.assertNotIn("gh release", text)
             for line in text.splitlines():

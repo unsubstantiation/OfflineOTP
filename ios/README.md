@@ -53,17 +53,18 @@ xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
   CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO build
 ```
 
-None of these need a signing identity: both the simulator build and the `iphoneos` Release build are
-unsigned (`OfflineOTP-ios-unsigned.ipa` in CI), and the app target has no `DEVELOPMENT_TEAM`. Signing
+None of these need a signing identity: the local simulator build and the `iphoneos` Release build are
+both unsigned (`OfflineOTP-ios-unsigned.ipa` in CI), and the app target has no `DEVELOPMENT_TEAM`. Signing
 for a physical device (via local Xcode/signing tools or sideloaders like AltStore/SideStore/Sideloadly)
 or shipping to TestFlight stays outside CI. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`,
 whose test action runs `OfflineOTPAppTests`.
 
-CI does **not** boot a simulator or run the app XCTest target: that step consumed the previous
-30-minute job after the app had already compiled. The iOS job has a hard 10-minute budget, builds
-only the arm64 Apple slices, runs the host format tests optimized with testability enabled, and
-builds both the simulator app and the unsigned device app. The command above remains the local way
-to run `OfflineOTPAppTests`. Build logs are retained as `OfflineOTP-ios-diagnostics` even on failure.
+CI does **not** build for the simulator, boot one, or run the app XCTest target: that step consumed the
+previous 30-minute job after the app had already compiled. The iOS job has a hard 10-minute budget,
+builds only the arm64 Apple slices, runs the host format tests optimized with testability enabled, and
+builds the unsigned device app. The commands above remain the local way to run `OfflineOTPAppTests`.
+Its **only** published output is `OfflineOTP-ios-unsigned.ipa` — no simulator bundle, source archive,
+checksum file or log artifact. Diagnostics appear as run annotations only when the job fails.
 
 ## What the tests prove
 

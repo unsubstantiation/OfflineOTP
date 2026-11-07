@@ -10,6 +10,7 @@ into a scaffold. They are source/packaging guards, not a substitute for the
 crate's native security tests (which run in CI).
 """
 import os
+import re
 import unittest
 from pathlib import Path
 
@@ -253,7 +254,9 @@ class OpenPgpRustCrateTest(unittest.TestCase):
                 f"{name} must install the Rust toolchain"
             )
             self.assertIn("contents: read", text)
-            self.assertIn("SHA256SUMS.txt", text)
+            # iOS publishes only the unsigned .ipa; the other platforms keep their checksum files.
+            if name != "ios.yml":
+                self.assertIn("SHA256SUMS.txt", text)
         android = (workflows / "android.yml").read_text(encoding="utf-8")
         self.assertIn("build-android-jnilibs.sh", android)
         self.assertIn("ndk;", android)
@@ -263,6 +266,38 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         self.assertNotIn('test -d "$ANDROID_NDK_HOME"', android)
         ios = (workflows / "ios.yml").read_text(encoding="utf-8")
         self.assertIn("build-ios-xcframework.sh", ios)
+
+    def test_the_ios_rust_diagnostics_only_annotate_real_errors(self):
+        """A green iOS run published ten `error` annotations that were not errors.
+
+        `cargo --verbose` prints `Running ... rustc ... --error-format=json ...` for every crate.
+        A grep for the bare word `error` matched those command lines, and `grep ... | head -20`
+        additionally made grep die with "write error: Broken pipe". Pin the behaviour, not just the
+        wording: the pattern the workflow actually uses must reject the verbose line and accept a
+        real cargo/rustc diagnostic.
+        """
+        workflow = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
+        step = workflow.split("- name: Report Rust diagnostics", 1)[1].split("\n  build:", 1)[0]
+
+        # Comments may explain the old mistake; only the commands must not repeat it.
+        commands = "\n".join(line for line in workflow.splitlines()
+                             if not line.lstrip().startswith("#"))
+        self.assertNotIn("--verbose", commands, "verbose cargo output is what the grep misread")
+        self.assertIn("CARGO_TERM_COLOR: never", workflow)
+        self.assertNotIn("\\berror\\b", step, "the bare-word error grep is back")
+        # No grep feeding head anywhere in the workflow: that is the broken-pipe shape.
+        self.assertNotRegex(commands, r"grep[^|\n]*\|\s*head")
+
+        pattern = re.search(r"grep -E '([^']+)'", step).group(1)
+        noisy = ("     Running `/home/runner/.rustup/toolchains/stable-x86_64-unknown-linux-gnu/"
+                 "bin/rustc --crate-name syn --edition=2021 lib.rs --error-format=json "
+                 "--json=diagnostic-rendered-ansi,artifacts,future-incompat`")
+        self.assertIsNone(re.search(pattern, noisy), "a verbose rustc command is not an error")
+        self.assertIsNone(re.search(pattern, "warning: unused variable: `x`"))
+        for real in ("error: could not compile `offlineotp-openpgp` (lib) due to 1 previous error",
+                     "error[E0308]: mismatched types",
+                     "test result: FAILED. 4 passed; 1 failed; 0 ignored"):
+            self.assertIsNotNone(re.search(pattern, real), f"a real diagnostic must match: {real}")
 
     def test_docs_record_completion_and_honest_limits(self):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")

@@ -14,6 +14,10 @@ jobs:
     # they stay covered without spending the iOS job's 10-minute budget on a second host toolchain.
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    env:
+      # Keep ANSI escapes out of the log so diagnostics stay readable when quoted back as
+      # annotations.
+      CARGO_TERM_COLOR: never
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
@@ -29,38 +33,48 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --manifest-path rust/Cargo.toml --verbose 2>&1 | tee rust-test.log
+          # No --verbose: its `Running ... rustc ... --error-format=json` lines are not diagnostics,
+          # and they are what a loose `error` grep used to misreport as failures.
+          cargo test --manifest-path rust/Cargo.toml 2>&1 | tee rust-test.log
       - name: Build Rust crate
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --manifest-path rust/Cargo.toml --release --verbose 2>&1 | tee rust-build.log
+          cargo build --manifest-path rust/Cargo.toml --release 2>&1 | tee rust-build.log
       - name: Report Rust diagnostics
-        if: always()
+        if: ${{ !success() }}
         shell: bash
         run: |
           set -uo pipefail
+          # Only real cargo/rustc diagnostics start at column 0 with `error:` / `error[E0308]:`.
+          # Matching a bare word `error` anywhere also matched command lines and prose. Collect
+          # first and limit afterwards: `grep ... | head` made grep die with "write error: Broken
+          # pipe" once head had read enough.
           for log in rust-test.log rust-build.log; do
             [ -f "$log" ] || continue
-            grep -E -i '\berror\b' "$log" | head -20 | while IFS= read -r line; do
-              [ -n "$line" ] || continue
+            matches=$(grep -E '^error(\[[^]]+\])?:|^test result: FAILED' "$log" || true)
+            [ -n "$matches" ] || continue
+            count=0
+            while IFS= read -r line; do
+              count=$((count + 1))
+              [ "$count" -le 20 ] || break
               safe=$(printf '%s' "$line" | tr -cd '[:print:]' | cut -c1-220)
               [ -n "$safe" ] || continue
               echo "::error title=Rust::${safe}"
-            done || true
+            done <<< "$matches"
           done
           exit 0
 
   build:
-    # Apple-silicon iOS build and packaging, with a hard 10-minute budget. The simulator XCTest
-    # step is deliberately not run here: it consumed the previous job's remaining 17 minutes after
-    # the app had already compiled. The app still builds for the simulator, and the format suite
-    # still runs on the macOS host. Local/manual app tests remain available through the generated
-    # OfflineOTPAppTests target.
+    # Apple-silicon iOS build, with a hard 10-minute budget. The only published output is the
+    # unsigned device .ipa: no simulator bundle, no source archive, no checksum or log artifacts.
+    # The simulator XCTest step is deliberately absent too — it consumed the previous job's
+    # remaining 17 minutes after the app had already compiled. The format suite still runs on the
+    # macOS host, and OfflineOTPAppTests stays available for local/manual runs.
     #
     # `macos-15` is arm64 (verified on the image: `uname -m` is arm64, macOS 15.8.2, Xcode 16.4).
-    # The shipped device/simulator artifacts are arm64, so CI builds only the arm64 Apple slices
-    # of the OpenPGP XCFramework; the local script still defaults to the universal framework.
+    # The shipped device artifact is arm64, so CI builds only the arm64 Apple slices of the
+    # OpenPGP XCFramework; the local script still defaults to the universal framework.
     runs-on: macos-15
     timeout-minutes: 10
     steps:
@@ -161,23 +175,6 @@ jobs:
             exit 1
           fi
           printf '%s\n' "$listing" | grep -q OfflineOTPAppTests
-      - name: Build the app for the simulator
-        timeout-minutes: 2
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd ios
-          # No signing identity and no simulator boot: this proves the app and its package compile
-          # for the arm64 simulator slice shipped by this Apple-silicon workflow.
-          xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
-            -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath build/DerivedData \
-            ARCHS=arm64 \
-            CODE_SIGNING_ALLOWED=NO \
-            build 2>&1 | tee -a build-log.txt
-          test -d build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
-          xcrun lipo -archs build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app/OfflineOTP \
-            | grep -qw arm64
       - name: Build the unsigned Release app for iOS devices
         timeout-minutes: 2
         shell: bash
@@ -186,6 +183,7 @@ jobs:
           cd ios
           # Build for physical iPhone/iPad hardware (iphoneos, arm64, Release) with signing
           # disabled so the .ipa can be sideloaded or signed locally without Apple credentials.
+          # This is also the step that proves the app and its package compile for iOS.
           xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
             -configuration Release \
             -destination 'generic/platform=iOS' \
@@ -197,40 +195,22 @@ jobs:
             build 2>&1 | tee -a build-log.txt
           test -d build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app
           test -x build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app/OfflineOTP
-      - name: Package the sources that were tested
+      - name: Package the unsigned device IPA
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/stage
-          # A reproducible snapshot of the package plus the fixtures it is verified against, so the
-          # archive can be unpacked and `swift test`-ed on its own.
-          git archive HEAD ios | tar -x -C artifacts/stage
-          git archive HEAD desktop/src/test/resources/golden | tar -x -C artifacts/stage
-          (cd artifacts/stage && zip -q -r ../OfflineOTP-ios-kit-source.zip ios desktop)
-      - name: Package the unsigned device IPA, simulator app, and checksums
-        shell: bash
-        run: |
-          set -euo pipefail
-          SIM_APP=ios/build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
           DEV_APP=ios/build/DerivedData/Build/Products/Release-iphoneos/OfflineOTP.app
-          test -d "$SIM_APP"
           test -d "$DEV_APP"
 
-          # Simulator bundle: ditto keeps the bundle structure a plain zip would flatten.
-          ditto -c -k --sequesterRsrc --keepParent "$SIM_APP" artifacts/OfflineOTP-ios-simulator.zip
-          mkdir -p build/unpacked
-          ditto -x -k artifacts/OfflineOTP-ios-simulator.zip build/unpacked
-          test -f build/unpacked/OfflineOTP.app/Info.plist
-          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
-            build/unpacked/OfflineOTP.app/Info.plist | grep -qx OfflineOTP
-          xcrun lipo -archs build/unpacked/OfflineOTP.app/OfflineOTP | grep -qw arm64
-
-          # Unsigned physical-device .ipa: standard Payload/OfflineOTP.app layout without resource
-          # forks so sideloaders on macOS, Windows, and Linux accept it directly.
+          # The one published file. Standard Payload/OfflineOTP.app layout without resource forks
+          # so sideloaders on macOS, Windows, and Linux accept it directly.
+          mkdir -p artifacts
           rm -rf build/ipa-stage build/unpacked-ipa
           mkdir -p build/ipa-stage/Payload build/unpacked-ipa
           ditto "$DEV_APP" build/ipa-stage/Payload/OfflineOTP.app
           ditto -c -k --norsrc build/ipa-stage artifacts/OfflineOTP-ios-unsigned.ipa
+
+          # Verify the archive that is actually uploaded, not just the directory it came from.
           ditto -x -k artifacts/OfflineOTP-ios-unsigned.ipa build/unpacked-ipa
           test -x build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP
           /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' \
@@ -240,64 +220,35 @@ jobs:
           xcrun lipo -archs build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP | grep -qw arm64
           xcrun vtool -show-build build/unpacked-ipa/Payload/OfflineOTP.app/OfflineOTP \
             | grep -Eq '^[[:space:]]*platform[[:space:]]+IOS[[:space:]]*$'
-
-          (cd artifacts && shasum -a 256 \
-            OfflineOTP-ios-unsigned.ipa \
-            OfflineOTP-ios-simulator.zip \
-            OfflineOTP-ios-kit-source.zip \
-            > SHA256SUMS.txt)
       - name: Report diagnostics
-        if: always()
+        if: ${{ !success() }}
         shell: bash
         run: |
           set -uo pipefail
-          # Attach the interesting lines of the build log to the run as annotations. This step exists
-          # because a job log download is not always available (it is not for an automated agent), and
-          # because a Swift, XcodeGen or xcodebuild diagnostic should be readable on the workflow run.
+          # Annotations only: this step publishes no artifact. It exists because a job log download
+          # is not always available, and a Swift/XcodeGen/xcodebuild error should still be readable
+          # from the run page.
           if [ ! -f ios/build-log.txt ]; then
             echo "::notice::No build log was produced."
             exit 0
           fi
           pattern=': (error|warning): |error:|spec validation|damaged|cannot be opened|'
           pattern="${pattern}unable to (read|write|parse)|invalid (value|type)|not found"
-          diagnostics=$(grep -E -i "$pattern" ios/build-log.txt | head -40 || true)
-          if [ -z "$diagnostics" ]; then
-            # Nothing matched, so fall back to the tail: a tool that failed for its own reasons still
-            # said why somewhere in the last few lines.
-            if grep -E -qi '\b(error|failed|cannot|unable)\b' ios/build-log.txt; then
-              diagnostics=$(tail -30 ios/build-log.txt)
-            fi
+          # Collect first, then limit: piping grep into head made grep report a broken pipe.
+          matches=$(grep -E -i "$pattern" ios/build-log.txt || true)
+          if [ -z "$matches" ] && grep -E -qi '\b(error|failed|cannot|unable)\b' ios/build-log.txt; then
+            matches=$(tail -30 ios/build-log.txt)
           fi
+          count=0
           while IFS= read -r line; do
+            count=$((count + 1))
+            [ "$count" -le 40 ] || break
             [ -n "$line" ] || continue
             echo "::notice title=Build log::${line}"
-          done <<< "$diagnostics"
+          done <<< "$matches"
           exit 0
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OfflineOTP-ios-unsigned
-          path: |
-            artifacts/OfflineOTP-ios-unsigned.ipa
-            artifacts/SHA256SUMS.txt
-          if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: OfflineOTP-ios-kit-source
-          path: |
-            artifacts/OfflineOTP-ios-kit-source.zip
-            artifacts/SHA256SUMS.txt
-          if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: always()
-        with:
-          name: OfflineOTP-ios-diagnostics
-          path: ios/build-log.txt
-          if-no-files-found: warn
-          retention-days: 7
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: OfflineOTP-ios-simulator
-          path: |
-            artifacts/OfflineOTP-ios-simulator.zip
-            artifacts/SHA256SUMS.txt
+          path: artifacts/OfflineOTP-ios-unsigned.ipa
           if-no-files-found: error

@@ -310,20 +310,20 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("brew install xcodegen", WORKFLOW)
         self.assertIn("xcodegen generate", WORKFLOW)
         self.assertIn("-project OfflineOTP.xcodeproj -scheme OfflineOTP", WORKFLOW)
-        self.assertIn("-destination 'generic/platform=iOS Simulator'", WORKFLOW)
         self.assertIn("-destination 'generic/platform=iOS'", WORKFLOW)
         self.assertIn("-configuration Release", WORKFLOW)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", WORKFLOW)
         self.assertIn("CODE_SIGNING_REQUIRED=NO", WORKFLOW)
         self.assertNotIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
         self.assertIn("Payload/OfflineOTP.app", WORKFLOW)
-        self.assertIn("OfflineOTP-ios-unsigned", WORKFLOW)
-        self.assertIn("OfflineOTP-ios-unsigned.ipa", WORKFLOW)
-        self.assertIn("OfflineOTP-ios-simulator", WORKFLOW)
-        self.assertIn("OfflineOTP-ios-kit-source", WORKFLOW)
-        self.assertEqual(4, WORKFLOW.count("actions/upload-artifact@"))
-        self.assertIn("name: OfflineOTP-ios-diagnostics", WORKFLOW)
-        self.assertIn("SHA256SUMS.txt", WORKFLOW)
+        # The .ipa is the only thing this workflow publishes.
+        self.assertIn("name: OfflineOTP-ios-unsigned", WORKFLOW)
+        self.assertIn("path: artifacts/OfflineOTP-ios-unsigned.ipa", WORKFLOW)
+        self.assertEqual(1, WORKFLOW.count("actions/upload-artifact@"))
+        for dropped in ("OfflineOTP-ios-simulator", "OfflineOTP-ios-kit-source",
+                        "OfflineOTP-ios-diagnostics", "SHA256SUMS.txt",
+                        "Debug-iphonesimulator", "artifacts/stage"):
+            self.assertNotIn(dropped, WORKFLOW, f"{dropped} is an unnecessary output again")
         # Unsigned builds need no certificate; device signing and TestFlight stay manual.
         for forbidden in ("codesign", "xcodebuild archive", "exportArchive", "notarytool",
                           "secrets.", "contents: write", "gh release", "development-team",
@@ -745,13 +745,15 @@ class IosAppTest(unittest.TestCase):
     def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
         """The simulator XCTest step consumed the old job after the app had already compiled.
 
-        CI now builds the simulator app but does not boot a simulator or run app XCTest. The
-        remaining macOS work is bounded at ten minutes: arm64-only Apple slices, optimized host
-        format tests, and no separate kit-only simulator build. Rust host coverage moves to a
-        parallel Linux job instead of spending the macOS budget.
+        CI no longer builds for the simulator at all: the device build is what proves the app and
+        its package compile for iOS. The remaining macOS work is bounded at ten minutes: arm64-only
+        Apple slices and optimized host format tests. Rust host coverage moves to a parallel Linux
+        job instead of spending the macOS budget.
         """
         self.assertIn("timeout-minutes: 10", WORKFLOW)
         self.assertNotIn("simctl", WORKFLOW)
+        self.assertNotIn("generic/platform=iOS Simulator", WORKFLOW)
+        self.assertNotIn("Build the app for the simulator", WORKFLOW)
         self.assertNotIn("Boot the app test simulator", WORKFLOW)
         self.assertNotIn("Run the app unit tests", WORKFLOW)
         self.assertNotIn("-resultBundlePath", WORKFLOW)

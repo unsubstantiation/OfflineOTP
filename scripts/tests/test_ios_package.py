@@ -380,7 +380,7 @@ class IosPackageTest(unittest.TestCase):
         self.assertIn("swift build -c release --build-tests", workflow)
         self.assertIn("swift test -c release --parallel", workflow)
         self.assertIn("-Xswiftc -enable-testing", workflow)
-        self.assertIn("-destination 'generic/platform=iOS Simulator'", workflow)
+        self.assertIn("-destination 'generic/platform=iOS'", workflow)
         self.assertIn("scripts/ios/generate-token-vectors.py", workflow)
         # No signing, no secrets, no publishing: the certificate story belongs to the app target and
         # to the person shipping it, exactly as the other platforms keep releases manual.
