@@ -741,6 +741,25 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".alert(", vault)
         self.assertNotIn(".sheet(", vault)
 
+    def test_the_password_edit_sheet_matches_its_initializer(self):
+        """Both entry points must supply the editor's arguments in order and its save callback.
+
+        The list's missing callback made Xcode report a SwiftCompile failure for the whole app;
+        the library files listed beside it had already compiled successfully. Keep this wiring
+        checked even when no Apple toolchain is available.
+        """
+        details = " ".join(app_sources()["CredentialDetailViews.swift"].split())
+        self.assertIn("init(entry: Entry, index: Int, store: VaultStore, "
+                      "onSaved: @escaping () -> Void)", details)
+        self.assertIn("PasswordEditSheet(entry: entry, index: index, store: store) { dismiss() }",
+                      details)
+
+        list_view = app_sources()["EntryListView.swift"]
+        sheet = list_view.split("private func passwordEditSheet(", 1)[1].split("\n    }", 1)[0]
+        self.assertIn("PasswordEditSheet(entry: store.entries[target.index], "
+                      "index: target.index, store: store) { passwordEditTarget = nil }",
+                      " ".join(sheet.split()))
+
     def test_openpgp_buttons_are_gated_by_the_backend(self):
         """The availability helpers must actually gate the UI, not sit unused beside it."""
         view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
