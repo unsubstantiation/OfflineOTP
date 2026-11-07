@@ -101,6 +101,8 @@ object Constants {
     const val INTENT_SETTINGS_BACKUP_LOCATION = 301
     const val INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES = 302
     const val INTENT_SETTINGS_OPENPGP_SECRET_FILE = 303
+    const val INTENT_SETTINGS_PREFERENCES_EXPORT = 304
+    const val INTENT_SETTINGS_PREFERENCES_IMPORT = 305
 
     // Intent extras
     const val EXTRA_AUTH_PASSWORD_KEY = "password_key"

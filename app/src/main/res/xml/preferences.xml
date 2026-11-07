@@ -256,6 +256,16 @@
             android:summary="@string/settings_desc_enable_android_backup_service"
             android:defaultValue="false" />
 
+        <Preference
+            android:key="@string/settings_key_preferences_export"
+            android:title="@string/settings_title_preferences_export"
+            android:summary="@string/settings_desc_preferences_export" />
+
+        <Preference
+            android:key="@string/settings_key_preferences_import"
+            android:title="@string/settings_title_preferences_import"
+            android:summary="@string/settings_desc_preferences_import" />
+
         <CheckBoxPreference
             android:key="@string/settings_key_backup_append_date_time"
             android:title="@string/settings_title_backup_append_date"

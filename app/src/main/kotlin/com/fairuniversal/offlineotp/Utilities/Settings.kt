@@ -600,6 +600,34 @@ open class Settings(private val context: Context) {
         }
     }
 
+    /**
+     * Stores the backup password the way the settings screen does: wrapped by the device's Keystore
+     * key, then Base64. Returns false when there is no usable key or the store rejects the write, so
+     * a caller importing preferences can report that the password did not arrive instead of
+     * assuming it did.
+     */
+    open fun setBackupPassword(value: String): Boolean {
+        return try {
+            val pair = KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD)
+                ?: return false
+            if (value.isEmpty()) {
+                setString(R.string.settings_key_backup_password_enc, "")
+                return true
+            }
+            val plain = value.toByteArray(StandardCharsets.UTF_8)
+            try {
+                val encrypted = EncryptionHelper.encrypt(pair.public, plain)
+                setString(R.string.settings_key_backup_password_enc,
+                    Base64.encodeToString(encrypted, Base64.URL_SAFE))
+                true
+            } finally {
+                plain.fill(0)
+            }
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     open fun tryAcquireBroadcastBackupSlot(): Boolean {
         synchronized(DatabaseHelper.DatabaseFileLock) {
             val now = SystemClock.elapsedRealtime()

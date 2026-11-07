@@ -85,6 +85,8 @@ import com.fairuniversal.offlineotp.Utilities.ValidatedOtp
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 import com.fairuniversal.offlineotp.Utilities.Settings
+import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
+import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.Utilities.SshConnection
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
@@ -4445,6 +4447,7 @@ fun main() {
             "setAuthCredentials(Ljava/lang/String;Ljava/util/function/BooleanSupplier;)[B",
             "setAuthMethod(Lcom/fairuniversal/offlineotp/Utilities/Constants\$AuthMethod;)V",
             "setBackupLocation(Landroid/net/Uri;)V",
+            "setBackupPassword(Ljava/lang/String;)Z",
             "setBoolean(IZ)V",
             "setDefaultBackupType(Lcom/fairuniversal/offlineotp/Utilities/Constants\$BackupType;)V",
             "setEncryption(Ljava/lang/String;)V",
@@ -7869,6 +7872,67 @@ fun main() {
         } finally {
             chromeEntry.destroy(); firefoxEntry.destroy(); safariEntry.destroy(); session.destroy()
         }
+    }
+
+    // --- portable preferences export ---------------------------------------------------------
+    // The codec's own semantics live in `PreferencesExportTest` (twelve cases, run by
+    // compile-core.sh); what is executed here is the *Android* half, which the core suite cannot
+    // reach: reading a real SharedPreferences store through the port and writing back into it.
+    check("portable preferences export reads and writes the real Android store") {
+        val fixture = SettingsFixture()
+        // A setting the catalog declares, plus two the port must not touch.
+        fixture.store.edit().putString("pref_auth", "password").apply()
+        fixture.store.edit().putInt("pref_auth_inactivity_timeout", 600).apply()
+        fixture.store.edit().putBoolean("pref_enable_screenshot", true).apply()
+        fixture.store.edit().putString("pref_auth_salt", "device-salt").apply()
+        val port = AndroidPreferencesPort(fixture.context, fixture.settings)
+
+        // The enumeration is the store's, not the catalog's: a newer release's key is still seen
+        // (and so lands in `skipped`) instead of vanishing.
+        expect(port.storedKeys().contains("pref_auth_salt"),
+            { "the port does not enumerate the whole store" })
+
+        val plain = PreferencesExport.export(port, includeSecrets = false)
+        expect(!plain.includesSecrets, { "a secrets-free export claimed to hold a secret" })
+        expect(plain.keysWritten == 3, { "expected 3 portable settings, got ${plain.keysWritten}" })
+        expect("device-salt" !in String(plain.bytes), { "a device-bound value reached the file" })
+        expect("pref_auth_salt" !in String(plain.bytes), { "a device-bound key was named in the file" })
+        // The salt is in the store but not in the file: the wrapped password cannot be attacked
+        // offline, which is the whole reason it is device-bound.
+        expect(fixture.store.getString("pref_auth_salt", null) == "device-salt",
+            { "the fixture store is not the one the port read" })
+
+        val roundTrip = SettingsFixture()
+        roundTrip.store.edit().putString("pref_auth", "none").apply()
+        roundTrip.store.edit().putInt("pref_auth_inactivity_timeout", 30).apply()
+        val restore = PreferencesExport.import(plain.bytes, AndroidPreferencesPort(roundTrip.context, roundTrip.settings))
+        expect(restore.applied == 3, { "expected 3 applied settings, got ${restore.applied}" })
+        expect(roundTrip.store.getString("pref_auth", null) == "password",
+            { "the imported value did not reach the store" })
+        expect(roundTrip.store.getInt("pref_auth_inactivity_timeout", -1) == 600,
+            { "the imported integer lost its type" })
+        expect(roundTrip.store.getBoolean("pref_enable_screenshot", false),
+            { "the imported boolean did not reach the store" })
+        expect(roundTrip.store.getString("pref_auth_salt", null) == null,
+            { "an import invented a device-bound value" })
+        plain.zero()
+
+        // A file for the desktop client is refused before a single write, so the store is intact.
+        val foreign = PreferencesExport.export(port, includeSecrets = false,
+            platform = PreferencesExport.PLATFORM_DESKTOP)
+        val before = roundTrip.store.getAll().toMap()
+        var refused = false
+        try {
+            PreferencesExport.import(foreign.bytes, AndroidPreferencesPort(roundTrip.context, roundTrip.settings))
+        } catch (_: PreferencesExport.WrongPlatformException) {
+            refused = true
+        }
+        expect(refused, { "a desktop document was applied to Android" })
+        expect(roundTrip.store.getAll().toMap() == before, { "a refused import still wrote" })
+        foreign.zero()
+
+        // The one movable secret goes through Settings, so it stays wrapped by the Keystore.
+        expect(port.readBackupPassword() == null, { "an unset backup password read back as a value" })
     }
 
     check("the removal prompt names an entry the way every client does") {

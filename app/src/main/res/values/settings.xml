@@ -56,6 +56,8 @@
     <string name="settings_key_auto_backup_password_enc" translatable="false">pref_backup_auto_password_enc</string>
     <string name="settings_key_auto_backup_keep" translatable="false">pref_backup_auto_keep</string>
     <string name="settings_key_auto_backup_use_login" translatable="false">pref_auto_backup_use_login</string>
+    <string name="settings_key_preferences_export" translatable="false">pref_preferences_export</string>
+    <string name="settings_key_preferences_import" translatable="false">pref_preferences_import</string>
     <string name="settings_key_backup_broadcasts" translatable="false">pref_backup_broadcasts</string>
     <string name="settings_key_openpgp_mode" translatable="false">pref_openpgp_mode</string>
     <string name="settings_key_openpgp_recipient_files" translatable="false">pref_openpgp_recipient_files</string>

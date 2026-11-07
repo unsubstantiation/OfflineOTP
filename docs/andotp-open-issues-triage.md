@@ -438,7 +438,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ❌ **APPLIES** — Thumbnail background color vs. dark themes — same rendering path as andOTP; verify and fix.
 - **#178** — Paper Backups  
   _enhancement, help wanted, maybe_  
-  🆕 **GAP** — Paper (printable) backups not implemented.
+  ❌ **DECLINED** — Paper backups will not be built: an encrypted vault file is already the offline copy, a sheet of per-entry QRs is a second factor with no password in front of it, and a printable recovery format needs a print/scan validation nobody here can run. Recorded as won't-do in `docs/incomplete-feature-audit-2026-11-06-fourth-pass.md` rather than left as a silent gap.
 - **#207** — Garena Authentication  
   _enhancement, help wanted, good first issue_  
   🆕 **GAP** — Garena QR (`KKKK…|Username`) is not recognized; manual entry works because the period limit (1–86,400 s) covers its 180 s step.
@@ -471,7 +471,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ⚠️ **VERIFY** — `MainActivity` now uses normal configuration recreation; freeform resizing depends on manifest/activity config — verify.
 - **#531** — Support automatic backup with OpenPGP key  
   _enhancement_  
-  🆕 **GAP** — Automatic backups use the encrypted backup password; OpenPGP-key-based automatic backup is not wired. The retention half of the superseded request (#925) now ships: automatic snapshots can be pruned, whichever engine writes them.
+  🆕 **GAP, DECISION MADE** — Automatic backups use the encrypted backup password; OpenPGP-key-based automatic backup is not wired. The decision is recorded: when built it runs **silently** from the saved recipients and secret-key file, with no per-save prompt, like today's password auto-backup. The retention half of the superseded request (#925) ships already, and `BackupRetention` matches `.json.gpg`, so pruning covers whichever engine writes the snapshot.
 - **#532** — Yahoo Japan OTP  
   _enhancement, help wanted, good first issue_  
   🆕 **GAP** — `yjotp://` scheme is not parsed; Yahoo Japan OTP needs manual entry or a scheme importer.
@@ -486,7 +486,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ✅ **OUTOFSCOPE** — No app widgets in OfflineOTP.
 - **#648** — Export preferences  
   _enhancement_  
-  🆕 **GAP** — Preferences export not implemented.
+  ✅ **IMPLEMENTED** — Portable JSON preferences (`offlineotp.preferences` v1) that can be re-imported, on Android, desktop and iOS. Includes secrets **by explicit choice** (the backup password is the only portable one) and refuses a document written by another client rather than half-applying it. Keystore/SAF-bound keys are never written, nor named in the file.
 - **#670** — Generate next TOTP Code on request  
   _enhancement_  
   🆕 **GAP** — No next-code preview/generation on request.
@@ -630,9 +630,12 @@ plus generated letter tiles for everything else. Cross-referencing every request
    migration (#855) while doing it.
 4. **Triage the 🆕 gaps** as product decisions (DUO #808, yjotp #532, Garena #207, tag
    rename #230, next-code preview #670, custom images #225, backup retention #701, share-sheet export
-   #779, preferences export #648, AES+base64 export #980,
-   NTP clock #914, paper backups #178, highlighting #784, automatic OpenPGP backups #531). Backup
-   deletion #925 is now fixed; the browser-password editing/re-export gap is closed on all three clients.
+   #779, AES+base64 export #980,
+   NTP clock #914, highlighting #784, automatic OpenPGP backups #531). Backup
+   deletion #925 is now fixed; the browser-password editing/re-export gap is closed on all three
+   clients, and preferences export #648 now ships on Android, desktop and iOS. Paper backups #178 is
+   **declined** (not a pending decision) and automatic OpenPGP backups #531 has its decision made —
+   silent operation from the saved recipients — with only the wiring left.
 5. **Close as not-ours (✅):** everything marked fixed/by-design/out-of-scope — notably the whole security cluster
    (#157, #692, #975, #649, #888, #875, #890, #944, #952) and the absent-feature requests (#68, #616, #481, #707,
    #214, #921, #698, #953, #982, #866).

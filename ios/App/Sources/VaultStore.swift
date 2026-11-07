@@ -56,6 +56,70 @@ public final class VaultStore: ObservableObject {
 
     /// The client preference key, next to `ui_sort_mode` in the settings file.
     public static let biometricSettingKey = "biometric_unlock"
+    /// The portable-preferences port over this vault's plist, the peer of Android's
+    /// `AndroidPreferencesPort` and the desktop's `DesktopPreferencesPort`.
+    ///
+    /// This client stores no backup password and no OpenPGP key grants, so the only setting that
+    /// moves is the inactivity delay; `auth_*` entries live in the same file but belong to the
+    /// vault and are never readable through this port.
+    public var preferencesPort: PreferencesExport.SettingsPort { PreferencesPort(settings: settings) }
+
+    private final class PreferencesPort: PreferencesExport.SettingsPort {
+        private let settings: PropertyListSettings
+        init(settings: PropertyListSettings) { self.settings = settings }
+
+        func storedKeys() -> Set<String> { settings.keys() }
+
+        func read(_ key: String) -> PreferencesExport.Value? {
+            guard let entry = PreferencesExport.setting(key) else { return nil }
+            switch entry.kind {
+            case .integer:
+                // 0 is how this app spells "disabled", so an explicit zero is a value, not absence.
+                guard let value = settings.integer(key) else { return nil }
+                return .integer(value)
+            case .string:
+                guard let value = settings.string(key) else { return nil }
+                return .text(value)
+            case .boolean:
+                guard let value = settings.string(key) else { return nil }
+                return .boolean(value == "true")
+            case .stringSet:
+                guard let value = settings.string(key) else { return nil }
+                return .textSet(value.split(separator: "\n").map(String.init))
+            case .secret, .deviceBound:
+                return nil
+            }
+        }
+
+        func write(_ key: String, _ value: PreferencesExport.Value) {
+            guard let entry = PreferencesExport.setting(key) else {
+                throw NSError(domain: "OfflineOTP", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "\(key) has no portable meaning"])
+            }
+            switch entry.kind {
+            case .integer:
+                guard case .integer(let number) = value else { throw Self.mismatch(key) }
+                settings.setInteger(key, number)
+            case .string:
+                guard case .text(let text) = value else { throw Self.mismatch(key) }
+                settings.setString(key, text)
+            case .boolean:
+                guard case .boolean(let flag) = value else { throw Self.mismatch(key) }
+                settings.setString(key, flag ? "true" : "false")
+            case .stringSet:
+                guard case .textSet(let values) = value else { throw Self.mismatch(key) }
+                settings.setString(key, values.joined(separator: "\n"))
+            case .secret, .deviceBound:
+                throw Self.mismatch(key)
+            }
+        }
+
+        private static func mismatch(_ key: String) -> NSError {
+            NSError(domain: "OfflineOTP", code: 2,
+                    userInfo: [NSLocalizedDescriptionKey: "\(key) has the wrong type"])
+        }
+    }
+
     public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
@@ -303,6 +367,12 @@ public final class VaultStore: ObservableObject {
     }
 
     /// Persists the idle auto-lock timeout (`0` disables auto-lock).
+    /// Re-reads the delay from the store, for a setting an import just replaced underneath the UI.
+    public func reloadInactivityLock() {
+        inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
+        lastActivityDate = Date()
+    }
+
     public func setInactivityLockSeconds(_ seconds: Int) {
         let clamped = max(0, seconds)
         inactivityLockSeconds = clamped

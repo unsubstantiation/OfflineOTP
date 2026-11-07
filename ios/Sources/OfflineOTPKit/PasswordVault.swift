@@ -14,6 +14,15 @@ public protocol KeyValueSettings: AnyObject {
     func setString(_ key: String, _ value: String)
     func integer(_ key: String) -> Int?
     func setInteger(_ key: String, _ value: Int)
+
+    /// The keys this store holds. Defaulted so existing adapters keep compiling; a store that can
+    /// enumerate itself should override it, because the preferences export uses it to tell an
+    /// *absent* setting from one stored at its default.
+    func keys() -> Set<String>
+}
+
+extension KeyValueSettings {
+    public func keys() -> Set<String> { [] }
 }
 
 /// Stable setting names, shared with `VaultSettingsKeys` in `:core`.
@@ -390,6 +399,8 @@ public final class PropertyListSettings: KeyValueSettings {
         values[key] = value
         persist()
     }
+
+    public func keys() -> Set<String> { Set(values.keys) }
 
     public func integer(_ key: String) -> Int? { values[key] as? Int }
 

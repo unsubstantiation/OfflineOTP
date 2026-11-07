@@ -447,6 +447,14 @@ object MainWindow {
             }
         }
 
+        fun exportPreferences() {
+            PreferencesDialogs.export(frame, controller.preferences)
+        }
+
+        fun importPreferences() {
+            if (PreferencesDialogs.import(frame, controller.preferences)) refreshProjection(requireUnlocked() ?: return)
+        }
+
         fun importPasswords() {
             val unlocked = requireUnlocked() ?: return
             val active = editor ?: return
@@ -823,6 +831,9 @@ object MainWindow {
                 add(JMenuItem("Import QR image…").apply { addActionListener { importQrImage() } })
                 add(JMenuItem("Import otpauth:// link…").apply { addActionListener { importOtpUri() } })
                 add(JMenuItem("Filter by tags…").apply { addActionListener { openMultiTagFilterDialog() } })
+                addSeparator()
+                add(JMenuItem("Export preferences…").apply { addActionListener { exportPreferences() } })
+                add(JMenuItem("Import preferences…").apply { addActionListener { importPreferences() } })
                 addSeparator()
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })

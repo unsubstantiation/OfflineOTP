@@ -47,6 +47,17 @@ interface KeyValueSettings {
     fun putInt(key: String, value: Int)
 
     fun remove(key: String)
+
+    /**
+     * The keys this store currently holds.
+     *
+     * Defaulted to empty so an existing adapter keeps compiling, but an adapter that can enumerate
+     * its store should override it: the preferences export uses it to tell an *absent* setting from
+     * one stored at its default, and to report stored keys this build does not understand. With the
+     * default, an export writes every known default and reports nothing as skipped — correct, but
+     * less precise.
+     */
+    fun keys(): Set<String> = emptySet()
 }
 
 /**

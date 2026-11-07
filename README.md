@@ -283,8 +283,8 @@ current vault, its new entries first, while entries the vault already holds keep
 metadata; turn it on to replace the vault with the backup contents.
 Keep a separate, tested backup before restoring. Desktop rejects backups containing duplicate
 account identities (even when their tags or usage metadata differ) rather than silently dropping
-one. HOTP counters in different copies do not sync. Hardware-key-held accounts and local device
-settings are not included.
+one. HOTP counters in different copies do not sync. Hardware-key-held accounts are not included, and
+a backup carries no device settings — use **Export preferences…** below for those.
 
 OpenPGP backups use the same entry JSON and standard OpenPGP encryption, but provider and key
 compatibility must be tested on the actual devices. Desktop exports are encrypted but **unsigned**;
@@ -302,6 +302,37 @@ privacy checks. Display tests are opt-in on a host with a real or virtual displa
 `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'`.
 Gradle builds, real PC/SC keys, jpackage packaging and lint require a networked host with a full
 JDK. See [Desktop packaging and release](scripts/packaging/README.md).
+
+### Moving your preferences to a new device
+
+The vault is the accounts; the settings are everything else — theme, language, auto-lock delay,
+screenshot and autofill policy, the backup password. **Export preferences…** writes them as a small
+JSON document (`offlineotp.preferences`, version 1) that the same client can re-import, so a new
+phone starts from your configuration instead of the defaults where that is meaningful:
+
+| | where | what it asks |
+|---|---|---|
+| Android | Settings → **Export preferences…** / **Import preferences…** | whether to include the backup password |
+| Desktop | **Tools → Export preferences…** / **Import preferences…** | nothing — the desktop stores no backup password |
+| iOS | Settings → **Preferences** → **Export preferences…** / **Import preferences…** | nothing — the delay is the only portable setting |
+
+The backup password is the one secret a file can carry, and only when you ask for it: the export
+dialog says plainly when the file will hold a password, and importing one sets your backup password
+from the file. Everything bound to a device stays on it and is **not written, nor even named** in the
+file — the wrapped backup password, the vault's salt and KDF parameters, OpenPGP key-file grants and
+the hardware-unlock envelope. Keying an import with a file that lacks your salt cannot weaken
+anything, because a file that names the salt is not one this app writes.
+
+A preferences file belongs to one client. The three apps do not share a key set (Android's
+`pref_*` names, the desktop's `ui_*`), so importing a desktop file on Android — or the reverse — is
+refused outright with a message saying which client it came from, before anything is written. Moving
+settings between platforms needs a real mapping of each setting's meaning, which does not exist yet;
+silently applying the one or two names that happen to collide would be worse than a refusal.
+
+Settings this version does not know are reported as skipped, never guessed at. On Android the file
+is picked through the Storage Access Framework and the import is validated against a no-write trial
+first, so a corrupt document leaves the vault untouched; the serialised bytes are zeroed once the
+file is written or the picker is cancelled.
 
 ## Importing from Google Authenticator
 
@@ -337,6 +368,10 @@ disabled, and copying app data with third-party backup tools does not preserve t
 KeyStore key. Export a portable backup and verify that it restores before changing devices,
 reinstalling, clearing app data, or switching to a build signed with a different key. A signing
 key change requires uninstalling the old build and can erase its data.
+
+Paper will not be added as a backup medium: the encrypted file is already the offline copy, and a
+printed sheet of per-entry QR codes is a factor anyone who finds it can use. See
+[the fourth-pass audit](docs/incomplete-feature-audit-2026-11-06-fourth-pass.md) for the reasoning.
 
 For automatic backups, choose a backup folder and enable **Automatic backup** in Settings. With
 password login, **Use app password for encrypted backups** uses that password for automatic and

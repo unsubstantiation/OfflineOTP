@@ -51,6 +51,24 @@
     <string name="settings_title_backup_password">Separate backup password</string>
     <string name="settings_title_auto_backup_password_enc">Automatic backup</string>
     <string name="settings_title_auto_backup_use_login">Use app password for encrypted backups</string>
+    <string name="settings_title_preferences_export">Export preferences…</string>
+    <string name="settings_desc_preferences_export">Save the app settings as a portable JSON file for another install.</string>
+    <string name="settings_title_preferences_import">Import preferences…</string>
+    <string name="settings_desc_preferences_import">Restore settings from a preferences file. Unknown settings are skipped and device-bound ones are refused.</string>
+    <string name="preferences_export_question">Include the backup password in the file?</string>
+    <string name="preferences_export_question_detail">The file is not encrypted. With the password, a new install can keep writing backups without it being typed again — but anyone who reads the file can open your backups.</string>
+    <string name="preferences_export_with_secrets">Include the backup password</string>
+    <string name="preferences_export_without_secrets">Settings only</string>
+    <string name="preferences_export_success">Preferences exported. %1$d settings written.</string>
+    <string name="preferences_export_success_with_secrets">Preferences exported, including the backup password. The file is plaintext: store it securely.</string>
+    <string name="preferences_export_failed">The preferences could not be exported.</string>
+    <string name="preferences_import_question">Import preferences?</string>
+    <string name="preferences_import_question_detail">This overwrites the settings present in the file and leaves every other setting alone. The vault, its password and its accounts are not touched.</string>
+    <string name="preferences_import_success">Preferences imported. %1$d settings applied.</string>
+    <string name="preferences_import_success_with_secrets">Preferences imported, including the backup password.</string>
+    <string name="preferences_import_skipped">%1$d settings in the file are not known to this version and were skipped.</string>
+    <string name="preferences_import_wrong_platform">This preferences file was written by another client, so it cannot be applied here.</string>
+    <string name="preferences_import_failed">The preferences could not be imported. Nothing was changed.</string>
     <string name="settings_title_auto_backup_keep">Keep automatic backups</string>
 
     <string name="settings_title_backup_broadcasts">Backup broadcasts</string>
