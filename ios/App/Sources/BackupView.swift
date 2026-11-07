@@ -229,12 +229,14 @@ struct BackupView: View {
     private var passwordsSection: some View {
         Section {
             Button("Import browser passwords CSV (individual)…") { pickingPasswordsIndividual = true }
+            Button("Export browser passwords CSV…", action: exportBrowserPasswords)
             Button("Archive password file into vault…") { pickingPasswordsArchive = true }
         } header: {
             Text("Browser Passwords")
         } footer: {
             Text("Imports Chrome, Firefox, or Safari CSV rows as individual searchable password "
-                 + "entries, or stores a password file byte-for-byte inside the encrypted vault.")
+                 + "entries, exports revealed browser-imported passwords back to CSV, or stores a "
+                 + "password file byte-for-byte inside the encrypted vault.")
         }
     }
 
@@ -441,6 +443,18 @@ struct BackupView: View {
         } catch {
             status = "The password file could not be read."
         }
+    }
+
+    private func exportBrowserPasswords() {
+        status = nil
+        store.clearMessage()
+        guard let backup = store.exportBrowserPasswordsCsv() else {
+            status = store.message
+            return
+        }
+        exported = BackupDocument(backup.data)
+        exportFilename = backup.name
+        exporting = true
     }
 
     private func addLink() {

@@ -18,15 +18,21 @@ final class PreferencesExportTests: XCTestCase {
     }
 
     func testRoundTripKeepsTypesAndWritesOnlyWhatWasStored() throws {
-        let source = FakePort([PreferencesExport.inactivityLockKey: .integer(120)])
+        let source = FakePort([
+            PreferencesExport.sortModeKey: .text("ISSUER"),
+            PreferencesExport.inactivityLockKey: .integer(120),
+        ])
         let export = try PreferencesExport.export(source)
-        XCTAssertEqual(1, export.keysWritten)
+        XCTAssertEqual(2, export.keysWritten)
         XCTAssertFalse(export.includesSecrets)
 
         let target = FakePort()
         let result = try PreferencesExport.apply(export.bytes, into: target)
-        XCTAssertEqual(1, result.applied)
-        XCTAssertEqual([PreferencesExport.inactivityLockKey: .integer(120)], target.writes)
+        XCTAssertEqual(2, result.applied)
+        XCTAssertEqual([
+            PreferencesExport.sortModeKey: .text("ISSUER"),
+            PreferencesExport.inactivityLockKey: .integer(120),
+        ], target.writes)
     }
 
     func testAbsentSettingIsNotWrittenAsItsDefault() throws {

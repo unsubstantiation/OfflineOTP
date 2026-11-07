@@ -151,7 +151,13 @@ class BrowserPasswordExportTest(unittest.TestCase):
         view = read(IOS_APP / "EntryListView.swift")
         self.assertIn("private func exportBrowserPasswords(", view)
         self.assertIn("onExportCsv", view)
+        self.assertIn("onEditPassword", view)
+        self.assertIn('Button("Edit password…", action: onEditPassword)', view)
         self.assertIn("archiveExportIsBrowserCsv", view)
+        backup_view = read(IOS_APP / "BackupView.swift")
+        self.assertIn('Button("Export browser passwords CSV…", action: exportBrowserPasswords)', backup_view)
+        store = read(IOS_APP / "VaultStore.swift")
+        self.assertIn("public func exportBrowserPasswordsCsv() -> ExportedBackup?", store)
 
 
 if __name__ == "__main__":

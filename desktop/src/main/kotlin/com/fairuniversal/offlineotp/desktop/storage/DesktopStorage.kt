@@ -108,8 +108,13 @@ internal object PortableLocations {
         if (launcherFile != null) {
             val parent = launcherFile.absoluteFile.parentFile
             if (parent != null) {
-                // jpackage: <app>/bin/<launcher>, so the program folder is the one above bin/.
+                // jpackage on Linux puts the launcher in <app>/bin/<launcher>; on macOS in
+                // <app>.app/Contents/MacOS/<launcher>; on Windows in <app>/<launcher>.exe.
                 if (parent.name == "bin" && parent.parentFile != null) return parent.parentFile
+                if (parent.name == "MacOS" && parent.parentFile?.name == "Contents" &&
+                    parent.parentFile?.parentFile != null) {
+                    return parent.parentFile.parentFile
+                }
                 return parent
             }
         }
@@ -130,9 +135,14 @@ internal object PortableLocations {
      */
     private fun appRootFor(jarDirectory: File?): File? {
         if (jarDirectory == null) return null
-        // jpackage app images keep the main jar in <app>/lib/app/.
-        if (jarDirectory.name == "app" && jarDirectory.parentFile?.name == "lib") {
-            return jarDirectory.parentFile?.parentFile
+        // jpackage app images keep the main jar in <app>/lib/app/ (Linux),
+        // <app>.app/Contents/app/ (macOS), or <app>/app/ (Windows).
+        if (jarDirectory.name == "app") {
+            val parent = jarDirectory.parentFile ?: return jarDirectory
+            if ((parent.name == "lib" || parent.name == "Contents") && parent.parentFile != null) {
+                return parent.parentFile
+            }
+            return parent
         }
         // Gradle's application plugin (installDist/distZip) keeps every jar in <app>/lib/.
         if (jarDirectory.name == "lib") return jarDirectory.parentFile

@@ -270,8 +270,11 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
 
         tags.visibility = if (entryTags.isEmpty()) View.GONE else View.VISIBLE
         val hidden = entry.getHiddenLabel()
-        if (detailsVisible && hidden.isNotEmpty() && (entry.isTimeBased() || entry.isCounterBased())) {
-            hiddenLabel.setText(hidden)
+        val sshSummary = if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
+        val extraLabel = hidden.ifEmpty { sshSummary }
+        if (detailsVisible && extraLabel.isNotEmpty() &&
+            (entry.isTimeBased() || entry.isCounterBased() || entry.isSshKey())) {
+            hiddenLabel.setText(extraLabel)
             hiddenLabel.visibility = View.VISIBLE
         } else {
             hiddenLabel.setText("")

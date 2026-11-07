@@ -27,6 +27,13 @@ import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
  * the reveal gesture exists to gate. Leaving them blank keeps the stored values.
  */
 object PasswordEntryEditDialog {
+    private var activeDialog: AlertDialog? = null
+
+    fun dismissActive() {
+        activeDialog?.dismiss()
+        activeDialog = null
+    }
+
     fun show(context: Context, entry: Entry, save: (Entry) -> Unit) {
         if (!entry.isPassword()) return
         val fields = try {
@@ -96,11 +103,14 @@ object PasswordEntryEditDialog {
         }
         // Leaving an abandoned edit must not keep the typed password alive in the view hierarchy.
         dialog.setOnDismissListener {
+            if (activeDialog === dialog) activeDialog = null
             urlInput.setText("")
             userInput.setText("")
             passwordInput.setText("")
             reveal.isChecked = false
         }
+        activeDialog?.dismiss()
+        activeDialog = dialog
         dialog.show()
     }
 }

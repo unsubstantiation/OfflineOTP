@@ -249,6 +249,12 @@ struct SettingsView: View {
             LabeledContent("Application", value: "OfflineOTP")
             LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
             LabeledContent("Network access", value: "None (100% offline)")
+            LabeledContent("Website", value: "fairuniversal.com")
+            LabeledContent("Releases", value: "github.com/unsubstantiation/OfflineOTP/releases")
+            LabeledContent("Source", value: "github.com/unsubstantiation/OfflineOTP")
+            Text("Copyright (c) 2026 unsubstantiation — fairuniversal.com and github.com/unsubstantiation/OfflineOTP/releases")
+                .font(.footnote)
+                .foregroundColor(ForestPalette.textSecondary)
             Text("Compatible with OfflineOTP on Android and Desktop, FairEmail, Thunderbird, and LinSCP. "
                  + "Originally derived from andOTP under the MIT License.")
                 .font(.footnote)

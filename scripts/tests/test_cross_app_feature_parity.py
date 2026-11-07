@@ -119,6 +119,17 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("Add SSH key…", ios_list)
         self.assertIn("entry.noteText", ios_list)
 
+        # Direct password editing and bulk CSV export on iOS, and per-entry tag editing on Android
+        self.assertIn('Button("Edit password…", action: onEditPassword)', ios_list)
+        self.assertIn('Button("Export browser passwords CSV…", action: exportBrowserPasswords)', ios_backup)
+        popup_menu = (ROOT / "app/src/main/res/menu/menu_popup.xml").read_text(encoding="utf-8")
+        self.assertIn('android:id="@+id/menu_popup_tags"', popup_menu)
+        adapter = (ANDROID / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        self.assertIn("R.id.menu_popup_tags", adapter)
+        ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
+        self.assertIn("Copyright (c) 2026 unsubstantiation", ios_settings)
+        self.assertIn("fairuniversal.com", ios_settings)
+
 
 if __name__ == "__main__":
     unittest.main()
