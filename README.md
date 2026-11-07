@@ -202,6 +202,9 @@ password-protected exports (both the current format and the older one); a passwo
 only when the file does not parse without one. Oversized files (over 8 MiB), more than 2,000
 accounts, missing identities, impossible connection values or missing credentials reject the whole
 file — nothing is imported from a partial batch, and an identical existing account is skipped.
+The older FairEmail v0 export is still written by upstream and is read through a narrow,
+documented [compatibility exception](docs/vault-security-hardening.md#fairemail-backup-compatibility-exception);
+it is unauthenticated, so import it only from a trusted source. FairEmail v1 imports use AES-GCM.
 
 **Export FairEmail backup** (Android **+**, desktop **Tools**) writes the selected accounts as
 FairEmail's unencrypted JSON restore file. Pick the accounts, then save: the file is plain text and

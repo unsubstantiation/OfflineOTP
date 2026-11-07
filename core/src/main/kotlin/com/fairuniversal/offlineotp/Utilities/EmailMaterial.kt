@@ -238,7 +238,7 @@ object EmailMaterial {
         try {
             val algorithm = if (version == 0) "PBKDF2WithHmacSHA1" else "PBKDF2WithHmacSHA512"
             derived = SecretKeyFactory.getInstance(algorithm).generateSecret(spec).encoded
-            val cipher = Cipher.getInstance(if (version == 0) "AES/CBC/PKCS5Padding" else "AES/GCM/NoPadding")
+            val cipher = if (version == 0) legacyFairEmailCipher() else Cipher.getInstance("AES/GCM/NoPadding")
             val key: SecretKey = SecretKeySpec(derived, "AES")
             if (version == 0) cipher.init(Cipher.DECRYPT_MODE, key, IvParameterSpec(iv))
             else cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, iv))
@@ -249,6 +249,21 @@ object EmailMaterial {
             spec.clearPassword()
             salt.fill(0); iv.fill(0); ciphertext.fill(0); derived?.fill(0)
         }
+    }
+
+    /**
+     * Read-only compatibility with FairEmail's headerless version 0 export.
+     *
+     * Upstream still selects this format in its password-protected writer (checked against
+     * M66B/FairEmail commit 13403d91902ded9ee4c586ceb602e2332c469373). The file has no
+     * authentication tag, so neither a padding check nor JSON validation makes it authenticated
+     * encryption. Keep the exception local to this cipher factory; version 1 uses AES-GCM and
+     * OfflineOTP's own vault/backups never use this legacy construction. See
+     * docs/vault-security-hardening.md#fairemail-backup-compatibility-exception.
+     */
+    private fun legacyFairEmailCipher(): Cipher {
+        // codeql[java/weak-cryptographic-algorithm] -- Required by FairEmail's v0 wire format; this is a documented compatibility exception, not an approved construction for new data.
+        return Cipher.getInstance("AES/CBC/PKCS5Padding")
     }
 
     private fun validatePair(account: JSONObject, identity: JSONObject) {
