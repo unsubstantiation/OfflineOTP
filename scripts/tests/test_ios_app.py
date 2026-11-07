@@ -708,6 +708,39 @@ class IosAppTest(unittest.TestCase):
         unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
         self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
 
+    def test_the_entry_list_body_is_split_for_the_type_checker(self):
+        """Xcode 16.4 timed out on the old single-expression `EntryListView.body`.
+
+        The compiler said "unable to type-check this expression in reasonable time" at
+        `var body: some View` because one expression carried the column, toolbar, nine sheets,
+        exporter and alert. Keep `body` a navigation shell and keep each presentation layer in its
+        own typed member, so no single expression grows back into the shape that failed.
+        """
+        row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
+        body = row.split("var body: some View {", 1)[1].split("\n    }", 1)[0]
+        self.assertIn("NavigationStack", body)
+        self.assertIn("vaultScreen", body)
+        self.assertLessEqual(len(body.strip().splitlines()), 5)
+        for forbidden in (".sheet(", ".toolbar", ".fileExporter(", ".alert("):
+            self.assertNotIn(forbidden, body, f"the presentation modifier {forbidden} is back in body")
+
+        for member in ("baseScreen", "tooledScreen", "editorSheets", "credentialSheets",
+                       "presentedSheets", "vaultScreen"):
+            self.assertIn(f"private var {member}: some View", row)
+        self.assertIn("@ToolbarContentBuilder", row)
+        self.assertIn("private var toolbarItems: some ToolbarContent", row)
+        self.assertIn("private var deletionPresented: Binding<Bool>", row)
+        self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
+
+        # The sheets stay distributed across the typed layers instead of returning to one chain.
+        for member, sheets in (("editorSheets", 2), ("credentialSheets", 3), ("presentedSheets", 4)):
+            section = row.split(f"private var {member}: some View {{", 1)[1].split("\n    }", 1)[0]
+            self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
+        vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]
+        self.assertIn(".fileExporter(", vault)
+        self.assertIn(".alert(", vault)
+        self.assertNotIn(".sheet(", vault)
+
     def test_openpgp_buttons_are_gated_by_the_backend(self):
         """The availability helpers must actually gate the UI, not sit unused beside it."""
         view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")

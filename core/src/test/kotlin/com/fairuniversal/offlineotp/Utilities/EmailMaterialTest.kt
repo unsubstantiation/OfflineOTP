@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.Utilities
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import com.fairuniversal.offlineotp.Database.Entry
@@ -66,30 +67,82 @@ class EmailMaterialTest {
         val account = sample()
         val plain = EmailMaterial.exportBackup(listOf(account))
         val password = "backup passphrase"
-        for (version in 0..1) {
-            val salt = ByteArray(16) { (it + 1).toByte() }
-            val iv = ByteArray(if (version == 0) 16 else 12) { (it + 20).toByte() }
-            val chars = password.toCharArray()
-            val spec = PBEKeySpec(chars, salt, if (version == 0) 65536 else 120000, 256)
-            chars.fill('\u0000')
-            val digest = SecretKeyFactory.getInstance(if (version == 0) "PBKDF2WithHmacSHA1" else "PBKDF2WithHmacSHA512")
-                .generateSecret(spec).encoded
-            spec.clearPassword()
-            val cipher = Cipher.getInstance(if (version == 0) "AES/CBC/PKCS5Padding" else "AES/GCM/NoPadding")
-            val key = SecretKeySpec(digest, "AES")
-            if (version == 0) cipher.init(Cipher.ENCRYPT_MODE, key, IvParameterSpec(iv))
-            else cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
-            val encrypted = cipher.doFinal(plain)
-            val backup = ByteArrayOutputStream().apply {
-                if (version == 1) { write("___FairEmail___".toByteArray(Charsets.US_ASCII)); write(version) }
-                write(salt); write(iv); write(encrypted)
-            }.toByteArray()
-            val imported = EmailMaterial.importBackup(backup, password).single()
-            assertEquals(account.address, imported.address)
+        try {
+            for (version in 0..1) {
+                val backup = encryptedFairEmailBackup(version, plain, password)
+                try {
+                    val imported = EmailMaterial.importBackup(backup, password).single()
+                    assertEquals(account.address, imported.address)
+                    assertEquals("incoming secret", imported.account.getString("password"))
+                    assertEquals("outgoing secret", imported.identity.getString("password"))
+                } finally { backup.fill(0) }
+            }
+        } finally { plain.fill(0) }
+    }
+
+    /**
+     * Independent known-answer fixture for FairEmail's still-current headerless v0 writer:
+     * PBKDF2-HMAC-SHA1 (65,536 iterations, 256-bit key), AES-256-CBC/PKCS#5, 16-byte salt and IV.
+     * Generated with Python hashlib.pbkdf2_hmac plus OpenSSL, not with EmailMaterial's reader.
+     */
+    @Test fun fairEmailV0UpstreamWireFormatStillImports() {
+        val backup = hexBytes(
+            "0102030405060708090a0b0c0d0e0f101415161718191a1b1c1d1e1f20212223" +
+            "3f114ef2e821e8ca9aa1ce745d2ca0eaa88065b8d5170082935e1a851fb01222" +
+            "709da285b89ea8cf1bc2da6772db10559845942e6014427c63c9140bc7bebf915" +
+            "998f394917038c579f231dcf95ee8a394fcd10016e29408c23e17be4d141d2345" +
+            "f8dd8e4acf1db8ea1065e61b0adb053dab65ca7e5adc4c41c6cc0f936cdd69c955" +
+            "ae4b992576ff08bf3f0b5a471803e31ff5f325129c390957dfe159cf7f3eb591e3" +
+            "b7a3a1c5065eb3b4d9e8e5dc961e1226562b79872651b3c5b0a2f4502d2546599a" +
+            "681a45cce3266eef601bb7fe7ca32cce145a2510b8b8ff6e353cf4b0ab05f31716" +
+            "f5d485844338b525756ef272a31cab0c3d010af20bc937aba713af94f1b7bc33fa" +
+            "6aed7f3a4eaa32eacc30cf455763b0524e12014d05bdd3fa70b362480f4a6a6d8f" +
+            "e6d812175cbe1d83cb58c29c13280d46a2b93bec533bc52f1ccbb69ffaed621a0b" +
+            "211bd71eabec96ed562bdbb81b5aa20510e02249db763226edf836949e09f55111" +
+            "a654f30a362318")
+        try {
+            val imported = EmailMaterial.importBackup(backup, "FairEmail compatibility test").single()
+            assertEquals("person@example.org", imported.address)
+            assertEquals("Work", imported.name)
             assertEquals("incoming secret", imported.account.getString("password"))
-            backup.fill(0); digest.fill(0); encrypted.fill(0)
-        }
-        plain.fill(0)
+            assertEquals("outgoing secret", imported.identity.getString("password"))
+            assertEquals(993, imported.account.getInt("port"))
+            assertEquals(465, imported.identity.getInt("port"))
+        } finally { backup.fill(0) }
+    }
+
+    @Test fun fairEmailV1RejectsWrongPasswordTamperingAndUnsupportedFraming() {
+        val plain = EmailMaterial.exportBackup(listOf(sample()))
+        val password = "backup passphrase"
+        val backup = encryptedFairEmailBackup(1, plain, password)
+        try {
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(backup, "$password-wrong")
+            }
+            val tamperedTag = backup.copyOf()
+            tamperedTag[tamperedTag.lastIndex] = (tamperedTag[tamperedTag.lastIndex].toInt() xor 1).toByte()
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(tamperedTag, password)
+            }
+            val tamperedCiphertext = backup.copyOf()
+            val ciphertextStart = 16 + 16 + 12
+            tamperedCiphertext[ciphertextStart] = (tamperedCiphertext[ciphertextStart].toInt() xor 1).toByte()
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(tamperedCiphertext, password)
+            }
+            val unsupportedVersion = backup.copyOf()
+            unsupportedVersion[15] = 2
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(unsupportedVersion, password)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(backup.copyOfRange(0, ciphertextStart + 15), password)
+            }
+            assertThrows(IllegalArgumentException::class.java) {
+                EmailMaterial.importBackup(backup, null)
+            }
+            tamperedTag.fill(0); tamperedCiphertext.fill(0); unsupportedVersion.fill(0)
+        } finally { plain.fill(0); backup.fill(0) }
     }
 
     @Test fun connectionDetailsMaskPasswordsAndNameTheProtocols() {
@@ -135,5 +188,41 @@ class EmailMaterialTest {
                 JSONObject(source.account.toString()).put("identities", JSONArray()))).toString().toByteArray())
             throw AssertionError("missing SMTP identity accepted")
         } catch (_: IllegalArgumentException) { }
+    }
+
+    /** Test-only writer for the two FairEmail password-protected wire formats. */
+    private fun encryptedFairEmailBackup(version: Int, plain: ByteArray, password: String): ByteArray {
+        val salt = ByteArray(16) { (it + 1).toByte() }
+        val iv = ByteArray(if (version == 0) 16 else 12) { (it + 20).toByte() }
+        val chars = password.toCharArray()
+        val spec = PBEKeySpec(chars, salt, if (version == 0) 65536 else 120000, 256)
+        chars.fill('\u0000')
+        var digest: ByteArray? = null
+        var encrypted: ByteArray? = null
+        try {
+            val keyBytes = SecretKeyFactory.getInstance(if (version == 0) "PBKDF2WithHmacSHA1" else "PBKDF2WithHmacSHA512")
+                .generateSecret(spec).encoded
+            digest = keyBytes
+            val cipher = Cipher.getInstance(if (version == 0) "AES/CBC/PKCS5Padding" else "AES/GCM/NoPadding")
+            val key = SecretKeySpec(keyBytes, "AES")
+            if (version == 0) cipher.init(Cipher.ENCRYPT_MODE, key, IvParameterSpec(iv))
+            else cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, iv))
+            val ciphertext = cipher.doFinal(plain)
+            encrypted = ciphertext
+            return ByteArrayOutputStream().apply {
+                if (version == 1) { write("___FairEmail___".toByteArray(Charsets.US_ASCII)); write(version) }
+                write(salt); write(iv); write(ciphertext)
+            }.toByteArray()
+        } finally {
+            spec.clearPassword()
+            digest?.fill(0); encrypted?.fill(0); salt.fill(0); iv.fill(0)
+        }
+    }
+
+    private fun hexBytes(hex: String): ByteArray {
+        require(hex.length % 2 == 0)
+        return ByteArray(hex.length / 2) { index ->
+            ((Character.digit(hex[index * 2], 16) shl 4) or Character.digit(hex[index * 2 + 1], 16)).toByte()
+        }
     }
 }

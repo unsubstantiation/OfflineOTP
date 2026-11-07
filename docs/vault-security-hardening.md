@@ -104,6 +104,39 @@ An existing separate backup password remains selected unless the user opts into 
 
 Automatic exports request new UUID-named documents, even if the old date/time naming option is off. Completed backups are not pruned or overwritten; failed newly created documents are deleted best-effort. Overlapping exports can finish out of order, so a provider's last-modified ordering does not necessarily identify the newest vault state; inspect or test backups before choosing one to restore. Optional same-signature broadcasts only retry pending changes in the legacy separate-password/KeyStore-vault mode. Unique WorkManager work and a one-minute enqueue throttle coalesce requests; the worker rechecks configuration and pending state. Storage providers are not atomic or inherently trustworthy: a failed user-selected export may leave partial data, and a hostile provider can ignore delete requests or retain bytes already received. Panic disables automatic backups, cancels pending unique work, revokes the session and performs the requested wipe under mutation locks; it cannot recall bytes already exported.
 
+## FairEmail backup compatibility exception
+
+`EmailMaterial.decryptFairEmailBackup` reads two password-protected FairEmail wire formats:
+
+| Format | Framing | KDF | Cipher | Integrity |
+| --- | --- | --- | --- | --- |
+| FairEmail v0 | headerless: 16-byte salt, 16-byte IV, ciphertext | PBKDF2-HMAC-SHA1, 65,536 iterations, 256-bit key | AES-256-CBC/PKCS5Padding | **None** |
+| FairEmail v1 | `___FairEmail___` + version byte `1`, 16-byte salt, 12-byte IV, ciphertext/tag | PBKDF2-HMAC-SHA512, 120,000 iterations, 256-bit key | AES-256-GCM, 128-bit tag | Authenticated |
+
+The v0 reader is a deliberate compatibility exception, not an approved construction for new data.
+Upstream FairEmail still selects `version = 0` in its password-protected export writer at commit
+[`13403d91902ded9ee4c586ceb602e2332c469373`](https://github.com/M66B/FairEmail/blob/13403d91902ded9ee4c586ceb602e2332c469373/app/src/main/java/eu/faircode/email/FragmentOptionsBackup.java)
+(`FragmentOptionsBackup.java`, export path). Removing the CBC reader, or silently replacing its
+transformation with GCM, would break imports from that current upstream writer. The exception is
+therefore kept read-only and isolated in `EmailMaterial.legacyFairEmailCipher`; the CodeQL
+`java/weak-cryptographic-algorithm` suppression is local to that cipher factory. Version 1 continues
+to use AES-GCM, and OfflineOTP's own vault and `.json.aes` backups do not use this exception.
+
+Residual risk: v0 ciphertext is malleable and has no authentication tag. Padding checks, UTF-8
+validation, JSON parsing, and account-field validation can reject many corrupt files, but they do
+not prove that a v0 file was produced by someone who knows the password or that its plaintext was
+not modified. Import v0 files only from a trusted source, keep the original backup until the imported
+accounts have been verified, and prefer a v1/authenticated export when the producing FairEmail build
+offers one. A wrong password or damaged v0 file is reported as a failed import; the UI does not expose
+JCA padding details. This is a local, user-initiated import path, not a network decryption oracle.
+
+Regression coverage pins the upstream-compatible v0 bytes with an independent known-answer fixture
+(Python `hashlib.pbkdf2_hmac` plus OpenSSL, not the Kotlin reader), exercises v0/v1 round trips, and
+checks that v1 rejects wrong passwords, ciphertext/tag tampering, unsupported versions, truncation,
+and missing passwords. Retire the exception only after upstream stops writing v0 and the supported
+FairEmail versions no longer require it, or after an explicit product decision accepts breaking those
+imports.
+
 ## Regression coverage and remaining verification
 
 The Python suite checks the signature-bound manifest policy, backup-disable policy, source

@@ -57,117 +57,64 @@ struct EntryListView: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: 0) {
-                CategoryTabStrip(store: store)
-                SearchBar(store: store)
-                if !store.tags(for: store.category).isEmpty || store.includeUntagged {
-                    TagStrip(store: store)
-                }
-                entryList
+            vaultScreen
+        }
+    }
+
+    // MARK: - Screen composition
+    //
+    // The previous single-expression body made Xcode 16.4 fail with "the compiler is unable to
+    // type-check this expression in reasonable time" at `var body: some View`. Keep each layer in
+    // its own computed property so the toolbar, sheets, exporter and alert are not one expression.
+
+    private var baseScreen: some View {
+        VStack(spacing: 0) {
+            CategoryTabStrip(store: store)
+            SearchBar(store: store)
+            if !store.tags(for: store.category).isEmpty || store.includeUntagged {
+                TagStrip(store: store)
             }
-            .background(ForestPalette.background)
-            .navigationTitle("OfflineOTP")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(ForestPalette.appBar, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Menu {
-                        Button("Enter account details…") {
-                            editor = EditorTarget(index: nil, initialKind: .totp)
-                        }
-                        Button("Add secure note…") {
-                            editor = EditorTarget(index: nil, initialKind: .note)
-                        }
-                        Button("Add SSH key…") {
-                            editor = EditorTarget(index: nil, initialKind: .sshKey)
-                        }
-                        Button("Add email account…") {
-                            addingEmailAccount = true
-                        }
-                        Divider()
-                        Button("Backups, CSV & QR imports…") {
-                            backupsShown = true
-                        }
-                    } label: {
-                        Image(systemName: "plus")
-                            .foregroundColor(ForestPalette.textPrimary)
-                    }
-                    .accessibilityLabel("Add an entry")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    SortMenu(store: store, onMessage: show)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        backupsShown = true
-                    } label: {
-                        Image(systemName: "externaldrive")
-                            .foregroundColor(ForestPalette.textPrimary)
-                    }
-                    .accessibilityLabel("Backups and links")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        settingsShown = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                            .foregroundColor(ForestPalette.textPrimary)
-                    }
-                    .accessibilityLabel("Settings")
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        store.lock()
-                    } label: {
-                        Image(systemName: "lock.fill")
-                            .foregroundColor(ForestPalette.textPrimary)
-                    }
-                    .accessibilityLabel("Lock the vault")
-                }
-            }
-            .overlay(alignment: .bottom) {
-                if let toast {
-                    Text(toast)
-                        .font(.footnote)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(ForestPalette.surfaceElevated)
-                        .foregroundColor(ForestPalette.textPrimary)
-                        .cornerRadius(12)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        .transition(.opacity)
-                }
-            }
+            entryList
+        }
+        .background(ForestPalette.background)
+        .navigationTitle("OfflineOTP")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarBackground(ForestPalette.appBar, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
+    }
+
+    private var tooledScreen: some View {
+        baseScreen
+            .toolbar { toolbarItems }
+            .overlay(alignment: .bottom) { toastOverlay }
             .animation(.easeInOut(duration: 0.15), value: toast)
+    }
+
+    private var editorSheets: some View {
+        tooledScreen
             .sheet(item: $editor) { target in
                 EntryEditorView(store: store, index: target.index, initialKind: target.initialKind)
             }
             .sheet(item: $tagTarget) { target in
                 TagEditorSheet(store: store, index: target.index)
             }
+    }
+
+    private var credentialSheets: some View {
+        editorSheets
             .sheet(item: $passwordTarget) { target in
-                if store.entries.indices.contains(target.index) {
-                    PasswordDetailSheet(entry: store.entries[target.index], index: target.index, store: store) {
-                        secret, fieldName in
-                        copySecret(secret, label: fieldName, from: target.index)
-                    }
-                }
+                passwordDetailSheet(target)
             }
             .sheet(item: $passwordEditTarget) { target in
-                if store.entries.indices.contains(target.index) {
-                    PasswordEditSheet(store: store, index: target.index, entry: store.entries[target.index])
-                }
+                passwordEditSheet(target)
             }
             .sheet(item: $emailTarget) { target in
-                if store.entries.indices.contains(target.index) {
-                    EmailDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
-                        copySecret(secret, label: fieldName, from: target.index)
-                    }
-                }
+                emailDetailSheet(target)
             }
+    }
+
+    private var presentedSheets: some View {
+        credentialSheets
             .sheet(isPresented: $addingEmailAccount) {
                 EmailAccountEditorSheet(store: store)
             }
@@ -180,32 +127,170 @@ struct EntryListView: View {
             .sheet(item: $qrCode) { target in
                 QrCodeView(title: target.title, payload: target.payload)
             }
+    }
+
+    private var vaultScreen: some View {
+        presentedSheets
             .fileExporter(isPresented: $exportingArchive, document: archiveExport,
                           contentType: .data, defaultFilename: archiveExportName) { result in
-                switch result {
-                case .success(let url):
-                    show(archiveExportIsBrowserCsv
-                        ? "Passwords exported to \(url.lastPathComponent). Protect or delete the plaintext copy securely."
-                        : "Password file exported to \(url.lastPathComponent)")
-                case .failure:
-                    show("The password file was not exported.")
-                }
-                archiveExport = nil
+                handleArchiveExport(result)
             }
-            .alert("Remove entry?", isPresented: Binding(
-                get: { deletion != nil },
-                set: { presented in if !presented { deletion = nil } }
-            ), presenting: deletion) { target in
-                Button("Remove", role: .destructive) {
-                    if !store.remove(at: target.index) {
-                        show(store.message ?? "The entry could not be removed.")
-                    }
-                }
-                Button("Cancel", role: .cancel) {}
+            .alert("Remove entry?", isPresented: deletionPresented, presenting: deletion) { target in
+                deletionActions(target)
             } message: { target in
-                Text("Are you sure you want to remove the account \"\(target.name)\"? This cannot be undone.")
+                deletionMessage(target)
+            }
+    }
+
+    @ToolbarContentBuilder
+    private var toolbarItems: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarLeading) {
+            addMenu
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            SortMenu(store: store, onMessage: show)
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            backupsButton
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            settingsButton
+        }
+        ToolbarItem(placement: .navigationBarTrailing) {
+            lockButton
+        }
+    }
+
+    private var addMenu: some View {
+        Menu {
+            Button("Enter account details…") {
+                editor = EditorTarget(index: nil, initialKind: .totp)
+            }
+            Button("Add secure note…") {
+                editor = EditorTarget(index: nil, initialKind: .note)
+            }
+            Button("Add SSH key…") {
+                editor = EditorTarget(index: nil, initialKind: .sshKey)
+            }
+            Button("Add email account…") {
+                addingEmailAccount = true
+            }
+            Divider()
+            Button("Backups, CSV & QR imports…") {
+                backupsShown = true
+            }
+        } label: {
+            Image(systemName: "plus")
+                .foregroundColor(ForestPalette.textPrimary)
+        }
+        .accessibilityLabel("Add an entry")
+    }
+
+    private var backupsButton: some View {
+        Button {
+            backupsShown = true
+        } label: {
+            Image(systemName: "externaldrive")
+                .foregroundColor(ForestPalette.textPrimary)
+        }
+        .accessibilityLabel("Backups and links")
+    }
+
+    private var settingsButton: some View {
+        Button {
+            settingsShown = true
+        } label: {
+            Image(systemName: "gearshape")
+                .foregroundColor(ForestPalette.textPrimary)
+        }
+        .accessibilityLabel("Settings")
+    }
+
+    private var lockButton: some View {
+        Button {
+            store.lock()
+        } label: {
+            Image(systemName: "lock.fill")
+                .foregroundColor(ForestPalette.textPrimary)
+        }
+        .accessibilityLabel("Lock the vault")
+    }
+
+    @ViewBuilder
+    private var toastOverlay: some View {
+        if let toast {
+            Text(toast)
+                .font(.footnote)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(ForestPalette.surfaceElevated)
+                .foregroundColor(ForestPalette.textPrimary)
+                .cornerRadius(12)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 24)
+                .transition(.opacity)
+        }
+    }
+
+    @ViewBuilder
+    private func passwordDetailSheet(_ target: IndexedTarget) -> some View {
+        if store.entries.indices.contains(target.index) {
+            PasswordDetailSheet(entry: store.entries[target.index], index: target.index, store: store) {
+                secret, fieldName in
+                copySecret(secret, label: fieldName, from: target.index)
             }
         }
+    }
+
+    @ViewBuilder
+    private func passwordEditSheet(_ target: IndexedTarget) -> some View {
+        if store.entries.indices.contains(target.index) {
+            PasswordEditSheet(store: store, index: target.index, entry: store.entries[target.index])
+        }
+    }
+
+    @ViewBuilder
+    private func emailDetailSheet(_ target: IndexedTarget) -> some View {
+        if store.entries.indices.contains(target.index) {
+            EmailDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
+                copySecret(secret, label: fieldName, from: target.index)
+            }
+        }
+    }
+
+    private var deletionPresented: Binding<Bool> {
+        Binding(
+            get: { deletion != nil },
+            set: { presented in if !presented { deletion = nil } }
+        )
+    }
+
+    @ViewBuilder
+    private func deletionActions(_ target: DeletionTarget) -> some View {
+        Button("Remove", role: .destructive) {
+            if !store.remove(at: target.index) {
+                show(store.message ?? "The entry could not be removed.")
+            }
+        }
+        Button("Cancel", role: .cancel) {}
+    }
+
+    private func deletionMessage(_ target: DeletionTarget) -> some View {
+        Text("Are you sure you want to remove the account \"\(target.name)\"? This cannot be undone.")
+    }
+
+    private func handleArchiveExport(_ result: Result<URL, Error>) {
+        switch result {
+        case .success(let url):
+            let message = archiveExportIsBrowserCsv
+                ? "Passwords exported to \(url.lastPathComponent). Protect or delete the plaintext copy securely."
+                : "Password file exported to \(url.lastPathComponent)"
+            show(message)
+        case .failure:
+            show("The password file was not exported.")
+        }
+        archiveExport = nil
     }
 
     @ViewBuilder
