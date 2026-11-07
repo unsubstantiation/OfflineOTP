@@ -14,6 +14,9 @@ import com.fairuniversal.offlineotp.View.EntryListPresentation
  * everything after that — grouping a code, counting seconds, choosing the empty message, deciding
  * when a note may be printed — and that is what this class centralizes.
  *
+ * The per-row rules themselves live in [VaultCards], so a host that paints one row at a time asks
+ * for one card and gets the same answer this class would have put in a frame.
+ *
  * The projection is read-only with respect to ownership: it borrows entries, refreshes their cached
  * time token in place exactly like the existing cards do, and never retains an [Entry] in the state
  * it returns. A frame produced from a locked panel therefore contains strings only.
@@ -110,74 +113,17 @@ class VaultProjection(
         )
     }
 
-    /** Builds one row. [nowSeconds] is sampled once per frame by [snapshot]. */
-    private fun card(entry: Entry, nowSeconds: Long, revealed: Boolean, appearance: VaultAppearance): VaultCardState {
-        val kind = kindOf(entry)
-        val hasCode = entry.isTimeBased() || entry.isCounterBased()
-        if (hasCode) {
-            // Same reuse rule as the Android card and the Swing table: recompute only when the step
-            // changed, and never let a token failure take the whole list down with it.
-            runCatching { entry.updateOTPAt(nowSeconds, false) }
-        }
-        val pinRequired = entry.getPin().isEmpty() && entry.getType() == Entry.OTPType.MOTP
-        val rawToken = if (hasCode && !pinRequired) entry.getCurrentOTP().orEmpty() else ""
-        val token = if (rawToken.isEmpty()) null else TokenDisplay.group(rawToken, appearance.groupTokens)
-        // Only a time-based code has a step to count down; an HOTP entry keeps a period field but
-        // never expires.
-        val stepSeconds = if (hasCode && !pinRequired && entry.isTimeBased()) entry.getTokenStepSeconds() else 0
-        val remaining = if (stepSeconds > 0) TokenDisplay.remainingSeconds(stepSeconds, nowSeconds * 1000L) else null
-        return VaultCardState(
-            id = entry.getListId(),
-            kind = kind,
-            issuer = entry.getIssuer(),
-            label = entry.getLabel(),
-            thumbnailName = entry.getThumbnailName(),
-            tags = entry.getTags().toList(),
-            token = token,
-            previousToken = if (token != null && entry.isTimeBased() && entry.getType() != Entry.OTPType.MOTP) {
-                entry.getPrevOTP()?.takeIf { it.isNotEmpty() }
-                    ?.let { TokenDisplay.group(it, appearance.groupTokens) }
-            } else {
-                null
-            },
-            counter = if (entry.isCounterBased()) entry.getCounter() else null,
-            remainingSeconds = remaining,
-            progress = if (remaining != null) TokenDisplay.progress(stepSeconds, nowSeconds * 1000L) else null,
-            expiring = remaining != null && remaining <= appearance.expiringSeconds,
-            revealed = revealed,
-            revealedContent = if (revealed) revealedContent(entry, kind) else null,
-            pinRequired = pinRequired,
-            copyable = token != null && entry.hasCopyableToken()
-        )
-    }
-
     /**
-     * The one non-code line a revealed card may print. Only public-facing metadata is used: a note
-     * body, the account's mail address, the public half of an SSH key, or a password entry's site.
-     * A password entry's stored columns are named, never valued, so an unrecognized export cannot
-     * leak a password into the list.
+     * Builds one row. [nowSeconds] is sampled once per frame by [snapshot].
+     *
+     * The row itself is [VaultCards.of]; the frame is the one host that also owns the tick, so it
+     * refreshes the cached code here (same reuse rule as the Android card and the Swing table:
+     * recompute only when the step changed) before asking for the card. A token failure must not
+     * take the whole list down with it, hence the `runCatching`.
      */
-    private fun revealedContent(entry: Entry, kind: VaultEntryKind): String? = when (kind) {
-        VaultEntryKind.NOTES -> entry.getNote()
-        VaultEntryKind.EMAILS -> entry.getEmailAccount().let { account ->
-            account.address.ifBlank { account.name }
-        }
-        VaultEntryKind.SSH_KEYS -> entry.getSshKeys().publicKey.lineSequence().firstOrNull().orEmpty()
-        VaultEntryKind.PASSWORDS -> entry.getPasswordFields().let { fields ->
-            val site = listOf("url", "host", "site").firstNotNullOfOrNull { name ->
-                fields.value(name).takeIf { it.isNotBlank() }
-            }
-            site ?: fields.columns().joinToString(", ")
-        }
-        VaultEntryKind.OTP -> null
-    }
-
-    private fun kindOf(entry: Entry): VaultEntryKind = when (EntryListPresentation.categoryOf(entry)) {
-        EntryListPresentation.Category.OTP -> VaultEntryKind.OTP
-        EntryListPresentation.Category.NOTES -> VaultEntryKind.NOTES
-        EntryListPresentation.Category.SSH_KEYS -> VaultEntryKind.SSH_KEYS
-        EntryListPresentation.Category.PASSWORDS -> VaultEntryKind.PASSWORDS
-        EntryListPresentation.Category.EMAILS -> VaultEntryKind.EMAILS
+    private fun card(entry: Entry, nowSeconds: Long, revealed: Boolean, appearance: VaultAppearance): VaultCardState {
+        if (VaultCards.hasCode(entry)) runCatching { entry.updateOTPAt(nowSeconds, false) }
+        return VaultCards.of(entry, nowSeconds * 1000L, revealed, appearance)
     }
 
     /** Tag chips: one per tag in use, in the shared tag order, plus the untagged pseudo chip. */

@@ -54,7 +54,7 @@ growing a second UI inside `:desktop`.
 | Area | Files | Notes |
 | --- | --- | --- |
 | Design system | `ui/src/commonMain/.../ui/theme/ForestPalette.kt`, `ForestTheme.kt` | The Dark Forest tokens and a named type scale, replacing the duplicated `colors.xml`/`ForestTheme` values and the Material 3 colour scheme. |
-| Frame model | `ui-model/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
+| Frame model | `ui-model/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection,VaultCards}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
 | Screen | `ui/src/commonMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
 | Unlock | `ui/src/commonMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
 | Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `ComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
@@ -169,12 +169,25 @@ Card menus, manual entry, tag and thumbnail pickers and confirmation dialogs mov
 security rules in [`vault-security-hardening.md`](vault-security-hardening.md) (delayed confirmation,
 redaction, screen privacy) apply unchanged.
 
-### Stage 3b — Swing adopts the frame model
+### Stage 3b — Swing adopts the frame model (done)
 
-Already started: the Swing client takes its tab and sort labels from `VaultStrings` and depends on
-`:ui-model` only. The remaining Swing adoption is the row model — `EntryTableModel`/`CardRenderer`
-deriving a row's token, expiry colour and tags from `VaultCardState` instead of re-reading the entry —
-which is the change that lets stage 4 delete the Swing screen rather than port it.
+The Swing client depends on `:ui-model` only, takes its tab and sort labels from `VaultStrings`, and
+now paints each row from `VaultCards.of(entry, nowMillis, revealed)` instead of re-deriving the row:
+the code, its grouping, the expiring threshold (`VaultAppearance.expiringSeconds`, not a private
+`EXPIRING_SECONDS`), the tags, the thumbnail name and the accessibility line all come from the card
+the Compose screen paints. `CardClock` is the only clock, and it is passed in, so a test pins the
+second instead of waiting for a rollover.
+
+Two consequences worth recording. The desktop had drifted on grouping — it printed `123456` where
+the phone prints `123 456` — and it printed the mOTP placeholder constant `PINREQ` as if it were a
+code; both now follow the shared card (`PIN required` is the shared wording). The tests that checked
+the old strings now compare against `TokenDisplay.group(...)`, so the grouping is an asserted
+behaviour rather than a coincidence.
+
+What remains Swing's own is drawing and row chrome the Compose card leaves to its host: the redacted
+placeholder text for stored passwords, keys and mail accounts; the kind label; the hidden label; and
+the wrapped note geometry. None of it blocks stage 4 — the remaining work there is features
+(dialogs, backup, hardware keys), not derivation.
 
 ### Stage 4 — desktop parity, then delete Swing
 

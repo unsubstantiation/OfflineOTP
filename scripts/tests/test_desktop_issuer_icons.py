@@ -77,7 +77,12 @@ class DesktopIssuerIconsTest(unittest.TestCase):
         self.assertIn('"/thumbnails/"', icons)
         cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
             .read_text(encoding="utf-8")
-        self.assertIn("IssuerIcons.artwork(entry.getThumbnailName())", cards)
+        # The thumbnail name comes from the shared frame model, so the Swing card and the Compose
+        # card cannot pick different artwork for the same entry.
+        self.assertIn("IssuerIcons.artwork(card.thumbnailName)", cards)
+        model = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/"
+                       "VaultCards.kt").read_text(encoding="utf-8")
+        self.assertIn("thumbnailName = entry.getThumbnailName()", model)
         # A hidden entry must keep showing the letter tile, never a brand hint.
         self.assertIn("avatar.initial = initial(", cards)
 

@@ -32,6 +32,7 @@ FRAME_FILES = {
     "vault/VaultStrings.kt",
     "vault/VaultActions.kt",
     "vault/VaultProjection.kt",
+    "vault/VaultCards.kt",
 }
 
 HOST_PACKAGES = (
@@ -104,8 +105,19 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
-            {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt"}, names
+            {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
+             "VaultCardsTest.kt"}, names
         )
+        # A host that paints one row at a time (the Swing table) asks for a single card; the same
+        # per-entry rules must therefore be reachable without building a frame.
+        projection = (MODEL_MAIN / "vault/VaultProjection.kt").read_text(encoding="utf-8")
+        self.assertIn("VaultCards.of(entry", projection)
+        cards = (MODEL_MAIN / "vault/VaultCards.kt").read_text(encoding="utf-8")
+        # One row needs nothing but the entry, the clock and the reveal flag: no list, no filter, no
+        # frame, and no clock of its own.
+        self.assertIn("nowMillis: Long", cards)
+        self.assertNotIn("VaultFilter", cards)
+        self.assertNotIn("System.currentTimeMillis", cards)
         filter_test = (MODEL_TEST / "vault/VaultFilterTest.kt").read_text(encoding="utf-8")
         # The tag-tap rules that used to live twice: OR/AND accumulate, SINGLE replaces, a second
         # tap on the only SINGLE chip clears it, and the untagged switch is separate.

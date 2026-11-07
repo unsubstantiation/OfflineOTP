@@ -17,7 +17,9 @@ the toolkit-free frame layer — what a row shows, the shared filter transitions
 wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
 tokens, the unlock screen and the `ComposeView` seam the Android app will host it through, and
 `:desktop-compose` runs that screen over the existing desktop engine as a preview
-(`./gradlew :desktop-compose:run`). The Android app and the shipping Swing client keep their
+(`./gradlew :desktop-compose:run`). The Swing client already paints each row from that frame model
+(`VaultCards.of`), so the desktop and the Compose screen group codes, warn about expiry and pick tags
+the same way. The Android app and the shipping Swing client keep their
 own UI until the staged cutover in the [Compose UI plan](docs/compose-unified-ui-plan.md) completes,
 so no client has lost a feature to the migration.
 
