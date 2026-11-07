@@ -29,6 +29,7 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
 import com.fairuniversal.offlineotp.Dialogs.PasswordEntryEditDialog
+import com.fairuniversal.offlineotp.Dialogs.TagsDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.TaskOutcome
@@ -50,6 +51,7 @@ import java.util.ArrayList
 import java.util.HashMap
 import java.util.Collections
 import java.util.IdentityHashMap
+import java.util.concurrent.Callable
 import java.util.function.BiConsumer
 import java.util.function.Consumer
 
@@ -306,6 +308,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     private fun dismissTransientUi() {
         dialogs.dismissAll()
         ManualEntryDialog.dismissActive()
+        PasswordEntryEditDialog.dismissActive()
         activeQrDialog?.dismiss()
         activeQrDialog = null
         activeSshCopyDialog?.dismiss()
@@ -1015,6 +1018,30 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                                     presentation.indexOf(edited))
                             })
                         })
+                })
+                true
+            } else if (id == R.id.menu_popup_tags) {
+                withTarget(popupTarget, Consumer { actual ->
+                    val tagState = HashMap<String, Boolean?>()
+                    for (tag in getTags()) tagState[tag] = false
+                    for (tag in actual.getTags()) tagState[tag] = true
+                    val tagsAdapter = TagsAdapter(context, tagState)
+                    tagsAdapter.setTagCounts(getTagCounts())
+                    val saveTags = Callable<Any?> {
+                        withTarget(popupTarget, Consumer { edited ->
+                            val previous = ArrayList(edited.getTags())
+                            try {
+                                edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                                edited.validate()
+                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(),
+                                    presentation.indexOf(edited))
+                            } catch (_: IllegalArgumentException) {
+                                edited.setTags(previous)
+                            }
+                        })
+                        null
+                    }
+                    TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
                 })
                 true
             } else if (id == R.id.menu_popup_changeImage) {

@@ -71,7 +71,7 @@ Wiring, with the same rules in every client:
 |---|---|---|---|
 | Android | **Edit password…** in the entry menu (`PasswordEntryEditDialog`, password box starts empty) | **Export as `<browser>` CSV…** | **+ → Export passwords…** (`requestPasswordCsvExport(null)`) |
 | Desktop | **Edit password…** (`PasswordImportDialogs.edit`) | **Export as browser CSV…** | **Tools → Export passwords as browser CSV…** |
-| iOS | **Edit** in the password detail sheet (`PasswordEditSheet`, writes in place) | **Export as `<browser>` CSV…** in the entry menu | — |
+| iOS | **Edit password…** in the entry menu and **Edit** in the password detail sheet (`PasswordEditSheet`, writes in place) | **Export as `<browser>` CSV…** in the entry menu | **Export browser passwords CSV…** in **Backups & Links → Browser Passwords** (`VaultStore.exportBrowserPasswordsCsv()`) |
 
 Android writes through the Storage Access Framework: the serialised bytes are held only between the
 warning dialog and the picker result, cleared on cancel and on lock (`onVaultLocked`), and the file
@@ -121,9 +121,10 @@ The dry-run is the Android import's one interesting rule: the bytes are replayed
 `SettingsPort` that refuses every write, so a document that would fail halfway is rejected while the
 vault is still untouched. The secret route on Android is `Settings.setBackupPassword`, which
 re-wraps through the Keystore — a plaintext password never lands in `SharedPreferences` — and a
-failure there throws rather than reporting a half-applied import. After an iOS import the
-inactivity picker is re-read (`VaultStore.reloadInactivityLock()`), because the value it displays
-was just replaced underneath it.
+failure there throws rather than reporting a half-applied import. After an iOS or desktop import,
+both the inactivity timeout (`ui_inactivity_lock_seconds`) and the sort mode (`ui_sort_mode`) are
+re-read (`VaultStore.reloadInactivityLock()` on iOS; `selectSortChoice` + `armInactivityTimer` on
+the desktop), because the values they display were just replaced underneath them.
 
 ## 4. Not closed here, and why
 

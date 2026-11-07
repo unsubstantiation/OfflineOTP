@@ -361,10 +361,11 @@ public final class VaultStore: ObservableObject {
         lastActivityDate = Date()
     }
 
-    /// Re-reads the delay from the store, for a setting a preferences import just replaced
-    /// underneath the UI.
+    /// Re-reads the delay and sort mode from the store, for a setting a preferences import just
+    /// replaced underneath the UI.
     public func reloadInactivityLock() {
         inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
+        sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         lastActivityDate = Date()
     }
 
@@ -866,6 +867,32 @@ public final class VaultStore: ObservableObject {
             message = mode == .individual
                 ? "That file is not a recognized browser password CSV."
                 : "That password file could not be archived."
+            return nil
+        }
+    }
+
+    /// Exports all revealed browser-imported `PASSWORD` entries as a CSV file, matching Android's
+    /// `+ → Export passwords…` and the desktop client's `Export passwords as browser CSV…`.
+    public func exportBrowserPasswordsCsv() -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        let revealed = entries.filter { $0.detailsVisible }
+        let dialects = revealed.compactMap { entry -> PasswordCsvExport.Dialect? in
+            if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+                return dialect
+            }
+            return nil
+        }
+        guard !dialects.isEmpty else {
+            message = "Reveal at least one browser-imported password entry to export."
+            return nil
+        }
+        let distinct = Array(Set(dialects))
+        let chosen = distinct.count == 1 ? distinct[0] : .firefox
+        do {
+            let data = try PasswordCsvExport.exportCsv(entries: revealed, dialect: chosen)
+            return ExportedBackup(name: "passwords.csv", data: data)
+        } catch {
+            message = "The browser password CSV could not be written."
             return nil
         }
     }

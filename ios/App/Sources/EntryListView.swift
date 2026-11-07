@@ -16,6 +16,7 @@ struct EntryListView: View {
     @State private var editor: EditorTarget?
     @State private var tagTarget: IndexedTarget?
     @State private var passwordTarget: IndexedTarget?
+    @State private var passwordEditTarget: IndexedTarget?
     @State private var emailTarget: IndexedTarget?
     @State private var addingEmailAccount = false
     @State private var archiveExport: BackupFile?
@@ -155,6 +156,11 @@ struct EntryListView: View {
                     }
                 }
             }
+            .sheet(item: $passwordEditTarget) { target in
+                if store.entries.indices.contains(target.index) {
+                    PasswordEditSheet(store: store, index: target.index, entry: store.entries[target.index])
+                }
+            }
             .sheet(item: $emailTarget) { target in
                 if store.entries.indices.contains(target.index) {
                     EmailDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
@@ -233,6 +239,7 @@ struct EntryListView: View {
                                 onReveal: { reveal(index) },
                                 onStep: { step(at: index) },
                                 onEdit: { editor = EditorTarget(index: index) },
+                                onEditPassword: { passwordEditTarget = IndexedTarget(index: index) },
                                 onExportCsv: {
                                     guard store.entries.indices.contains(index) else { return }
                                     exportBrowserPasswords([store.entries[index]])
@@ -619,6 +626,12 @@ struct EntryRowView: View {
                     Text(subtitle)
                         .font(.caption2)
                         .foregroundColor(ForestPalette.textHint)
+                    if entry.detailsVisible, !entry.tags.isEmpty {
+                        Text(entry.tags.joined(separator: ", "))
+                            .font(.caption2)
+                            .foregroundColor(ForestPalette.textSecondary)
+                            .lineLimit(1)
+                    }
                 }
                 // One stop for the name, so VoiceOver does not read three fragments as three items, and
                 // so a long issuer and a long label are read in the order they are drawn.
@@ -777,6 +790,7 @@ struct EntryMenu: View {
     let onReveal: () -> Void
     let onStep: () -> Void
     let onEdit: () -> Void
+    var onEditPassword: () -> Void = {}
     /// Writes this entry as a browser CSV; offered only when it has one (`PasswordCsvExport`).
     var onExportCsv: () -> Void = {}
     var onTags: () -> Void = {}
@@ -822,6 +836,8 @@ struct EntryMenu: View {
         }
         if entry.kind == .password {
             Button("View password details…", action: onDetails)
+                .disabled(!entry.detailsVisible)
+            Button("Edit password…", action: onEditPassword)
                 .disabled(!entry.detailsVisible)
             if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
                 Button("Export as \(dialect.browserName) CSV…", action: onExportCsv)

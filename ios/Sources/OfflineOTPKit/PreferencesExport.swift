@@ -54,9 +54,12 @@ public enum PreferencesExport {
     /// Everything else in `vault.plist` either belongs to the vault (`auth_*`) or is bound to this
     /// device — the quick-unlock enrolment is a Keychain item for this device's biometry.
     public static let catalog: [Setting] = [
+        Setting(key: sortModeKey, kind: .string),
         Setting(key: inactivityLockKey, kind: .integer),
     ]
 
+    /// Mirrors `SortMode.settingsKey` and the desktop client's `PreferencesExport.UI_SORT_MODE`.
+    public static let sortModeKey = "ui_sort_mode"
     /// Mirrors `VaultStore.inactivitySettingKey`.
     public static let inactivityLockKey = "ui_inactivity_lock_seconds"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.

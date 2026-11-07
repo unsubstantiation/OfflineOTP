@@ -35,9 +35,13 @@ class DesktopPortableLocationsTest {
         assertEquals(File("/opt/OfflineOTP"),
             PortableLocations.resolve(null, launcher.path, File("/opt/OfflineOTP/lib/app/desktop.jar"),
                 workingDirectory))
-        // Windows uses the same layout with a .exe launcher.
+        // Windows uses the same layout with a .exe launcher, or <app>/OfflineOTP.exe at the root.
         assertEquals(File("/opt/OfflineOTP"),
             PortableLocations.resolve(null, File(File("/opt/OfflineOTP/bin"), "OfflineOTP.exe").path, null,
+                workingDirectory))
+        // macOS jpackage app bundles place the launcher in <app>.app/Contents/MacOS/OfflineOTP.
+        assertEquals(File("/Applications/OfflineOTP.app"),
+            PortableLocations.resolve(null, "/Applications/OfflineOTP.app/Contents/MacOS/OfflineOTP", null,
                 workingDirectory))
         // A launcher anywhere else (a plain copy) keeps its own folder.
         assertEquals(File("/home/user/Downloads"),
@@ -52,9 +56,15 @@ class DesktopPortableLocationsTest {
         // Gradle's application plugin distribution: <app>/lib/desktop.jar.
         assertEquals(File("/opt/OfflineOTP"), PortableLocations.resolve(null, null,
             File("/opt/OfflineOTP/lib/desktop.jar"), workingDirectory))
-        // jpackage app image: <app>/lib/app/desktop.jar.
+        // Linux jpackage app image: <app>/lib/app/desktop.jar.
         assertEquals(File("/opt/OfflineOTP"), PortableLocations.resolve(null, null,
             File("/opt/OfflineOTP/lib/app/desktop.jar"), workingDirectory))
+        // Windows jpackage app image: <app>/app/desktop.jar.
+        assertEquals(File("/opt/OfflineOTP"), PortableLocations.resolve(null, null,
+            File("/opt/OfflineOTP/app/desktop.jar"), workingDirectory))
+        // macOS jpackage app bundle: <app>.app/Contents/app/desktop.jar.
+        assertEquals(File("/Applications/OfflineOTP.app"), PortableLocations.resolve(null, null,
+            File("/Applications/OfflineOTP.app/Contents/app/desktop.jar"), workingDirectory))
     }
 
     @Test

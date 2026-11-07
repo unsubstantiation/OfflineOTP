@@ -452,7 +452,14 @@ object MainWindow {
         }
 
         fun importPreferences() {
-            if (PreferencesDialogs.import(frame, controller.preferences)) refreshProjection(requireUnlocked() ?: return)
+            if (!PreferencesDialogs.import(frame, controller.preferences)) return
+            val mode = controller.savedSortMode()
+            selectSortChoice(mode)
+            armInactivityTimer()
+            state?.let { unlocked ->
+                unlocked.applySortMode(mode)
+                refreshProjection(unlocked)
+            }
         }
 
         fun importPasswords() {
@@ -529,6 +536,13 @@ object MainWindow {
                 JOptionPane.showMessageDialog(frame, "The password entry could not be saved to the vault.",
                     TITLE, JOptionPane.ERROR_MESSAGE)
             }
+        }
+
+        fun exportSelectedPasswordAsCsv() {
+            requireUnlocked() ?: return
+            val entry = selectedEntry()?.takeIf { it.areDetailsVisible() } ?: return
+            val support = PasswordCsvExport.support(entry) as? PasswordCsvExport.Support.Exportable ?: return
+            PasswordImportDialogs.exportCsv(frame, listOf(entry), support.dialect)
         }
 
         fun exportPasswordsAsCsv() {
@@ -649,6 +663,7 @@ object MainWindow {
             add(JMenuItem("Add SSH key…").apply { addActionListener { addEntry(Entry.OTPType.SSH_KEY) } })
             add(JMenuItem("Add email account…").apply { addActionListener { addEmailAccount() } })
             add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
+            add(JMenuItem("Export passwords as browser CSV…").apply { addActionListener { exportPasswordsAsCsv() } })
             add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
             add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
             add(JMenuItem("Import LinSCP SSH & sessions…").apply { addActionListener { importLinScp() } })
@@ -724,7 +739,7 @@ object MainWindow {
             add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
             add(JMenuItem("Tags…").apply { addActionListener { screen.tagsButton.doClick() } })
             add(JMenuItem("Edit password…").apply { addActionListener { editPassword() } })
-            add(JMenuItem("Export as browser CSV…").apply { addActionListener { exportPasswordsAsCsv() } })
+            add(JMenuItem("Export as browser CSV…").apply { addActionListener { exportSelectedPasswordAsCsv() } })
             add(JMenuItem("View password details…").apply { addActionListener { showPasswordDetails() } })
             add(JMenuItem("Export password file…").apply { addActionListener { exportPasswordFile() } })
             add(JMenuItem("View email details…").apply { addActionListener { showEmailDetails() } })

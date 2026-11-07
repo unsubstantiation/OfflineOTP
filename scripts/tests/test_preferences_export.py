@@ -122,6 +122,9 @@ class PreferencesWiringTest(unittest.TestCase):
         self.assertIn('"Export preferences…"', window)
         self.assertIn('"Import preferences…"', window)
         self.assertIn("PreferencesDialogs.export(frame, controller.preferences)", window)
+        self.assertIn("PreferencesDialogs.import(frame, controller.preferences)", window)
+        self.assertIn("selectSortChoice(mode)", window)
+        self.assertIn("armInactivityTimer()", window)
         dialogs = read(DESKTOP / "ui/PreferencesDialogs.kt")
         self.assertIn("PreferencesExport.PLATFORM_DESKTOP", dialogs)
         self.assertIn("PreferencesExport.MAX_BYTES", dialogs)
@@ -141,6 +144,8 @@ class PreferencesWiringTest(unittest.TestCase):
         self.assertIn("store.reloadInactivityLock()", view)
         store = read(IOS_APP / "VaultStore.swift")
         self.assertIn("public var preferencesPort: PreferencesExport.SettingsPort", store)
+        self.assertIn("SortMode.stored(settings.string(SortMode.settingsKey))", store)
+        self.assertIn('public static let sortModeKey = "ui_sort_mode"', read(IOS_KIT / "PreferencesExport.swift"))
         # The vault's own material is not readable through the port.
         self.assertIn("case .secret, .deviceBound:", store)
         # The port's write is non-throwing, so a port must not `throw` inside it.

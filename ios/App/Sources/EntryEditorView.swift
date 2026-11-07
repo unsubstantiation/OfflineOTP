@@ -9,10 +9,10 @@ import OfflineOTPKit
 /// new entry gets the same usage stamp. Nothing here writes the vault itself — the sheet builds an
 /// entry and the store persists it, so a failed write keeps the form open instead of losing typing.
 ///
-/// Two deliberate limits, both recorded in `docs/ios-client-plan.md`: SSH keys and the structured
-/// credential kinds cannot be created here (their seeds are framed material this build does not
-/// produce), and an existing entry must be revealed before it can be edited, the rule both other
-/// clients apply.
+/// Two deliberate limits, both recorded in `docs/ios-client-plan.md`: the imported credential kinds
+/// (`.password`, `.passwordArchive`, `.email`) are created or edited through their dedicated
+/// import/edit sheets rather than this form, and an existing entry must be revealed before it can be
+/// edited, the rule both other clients apply.
 struct EntryEditorView: View {
     @ObservedObject var store: VaultStore
     /// nil to add, or the stored position being replaced.

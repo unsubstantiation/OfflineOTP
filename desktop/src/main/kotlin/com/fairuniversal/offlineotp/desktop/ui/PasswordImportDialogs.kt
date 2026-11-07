@@ -103,11 +103,14 @@ internal object PasswordImportDialogs {
 
     /**
      * Writes browser-imported password entries as one CSV in [dialect]'s own header. Entries that
-     * did not come from a browser are refused: their column set has no browser form, so exporting
-     * them here would drop data the vault is holding.
+     * did not come from a browser or are still concealed are refused: their column set has no
+     * browser form, so exporting them here would drop data the vault is holding or expose a
+     * concealed entry.
      */
     fun exportCsv(parent: JFrame, entries: List<Entry>, dialect: PasswordCsvExport.Dialect) {
-        val candidates = entries.filter { PasswordCsvExport.support(it) is PasswordCsvExport.Support.Exportable }
+        val candidates = entries.filter {
+            it.areDetailsVisible() && PasswordCsvExport.support(it) is PasswordCsvExport.Support.Exportable
+        }
         if (candidates.isEmpty()) {
             JOptionPane.showMessageDialog(parent,
                 "No passwords imported from a browser are selected, so there is no browser CSV to write.",
