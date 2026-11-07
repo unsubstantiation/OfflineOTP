@@ -212,6 +212,20 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         android = (scripts / "build-android-jnilibs.sh").read_text(encoding="utf-8")
         self.assertIn("cargo ndk", android)
         self.assertIn("app/src/main/jniLibs", android)
+        # `cargo ndk` reads the manifest with `cargo metadata` in the *current directory* before it
+        # looks at any argument, so `--manifest-path` cannot point it at `rust/Cargo.toml`: only
+        # cargo-ndk's own flag (which must precede the cargo subcommand) is seen, and a trailing one
+        # is forwarded to `cargo build` after the metadata read has already failed. Running from the
+        # repository root therefore dies with "Failed to load Cargo.toml in current directory" /
+        # "could not find `Cargo.toml` in ... or any parent directory". The build runs inside the
+        # workspace instead, and writes through an absolute output path.
+        code = "\n".join(line for line in android.splitlines()
+                         if not line.lstrip().startswith("#"))
+        self.assertNotIn("--manifest-path", code,
+                         "cargo ndk loads the manifest from the working directory; run it in rust/")
+        self.assertIn('cd "$ROOT/rust"', code)
+        self.assertIn('JNI_LIBS="$ROOT/app/src/main/jniLibs"', code)
+        self.assertIn('-o "$JNI_LIBS" build --release', code)
         # `cargo ndk` cross-compiles with the toolchain rustup already has; it does not install
         # `std` for the Android ABIs. The iOS script has always run `rustup target add`; the
         # Android one did not, so a clean runner failed with "can't find crate for `std`". Both

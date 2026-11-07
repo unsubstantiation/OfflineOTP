@@ -44,13 +44,28 @@ echo "cargo: $(cargo --version)"
 # Required, not cosmetic: without these the cross-compile has no `std` for the target.
 rustup target add "${RUST_TARGETS[@]}"
 
-cargo ndk \
-    $(for abi in "${ABIS[@]}"; do printf -- '-t %s ' "$abi"; done) \
-    -o app/src/main/jniLibs \
-    build --manifest-path rust/Cargo.toml --release
+JNI_LIBS="$ROOT/app/src/main/jniLibs"
+mkdir -p "$JNI_LIBS"
+
+# Run from the Rust workspace, not from the repository root. `cargo ndk` loads the manifest with
+# `cargo metadata` **in the current directory** before it parses anything else, so `--manifest-path`
+# is no help here: cargo-ndk only honours its own `--manifest-path` (which must precede the cargo
+# subcommand), and a trailing one is passed through to `cargo build` after metadata has already
+# run — from the root that is "Failed to load Cargo.toml in current directory" followed by
+# "could not find `Cargo.toml` in <repo> or any parent directory". With the workspace as the
+# working directory the manifest is `rust/Cargo.toml` by default and the target dir is
+# `rust/target`, the same paths the other workflows build.
+NDK_TARGET_ARGS=()
+for abi in "${ABIS[@]}"; do
+    NDK_TARGET_ARGS+=(-t "$abi")
+done
+(
+    cd "$ROOT/rust"
+    cargo ndk "${NDK_TARGET_ARGS[@]}" -o "$JNI_LIBS" build --release
+)
 
 for abi in "${ABIS[@]}"; do
-    if [[ ! -f "app/src/main/jniLibs/$abi/libofflineotp_openpgp.so" ]]; then
+    if [[ ! -f "$JNI_LIBS/$abi/libofflineotp_openpgp.so" ]]; then
         echo "::error title=OpenPGP jniLibs::missing app/src/main/jniLibs/$abi/libofflineotp_openpgp.so after the build"
         exit 1
     fi
