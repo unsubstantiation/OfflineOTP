@@ -45,6 +45,12 @@ scripts/openpgp/build-android-jnilibs.sh
 NDK under `$ANDROID_HOME/ndk`. It installs the three Android rustup targets itself — `cargo ndk`
 cross-compiles with the toolchain rustup already has and does **not** provide `std` for them, so
 skipping that step fails with `can't find crate for \`std\`` on a clean machine.
+It also runs `cargo ndk` from `rust/`, not from the repository root: cargo-ndk loads the
+manifest with `cargo metadata` in the **working directory** before it looks at its arguments, and a
+trailing `--manifest-path` is forwarded to the `cargo build` it invokes, so from the root it stops
+with `Failed to load Cargo.toml in current directory` / `could not find \`Cargo.toml\` in … or any
+parent directory`. The output directory is an absolute path, so the `.so` files still land in
+`app/src/main/jniLibs`.
 
 CI runs the same script before assembling release APKs. The OpenKeychain provider
 flow remains available for users who configured it; `RpgpOpenPgpPort` is the in-app

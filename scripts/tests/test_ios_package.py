@@ -111,6 +111,47 @@ class IosPackageTest(unittest.TestCase):
         # `assign(repeating:count:)` is deprecated in favour of `update(repeating:count:)`.
         self.assertNotIn("assign(repeating:", argon)
 
+    def test_a_mutable_byte_access_never_reads_the_array_it_borrows(self):
+        """`arr.withUnsafeMutableBytes { ... }` lends `arr` out for the call.
+
+        Reading `arr.count` inside that closure is a second access to the same value while the
+        mutable borrow is live, and Swift refuses it: "overlapping accesses to 'out', but
+        modification requires exclusive access". `EmailCredentials.aesCbcDecrypt` passed
+        `out.count` as CCCrypt's output capacity, which made `swift build` fail for the whole
+        module. Nothing here compiles Swift, so the shape is pinned: inside a mutable byte/buffer
+        closure the borrowed array's own properties come from the closure argument instead.
+        """
+        reads = re.compile(r"\b(count|capacity|indices|startIndex|endIndex|isEmpty|underestimatedCount)\b")
+        files = list(SOURCES.glob("*.swift")) + list((IOS / "App/Sources").glob("*.swift"))
+        offenders = []
+        for path in files:
+            text = path.read_text(encoding="utf-8")
+            scope = swift_without_literals(text)
+            for match in re.finditer(r"\b(\w+)\.withUnsafeMutable(?:Bytes|BufferPointer)\s*\{", scope):
+                name, start, depth = match.group(1), match.end() - 1, 0
+                end = start
+                for index in range(start, len(scope)):
+                    if scope[index] == "{":
+                        depth += 1
+                    elif scope[index] == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = index
+                            break
+                body = scope[start:end]
+                for member in re.finditer(rf"\b{re.escape(name)}\.(\w+)", body):
+                    if reads.fullmatch(member.group(1)):
+                        line = text[:start].count("\n") + 1
+                        offenders.append(f"{path.name}:{line}: reads {name}.{member.group(1)} "
+                                         f"inside {name}.withUnsafeMutable…")
+        self.assertEqual([], offenders, "; ".join(offenders))
+
+        # The call that broke, pinned from the other end: the capacity comes from the buffer.
+        email = (SOURCES / "EmailCredentials.swift").read_text(encoding="utf-8")
+        aes = email.split("func aesCbcDecrypt", 1)[1].split("\n    }", 1)[0]
+        self.assertIn("outBuf.count", aes)
+        self.assertIn("outBuf.baseAddress", aes)
+
     def test_the_csv_writer_is_declared_where_callers_name_it(self):
         """A Swift member call is resolved against the type in the callee position.
 
