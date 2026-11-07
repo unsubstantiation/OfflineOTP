@@ -13,9 +13,10 @@ between distributions; copying an Android app-data vault is not a substitute for
 [Desktop client](#desktop-client) for its scope and build instructions.
 
 The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui` module holds
-the vault screen, its Dark Forest design tokens, the unlock screen and the frame projection both
-clients render from; `:desktop-compose` runs that screen over the existing desktop engine as a
-preview (`./gradlew :desktop-compose:run`). The Android app and the shipping Swing client keep their
+the vault screen, its Dark Forest design tokens, the unlock screen, the shared filter transitions and
+the frame projection both clients render from, plus the `ComposeView` seam the Android app will host
+it through; `:desktop-compose` runs that screen over the existing desktop engine as a preview
+(`./gradlew :desktop-compose:run`). The Android app and the shipping Swing client keep their
 own UI until the staged cutover in the [Compose UI plan](docs/compose-unified-ui-plan.md) completes,
 so no client has lost a feature to the migration.
 

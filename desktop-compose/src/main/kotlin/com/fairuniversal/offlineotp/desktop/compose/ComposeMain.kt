@@ -151,19 +151,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     if (card.id in revealed) revealed - card.id else revealed + card.id
             },
             onNextCounter = { card -> advanceCounter(controller, vault, card) },
-            onQueryChange = { query -> updateFilter(filter.copy(query = query)) },
-            onSelectCategory = { category -> updateFilter(filter.copy(category = category)) },
-            onToggleTag = { tag ->
-                val selected =
-                    if (tag in filter.selectedTags) filter.selectedTags - tag else filter.selectedTags + tag
-                updateFilter(filter.copy(selectedTags = selected))
-            },
-            onToggleUntagged = { updateFilter(filter.copy(untaggedSelected = !filter.untaggedSelected)) },
-            onClearFilters = {
-                updateFilter(filter.copy(query = "", selectedTags = emptyList(), untaggedSelected = false))
-            },
+            // Every transition is the shared value rule in :ui, not a copy of it: the Android host
+            // will call the same helpers for its search box, tab strip and tag drawer.
+            onQueryChange = { query -> updateFilter(filter.withQuery(query)) },
+            onSelectCategory = { category -> updateFilter(filter.withCategory(category)) },
+            onToggleTag = { tag -> updateFilter(filter.withTagToggled(tag)) },
+            onToggleUntagged = { updateFilter(filter.withUntaggedToggled()) },
+            onClearFilters = { updateFilter(filter.clearedFilters()) },
             onSelectSort = { mode ->
-                updateFilter(filter.copy(sortMode = mode))
+                updateFilter(filter.withSortMode(mode))
                 controller.saveSortMode(mode)
             },
             onLock = {

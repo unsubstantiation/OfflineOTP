@@ -47,6 +47,7 @@ growing a second UI inside `:desktop`.
 | Frame model | `ui/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection}.kt` | Compose-free. Everything a row shows is computed here, so it is unit-tested on a host JVM. |
 | Screen | `ui/src/commonMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
 | Unlock | `ui/src/commonMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
+| Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `ComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
 | Desktop host | `desktop-compose/src/main/kotlin/.../compose/ComposeMain.kt` | Unlock, list, copy, reveal, HOTP advance, search/tag/sort, lock — over the existing `VaultController`. |
 
 Deliberately absent from stage 1: add/edit/delete dialogs, tags/thumbnail editing, backup and
@@ -94,14 +95,16 @@ Verified in the checkout that produced this stage (no Maven Central, no Android 
 
 ```sh
 bash scripts/kotlin-sandbox/bootstrap-toolchain.sh
-bash scripts/kotlin-sandbox/compile-ui.sh          # core, then :ui against Compose stubs, then 31 tests
+bash scripts/kotlin-sandbox/compile-ui.sh          # five phases, 40 projection tests
 python3 -m unittest scripts.tests.test_compose_ui_module -v
 ```
 
-`compile-ui.sh` compiles `:core`, then `ui/src/commonMain` against the hand-written Compose stubs in
+`compile-ui.sh` runs five phases: it compiles `:core`, then `ui/src/commonMain` against the
+hand-written Compose stubs in
 [`scripts/kotlin-sandbox/stubs-compose`](../scripts/kotlin-sandbox/stubs-compose/README.md), runs the
-projection tests with the JUnit shim, and finally type-checks `desktop-compose` against the compiled
-`:desktop` gate output and the Compose Desktop window stubs. A green run means the shared sources type-check against
+projection tests with the JUnit shim, type-checks `desktop-compose` against the compiled `:desktop`
+gate output and the Compose Desktop window stubs, and finally type-checks the Android seam
+(`ui/src/androidMain`) against the app's own Android stubs plus a Compose platform stub. A green run means the shared sources type-check against
 `:core` with no Android/desktop/storage dependency, and that the frame builder behaves as asserted.
 It does **not** prove layout, rendering, accessibility, composition, resource resolution or that the
 stub signatures match the published artifacts.
@@ -120,13 +123,25 @@ Not verified here, and required before anything is called accepted:
 ### Stage 2 — Android vault list (the first deletion)
 
 1. Add `implementation project(':ui')` to `:app`.
-2. Host `VaultScreen` in a `ComposeView` inside the existing Activity, keeping the adapter's
-   filtering/session ownership: build `VaultFilter` from the settings store and the adapter's current
-   selection, call `VaultProjection.snapshot`, and route `VaultActions` back into the adapter's
-   existing entry commands.
-3. Delete `EntryViewHolder`, `item_entry_card.xml` and the card-only drawables/dimension resources,
+2. Host the screen through the seam that already exists — `VaultComposeView` in `androidMain` — so
+   the Activity keeps session authority and only pushes frames:
+
+   ```kotlin
+   val view = VaultComposeView(context, strings = AndroidVaultStrings.of(context), actions = actions)
+   view.render(projection.snapshot(filter, nowMillis, revealedIds, appearance))   // once per tick
+   // on lock: view.clear() (or drop the screen entirely)
+   ```
+
+   `VaultFilter` transitions come from the shared helpers (`withQuery`, `withCategory`,
+   `withTagToggled`, `withUntaggedToggled`, `clearedFilters`) rather than the adapter's own copies,
+   and `AndroidVaultStrings.of(context)` maps this module's `VaultStrings` fields to the existing
+   `R.string` resources so the thirty translations carry over unchanged.
+3. Build `VaultFilter` from the settings store and the adapter's current selection, call
+   `VaultProjection.snapshot`, and route `VaultActions` back into the adapter's existing entry
+   commands (dialog creation stays in `EntryActionDialogs`).
+4. Delete `EntryViewHolder`, `item_entry_card.xml` and the card-only drawables/dimension resources,
    and drop `me.zhanghai.android.materialprogressbar` once nothing else uses it.
-4. Port `TokenCardDeviceTest`/`EntrySearchDeviceTest` to `androidx.compose.ui:ui-test-junit4` (new
+5. Port `TokenCardDeviceTest`/`EntrySearchDeviceTest` to `androidx.compose.ui:ui-test-junit4` (new
    test-only dependency) before deleting the old assertions.
 
 Exit criteria: both flavors build and pass lint, the existing API 28/36 instrumentation suite passes
@@ -171,5 +186,7 @@ re-implement search, sorting or tag matching.
 - **Distribution size.** Compose Desktop adds Skiko natives to the desktop archive; the reproducible
   packaging check and the size notes in
   [`scripts/packaging`](../scripts/packaging/README.md) must be updated with the measured numbers.
-- **Localisation drift.** Every new `VaultStrings` field needs an Android resource mapping; a field
-  without one would silently fall back to English on the phone.
+- **Localisation drift.** Every new `VaultStrings` field needs an Android resource mapping in
+  `AndroidVaultStrings`; a field without one would silently fall back to English on the phone. The
+  mapping belongs to stage 2 together with a guard that every field has a resource, so a new field
+  cannot ship half-translated.

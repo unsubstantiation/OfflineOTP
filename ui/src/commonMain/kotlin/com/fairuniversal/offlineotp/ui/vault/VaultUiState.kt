@@ -46,6 +46,43 @@ data class VaultFilter(
     /** True when the search box narrows the list. */
     val hasQuery: Boolean get() = query.isNotBlank()
 
+    /** The filter after the search box reports [next]. */
+    fun withQuery(next: String): VaultFilter = copy(query = next)
+
+    /** The filter after a tab is chosen; `null` means the whole vault. */
+    fun withCategory(next: EntryListPresentation.Category?): VaultFilter = copy(category = next)
+
+    fun withSortMode(next: Constants.SortMode): VaultFilter = copy(sortMode = next)
+
+    /**
+     * The filter after one tag chip is tapped.
+     *
+     * `SINGLE` replaces the selection instead of adding to it, which is what the `SINGLE` tag
+     * functionality means in `:core` (one tag at a time); `OR` and `AND` both accumulate, and the
+     * matcher in `EntryList` applies the difference. Tapping the selected chip again removes it, so a
+     * chip never becomes a one-way switch. The untagged pseudo chip is a separate callback
+     * ([withUntaggedToggled]) and is never touched here.
+     */
+    fun withTagToggled(name: String): VaultFilter {
+        val selected = when (tagFunctionality) {
+            Constants.TagFunctionality.SINGLE ->
+                if (name in selectedTags) emptyList() else listOf(name)
+            else ->
+                if (name in selectedTags) selectedTags - name else selectedTags + name
+        }
+        return copy(selectedTags = selected)
+    }
+
+    /** The filter after the untagged pseudo chip is tapped. */
+    fun withUntaggedToggled(): VaultFilter = copy(untaggedSelected = !untaggedSelected)
+
+    /**
+     * The filter with the narrowing removed: query, tag selection and untagged cleared. The tab and
+     * the order stay, because "Clear" clears the filters that hide rows, not the user's tab choice.
+     */
+    fun clearedFilters(): VaultFilter =
+        copy(query = "", selectedTags = emptyList(), untaggedSelected = false)
+
     companion object {
         /** Both clients search label, issuer and tags unless the user narrows it. */
         val DEFAULT_SEARCH_INCLUDES: List<Constants.SearchIncludes> = listOf(

@@ -1,0 +1,89 @@
+package com.fairuniversal.offlineotp.ui.vault
+
+import android.content.Context
+
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+
+import com.fairuniversal.offlineotp.ui.theme.ForestTheme
+
+/**
+ * Android host seam for the shared vault screen.
+ *
+ * The Android app is built from Activities, Fragments and a RecyclerView, so the shared Compose
+ * screen is reached through a [ComposeView]: the host calls [VaultComposeView.render] with the frame
+ * its own session produced and receives every interaction through the [VaultActions] it passed in.
+ * Composition is created once in `init` and only the frame state changes, so a per-second refresh
+ * recomposes the screen instead of rebuilding it; a lock should [clear] the frame (or drop the view)
+ * so no code outlives the session that produced it.
+ *
+ * This class holds no session, key, storage or settings reference — deliberately. The Activity keeps
+ * session authority and re-checks it when an action arrives, exactly as the Swing client does.
+ *
+ * Stage 2 usage (see docs/compose-unified-ui-plan.md):
+ *
+ * ```
+ * val view = VaultComposeView(context, strings = AndroidVaultStrings.of(context), actions = actions)
+ * view.render(projection.snapshot(filter, nowMillis, revealedIds, appearance))
+ * ```
+ */
+class VaultComposeView(
+    context: Context,
+    private val strings: VaultStrings,
+    private val actions: VaultActions,
+    private val appearance: VaultAppearance = VaultAppearance()
+) : ComposeView(context) {
+
+    // A Compose snapshot state owned by the view: platform code writes frames, the composition reads
+    // them. The initial frame is empty, so nothing is disclosed before the host renders once.
+    private var frame by mutableStateOf(VaultUiState())
+
+    init {
+        // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
+        // must not keep collecting state.
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        setContent {
+            VaultScreenHost(
+                state = frame,
+                strings = strings,
+                actions = actions,
+                appearance = appearance
+            )
+        }
+    }
+
+    /** Publishes the next frame. Called from the UI thread, like any View mutation. */
+    fun render(next: VaultUiState) {
+        frame = next
+    }
+
+    /** Replaces the frame with the empty one; call this when the session locks. */
+    fun clear() {
+        frame = VaultUiState()
+    }
+}
+
+/**
+ * The same screen wrapped in the shared theme, for a host that builds its own `ComposeView` or hosts
+ * the screen inside a Compose hierarchy (for example a future Fragment using `ComposeView` directly).
+ */
+@Composable
+fun VaultScreenHost(
+    state: VaultUiState,
+    strings: VaultStrings,
+    actions: VaultActions,
+    appearance: VaultAppearance = VaultAppearance()
+) {
+    ForestTheme {
+        VaultScreen(
+            state = state,
+            strings = strings,
+            actions = actions,
+            appearance = appearance
+        )
+    }
+}

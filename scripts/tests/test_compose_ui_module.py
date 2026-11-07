@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 UI_MAIN = ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui"
+UI_ANDROID = ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui"
 UI_TEST = ROOT / "ui/src/desktopTest/kotlin/com/fairuniversal/offlineotp/ui"
 COMPOSE_HOST = ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose"
 SANDBOX = ROOT / "scripts/kotlin-sandbox"
@@ -87,7 +88,15 @@ class ComposeUiBoundaryTest(unittest.TestCase):
     def test_projection_tests_cover_grouping_privacy_and_filtering(self):
         """The behaviours the two old clients each implemented are pinned here, not per client."""
         names = {path.name for path in kotlin_files(UI_TEST)}
-        self.assertEqual({"TokenDisplayTest.kt", "VaultProjectionTest.kt"}, names)
+        self.assertEqual(
+            {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt"}, names
+        )
+        filter_test = (UI_TEST / "vault/VaultFilterTest.kt").read_text(encoding="utf-8")
+        # The tag-tap rules that used to live twice: OR/AND accumulate, SINGLE replaces, a second
+        # tap on the only SINGLE chip clears it, and the untagged switch is separate.
+        for expected in ("withTagToggled", "withUntaggedToggled", "clearedFilters",
+                         "singleReplacesTheSelection", "singleClearsWhenTheOnlyChipIsTappedAgain"):
+            self.assertIn(expected, filter_test)
 
     def test_ui_never_reads_a_clock_or_owns_a_coroutine_scope(self):
         """The host supplies time and session cancellation; the module only renders frames."""
@@ -177,6 +186,25 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_android_seam_is_a_thin_view_and_holds_no_session(self):
+        """Stage 2 reaches the screen through one ComposeView subclass, not a second client."""
+        seam = UI_ANDROID / "vault/VaultComposeView.kt"
+        self.assertTrue(seam.is_file(), "missing the Android ComposeView seam")
+        text = seam.read_text(encoding="utf-8")
+        self.assertIn("class VaultComposeView(", text)
+        self.assertIn("ComposeView(context)", text)
+        self.assertIn("fun render(next: VaultUiState)", text)
+        self.assertIn("fun clear()", text)
+        self.assertIn("DisposeOnViewTreeLifecycleDestroyed", text)
+        self.assertIn("VaultScreenHost(", text)
+        # No session, storage, key or settings reach the seam: the Activity keeps that authority.
+        for forbidden in ("SecretKey", "VaultSession", "DesktopVaultState", "PasswordVault",
+                          "SharedPreferences", "Settings"):
+            self.assertNotIn(forbidden, text)
+        # The seam adds no widget of its own: everything still comes from :ui.
+        self.assertNotIn("VaultEntryCard(", text)
+        self.assertNotIn("Column(", text)
+
     def test_sandbox_gate_exists_and_uses_the_compose_stubs(self):
         gate = SANDBOX / "compile-ui.sh"
         self.assertTrue(gate.is_file(), "missing the :ui sandbox compile gate")
@@ -190,6 +218,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         # engine and the Compose Desktop stubs, not left to the first real Gradle build.
         self.assertIn("desktop-compose/src/main/kotlin", text)
         self.assertTrue((COMPOSE_STUBS / "desktop").is_dir(), "missing Compose Desktop window stubs")
+        # The Android seam is type-checked too, against the app's own Android stubs.
+        self.assertIn("ui/src/androidMain/kotlin", text)
+        self.assertIn("stubs/android", text)
+        self.assertTrue((COMPOSE_STUBS / "android").is_dir(), "missing Compose Android platform stubs")
         self.assertTrue((COMPOSE_STUBS / "README.md").is_file(), "Compose stubs need their own limits note")
 
 

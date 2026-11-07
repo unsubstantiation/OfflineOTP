@@ -11,7 +11,9 @@
 #            AWT, storage or session types fails to compile here;
 #   phase 3  compiles the pure projection tests in ui/src/desktopTest (JUnit 4 shim) and runs them;
 #   phase 4  compiles the :desktop-compose host against the compiled :desktop gate output and the
-#            Compose Desktop window stubs, so the host cannot drift out of the shared screen's API.
+#            Compose Desktop window stubs, so the host cannot drift out of the shared screen's API;
+#   phase 5  compiles ui/src/androidMain (the ComposeView seam) against the Android stubs and the
+#            Compose Android platform stubs, so the Android host cannot rot before the cutover.
 #
 # What a green run means: the shared UI type-checks under `-jvm-target 1.8`, and the frame builder
 # behaves as asserted on a host JVM. What it does NOT mean: no composable is executed, no layout is
@@ -75,18 +77,24 @@ mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0
 mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' UI_SOURCES < <(find "$UI_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' UI_TEST_SOURCES < <(find "$UI_TEST" -name '*.kt' -print0 | sort -z)
+# Only the multiplatform stubs: the desktop window and Android platform stubs are compiled with the
+# host phases that need them (and the Android ones need the app's Android stubs on the classpath).
 mapfile -d '' COMPOSE_STUB_SOURCES < <(find "$COMPOSE_STUBS" -name '*.kt' \
-    -not -path "$COMPOSE_STUBS/desktop/*" -print0 | sort -z)
+    -not -path "$COMPOSE_STUBS/desktop/*" -not -path "$COMPOSE_STUBS/android/*" -print0 | sort -z)
 # Compose Desktop (window) stubs are only needed by the host phase.
 mapfile -d '' COMPOSE_DESKTOP_STUB_SOURCES < <(find "$COMPOSE_STUBS/desktop" -name '*.kt' -print0 2>/dev/null | sort -z)
 mapfile -d '' HOST_SOURCES < <(find "$ROOT/desktop-compose/src/main/kotlin" -name '*.kt' -print0 | sort -z)
+# Android host seam: compiled against the app's own human-written Android stubs, never the SDK.
+mapfile -d '' ANDROID_UI_SOURCES < <(find "$ROOT/ui/src/androidMain/kotlin" -name '*.kt' -print0 | sort -z)
+mapfile -d '' COMPOSE_ANDROID_STUB_SOURCES < <(find "$COMPOSE_STUBS/android" -name '*.kt' -print0 2>/dev/null | sort -z)
+mapfile -d '' ANDROID_STUBS < <(find "$SANDBOX/stubs/android" -name '*.kt' -print0 2>/dev/null | sort -z)
 
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources under $CORE_MAIN" >&2; exit 2; }
 [[ ${#UI_SOURCES[@]} -gt 0 ]] || { echo "no ui sources under $UI_MAIN" >&2; exit 2; }
 [[ ${#COMPOSE_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose stubs under $COMPOSE_STUBS" >&2; exit 2; }
 
 rm -rf "$OUT"
-mkdir -p "$OUT/core" "$OUT/ui" "$OUT/tests" "$OUT/host"
+mkdir -p "$OUT/core" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android"
 
 echo "kotlinc: $KOTLINC"
 echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
@@ -125,4 +133,14 @@ echo "phase 4: desktop-compose host (${#HOST_SOURCES[@]} files, Compose Desktop 
     "${HOST_SOURCES[@]}" "${COMPOSE_DESKTOP_STUB_SOURCES[@]}" \
     -d "$OUT/host"
 echo "host type-checked (never run: the window stubs are inert)"
+
+echo "phase 5: android host seam (${#ANDROID_UI_SOURCES[@]} files, Android + Compose platform stubs)"
+[[ ${#ANDROID_UI_SOURCES[@]} -gt 0 ]] || { echo "no sources under ui/src/androidMain/kotlin" >&2; exit 2; }
+[[ ${#ANDROID_STUBS[@]} -gt 0 ]] || { echo "no Android stubs under $SANDBOX/stubs/android" >&2; exit 2; }
+[[ ${#COMPOSE_ANDROID_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose Android stubs under $COMPOSE_STUBS/android" >&2; exit 2; }
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/ui:$STDLIB" \
+    "${ANDROID_UI_SOURCES[@]}" "${COMPOSE_ANDROID_STUB_SOURCES[@]}" "${ANDROID_STUBS[@]}" \
+    -d "$OUT/android"
+echo "android seam type-checked (no View is ever attached: the stubs have no framework)"
+
 
