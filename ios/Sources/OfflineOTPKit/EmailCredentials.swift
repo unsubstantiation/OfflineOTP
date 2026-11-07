@@ -823,6 +823,13 @@ public enum ThunderbirdCsv {
         return Table(columns: header, rows: rows)
     }
 
+    /// Serialises a table as RFC 4180 CSV: CRLF record separators, a field quoted only when it has
+    /// to be, and an embedded quote doubled.
+    ///
+    /// Both the Thunderbird export and `PasswordCsvExport` write through this. It briefly lived on
+    /// `EmailMaterial`, which no caller names, so `PasswordCsvExport.exportCsv` failed to compile
+    /// with "type 'EmailMaterial' has no member 'exportCsv'" — and each caller references it by
+    /// this type's name, which is the thing the compiler checks.
     public static func exportCsv(columns: [String], rows: [[String]]) -> Data {
         var lines: [String] = []
         lines.reserveCapacity(rows.count + 1)
@@ -840,6 +847,7 @@ public enum ThunderbirdCsv {
         }
         return value
     }
+
 }
 
 /// High-level Thunderbird vault entry import & export matching `ThunderbirdImport.kt` in `:core`

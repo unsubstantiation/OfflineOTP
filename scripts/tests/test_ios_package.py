@@ -35,6 +35,50 @@ def swift_tests():
     return {path.name: path.read_text(encoding="utf-8") for path in TESTS.glob("*.swift")}
 
 
+def swift_without_literals(text):
+    """`text` with comments and string literals blanked, so braces only mean scope.
+
+    A brace counter over raw Swift is wrong the first time a literal contains `{` — which this kit
+    does, because it writes JSON by hand. Positions are preserved (each blanked character becomes a
+    space) so offsets still address the original source.
+    """
+    out = list(text)
+    index, length = 0, len(text)
+    while index < length:
+        char = text[index]
+        if text.startswith("//", index):
+            while index < length and text[index] != "\n":
+                out[index] = " "
+                index += 1
+        elif text.startswith("/*", index):
+            while index < length and not text.startswith("*/", index):
+                if text[index] != "\n":
+                    out[index] = " "
+                index += 1
+            index += 2
+        elif char == '"' or (char == "#" and text.startswith('#"', index)):
+            triple = text.startswith('"""', index)
+            raw = char == "#"
+            quote = 3 if triple else 1
+            index += quote + (1 if raw else 0)
+            while index < length:
+                if text[index] == "\\":
+                    out[index] = " "
+                    if index + 1 < length and text[index + 1] != "\n":
+                        out[index + 1] = " "
+                    index += 2
+                    continue
+                if text.startswith('"""' if triple else '"', index):
+                    index += quote
+                    break
+                if text[index] != "\n":
+                    out[index] = " "
+                index += 1
+        else:
+            index += 1
+    return "".join(out)
+
+
 class IosPackageTest(unittest.TestCase):
     def test_the_package_declares_both_platforms_and_a_test_target(self):
         package = (IOS / "Package.swift").read_text(encoding="utf-8")
@@ -66,6 +110,66 @@ class IosPackageTest(unittest.TestCase):
                 self.assertLess(line.count("<<"), 5, f"{path.name}: {line.strip()}")
         # `assign(repeating:count:)` is deprecated in favour of `update(repeating:count:)`.
         self.assertNotIn("assign(repeating:", argon)
+
+    def test_the_csv_writer_is_declared_where_callers_name_it(self):
+        """A Swift member call is resolved against the type in the callee position.
+
+        `PasswordCsvExport` called `EmailMaterial.exportCsv(columns:rows:)` while the writer was
+        declared on another type, and the iOS build failed with "type 'EmailMaterial' has no member
+        'exportCsv'". Nothing in this sandbox compiles Swift, so the sources are parsed: every
+        `Type.member(` reference must resolve to a member the type declares — including members a
+        type gains through an `extension` in another file.
+        """
+        import re
+
+        files = list(SOURCES.glob("*.swift")) + list((IOS / "App/Sources").glob("*.swift"))
+        texts = [path.read_text(encoding="utf-8") for path in files]
+        whole = "\n".join(texts)
+
+        # Members are collected per file: positions from one file mean nothing in another.
+        declared = {}
+        for text in texts:
+            # Anchored to the line and cut before the `{`: a pattern that spans to the opening brace
+            # cannot cross the braces inside a declaration such as
+            # `extension JSONValue {` ... `func decode(_ text: String)`, and silently skips it.
+            for match in re.finditer(
+                    r"^[ \t]*(?:public |internal |private |fileprivate )?"
+                    r"(?:enum|struct|final class|class|extension) (\w+)", text, re.M):
+                name, start, depth = match.group(1), match.end(), 0
+                scope = swift_without_literals(text)
+                for index in range(start, len(text)):
+                    if scope[index] == "{":
+                        depth += 1
+                    elif scope[index] == "}":
+                        depth -= 1
+                        if depth == 0:
+                            body = text[start:index]
+                            members = set(re.findall(r"func\s+(\w+)", body))
+                            members |= set(re.findall(r"(?:let|var)\s+(\w+)", body))
+                            members |= set(re.findall(r"case\s+(\w+)", body))
+                            # Nested types are constructed as `Outer.Inner(...)`.
+                            members |= set(re.findall(
+                                r"^[ \t]*(?:public |internal |private |fileprivate )?"
+                                r"(?:enum|struct|final class|class) (\w+)", body, re.M))
+                            declared.setdefault(name, set()).update(members)
+                            break
+
+        unresolved = {
+            f"{owner}.{member}()"
+            for owner, member in re.findall(r"\b([A-Z]\w+)\.(\w+)\(", whole)
+            if owner in declared
+            and member not in declared[owner]
+            # `Type.init(...)` is a compiler form, not a declared member.
+            and member != "init"
+        }
+        self.assertEqual(set(), unresolved, f"members a call names but no type declares: {unresolved}")
+
+        # The specific pair that broke, from both ends.
+        password = (SOURCES / "PasswordCsvExport.swift").read_text(encoding="utf-8")
+        self.assertIn("ThunderbirdCsv.exportCsv(columns: columns, rows: rows)", password)
+        self.assertNotIn("EmailMaterial.exportCsv(", whole)
+        self.assertIn("exportCsv", declared["ThunderbirdCsv"])
+        self.assertNotIn("exportCsv", declared["EmailMaterial"])
 
     def test_the_crypto_constants_match_the_shared_core(self):
         crypto = (SOURCES / "VaultCrypto.swift").read_text(encoding="utf-8")
