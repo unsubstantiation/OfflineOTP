@@ -105,6 +105,12 @@ def format_arguments(text):
 
 
 class ResourceReferenceTest(unittest.TestCase):
+    def test_password_export_warning_escapes_apostrophe_for_android(self):
+        root = ET.parse(RES / "values/strings_main.xml").getroot()
+        warning = root.find("string[@name='password_export_csv_warning']")
+        self.assertIsNotNone(warning)
+        self.assertIn("%1$s\\'s format", warning.text)
+
     def test_kotlin_resource_references_resolve(self):
         resources = collect_resources()
         missing = {}
