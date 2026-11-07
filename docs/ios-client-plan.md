@@ -138,7 +138,7 @@ the crypto never has to be reviewed by eye.
 | --- | --- | --- |
 | **M0** ✅ | SPM package (`VaultCrypto`, `Entry`, `VaultDocument`, `EncryptedBackup`, `PasswordVault`, `TokenCalculator`), test target wired to the golden fixtures, `.github/workflows/ios.yml` | Fixture tests green in CI; the package also compiles for the iOS simulator. The Xcode *app* target arrives with the UI at M3 |
 | **M1** ✅ (except device interop) | Unlock `secrets.dat`, decode entries, re-encode the shared document byte for byte, create a vault, save, back up, restore, reject a wrong password | Every vault fixture round-trips exactly; a vault this client creates reopens on a second instance. A vault created on Android opening here is still proved by the golden fixture rather than by a device |
-| **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests that `ios.yml` runs on a simulator | An unsigned simulator build and an `OfflineOTP-ios-simulator` artifact exist on every `master` or dispatched workflow run |
+| **M1.5** ✅ | An Xcode project generated from `ios/project.yml`, an app target with a SwiftUI shell (unlock, list, codes, copy with expiry, lock), and app unit tests available for local runs | The app compiles for iOS devices on every `master` or dispatched workflow run, which publishes one unsigned `OfflineOTP-ios-unsigned.ipa` |
 | **M2** ✅ | TOTP/HOTP/Steam/mOTP, countdown, copy, HOTP step, use tracking | RFC 4226/6238 vectors plus the codebase's own token vectors match digit-for-digit; `EntryUsageTests` pins the stamp, the counter and its ceiling against `EntryUsage` in `:core` |
 | **M3** ✅ | List with the five categories, search, tag filter, the five sort modes, reveal, add/edit/delete an entry | Same vault shows the same order and the same tabs as the other two clients: the projection mirrors `EntryListPresentation`, and `scripts/tests/test_ios_app.py` compares the tab set, the titles, the five order names and the tag rules with `:core` |
 | **M4** ✅ | Encrypted backup export/import, plain-text import, `otpauth://` and QR import, QR display | A desktop export restores on iOS and an iOS export restores on Android: the header, the merge rule, the file names, the parser bounds and the parser's error names are all pinned against `:core` by `scripts/tests/test_ios_app.py`, and `OtpUriTests`/`BackupRestoreTests` pin the round trips |
@@ -194,23 +194,29 @@ desktop build). Its hard budget is **10 minutes**:
    `swift test -c release --parallel -Xswiftc -enable-testing`, which run the format and fixture
    tests on the macOS host with the production KDF parameters but optimized code;
 4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
-   `generic/platform=iOS Simulator` with `ARCHS=arm64 CODE_SIGNING_ALLOWED=NO` — **no signing
-   identity at all**. This proves the app and its package compile for iOS; there is no separate
-   kit-only simulator build and no simulator boot;
-5. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
-   `ARCHS=arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to
-   be an `arm64` `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app`
-   into an unsigned `.ipa`;
-6. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
-   sideloaders or local signing), `OfflineOTP-ios-simulator` (the arm64 simulator `.app`, packed with
-   `ditto`), and `OfflineOTP-ios-kit-source` (the package plus the fixtures it was verified against).
-   A separate `OfflineOTP-ios-diagnostics` artifact keeps the build log for seven days, including on
-   failure.
+   `-configuration Release -destination 'generic/platform=iOS'` with
+   `ARCHS=arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO` — **no signing
+   identity at all**. This is the step that proves the app and its package compile for iOS. There is
+   no simulator build, no separate kit-only build, and no simulator boot;
+5. the unsigned `.ipa`: the device `.app` is copied with `ditto` under `Payload/OfflineOTP.app`,
+   zipped, then unpacked again and checked to be an `arm64` `IOS` Mach-O
+   (`DTPlatformName = iphoneos`, `CFBundleExecutable = OfflineOTP`);
+6. **one artifact**, `OfflineOTP-ios-unsigned`, containing only `OfflineOTP-ios-unsigned.ipa`, ready
+   for sideloaders or local signing. No simulator bundle, no source archive, no checksum manifest and
+   no log artifact: the `.ipa` is the deliverable, and everything else was noise beside it.
+
+Build diagnostics are printed as run annotations by steps gated on `if: ${{ !success() }}`, so a green
+run reports nothing and no log file is uploaded. The Rust step matches only real diagnostics
+(`^error:`, `^error[E0308]:`, `^test result: FAILED`), not the word *error* anywhere: `cargo --verbose`
+echoes `Running ... rustc ... --error-format=json ...`, and a loose grep turned ten of those command
+lines into ten `error` annotations on a run that had passed. Cargo now runs without `--verbose` and
+with `CARGO_TERM_COLOR=never`, and the annotation loops collect their matches before limiting them
+instead of piping `grep` into `head`, which had also produced `grep: write error: Broken pipe`.
 
 The simulator XCTest step is deliberately absent: in the cancelled 30-minute run the app compiled
-in 41 seconds, then simulator app tests consumed the remaining ~17 minutes. The generated
-`OfflineOTPAppTests` target remains available locally/manual runs, but CI does not boot a simulator
-or execute those tests.
+in 41 seconds, then simulator app tests consumed the remaining ~17 minutes. Dropping the simulator
+build too took the measured Apple job from 518 s to a projected ~470 s, inside the ten-minute budget.
+The generated `OfflineOTPAppTests` target remains available for local/manual runs.
 
 Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
 **`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the
