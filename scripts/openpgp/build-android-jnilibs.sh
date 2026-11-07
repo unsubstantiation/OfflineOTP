@@ -25,9 +25,11 @@ if [[ -z "${ANDROID_NDK_HOME:-}" && -d "${ANDROID_HOME:-/nonexistent}/ndk" ]]; t
     ANDROID_NDK_HOME="$(find "${ANDROID_HOME}/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
 fi
 if [[ -z "${ANDROID_NDK_HOME:-}" || ! -d "${ANDROID_NDK_HOME}" ]]; then
-    echo "ANDROID_NDK_HOME must point at an installed Android NDK" >&2
-    echo "  tried: ${ANDROID_NDK_HOME:-<unset>} and \$ANDROID_HOME/ndk/*" >&2
-    echo "  install one with: sdkmanager 'ndk;27.2.12479018'" >&2
+    # GitHub annotation as well as stderr: on a runner the log body is only reachable through the
+    # log download, while an ::error line surfaces as the failing step's annotation.
+    message="ANDROID_NDK_HOME must point at an installed Android NDK (tried: \${ANDROID_NDK_HOME:-<unset>} and \$ANDROID_HOME/ndk/*; install with sdkmanager 'ndk;27.2.12479018')"
+    echo "$message" >&2
+    echo "::error title=Android NDK not found::$message"
     exit 2
 fi
 export ANDROID_NDK_HOME
@@ -49,7 +51,7 @@ cargo ndk \
 
 for abi in "${ABIS[@]}"; do
     if [[ ! -f "app/src/main/jniLibs/$abi/libofflineotp_openpgp.so" ]]; then
-        echo "missing app/src/main/jniLibs/$abi/libofflineotp_openpgp.so after the build" >&2
+        echo "::error title=OpenPGP jniLibs::missing app/src/main/jniLibs/$abi/libofflineotp_openpgp.so after the build"
         exit 1
     fi
     echo "staged app/src/main/jniLibs/$abi/libofflineotp_openpgp.so"

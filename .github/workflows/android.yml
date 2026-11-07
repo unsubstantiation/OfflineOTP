@@ -81,17 +81,23 @@ jobs:
           toolchain: stable
       - name: Build Android OpenPGP jniLibs
         shell: bash
-        env:
-          # The script falls back to the newest installed NDK, and installs the rustup targets it
-          # needs. Pinning the path here used to make a differently-laid-out NDK fail at a bare
-          # `test -d` with no explanation.
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
           set -euo pipefail
+          # Resolve the NDK from the *runtime* environment. A step-level `env:` cannot read
+          # `env.ANDROID_HOME` exported by the setup-android step (that context is not populated at
+          # workflow-compile time), so a pinned `ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/...`
+          # silently becomes "/ndk/..." and the script exits 2 before doing any work. The script
+          # also falls back to the newest installed NDK when this is unset.
+          export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_HOME:-/nonexistent}/ndk/27.2.12479018}"
+          echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
           # `--locked` on an uninstalled crate resolves from the index; keep the output so a
           # registry or toolchain problem is visible rather than a silent exit.
           cargo install cargo-ndk --locked --verbose 2>&1 | tail -n 20
-          bash scripts/openpgp/build-android-jnilibs.sh
+          if ! bash scripts/openpgp/build-android-jnilibs.sh; then
+            echo "::error title=OpenPGP jniLibs::build-android-jnilibs.sh failed; see the log above"
+            exit 1
+          fi
       - name: Install release signing keystore
         shell: bash
         env:

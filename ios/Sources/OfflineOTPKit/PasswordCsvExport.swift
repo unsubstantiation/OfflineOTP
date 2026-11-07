@@ -94,7 +94,7 @@ public enum PasswordCsvExport {
         }
         let columns = header(for: decoded, dialect: dialect)
         let rows = decoded.map { fields in columns.map { column($0, fields) } }
-        return EmailMaterial.exportCsv(columns: columns, rows: rows)
+        return ThunderbirdCsv.exportCsv(columns: columns, rows: rows)
     }
 
     private static func header(for decoded: [PasswordMaterial.Fields], dialect: Dialect) -> [String] {
