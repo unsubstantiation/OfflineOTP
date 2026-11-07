@@ -160,6 +160,13 @@ Every gate was run locally, as the tree was changed:
 | `scripts/kotlin-sandbox/compile-android-tests.sh` | 20 androidTest files, COMPILE OK |
 | `scripts/kotlin-sandbox/generate-r-stub.py --check` | R stub up to date |
 
+The iOS target is **CI-only** (no Xcode or `swiftc` in this sandbox), and the iOS workflow does not
+run on this branch, so the Swift was reviewed by hand rather than compiled. That review found one
+pre-existing break: `KeyValueSettings` never declared `remove(_:)`, which
+`PasswordVault.changePassword`'s rollback and `VaultStore.setInactivityLockSeconds(0)` both call —
+fixed here, defaulted on the protocol and implemented by `PropertyListSettings`, because it fails
+the whole module rather than one feature.
+
 New coverage:
 
 - `BackupRetentionTest` (7, `:core`) and the sandbox check *automatic backup retention prunes only
