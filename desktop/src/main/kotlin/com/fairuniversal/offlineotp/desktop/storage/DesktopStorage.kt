@@ -26,6 +26,9 @@ import java.io.File
 object DesktopStorage {
     const val SETTINGS_FILE = "vault.properties"
 
+    /** Record written by [DesktopHardwareUnlockStore]; tightened here alongside the vault files. */
+    val HARDWARE_UNLOCK_FILE = DesktopHardwareUnlockStore.RECORD_FILE
+
     /** Subfolder of the program folder that holds the vault, its backup and the settings. */
     const val DATA_DIRECTORY = "data"
 
@@ -58,13 +61,18 @@ object DesktopStorage {
     @JvmStatic
     @JvmOverloads
     fun open(directory: File = defaultDirectory()): PasswordVault {
-        if (!directory.exists() && !directory.mkdirs()) {
-            throw java.io.IOException("Cannot create vault directory: $directory")
-        }
+        // Android's app-private storage is owner-only by platform default; the desktop has to ask
+        // for it. This also repairs a data directory created by an older, umask-default build.
+        PrivateFiles.ensureDirectory(directory)
         if (!directory.isDirectory || !directory.canWrite()) {
             throw java.io.IOException(
                 "The vault directory is not writable: $directory. Move the OfflineOTP folder " +
                     "somewhere writable, or pass -D$HOME_PROPERTY=<folder>.")
+        }
+        // Files an older build may already have written with the process umask.
+        for (name in arrayOf(Constants.FILENAME_DATABASE, Constants.FILENAME_DATABASE_BACKUP,
+                SETTINGS_FILE, HARDWARE_UNLOCK_FILE)) {
+            PrivateFiles.restrict(File(directory, name))
         }
         val vaultFile = NioAtomicFileStore(File(directory, Constants.FILENAME_DATABASE))
         val backupFile = NioAtomicFileStore(File(directory, Constants.FILENAME_DATABASE_BACKUP))

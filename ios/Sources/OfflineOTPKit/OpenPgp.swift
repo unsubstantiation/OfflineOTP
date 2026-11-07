@@ -51,8 +51,18 @@ public enum OpenPgpError: Error, LocalizedError, Equatable {
 /// The JVM shells implement it with either PGPainless or the Rust backend; the Swift
 /// shell will implement it with the Rust XCFramework once it is committed.
 public protocol OpenPgpPort {
+    /// Whether this port can actually perform cryptography in the current build. The UI asks before
+    /// offering a backup or restore, so a build without the native library says so up front instead
+    /// of failing after the user has picked files.
+    var isAvailable: Bool { get }
+
     func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data
     func decrypt(message: Data, secretKeyBlock: Data, passphrase: String?) throws -> Data
+}
+
+public extension OpenPgpPort {
+    /// An in-process implementation is available unless it declares otherwise.
+    var isAvailable: Bool { true }
 }
 
 /// Bounded, policy-enforcing OpenPGP backup codec shared by all platforms.
@@ -115,6 +125,8 @@ public struct RustOpenPgpPort: OpenPgpPort {
         return false
         #endif
     }
+
+    public var isAvailable: Bool { Self.isBackendAvailable }
 
     public func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {
         #if OFFLINEOTP_OPENPGP_NATIVE
@@ -182,5 +194,12 @@ public struct OpenPgpAvailability: Equatable {
     public static func evaluate(providerConfigured: Bool, serviceReady: Bool, recipientCount: Int) -> OpenPgpAvailability {
         let ready = providerConfigured && serviceReady
         return OpenPgpAvailability(canRestore: ready, canEncrypt: ready && recipientCount > 0)
+    }
+
+    /// The in-app engine has no provider to configure and no stored keys: the file importer collects
+    /// the recipients or the secret key when the action runs. Only the backend gates the buttons, so
+    /// an unbuilt XCFramework disables both rather than offering a picker that cannot succeed.
+    public static func inApp(backendAvailable: Bool) -> OpenPgpAvailability {
+        OpenPgpAvailability(canRestore: backendAvailable, canEncrypt: backendAvailable)
     }
 }

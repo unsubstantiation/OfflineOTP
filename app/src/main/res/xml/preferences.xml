@@ -300,6 +300,24 @@
             android:entryValues="@array/settings_values_backup_broadcasts"
             android:defaultValue="@array/settings_empty_array" />
 
+        <ListPreference
+            android:key="@string/settings_key_openpgp_mode"
+            android:title="@string/settings_title_openpgp_mode"
+            android:summary="@string/settings_desc_openpgp_mode"
+            android:entries="@array/settings_entries_openpgp_mode"
+            android:entryValues="@array/settings_values_openpgp_mode"
+            android:defaultValue="provider" />
+
+        <Preference
+            android:key="@string/settings_key_openpgp_recipient_files"
+            android:title="@string/settings_title_openpgp_recipient_files"
+            android:summary="@string/settings_desc_openpgp_recipient_files" />
+
+        <Preference
+            android:key="@string/settings_key_openpgp_secret_file"
+            android:title="@string/settings_title_openpgp_secret_file"
+            android:summary="@string/settings_desc_openpgp_secret_file" />
+
         <org.openintents.openpgp.util.OpenPgpAppPreference
             android:key="@string/settings_key_openpgp_provider"
             android:title="@string/settings_title_openpgp_provider" />

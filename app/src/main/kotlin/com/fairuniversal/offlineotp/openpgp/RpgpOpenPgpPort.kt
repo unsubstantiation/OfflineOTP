@@ -22,6 +22,13 @@ import java.security.GeneralSecurityException
  */
 class RpgpOpenPgpPort : OpenPgpPort {
 
+    /**
+     * Whether the packaged native library can actually be loaded. The backup screen asks before
+     * enabling its buttons, so a build without `jniLibs` reports that plainly instead of letting the
+     * user pick a destination and then failing.
+     */
+    fun isBackendAvailable(): Boolean = tryLoadNative() != null
+
     @Throws(GeneralSecurityException::class, IOException::class)
     override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray {
         val native = tryLoadNative() ?: throw GeneralSecurityException(

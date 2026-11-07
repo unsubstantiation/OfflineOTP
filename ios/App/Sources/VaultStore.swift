@@ -731,6 +731,13 @@ public final class VaultStore: ObservableObject {
 
     // MARK: - OpenPGP, Browser Passwords, FairEmail & Thunderbird
 
+    /// Whether this build can actually run OpenPGP. The backup sheet asks before enabling its
+    /// buttons, mirroring Android's disabled-buttons-plus-warning behaviour, so a build without the
+    /// Rust XCFramework reports that instead of letting the user pick files and then fail.
+    public var openPgpAvailability: OpenPgpAvailability {
+        .inApp(backendAvailable: openPgp.isAvailable)
+    }
+
     /// Encrypts the vault document to one or more OpenPGP recipient public keys (`.json.gpg`).
     public func exportOpenPgpBackup(recipientKeyBlocks: [Data], now: Date = Date()) -> ExportedBackup? {
         guard isUnlocked else { return nil }

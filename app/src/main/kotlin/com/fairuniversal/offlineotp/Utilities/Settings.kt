@@ -622,6 +622,37 @@ open class Settings(private val context: Context) {
         return getBackupBroadcasts().contains("encrypted")
     }
 
+    /** Which engine handles OpenPGP backups; defaults to the external provider for existing installs. */
+    open fun getOpenPGPMode(): OpenPgpMode {
+        return OpenPgpMode.parse(getString(R.string.settings_key_openpgp_mode, OpenPgpMode.PROVIDER_VALUE))
+    }
+
+    open fun setOpenPGPMode(mode: OpenPgpMode) {
+        setString(R.string.settings_key_openpgp_mode, OpenPgpMode.preferenceValue(mode))
+    }
+
+    /** Persisted `content:` grants for the recipient public-key files, normalized and bounded. */
+    open fun getOpenPGPRecipientFiles(): List<String> {
+        return OpenPgpKeyFilePolicy.recipients(
+            getStringSet(R.string.settings_key_openpgp_recipient_files, Collections.emptySet()))
+    }
+
+    open fun setOpenPGPRecipientFiles(uris: Set<String>) {
+        setStringSet(R.string.settings_key_openpgp_recipient_files,
+            OpenPgpKeyFilePolicy.recipients(uris).toSet())
+    }
+
+    /** The secret-key document used to restore; empty when none is selected. Never holds a passphrase. */
+    open fun getOpenPGPSecretFile(): String {
+        val stored = getString(R.string.settings_key_openpgp_secret_file, "")
+        return if (OpenPgpKeyFilePolicy.isUsableKeyUri(stored)) stored else ""
+    }
+
+    open fun setOpenPGPSecretFile(uri: String) {
+        setString(R.string.settings_key_openpgp_secret_file,
+            if (OpenPgpKeyFilePolicy.isUsableKeyUri(uri)) uri else "")
+    }
+
     open fun getOpenPGPProvider(): String {
         return getString(R.string.settings_key_openpgp_provider, "")
     }

@@ -156,9 +156,27 @@ class ClipDescription {
 class ClipData private constructor(val label: CharSequence?, val text: CharSequence?) {
     val description = ClipDescription()
 
+    /** One picked document in a multi-select ACTION_OPEN_DOCUMENT result. */
+    class Item(val uri: android.net.Uri)
+
+    /** The items a picker returned; the platform fills this from the user's selection. */
+    val items = ArrayList<Item>()
+
+    val itemCount: Int get() = items.size
+
+    fun getItemAt(index: Int): Item = items[index]
+
     companion object {
         @JvmStatic
         fun newPlainText(label: CharSequence?, text: CharSequence?): ClipData = ClipData(label, text)
+
+        /** Builds a multi-select result the way the document picker does. */
+        @JvmStatic
+        fun fromUris(uris: List<android.net.Uri>): ClipData {
+            val clip = ClipData(null, null)
+            for (uri in uris) clip.items.add(Item(uri))
+            return clip
+        }
     }
 }
 
@@ -183,6 +201,9 @@ open class Intent(action: String? = null) {
 
     /** The data URI the stand-in received; the platform resolves it into the intent. */
     var data: android.net.Uri? = null
+
+    /** The multi-select payload; single-select results carry only [data]. */
+    var clipData: ClipData? = null
 
     /** The action of the intent, or null. */
     open fun getAction(): String? = intentAction
@@ -286,6 +307,7 @@ open class Intent(action: String? = null) {
         const val CATEGORY_OPENABLE = "android.intent.category.OPENABLE"
         const val EXTRA_TEXT = "android.intent.extra.TEXT"
         const val EXTRA_TITLE = "android.intent.extra.TITLE"
+        const val EXTRA_ALLOW_MULTIPLE = "android.intent.extra.ALLOW_MULTIPLE"
     }
 }
 

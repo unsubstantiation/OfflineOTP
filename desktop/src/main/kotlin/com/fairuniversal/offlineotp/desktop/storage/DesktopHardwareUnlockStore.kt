@@ -49,7 +49,8 @@ class DesktopHardwareUnlockStore(directory: File) : HardwareUnlockStoragePort {
         file.delete()
     }
 
-    private companion object {
+    companion object {
+        /** The record's file name; [DesktopStorage] tightens it on open alongside the vault files. */
         const val RECORD_FILE = "hardware-unlock.b64"
     }
 }

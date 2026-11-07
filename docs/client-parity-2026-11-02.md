@@ -73,10 +73,13 @@ desktop test `aLiveSearchSurvivesTabAndTagChangesLikeAndroid` pins the shared ru
 
 ## Deliberately left alone
 
-- **Tag drawer versus tag dropdown.** Android offers AND/OR combination of several tags, a "no tags"
-  filter and the search-includes-tag preference; the desktop client offers one tag dropdown plus the
-  untagged choice. Selecting one tag filters identically under AND and OR, so the single-tag case
-  matches exactly; only multi-tag combination has no desktop equivalent.
+- **Tag drawer versus tag dialog.** Android offers AND/OR combination of several tags, a "no tags"
+  filter and the search-includes-tag preference. The desktop client now has the same multi-tag
+  filter: `TagDialog.promptFilter` is a multi-select panel with `OR`/`AND`/`SINGLE` modes plus the
+  untagged choice, wired through `MainWindow` to `DesktopVaultState.applyTagFilter` over the shared
+  `EntryTagFilter`. (An earlier version of this document claimed multi-tag combination had no
+  desktop equivalent; that was stale.) What remains Android-only is the *search-includes-tag*
+  preference — see the next item.
 - **Search fields.** Android lets you choose whether search covers labels, issuers and tags; the
   desktop client always searches all three. The preference lives in Android's settings, which the
   desktop client deliberately does not read or edit. (The live search itself, and its survival

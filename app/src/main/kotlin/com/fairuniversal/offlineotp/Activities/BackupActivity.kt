@@ -27,12 +27,15 @@ import org.openintents.openpgp.OpenPgpSignatureResult
 import org.openintents.openpgp.util.OpenPgpApi
 import org.openintents.openpgp.util.OpenPgpServiceConnection
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.openpgp.RpgpOpenPgpPort
 import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.EncryptedBackupTask
 import com.fairuniversal.offlineotp.Tasks.LoginEncryptedBackupTask
 import com.fairuniversal.offlineotp.Tasks.EncryptedRestoreTask
+import com.fairuniversal.offlineotp.Tasks.OpenPgpKeyFileBackupTask
+import com.fairuniversal.offlineotp.Tasks.OpenPgpKeyFileRestoreTask
 import com.fairuniversal.offlineotp.Tasks.PGPBackupTask
 import com.fairuniversal.offlineotp.Tasks.PGPRestoreTask
 import com.fairuniversal.offlineotp.Tasks.TaskFailure
@@ -47,6 +50,8 @@ import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
 import com.fairuniversal.offlineotp.Utilities.LoginBackupLease
 import com.fairuniversal.offlineotp.Utilities.LoginBackupPolicy
 import com.fairuniversal.offlineotp.Utilities.OpenPgpAvailability
+import com.fairuniversal.offlineotp.Utilities.OpenPgpKeyFilePolicy
+import com.fairuniversal.offlineotp.Utilities.OpenPgpMode
 import com.fairuniversal.offlineotp.Utilities.OpenPgpOutputPolicy
 import com.fairuniversal.offlineotp.Utilities.OpenPgpRecipientIds
 import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
@@ -89,6 +94,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
     private var activePasswordDialog: PasswordEntryDialog? = null
+    private var activeKeyFileDialog: AlertDialog? = null
+    private val openPgpPort by lazy { RpgpOpenPgpPort() }
+    private val keyFileBackendAvailable by lazy { openPgpPort.isBackendAvailable() }
 
     private var reload = false
     private var allowExit = true
@@ -221,6 +229,42 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (encryptionKey != null) tryResumePendingPickerAction()
     }
 
+    /** Which OpenPGP engine the user selected; read fresh so a Settings change takes effect. */
+    private fun openPgpMode(): OpenPgpMode = settings!!.getOpenPGPMode()
+
+    private fun usesKeyFileMode(): Boolean = openPgpMode() == OpenPgpMode.KEY_FILE
+
+    /**
+     * Offers the in-app engine's actions only when the native backend and the needed key documents
+     * are present. The buttons stay disabled with a specific reason otherwise, mirroring the
+     * provider mode rather than failing after the user has picked a destination.
+     */
+    private fun updateKeyFileAvailability() {
+        if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
+        val recipients = settings!!.getOpenPGPRecipientFiles()
+        val secretConfigured = settings!!.getOpenPGPSecretFile().isNotEmpty()
+        val availability = OpenPgpKeyFilePolicy.availability(
+            backendAvailable = keyFileBackendAvailable,
+            recipientCount = recipients.size,
+            secretKeyConfigured = secretConfigured
+        )
+        btnBackup?.isEnabled = availability.canEncrypt
+        btnRestore?.isEnabled = availability.canRestore
+        val warning = when {
+            !availability.canEncrypt && !availability.canRestore ->
+                R.string.backup_desc_openpgp_backend_unavailable
+            !availability.canEncrypt -> R.string.backup_desc_openpgp_keyfiles_recipients
+            !availability.canRestore -> R.string.backup_desc_openpgp_keyfiles_secret
+            else -> 0
+        }
+        if (warning == 0) {
+            txtBackupWarning?.visibility = View.GONE
+        } else {
+            txtBackupWarning?.setText(warning)
+            txtBackupWarning?.visibility = View.VISIBLE
+        }
+    }
+
     /** Shows the controls and warnings for the selected backup type and remembers the choice. */
     private fun setupBackupType(type: Constants.BackupType, persistSelection: Boolean = true) {
         backupType = type
@@ -235,6 +279,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 btnRestore?.isEnabled = true
             }
             Constants.BackupType.OPEN_PGP -> {
+                if (usesKeyFileMode()) {
+                    // No provider is involved, so do not hold a binding to one.
+                    releaseOpenPgpService()
+                    txtBackupLabel?.setText(R.string.backup_label_pgp_keyfiles)
+                    updateKeyFileAvailability()
+                    return
+                }
                 txtBackupLabel?.setText(R.string.backup_label_pgp)
                 pgpEncryptionUserIDs = OpenPgpRecipientIds.parse(settings!!.getOpenPGPEncryptionUserIDs())
                 val provider = settings!!.getOpenPGPProvider().trim()
@@ -326,6 +377,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     /** Restore does not need recipients; encryption does. Never enable either before a live service. */
     private fun updateOpenPgpAvailability() {
         if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
+        if (usesKeyFileMode()) {
+            updateKeyFileAvailability()
+            return
+        }
         val provider = settings!!.getOpenPGPProvider().trim()
         val connectionReady = pgpServiceConnection?.isBound() == true
         if (provider.isEmpty()) {
@@ -439,7 +494,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         setActiveAction(requestCode, uri, replace)
         swReplace?.isChecked = replace
         if (backupTypeForPickerRequest(requestCode) == Constants.BackupType.OPEN_PGP &&
-            pgpServiceConnection?.isBound() != true) return
+            !usesKeyFileMode() && pgpServiceConnection?.isBound() != true) return
 
         pendingResumeRequestCode = null
         pendingResumeUri = null
@@ -540,6 +595,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     public override fun onDestroy() {
+        activeKeyFileDialog?.dismiss()
+        activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
         activePasswordDialog = null
         encryptionKey = null
@@ -553,6 +610,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     override fun onVaultLocked() {
         encryptionKey = null
         waitingForPassword = false
+        activeKeyFileDialog?.dismiss()
+        activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
         activePasswordDialog = null
         cancelBackgroundTask()
@@ -939,8 +998,112 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         }
     }
 
+    /** Encrypts to the selected recipient documents using the bundled backend. */
+    private fun backupWithKeyFile(uri: Uri?) {
+        if (!canOperate()) return
+        val recipients = settings!!.getOpenPGPRecipientFiles()
+        if (recipients.isEmpty()) {
+            discardActiveBackupDocument()
+            updateKeyFileAvailability()
+            notifyBackupState(R.string.backup_toast_openpgp_no_recipients)
+            return
+        }
+        try {
+            val entries = readOwnedEntries()
+            try {
+                startBackgroundTask(
+                    OpenPgpKeyFileBackupTask(this, entries, recipients, openPgpPort, uri),
+                    BackupTaskResult.ResultType.BACKUP)
+            } finally {
+                for (entry in entries) entry.destroy()
+            }
+        } catch (error: RuntimeException) {
+            discardActiveBackupDocument()
+            notifyBackupState(R.string.backup_toast_export_failed)
+        }
+    }
+
+    /**
+     * Asks how the selected secret key is protected, then decrypts with the bundled backend.
+     *
+     * An unprotected key needs no passphrase, so the user can say so explicitly rather than being
+     * forced to type one. The passphrase is never stored; the task owns and clears it.
+     */
+    private fun restoreWithKeyFile(uri: Uri?) {
+        if (!canOperate()) return
+        val secretFile = settings!!.getOpenPGPSecretFile()
+        if (secretFile.isEmpty()) {
+            clearActiveAction()
+            updateKeyFileAvailability()
+            notifyBackupState(R.string.backup_toast_openpgp_no_secret_key)
+            return
+        }
+        waitingForPassword = true
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
+        activeKeyFileDialog?.dismiss()
+        val chooser = AlertDialog.Builder(this)
+            .setTitle(R.string.backup_dialog_openpgp_passphrase_title)
+            .setMessage(R.string.backup_dialog_openpgp_passphrase_message)
+            .setPositiveButton(R.string.backup_dialog_openpgp_passphrase_protected) { _, _ ->
+                activeKeyFileDialog = null
+                promptForKeyFilePassphrase(uri, secretFile)
+            }
+            .setNeutralButton(R.string.backup_dialog_openpgp_passphrase_unprotected) { _, _ ->
+                activeKeyFileDialog = null
+                waitingForPassword = false
+                startKeyFileRestore(uri, secretFile, null)
+            }
+            .setNegativeButton(R.string.backup_dialog_openpgp_passphrase_cancel) { _, _ ->
+                activeKeyFileDialog = null
+                waitingForPassword = false
+                clearActiveAction()
+            }
+            .setOnCancelListener {
+                activeKeyFileDialog = null
+                waitingForPassword = false
+                clearActiveAction()
+            }
+            .show()
+        activeKeyFileDialog = chooser
+    }
+
+    private fun promptForKeyFilePassphrase(uri: Uri?, secretFile: String) {
+        if (!canOperate()) {
+            waitingForPassword = false
+            return
+        }
+        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
+            settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
+            PasswordEntryDialog.PasswordEnteredCallback { passphrase ->
+                waitingForPassword = false
+                activePasswordDialog = null
+                startKeyFileRestore(uri, secretFile, passphrase.toCharArray())
+            }, PasswordEntryDialog.PasswordCanceledCallback {
+                waitingForPassword = false
+                activePasswordDialog = null
+                clearActiveAction()
+            })
+        activePasswordDialog = pwDialog
+        pwDialog.show()
+    }
+
+    private fun startKeyFileRestore(uri: Uri?, secretFile: String, passphrase: CharArray?) {
+        if (!canOperate()) {
+            passphrase?.fill('\u0000')
+            return
+        }
+        startBackgroundTask(
+            OpenPgpKeyFileRestoreTask(this, uri, secretFile, passphrase, openPgpPort),
+            BackupTaskResult.ResultType.RESTORE)
+    }
+
     private fun restoreEncryptedWithPGP(uri: Uri?, decryptIntent: Intent?) {
         if (!canOperate()) return
+        if (usesKeyFileMode()) {
+            restoreWithKeyFile(uri)
+            return
+        }
         if (requireOpenPgpService() == null) {
             clearActiveAction()
             return
@@ -963,6 +1126,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private fun backupEncryptedWithPGP(uri: Uri?, encryptIntent: Intent?) {
         if (!canOperate()) return
+        if (usesKeyFileMode()) {
+            backupWithKeyFile(uri)
+            return
+        }
         val service = requireOpenPgpService() ?: run {
             discardActiveBackupDocument()
             return
