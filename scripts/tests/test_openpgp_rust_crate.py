@@ -209,6 +209,7 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         ios = (scripts / "build-ios-xcframework.sh").read_text(encoding="utf-8")
         self.assertIn("xcodebuild -create-xcframework", ios)
         self.assertIn("aarch64-apple-ios", ios)
+        self.assertIn("--arm64-only", ios)
         android = (scripts / "build-android-jnilibs.sh").read_text(encoding="utf-8")
         self.assertIn("cargo ndk", android)
         self.assertIn("app/src/main/jniLibs", android)

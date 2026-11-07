@@ -315,7 +315,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("-configuration Release", WORKFLOW)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", WORKFLOW)
         self.assertIn("CODE_SIGNING_REQUIRED=NO", WORKFLOW)
-        self.assertIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
+        self.assertNotIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
         self.assertIn("Payload/OfflineOTP.app", WORKFLOW)
         self.assertIn("OfflineOTP-ios-unsigned", WORKFLOW)
         self.assertIn("OfflineOTP-ios-unsigned.ipa", WORKFLOW)
@@ -742,29 +742,28 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".alert(", vault)
         self.assertNotIn(".sheet(", vault)
 
-    def test_the_simulator_test_step_is_bounded_and_optimized(self):
-        """The 30-minute job died in app tests after the app itself had already compiled.
+    def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
+        """The simulator XCTest step consumed the old job after the app had already compiled.
 
-        Keep enough headroom for the native/format work, but make a simulator boot or test hang
-        fail inside its own step and leave an XCTest result bundle behind. The app tests exercise
-        the production Argon2id parameters repeatedly, so they run optimized rather than spending
-        the budget in unoptimized crypto loops.
+        CI now builds the simulator app but does not boot a simulator or run app XCTest. The
+        remaining macOS work is bounded at ten minutes: arm64-only Apple slices, optimized host
+        format tests, and no separate kit-only simulator build. Rust host coverage moves to a
+        parallel Linux job instead of spending the macOS budget.
         """
-        self.assertIn("timeout-minutes: 45", WORKFLOW)
-        boot = WORKFLOW.split("- name: Boot the app test simulator", 1)[1].split("\n      - name:", 1)[0]
-        self.assertIn("timeout-minutes: 5", boot)
-        self.assertIn('xcrun simctl bootstatus "$UDID" -b', boot)
-
-        tests = WORKFLOW.split("- name: Run the app unit tests", 1)[1].split("\n      - name:", 1)[0]
-        self.assertIn("timeout-minutes: 20", tests)
-        self.assertIn("-configuration Release", tests)
-        self.assertIn("ENABLE_TESTABILITY=YES", tests)
-        self.assertIn("-resultBundlePath build/AppTests.xcresult", tests)
-        self.assertIn("-parallel-testing-enabled NO", tests)
-        self.assertIn("-test-timeouts-enabled YES", tests)
-        self.assertIn("-default-test-execution-time-allowance 180", tests)
-        self.assertIn("-maximum-test-execution-time-allowance 300", tests)
-        self.assertIn("ios/build/AppTests.xcresult", WORKFLOW)
+        self.assertIn("timeout-minutes: 10", WORKFLOW)
+        self.assertNotIn("simctl", WORKFLOW)
+        self.assertNotIn("Boot the app test simulator", WORKFLOW)
+        self.assertNotIn("Run the app unit tests", WORKFLOW)
+        self.assertNotIn("-resultBundlePath", WORKFLOW)
+        self.assertNotIn("ENABLE_TESTABILITY=YES", WORKFLOW)
+        self.assertIn("openpgp-host:", WORKFLOW)
+        self.assertIn("runs-on: ubuntu-24.04", WORKFLOW)
+        self.assertIn("build-ios-xcframework.sh --arm64-only", WORKFLOW)
+        self.assertIn("ARCHS=arm64", WORKFLOW)
+        self.assertIn("swift build -c release --build-tests", WORKFLOW)
+        self.assertIn("swift test -c release --parallel", WORKFLOW)
+        self.assertIn("-Xswiftc -enable-testing", WORKFLOW)
+        self.assertNotIn("-scheme OfflineOTPKit", WORKFLOW)
 
     def test_the_password_edit_sheet_matches_its_initializer(self):
         """Both entry points must supply the editor's arguments in order and its save callback.
