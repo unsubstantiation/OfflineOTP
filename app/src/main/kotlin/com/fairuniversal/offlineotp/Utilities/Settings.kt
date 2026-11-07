@@ -789,6 +789,21 @@ open class Settings(private val context: Context) {
         return getAutoBackupEncryptedSetting() == Constants.AutoBackup.ALL_EDITS
     }
 
+    /**
+     * How many automatic backups the folder keeps; `0` (the default) keeps everything.
+     *
+     * A stored value that is not a number, or one outside [BackupRetention.MAX_KEEP], reads as
+     * `0` rather than asking the pruner to interpret it — retaining is always the safe direction.
+     */
+    open fun getAutoBackupKeepCount(): Int {
+        val stored = try {
+            getString(R.string.settings_key_auto_backup_keep, "0").trim().toIntOrNull()
+        } catch (_: RuntimeException) {
+            null
+        } ?: return BackupRetention.DEFAULT_KEEP
+        return BackupRetention.normalizeKeep(stored)
+    }
+
     open fun isHighlightTokenOptionEnabled(): Boolean {
         return getBoolean(R.string.settings_key_label_highlight_token, true)
     }

@@ -51,6 +51,7 @@
     <string name="settings_title_backup_password">Separate backup password</string>
     <string name="settings_title_auto_backup_password_enc">Automatic backup</string>
     <string name="settings_title_auto_backup_use_login">Use app password for encrypted backups</string>
+    <string name="settings_title_auto_backup_keep">Keep automatic backups</string>
 
     <string name="settings_title_backup_broadcasts">Backup broadcasts</string>
     <string name="settings_title_openpgp_mode">OpenPGP engine</string>
@@ -103,6 +104,9 @@
         edited</string>
     <string name="settings_desc_auto_backup_use_login">Password login only. Uses the app password without storing it.
         Old backups still need their original password. Choose a strong passphrase; backups permit offline guessing.</string>
+    <string name="settings_desc_auto_backup_keep">Delete the oldest automatic backups once this many are in the
+        backup folder. Only backups this app wrote automatically are removed, never your own exports. Off keeps
+        everything.</string>
     <string name="settings_desc_auto_backup_requirements">Choose a backup folder and unlock with the app password.
         Alternatively, turn off app-password mode and set a separate backup password.</string>
 
@@ -230,6 +234,22 @@
         <item>Off</item>
         <item>New Entries</item>
         <item>Any Edits</item>
+    </string-array>
+
+    <string-array name="settings_entries_auto_backup_keep">
+        <item>Off (keep everything)</item>
+        <item>Keep 5</item>
+        <item>Keep 10</item>
+        <item>Keep 20</item>
+        <item>Keep 50</item>
+    </string-array>
+
+    <string-array name="settings_values_auto_backup_keep" translatable="false">
+        <item>0</item>
+        <item>5</item>
+        <item>10</item>
+        <item>20</item>
+        <item>50</item>
     </string-array>
 
     <string-array name="settings_entries_openpgp_mode">

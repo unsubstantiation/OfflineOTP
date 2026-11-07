@@ -471,7 +471,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ⚠️ **VERIFY** — `MainActivity` now uses normal configuration recreation; freeform resizing depends on manifest/activity config — verify.
 - **#531** — Support automatic backup with OpenPGP key  
   _enhancement_  
-  🆕 **GAP** — Automatic backups use the encrypted backup password; OpenPGP-key-based automatic backup is not wired.
+  🆕 **GAP** — Automatic backups use the encrypted backup password; OpenPGP-key-based automatic backup is not wired. The retention half of the superseded request (#925) now ships: automatic snapshots can be pruned, whichever engine writes them.
 - **#532** — Yahoo Japan OTP  
   _enhancement, help wanted, good first issue_  
   🆕 **GAP** — `yjotp://` scheme is not parsed; Yahoo Japan OTP needs manual entry or a scheme importer.
@@ -558,7 +558,7 @@ plus generated letter tiles for everything else. Cross-referencing every request
   ⚠️ **PARTIAL** — Experimental FIDO2 PRF unlock is protocol-based and may work with compatible Nitrokeys; Nitrokey Pro's separate native OTP protocol is not implemented. Physical-key verification remains open.
 - **#925** — [FR] Automatic deletion of backups  
   _enhancement_  
-  🆕 **GAP** — No automatic deletion of old backups.
+  ✅ **FIXED (2026-11-06)** — Settings **Keep automatic backups** (default *Keep all*) prunes older automatic snapshots after a successful automatic export, keeping the newest 5/10/20/50. Only `otp_accounts_<uuid>.json.aes`/`.json.gpg` files are candidates; dated manual exports, `otp_accounts.json.aes` and unrelated files are never deleted, and a provider refusal is counted rather than retried. Policy in `:core` `BackupRetention` (unit-tested), applied by the app's `AutomaticBackupPruner`.
 - **#944** — Allow for only appending date to backup's filename  
   _enhancement_  
   ✅ **FIXED** — Automatic exports deliberately always create UUID-named documents, even when date/time naming is off.
@@ -631,7 +631,8 @@ plus generated letter tiles for everything else. Cross-referencing every request
 4. **Triage the 🆕 gaps** as product decisions (DUO #808, yjotp #532, Garena #207, tag
    rename #230, next-code preview #670, custom images #225, backup retention #701, share-sheet export
    #779, preferences export #648, AES+base64 export #980,
-   NTP clock #914, paper backups #178, highlighting #784, automatic OpenPGP backups #531, backup deletion #925).
+   NTP clock #914, paper backups #178, highlighting #784, automatic OpenPGP backups #531). Backup
+   deletion #925 is now fixed; the browser-password editing/re-export gap is closed on all three clients.
 5. **Close as not-ours (✅):** everything marked fixed/by-design/out-of-scope — notably the whole security cluster
    (#157, #692, #975, #649, #888, #875, #890, #944, #952) and the absent-feature requests (#68, #616, #481, #707,
    #214, #921, #698, #953, #982, #866).

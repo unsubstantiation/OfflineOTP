@@ -147,8 +147,15 @@ passwords** on Android or **Add entry → Import passwords** on desktop. Choose 
 
 - **Individual passwords:** the CSV is parsed into separate vault entries. Source columns, including
   notes and Safari OTPAuth fields, are retained in each entry; reveal a card to copy the password or
-  use its menu to view its fields. Identical entries are skipped. Individual entries cannot yet be
-  edited or exported as a browser CSV; delete an outdated entry and reimport to change it.
+  use its menu to view its fields. Identical entries are skipped. Every entry keeps its file's own
+  dialect (Chrome, Firefox or Safari), so it can be edited and written back out: **Edit password…**
+  changes the URL, username and password and leaves notes, GUIDs, timestamps and OTPAuth untouched,
+  and **Export as … CSV…** (Android: *Export as `<browser>` CSV…* in the entry menu, plus
+  **+ → Export passwords…** for all of them; desktop: the same entry-menu item and **Tools → Export
+  passwords as browser CSV…**; iOS: **Export as `<browser>` CSV…** in the entry menu) writes the
+  selection as a CSV the same browser imports. Entries that did not come from a browser — a LinSCP
+  session, for example — have no browser CSV form and are refused rather than written with their
+  columns dropped; use the LinSCP or Thunderbird export for those.
 - **Keep original file:** the file is stored byte-for-byte as a single encrypted vault entry without
   parsing or converting it. Reveal it and use **Export password file** in its menu to save the
   original bytes for import into another program. This option accepts any file up to the limit.
@@ -343,9 +350,14 @@ backups. Automatic backup is off by default.
 Existing separate backup passwords remain selected for compatibility until explicitly changed.
 Device authentication does not supply a login password for this mode; use a strong separate
 backup password or choose password login. OpenPGP backups use their selected recipients instead.
-Previously created backups keep their original passwords, and completed snapshots are not deleted
-automatically. Old snapshots can still contain accounts you later delete. Always test restoring
-backups and keep track of their passwords. Overlapping exports may finish out of order, so the
+Previously created backups keep their original passwords. **Keep automatic backups** in Settings
+(default *Keep all*) can prune old automatic snapshots, keeping the newest 5, 10, 20 or 50 and
+deleting the rest after each successful automatic export. Only files this app names
+`otp_accounts_<uuid>.json.aes` / `.json.gpg` are candidates — a dated manual export, the
+`otp_accounts.json.aes` file and anything else in the folder are never touched, nothing is deleted
+for a backup the user asked for, and a provider that refuses a delete leaves the file in place. Old
+snapshots can still contain accounts you later delete. Always test restoring backups and keep track
+of their passwords. Overlapping exports may finish out of order, so the
 provider's last-modified order does not always identify the newest vault state.
 
 A stolen backup permits offline password guessing. Use a strong, unique passphrase; no design can

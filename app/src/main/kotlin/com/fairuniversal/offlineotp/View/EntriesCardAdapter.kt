@@ -28,6 +28,7 @@ import com.fairuniversal.offlineotp.Activities.MainActivity
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
+import com.fairuniversal.offlineotp.Dialogs.PasswordEntryEditDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.TaskOutcome
@@ -37,6 +38,7 @@ import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.EntryPersistence
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
@@ -935,6 +937,13 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             popup.getMenu().findItem(R.id.menu_popup_export_password_file)?.setVisible(true)
         if (popupEntry.isPassword())
             popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(true)
+        // A browser-imported password is editable and re-exportable; a LinSCP or Thunderbird row
+        // shares the type but has no browser CSV form, so it gets the edit dialog only.
+        if (popupEntry.isPassword()) {
+            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(true)
+            if (PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable)
+                popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(true)
+        }
         if (popupEntry.isEmail())
             popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(true)
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
@@ -976,6 +985,19 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                     activePasswordDialog = dialog
                     dialog.setOnDismissListener { if (activePasswordDialog === dialog) activePasswordDialog = null }
                     dialog.show()
+                })
+                true
+            } else if (id == R.id.menu_popup_edit_password) {
+                withTarget(popupTarget, Consumer { actual ->
+                    val hostActivity = context as? MainActivity ?: return@Consumer
+                    PasswordEntryEditDialog.show(hostActivity, actual) { replacement ->
+                        hostActivity.replacePasswordEntry(actual, replacement)
+                    }
+                })
+                true
+            } else if (id == R.id.menu_popup_export_password_csv) {
+                withTarget(popupTarget, Consumer { actual ->
+                    (context as? MainActivity)?.requestPasswordCsvExport(actual)
                 })
                 true
             } else if (id == R.id.menu_popup_export_password_file) {

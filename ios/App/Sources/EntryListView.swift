@@ -19,6 +19,8 @@ struct EntryListView: View {
     @State private var emailTarget: IndexedTarget?
     @State private var addingEmailAccount = false
     @State private var archiveExport: BackupFile?
+    /// True while the pending file is a browser CSV rather than an original archive.
+    @State private var archiveExportIsBrowserCsv = false
     @State private var archiveExportName = "passwords.csv"
     @State private var exportingArchive = false
     @State private var deletion: DeletionTarget?
@@ -147,7 +149,8 @@ struct EntryListView: View {
             }
             .sheet(item: $passwordTarget) { target in
                 if store.entries.indices.contains(target.index) {
-                    PasswordDetailSheet(entry: store.entries[target.index]) { secret, fieldName in
+                    PasswordDetailSheet(entry: store.entries[target.index], index: target.index, store: store) {
+                        secret, fieldName in
                         copySecret(secret, label: fieldName, from: target.index)
                     }
                 }
@@ -175,7 +178,9 @@ struct EntryListView: View {
                           contentType: .data, defaultFilename: archiveExportName) { result in
                 switch result {
                 case .success(let url):
-                    show("Password file exported to \(url.lastPathComponent)")
+                    show(archiveExportIsBrowserCsv
+                        ? "Passwords exported to \(url.lastPathComponent). Protect or delete the plaintext copy securely."
+                        : "Password file exported to \(url.lastPathComponent)")
                 case .failure:
                     show("The password file was not exported.")
                 }
@@ -228,6 +233,10 @@ struct EntryListView: View {
                                 onReveal: { reveal(index) },
                                 onStep: { step(at: index) },
                                 onEdit: { editor = EditorTarget(index: index) },
+                                onExportCsv: {
+                                    guard store.entries.indices.contains(index) else { return }
+                                    exportBrowserPasswords([store.entries[index]])
+                                },
                                 onTags: { tagTarget = IndexedTarget(index: index) },
                                 onDetails: { openDetails(at: index) },
                                 onQr: { showQr(at: index) },
@@ -264,6 +273,29 @@ struct EntryListView: View {
         }
     }
 
+    /// Writes browser-imported passwords as one CSV in the dialect they share, mirroring
+    /// Tools → **Export passwords as browser CSV…** on the desktop. Entries that did not come from a
+    /// browser are left out: their column set has no browser form, so writing it here would drop it.
+    private func exportBrowserPasswords(_ selection: [Entry]) {
+        let candidates = selection.filter {
+            $0.kind == .password && PasswordCsvExport.support($0) != .foreign
+        }
+        guard !candidates.isEmpty else {
+            show("This entry was not imported from a browser, so it has no browser CSV form.")
+            return
+        }
+        let dialect = PasswordCsvExport.agreedDialect(candidates)
+        do {
+            let data = try PasswordCsvExport.exportCsv(entries: candidates, dialect: dialect)
+            archiveExportIsBrowserCsv = true
+            archiveExportName = "passwords.csv"
+            archiveExport = BackupFile(data: data)
+            exportingArchive = true
+        } catch {
+            show("The passwords could not be exported.")
+        }
+    }
+
     private func openDetails(at index: Int) {
         guard store.entries.indices.contains(index) else { return }
         let entry = store.entries[index]
@@ -272,6 +304,7 @@ struct EntryListView: View {
         case .password:
             passwordTarget = IndexedTarget(index: index)
         case .passwordArchive:
+            archiveExportIsBrowserCsv = false
             if let data = entry.passwordArchiveBytes {
                 archiveExportName = entry.label.isEmpty ? "passwords.csv" : entry.label
                 archiveExport = BackupFile(data: data)
@@ -744,6 +777,8 @@ struct EntryMenu: View {
     let onReveal: () -> Void
     let onStep: () -> Void
     let onEdit: () -> Void
+    /// Writes this entry as a browser CSV; offered only when it has one (`PasswordCsvExport`).
+    var onExportCsv: () -> Void = {}
     var onTags: () -> Void = {}
     var onDetails: () -> Void = {}
     let onQr: () -> Void
@@ -788,6 +823,10 @@ struct EntryMenu: View {
         if entry.kind == .password {
             Button("View password details…", action: onDetails)
                 .disabled(!entry.detailsVisible)
+            if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+                Button("Export as \(dialect.browserName) CSV…", action: onExportCsv)
+                    .disabled(!entry.detailsVisible)
+            }
             if entry.detailsVisible, let pw = (try? entry.passwordFields())?.value("password"), !pw.isEmpty {
                 Button("Copy password") { onCopyNamed(pw, "Password") }
             }

@@ -4,6 +4,7 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Database.EntryTagFilter
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.desktop.control.BackupCoordinator
 import com.fairuniversal.offlineotp.desktop.control.DesktopVaultState
@@ -492,6 +493,41 @@ object MainWindow {
             LinScpDialogs.exportVault(frame, unlocked.snapshot())
         }
 
+        /** The entry under the selection, or null when nothing usable is selected. */
+        fun selectedEntry(): Entry? {
+            val row = table.selectedRow
+            if (row < 0) return null
+            return (table.model as EntryTableModel).entryAt(table.convertRowIndexToModel(row))
+        }
+
+        /** The browser dialect the selected passwords are written in; mixed sets use Firefox. */
+        fun selectedPasswordDialect(): PasswordCsvExport.Dialect {
+            val dialects = (state?.snapshot() ?: emptyList()).filter { it.areDetailsVisible() }
+                .map { PasswordCsvExport.support(it) }
+                .filterIsInstance<PasswordCsvExport.Support.Exportable>()
+                .map { it.dialect }
+                .distinct()
+            return dialects.singleOrNull() ?: PasswordCsvExport.Dialect.FIREFOX
+        }
+
+        fun editPassword() {
+            val unlocked = requireUnlocked() ?: return
+            val entry = selectedEntry() ?: return
+            val replacement = PasswordImportDialogs.edit(frame, entry) ?: return
+            if (editor?.replace(entry, replacement) == true) {
+                refreshProjection(unlocked)
+            } else {
+                replacement.destroy()
+                JOptionPane.showMessageDialog(frame, "The password entry could not be saved to the vault.",
+                    TITLE, JOptionPane.ERROR_MESSAGE)
+            }
+        }
+
+        fun exportPasswordsAsCsv() {
+            val unlocked = requireUnlocked() ?: return
+            PasswordImportDialogs.exportCsv(frame, unlocked.snapshot(), selectedPasswordDialect())
+        }
+
         fun showPasswordDetails() {
             requireUnlocked() ?: return
             val row = table.selectedRow
@@ -679,6 +715,8 @@ object MainWindow {
             add(JMenuItem("Copy selected").apply { addActionListener { copySelectedToken() } })
             add(JMenuItem("Edit…").apply { addActionListener { screen.editButton.doClick() } })
             add(JMenuItem("Tags…").apply { addActionListener { screen.tagsButton.doClick() } })
+            add(JMenuItem("Edit password…").apply { addActionListener { editPassword() } })
+            add(JMenuItem("Export as browser CSV…").apply { addActionListener { exportPasswordsAsCsv() } })
             add(JMenuItem("View password details…").apply { addActionListener { showPasswordDetails() } })
             add(JMenuItem("Export password file…").apply { addActionListener { exportPasswordFile() } })
             add(JMenuItem("View email details…").apply { addActionListener { showEmailDetails() } })
@@ -703,6 +741,12 @@ object MainWindow {
                     "Copy selected" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPasswordArchive() && !entry.isEmail()
                     "Edit…" -> component.isEnabled = entry.areDetailsVisible() && !entry.isPassword() && !entry.isPasswordArchive() && !entry.isEmail()
                     "Tags…" -> component.isEnabled = entry.areDetailsVisible()
+                    "Edit password…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
+                    "Export as browser CSV…" -> {
+                        component.isVisible = entry.isPassword()
+                        component.isEnabled = entry.areDetailsVisible() &&
+                            PasswordCsvExport.support(entry) is PasswordCsvExport.Support.Exportable
+                    }
                     "View password details…" -> { component.isVisible = entry.isPassword(); component.isEnabled = entry.areDetailsVisible() }
                     "Export password file…" -> { component.isVisible = entry.isPasswordArchive(); component.isEnabled = entry.areDetailsVisible() }
                     "View email details…" -> { component.isVisible = entry.isEmail(); component.isEnabled = entry.areDetailsVisible() }
@@ -782,6 +826,7 @@ object MainWindow {
                 addSeparator()
                 add(JMenuItem("Import passwords…").apply { addActionListener { importPasswords() } })
                 add(JMenuItem("Export selected password file…").apply { addActionListener { exportPasswordFile() } })
+                add(JMenuItem("Export passwords as browser CSV…").apply { addActionListener { exportPasswordsAsCsv() } })
                 add(JMenuItem("Import Thunderbird credentials…").apply { addActionListener { importThunderbird() } })
                 add(JMenuItem("Export Thunderbird credentials…").apply { addActionListener { exportThunderbird() } })
                 add(JMenuItem("Import LinSCP SSH & sessions…").apply { addActionListener { importLinScp() } })

@@ -111,6 +111,8 @@ class AlertDialog private constructor() : DialogInterface {
             return this
         }
 
+        fun setTitle(title: CharSequence?): Builder = this
+
         fun setMessage(messageId: Int): Builder {
             this.messageId = messageId
             return this

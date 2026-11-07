@@ -292,6 +292,14 @@
             android:entryValues="@array/settings_values_auto_backup_password_enc"
             android:defaultValue="@string/settings_default_auto_backup_password_enc" />
 
+        <ListPreference
+            android:key="@string/settings_key_auto_backup_keep"
+            android:title="@string/settings_title_auto_backup_keep"
+            android:summary="@string/settings_desc_auto_backup_keep"
+            android:entries="@array/settings_entries_auto_backup_keep"
+            android:entryValues="@array/settings_values_auto_backup_keep"
+            android:defaultValue="0" />
+
         <MultiSelectListPreference
             android:key="@string/settings_key_backup_broadcasts"
             android:title="@string/settings_title_backup_broadcasts"

@@ -59,6 +59,7 @@ import com.fairuniversal.offlineotp.Utilities.AuthenticationResultPolicy
 import com.fairuniversal.offlineotp.Utilities.BrowserPasswordCsv
 import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.LinScpCredentials
+import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.Utilities.ThunderbirdCsv
 import com.fairuniversal.offlineotp.Utilities.ThunderbirdImport
@@ -102,6 +103,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var passwordExportName: String? = null
     private var passwordExportDigest: String? = null
     private var passwordPendingUri: Uri? = null
+    /**
+     * A browser-CSV export waiting for the user to pick a document. Unlike the archive export,
+     * which re-reads and re-digests the entry when the picker returns, this holds the already
+     * serialised bytes: several entries are exported together, so there is no single entry to
+     * re-authorise against, and re-serialising would read every secret a second time.
+     */
+    private var passwordCsvExportPending: ByteArray? = null
+    private var passwordCsvExportGeneration: Long = -1L
     private var thunderbirdPendingUri: Uri? = null
     private var thunderbirdExportPending: ByteArray? = null
     private var thunderbirdExportGeneration: Long = -1L
@@ -215,6 +224,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdPendingUri = null
         thunderbirdExportSelectionDialog?.dismiss()
         thunderbirdExportSelectionDialog = null
+        passwordCsvExportPending?.fill(0)
+        passwordCsvExportPending = null
+        passwordCsvExportGeneration = -1L
         linScpImportBytes?.fill(0)
         linScpImportBytes = null
         linScpImportPrompt?.dismiss()
@@ -450,6 +462,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabImportPasswords)
                 choosePasswordImport()
+            else if (actionId == R.id.fabExportPasswords)
+                requestPasswordCsvExport(null)
             else if (actionId == R.id.fabImportThunderbird)
                 chooseThunderbirdImport()
             else if (actionId == R.id.fabExportThunderbird)
@@ -878,6 +892,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 passwordExportName = null
                 passwordExportDigest = null
             }
+        } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_CSV_EXPORT) {
+            if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") savePasswordCsvExport(intent.data!!)
+            else { passwordCsvExportPending?.fill(0); passwordCsvExportPending = null; passwordCsvExportGeneration = -1L }
         } else if (requestCode == Constants.INTENT_MAIN_THUNDERBIRD_IMPORT) {
             if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") {
                 thunderbirdPendingUri = intent.data
@@ -1798,6 +1815,89 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
                 }
             }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    /**
+     * Exports one browser-imported password in its own dialect, or every such entry at once when
+     * [entry] is null. Entries that did not come from a browser have no browser CSV form and are
+     * left out; the caller says so instead of writing a file that drops their columns.
+     */
+    fun requestPasswordCsvExport(entry: Entry?) {
+        val current = adapter ?: return
+        val generation = VaultSession.generation()
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
+        // A browser CSV is plaintext, so the same rule as the archive export applies: only a
+        // revealed entry may leave the vault. A password with no browser form is reported below.
+        val candidates = (if (entry == null) current.getEntries() else listOf(entry))
+            .filter { it.areDetailsVisible() }
+            .map { it to PasswordCsvExport.support(it) }
+        val exportable = candidates.filter { it.second is PasswordCsvExport.Support.Exportable }
+        if (exportable.isEmpty()) {
+            Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
+            return
+        }
+        val browsers = exportable.map { (it.second as PasswordCsvExport.Support.Exportable).dialect }
+            .distinct()
+        val dialect = browsers.singleOrNull() ?: PasswordCsvExport.Dialect.FIREFOX
+        val browser = PasswordCsvExport.browserName(dialect)
+        val title = getString(R.string.password_export_csv, browser)
+        AlertDialog.Builder(this).setTitle(title)
+            .setMessage(getString(R.string.password_export_csv_warning, browser))
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@setPositiveButton
+                val chosen = exportable.map { it.first }
+                val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
+                    catch (_: Exception) {
+                        Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                        return@setPositiveButton
+                    }
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                    .setType("text/csv")
+                    .putExtra(Intent.EXTRA_TITLE, if (entry != null) "${entry.getLabel()}.csv" else "passwords.csv")
+                try {
+                    passwordCsvExportPending = bytes
+                    passwordCsvExportGeneration = generation
+                    startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_CSV_EXPORT)
+                } catch (_: Exception) {
+                    bytes.fill(0)
+                    passwordCsvExportPending = null
+                    passwordCsvExportGeneration = -1L
+                    Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun savePasswordCsvExport(uri: Uri) {
+        val bytes = passwordCsvExportPending ?: return
+        passwordCsvExportPending = null
+        val generation = passwordCsvExportGeneration
+        passwordCsvExportGeneration = -1L
+        val authorized = VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+        val saved = authorized && try {
+            StorageAccessHelper.saveFile(this, uri, bytes, java.util.function.BooleanSupplier {
+                VaultSession.isCurrent(generation) && VaultSession.getKey() != null
+            })
+        } catch (_: Exception) { false }
+        bytes.fill(0)
+        if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
+        Toast.makeText(this, if (saved) R.string.password_export_csv_success else R.string.password_export_csv_failed,
+            Toast.LENGTH_LONG).show()
+    }
+
+    /**
+     * Replaces [existing] after the edit dialog built a validated replacement. The adapter owns
+     * [replacement] from here on and destroys it itself when the write fails, so this only reports
+     * the outcome.
+     */
+    fun replacePasswordEntry(existing: Entry, replacement: Entry) {
+        val current = adapter
+        if (current != null && current.replaceEntry(existing, replacement)) {
+            Toast.makeText(this, R.string.password_edit_saved, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, R.string.password_edit_failed, Toast.LENGTH_LONG).show()
+        }
     }
 
     @Suppress("SameParameterValue")
