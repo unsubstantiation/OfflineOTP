@@ -732,7 +732,7 @@ public enum EmailMaterial {
                             inBuf.baseAddress,
                             ciphertext.count,
                             outBuf.baseAddress,
-                            out.count,
+                            outBuf.count,
                             &outMoved
                         )
                     }
