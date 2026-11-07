@@ -85,13 +85,13 @@ public enum TokenCalculator {
 
     /// Legacy mOTP: the first six hex digits of `MD5(step + seed + PIN)`, in a fixed 10-second step.
     ///
-    /// MD5 is required by the mOTP specification and is not used here as a password hash;
-    /// the value is a short-lived OTP, not a stored credential. Changing the hash would
-    /// break every existing mOTP token.
-    // codeql[swift/weak-sensitive-data-hashing] — mOTP is defined as MD5 per spec; not a password hash.
-    // lgtm[swift/weak-sensitive-data-hashing] — intentional: MOTP spec requires MD5.
+    /// Compatibility-only implementation: mOTP requires MD5 over the time step, seed and PIN.
+    /// These inputs are sensitive; MD5 is not suitable for new cryptographic designs. Substituting
+    /// another hash here would break interoperability with existing mOTP verifiers. This exception
+    /// must not be reused for password storage, vault encryption or new OTP protocols.
     public static func motp(pin: String, secret: String, unixTime: Int64, offset: Int = 0) -> String {
         let step = (unixTime / motpStepSeconds) + Int64(offset)
+        // codeql[swift/weak-sensitive-data-hashing] -- Legacy mOTP requires MD5(step + seed + PIN); changing it breaks verifier compatibility.
         let digest = Insecure.MD5.hash(data: Data("\(step)\(secret)\(pin)".utf8))
         let hex = digest.map { String(format: "%02x", $0) }.joined()
         return String(hex.prefix(6))
