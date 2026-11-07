@@ -416,7 +416,8 @@ struct TagStrip: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(store.tags(for: store.category), id: \.self) { tag in
-                    TagChip(title: tag, selected: store.selectedTags.contains(tag)) {
+                    TagChip(title: tagChipTitle(tag),
+                            selected: store.selectedTags.contains(tag)) {
                         store.toggleTag(tag)
                     }
                 }
@@ -455,6 +456,14 @@ struct TagStrip: View {
         case .and: return "All tags"
         case .single: return "One tag"
         }
+    }
+
+    /// The chip text: `name (count)` like Android's drawer rows and the desktop filter panel, so a
+    /// tag is never shown without how many entries carry it. A tag with no count yet keeps its bare
+    /// name, which is what Android's `TagsAdapter` does when the counts map has no entry.
+    private func tagChipTitle(_ tag: String) -> String {
+        guard let count = store.tagCounts(for: store.category)[tag] else { return tag }
+        return "\(tag) (\(count))"
     }
 }
 

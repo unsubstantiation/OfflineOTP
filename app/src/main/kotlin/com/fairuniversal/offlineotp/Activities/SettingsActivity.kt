@@ -805,13 +805,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             }
             val dialog = AlertDialog.Builder(ctx)
                 .setTitle(R.string.settings_title_biometric)
-                .setMessage(BiometricKeyStore.BiometricWording.enableQuestion)
+                .setMessage(R.string.settings_dialog_biometric_enable)
                 .setView(passwordInput)
                 .setPositiveButton(android.R.string.ok) { _, _ ->
                     val typed = passwordInput.text?.toString() ?: ""
                     passwordInput.setText("")
                     if (typed.isEmpty()) {
-                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
                         return@setPositiveButton
                     }
                     // Verify the typed password against the stored verifier (PBKDF2 split).
@@ -819,7 +819,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         verifyVaultPassword(typed)
                     } catch (_: Exception) { false }
                     if (!verified) {
-                        Toast.makeText(ctx, BiometricKeyStore.BiometricWording.wrongPassword, Toast.LENGTH_LONG).show()
+                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
                         return@setPositiveButton
                     }
                     // Use the live vault key — the password matched, and the GCM tag is the real gate.
@@ -842,8 +842,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                                 val msg = when (error) {
                                     BiometricKeyStore.BiometricError.NOT_ENROLLED -> getString(R.string.settings_toast_biometric_not_enrolled)
                                     BiometricKeyStore.BiometricError.UNAVAILABLE -> getString(R.string.settings_toast_biometric_unavailable)
-                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> BiometricKeyStore.BiometricWording.lockedOut
-                                    BiometricKeyStore.BiometricError.CANCELLED -> BiometricKeyStore.BiometricWording.cancelled
+                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> getString(R.string.settings_toast_biometric_locked_out)
+                                    BiometricKeyStore.BiometricError.CANCELLED -> getString(R.string.settings_toast_biometric_cancelled)
                                     else -> getString(R.string.settings_toast_biometric_save_failed)
                                 }
                                 Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()

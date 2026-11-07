@@ -215,31 +215,23 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             }
             biometricPending = false
             val error = BiometricKeyStore.errorFromResult(result)
+                    ?: BiometricKeyStore.BiometricError.FAILED
+            // A shortcut that can no longer be used is removed rather than offered again; a
+            // cancel or a lockout keeps the button so the person can simply retry.
             when (error) {
                 BiometricKeyStore.BiometricError.MISSING -> {
                     BiometricKeyStore.clear(this)
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.stale, Toast.LENGTH_LONG).show()
                     biometricButton?.visibility = View.GONE
                 }
-                BiometricKeyStore.BiometricError.CANCELLED -> {
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.cancelled, Toast.LENGTH_SHORT).show()
-                }
-                BiometricKeyStore.BiometricError.LOCKED_OUT -> {
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.lockedOut, Toast.LENGTH_LONG).show()
-                }
-                BiometricKeyStore.BiometricError.NOT_ENROLLED -> {
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.notEnrolled, Toast.LENGTH_LONG).show()
-                    biometricButton?.visibility = View.GONE
-                }
-                BiometricKeyStore.BiometricError.UNAVAILABLE -> {
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.unavailable, Toast.LENGTH_LONG).show()
-                    biometricButton?.visibility = View.GONE
-                }
-                else -> {
-                    Toast.makeText(this, BiometricKeyStore.BiometricWording.stale, Toast.LENGTH_LONG).show()
-                    biometricButton?.visibility = View.GONE
-                }
+                BiometricKeyStore.BiometricError.NOT_ENROLLED,
+                BiometricKeyStore.BiometricError.UNAVAILABLE -> biometricButton?.visibility = View.GONE
+                else -> Unit
             }
+            val duration =
+                if (error == BiometricKeyStore.BiometricError.CANCELLED) Toast.LENGTH_SHORT
+                else Toast.LENGTH_LONG
+            // The sentence is a string resource, so it is translated with the rest of the app.
+            Toast.makeText(this, error.message(this), duration).show()
         }
     }
 

@@ -5,7 +5,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
-        android:key="@string/settings_key_cat_security"
+        android:key="pref_cat_security"
         android:title="@string/settings_category_title_security">
 
         <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference

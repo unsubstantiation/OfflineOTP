@@ -828,7 +828,9 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
 
     fun removeItem(position: Int) {
         showActionDialog(position, BiConsumer { target, entry ->
-            dialogs.delete(entry.getLabel(), Runnable {
+            // Name the entry the way the desktop and iOS prompts do: the label, or the issuer
+            // when the label is blank, rather than an empty pair of quotes.
+            dialogs.delete(entry.privacyTitle(), Runnable {
                 withTarget(target, Consumer { actual ->
                     val index = entries.indexOf(actual)
                     val displayedIndex = presentation.indexOf(actual)

@@ -7708,6 +7708,34 @@ fun main() {
         expect(refused, { "an unavailable backend must refuse to encrypt, not pretend success" })
     }
 
+    check("the removal prompt names an entry the way every client does") {
+        // Android, desktop (removalConfirmationMessage) and iOS (VaultStore.displayName) all ask
+        // "remove the account \"<name>\"?" and all name it by the label, or by the issuer when the
+        // label is blank. The shared rule is Entry.privacyTitle(); the adapter must use it, because
+        // getLabel() alone asked to remove the account "" for a scanned entry.
+        fun totp(issuer: String, label: String): Entry =
+            Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, issuer, label,
+                TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        val labelled = totp("GitHub", "alice")
+        val unlabelled = totp("GitHub", "")
+        val anonymous = totp("", "")
+        expect(labelled.privacyTitle() == "alice", { "a label identifies the entry" })
+        expect(unlabelled.privacyTitle() == "GitHub", { "a blank label falls back to the issuer" })
+        expect(unlabelled.privacyTitle() != unlabelled.getLabel(),
+            { "the raw label is still blank, which is what the prompt used to print" })
+        expect(anonymous.privacyTitle() == "", { "no label and no issuer names nothing" })
+        for (entry in listOf(labelled, unlabelled, anonymous)) entry.destroy()
+
+        // Read from the repository root, which is where run.sh starts this program.
+        val adapter = java.io.File(
+            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt").readText()
+        val removal = adapter.substringAfter("fun removeItem(").substringBefore("\n    }\n")
+        expect(removal.contains("dialogs.delete(entry.privacyTitle(),"),
+            { "the Android removal prompt must use the shared identity rule" })
+        expect(!removal.contains("dialogs.delete(entry.getLabel()"),
+            { "the raw label re-introduces the empty-quote prompt" })
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {

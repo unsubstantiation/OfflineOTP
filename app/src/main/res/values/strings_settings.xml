@@ -129,13 +129,17 @@
         Screen lock)</string>
 
     <string name="settings_title_biometric">Unlock with fingerprint or face</string>
-    <string name="settings_desc_biometric">Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted with the password: biometrics only releases a key this device keeps, and the password still works. Only strong biometrics are used.</string>
+    <string name="settings_desc_biometric">Unlock this vault with fingerprint or face instead of typing the password. The vault stays encrypted with the password: biometrics only releases a key this device keeps, and the password still works. A second account on this device cannot use it. Only strong biometrics are used.</string>
     <string name="settings_toast_biometric_turned_on">Biometric unlock is on for this vault.</string>
     <string name="settings_toast_biometric_turned_off">Biometric unlock is off.</string>
     <string name="settings_toast_biometric_unavailable">This device cannot use biometric unlock.</string>
     <string name="settings_toast_biometric_not_enrolled">Set up fingerprint or face unlock on this device first.</string>
     <string name="settings_toast_biometric_save_failed">This device could not keep the unlock key. Try again.</string>
     <string name="settings_toast_biometric_stale">Biometric unlock is no longer set up for this vault. Enter your password, then turn it on again.</string>
+    <string name="settings_toast_biometric_wrong_password">That password does not open this vault.</string>
+    <string name="settings_toast_biometric_cancelled">Biometric unlock was cancelled. Enter your password.</string>
+    <string name="settings_toast_biometric_locked_out">Too many attempts. Enter your password to unlock.</string>
+    <string name="settings_dialog_biometric_enable">Enter the vault password to turn this on.</string>
 
 
     <string name="settings_toast_encryption_changing">Changing database encryption…</string>

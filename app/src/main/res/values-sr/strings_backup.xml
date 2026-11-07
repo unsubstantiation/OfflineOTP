@@ -40,7 +40,6 @@
     <string name="backup_toast_import_decryption_failed">Дешифровање резервне копије није успело</string>
     <string name="backup_toast_import_no_entries">У увезеним подацима нису пронађени уноси</string>
     <string name="backup_toast_import_failed">Увоз из спољне меморије није успео</string>
-    <string name="backup_toast_storage_not_accessible">Екстерна меморија тренутно није доступна</string>
     <string name="backup_toast_openpgp_error">OpenPGP грешка: %s</string>
     <string name="backup_toast_openpgp_not_verified">Није пронађен верификовани потпис</string>
     <string name="backup_toast_file_selection_failed">Није могуће отворити дијалог за одабир датотеке!</string>

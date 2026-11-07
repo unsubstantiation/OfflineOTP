@@ -29,7 +29,6 @@
     <string name="backup_toast_import_decryption_failed">Entschlüsselung des Backups ist fehlgeschlagen</string>
     <string name="backup_toast_import_no_entries">In den importierten Daten wurden keine Einträge gefunden</string>
     <string name="backup_toast_import_failed">Import vom Externen Speicher fehlgeschlagen</string>
-    <string name="backup_toast_storage_not_accessible">Externer Speicher derzeit nicht zugreifbar</string>
     <string name="backup_toast_openpgp_error">OpenPGP-Fehler: %s</string>
     <string name="backup_toast_openpgp_not_verified">Keine geprüfte Signatur erkannt</string>
     <string name="backup_toast_file_selection_failed">Dialog zur Dateiauswahl kann nicht geöffnet werden!</string>

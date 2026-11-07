@@ -47,7 +47,6 @@
     <string name="backup_toast_import_decryption_failed">Could not decrypt the backup.</string>
     <string name="backup_toast_import_no_entries">No entries found in the backup.</string>
     <string name="backup_toast_import_failed">Restore failed.</string>
-    <string name="backup_toast_storage_not_accessible">External storage is not accessible.</string>
     <string name="backup_toast_openpgp_error">OpenPGP error: %s</string>
     <string name="backup_toast_openpgp_not_verified">No verified signature found.</string>
     <string name="backup_toast_openpgp_unavailable">Could not connect to the selected OpenPGP provider.</string>

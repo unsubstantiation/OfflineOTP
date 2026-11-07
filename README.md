@@ -22,7 +22,7 @@ The Android application ID, namespace, and Kotlin/Java packages use `com.fairuni
 - Generate TOTP (RFC 6238), HOTP (RFC 4226), Steam Guard, and mOTP codes; copy them or share them as keystrokes.
 - Store standalone secure notes, SSH keys, browser-exported passwords, LinSCP SSH keys & saved sessions, and FairEmail/Thunderbird mail accounts in the encrypted vault; browse them in separate OTP, Notes, SSH Keys, Passwords and Email tabs.
 - Experimentally access compatible hardware-key OATH accounts and use a compatible FIDO2 key as an alternative vault unlock; device testing is still required.
-- Search within the selected tab or filter by tags, and see per-tag entry counts. On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
+- Search within the selected tab or filter by tags, and see per-tag entry counts on all three clients (Android's drawer rows, the desktop **Tag** dropdown and filter panel, the iOS tag chips). On Android, search temporarily overrides the tag filter; on desktop, search and tag filters work together. The UI uses the Dark Forest theme on both clients, with the one-time codes shown in amber.
 - Stay offline: the app declares no `INTERNET` permission.
 - Show a bundled brand logo per account, resolved from the issuer name (editable per entry on Android); unknown issuers get a letter tile. Debian and Windows use the same artwork as the phone.
 
@@ -428,7 +428,8 @@ The iOS client is a working daily-use app short of Face ID: `ios/` holds a Swift
 the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
 the token maths, verified against the same fixed vectors in
 `desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
-labels, issuers and tags, the same tag rules, the same five orders (remembered beside the vault, never
+labels, issuers and tags, the same tag rules and the same per-tag entry counts (`tag (n)`) on the tag
+chips, the same five orders (remembered beside the vault, never
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
 entries, dated Full Encrypted Backups, restores that merge by default or replace,
 `otpauth://` and QR-image import, Google Authenticator export import (every code of a multi-code
@@ -504,6 +505,7 @@ bash scripts/verify_reproducible_build.sh
 - [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
 - [iOS client plan](docs/ios-client-plan.md) — the vault/backup format contract a native SwiftUI client must implement, the fixed-vector corpus it is verified against, and the milestones up to TestFlight.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.
+- [Incomplete-feature audits](docs/incomplete-feature-audit-2026-11-06-third-pass.md) — the third pass (naming the removed entry, iOS tag counts, translatable biometric wording); it links the [first](docs/incomplete-feature-audit-2026-11-06.md) and [second](docs/scaffold-audit-2026-11-06-second-pass.md) 2026-11-06 passes and the [2026-11-01](docs/incomplete-feature-audit-2026-11-01.md) pass, which closed the OpenPGP backend, three unreachable scaffolds and the desktop's at-rest permissions.
 - [Language security assessment](docs/language-security-assessment.md) — historical baseline review.
 - [Latest bug-hunt follow-up](docs/bughunt-2026-10-25-tag-drawer.md), [the earlier 2026-10-25 pass](docs/bughunt-follow-up-2026-10-25.md), [the previous pass](docs/bughunt-follow-up-2026-10-18.md) and [upstream andOTP issue triage](docs/andotp-open-issues-triage.md) — audit and upstream-issue records.
 

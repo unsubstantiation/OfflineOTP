@@ -38,7 +38,6 @@
     <string name="backup_toast_import_decryption_failed">El desxifratge de la còpia ha fallat</string>
     <string name="backup_toast_import_no_entries">No s\'han trobat cap entrada en les dades importades</string>
     <string name="backup_toast_import_failed">Ha fallat la importació des de l\'emmagatzematge extern</string>
-    <string name="backup_toast_storage_not_accessible">L\'emmagatzematge extern no és accessible actualment</string>
     <string name="backup_toast_openpgp_error">Error OpenPGP: %s</string>
     <string name="backup_toast_openpgp_not_verified">No s\'ha detectat cap signatura verificada</string>
     <string name="backup_toast_file_selection_failed">No ha estat possible obrir el diàleg de seleccio de fitxers!</string>
