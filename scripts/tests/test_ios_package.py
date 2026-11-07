@@ -46,6 +46,27 @@ class IosPackageTest(unittest.TestCase):
         # like coverage that does not exist.
         self.assertNotIn(".executableTarget", package)
 
+    def test_no_swift_expression_defeats_the_type_checker(self):
+        """The kit has to survive `swift build` before anything else about it matters.
+
+        `Argon2id.loadLe64` was written as one eight-term `|` chain of `UInt64(x) << literal`. That
+        shape makes the type checker enumerate a literal type for every operand and it gives up with
+        "unable to type-check this expression in reasonable time" — a red iOS build on master that
+        no Kotlin gate could see. The rule is structural, so it is pinned structurally: no
+        expression may chain more than a few widened shifts together.
+        """
+        argon = (SOURCES / "Argon2id.swift").read_text(encoding="utf-8")
+        load = argon.split("func loadLe64", 1)[1].split("\n    }", 1)[0]
+        self.assertNotIn("<< 56", load, "the loadLe64 shift chain is back")
+        self.assertIn("for index in 0..<8", load)
+        for path in list(SOURCES.glob("*.swift")) + list((IOS / "App/Sources").glob("*.swift")):
+            text = path.read_text(encoding="utf-8")
+            for line in text.splitlines():
+                # A single line with five or more `<<` is the shape that defeats inference.
+                self.assertLess(line.count("<<"), 5, f"{path.name}: {line.strip()}")
+        # `assign(repeating:count:)` is deprecated in favour of `update(repeating:count:)`.
+        self.assertNotIn("assign(repeating:", argon)
+
     def test_the_crypto_constants_match_the_shared_core(self):
         crypto = (SOURCES / "VaultCrypto.swift").read_text(encoding="utf-8")
         argon = (SOURCES / "Argon2id.swift").read_text(encoding="utf-8")

@@ -81,11 +81,16 @@ jobs:
           toolchain: stable
       - name: Build Android OpenPGP jniLibs
         shell: bash
+        env:
+          # The script falls back to the newest installed NDK, and installs the rustup targets it
+          # needs. Pinning the path here used to make a differently-laid-out NDK fail at a bare
+          # `test -d` with no explanation.
+          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
         run: |
           set -euo pipefail
-          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
-          test -d "$ANDROID_NDK_HOME"
-          cargo install cargo-ndk --locked
+          # `--locked` on an uninstalled crate resolves from the index; keep the output so a
+          # registry or toolchain problem is visible rather than a silent exit.
+          cargo install cargo-ndk --locked --verbose 2>&1 | tail -n 20
           bash scripts/openpgp/build-android-jnilibs.sh
       - name: Install release signing keystore
         shell: bash

@@ -37,10 +37,14 @@ the default engine; PGPainless is only a fallback when the native library is abs
 ## Android
 
 ```sh
-export ANDROID_NDK_HOME=/path/to/android-ndk
-cargo install cargo-ndk
+cargo install cargo-ndk --locked
 scripts/openpgp/build-android-jnilibs.sh
 ```
+
+`ANDROID_NDK_HOME` (or `ANDROID_NDK_ROOT`) is optional: without it the script takes the newest
+NDK under `$ANDROID_HOME/ndk`. It installs the three Android rustup targets itself — `cargo ndk`
+cross-compiles with the toolchain rustup already has and does **not** provide `std` for them, so
+skipping that step fails with `can't find crate for \`std\`` on a clean machine.
 
 CI runs the same script before assembling release APKs. The OpenKeychain provider
 flow remains available for users who configured it; `RpgpOpenPgpPort` is the in-app

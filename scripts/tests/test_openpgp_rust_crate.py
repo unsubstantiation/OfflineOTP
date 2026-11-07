@@ -212,6 +212,14 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         android = (scripts / "build-android-jnilibs.sh").read_text(encoding="utf-8")
         self.assertIn("cargo ndk", android)
         self.assertIn("app/src/main/jniLibs", android)
+        # `cargo ndk` cross-compiles with the toolchain rustup already has; it does not install
+        # `std` for the Android ABIs. The iOS script has always run `rustup target add`; the
+        # Android one did not, so a clean runner failed with "can't find crate for `std`". Both
+        # scripts must now be self-contained, and every ABI they build must have its target.
+        self.assertIn("rustup target add", android)
+        for target in ("aarch64-linux-android", "armv7-linux-androideabi", "x86_64-linux-android"):
+            self.assertIn(target, android)
+        self.assertIn("rustup target add", (scripts / "build-ios-xcframework.sh").read_text(encoding="utf-8"))
         ignore = (ROOT / ".gitignore").read_text(encoding="utf-8")
         self.assertIn("/rust/target/", ignore)
         self.assertIn("/app/src/main/jniLibs/", ignore)
@@ -234,6 +242,10 @@ class OpenPgpRustCrateTest(unittest.TestCase):
         android = (workflows / "android.yml").read_text(encoding="utf-8")
         self.assertIn("build-android-jnilibs.sh", android)
         self.assertIn("ndk;", android)
+        # A bare `test -d "$ANDROID_NDK_HOME"` was the only thing standing between a
+        # differently-laid-out NDK and an unexplained exit 1; the script now resolves the NDK and
+        # says which paths it tried.
+        self.assertNotIn('test -d "$ANDROID_NDK_HOME"', android)
         ios = (workflows / "ios.yml").read_text(encoding="utf-8")
         self.assertIn("build-ios-xcframework.sh", ios)
 
