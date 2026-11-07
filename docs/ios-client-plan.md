@@ -193,17 +193,31 @@ desktop build). Its hard budget is **10 minutes**:
 3. `swift build -c release --build-tests -Xswiftc -enable-testing` and
    `swift test -c release --parallel -Xswiftc -enable-testing`, which run the format and fixture
    tests on the macOS host with the production KDF parameters but optimized code;
-4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
-   `-configuration Release -destination 'generic/platform=iOS'` with
-   `ARCHS=arm64 CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO` — **no signing
-   identity at all**. This is the step that proves the app and its package compile for iOS. There is
-   no simulator build, no separate kit-only build, and no simulator boot;
+4. `scripts/ios/generate-app-icon.py`, `brew install xcodegen`, `xcodegen generate`, then
+   `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
+   `ARCHS=arm64 LD_GENERATE_MAP_FILE=YES CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO
+   CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**. This is the step that proves the app
+   and its package compile for iOS. There is no simulator build, no separate kit-only build, and no
+   simulator boot. The icon comes from the same shared artwork the macOS `.icns` does and is not
+   committed;
 5. the unsigned `.ipa`: the device `.app` is copied with `ditto` under `Payload/OfflineOTP.app`,
    zipped, then unpacked again and checked to be an `arm64` `IOS` Mach-O
-   (`DTPlatformName = iphoneos`, `CFBundleExecutable = OfflineOTP`);
+   (`DTPlatformName = iphoneos`, `CFBundleExecutable = OfflineOTP`).
+   `scripts/ios/report-ipa-contents.py` then reads the archive itself and publishes one **iOS bundle**
+   annotation — installed size, file count, executable size, the share of the linked image that came
+   from the Rust OpenPGP archive (from the link map), the compiled app icon, the bundle id and the
+   minimum OS. It fails the job if the icon is missing or the Rust backend was compiled out, because
+   `ios/Package.swift` silently disables OpenPGP when the XCFramework is absent and such an app would
+   otherwise still build green;
 6. **one artifact**, `OfflineOTP-ios-unsigned`, containing only `OfflineOTP-ios-unsigned.ipa`, ready
    for sideloaders or local signing. No simulator bundle, no source archive, no checksum manifest and
    no log artifact: the `.ipa` is the deliverable, and everything else was noise beside it.
+
+About **2.5 MB** is the expected size, not a partial build: one arm64 Release slice, no embedded
+frameworks (iOS carries the Swift runtime, unlike the desktop zip which embeds a JVM), and no
+bundled images or fonts — the UI is SwiftUI with SF Symbols. The 4.4 MB figure the earlier runs
+showed beside it was the *Debug simulator* bundle, which is not what ships. The annotation above is
+how that claim is checked rather than asserted.
 
 Build diagnostics are printed as run annotations by steps gated on `if: ${{ !success() }}`, so a green
 run reports nothing and no log file is uploaded. The Rust step matches only real diagnostics

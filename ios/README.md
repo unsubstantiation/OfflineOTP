@@ -42,6 +42,7 @@ from a full checkout of the repository — not from this directory alone.
 
 ```sh
 brew install xcodegen          # once
+python3 scripts/ios/generate-app-icon.py   # from the repository root; writes the 1024px app icon
 cd ios
 xcodegen generate
 xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
@@ -65,6 +66,35 @@ builds only the arm64 Apple slices, runs the host format tests optimized with te
 builds the unsigned device app. The commands above remain the local way to run `OfflineOTPAppTests`.
 Its **only** published output is `OfflineOTP-ios-unsigned.ipa` — no simulator bundle, source archive,
 checksum file or log artifact. Diagnostics appear as run annotations only when the job fails.
+
+## What is inside the .ipa, and why it is small
+
+The unsigned `.ipa` is about **2.5 MB**, which is easy to misread as a partial build. It is one
+arm64 Release slice of a SwiftUI app with no bundled media:
+
+- **No JVM and no runtime to carry.** The desktop zip embeds a Java runtime; iOS already ships the
+  Swift runtime, so the app embeds no frameworks at all.
+- **No images, fonts or storyboards.** The UI is SwiftUI with SF Symbols. The issuer logo *names*
+  are stored for the other clients (`ThumbnailCatalog`), but this client draws no logos.
+- **One architecture, optimized.** `ARCHS=arm64`, Release, dead-stripped — not the fat Debug build
+  the old simulator artifact was (4.4 MB zipped, which is where the size comparison came from).
+- **What is there:** the app executable (SwiftUI screens + OfflineOTPKit + the statically linked
+  Rust OpenPGP backend), `Info.plist`, `PkgInfo`, and `Assets.car` with the app icon.
+
+Because a size on its own proves nothing, the packaging step runs
+`scripts/ios/report-ipa-contents.py` on the archive it is about to upload and publishes one **iOS
+bundle** annotation: compressed and installed size, file count, the executable's architecture and
+size, how much of the linked image the Rust OpenPGP objects contribute (read from the link map),
+the icon, and the bundle identifier and minimum OS. It **fails the build** if the icon is missing or
+if the Rust backend was compiled out — `ios/Package.swift` drops `OFFLINEOTP_OPENPGP_NATIVE` when
+`Frameworks/offlineotp_openpgp.xcframework` is absent, and that app would otherwise still build
+green with OpenPGP silently disabled.
+
+The icon is generated, never committed: `scripts/ios/generate-app-icon.py` resamples the
+1254×1254 mark embedded in `assets/logo_legacy.svg` into the single 1024×1024 slot
+`App/Resources/Assets.xcassets/AppIcon.appiconset` declares, exactly as `macos.yml` builds the
+`.icns` from the shared artwork. It uses `sips` on macOS (or ImageMagick elsewhere, for checking the
+pipeline on Linux); `--check` verifies the result without rewriting it.
 
 ## What the tests prove
 
