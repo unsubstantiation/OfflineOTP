@@ -1,0 +1,66 @@
+// Shared Compose Multiplatform UI: the single implementation of the vault screen for every client.
+//
+// Layering: :core (Android-free engine) <- :ui (this module) <- :app (Android) / :desktop-compose
+// (desktop host). This module must stay free of android.*, androidx.activity, Swing/AWT, storage,
+// crypto and session authority: it renders one immutable VaultUiState and reports interactions back
+// through VaultActions. The pure projection files under `ui/vault/` carry no Compose import at all,
+// so they are unit-tested on a plain JVM (see scripts/kotlin-sandbox/compile-ui.sh).
+//
+// Versions are pinned, never dynamic: the root build rejects dynamic/changing versions.
+//   Compose Multiplatform 1.10.3 is the newest stable 1.10 line; 1.13 is still a beta line and
+//   needs Kotlin 2.4.20+ / AGP 9. The Compose *compiler* plugin must match the Kotlin compiler
+//   (2.4.21) and is declared in the root buildscript.
+apply plugin: 'org.jetbrains.kotlin.multiplatform'
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.compose'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+kotlin {
+    // Android consumes the same commonMain sources the desktop host does; minSdk matches :app.
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
+    }
+    // The desktop target is JVM 11 because the Compose Desktop runtime requires it, while :core and
+    // the Android target stay on the 1.8 bytecode the app has always shipped.
+    jvm('desktop') {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation project(':core')
+
+            // The `compose.*` aliases are deprecated in Compose Multiplatform 1.10 in favour of
+            // explicit coordinates, but the plugin still resolves them to one consistent set of
+            // versions (Material 3's artifact version differs from the rest of the line). Keep the
+            // aliases until every artifact is pinned explicitly and verified against a real build.
+            implementation compose.runtime
+            implementation compose.foundation
+            implementation compose.material3
+            implementation compose.ui
+
+            implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2'
+        }
+        desktopTest.dependencies {
+            // The desktopTest source set covers the pure projection only, so it needs nothing but
+            // JUnit: the same reflective runner the sandbox uses drives these on a host JVM.
+            implementation 'junit:junit:4.13.2'
+        }
+    }
+}
+
+android {
+    namespace = "com.fairuniversal.offlineotp.ui"
+    compileSdk 36
+    defaultConfig {
+        minSdkVersion 28
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

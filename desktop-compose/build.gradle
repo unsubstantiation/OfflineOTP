@@ -1,0 +1,47 @@
+// Compose Desktop host for the shared :ui module (migration stage 1).
+//
+// This module is the *preview* client: it reuses the tested headless desktop engine (:desktop's
+// VaultController/DesktopVaultState) and renders the shared Compose screen instead of the Swing
+// window. Keeping it separate is deliberate:
+//   * :desktop stays Compose-free, so its no-Gradle Swing gate and its Swing-only tests keep
+//     running unchanged while both clients share one engine;
+//   * the shipping desktop client is still `:desktop:run` until the Compose host reaches feature
+//     parity, which is tracked in docs/compose-unified-ui-plan.md;
+//   * nothing Android-specific is dragged into the desktop classpath.
+apply plugin: 'org.jetbrains.kotlin.jvm'
+apply plugin: 'java-library'
+apply plugin: 'application'
+apply plugin: 'org.jetbrains.compose'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+// Compose Desktop requires JVM 11 bytecode, matching the :ui desktop target.
+java {
+    sourceCompatibility = JavaVersion.VERSION_11
+    targetCompatibility = JavaVersion.VERSION_11
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+    }
+}
+
+application {
+    mainClass = 'com.fairuniversal.offlineotp.desktop.compose.ComposeMainKt'
+}
+
+dependencies {
+    implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
+        version { strictly '2.4.21' }
+    }
+
+    // Domain/OTP/vault logic and the headless desktop session, exactly the pair the Swing client uses.
+    implementation project(':core')
+    implementation project(':desktop')
+
+    // The shared Compose UI this host exists to demonstrate.
+    implementation project(':ui')
+
+    // Skiko/AWT binding for the current operating system; the Gradle plugin picks the artifact.
+    implementation compose.desktop.currentOs
+}

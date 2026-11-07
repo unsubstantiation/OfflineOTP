@@ -18,6 +18,11 @@ buildscript {
             version { strictly '2.4.21' }
         }
         classpath 'com.mikepenz.aboutlibraries.plugin:aboutlibraries-plugin:14.2.1'
+        // Compose Multiplatform for the shared :ui module. The Gradle plugin resolves the Compose
+        // artifacts; the compiler plugin is versioned with Kotlin itself, and must stay in lockstep
+        // with the kotlin-gradle-plugin above (2.4.21).
+        classpath 'org.jetbrains.compose:compose-gradle-plugin:1.10.3'
+        classpath 'org.jetbrains.kotlin:compose-compiler-gradle-plugin:2.4.21'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files

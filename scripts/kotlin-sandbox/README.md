@@ -56,6 +56,17 @@ The related host gates read the same `CORE_SOURCES`/`APP_SOURCES`/`STUBS` lists 
   here; heavyweight `JFrame` display tests are skipped. On a host with a display and Gradle, run
   `./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'` for the
   opt-in window, dialog, menu, visibility, search and clipboard checks.
+- `scripts/kotlin-sandbox/compile-ui.sh` is the shared Compose Multiplatform gate: it compiles
+  `:core` first, then `ui/src/commonMain` against the compile-only Compose stubs in
+  [`stubs-compose/`](stubs-compose/README.md), then runs the Compose-free projection tests from
+  `ui/src/desktopTest/kotlin`. A Compose screen that reaches for `android.*`, Swing, storage, crypto
+  or session types fails to compile, and the frame-model tests (grouping, countdown arithmetic,
+  expiry window, masking, tab/tag counts, empty-state wording, both filter combinations) run on a
+  plain JVM. A fourth phase then type-checks `desktop-compose` against the compiled `:desktop` gate
+  output and the Compose Desktop window stubs (running `compile-desktop.sh` first if that output is
+  missing), so the host cannot drift away from the shared screen's API. It compiles composables but
+  never executes one, so it says nothing about layout, rendering, accessibility or the real artifact
+  signatures.
 - `scripts/kotlin-sandbox/compile-android-tests.sh` compiles the instrumentation sources in
   `app/src/androidTest/kotlin` against test stubs.
 
