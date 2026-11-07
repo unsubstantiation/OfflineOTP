@@ -192,8 +192,11 @@ configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15
    format layer compiles for iOS itself;
 4. `brew install xcodegen`, `xcodegen generate`, then `xcodebuild build` for
    `generic/platform=iOS Simulator` with `CODE_SIGNING_ALLOWED=NO` — **no signing identity at all**;
-5. `xcodebuild test` on the newest available iPhone simulator (picked with `simctl`, so an image that
-   renames its devices does not break the job), which runs the app's unit tests;
+5. `xcodebuild test -configuration Release` on the newest available iPhone simulator (picked with
+   `simctl` and booted explicitly, so an image that renames its devices does not break the job),
+   which runs the app's unit tests with `ENABLE_TESTABILITY=YES`. The optimized configuration keeps
+   the repeated production-parameter Argon2id derivations from exhausting the job budget; the step
+   has a 20-minute cap, per-test timeouts, and an XCTest result bundle;
 6. `xcodebuild build` for `-configuration Release -destination 'generic/platform=iOS'` with
    `CODE_SIGN_IDENTITY="" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO`, verified to be an `arm64`
    `IOS` Mach-O (`DTPlatformName = iphoneos`) and packed under `Payload/OfflineOTP.app` into an
@@ -201,6 +204,10 @@ configuration 'macos-14-arm64-us-default' is not supported* — running macOS 15
 7. three checksummed artifacts: `OfflineOTP-ios-unsigned` (`OfflineOTP-ios-unsigned.ipa`, ready for
    sideloaders or local signing), `OfflineOTP-ios-simulator` (the simulator `.app`, packed with
    `ditto`), and `OfflineOTP-ios-kit-source` (the package plus the fixtures it was verified against).
+   A separate `OfflineOTP-ios-diagnostics` artifact keeps the build log and XCTest result bundle for
+   seven days, including on failure. The job budget is 45 minutes, matching the other platform
+   builds, because the Rust/XCFramework and format-test work already takes about 13 minutes before
+   the app tests start.
 
 Device and TestFlight signing stay manual, exactly as releases do on the other platforms: an
 **`ios-release`** environment would hold the distribution certificate (`.p12` plus password), the

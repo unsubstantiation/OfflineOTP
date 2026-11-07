@@ -58,6 +58,12 @@ for a physical device (via local Xcode/signing tools or sideloaders like AltStor
 or shipping to TestFlight stays outside CI. `xcodebuild -list` shows the one shared scheme, `OfflineOTP`,
 whose test action runs `OfflineOTPAppTests`.
 
+CI runs those app tests with `-configuration Release ENABLE_TESTABILITY=YES`: they repeatedly derive
+keys with the production 64 MiB Argon2id parameters, and the optimized build keeps that work inside
+the job budget without weakening the KDF or skipping `@testable` access. The simulator is booted and
+the test step is time-bounded separately, with the build log and `.xcresult` retained as
+`OfflineOTP-ios-diagnostics` even when the job fails.
+
 ## What the tests prove
 
 | Test file | What it pins |

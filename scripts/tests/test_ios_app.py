@@ -321,7 +321,8 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("OfflineOTP-ios-unsigned.ipa", WORKFLOW)
         self.assertIn("OfflineOTP-ios-simulator", WORKFLOW)
         self.assertIn("OfflineOTP-ios-kit-source", WORKFLOW)
-        self.assertEqual(3, WORKFLOW.count("actions/upload-artifact@"))
+        self.assertEqual(4, WORKFLOW.count("actions/upload-artifact@"))
+        self.assertIn("name: OfflineOTP-ios-diagnostics", WORKFLOW)
         self.assertIn("SHA256SUMS.txt", WORKFLOW)
         # Unsigned builds need no certificate; device signing and TestFlight stay manual.
         for forbidden in ("codesign", "xcodebuild archive", "exportArchive", "notarytool",
@@ -740,6 +741,30 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".fileExporter(", vault)
         self.assertIn(".alert(", vault)
         self.assertNotIn(".sheet(", vault)
+
+    def test_the_simulator_test_step_is_bounded_and_optimized(self):
+        """The 30-minute job died in app tests after the app itself had already compiled.
+
+        Keep enough headroom for the native/format work, but make a simulator boot or test hang
+        fail inside its own step and leave an XCTest result bundle behind. The app tests exercise
+        the production Argon2id parameters repeatedly, so they run optimized rather than spending
+        the budget in unoptimized crypto loops.
+        """
+        self.assertIn("timeout-minutes: 45", WORKFLOW)
+        boot = WORKFLOW.split("- name: Boot the app test simulator", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("timeout-minutes: 5", boot)
+        self.assertIn('xcrun simctl bootstatus "$UDID" -b', boot)
+
+        tests = WORKFLOW.split("- name: Run the app unit tests", 1)[1].split("\n      - name:", 1)[0]
+        self.assertIn("timeout-minutes: 20", tests)
+        self.assertIn("-configuration Release", tests)
+        self.assertIn("ENABLE_TESTABILITY=YES", tests)
+        self.assertIn("-resultBundlePath build/AppTests.xcresult", tests)
+        self.assertIn("-parallel-testing-enabled NO", tests)
+        self.assertIn("-test-timeouts-enabled YES", tests)
+        self.assertIn("-default-test-execution-time-allowance 180", tests)
+        self.assertIn("-maximum-test-execution-time-allowance 300", tests)
+        self.assertIn("ios/build/AppTests.xcresult", WORKFLOW)
 
     def test_the_password_edit_sheet_matches_its_initializer(self):
         """Both entry points must supply the editor's arguments in order and its save callback.

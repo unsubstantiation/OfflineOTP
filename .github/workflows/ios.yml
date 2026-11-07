@@ -23,7 +23,10 @@ jobs:
     # `macos-15` and `macos-15-intel` started normally. Both are Apple silicon, so the app target is
     # unchanged; only the Xcode that builds it moved forward.
     runs-on: macos-15
-    timeout-minutes: 30
+    # The Rust/XCFramework and format-test work already takes about 13 minutes before the app
+    # tests start. Match the other platform builds' 45-minute budget; the simulator boot and test
+    # steps below have their own shorter caps so a hang still fails with a useful result bundle.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
@@ -219,11 +222,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build 2>&1 | tee -a build-log.txt
           test -d build/DerivedData/Build/Products/Debug-iphonesimulator/OfflineOTP.app
-      - name: Run the app unit tests
+      - name: Boot the app test simulator
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
-          cd ios
           # An explicit simulator, because `test` needs a concrete device. Picking it here means a
           # runner image that renames its devices (iPhone 15 -> iPhone 16) does not break the job.
           UDID=$(xcrun simctl list devices available --json | jq -er '
@@ -234,11 +237,32 @@ jobs:
               | select(.isAvailable and (.name | startswith("iPhone"))) ]
             | last
             | .udid')
+          echo "UDID=$UDID" >> "$GITHUB_ENV"
           echo "::notice::Testing on the simulator $UDID"
+          # Wait for the device before XCTest asks for it. A boot failure is then a boot failure,
+          # not seventeen minutes of ambiguous `xcodebuild test` output.
+          xcrun simctl bootstatus "$UDID" -b
+      - name: Run the app unit tests
+        timeout-minutes: 20
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ios
+          # These tests repeatedly exercise the real 64 MiB Argon2id KDF. Run them optimized so
+          # the simulator does not spend the job budget in unoptimized crypto loops; testability
+          # stays on for `@testable import OfflineOTP`. The assertions and KDF parameters are the
+          # production ones, and the format suite above still runs in its default configuration.
+          rm -rf build/AppTests.xcresult
           xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
+            -configuration Release \
             -destination "platform=iOS Simulator,id=$UDID" \
             -derivedDataPath build/DerivedData \
-            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            -resultBundlePath build/AppTests.xcresult \
+            -parallel-testing-enabled NO \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 180 \
+            -maximum-test-execution-time-allowance 300 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO ENABLE_TESTABILITY=YES \
             test 2>&1 | tee -a build-log.txt
       - name: Build the unsigned Release app for iOS devices
         shell: bash
@@ -331,6 +355,13 @@ jobs:
             [ -n "$line" ] || continue
             echo "::notice title=Build log::${line}"
           done <<< "$diagnostics"
+          # A cancelled run may have no `error:` line at all. Publish the last XCTest progress
+          # separately so the run page shows whether tests started and which one was last active.
+          progress=$(grep -E 'Test Case .* (passed|failed)|Test Suite .* (passed|failed)|Testing (started|failed)|TEST (SUCCEEDED|FAILED)' ios/build-log.txt | tail -30 || true)
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            echo "::notice title=App tests::${line}"
+          done <<< "$progress"
           exit 0
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -346,6 +377,15 @@ jobs:
             artifacts/OfflineOTP-ios-kit-source.zip
             artifacts/SHA256SUMS.txt
           if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: OfflineOTP-ios-diagnostics
+          path: |
+            ios/build-log.txt
+            ios/build/AppTests.xcresult
+          if-no-files-found: warn
+          retention-days: 7
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: OfflineOTP-ios-simulator
