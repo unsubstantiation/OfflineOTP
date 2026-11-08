@@ -360,6 +360,18 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_android_frame_bridge_keeps_async_publication_and_live_identity_checks(self):
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("VaultProjection(entries, presentation).snapshot(", controller)
+        self.assertNotIn(".applyFilter(", controller)
+        self.assertIn("presentation.selection()", controller)
+        self.assertIn("VaultFilterCombination.SEARCH_OVERRIDES_TAGS", controller)
+        self.assertIn("target.resolve(entries, generation)", controller)
+        self.assertIn("!VaultSession.isCurrent(generation)", controller)
+        self.assertIn('cardActions.onCopyButtonClicked("", position)', controller)
+        self.assertIn("command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()", controller)
+        self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
+
     def test_android_controller_owns_vault_rules_without_recycler_dependencies(self):
         view = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View"
         controller = (view / "AndroidVaultController.kt").read_text()

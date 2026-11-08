@@ -112,6 +112,7 @@ kotlin {
 dependencies {
     // Android-free OTP/parser/policy primitives shared with the desktop client.
     implementation project(':core')
+    implementation project(':ui-model')
 
     implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
         version { strictly '2.4.21' }

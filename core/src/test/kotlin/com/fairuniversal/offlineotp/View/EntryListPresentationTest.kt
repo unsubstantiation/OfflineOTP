@@ -22,6 +22,30 @@ class EntryListPresentationTest {
         (0 until presentation.size()).map { presentation.get(it).getLabel() }
 
     @Test
+    fun readingSelectionDoesNotInvalidateSearchAndReturnsDetachedLists() {
+        val source = EntryList()
+        val entry = entry("alice", "work")
+        source.addEntry(entry)
+        val presentation = EntryListPresentation(source)
+        presentation.setCategory(EntryListPresentation.Category.OTP)
+        presentation.filterByTags(listOf("work"), false, or)
+        presentation.setSortMode(Constants.SortMode.LABEL)
+        presentation.setSearch("alice", labelSearch)
+        val result = presentation.search("alice", labelSearch)
+        val selection = presentation.selection()
+        assertEquals("alice", selection.query)
+        assertEquals(EntryListPresentation.Category.OTP, selection.category)
+        assertEquals(Constants.SortMode.LABEL, selection.sortMode)
+        (selection.tags as MutableList<String>).clear()
+        (selection.includes as MutableList<Constants.SearchIncludes>).clear()
+        assertEquals(listOf("work"), presentation.selection().tags)
+        assertEquals(labelSearch, presentation.selection().includes)
+        assertTrue(presentation.publishSearch(result))
+        assertEquals(listOf("alice"), labels(presentation))
+        entry.destroy()
+    }
+
+    @Test
     fun activeSearchSurvivesTagSortAndEntryChangesUntilCleared() {
         val source = EntryList()
         val first = entry("alice-work", "work")

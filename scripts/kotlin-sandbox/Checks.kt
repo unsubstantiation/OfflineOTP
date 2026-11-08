@@ -122,6 +122,8 @@ import com.fairuniversal.offlineotp.Activities.MainActivity
 import com.fairuniversal.offlineotp.Activities.SettingsActivity
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
 import com.fairuniversal.offlineotp.Preferences.CredentialsPreference
+import com.fairuniversal.offlineotp.View.AndroidVaultController
+import com.fairuniversal.offlineotp.View.EntryCardEvents
 import com.fairuniversal.offlineotp.View.EntriesCardAdapter
 import com.fairuniversal.offlineotp.View.EntryActionDialogs
 import com.fairuniversal.offlineotp.View.EntryViewHolder
@@ -5907,9 +5909,9 @@ fun main() {
         expect(Modifier.isFinal(manual.modifiers), { "the ManualEntryDialog object is not final" })
         expect(manual.getDeclaredField("INSTANCE").type == manual,
                 { "the ManualEntryDialog object is missing INSTANCE" })
-        expectMethod(manual, "static void show(MainActivity,Settings,EntriesCardAdapter)")
-        expectMethod(manual, "static void show(MainActivity,Settings,EntriesCardAdapter,Entry,UpdateCallback)")
-        expectMethod(manual, "static void showNew(MainActivity,Settings,EntriesCardAdapter,OTPType)")
+        expectMethod(manual, "static void show(MainActivity,Settings,EntryEditorHost)")
+        expectMethod(manual, "static void show(MainActivity,Settings,EntryEditorHost,Entry,UpdateCallback)")
+        expectMethod(manual, "static void showNew(MainActivity,Settings,EntryEditorHost,OTPType)")
         expect(ManualEntryDialog.UpdateCallback::class.java.isInterface,
                 { "the manual entry callback is no longer an interface" })
 
@@ -5920,7 +5922,7 @@ fun main() {
                 { "EntryViewHolder lost its RecyclerView.ViewHolder base" })
         expect(ItemTouchHelperViewHolder::class.java.isAssignableFrom(holder),
                 { "EntryViewHolder lost the drag/drop callback" })
-        expect(EntryViewHolder.Callback::class.java.isInterface,
+        expect(EntryCardEvents::class.java.isInterface,
                 { "the card callback is no longer an interface" })
 
         // The card adapter: the same base classes, and the read/write key field.
@@ -5930,7 +5932,7 @@ fun main() {
                 { "EntriesCardAdapter lost its RecyclerView.Adapter base" })
         expect(Filterable::class.java.isAssignableFrom(adapter),
                 { "EntriesCardAdapter lost the Filterable contract" })
-        val encryptionKey = adapter.getDeclaredField("encryptionKey")
+        val encryptionKey = AndroidVaultController::class.java.getDeclaredField("encryptionKey")
         expect(!Modifier.isStatic(encryptionKey.modifiers) && !Modifier.isFinal(encryptionKey.modifiers) &&
                 encryptionKey.type == SecretKey::class.java,
                 { "encryptionKey must stay a writable SecretKey field" })
@@ -6003,7 +6005,7 @@ fun main() {
         val fixture = SettingsFixture()
         val activity = MainActivity()
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
-        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter)
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
         val show = MainActivity::class.java.getDeclaredMethod("showDuplicateIssuerConfirmation",
             Entry::class.java, String::class.java).apply { isAccessible = true }
         val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
@@ -6041,7 +6043,7 @@ fun main() {
         val fixture = SettingsFixture()
         val activity = MainActivity()
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
-        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter)
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
         val add = MainActivity::class.java.getDeclaredMethod("addQRCode", String::class.java).apply { isAccessible = true }
         val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
         val collectorField = MainActivity::class.java.getDeclaredField("migrationCollector").apply { isAccessible = true }
@@ -6107,8 +6109,8 @@ fun main() {
             override fun getFilesDir(): File = emptyFiles
         })
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
-        val list = EntriesCardAdapter::class.java.getDeclaredField("entries").apply { isAccessible = true }
-            .get(adapter) as EntryList
+        val list = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(adapter.controller) as EntryList
         val existing = Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example")
         list.addEntry(existing)
         val key = SecretKeySpec(ByteArray(32) { 5 }, "AES")
@@ -6145,8 +6147,8 @@ fun main() {
         val fixture = SettingsFixture()
         val tags = TagsAdapter(fixture.context, hashMapOf("work" to true, "home" to false))
         val adapter = EntriesCardAdapter(fixture.context, tags)
-        val field = EntriesCardAdapter::class.java.getDeclaredField("entries").apply { isAccessible = true }
-        val entries = field.get(adapter) as EntryList
+        val field = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+        val entries = field.get(adapter.controller) as EntryList
         val first = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "alice-work",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf("work"))
         val second = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "alice-home",
@@ -6174,6 +6176,49 @@ fun main() {
             expect(adapter.getItemCount() == 1, { "clearing search must restore the selected tag" })
         } finally {
             adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("Android shared frames preserve projection and reject stale card commands") {
+        val fixture = SettingsFixture()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val controller = adapter.controller
+        val field = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+        val source = field.get(controller) as EntryList
+        val first = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "Bank", "alice",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        val second = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "Bank", "bob",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val copy = com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY
+        val privacy = com.fairuniversal.offlineotp.View.AndroidCardCommand.PRIVACY
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        source.addEntry(first)
+        source.addEntry(second)
+        try {
+            controller.setSearchQuery("alice")
+            val frame = controller.composeFrame(1_000L, strings)!!
+            expect(frame.state.cards.map { it.id } == listOf(first.getListId()), { "frame ignored async projection" })
+            expect(frame.state.filter.query == "alice", { "frame lost search metadata" })
+            expect(!frame.perform(second.getListId(), privacy), { "a row absent from the frame gained authority" })
+            first.setDetailsVisible(false)
+            expect(!frame.perform(first.getListId(), copy), { "hidden entry could be copied" })
+            // Replacing with the same stable id must not transfer old-frame authority.
+            val replacement = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "Bank", "new",
+                TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+            source.replaceEntry(0, replacement)
+            expect(!frame.perform(first.getListId(), privacy), { "replaced entry inherited stale callback" })
+            controller.lockEntries()
+            expect(controller.composeFrame(1_000L, strings) == null, { "locked controller emitted a frame" })
+            expect(!frame.perform(first.getListId(), privacy), { "locked frame kept command authority" })
+        } finally {
+            controller.lockEntries()
+            first.destroy()
+            second.destroy()
             VaultSession.lock()
         }
     }
@@ -6373,7 +6418,7 @@ fun main() {
         // Even synthetic clicks on hidden buttons/cards are blocked, while the eye remains usable.
         var protectedActions = 0
         var visibilityActions = 0
-        holder.setCallback(object : EntryViewHolder.Callback {
+        holder.setCallback(object : EntryCardEvents {
             override fun onMoveEventStart() = Unit
             override fun onMoveEventStop() = Unit
             override fun onPrivacyClicked(position: Int) { visibilityActions++ }
@@ -7955,7 +8000,7 @@ fun main() {
 
         // Read from the repository root, which is where run.sh starts this program.
         val adapter = java.io.File(
-            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt").readText()
+            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").readText()
         val removal = adapter.substringAfter("fun removeItem(").substringBefore("\n    }\n")
         expect(removal.contains("dialogs.delete(entry.privacyTitle(),"),
             { "the Android removal prompt must use the shared identity rule" })

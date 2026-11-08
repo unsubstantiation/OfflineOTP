@@ -51,6 +51,11 @@ import java.util.concurrent.Callable
 import java.util.function.BiConsumer
 import java.util.function.Consumer
 
+import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
+import com.fairuniversal.offlineotp.ui.vault.VaultFilter
+import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
+import com.fairuniversal.offlineotp.ui.vault.VaultProjection
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import javax.crypto.SecretKey
 
 /** Android vault operations and session/search ownership, independent of the list renderer. */
@@ -81,6 +86,86 @@ class AndroidVaultController(
     fun getItemCount(): Int = presentation.size()
 
     fun getItemId(position: Int): Long = presentation.get(position).getListId()
+
+    /**
+     * Read the already-published Android projection. Never call applyFilter here: doing so would
+     * bypass EntryFilter's generation/revision-checked asynchronous publication.
+     */
+    fun composeFrame(nowMillis: Long, strings: VaultStrings): AndroidVaultFrame? {
+        synchronized(VaultSession.MutationLock) {
+            if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return null
+            val generation = VaultSession.generation()
+            val selection = presentation.selection()
+            val filter = VaultFilter(
+                query = selection.query, searchIncludes = selection.includes,
+                category = selection.category, sortMode = selection.sortMode,
+                selectedTags = selection.tags, untaggedSelected = settings.getNoTagsToggle(),
+                tagFunctionality = settings.getTagFunctionality(),
+                combination = VaultFilterCombination.SEARCH_OVERRIDES_TAGS
+            )
+            val shown = (0 until presentation.size()).map { presentation.get(it) }
+            val revealed = shown.filter { entry ->
+                entry.areDetailsVisible() &&
+                    ((!entry.isTimeBased() && !entry.isCounterBased()) || !settings.getTapToReveal() || entry.isVisible())
+            }.map { it.getListId() }.toSet()
+            val appearance = VaultAppearance(
+                showThumbnails = settings.getThumbnailVisible(),
+                labelDisplay = settings.getLabelDisplay()
+            )
+            val state = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
+            val targets = shown.associate { it.getListId() to EntryActionTarget(it, generation) }
+            return AndroidVaultFrame(state) { id, command, anchor ->
+                val target = targets[id]
+                if (target == null) false else dispatchFrameCommand(target, generation, command, anchor)
+            }
+        }
+    }
+
+    private fun dispatchFrameCommand(
+        target: EntryActionTarget, generation: Long, command: AndroidCardCommand, anchor: View?
+    ): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            if (!VaultSession.isCurrent(generation) || encryptionKey == null || VaultSession.getKey() !== encryptionKey)
+                return false
+            val entry = target.resolve(entries, generation) ?: return false
+            val position = presentation.indexOf(entry)
+            if (position < 0) return false
+            if (command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()) return false
+            // Obtain current token text from the live entry, never from a potentially stale frame.
+            when (command) {
+                AndroidCardCommand.PRIVACY -> cardActions.onPrivacyClicked(position)
+                AndroidCardCommand.COPY -> {
+                    if (entry.isTimeBased()) entry.updateOTP(false)
+                    if ((entry.isTimeBased() || entry.isCounterBased()) && !entry.hasCopyableToken() &&
+                        !(entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty())) return false
+                    cardActions.onCopyButtonClicked("", position)
+                }
+                AndroidCardCommand.REVEAL_TOKEN -> {
+                    if (!establishPinIfNeeded(position)) cardTapToRevealHandler(position)
+                }
+                AndroidCardCommand.NEXT_COUNTER -> {
+                    if (!entry.isCounterBased()) return false
+                    cardActions.onCounterClicked(position)
+                }
+                AndroidCardCommand.EDIT_COUNTER -> {
+                    if (!entry.isCounterBased()) return false
+                    cardActions.onCounterLongPressed(position)
+                }
+                AndroidCardCommand.ENTER_PIN -> {
+                    if (entry.getType() != Entry.OTPType.MOTP) return false
+                    establishPIN(position)
+                }
+                AndroidCardCommand.DELETE -> removeItem(position)
+                AndroidCardCommand.MENU -> {
+                    if (anchor == null) return false
+                    showPopupMenu(anchor, position)
+                }
+                AndroidCardCommand.SINGLE_TAP -> cardActions.onCardSingleClicked(position, "")
+                AndroidCardCommand.DOUBLE_TAP -> cardActions.onCardDoubleClicked(position, "")
+            }
+            return true
+        }
+    }
 
     fun getEntries(): ArrayList<Entry> = entries.getEntries()
 

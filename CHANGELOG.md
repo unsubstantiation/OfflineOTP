@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android: Bridge the extracted controller to shared vault frames with generation- and identity-checked card commands. Preserve asynchronous search publication and existing Android action handlers; Activity display cutover remains pending.
+
  * Android: Extract vault/session/search/action ownership into AndroidVaultController. The Activity uses the controller for vault operations; RecyclerView remains a temporary renderer until the Compose cutover.
 
  * Compose desktop: Resample wall time on every token tick rather than extrapolating from unlock time, so clock corrections reach OTPs and countdowns on the next refresh.

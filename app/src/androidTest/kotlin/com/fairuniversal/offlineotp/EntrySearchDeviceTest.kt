@@ -5,6 +5,8 @@ import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -17,6 +19,8 @@ import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.View.AndroidVaultController
 import com.fairuniversal.offlineotp.View.TagsAdapter
+import com.fairuniversal.offlineotp.View.AndroidCardCommand
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import javax.crypto.spec.SecretKeySpec
 
 /** Exercises the real Android Filter worker and main-thread publication without writing a vault. */
@@ -54,6 +58,8 @@ class EntrySearchDeviceTest {
                 source.addEntry(third)
                 created.filterByTags(listOf("work"))
                 created.setSearchQuery("alice")
+                // Snapshotting during async search must not invalidate its pending revision.
+                assertEquals("alice", created.composeFrame(1_000L, VaultStrings.English)!!.state.filter.query)
             }
 
             val current = requireNotNull(adapter)
@@ -77,7 +83,14 @@ class EntrySearchDeviceTest {
                 current.setSearchQuery("")
                 assertEquals(listOf(second.getListId()), ids(current))
                 assertTrue(notifications > 0)
+                val frame = current.composeFrame(1_000L, VaultStrings.English)!!
+                assertEquals(ids(current), frame.state.cards.map { it.id })
+                // Privacy is checked before commands, independently of the shared row's masking.
+                second.setDetailsVisible(false)
+                assertFalse(frame.perform(second.getListId(), AndroidCardCommand.COPY))
                 current.lockEntries()
+                assertNull(current.composeFrame(1_000L, VaultStrings.English))
+                assertFalse(frame.perform(second.getListId(), AndroidCardCommand.PRIVACY))
                 assertEquals(0, current.getItemCount())
             }
         } finally {

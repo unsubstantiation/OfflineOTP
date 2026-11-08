@@ -409,3 +409,25 @@ followed the moved rule implementations, and new guards enforce the renderer/con
 This completes the controller extraction prerequisite, not the Compose Activity cutover.
 The remaining shared-screen capability mapping, Activity publication/wiring, obsolete renderer
 removal and real Android build/device checks described above remain outstanding.
+
+### Android shared frame/action bridge
+
+The app now depends on `:ui-model`. `AndroidVaultController.composeFrame` snapshots its
+already-published presentation through `VaultProjection.snapshot`, preserving Android's
+revision-checked asynchronous search path rather than calling `applyFilter`. A detached
+`EntryListPresentation.selection()` supplies filter metadata without changing the revision.
+
+`AndroidVaultFrame` couples the shared state to commands bound to the frame's generation and
+entry identities. Commands resolve the current displayed position under the session mutation
+lock, reject removed/replaced/hidden entries, and dispatch to existing Android privacy, copy,
+tap, counter, PIN, deletion and popup handlers. Privacy toggling is the only command allowed
+on a concealed entry. Copy takes the current live token, never a token supplied by a stale frame.
+The bridge carries an Android View only when anchoring an existing popup, not as row identity.
+
+A core test pins selection snapshot isolation and search-revision preservation. The Android
+search device test now requests frames during search and checks hidden-entry/locked-session
+rejection; it has only been type-checked in the sandbox. The app source gate includes the real
+ui-model sources, not stand-ins for the new bridge.
+
+Activity display still uses the compatibility renderer: binding this bridge to the Compose
+view, adding the remaining shared-screen capabilities and removing RecyclerView rows are next.
