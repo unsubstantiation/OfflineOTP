@@ -77,7 +77,7 @@ class AddEntryMenuTest(unittest.TestCase):
         self.assertIn("activeDialog?.dismiss()", editor)
         for field in ("secretInput", "sshPublicInput", "otpUriInput"):
             self.assertIn(field + '.setText("")', editor)
-        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt")
         self.assertIn("ManualEntryDialog.dismissActive()", adapter.read_text(encoding="utf-8"))
 
     def test_menu_is_bottom_anchored_scrollable_and_above_overlay(self):

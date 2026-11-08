@@ -122,12 +122,13 @@ class LifecycleAndVaultSessionGuardTest(unittest.TestCase):
 
     def test_entries_adapter_guards_transient_dialogs_and_re_resolves_hidden_entry_index(self):
         text = read_text(
-            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt"
+            "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt"
         )
         self.assertIn("ManualEntryDialog.dismissActive()", text)
         self.assertIn("activeQrDialog?.dismiss()", text)
         self.assertIn("val currentPos = presentation.indexOf(entry)", text)
-        self.assertIn("override fun onViewRecycled(holder: EntryViewHolder)", text)
+        renderer = read_text("app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
+        self.assertIn("override fun onViewRecycled(holder: EntryViewHolder)", renderer)
 
     def test_encrypted_backup_worker_guards_zero_message_id(self):
         text = read_text(

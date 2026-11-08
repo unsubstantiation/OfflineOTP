@@ -103,7 +103,7 @@ class AndroidSshConnectionEditorTest(unittest.TestCase):
         self.assertIn('name="hint_ssh_port"', self.strings)
 
     def test_the_copy_menu_offers_the_password_only_when_it_is_stored(self):
-        adapter = read(APP / "kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
+        adapter = read(APP / "kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt")
         self.assertIn("if (!connection?.password.isNullOrEmpty())", adapter)
         self.assertIn("SshField.PASSWORD -> actual.getSshConnection()?.password.orEmpty()", adapter)
 

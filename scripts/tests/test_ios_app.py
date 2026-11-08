@@ -558,7 +558,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("dismissMigrationImport()", activity)
         # An identical account is skipped, not imported twice: Android's `importEntries` rule.
         adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/"
-                   "EntriesCardAdapter.kt").read_text(encoding="utf-8")
+                   "AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("if (!distinct.add(entry))", adapter)
         self.assertIn("EntryUsage.markImported(it, now)", adapter)
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")

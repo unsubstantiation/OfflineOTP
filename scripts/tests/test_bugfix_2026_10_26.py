@@ -67,7 +67,7 @@ class ScreenshotAndCardRefreshTest(unittest.TestCase):
         self.assertIn("timeoutAnimator?.cancel()", main)
 
     def test_pin_menu_uses_the_entry_not_the_stale_row(self):
-        text = read("View/EntriesCardAdapter.kt")
+        text = read("View/AndroidVaultController.kt")
         menu = text.split("menu_popup_establishPin", 1)[1].split("menu_popup_remove", 1)[0]
         self.assertIn("presentation.indexOf(popupEntry)", menu)
         self.assertNotIn("establishPIN(pos)", menu)

@@ -24,7 +24,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt"
+ADAPTER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt"
 MAIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt"
 
 

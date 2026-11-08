@@ -115,7 +115,7 @@ class BrowserPasswordExportTest(unittest.TestCase):
         menu = read(RES / "menu/menu_popup.xml")
         self.assertIn('android:id="@+id/menu_popup_edit_password"', menu)
         self.assertIn('android:id="@+id/menu_popup_export_password_csv"', menu)
-        adapter = read(APP / "View/EntriesCardAdapter.kt")
+        adapter = read(APP / "View/AndroidVaultController.kt")
         self.assertIn("PasswordEntryEditDialog.show(hostActivity, actual)", adapter)
         self.assertIn("requestPasswordCsvExport(actual)", adapter)
         self.assertIn("PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable", adapter)

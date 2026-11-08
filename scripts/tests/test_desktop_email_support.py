@@ -91,7 +91,7 @@ class DesktopEmailSupportTest(unittest.TestCase):
         self.assertIn("const val SECRET_MASK", material)
         self.assertIn("fun details(account: Account, revealSecrets: Boolean)", material)
         # Android's card dialog uses the shared builder instead of its own row code.
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)", adapter)
         self.assertNotIn('append("Auth type: ")', adapter)
         # The desktop dialog starts masked and only reveals on request.

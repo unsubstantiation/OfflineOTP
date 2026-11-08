@@ -360,6 +360,20 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_android_controller_owns_vault_rules_without_recycler_dependencies(self):
+        view = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View"
+        controller = (view / "AndroidVaultController.kt").read_text()
+        renderer = (view / "EntriesCardAdapter.kt").read_text()
+        for forbidden in ("RecyclerView", "EntryViewHolder", "LayoutInflater", "component_card_"):
+            self.assertNotIn(forbidden, controller)
+        for rule in ("VaultSession.MutationLock", "presentation.publishSearch", "persistence.save("):
+            self.assertIn(rule, controller)
+            self.assertNotIn(rule, renderer)
+        self.assertIn("controller.cardActions", renderer)
+        self.assertIn("controller.prepareEntry(i)", renderer)
+        self.assertIn("override fun changed() = notifyDataSetChanged()", renderer)
+        self.assertIn("interface EntryCardEvents", (view / "EntryCardEvents.kt").read_text())
+
     def test_manual_editor_accepts_a_renderer_independent_host(self):
         app = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
         dialog = (app / "Dialogs/ManualEntryDialog.kt").read_text()

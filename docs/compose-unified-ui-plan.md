@@ -390,3 +390,22 @@ Remaining work identified from the current code, in dependency order:
 The old rendered rows use `component_card_default`, `component_card_compact` and
 `component_card_full` through `EntryViewHolder`; deletion should follow actual references,
 not assume that removing a single `item_entry_card.xml` completes the UI migration.
+
+### Android controller extracted
+
+`AndroidVaultController` now owns the former adapter's vault entries, presentation, key,
+persistence/backup handling, async search publication, privacy timers and Android action dialogs.
+`EntryCardEvents` carries the existing Android card commands without a ViewHolder dependency.
+A small `Changes` notification port lets any renderer observe mutations. The controller has no
+RecyclerView, row inflation or holder imports; it still intentionally owns Android platform
+services and dialogs, which need not be reimplemented just to change the list renderer.
+
+`EntriesCardAdapter` is now a compatibility renderer that delegates to the controller. The
+Activity's vault-operation field references that controller directly, while its initial list
+wiring still constructs and displays RecyclerView rows. The async-search device test constructs
+the controller without a renderer; it is type-checked here, not executed. Existing source guards
+followed the moved rule implementations, and new guards enforce the renderer/controller split.
+
+This completes the controller extraction prerequisite, not the Compose Activity cutover.
+The remaining shared-screen capability mapping, Activity publication/wiring, obsolete renderer
+removal and real Android build/device checks described above remain outstanding.

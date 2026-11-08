@@ -15,7 +15,7 @@ def body(text, signature):
 class CompletedFeatureWiringTest(unittest.TestCase):
     def test_search_text_is_kept_in_the_adapter_during_list_refresh(self):
         main = (APP / "Activities/MainActivity.kt").read_text(encoding="utf-8")
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("currentAdapter.setSearchQuery(newText)", body(main, "private fun setFilterString"))
         self.assertIn("presentation.setSearch(query, settings.getSearchValues())",
                       body(adapter, "fun setSearchQuery"))
@@ -36,7 +36,7 @@ class CompletedFeatureWiringTest(unittest.TestCase):
 
     def test_card_and_import_preview_use_the_actual_token_step(self):
         holder = (APP / "View/EntryViewHolder.kt").read_text(encoding="utf-8")
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         main = (APP / "Activities/MainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("entry.hasNonDefaultTokenStep()", holder)
         self.assertIn("entry.getTokenStepSeconds()", holder)

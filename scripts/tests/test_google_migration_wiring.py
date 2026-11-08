@@ -37,7 +37,7 @@ class GoogleMigrationWiringTest(unittest.TestCase):
         self.assertIn("pending.close()", confirmation)
 
     def test_batch_persists_once_before_updating_the_adapter(self):
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         method = body(adapter, "internal fun importEntries")
         self.assertEqual(1, method.count("persistence.save("))
         self.assertLess(method.index("persistence.save("), method.index("entries.addDistinctEntries(accepted)"))

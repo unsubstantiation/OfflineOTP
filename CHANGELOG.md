@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android: Extract vault/session/search/action ownership into AndroidVaultController. The Activity uses the controller for vault operations; RecyclerView remains a temporary renderer until the Compose cutover.
+
  * Compose desktop: Resample wall time on every token tick rather than extrapolating from unlock time, so clock corrections reach OTPs and countdowns on the next refresh.
 
  * Desktop: Share Swing and Compose HOTP/deletion persistence handlers. Roll back Swing counters on failed saves, and bind deletion confirmation to the selected entry rather than a row that may change while the dialog is open.

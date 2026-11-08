@@ -40,15 +40,15 @@ class SharedClientLogicTest(unittest.TestCase):
 
     def test_both_clients_use_the_shared_usage_rules(self):
         # A copy on either client records one use through the shared helper.
-        self.assertIn("EntryUsage.recordUse(", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("EntryUsage.recordUse(", text(APP / "View/AndroidVaultController.kt"))
         self.assertIn("EntryUsage.recordUse(", text(DESKTOP / "control/EntryEditor.kt"))
         # New and imported entries are stamped through the shared helper as well.
-        self.assertIn("EntryUsage.markImported(", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("EntryUsage.markImported(", text(APP / "View/AndroidVaultController.kt"))
         # The manual-entry dialogs stamp through EntryDraft.create(..., newEntry = true).
         self.assertIn("EntryDraft.create(", text(APP / "Dialogs/ManualEntryDialog.kt"))
         self.assertIn("EntryUsage.markImported(", text(DESKTOP / "control/EntryEditor.kt"))
         # The HOTP advance and its ceiling are shared, not re-derived per client.
-        self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/AndroidVaultController.kt"))
         self.assertIn("EntryUsage.advanceHotp(", text(DESKTOP / "control/DesktopVaultState.kt"))
         self.assertIn("state.advanceCounter(", text(DESKTOP / "control/EntryEditor.kt"))
         self.assertIn("state.deleteEntry(", text(DESKTOP / "control/EntryEditor.kt"))
@@ -92,7 +92,7 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("categoryOf(entry) == selected", text(CORE / "View/EntryListPresentation.kt"))
 
     def test_both_clients_use_the_shared_qr_predicate(self):
-        self.assertIn("hasOtpUri()", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("hasOtpUri()", text(APP / "View/AndroidVaultController.kt"))
         self.assertIn("hasOtpUri()", text(DESKTOP / "qr/QrCodeImage.kt"))
         self.assertIn("fun hasOtpUri()", text(CORE / "Database/Entry.kt"))
 

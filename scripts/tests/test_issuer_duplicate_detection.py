@@ -21,7 +21,7 @@ class IssuerDuplicateDetectionTest(unittest.TestCase):
 
     def test_issuer_matching_is_case_and_whitespace_insensitive_and_skips_empty_issuer(self):
         entry_list = (CORE / "Database/EntryList.kt").read_text(encoding="utf-8")
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("fun hasIssuer(issuer: String?): Boolean", entry_list)
         self.assertIn("if (candidate.isEmpty()) return false", entry_list)
         self.assertIn("equals(candidate, ignoreCase = true)", entry_list)

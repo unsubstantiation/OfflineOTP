@@ -15,7 +15,7 @@ import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultSession
-import com.fairuniversal.offlineotp.View.EntriesCardAdapter
+import com.fairuniversal.offlineotp.View.AndroidVaultController
 import com.fairuniversal.offlineotp.View.TagsAdapter
 import javax.crypto.spec.SecretKeySpec
 
@@ -31,16 +31,22 @@ class EntrySearchDeviceTest {
         val third = entry("bob", "work")
         val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        var adapter: EntriesCardAdapter? = null
+        var adapter: AndroidVaultController? = null
+        var notifications = 0
         try {
             instrumentation.runOnMainSync {
                 val unlock = VaultSession.beginUnlock()
                 assertTrue(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied)
                 val tags = TagsAdapter(context, hashMapOf("work" to true, "home" to false))
-                val created = EntriesCardAdapter(context, tags)
+                val created = AndroidVaultController(context, tags, object : AndroidVaultController.Changes {
+                    override fun changed() { notifications++ }
+                    override fun itemChanged(position: Int) { notifications++ }
+                    override fun itemMoved(from: Int, to: Int) { notifications++ }
+                    override fun itemRemoved(position: Int) { notifications++ }
+                })
                 adapter = created
                 created.encryptionKey = key
-                val field = EntriesCardAdapter::class.java.getDeclaredField("entries")
+                val field = com.fairuniversal.offlineotp.View.AndroidVaultController::class.java.getDeclaredField("entries")
                 field.isAccessible = true
                 val source = field.get(created) as EntryList
                 source.addEntry(first)
@@ -70,6 +76,9 @@ class EntrySearchDeviceTest {
                 assertEquals(listOf(second.getListId(), third.getListId(), first.getListId()), ids(current))
                 current.setSearchQuery("")
                 assertEquals(listOf(second.getListId()), ids(current))
+                assertTrue(notifications > 0)
+                current.lockEntries()
+                assertEquals(0, current.getItemCount())
             }
         } finally {
             instrumentation.runOnMainSync { adapter?.lockEntries() }
@@ -84,6 +93,6 @@ class EntrySearchDeviceTest {
         Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "", label,
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf(tag))
 
-    private fun ids(adapter: EntriesCardAdapter): List<Long> =
+    private fun ids(adapter: AndroidVaultController): List<Long> =
         (0 until adapter.getItemCount()).map { adapter.getItemId(it) }
 }

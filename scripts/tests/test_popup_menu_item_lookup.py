@@ -53,7 +53,7 @@ class PopupMenuItemLookupTest(unittest.TestCase):
 
     def test_establish_pin_revealed_by_id(self):
         """The mOTP PIN row is revealed with a by-id lookup and stays hidden by default."""
-        adapter = APP_KOTLIN / "View/EntriesCardAdapter.kt"
+        adapter = APP_KOTLIN / "View/AndroidVaultController.kt"
         text = adapter.read_text(encoding="utf-8")
         self.assertIn(
             'popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)',

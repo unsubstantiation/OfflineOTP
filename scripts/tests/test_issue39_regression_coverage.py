@@ -29,7 +29,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("unrelatedOrStaleResultsCannotUnlock", policy)
 
     def test_stale_card_callbacks_guard_indexes_before_access(self):
-        adapter = read(APP / "View/EntriesCardAdapter.kt")
+        adapter = read(APP / "View/AndroidVaultController.kt")
         guards = read(CORE_TEST / "View/EntryIndexGuardTest.kt")
         hide = adapter[adapter.index("private fun hideEntry("):adapter.index("private fun showActionDialog(")]
         self.assertLess(hide.index("EntryIndexGuard.isValid"), hide.index("entries.getEntry(realIndex)"))

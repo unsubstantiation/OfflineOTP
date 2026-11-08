@@ -184,6 +184,8 @@ APP_SOURCES=(
     "$KOTLIN_APP/Utilities/VaultRestoreOperation.kt"
     "$KOTLIN_APP/View/AutoFillable/AutoFillableTextInputEditText.kt"
     "$KOTLIN_APP/View/EntryEditorHost.kt"
+    "$KOTLIN_APP/View/AndroidVaultController.kt"
+    "$KOTLIN_APP/View/EntryCardEvents.kt"
     "$KOTLIN_APP/View/EntriesCardAdapter.kt"
     "$KOTLIN_APP/View/EntryActionDialogs.kt"
     "$KOTLIN_APP/View/EntryViewHolder.kt"

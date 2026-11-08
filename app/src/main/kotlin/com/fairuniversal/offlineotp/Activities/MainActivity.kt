@@ -85,6 +85,7 @@ import com.fairuniversal.offlineotp.Utilities.SessionLockReason
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.View.AndroidVaultController
 import com.fairuniversal.offlineotp.View.EntriesCardAdapter
 import com.fairuniversal.offlineotp.View.ItemTouchHelper.SimpleItemTouchHelperCallback
 import com.fairuniversal.offlineotp.View.TagsAdapter
@@ -97,7 +98,7 @@ import javax.crypto.SecretKey
 /** Main screen displaying the OTP entry list, search, tag drawer, and authentication flow. */
 open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceChangeListener {
 
-    private var adapter: EntriesCardAdapter? = null
+    private var adapter: AndroidVaultController? = null
     private var speedDial: SpeedDialView? = null
     private var passwordImportMode: PasswordImport.Mode? = null
     private var passwordExportName: String? = null
@@ -515,7 +516,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val drawerAdapter = TagsAdapter(this, HashMap<String, Boolean?>())
         tagsDrawerAdapter = drawerAdapter
         val cardAdapter = EntriesCardAdapter(this, drawerAdapter)
-        adapter = cardAdapter
+        adapter = cardAdapter.controller
         val categories = requireNotNull(findViewById<TabLayout>(R.id.entry_categories))
         listOf(R.string.tab_otp, R.string.tab_notes, R.string.tab_ssh_keys, R.string.tab_passwords, R.string.tab_email)
             .forEach { categories.addTab(categories.newTab().setText(getString(it))) }

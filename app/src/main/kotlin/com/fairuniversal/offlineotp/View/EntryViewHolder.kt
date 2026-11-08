@@ -36,7 +36,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     RecyclerView.ViewHolder(v), ItemTouchHelperViewHolder {
 
     private val context: Context = context
-    private var callback: Callback? = null
+    private var callback: EntryCardEvents? = null
     private var tapToReveal: Boolean = false
     private lateinit var cardClickListener: SimpleDoubleClickListener
     private var progressAnimator: ObjectAnimator? = null
@@ -155,7 +155,7 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
     private fun interface AdapterPositionSafeCallbackConsumer {
         /** The specified [Callback] is guaranteed to be non-null, and adapterPosition is
          * guaranteed to be a valid position. */
-        fun accept(callback: Callback, adapterPosition: Int)
+        fun accept(callback: EntryCardEvents, adapterPosition: Int)
     }
 
     /** Runs the callback with the clicked position, if the view holder is still bound. */
@@ -437,24 +437,8 @@ open class EntryViewHolder(context: Context, v: View, tapToReveal: Boolean) :
         card.alpha = 1f
     }
 
-    fun setCallback(cb: Callback?) {
+    fun setCallback(cb: EntryCardEvents?) {
         this.callback = cb
-    }
-
-    /** Events of one card that the adapter reacts to. */
-    interface Callback {
-        fun onMoveEventStart()
-        fun onMoveEventStop()
-
-        fun onPrivacyClicked(position: Int)
-        fun onMenuButtonClicked(parentView: View, position: Int)
-        fun onCopyButtonClicked(text: String, position: Int)
-
-        fun onCardSingleClicked(position: Int, text: String)
-        fun onCardDoubleClicked(position: Int, text: String)
-
-        fun onCounterClicked(position: Int)
-        fun onCounterLongPressed(position: Int)
     }
 
     /**
