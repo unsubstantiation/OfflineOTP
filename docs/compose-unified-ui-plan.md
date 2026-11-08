@@ -272,3 +272,14 @@ re-entry rather than retaining the submitted secret in the dialog. Setting a PIN
 it against the remote service. Android's existing PIN dialog is unchanged; adopting the shared
 one remains part of the Compose cutover. Runtime masking, focus and dismissal need real Compose
 testing; the sandbox checks signatures and the headless action/persistence rules only.
+
+### Confirmed deletion in the Compose host
+
+Compose cards expose an optional `onDelete` action; hosts without it show no Delete control.
+The desktop host reuses `EntryConfirmationDialog`, keeps only the pending stable id, and clears
+it on cancellation, another dialog request or locking. Confirmation saves the remaining entries
+before removing and destroying the live target. A failed/throwing write leaves the entry intact
+and displays an error. The presenter forgets the removed row's reveal state and reapplies its
+current selection after successful deletion. Tests cover ordering, failure/retry, filtered/sorted
+views, repeated confirmation and locked sessions. This does not migrate Android or Swing deletion;
+real Compose layout and dialog interaction still require runtime validation.

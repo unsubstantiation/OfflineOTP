@@ -38,7 +38,7 @@ import java.awt.datatransfer.StringSelection
  * come from `:ui`, and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): add/edit/delete
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): add/edit
  * dialogs, backup/restore, hardware keys, preferences and the idle auto-lock. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
@@ -126,6 +126,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             combination = VaultFilterCombination.SEARCH_AND_TAGS
         )
     }
+    var pendingDeleteId by remember(vault) { mutableStateOf<Long?>(null) }
+    var deleteError by remember(vault) { mutableStateOf<String?>(null) }
     var pendingPinId by remember(vault) { mutableStateOf<Long?>(null) }
     var pinError by remember(vault) { mutableStateOf<String?>(null) }
     var pendingCounterId by remember(vault) { mutableStateOf<Long?>(null) }
@@ -137,19 +139,33 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             initialFilter = initialFilter,
             copyCode = ::copyToken,
             advanceCounter = { card ->
+                pendingDeleteId = null
+                deleteError = null
                 counterError = null
                 pendingPinId = null
                 pinError = null
                 pendingCounterId = card.id
             },
             enterPin = { card ->
+                pendingDeleteId = null
+                deleteError = null
                 pendingCounterId = null
                 counterError = null
                 pinError = null
                 pendingPinId = card.id
             },
+            deleteEntry = { card ->
+                pendingPinId = null
+                pinError = null
+                pendingCounterId = null
+                counterError = null
+                deleteError = null
+                pendingDeleteId = card.id
+            },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                pendingDeleteId = null
+                deleteError = null
                 pendingPinId = null
                 pinError = null
                 pendingCounterId = null
@@ -169,6 +185,28 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         actions = presenter.actions(),
         appearance = presenter.appearance
     )
+    val deleteId = pendingDeleteId
+    if (deleteId != null) {
+        EntryConfirmationDialog(
+            title = "Delete account?",
+            message = "Remove this account from the vault? This cannot be undone. Make sure you have another way to sign in.",
+            confirmLabel = strings.deleteAction,
+            dismissLabel = "Cancel",
+            error = deleteError,
+            onDismiss = { pendingDeleteId = null; deleteError = null },
+            onConfirm = {
+                if (vault.deleteEntry(deleteId) { remaining -> controller.save(vault.key, remaining) }) {
+                    pendingDeleteId = null
+                    deleteError = null
+                    // The desktop state refreshes its own selection after mutation. Reapply the
+                    // Compose selection so the current search, tags and tab survive deletion.
+                    presenter.entryRemoved(deleteId)
+                } else {
+                    deleteError = "The account could not be deleted. No entry was removed."
+                }
+            }
+        )
+    }
     val pinId = pendingPinId
     if (pinId != null) {
         EntryPinDialog(

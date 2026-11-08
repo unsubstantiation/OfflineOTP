@@ -102,6 +102,17 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
+    def test_delete_action_requires_host_support_and_confirmation(self):
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("val deleteEntry = actions.onDelete", widgets)
+        self.assertIn("if (deleteEntry != null)", widgets)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn('title = "Delete account?"', host)
+        self.assertIn("vault.deleteEntry(deleteId)", host)
+        self.assertIn("controller.save(vault.key, remaining)", host)
+        self.assertIn("presenter.entryRemoved(deleteId)", host)
+        self.assertIn("pendingDeleteId = null", host)
+
     def test_pin_dialog_masks_and_does_not_save_input(self):
         dialog = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
         self.assertIn("remember(entryId)", dialog)

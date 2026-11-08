@@ -62,6 +62,27 @@ class VaultPresenterTest {
     }
 
     @Test
+    fun deletionIsOptionalAndRefreshKeepsSelectionButForgetsReveal() {
+        val list = EntryList().apply { addEntry(note(), false) }
+        val projection = VaultProjection(list, EntryListPresentation(list))
+        val filter = VaultFilter(query = "Recovery", combination = VaultFilterCombination.SEARCH_AND_TAGS)
+        assertNull(VaultPresenter(projection, filter).actions().onDelete)
+        var requested: Long? = null
+        val presenter = VaultPresenter(projection, filter, deleteEntry = { requested = it.id })
+        val card = presenter.frame(0L).cards.single()
+        presenter.toggleReveal(card.id)
+        presenter.actions().onDelete!!.invoke(card)
+        assertEquals(card.id, requested)
+        // Requesting confirmation alone does not remove the row.
+        assertEquals(1, presenter.frame(0L).cards.size)
+        list.removeEntry(0)
+        presenter.entryRemoved(card.id)
+        assertFalse(presenter.isRevealed(card.id))
+        assertEquals(filter, presenter.filter)
+        assertTrue(presenter.frame(0L).cards.isEmpty())
+    }
+
+    @Test
     fun pinEntryIsOptionalAndForwardsTheStableCardId() {
         val list = EntryList().apply { addEntry(totp("Router", "admin"), false) }
         val projection = VaultProjection(list, EntryListPresentation(list))

@@ -29,6 +29,65 @@ class DesktopVaultStateTest {
         Entry(Entry.OTPType.TOTP, secret, 30, 6, issuer, label,
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
 
+    @Test
+    fun deletionSavesRemainingEntriesBeforeRemovingAndDestroyingTheTarget() {
+        val state = state()
+        val first = entry("First", "alice")
+        val second = entry("Second", "bob")
+        state.add(first)
+        state.add(second)
+        var writes = 0
+        assertTrue(state.deleteEntry(first.getListId()) { remaining ->
+            writes++
+            assertEquals(listOf(second), remaining)
+            assertEquals(2, state.snapshot().size)
+            assertEquals("First", first.getIssuer())
+            true
+        })
+        assertEquals(1, writes)
+        assertEquals(listOf(second), state.snapshot())
+        assertEquals("", first.getIssuer())
+        assertEquals("Second", second.getIssuer())
+    }
+
+    @Test
+    fun failedDeletionLeavesTheEntryAndSelectionIntactUntilRetry() {
+        val state = state()
+        val target = entry("Bank", "alice")
+        state.add(target)
+        state.applySearch("alice")
+        val filter = state.currentFilter()
+        assertFalse(state.deleteEntry(target.getListId()) { false })
+        assertFalse(state.deleteEntry(target.getListId()) { throw IllegalStateException("write failed") })
+        assertEquals(listOf(target), state.snapshot())
+        assertEquals("Bank", target.getIssuer())
+        assertEquals(filter, state.currentFilter())
+        assertEquals(1, state.presentation.size())
+        assertTrue(state.deleteEntry(target.getListId()) { true })
+        assertTrue(state.snapshot().isEmpty())
+        assertEquals(0, state.presentation.size())
+    }
+
+    @Test
+    fun delayedDeletionUsesIdentityRatherThanDisplayedPosition() {
+        val state = state()
+        val first = entry("Zebra", "alice")
+        val second = entry("Alpha", "bob")
+        state.add(first)
+        state.add(second)
+        val id = second.getListId()
+        state.applySortMode(Constants.SortMode.ISSUER)
+        state.applySearch("alice")
+        assertTrue(state.deleteEntry(id) { remaining -> remaining == arrayListOf(first) })
+        assertEquals(listOf(first), state.snapshot())
+        var writes = 0
+        assertFalse(state.deleteEntry(id) { writes++; true })
+        val firstId = first.getListId()
+        state.lock()
+        assertFalse(state.deleteEntry(firstId) { writes++; true })
+        assertEquals(0, writes)
+    }
+
     private fun motp() = Entry(
         Entry.OTPType.MOTP, "JBSWY3DPEHPK3PXP", 30, 6, "Router", "admin",
         TokenCalculator.HashAlgorithm.SHA1, ArrayList()

@@ -28,6 +28,8 @@ class VaultPresenter(
     private val entryActions: ((VaultCardState) -> Unit)? = null,
     /** Opens PIN input; the host validates and persists the eventual submission. */
     private val enterPin: ((VaultCardState) -> Unit)? = null,
+    /** Requests confirmation; persistence and live-id checks remain host responsibilities. */
+    private val deleteEntry: ((VaultCardState) -> Unit)? = null,
     /** Remembers the chosen order after the filter has changed. */
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
@@ -62,6 +64,12 @@ class VaultPresenter(
         onChange?.invoke()
     }
 
+    /** After a host commits deletion, discard reveal state and rebuild the current selection. */
+    fun entryRemoved(id: Long) {
+        revealed.remove(id)
+        applyFilter(filter)
+    }
+
     /** Whether [id]'s protected content is on screen. */
     fun isRevealed(id: Long): Boolean = id in revealed
 
@@ -82,6 +90,7 @@ class VaultPresenter(
         onNextCounter = advanceCounter?.let { advance -> { card -> advance(card) } },
         onEntryActions = entryActions,
         onEnterPin = enterPin,
+        onDelete = deleteEntry,
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
         onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },

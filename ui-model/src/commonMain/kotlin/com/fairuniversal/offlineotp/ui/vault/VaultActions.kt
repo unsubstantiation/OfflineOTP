@@ -29,6 +29,8 @@ class VaultActions(
     val onEntryActions: ((VaultCardState) -> Unit)? = null,
     /** Request a PIN for an mOTP account. Null hides the input action. */
     val onEnterPin: ((VaultCardState) -> Unit)? = null,
+    /** Request confirmed deletion; null hides Delete for read-only hosts. */
+    val onDelete: ((VaultCardState) -> Unit)? = null,
     val onQueryChange: (String) -> Unit = {},
     val onSelectCategory: (EntryListPresentation.Category) -> Unit = {},
     val onToggleTag: (String) -> Unit = {},

@@ -155,6 +155,21 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
         return saved
     }
 
+    /**
+     * Persist a deletion before discarding the live entry. The callback must only save the supplied
+     * list, not mutate this session; callers serialize this operation on the UI thread. A failed
+     * write leaves the list, selection and entry secrets untouched, so retry is safe.
+     */
+    fun deleteEntry(id: Long, persist: (ArrayList<Entry>) -> Boolean): Boolean {
+        val remaining = entries.getEntries()
+        val index = remaining.indexOfFirst { it.getListId() == id }
+        if (index < 0) return false
+        remaining.removeAt(index)
+        if (!runCatching { persist(remaining) }.getOrDefault(false)) return false
+        removeAt(index)
+        return true
+    }
+
     fun snapshot(): ArrayList<Entry> = entries.getEntries()
 
     /**

@@ -328,6 +328,10 @@ internal fun VaultEntryCard(
                 )
             }
             Spacer(modifier = Modifier.weight(1f))
+            val deleteEntry = actions.onDelete
+            if (deleteEntry != null) {
+                ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
+            }
             val entryActions = actions.onEntryActions
             if (entryActions != null) {
                 ForestTextAction(

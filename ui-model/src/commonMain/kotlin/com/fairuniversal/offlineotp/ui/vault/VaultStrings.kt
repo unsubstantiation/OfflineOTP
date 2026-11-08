@@ -22,6 +22,7 @@ data class VaultStrings(
     val revealAction: String = "Reveal",
     val hideAction: String = "Hide",
     val entryActions: String = "Account actions",
+    val deleteAction: String = "Delete",
     val enterPin: String = "Enter PIN",
     val pinRequired: String = "PIN required",
     val expiringLabel: String = "Expiring",
