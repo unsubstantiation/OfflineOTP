@@ -27,9 +27,10 @@ fun EntryPinDialog(
     dismissLabel: String,
     onSubmit: (String) -> Unit,
     onDismiss: () -> Unit,
-    error: String? = null
+    error: String? = null,
+    inputKey: Any = entryId
 ) {
-    var pin by remember(entryId) { mutableStateOf("") }
+    var pin by remember(inputKey) { mutableStateOf("") }
     fun dismiss() { pin = ""; onDismiss() }
     AlertDialog(
         onDismissRequest = { dismiss() },

@@ -283,3 +283,15 @@ and displays an error. The presenter forgets the removed row's reveal state and 
 current selection after successful deletion. Tests cover ordering, failure/retry, filtered/sorted
 views, repeated confirmation and locked sessions. This does not migrate Android or Swing deletion;
 real Compose layout and dialog interaction still require runtime validation.
+
+### Shared dialog lifecycle and renderer
+
+`VaultDialogs` now owns a single pending request (kind, entry id and failure flag), replacing
+the desktop host's six independent pending-id/error fields. `VaultEntryDialog` in `:ui` selects
+the PIN, counter or delete widget and takes `VaultDialogStrings` for localized wording. The host
+retains only persistence dispatch and live-entry validation. Request identity rejects stale
+callbacks after dismissal, replacement, completion or lock, even if the next request targets
+the same account. Failed operations create a fresh retry request, resetting PIN input. No PIN,
+card, entry or arbitrary exception text is stored in the dialog model. Five headless lifecycle
+tests and source guards cover the new ownership. Android integration and real Compose runtime
+validation remain outstanding.

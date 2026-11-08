@@ -33,6 +33,8 @@ FRAME_FILES = {
     "vault/VaultActions.kt",
     "vault/VaultProjection.kt",
     "vault/VaultCards.kt",
+    "vault/VaultPresenter.kt",
+    "vault/VaultDialogs.kt",
 }
 
 HOST_PACKAGES = (
@@ -107,22 +109,23 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("val deleteEntry = actions.onDelete", widgets)
         self.assertIn("if (deleteEntry != null)", widgets)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn('title = "Delete account?"', host)
-        self.assertIn("vault.deleteEntry(deleteId)", host)
+        wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
+        self.assertIn('deleteTitle: String = "Delete account?"', wording)
+        self.assertIn("vault.deleteEntry(request.entryId)", host)
         self.assertIn("controller.save(vault.key, remaining)", host)
-        self.assertIn("presenter.entryRemoved(deleteId)", host)
-        self.assertIn("pendingDeleteId = null", host)
+        self.assertIn("presenter.entryRemoved(request.entryId)", host)
+        self.assertIn("dialogs.clear()", host)
 
     def test_pin_dialog_masks_and_does_not_save_input(self):
         dialog = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
-        self.assertIn("remember(entryId)", dialog)
+        self.assertIn("remember(inputKey)", dialog)
         self.assertNotIn("rememberSaveable", dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
         self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("vault.submitPin(pinId, pin)", host)
-        self.assertIn("pendingPinId = null", host)
+        self.assertIn("vault.submitPin(request.entryId, pin)", host)
+        self.assertIn("dialogs.clear()", host)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.pinRequired && enterPin != null", widgets)
 
@@ -132,10 +135,22 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("onDismissRequest = onDismiss", dialog)
         self.assertNotIn("rememberSaveable", dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("EntryConfirmationDialog(", host)
-        self.assertIn("mutableStateOf<Long?>(null)", host)
-        self.assertIn("vault.advanceCounter(pendingId)", host)
-        self.assertIn("pendingCounterId = null", host)
+        self.assertIn("VaultEntryDialog(", host)
+        self.assertIn("VaultDialogs { revision++ }", host)
+        self.assertIn("vault.advanceCounter(request.entryId)", host)
+        self.assertIn("dialogs.clear()", host)
+
+    def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertNotIn("EntryPinDialog(", host)
+        self.assertNotIn("EntryConfirmationDialog(", host)
+        self.assertNotIn("could not be saved", host)
+        self.assertEqual(2, host.count("dialogs.isCurrent(request)"))
+        renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
+        for kind in ("PIN", "COUNTER", "DELETE"):
+            self.assertIn("VaultDialogKind." + kind, renderer)
+        self.assertIn("inputKey = request", renderer)
+        self.assertIn("strings: VaultDialogStrings", renderer)
 
     def test_compose_host_delegates_interactions_to_presenter(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
@@ -148,7 +163,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.

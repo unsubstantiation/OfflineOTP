@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose: Consolidate PIN, counter and deletion dialogs into a shared lifecycle model and renderer. Ignore callbacks from dismissed or replaced requests, and keep dialog wording localizable outside the desktop host.
+
  * Compose desktop: Add confirmed deletion using the shared entry dialog. Save the remaining vault before discarding an entry, retain it on write failure, and preserve the current filters after deletion.
 
  * Compose desktop: Add masked mOTP PIN entry through a shared Compose dialog. Save by stable entry id, restore the previous PIN on write failure, and discard pending dialog state on lock. Android dialog migration remains pending.

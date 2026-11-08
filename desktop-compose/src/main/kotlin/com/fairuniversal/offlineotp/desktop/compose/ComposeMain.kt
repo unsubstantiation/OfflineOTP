@@ -17,8 +17,9 @@ import com.fairuniversal.offlineotp.desktop.control.VaultController
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.unlock.UnlockScreen
-import com.fairuniversal.offlineotp.ui.vault.EntryPinDialog
-import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
+import com.fairuniversal.offlineotp.ui.vault.VaultDialogs
+import com.fairuniversal.offlineotp.ui.vault.VaultDialogKind
+import com.fairuniversal.offlineotp.ui.vault.VaultEntryDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultPresenter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
@@ -126,50 +127,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             combination = VaultFilterCombination.SEARCH_AND_TAGS
         )
     }
-    var pendingDeleteId by remember(vault) { mutableStateOf<Long?>(null) }
-    var deleteError by remember(vault) { mutableStateOf<String?>(null) }
-    var pendingPinId by remember(vault) { mutableStateOf<Long?>(null) }
-    var pinError by remember(vault) { mutableStateOf<String?>(null) }
-    var pendingCounterId by remember(vault) { mutableStateOf<Long?>(null) }
-    var counterError by remember(vault) { mutableStateOf<String?>(null) }
     var revision by remember(vault) { mutableStateOf(0) }
+    val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             copyCode = ::copyToken,
-            advanceCounter = { card ->
-                pendingDeleteId = null
-                deleteError = null
-                counterError = null
-                pendingPinId = null
-                pinError = null
-                pendingCounterId = card.id
-            },
-            enterPin = { card ->
-                pendingDeleteId = null
-                deleteError = null
-                pendingCounterId = null
-                counterError = null
-                pinError = null
-                pendingPinId = card.id
-            },
-            deleteEntry = { card ->
-                pendingPinId = null
-                pinError = null
-                pendingCounterId = null
-                counterError = null
-                deleteError = null
-                pendingDeleteId = card.id
-            },
+            advanceCounter = { card -> dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
-                pendingDeleteId = null
-                deleteError = null
-                pendingPinId = null
-                pinError = null
-                pendingCounterId = null
-                counterError = null
+                dialogs.clear()
                 onLock()
             },
             onChange = { revision++ }
@@ -185,67 +155,35 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         actions = presenter.actions(),
         appearance = presenter.appearance
     )
-    val deleteId = pendingDeleteId
-    if (deleteId != null) {
-        EntryConfirmationDialog(
-            title = "Delete account?",
-            message = "Remove this account from the vault? This cannot be undone. Make sure you have another way to sign in.",
-            confirmLabel = strings.deleteAction,
-            dismissLabel = "Cancel",
-            error = deleteError,
-            onDismiss = { pendingDeleteId = null; deleteError = null },
+    val request = dialogs.pending
+    if (request != null) {
+        VaultEntryDialog(
+            request = request,
+            onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
-                if (vault.deleteEntry(deleteId) { remaining -> controller.save(vault.key, remaining) }) {
-                    pendingDeleteId = null
-                    deleteError = null
-                    // The desktop state refreshes its own selection after mutation. Reapply the
-                    // Compose selection so the current search, tags and tab survive deletion.
-                    presenter.entryRemoved(deleteId)
-                } else {
-                    deleteError = "The account could not be deleted. No entry was removed."
+                if (dialogs.isCurrent(request)) {
+                    val saved = when (request.kind) {
+                        VaultDialogKind.DELETE -> vault.deleteEntry(request.entryId) { remaining ->
+                            controller.save(vault.key, remaining)
+                        }
+                        VaultDialogKind.COUNTER -> vault.advanceCounter(request.entryId) {
+                            controller.save(vault.key, vault.snapshot())
+                        }
+                        VaultDialogKind.PIN -> false // PIN uses the separate input callback.
+                    }
+                    dialogs.complete(request, saved)
+                    if (saved && request.kind == VaultDialogKind.DELETE) {
+                        presenter.entryRemoved(request.entryId)
+                    }
                 }
-            }
-        )
-    }
-    val pinId = pendingPinId
-    if (pinId != null) {
-        EntryPinDialog(
-            entryId = pinId,
-            title = strings.enterPin,
-            inputLabel = "PIN",
-            confirmLabel = "Save",
-            dismissLabel = "Cancel",
-            error = pinError,
-            onDismiss = { pendingPinId = null; pinError = null },
-            onSubmit = { pin ->
-                if (vault.submitPin(pinId, pin) { controller.save(vault.key, vault.snapshot()) }) {
-                    pendingPinId = null
-                    pinError = null
-                } else {
-                    pinError = "The PIN could not be saved. Re-enter it to try again."
+            },
+            onPinSubmit = { pin ->
+                if (dialogs.isCurrent(request) && request.kind == VaultDialogKind.PIN) {
+                    val saved = vault.submitPin(request.entryId, pin) {
+                        controller.save(vault.key, vault.snapshot())
+                    }
+                    dialogs.complete(request, saved)
                 }
-                revision++
-            }
-        )
-    }
-    val pendingId = pendingCounterId
-    if (pendingId != null) {
-        EntryConfirmationDialog(
-            title = "Advance counter?",
-            message = "Generate the next code only when the service asks for it. Advancing unnecessarily can put this account out of sync.",
-            confirmLabel = "Next code",
-            dismissLabel = "Cancel",
-            error = counterError,
-            onDismiss = { pendingCounterId = null; counterError = null },
-            onConfirm = {
-                // Resolve the id again: never retain a card's token or a list position in a dialog.
-                if (vault.advanceCounter(pendingId) { controller.save(vault.key, vault.snapshot()) }) {
-                    pendingCounterId = null
-                    counterError = null
-                } else {
-                    counterError = "The counter could not be saved. It has not been advanced."
-                }
-                revision++
             }
         )
     }
