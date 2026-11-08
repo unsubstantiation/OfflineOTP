@@ -17,8 +17,8 @@ import com.fairuniversal.offlineotp.desktop.control.VaultController
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.unlock.UnlockScreen
+import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultPresenter
-import com.fairuniversal.offlineotp.ui.vault.VaultCardState
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
 import com.fairuniversal.offlineotp.ui.vault.VaultProjection
@@ -125,15 +125,24 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             combination = VaultFilterCombination.SEARCH_AND_TAGS
         )
     }
+    var pendingCounterId by remember(vault) { mutableStateOf<Long?>(null) }
+    var counterError by remember(vault) { mutableStateOf<String?>(null) }
     var revision by remember(vault) { mutableStateOf(0) }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             copyCode = ::copyToken,
-            advanceCounter = { card -> advanceCounter(controller, vault, card) },
+            advanceCounter = { card ->
+                counterError = null
+                pendingCounterId = card.id
+            },
             sortSelected = { mode -> controller.saveSortMode(mode) },
-            lockVault = onLock,
+            lockVault = {
+                pendingCounterId = null
+                counterError = null
+                onLock()
+            },
             onChange = { revision++ }
         )
     }
@@ -147,20 +156,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         actions = presenter.actions(),
         appearance = presenter.appearance
     )
-}
-
-/**
- * Advances one HOTP counter and persists the vault. The save goes through the same
- * [VaultController.save] path the Swing client uses; a failed write leaves the in-memory counter
- * advanced, exactly like a failed save there, and the next frame shows the recalculated code.
- */
-private fun advanceCounter(controller: VaultController, vault: DesktopVaultState, card: VaultCardState) {
-    val entry = vault.snapshot().firstOrNull { it.getListId() == card.id } ?: return
-    if (!entry.isCounterBased()) return
-    runCatching {
-        entry.setCounter(entry.getCounter() + 1L)
-        entry.updateOTP(true)
-        controller.save(vault.key, vault.snapshot())
+    val pendingId = pendingCounterId
+    if (pendingId != null) {
+        EntryConfirmationDialog(
+            title = "Advance counter?",
+            message = "Generate the next code only when the service asks for it. Advancing unnecessarily can put this account out of sync.",
+            confirmLabel = "Next code",
+            dismissLabel = "Cancel",
+            error = counterError,
+            onDismiss = { pendingCounterId = null; counterError = null },
+            onConfirm = {
+                // Resolve the id again: never retain a card's token or a list position in a dialog.
+                if (vault.advanceCounter(pendingId) { controller.save(vault.key, vault.snapshot()) }) {
+                    pendingCounterId = null
+                    counterError = null
+                } else {
+                    counterError = "The counter could not be saved. It has not been advanced."
+                }
+                revision++
+            }
+        )
     }
 }
 

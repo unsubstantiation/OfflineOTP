@@ -249,3 +249,14 @@ sort preferences and session locking remain host callbacks; unsupported entry ac
 The host observes a revision signal and still supplies the clock for frames. This synchronous
 presenter is not wired into Android's asynchronous search path. Dialog migration and Android
 cutover remain pending. Tests cover transitions, masking, copy eligibility and lock ordering.
+
+### First shared entry-action dialog
+
+`EntryConfirmationDialog` in `:ui` provides caller-localized confirmation/dismissal chrome.
+The Compose desktop HOTP action now asks before advancing, retaining only a stable id,
+and drops the dialog on dismissal or lock. Confirmation resolves the id in the live vault.
+`DesktopVaultState.advanceCounter` uses the shared `EntryUsage` rule and restores the
+in-memory counter if saving fails; the dialog reports failure and permits retry. Tests cover
+success, failed/throwing writes, retries, removed entries, locking, non-HOTP entries and exhaustion.
+Android and Swing dialog migration remains pending. Compose dialog rendering still requires
+a real Gradle build and desktop/device testing; sandbox stubs only check signatures.

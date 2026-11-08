@@ -29,6 +29,69 @@ class DesktopVaultStateTest {
         Entry(Entry.OTPType.TOTP, secret, 30, 6, issuer, label,
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
 
+    private fun hotp(counter: Long = 7L) = Entry(
+        Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", counter, 6, "Bank", "alice",
+        TokenCalculator.HashAlgorithm.SHA1, ArrayList()
+    )
+
+    @Test
+    fun confirmedCounterIsPersistedBeforeReportingSuccess() {
+        val state = state()
+        val entry = hotp()
+        state.add(entry)
+        var writes = 0
+        assertTrue(state.advanceCounter(entry.getListId()) {
+            writes++
+            assertEquals(8L, entry.getCounter())
+            true
+        })
+        assertEquals(1, writes)
+        assertEquals(8L, entry.getCounter())
+    }
+
+    @Test
+    fun failedCounterWritesRollBackAndRetryOnlyAdvancesOnce() {
+        val state = state()
+        val entry = hotp()
+        state.add(entry)
+        assertFalse(state.advanceCounter(entry.getListId()) { false })
+        assertEquals(7L, entry.getCounter())
+        assertFalse(state.advanceCounter(entry.getListId()) { throw IllegalStateException("write failed") })
+        assertEquals(7L, entry.getCounter())
+        assertTrue(state.advanceCounter(entry.getListId()) { true })
+        assertEquals(8L, entry.getCounter())
+    }
+
+    @Test
+    fun delayedCounterActionCannotWriteAfterRemovalOrLock() {
+        val state = state()
+        val first = hotp()
+        state.add(first)
+        val id = first.getListId()
+        state.removeAt(0)
+        state.add(hotp())
+        var writes = 0
+        assertFalse(state.advanceCounter(id) { writes++; true })
+        val nextId = state.snapshot().single().getListId()
+        state.lock()
+        assertFalse(state.advanceCounter(nextId) { writes++; true })
+        assertEquals(0, writes)
+    }
+
+    @Test
+    fun counterActionRejectsTimeTokensAndExhaustedCounters() {
+        val state = state()
+        val time = entry("Service", "alice")
+        state.add(time)
+        var writes = 0
+        assertFalse(state.advanceCounter(time.getListId()) { writes++; true })
+        val exhausted = hotp(Long.MAX_VALUE - 1L)
+        state.add(exhausted)
+        assertFalse(state.advanceCounter(exhausted.getListId()) { writes++; true })
+        assertEquals(0, writes)
+        assertEquals(Long.MAX_VALUE - 1L, exhausted.getCounter())
+    }
+
     @Test
     fun addReplaceAndRemoveMutateTheProjection() {
         val state = state()

@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
+import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
@@ -118,6 +119,24 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
         removed.destroy()
         refreshProjection()
         return removed
+    }
+
+    /**
+     * Confirms a delayed HOTP action by stable id, not by displayed position. A failed write
+     * restores the old counter so a retry cannot silently skip another code. The caller must
+     * serialize this operation with session changes (the desktop UI thread does so).
+     */
+    fun advanceCounter(id: Long, persist: () -> Boolean): Boolean {
+        val entry = entries.getEntries().firstOrNull { it.getListId() == id } ?: return false
+        if (!entry.isCounterBased()) return false
+        val previous = entry.getCounter()
+        if (previous < 0L || previous >= EntryUsage.MAX_COUNTER) return false
+        val saved = runCatching {
+            EntryUsage.advanceHotp(entry) && persist()
+        }.getOrDefault(false)
+        if (!saved) entry.setCounter(previous)
+        entry.updateOTP(true)
+        return saved
     }
 
     fun snapshot(): ArrayList<Entry> = entries.getEntries()

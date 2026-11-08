@@ -102,6 +102,17 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
+    def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
+        dialog = (UI_MAIN / "vault/EntryConfirmationDialog.kt").read_text()
+        self.assertIn("AlertDialog(", dialog)
+        self.assertIn("onDismissRequest = onDismiss", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("EntryConfirmationDialog(", host)
+        self.assertIn("mutableStateOf<Long?>(null)", host)
+        self.assertIn("vault.advanceCounter(pendingId)", host)
+        self.assertIn("pendingCounterId = null", host)
+
     def test_compose_host_delegates_interactions_to_presenter(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn("VaultPresenter(", host)

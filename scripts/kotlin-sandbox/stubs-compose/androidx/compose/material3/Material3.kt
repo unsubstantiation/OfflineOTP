@@ -84,3 +84,14 @@ fun OutlinedTextField(
     shape: Shape? = null
 ) {
 }
+
+/** Compile-only signature; no dialog is displayed by this stub. */
+@Composable
+fun AlertDialog(
+    onDismissRequest: () -> Unit,
+    confirmButton: @Composable () -> Unit,
+    dismissButton: (@Composable () -> Unit)? = null,
+    title: (@Composable () -> Unit)? = null,
+    text: (@Composable () -> Unit)? = null
+) {
+}
