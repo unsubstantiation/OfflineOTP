@@ -17,8 +17,7 @@ import com.fairuniversal.offlineotp.desktop.control.VaultController
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.unlock.UnlockScreen
-import com.fairuniversal.offlineotp.ui.vault.VaultActions
-import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
+import com.fairuniversal.offlineotp.ui.vault.VaultPresenter
 import com.fairuniversal.offlineotp.ui.vault.VaultCardState
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
@@ -126,48 +125,27 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             combination = VaultFilterCombination.SEARCH_AND_TAGS
         )
     }
-    val projection = remember(vault) {
-        VaultProjection(vault.entryList, vault.presentation).applyFilter(initialFilter)
+    var revision by remember(vault) { mutableStateOf(0) }
+    val presenter = remember(vault) {
+        VaultPresenter(
+            projection = VaultProjection(vault.entryList, vault.presentation),
+            initialFilter = initialFilter,
+            copyCode = ::copyToken,
+            advanceCounter = { card -> advanceCounter(controller, vault, card) },
+            sortSelected = { mode -> controller.saveSortMode(mode) },
+            lockVault = onLock,
+            onChange = { revision++ }
+        )
     }
-    var filter by remember(vault) { mutableStateOf(initialFilter) }
-    var revealed by remember(vault) { mutableStateOf(emptySet<Long>()) }
     val anchor = remember(vault) { System.currentTimeMillis() }
     val now = rememberNowMillis(anchor)
-    val state = remember(now, filter, revealed, vault) { projection.snapshot(filter, now, revealed) }
-
-    fun updateFilter(next: VaultFilter) {
-        filter = next
-        // The presentation is mutated here, in the event, never during composition.
-        projection.applyFilter(next)
-    }
+    val state = remember(now, revision, presenter) { presenter.frame(now) }
 
     VaultScreen(
         state = state,
         strings = strings,
-        actions = VaultActions(
-            onCopyToken = { card -> card.token?.let { copyToken(it) } },
-            onToggleReveal = { card ->
-                revealed =
-                    if (card.id in revealed) revealed - card.id else revealed + card.id
-            },
-            onNextCounter = { card -> advanceCounter(controller, vault, card) },
-            // Every transition is the shared value rule in :ui, not a copy of it: the Android host
-            // will call the same helpers for its search box, tab strip and tag drawer.
-            onQueryChange = { query -> updateFilter(filter.withQuery(query)) },
-            onSelectCategory = { category -> updateFilter(filter.withCategory(category)) },
-            onToggleTag = { tag -> updateFilter(filter.withTagToggled(tag)) },
-            onToggleUntagged = { updateFilter(filter.withUntaggedToggled()) },
-            onClearFilters = { updateFilter(filter.clearedFilters()) },
-            onSelectSort = { mode ->
-                updateFilter(filter.withSortMode(mode))
-                controller.saveSortMode(mode)
-            },
-            onLock = {
-                revealed = emptySet()
-                onLock()
-            }
-        ),
-        appearance = VaultAppearance()
+        actions = presenter.actions(),
+        appearance = presenter.appearance
     )
 }
 
@@ -187,8 +165,7 @@ private fun advanceCounter(controller: VaultController, vault: DesktopVaultState
 }
 
 /** Copies the digits only: spaces are a rendering detail, not part of the code. */
-private fun copyToken(grouped: String) {
-    val token = grouped.replace(" ", "")
+private fun copyToken(token: String) {
     runCatching {
         Toolkit.getDefaultToolkit().systemClipboard
             .setContents(StringSelection(token), null)

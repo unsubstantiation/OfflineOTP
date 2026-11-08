@@ -102,11 +102,18 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
+    def test_compose_host_delegates_interactions_to_presenter(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("VaultPresenter(", host)
+        self.assertIn("actions = presenter.actions()", host)
+        self.assertNotIn("filter.withQuery", host)
+        self.assertNotIn("mutableStateOf(emptySet<Long>())", host)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.

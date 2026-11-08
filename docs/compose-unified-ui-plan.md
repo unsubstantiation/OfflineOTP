@@ -240,3 +240,12 @@ re-implement search, sorting or tag matching.
   `AndroidVaultStrings`; a field without one would silently fall back to English on the phone. The
   mapping belongs to stage 2 together with a guard that every field has a resource, so a new field
   cannot ship half-translated.
+
+### Shared interaction presenter (preparatory increment)
+
+The Compose desktop host delegates filter transitions, reveal state, digits-only copy and
+clear-before-lock ordering to `:ui-model`'s `VaultPresenter`. Clipboard, counter persistence,
+sort preferences and session locking remain host callbacks; unsupported entry actions remain hidden.
+The host observes a revision signal and still supplies the clock for frames. This synchronous
+presenter is not wired into Android's asynchronous search path. Dialog migration and Android
+cutover remain pending. Tests cover transitions, masking, copy eligibility and lock ordering.
