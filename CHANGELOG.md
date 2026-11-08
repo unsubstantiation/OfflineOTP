@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose: Make shared presenter locking terminal. Retained callbacks cannot copy tokens, change selections or request dialogs after lock; closed dialog sessions reject late requests.
+
  * Compose: Consolidate PIN, counter and deletion dialogs into a shared lifecycle model and renderer. Ignore callbacks from dismissed or replaced requests, and keep dialog wording localizable outside the desktop host.
 
  * Compose desktop: Add confirmed deletion using the shared entry dialog. Save the remaining vault before discarding an entry, retain it on write failure, and preserve the current filters after deletion.

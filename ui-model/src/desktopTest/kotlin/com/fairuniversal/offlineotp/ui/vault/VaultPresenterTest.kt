@@ -62,6 +62,72 @@ class VaultPresenterTest {
     }
 
     @Test
+    fun callbacksFromOldFramesBecomeInertAfterLock() {
+        val list = EntryList().apply { addEntry(totp("Bank", "alice"), false) }
+        var calls = 0
+        var locks = 0
+        var changes = 0
+        val presenter = VaultPresenter(
+            VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            copyCode = { calls++ }, advanceCounter = { calls++ },
+            entryActions = { calls++ }, enterPin = { calls++ }, deleteEntry = { calls++ },
+            sortSelected = { calls++ }, lockVault = { locks++ }, onChange = { changes++ }
+        )
+        val card = presenter.frame(1_000L).cards.single()
+        val old = presenter.actions()
+        presenter.toggleReveal(card.id)
+        presenter.applyFilter(presenter.filter.withQuery("alice"))
+        old.onLock()
+        val changesAtLock = changes
+        // Exercise both already-captured callbacks and callbacks requested after locking.
+        for (actions in listOf(old, presenter.actions())) {
+            actions.onCopyToken(card)
+            actions.onToggleReveal(card)
+            actions.onNextCounter!!.invoke(card)
+            actions.onEntryActions!!.invoke(card)
+            actions.onEnterPin!!.invoke(card)
+            actions.onDelete!!.invoke(card)
+            actions.onQueryChange("bank")
+            actions.onSelectCategory(EntryListPresentation.Category.OTP)
+            actions.onToggleTag("work")
+            actions.onToggleUntagged()
+            actions.onClearFilters()
+            actions.onSelectSort(Constants.SortMode.ISSUER)
+            actions.onLock()
+        }
+        presenter.entryRemoved(card.id)
+        assertEquals(0, calls)
+        assertEquals(1, locks)
+        assertEquals(changesAtLock, changes)
+        assertFalse(presenter.isRevealed(card.id))
+        assertEquals("", presenter.filter.query)
+        assertTrue(presenter.frame(1_000L).cards.isEmpty())
+        assertEquals(0, presenter.frame(1_000L).totalEntries)
+    }
+
+    @Test
+    fun throwingHostCleanupStillLeavesPresenterLockedAndNotifiesTheView() {
+        val list = EntryList().apply { addEntry(note(), false) }
+        var changes = 0
+        var copies = 0
+        val presenter = VaultPresenter(
+            VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            copyCode = { copies++ }, lockVault = { throw IllegalStateException("cleanup failed") },
+            onChange = { changes++ }
+        )
+        val card = presenter.frame(0L).cards.single()
+        assertTrue(runCatching { presenter.lock() }.isFailure)
+        presenter.actions().onCopyToken(card)
+        presenter.toggleReveal(card.id)
+        presenter.lock()
+        assertEquals(1, changes)
+        assertEquals(0, copies)
+        assertTrue(presenter.frame(0L).cards.isEmpty())
+    }
+
+    @Test
     fun deletionIsOptionalAndRefreshKeepsSelectionButForgetsReveal() {
         val list = EntryList().apply { addEntry(note(), false) }
         val projection = VaultProjection(list, EntryListPresentation(list))
@@ -206,8 +272,7 @@ class VaultPresenterTest {
         assertTrue(harness.presenter.isRevealed(harness.presenter.frame(0L).cards.single().id))
         harness.actions.onLock()
         assertEquals(1, harness.locks)
-        assertNull("a frame built after the lock carries no content",
-            harness.presenter.frame(0L).cards.single().revealedContent)
+        assertTrue("a frame built after lock is empty", harness.presenter.frame(0L).cards.isEmpty())
     }
 
     @Test
@@ -217,7 +282,7 @@ class VaultPresenterTest {
         presenter = VaultPresenter(
             VaultProjection(list, EntryListPresentation(list)),
             VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
-            lockVault = { assertNull(presenter.frame(0L).cards.single().revealedContent) }
+            lockVault = { assertTrue(presenter.frame(0L).cards.isEmpty()) }
         )
         presenter.toggleReveal(presenter.frame(0L).cards.single().id)
         presenter.lock()

@@ -42,6 +42,7 @@ class VaultPresenter(
         private set
 
     private val revealed = LinkedHashSet<Long>()
+    private var locked = false
 
     init {
         projection.applyFilter(initialFilter)
@@ -49,10 +50,11 @@ class VaultPresenter(
 
     /** One frame at [nowMillis]: the selection applied, revealed content only for revealed ids. */
     fun frame(nowMillis: Long): VaultUiState =
-        projection.snapshot(filter, nowMillis, revealed, appearance, strings)
+        if (locked) VaultUiState() else projection.snapshot(filter, nowMillis, revealed, appearance, strings)
 
     /** Applies [next] to the shared projection and remembers it as the current selection. */
     fun applyFilter(next: VaultFilter) {
+        if (locked) return
         filter = next
         projection.applyFilter(next)
         onChange?.invoke()
@@ -60,12 +62,14 @@ class VaultPresenter(
 
     /** Reveals or hides one row. A revealed row's content lives in the next frame only. */
     fun toggleReveal(id: Long) {
+        if (locked) return
         if (!revealed.remove(id)) revealed.add(id)
         onChange?.invoke()
     }
 
     /** After a host commits deletion, discard reveal state and rebuild the current selection. */
     fun entryRemoved(id: Long) {
+        if (locked) return
         revealed.remove(id)
         applyFilter(filter)
     }
@@ -74,31 +78,43 @@ class VaultPresenter(
     fun isRevealed(id: Long): Boolean = id in revealed
 
     /**
-     * Forgets every revealed row and then hands the lock to the host. Clearing first means a frame
-     * requested during the lock never carries content the session no longer authorizes.
+     * Terminal for this presenter: clear display state before handing lock to the host. Old
+     * callbacks become inert and frames become empty even if the host's cleanup throws. A new
+     * unlocked session must create a new presenter. Call on the host's UI thread.
      */
     fun lock() {
+        if (locked) return
+        locked = true
         revealed.clear()
-        lockVault?.invoke()
-        onChange?.invoke()
+        filter = VaultFilter(combination = filter.combination)
+        try {
+            lockVault?.invoke()
+        } finally {
+            onChange?.invoke()
+        }
     }
+
+    private fun whileUnlocked(callback: ((VaultCardState) -> Unit)?): ((VaultCardState) -> Unit)? =
+        callback?.let { action -> { card -> if (!locked) action(card) } }
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
     fun actions(): VaultActions = VaultActions(
         onCopyToken = { card -> copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
-        onNextCounter = advanceCounter?.let { advance -> { card -> advance(card) } },
-        onEntryActions = entryActions,
-        onEnterPin = enterPin,
-        onDelete = deleteEntry,
+        onNextCounter = whileUnlocked(advanceCounter),
+        onEntryActions = whileUnlocked(entryActions),
+        onEnterPin = whileUnlocked(enterPin),
+        onDelete = whileUnlocked(deleteEntry),
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
         onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
         onToggleUntagged = { applyFilter(filter.withUntaggedToggled()) },
         onClearFilters = { applyFilter(filter.clearedFilters()) },
         onSelectSort = { mode ->
-            applyFilter(filter.withSortMode(mode))
-            sortSelected?.invoke(mode)
+            if (!locked) {
+                applyFilter(filter.withSortMode(mode))
+                sortSelected?.invoke(mode)
+            }
         },
         onLock = { lock() }
     )
@@ -109,6 +125,7 @@ class VaultPresenter(
      * code, and an mOTP entry still waiting for its PIN has no copyable token either.
      */
     private fun copyToken(card: VaultCardState) {
+        if (locked) return
         val copy = copyCode ?: return
         val token = card.token ?: return
         if (!card.copyable) return

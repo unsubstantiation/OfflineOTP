@@ -10,13 +10,16 @@ class VaultDialogRequest(val kind: VaultDialogKind, val entryId: Long, val faile
 /**
  * One pending dialog per session. Request identity rejects callbacks from dismissed/replaced
  * dialogs, including a newly opened dialog for the same entry. Hosts must check [isCurrent]
- * before performing a write, serialize callbacks on the UI thread, and [clear] on session lock.
+ * before performing a write, serialize callbacks on the UI thread, and [close] on session lock.
  */
 class VaultDialogs(private val onChange: () -> Unit = {}) {
     var pending: VaultDialogRequest? = null
         private set
 
+    private var closed = false
+
     fun open(kind: VaultDialogKind, entryId: Long) {
+        if (closed) return
         pending = VaultDialogRequest(kind, entryId)
         onChange()
     }
@@ -33,7 +36,16 @@ class VaultDialogs(private val onChange: () -> Unit = {}) {
         onChange()
     }
 
+    /** Permanently invalidate this session, including delayed attempts to open a dialog. */
+    fun close() {
+        if (closed) return
+        closed = true
+        pending = null
+        onChange()
+    }
+
     fun clear() {
+        if (closed) return
         pending = null
         onChange()
     }

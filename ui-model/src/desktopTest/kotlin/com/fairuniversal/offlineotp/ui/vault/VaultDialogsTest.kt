@@ -8,6 +8,23 @@ import org.junit.Test
 
 class VaultDialogsTest {
     @Test
+    fun closedSessionCannotReopenDialogsOrPublishLateResults() {
+        var changes = 0
+        val dialogs = VaultDialogs { changes++ }
+        dialogs.open(VaultDialogKind.PIN, 1L)
+        val request = dialogs.pending!!
+        dialogs.close()
+        for (kind in VaultDialogKind.values()) dialogs.open(kind, 1L)
+        dialogs.complete(request, false)
+        dialogs.dismiss(request)
+        dialogs.clear()
+        dialogs.close()
+        assertFalse(dialogs.isCurrent(request))
+        assertNull(dialogs.pending)
+        assertEquals(2, changes)
+    }
+
+    @Test
     fun openingAnotherDialogReplacesTheOldRequestAndItsError() {
         val dialogs = VaultDialogs()
         dialogs.open(VaultDialogKind.PIN, 1L)

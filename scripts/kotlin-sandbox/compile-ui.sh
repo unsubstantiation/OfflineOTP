@@ -126,7 +126,7 @@ echo "headless frame-layer tests:"
 "$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/tests:$OUT/model:$OUT/core:$STDLIB" \
     JvmTestRunnerKt "$OUT/tests"
 
-# Phase 4 needs the desktop gate's compiled output because the host drives the real
+# Phase 5 needs the desktop gate's compiled output because the host drives the real
 # VaultController/DesktopVaultState. Run that gate first when its output is missing, so this script
 # stays self-contained instead of silently skipping the host.
 DESKTOP_OUT="${KOTLIN_DESKTOP_OUT:-$ROOT/reports/kotlin-sandbox/desktop}"
@@ -139,7 +139,7 @@ echo "phase 5: desktop-compose host (${#HOST_SOURCES[@]} files, Compose Desktop 
 [[ ${#HOST_SOURCES[@]} -gt 0 ]] || { echo "no host sources under desktop-compose/src/main/kotlin" >&2; exit 2; }
 [[ ${#COMPOSE_DESKTOP_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose Desktop stubs under $COMPOSE_STUBS/desktop" >&2; exit 2; }
 "$KOTLINC" -jvm-target 1.8 -nowarn \
-    -cp "$DESKTOP_OUT/core:$DESKTOP_OUT/desktop:$OUT/ui:$OUT/model:$STDLIB" \
+    -cp "$OUT/core:$OUT/model:$OUT/ui:$DESKTOP_OUT/desktop:$DESKTOP_OUT/core:$STDLIB" \
     "${HOST_SOURCES[@]}" "${COMPOSE_DESKTOP_STUB_SOURCES[@]}" \
     -d "$OUT/host"
 echo "host type-checked (never run: the window stubs are inert)"

@@ -295,3 +295,17 @@ the same account. Failed operations create a fresh retry request, resetting PIN 
 card, entry or arbitrary exception text is stored in the dialog model. Five headless lifecycle
 tests and source guards cover the new ownership. Android integration and real Compose runtime
 validation remain outstanding.
+
+### Terminal session boundary for shared interactions
+
+`VaultPresenter.lock()` now makes the presenter terminal before invoking host cleanup: frames
+are empty, filter/reveal state is cleared, and all retained action callbacks become inert.
+Cleanup failure still notifies the view and does not re-enable interactions. Hosts create a new
+presenter after unlocking rather than reusing a locked one. `VaultDialogs.close()` likewise
+invalidates pending requests and refuses future opens, unlike ordinary dialog dismissal.
+Regression tests cover old and newly requested callbacks after lock, throwing cleanup, and late
+dialog requests. Hosts remain responsible for clearing storage/session references and validating
+live entry ids; already-issued immutable frames cannot be zeroized by this layer.
+
+The UI sandbox gate now puts its freshly compiled model/core first on the host classpath, so
+older desktop gate output cannot shadow a new shared API.

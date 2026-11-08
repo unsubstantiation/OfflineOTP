@@ -114,7 +114,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("vault.deleteEntry(request.entryId)", host)
         self.assertIn("controller.save(vault.key, remaining)", host)
         self.assertIn("presenter.entryRemoved(request.entryId)", host)
-        self.assertIn("dialogs.clear()", host)
+        self.assertIn("dialogs.close()", host)
 
     def test_pin_dialog_masks_and_does_not_save_input(self):
         dialog = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
@@ -125,7 +125,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("vault.submitPin(request.entryId, pin)", host)
-        self.assertIn("dialogs.clear()", host)
+        self.assertIn("dialogs.close()", host)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.pinRequired && enterPin != null", widgets)
 
@@ -138,7 +138,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("VaultEntryDialog(", host)
         self.assertIn("VaultDialogs { revision++ }", host)
         self.assertIn("vault.advanceCounter(request.entryId)", host)
-        self.assertIn("dialogs.clear()", host)
+        self.assertIn("dialogs.close()", host)
 
     def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -151,6 +151,10 @@ class FrameLayerBoundaryTest(unittest.TestCase):
             self.assertIn("VaultDialogKind." + kind, renderer)
         self.assertIn("inputKey = request", renderer)
         self.assertIn("strings: VaultDialogStrings", renderer)
+
+    def test_host_gate_prefers_fresh_shared_classes(self):
+        script = (SANDBOX / "compile-ui.sh").read_text()
+        self.assertIn('$OUT/core:$OUT/model:$OUT/ui:$DESKTOP_OUT/desktop', script)
 
     def test_compose_host_delegates_interactions_to_presenter(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()

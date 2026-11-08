@@ -139,7 +139,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
-                dialogs.clear()
+                dialogs.close()
                 onLock()
             },
             onChange = { revision++ }
