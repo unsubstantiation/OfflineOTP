@@ -20,6 +20,7 @@ import com.fairuniversal.offlineotp.ui.unlock.UnlockScreen
 import com.fairuniversal.offlineotp.ui.vault.VaultDialogs
 import com.fairuniversal.offlineotp.ui.vault.VaultDialogKind
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryDialog
+import com.fairuniversal.offlineotp.ui.vault.VaultClock
 import com.fairuniversal.offlineotp.ui.vault.VaultPresenter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
@@ -145,8 +146,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onChange = { revision++ }
         )
     }
-    val anchor = remember(vault) { System.currentTimeMillis() }
-    val now = rememberNowMillis(anchor)
+    val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
+    val now = rememberNowMillis(clock)
     val state = remember(now, revision, presenter) { presenter.frame(now) }
 
     VaultScreen(

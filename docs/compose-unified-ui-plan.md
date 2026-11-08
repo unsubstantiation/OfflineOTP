@@ -79,11 +79,11 @@ shows a button that does nothing.
    localisation stays a host concern. The English defaults are checked against
    `app/src/main/res/values/strings_main.xml` by the guard test, and the Swing client now renders its
    tab and sort labels from the same table, so `OTP`/`SSH Keys` cannot be spelled three ways.
-3. **The host supplies time.** There is no `expect fun currentTimeMillis()`: the host anchors the
-   countdown with its own wall clock and `rememberNowMillis` counts elapsed time from
-   `TimeSource.Monotonic`. Fewer platform actuals, and a clock change cannot make the ring run
-   backwards. The host rebuilds the frame once per second; the screen recomposes, the vault does not
-   re-filter.
+3. **The host supplies time.** There is no `expect fun currentTimeMillis()`: the host injects
+   a wall-clock reader through `VaultClock`. `rememberNowMillis` samples it on every tick, so
+   time corrections and resume affect tokens and countdowns together. Coroutine delays only pace
+   refreshes; elapsed time from unlock is not a substitute for current wall time. The host rebuilds
+   the frame once per second; the screen recomposes, the vault does not re-filter.
 4. **Codes start masked.** A card draws digits only when its id is in the revealed set; copying is
    still allowed because the user asked for that row. Reveal state is keyed by the entry's stable
    list id, never a row position, and the host clears the set on lock.
@@ -345,3 +345,13 @@ after the modal dialog returns. Failed HOTP saves now restore the old counter/to
 matching Compose; failed deletion leaves the entry intact. Encrypted-vault tests cover failure
 and retry, hidden entries, detached objects with colliding ids, and changed sort/filter selection.
 Swing rendering and dialogs are still present; this increment unifies their mutation backend.
+
+### Wall-clock correction in the Compose token loop
+
+The previous timer extrapolated wall time from an unlock anchor plus monotonic elapsed time.
+That ignored later clock corrections, even though OTP generation requires current wall time.
+`VaultClock` now samples the host clock once per tick and computes a strictly positive delay to
+the next refresh boundary. Tests cover forward/backward clock changes, resume after a long gap,
+negative/extreme timestamps and invalid intervals. The Compose effect is keyed to the injected
+clock and remains cancelled when the screen leaves composition. Runtime coroutine scheduling
+and actual suspend/resume behavior still need real Compose validation.

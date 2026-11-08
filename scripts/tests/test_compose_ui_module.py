@@ -36,6 +36,7 @@ FRAME_FILES = {
     "vault/VaultPresenter.kt",
     "vault/VaultDialogs.kt",
     "vault/VaultFrameHost.kt",
+    "vault/VaultClock.kt",
 }
 
 HOST_PACKAGES = (
@@ -153,6 +154,16 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("inputKey = request", renderer)
         self.assertIn("strings: VaultDialogStrings", renderer)
 
+    def test_token_loop_resamples_host_wall_clock(self):
+        countdown = (UI_MAIN / "vault/Countdown.kt").read_text()
+        self.assertIn("LaunchedEffect(clock)", countdown)
+        self.assertIn("val sample = clock.sample()", countdown)
+        self.assertNotIn("TimeSource.Monotonic", countdown)
+        self.assertNotIn("anchorMillis", countdown)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("VaultClock(System::currentTimeMillis)", host)
+        self.assertIn("rememberNowMillis(clock)", host)
+
     def test_host_gate_prefers_fresh_shared_classes(self):
         script = (SANDBOX / "compile-ui.sh").read_text()
         self.assertIn('$OUT/core:$OUT/model:$OUT/ui:$DESKTOP_OUT/desktop', script)
@@ -168,7 +179,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
