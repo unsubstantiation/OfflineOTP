@@ -725,7 +725,7 @@ object MainWindow {
                     removalConfirmationMessage(selected.getLabel(), selected.getIssuer()),
                     "Remove", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
                 != JOptionPane.YES_OPTION) return@addActionListener
-            if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
+            if (editor?.remove(selected) == true) {
                 refreshProjection(unlocked)
             } else {
                 JOptionPane.showMessageDialog(frame, "The entry could not be deleted from the vault.",

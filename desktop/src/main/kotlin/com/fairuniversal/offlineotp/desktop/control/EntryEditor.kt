@@ -135,11 +135,14 @@ class EntryEditor(
     }
 
     fun removeAt(position: Int): Boolean {
-        val proposed = state.snapshot()
-        if (position !in proposed.indices) return false
-        proposed.removeAt(position)
-        if (!controller.save(state.key, proposed)) return false
-        return state.removeAt(position) != null
+        val entry = state.snapshot().getOrNull(position) ?: return false
+        return remove(entry)
+    }
+
+    /** A delayed confirmation must still refer to the same live entry, not a reused row/id. */
+    fun remove(entry: Entry): Boolean {
+        if (state.snapshot().none { it === entry }) return false
+        return state.deleteEntry(entry.getListId()) { remaining -> controller.save(state.key, remaining) }
     }
 
     /**
@@ -183,10 +186,9 @@ class EntryEditor(
      * entries, at the [Long] counter ceiling, or when the vault write fails.
      */
     fun advanceHotp(entry: Entry): Boolean {
-        if (!entry.areDetailsVisible()) return false
-        // The ceiling and the one-step advance are shared with Android's counter chip.
-        if (!EntryUsage.advanceHotp(entry)) return false
-        return persist()
+        if (!entry.areDetailsVisible() || state.snapshot().none { it === entry }) return false
+        // Share stable-id validation, the core counter rule and failed-save rollback with Compose.
+        return state.advanceCounter(entry.getListId()) { persist() }
     }
 
     private fun persist(): Boolean = controller.save(state.key, state.snapshot())

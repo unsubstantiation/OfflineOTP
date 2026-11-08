@@ -708,6 +708,80 @@ class EntryEditorAndBackupTest {
         assertEquals(Long.MAX_VALUE - 1, maxed.getCounter())
     }
 
+    @Test
+    fun swingCounterFailureRollsBackBeforeRetry() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val hotp = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 4L, 6,
+                "Bank", "alice", TokenCalculator.HashAlgorithm.SHA1, ArrayList())
+            assertTrue(editor.add(hotp))
+            // Swing's privacy gate is preserved, unlike the mutation handler used by Compose.
+            assertFalse(editor.advanceHotp(hotp))
+            assertTrue(editor.setDetailsVisible(hotp, true))
+            hotp.updateOTP(false)
+            val oldToken = hotp.getCurrentOTP()
+            assertTrue(dir.setWritable(false, false))
+            try {
+                assertFalse(editor.advanceHotp(hotp))
+                assertEquals(4L, hotp.getCounter())
+                assertEquals(oldToken, hotp.getCurrentOTP())
+            } finally { assertTrue(dir.setWritable(true, false)) }
+            val beforeRetry = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(4L, beforeRetry.entries.single().getCounter())
+            assertTrue(editor.advanceHotp(hotp))
+            val afterRetry = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(5L, afterRetry.entries.single().getCounter())
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test
+    fun swingDeletionPreservesTheEntryOnFailureAndResolvesTheConfirmedObject() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val first = entry("Zebra", "alice")
+            val second = entry("Alpha", "bob")
+            assertTrue(editor.add(first))
+            assertTrue(editor.add(second))
+            state.applySortMode(Constants.SortMode.ISSUER)
+            assertTrue(dir.setWritable(false, false))
+            try {
+                assertFalse(editor.remove(second))
+                assertEquals(2, state.snapshot().size)
+                assertEquals("Alpha", second.getIssuer())
+            } finally { assertTrue(dir.setWritable(true, false)) }
+            state.applySearch("alice")
+            assertTrue(editor.remove(second))
+            assertFalse(editor.remove(second))
+            val reopened = controller.openVault(password) as VaultController.Session.Loaded
+            assertEquals(listOf("Zebra"), reopened.entries.map { it.getIssuer() })
+            assertEquals(listOf(first), state.snapshot())
+        } finally { dir.deleteRecursively() }
+    }
+
+    @Test
+    fun swingMutationsRejectDetachedObjectsEvenWithACollidingId() {
+        val (dir, controller, state) = harness()
+        try {
+            val editor = EntryEditor(controller, state)
+            val live = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 4L, 6,
+                "Bank", "alice", TokenCalculator.HashAlgorithm.SHA1, ArrayList())
+            assertTrue(editor.add(live))
+            val detached = Entry(Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", 4L, 6,
+                "Bank", "alice", TokenCalculator.HashAlgorithm.SHA1, ArrayList())
+            detached.setListId(live.getListId())
+            detached.setDetailsVisible(true)
+            assertFalse(editor.advanceHotp(detached))
+            assertFalse(editor.remove(detached))
+            assertEquals(4L, live.getCounter())
+            assertEquals(1, state.snapshot().size)
+            state.lock()
+            assertFalse(editor.advanceHotp(live))
+            assertFalse(editor.remove(live))
+        } finally { dir.deleteRecursively() }
+    }
+
     private fun migrationUri(partIndex: Int, label: String): String {
         val secret = byteArrayOf(0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x21, partIndex.toByte(), 1, 2, 3)
         val account = fieldBytes(1, secret) +

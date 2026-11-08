@@ -334,3 +334,14 @@ capabilities so unsupported actions remain hidden. Tests exercise every action, 
 closing before first publication, repeated close and isolation from a fresh session.
 This does not replace Android's live-entry checks or same-session async search revision checks,
 and does not zeroize immutable frames already held by callers. No Activity wiring is changed.
+
+### Shared desktop mutation paths
+
+Swing's `EntryEditor` now delegates HOTP advance and deletion to the same `DesktopVaultState`
+handlers used by Compose, instead of maintaining a second persistence sequence. Swing retains
+its reveal-before-advance requirement and checks object identity before resolving the stable id.
+The removal confirmation carries the selected entry rather than re-resolving a displayed row
+after the modal dialog returns. Failed HOTP saves now restore the old counter/token in Swing,
+matching Compose; failed deletion leaves the entry intact. Encrypted-vault tests cover failure
+and retry, hidden entries, detached objects with colliding ids, and changed sort/filter selection.
+Swing rendering and dialogs are still present; this increment unifies their mutation backend.

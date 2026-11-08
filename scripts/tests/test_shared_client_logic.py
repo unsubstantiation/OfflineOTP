@@ -49,7 +49,9 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("EntryUsage.markImported(", text(DESKTOP / "control/EntryEditor.kt"))
         # The HOTP advance and its ceiling are shared, not re-derived per client.
         self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/EntriesCardAdapter.kt"))
-        self.assertIn("EntryUsage.advanceHotp(", text(DESKTOP / "control/EntryEditor.kt"))
+        self.assertIn("EntryUsage.advanceHotp(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertIn("state.advanceCounter(", text(DESKTOP / "control/EntryEditor.kt"))
+        self.assertIn("state.deleteEntry(", text(DESKTOP / "control/EntryEditor.kt"))
         for root in (APP, DESKTOP):
             # Copying metadata is fine; *counting* a use is what must go through the helper.
             for path in sources(root):
@@ -58,6 +60,13 @@ class SharedClientLogicTest(unittest.TestCase):
                                   f"{path} must count uses through EntryUsage.recordUse")
                 self.assertNotIn("Long.MAX_VALUE - 1", body,
                                  f"{path}: the HOTP ceiling belongs to EntryUsage")
+
+    def test_swing_confirmation_keeps_entry_identity(self):
+        window = text(DESKTOP / "ui/MainWindow.kt")
+        self.assertIn("editor?.remove(selected)", window)
+        self.assertNotIn("editor?.removeAt(unlocked.presentation.sourceIndex(row))", window)
+        editor = text(DESKTOP / "control/EntryEditor.kt")
+        self.assertIn("state.snapshot().none { it === entry }", editor)
 
     def test_the_tag_rule_and_tag_order_are_shared(self):
         self.assertIn("EntryTagFilter.matches(", text(CORE / "Database/EntryList.kt"))

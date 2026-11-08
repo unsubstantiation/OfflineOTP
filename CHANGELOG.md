@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop: Share Swing and Compose HOTP/deletion persistence handlers. Roll back Swing counters on failed saves, and bind deletion confirmation to the selected entry rather than a row that may change while the dialog is open.
+
  * Compose Android seam: Make clearing the view terminal for its session. Reject late frames and retained actions after clear, and share callback liveness guarding with the desktop presenter. A new unlock requires a new view.
 
  * Compose Android seam: Extend AbstractComposeView rather than the final ComposeView class. Correct the sandbox stub so it rejects the unsupported inheritance; Android cutover remains pending.
