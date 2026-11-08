@@ -478,6 +478,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_desktop_editing_reuses_the_form_and_rechecks_live_reveal(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace)", host)
+        self.assertIn("presenter.isRevealed(editRequest.entryId)", host)
+        self.assertIn("editing.close()", host)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("if (!editing) for (type", form)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
+        self.assertIn("it === request.target", owner)
+        self.assertIn("replacement.destroy()", owner)
+
     def test_desktop_manual_creation_uses_shared_form_and_guarded_persistence(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopEntryCreation(vault, EntryEditor(controller, vault)::add)", host)

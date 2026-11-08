@@ -611,3 +611,25 @@ duplicates, failed/throwing saves and stale/locked requests. The form is type-ch
 stubs; layout, keyboard/focus behavior and scrolling require real runtime validation. This is
 add-only: existing-entry editing, tag/thumbnail editing, asynchronous persistence and the other
 desktop migration gates remain pending. The shipping launcher is unchanged.
+
+### Desktop replacement: editing existing manual-entry types
+
+Revealed OTP/note/SSH rows now offer Edit through the shared action contract. The presenter checks
+its current reveal set before opening, and the host checks it again on submission. Password/archive
+and email entries remain outside this form. `DesktopEntryEditing` binds the dialog to the actual
+entry object and exact request: removal, same-ID replacement, dismissal, type changes or terminal
+lock invalidate the operation. It delegates persistence/publication to `EntryEditor.replace`,
+destroys unadopted replacements, and leaves the original unchanged on rejected/failed writes.
+
+The shared form locks the type while editing and preloads metadata only. Blank secret/note/key,
+PIN, SSH password and protected-label fields mean keep the original; sensitive content is not
+preloaded into form state. Editing such values replaces them in full; clearing an existing PIN,
+SSH password or protected label is not yet offered. Metadata edits retain usage stamps, chosen
+artwork and persistent privacy; the existing replacement path preserves row ID and manual order.
+Successful replacement drops the old transient reveal state. Tags can be changed in the form;
+a dedicated tag/thumbnail picker remains pending.
+
+Tests cover secret/metadata preservation, fixed types, reveal guards, persist/reopen, failed and
+throwing saves, stale requests and same-ID replacements. Real Compose editing, focus/scrolling,
+async IO and the remaining desktop workflows still need validation/migration before launcher
+cutover. No Swing renderer was removed in this increment.

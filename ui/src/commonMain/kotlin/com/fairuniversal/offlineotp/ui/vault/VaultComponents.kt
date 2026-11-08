@@ -373,6 +373,11 @@ internal fun VaultEntryCard(
             if (card.detailsVisible && deleteEntry != null) {
                 ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
             }
+            val edit = actions.onEditEntry
+            if (card.detailsVisible && card.revealed && edit != null &&
+                card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS)) {
+                ForestTextAction(text = strings.editEntry, onClick = { edit(card) })
+            }
             val entryActions = actions.onEntryActions
             if (card.detailsVisible && entryActions != null) {
                 ForestTextAction(

@@ -19,18 +19,20 @@ import com.fairuniversal.offlineotp.Database.EntryDraft
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 
-/** Add-only form. Input stays in composition; the host validates and owns any created entry. */
+/** Add/edit form. Input stays in composition; the host validates and owns any created entry. */
 @Composable
-fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit) {
-    var input by remember(inputKey) { mutableStateOf(ManualEntryInput()) }
+fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
+                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false) {
+    var input by remember(inputKey) { mutableStateOf(initial) }
     fun dismiss() { input = ManualEntryInput(); onDismiss() }
     AlertDialog(
         onDismissRequest = { dismiss() },
-        title = { Text(text = "Add entry") },
+        title = { Text(text = if (editing) "Edit entry" else "Add entry") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(text = "Type: ${input.type}")
-                for (type in EntryDraft.offerableTypes()) {
+                if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values.")
+                if (!editing) for (type in EntryDraft.offerableTypes()) {
                     ForestTextAction(text = type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
                         input = ManualEntryInput(type = type, issuer = input.issuer, label = input.label,

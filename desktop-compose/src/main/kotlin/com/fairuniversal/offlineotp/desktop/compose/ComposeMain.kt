@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
 import com.fairuniversal.offlineotp.desktop.control.EntryEditor
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
@@ -51,7 +52,7 @@ import java.awt.datatransfer.StringSelection
  * come from `:ui`, and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): editing existing entries, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -145,18 +146,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     var revision by remember(vault) { mutableStateOf(0) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
+    val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             copyCode = ::copyToken,
-            addEntry = { dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
-            advanceCounter = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
+            addEntry = { editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            editEntry = { card ->
+                creation.pending?.let { creation.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                editing.open(card.id)
+                revision++
+            },
+            advanceCounter = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                editing.close()
                 creation.close()
                 dialogs.close()
                 onLock()
@@ -211,6 +220,25 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onDismiss = { creation.dismiss(addRequest); revision++ },
             onSubmit = { input ->
                 if (creation.submit(addRequest, input)) presenter.applyFilter(presenter.filter)
+                revision++
+            }
+        )
+    }
+    val editRequest = editing.pending
+    if (editRequest != null) {
+        val initial = remember(editRequest) { editing.initialInput(editRequest) }
+        if (initial != null) ManualEntryDialog(
+            inputKey = editRequest, initial = initial, editing = true,
+            error = when (editRequest.failure) {
+                DesktopEntryEditing.Failure.INVALID_INPUT -> "Invalid entry. Check the fields and re-enter any secret changes."
+                DesktopEntryEditing.Failure.SAVE_FAILED -> "Could not save changes. The original entry was retained; re-enter any secret changes to retry."
+                null -> null
+            },
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                if (editing.submit(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                    presenter.entryRemoved(editRequest.entryId) // Discard prior reveal state for the replacement.
+                }
                 revision++
             }
         )

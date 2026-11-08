@@ -10,6 +10,57 @@ import org.junit.Test
 
 class ManualEntryInputTest {
     @Test
+    fun editsKeepSecretsOutOfTheFormAndPreserveMetadata() {
+        val original = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", hiddenLabel = "protected").build()
+        original.setLastUsed(123L)
+        original.setUsedFrequency(7L)
+        original.setDetailsVisible(true)
+        original.setThumbnailName("GitHub")
+        val initial = ManualEntryInput.fromEntry(original)
+        assertTrue(initial.secret.isEmpty() && initial.hiddenLabel.isEmpty() && initial.pin.isEmpty())
+        val edited = initial.copy(label = "new label").build(original)
+        try {
+            assertEquals(original.getSecretEncoded(), edited.getSecretEncoded())
+            assertEquals("protected", edited.getHiddenLabel())
+            assertEquals("GitHub", edited.getThumbnailName())
+            assertEquals(123L, edited.getLastUsed())
+            assertEquals(7L, edited.getUsedFrequency())
+            assertTrue(edited.areDetailsVisible())
+            var rejected = false
+            try { initial.copy(type = Entry.OTPType.HOTP).build(original).destroy() }
+            catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+        } finally { edited.destroy(); original.destroy() }
+    }
+
+    @Test
+    fun blankNoteKeyPinAndPasswordFieldsRetainTheOriginalValues() {
+        val note = ManualEntryInput(type = Entry.OTPType.NOTE, label = "Note", secret = "  private note\n").build()
+        val ssh = ManualEntryInput(type = Entry.OTPType.SSH_KEY, label = "Server", secret = "private key", publicKey = "public key",
+            sshHost = "host", sshUser = "user", sshPort = "2222", sshPassword = "password").build()
+        val motp = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef", pin = "1234").build()
+        try {
+            for (original in listOf(note, ssh, motp)) {
+                val initial = ManualEntryInput.fromEntry(original)
+                assertTrue(listOf(initial.secret, initial.publicKey, initial.pin, initial.sshPassword).all { it.isEmpty() })
+                val replacement = initial.copy(label = "renamed").build(original)
+                try {
+                    when (original.getType()) {
+                        Entry.OTPType.NOTE -> assertEquals(note.getNote(), replacement.getNote())
+                        Entry.OTPType.SSH_KEY -> {
+                            assertEquals(ssh.getSshKeys()!!.privateKey, replacement.getSshKeys()!!.privateKey)
+                            assertEquals(ssh.getSshKeys()!!.publicKey, replacement.getSshKeys()!!.publicKey)
+                            assertEquals("password", replacement.getSshConnection()!!.password)
+                            assertEquals(2222, replacement.getSshConnection()!!.port)
+                        }
+                        else -> assertEquals("1234", replacement.getPin())
+                    }
+                } finally { replacement.destroy() }
+            }
+        } finally { note.destroy(); ssh.destroy(); motp.destroy() }
+    }
+
+    @Test
     fun everyOfferedTypeUsesTheSharedBuilderAndTags() {
         for (type in EntryDraft.offerableTypes()) {
             val input = ManualEntryInput(type = type, issuer = "Example", label = "alice",

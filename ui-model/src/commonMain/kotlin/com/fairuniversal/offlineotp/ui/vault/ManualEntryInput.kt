@@ -15,19 +15,52 @@ data class ManualEntryInput(
     val tags: String = "", val sshHost: String = "", val sshPort: String = "",
     val sshUser: String = "", val sshPassword: String = ""
 ) {
-    fun build(): Entry {
+    fun build(existing: Entry? = null): Entry {
         require(type in EntryDraft.offerableTypes())
+        require(existing == null || existing.getType() == type) { "Entry type cannot change" }
+        val priorKeys = existing?.takeIf { it.isSshKey() }?.getSshKeys()
+        val entered = EntryDraft.sanitizeSecret(type, secret)
+        val resolvedSecret = entered.ifEmpty {
+            when {
+                existing == null -> ""
+                type == Entry.OTPType.NOTE -> existing.getNote()
+                type == Entry.OTPType.SSH_KEY -> priorKeys?.privateKey.orEmpty()
+                else -> existing.getSecretEncoded()
+            }
+        }
         val steam = type == Entry.OTPType.STEAM
         return EntryDraft.create(
-            type, issuer, label, EntryDraft.sanitizeSecret(type, secret),
+            type, issuer, label, resolvedSecret,
             if (steam) "5" else digits, if (steam) "30" else timing,
             if (steam) TokenCalculator.HashAlgorithm.SHA1 else algorithm,
-            pin = pin, publicKey = publicKey,
+            pin = pin.ifEmpty { existing?.getPin().orEmpty() }, publicKey = publicKey.ifEmpty { priorKeys?.publicKey.orEmpty() },
             sshConnection = if (type == Entry.OTPType.SSH_KEY)
-                SshConnection.of(sshHost, SshConnection.port(sshPort), sshUser, sshPassword) else null,
+                SshConnection.of(sshHost, SshConnection.port(sshPort), sshUser,
+                    sshPassword.ifEmpty { existing?.getSshConnection()?.password.orEmpty() }) else null,
             tags = ArrayList(tags.lines().map { it.trim() }.filter { it.isNotEmpty() }.distinct()),
-            hiddenLabel = hiddenLabel, newEntry = true
-        )
+            hiddenLabel = hiddenLabel.ifEmpty { existing?.getHiddenLabel().orEmpty() }, newEntry = existing == null
+        ).also { replacement ->
+            if (existing != null) {
+                replacement.setDetailsVisible(existing.areDetailsVisible())
+                replacement.setLastUsed(existing.getLastUsed())
+                replacement.setUsedFrequency(existing.getUsedFrequency())
+                replacement.setThumbnailName(existing.getThumbnailName())
+            }
+        }
+    }
+
+    companion object {
+        /** Seeds editable metadata only. Never preload OTP seeds, notes, keys, PINs or passwords. */
+        fun fromEntry(entry: Entry): ManualEntryInput {
+            require(entry.getType() in EntryDraft.offerableTypes())
+            val connection = entry.takeIf { it.isSshKey() }?.getSshConnection()
+            return ManualEntryInput(type = entry.getType(), issuer = entry.getIssuer(), label = entry.getLabel(),
+                digits = entry.getDigits().toString(),
+                timing = if (entry.isCounterBased()) entry.getCounter().toString() else entry.getPeriod().toString(),
+                algorithm = entry.getAlgorithm(), tags = entry.getTags().joinToString("\n"),
+                sshHost = connection?.host.orEmpty(), sshUser = connection?.username.orEmpty(),
+                sshPort = connection?.port?.takeIf { it != 0 }?.toString().orEmpty())
+        }
     }
 
     fun withoutSecrets(): ManualEntryInput = copy(secret = "", pin = "", publicKey = "", sshPassword = "", hiddenLabel = "")

@@ -18,6 +18,30 @@ import org.junit.Test
  */
 class VaultPresenterTest {
 
+    @Test
+    fun editingRequiresCurrentRevealAndBecomesInertAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        var edits = 0
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            editEntry = { edits++ })
+        val actions = presenter.actions()
+        val card = presenter.frame(0L).cards.single()
+        actions.onEditEntry?.invoke(card)
+        assertEquals(0, edits)
+        presenter.toggleReveal(card.id)
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        presenter.toggleReveal(card.id)
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        presenter.toggleReveal(card.id)
+        presenter.lock()
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        entry.destroy()
+    }
+
     private val secret = "JBSWY3DPEHPK3PXP"
 
     private fun totp(issuer: String, label: String, tags: List<String> = emptyList()) =

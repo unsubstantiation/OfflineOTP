@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit revealed OTP, note and SSH entries with fixed types and identity-bound save requests. Blank secret fields retain existing values; edits preserve artwork, privacy, usage metadata and row identity. Real Compose validation and remaining desktop workflows are still pending.
+
  * Compose desktop: Add manual OTP, note and SSH-key creation through the shared form and EntryDraft validation. Persist before publication, reject stale/locked dialog submissions, and discard unadopted drafts. Existing-entry editing and shipping launcher cutover remain pending.
 
  * Compose desktop: Honor the saved inactivity timeout, reject activity after expiry, and clear the vault on close/disposal. Add a Swing-free event-thread scheduler with headless lifecycle/timer tests. Shipping desktop launcher remains Swing pending parity and runtime validation.

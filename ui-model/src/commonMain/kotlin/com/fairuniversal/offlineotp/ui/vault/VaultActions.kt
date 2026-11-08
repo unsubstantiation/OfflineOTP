@@ -44,13 +44,15 @@ class VaultActions(
     val onClearFilters: () -> Unit = {},
     val onSelectSort: (Constants.SortMode) -> Unit = {},
     val onLock: () -> Unit = {},
-    val onAddEntry: (() -> Unit)? = null
+    val onAddEntry: (() -> Unit)? = null,
+    val onEditEntry: ((VaultCardState) -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onEditEntry = onEditEntry?.let { action -> { if (isActive()) action(it) } },
         onAddEntry = onAddEntry?.let { action -> { if (isActive()) action() } },
         onCopyToken = { if (isActive()) onCopyToken(it) },
         onToggleReveal = { if (isActive()) onToggleReveal(it) },
