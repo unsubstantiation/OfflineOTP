@@ -1,6 +1,8 @@
 package com.fairuniversal.offlineotp.desktop.compose
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -33,6 +35,9 @@ import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import com.fairuniversal.offlineotp.ui.vault.rememberNowMillis
 
 import java.awt.Toolkit
+import java.awt.AWTEvent
+import java.awt.Component
+import java.awt.event.AWTEventListener
 import java.awt.datatransfer.StringSelection
 
 /**
@@ -44,7 +49,7 @@ import java.awt.datatransfer.StringSelection
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
  * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): add/edit
- * dialogs, backup/restore, hardware keys, preferences and the idle auto-lock. The shared screen
+ * dialogs, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -71,7 +76,11 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
     var busy by remember { mutableStateOf(false) }
 
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            session?.lock()
+            session = null
+            exitApplication()
+        },
         title = "OfflineOTP",
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
@@ -108,6 +117,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
                 VaultContent(
                     controller = controller,
                     vault = vault,
+                    window = window,
                     onLock = {
                         vault.lock()
                         session = null
@@ -120,7 +130,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
 }
 
 @Composable
-private fun VaultContent(controller: VaultController, vault: DesktopVaultState, onLock: () -> Unit) {
+private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, onLock: () -> Unit) {
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
@@ -148,6 +158,27 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onChange = { revision++ }
         )
+    }
+    DisposableEffect(presenter) {
+        val scheduler = AwtScheduler()
+        val lifetime = DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds()) {
+            presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
+        }
+        val listener = AWTEventListener { event ->
+            var source = event.source as? Component
+            while (source != null && source !== window) {
+                source = if (source is java.awt.Window) source.owner else source.parent
+            }
+            if (source === window) lifetime.activity()
+        }
+        val toolkit = Toolkit.getDefaultToolkit()
+        toolkit.addAWTEventListener(listener,
+            AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
+                AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
+        onDispose {
+            toolkit.removeAWTEventListener(listener)
+            try { lifetime.close() } finally { scheduler.close() }
+        }
     }
     val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
     val now = rememberNowMillis(clock)

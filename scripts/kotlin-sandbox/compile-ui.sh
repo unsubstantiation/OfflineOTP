@@ -154,3 +154,13 @@ echo "phase 6: android host seam (${#ANDROID_UI_SOURCES[@]} files, Android + Com
 echo "android seam type-checked (no View is ever attached: the stubs have no framework)"
 
 
+
+# Real headless AWT scheduler tests only. No composable or stubbed Window is executed here.
+mapfile -d '' HOST_TEST_SOURCES < <(find "$ROOT/desktop-compose/src/test/kotlin" -name '*.kt' -print0 | sort -z)
+[[ ${#HOST_TEST_SOURCES[@]} -gt 0 ]] || { echo "no host tests found" >&2; exit 2; }
+echo "phase 7: desktop-compose headless platform tests (${#HOST_TEST_SOURCES[@]} files)"
+"$KOTLINC" -jvm-target 1.8 -nowarn -Xfriend-paths="$OUT/host" \
+    -cp "$OUT/host:$OUT/core:$STDLIB" \
+    "${HOST_TEST_SOURCES[@]}" "${JUNIT_SHIM[@]}" -d "$OUT/host-tests"
+"$JAVA_BIN" -Djava.awt.headless=true -cp "$OUT/host-tests:$OUT/host:$OUT/core:$STDLIB" \
+    JvmTestRunnerKt "$OUT/host-tests"

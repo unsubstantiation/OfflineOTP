@@ -44,4 +44,5 @@ dependencies {
 
     // Skiko/AWT binding for the current operating system; the Gradle plugin picks the artifact.
     implementation compose.desktop.currentOs
+    testImplementation 'junit:junit:4.13.2'
 }

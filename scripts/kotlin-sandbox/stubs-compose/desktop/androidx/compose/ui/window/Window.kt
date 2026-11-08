@@ -13,7 +13,7 @@ interface ApplicationScope {
     fun exitApplication()
 }
 
-interface FrameWindowScope
+interface FrameWindowScope { val window: java.awt.Window }
 
 class WindowState(val width: Dp, val height: Dp)
 

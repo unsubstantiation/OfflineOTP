@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Honor the saved inactivity timeout, reject activity after expiry, and clear the vault on close/disposal. Add a Swing-free event-thread scheduler with headless lifecycle/timer tests. Shipping desktop launcher remains Swing pending parity and runtime validation.
+
  * Android CI: Add manual-only Compose/artwork emulator validation to the existing workflow, covering F-Droid/API 28 and Play/API 36. Require passing results for all selected tests and retain diagnostic logs without publishing debug APKs.
 
  * Android tests: Add real Compose-host device tests for frame/action replacement, terminal clearing, concealed text, localized period labels and artwork loading. These are type-checked in the sandbox; device execution remains required.

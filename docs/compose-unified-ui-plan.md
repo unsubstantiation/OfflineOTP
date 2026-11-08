@@ -208,8 +208,8 @@ through the state; otherwise the next refresh would have reset the user's tab.
 
 ### Stage 4 — desktop parity, then delete Swing
 
-The Compose desktop host gains the remaining features (add/edit/delete, backup/restore, OpenPGP,
-hardware keys, preferences, auto-lock, portable-location handling), then `desktop/src/main/.../ui`
+The Compose desktop host gains the remaining features (add/edit, backup/restore, OpenPGP,
+hardware keys, preferences, clipboard expiry, portable-location handling), then `desktop/src/main/.../ui`
 and the Swing entry point are deleted and `:desktop-compose` takes over the `:desktop` name. The
 engine (`control/`, `storage/`, `openpgp/`, `hardware/`) is untouched throughout.
 
@@ -567,3 +567,24 @@ Only a completed successful emulator run is evidence of device-test success. A c
 source guard pass or sandbox compile is not. This focused gate does not replace the full connected
 suite, manual accessibility/visual review or release validation; both flavors on both API levels
 are also outside this small matrix.
+
+### Desktop replacement: session lifetime prerequisite
+
+The Compose desktop host now honors `savedInactivityLockSeconds()` using a Swing-free AWT
+scheduler and the shared `ScreenTimerController` through `DesktopSessionLifetime`. Input from
+the host window and its owned dialogs resets a live deadline; input after expiry locks rather
+than extending the session. Timeout closes the shared presenter/dialogs and destroys the owned
+vault state. Disposal removes the global input listener, invalidates pending timers and locks
+the presenter. Window-close explicitly clears the vault before exiting. Zero retains the existing
+disabled-timeout preference. The Compose preference editor is not implemented yet.
+
+Four headless policy tests cover expiry, rearming/stale timers, disabled/large timeouts and failing
+cleanup. Three additional tests execute real JDK AWT scheduling (not Compose stubs), including EDT
+delivery, cancellation and terminal close; `compile-ui.sh` now runs these after type-checking hosts.
+Real Compose window lifecycle/input delivery and operating-system suspend/resume still need
+display-backed validation. This does not switch the shipping launcher or remove Swing.
+
+Next desktop migration gates: add/edit forms and tag/thumbnail editing; persistence-aware copy and
+clipboard expiry; backup/restore/import/export including structured credentials; hardware-key and
+OpenPGP workflows; preferences/portable paths; then packaging/launcher cutover and Swing retirement.
+Unlock and persistence work also need asynchronous UI integration before shipping the Compose host.

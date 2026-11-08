@@ -17,7 +17,8 @@ the toolkit-free frame layer — what a row shows, the shared filter transitions
 wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
 tokens, the unlock screen and the `VaultComposeView` used by Android MainActivity, and
 `:desktop-compose` runs that screen over the existing desktop engine as a preview
-(`./gradlew :desktop-compose:run`). The Swing client already paints each row from that frame model
+(`./gradlew :desktop-compose:run`). That host now honors the saved inactivity timeout and clears
+its session on window close/disposal; full desktop feature parity is still pending. The Swing client already paints each row from that frame model
 (`VaultCards.of`), so the desktop and the Compose screen group codes, warn about expiry and pick tags
 the same way. Android MainActivity now renders the shared Compose cards while retaining its
 existing toolbar, tabs, tag drawer and action dialogs. Manual ordering uses up/down controls.

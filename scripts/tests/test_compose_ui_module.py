@@ -478,6 +478,20 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_desktop_compose_session_lifetime_is_wired_without_swing_widgets(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds())", host)
+        self.assertIn("DisposableEffect(presenter)", host)
+        self.assertIn("presenter.lock()", host)
+        self.assertIn("toolkit.removeAWTEventListener(listener)", host)
+        self.assertIn("try { lifetime.close() } finally { scheduler.close() }", host)
+        self.assertIn("session?.lock()", host)
+        self.assertIn("source === window", host)
+        for source in COMPOSE_HOST.glob("*.kt"):
+            self.assertNotIn("javax.swing", source.read_text())
+        gate = (ROOT / "scripts/kotlin-sandbox/compile-ui.sh").read_text()
+        self.assertIn('JvmTestRunnerKt "$OUT/host-tests"', gate)
+
     def test_android_seam_is_a_thin_view_and_holds_no_session(self):
         """Stage 2 uses the supported AbstractComposeView extension point."""
         seam = UI_ANDROID / "vault/VaultComposeView.kt"
