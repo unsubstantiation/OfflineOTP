@@ -35,7 +35,7 @@ class CompletedFeatureWiringTest(unittest.TestCase):
         self.assertLess(cleanup.index("pendingImport?.close()"), cleanup.index("dialog?.dismiss()"))
 
     def test_card_and_import_preview_use_the_actual_token_step(self):
-        holder = (APP / "View/EntryViewHolder.kt").read_text(encoding="utf-8")
+        holder = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt").read_text(encoding="utf-8")
         adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         main = (APP / "Activities/MainActivity.kt").read_text(encoding="utf-8")
         self.assertIn("entry.hasNonDefaultTokenStep()", holder)

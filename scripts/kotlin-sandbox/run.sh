@@ -210,16 +210,20 @@ APP_SOURCES=(
     "$KOTLIN_APP/View/AndroidVaultFrame.kt"
     "$KOTLIN_APP/View/AndroidVaultController.kt"
     "$KOTLIN_APP/View/EntryCardEvents.kt"
-    "$KOTLIN_APP/View/EntriesCardAdapter.kt"
     "$KOTLIN_APP/View/EntryActionDialogs.kt"
-    "$KOTLIN_APP/View/EntryViewHolder.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperAdapter.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt"
-    "$KOTLIN_APP/View/SimpleDoubleClickListener.kt"
     "$KOTLIN_APP/View/TagsAdapter.kt"
     "$KOTLIN_APP/View/ThumbnailSelectionAdapter.kt"
     "$ROOT/app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Fragments/AboutFragment.kt"
+)
+
+# Historical renderer fixtures are never part of APP_SOURCES or the shipping source set.
+LEGACY_FIXTURES=(
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/SimpleDoubleClickListener.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperAdapter.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt"
 )
 
 STUBS=("$SANDBOX"/stubs/android/*.kt
@@ -324,5 +328,8 @@ echo "output:  $OUT"
 # Phase 2 compiles the app and its Checks harness against core's compiled output exactly as a Gradle
 # project dependency (core sources are deliberately absent here), plus the full platform stub set.
 "$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
-    "${APP_SOURCES[@]}" "${STUBS[@]}" "$SANDBOX/Checks.kt" -d "$OUT/app"
-"$JAVA_BIN" -cp "$OUT/app:$OUT/core:$STDLIB" ChecksKt
+    "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT/app"
+# Compile the checks separately: production cannot accidentally depend on legacy fixtures.
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/app:$OUT/core:$STDLIB" \
+    -Xfriend-paths="$OUT/app" "${LEGACY_FIXTURES[@]}" "$SANDBOX/Checks.kt" -d "$OUT/checks"
+"$JAVA_BIN" -cp "$OUT/checks:$OUT/app:$OUT/core:$STDLIB" ChecksKt

@@ -55,6 +55,17 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
             expected = path.parent.relative_to(ANDROID_TEST_ROOT).as_posix().replace("/", ".")
             self.assertEqual(expected, package.group(1),
                              f"{path} package does not match its directory")
+            if path.relative_to(ANDROID_TEST_ROOT).as_posix() in {
+                "com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt",
+                "com/fairuniversal/offlineotp/View/EntryViewHolder.kt",
+                "com/fairuniversal/offlineotp/View/SimpleDoubleClickListener.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperAdapter.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt",
+            }:
+                # Historical renderer fixtures, deliberately excluded from shipping app sources.
+                self.assertNotIn("@Test", text)
+                continue
             if path.name.endswith("Support.kt"):
                 # Shared fixtures, not a test class: these files must not be discovered as tests.
                 self.assertNotIn("@Test", text, f"{path.name} is support code but declares a test")

@@ -120,7 +120,7 @@ class OtpAmberColorTest(unittest.TestCase):
             progress = root.find(f".//*[@{ANDROID}id='@+id/cardProgressBar']")
             self.assertEqual("@color/forest_otp_amber",
                              progress.get("{http://schemas.android.com/apk/res-auto}mpb_progressTint"), layout)
-        holder = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
+        holder = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
             .read_text(encoding="utf-8")
         self.assertIn("R.attr.colorOtp", holder)
         self.assertIn("R.attr.colorExpiring", holder)

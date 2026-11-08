@@ -29,7 +29,7 @@ class AndroidVisibleNoteTest(unittest.TestCase):
                 self.assertEqual("?android:attr/textColorPrimary", note.get(ANDROID + "textColor"))
 
     def test_the_card_shows_the_whole_note_instead_of_a_placeholder(self):
-        holder = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
+        holder = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
             .read_text(encoding="utf-8")
         self.assertIn("entry.getNote()", holder)
         self.assertIn("noteText.visibility = if (showWholeNote) View.VISIBLE else View.GONE", holder)

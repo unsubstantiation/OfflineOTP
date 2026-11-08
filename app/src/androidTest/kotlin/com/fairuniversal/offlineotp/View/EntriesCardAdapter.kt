@@ -13,7 +13,10 @@ import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.View.ItemTouchHelper.ItemTouchHelperAdapter
 import javax.crypto.SecretKey
 
-/** Temporary RecyclerView renderer. Vault rules and session ownership live in the controller. */
+/**
+ * Test-only legacy renderer, retained for historical card regressions during Compose migration.
+ * Not packaged in the app. Production rules and session ownership live in AndroidVaultController.
+ */
 open class EntriesCardAdapter(private val context: Context, tags: TagsAdapter) :
     RecyclerView.Adapter<EntryViewHolder>(), ItemTouchHelperAdapter, Filterable, EntryEditorHost {
     val controller = AndroidVaultController(context, tags, object : AndroidVaultController.Changes {

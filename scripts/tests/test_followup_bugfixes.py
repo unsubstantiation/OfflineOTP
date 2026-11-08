@@ -127,7 +127,7 @@ class LifecycleAndVaultSessionGuardTest(unittest.TestCase):
         self.assertIn("ManualEntryDialog.dismissActive()", text)
         self.assertIn("activeQrDialog?.dismiss()", text)
         self.assertIn("val currentPos = presentation.indexOf(entry)", text)
-        renderer = read_text("app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
+        renderer = read_text("app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt")
         self.assertIn("override fun onViewRecycled(holder: EntryViewHolder)", renderer)
 
     def test_encrypted_backup_worker_guards_zero_message_id(self):

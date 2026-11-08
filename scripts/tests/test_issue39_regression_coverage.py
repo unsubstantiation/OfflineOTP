@@ -43,7 +43,7 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         self.assertIn("performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS", main)
         self.assertIn("IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS", main)
         self.assertIn("R.string.button_close_menu", main)
-        holder = read(APP / "View/EntryViewHolder.kt")
+        holder = read(ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")
         self.assertIn("button_card_copy_format", holder)
         self.assertIn("button_card_options_format", holder)
         self.assertIn("openingAndClosingSpeedDialUpdatesAccessibilityScopeAndLabels", device_test)

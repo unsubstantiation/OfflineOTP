@@ -424,10 +424,29 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
 
+    def test_legacy_card_renderer_is_test_only(self):
+        app = ROOT / "app/src/main/kotlin"
+        legacy = {"EntriesCardAdapter", "EntryViewHolder", "SimpleDoubleClickListener",
+                  "ItemTouchHelperAdapter", "ItemTouchHelperViewHolder", "SimpleItemTouchHelperCallback"}
+        for path in app.rglob("*.kt"):
+            text = path.read_text()
+            for name in legacy:
+                self.assertNotIn(name, text, f"{path} depends on a legacy renderer fixture")
+            self.assertNotIn("androidx.recyclerview", text)
+        gradle = (ROOT / "app/build.gradle").read_text()
+        self.assertIn("androidTestImplementation 'androidx.recyclerview:", gradle)
+        self.assertNotIn("implementation 'androidx.recyclerview:", gradle)
+        harness = (ROOT / "scripts/kotlin-sandbox/run.sh").read_text()
+        production = harness.split("APP_SOURCES=(", 1)[1].split("\n)", 1)[0]
+        self.assertNotIn("androidTest", production)
+        for name in legacy:
+            self.assertNotIn(name, production)
+        self.assertIn('-Xfriend-paths="$OUT/app" "${LEGACY_FIXTURES[@]}"', harness)
+
     def test_android_controller_owns_vault_rules_without_recycler_dependencies(self):
         view = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View"
         controller = (view / "AndroidVaultController.kt").read_text()
-        renderer = (view / "EntriesCardAdapter.kt").read_text()
+        renderer = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt").read_text()
         for forbidden in ("RecyclerView", "EntryViewHolder", "LayoutInflater", "component_card_"):
             self.assertNotIn(forbidden, controller)
         for rule in ("VaultSession.MutationLock", "presentation.publishSearch", "persistence.save("):

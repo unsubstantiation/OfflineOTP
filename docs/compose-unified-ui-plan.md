@@ -505,3 +505,22 @@ Source guards cover privacy gating and platform wiring. A new Android device tes
 distinct bundled brand pixels and cache reuse; it is type-checked but not executed here. Existing
 desktop artwork rasterization tests remain green. Actual Compose image layout/device validation
 and legacy renderer retirement remain pending.
+
+### Legacy renderer source-set retirement
+
+The unused RecyclerView adapter, holder, double-click listener and three drag helpers now live
+under `app/src/androidTest/kotlin`, with their original packages, solely as historical regression
+fixtures. No production Kotlin source references them or RecyclerView; the explicit RecyclerView
+dependency is test-only. `EntryCardEvents` remains a production controller command contract used
+by shared-frame dispatch, not a renderer.
+
+The app sandbox first compiles production sources without the legacy fixtures, then compiles the
+fixtures/checks in a separate friend module. This prevents historical test support from hiding a
+production dependency on the removed renderer. Instrumentation compilation discovers the fixtures
+through androidTest normally. Source guards enforce this boundary and retain historical checks.
+
+This retires legacy renderer **code from the shipping source set**, not all migration work.
+The old card XML resources remain in main for existing instrumentation resource IDs; moving them
+requires a test-resource namespace/context migration. Historical card tests still exercise their
+old renderer, not Compose. Compose localization/accessibility and device rendering need validation,
+and fixture/XML deletion should follow replacement coverage rather than silently losing it.

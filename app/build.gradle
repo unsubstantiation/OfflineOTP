@@ -127,7 +127,7 @@ dependencies {
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    androidTestImplementation 'androidx.recyclerview:recyclerview:1.4.0' // Historical card fixtures only.
     implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
     implementation "androidx.lifecycle:lifecycle-process:${lifecycle_version}"
     implementation "androidx.lifecycle:lifecycle-common-java8:${lifecycle_version}"

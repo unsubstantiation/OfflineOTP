@@ -62,7 +62,7 @@ class ScreenshotAndCardRefreshTest(unittest.TestCase):
         main = read("Activities/MainActivity.kt")
         listener = main.split("override fun onSharedPreferenceChanged", 1)[1].split("adapter?.clearFilter()", 1)[0]
         self.assertIn("settings_key_show_individual_timeouts", listener)
-        holder = read("View/EntryViewHolder.kt")
+        holder = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt").read_text(encoding="utf-8")
         self.assertIn("progressAnimator?.cancel()", holder)
         self.assertIn("timeoutAnimator?.cancel()", main)
 
