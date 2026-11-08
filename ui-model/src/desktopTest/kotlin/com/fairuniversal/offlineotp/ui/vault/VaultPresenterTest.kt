@@ -19,6 +19,25 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun hostCopyOverridesDisplayStringCopyAndIsTerminalAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        var rawCopies = 0
+        var boundCopies = 0
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS), copyCode = { rawCopies++ })
+        val card = presenter.frame(0L).cards.single()
+        val actions = presenter.actions(copyEntry = { assertTrue(it === card); boundCopies++ })
+        actions.onCopyToken(card)
+        assertEquals(1, boundCopies)
+        assertEquals(0, rawCopies)
+        presenter.lock()
+        actions.onCopyToken(card)
+        assertEquals(1, boundCopies)
+        entry.destroy()
+    }
+
+    @Test
     fun editingRequiresCurrentRevealAndBecomesInertAfterLock() {
         val entry = totp("Example", "alice")
         val list = EntryList().apply { addEntry(entry) }

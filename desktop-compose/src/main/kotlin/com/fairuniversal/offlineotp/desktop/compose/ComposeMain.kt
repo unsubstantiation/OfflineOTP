@@ -6,6 +6,11 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
 import com.fairuniversal.offlineotp.desktop.control.EntryEditor
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCopy
+import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
+import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
+import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
+import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,7 +47,6 @@ import java.awt.Toolkit
 import java.awt.AWTEvent
 import java.awt.Component
 import java.awt.event.AWTEventListener
-import java.awt.datatransfer.StringSelection
 
 /**
  * Compose Desktop entry point: the shared `:ui` screen over the existing portable vault.
@@ -145,6 +149,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     var revision by remember(vault) { mutableStateOf(0) }
+    val scheduler = remember(vault) { AwtScheduler() }
+    val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
+    val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
+    var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
@@ -152,19 +160,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
-            copyCode = ::copyToken,
-            addEntry = { editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            addEntry = { copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
             editEntry = { card ->
+                copier.pending?.let { copier.dismiss(it) }; copyNotice = null
                 creation.pending?.let { creation.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 editing.open(card.id)
                 revision++
             },
-            advanceCounter = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
+            advanceCounter = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                copier.close()
+                copyNotice = null
                 editing.close()
                 creation.close()
                 dialogs.close()
@@ -174,7 +184,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     DisposableEffect(presenter) {
-        val scheduler = AwtScheduler()
         val lifetime = DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds()) {
             presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
         }
@@ -199,15 +208,55 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val artwork = remember(vault) {
         VaultArtwork { name -> IssuerIcons.artwork(name)?.toComposeImageBitmap() }
     }
-    val state = remember(now, revision, presenter) { presenter.frame(now) }
+    val state = remember(now, revision, presenter) {
+        val frame = presenter.frame(now)
+        frame.copy(cards = frame.cards.map { card ->
+            card.copy(copyable = card.revealed && (card.copyable || card.kind in
+                listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
+        })
+    }
+    // Bind exact row instances even when a newly generated frame is structurally equal to the last.
+    val copyFrame = copier.bind(state.cards)
+    fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
+        copyNotice = when (copier.copy(request, field, presenter.isRevealed(request.entryId))) {
+            DesktopEntryCopy.Result.COPIED -> null
+            DesktopEntryCopy.Result.UNAVAILABLE -> "No value is available, or the entry is no longer revealed."
+            DesktopEntryCopy.Result.SAVE_FAILED -> "Nothing was copied: the vault could not be saved."
+            DesktopEntryCopy.Result.CLIPBOARD_FAILED -> "The system clipboard is unavailable."
+        }
+        presenter.applyFilter(presenter.filter)
+        revision++
+    }
 
     VaultScreen(
         state = state,
         strings = strings,
-        actions = presenter.actions(),
+        actions = presenter.actions(copyEntry = { card ->
+            creation.pending?.let { creation.dismiss(it) }
+            editing.pending?.let { editing.dismiss(it) }
+            dialogs.pending?.let { dialogs.dismiss(it) }
+            copyNotice = null
+            val request = copier.open(copyFrame, card, presenter.isRevealed(card.id))
+            if (request == null) copyNotice = "No copyable value is available for this entry."
+            else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS) performCopy(request, request.fields.single())
+            revision++
+        }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val copyRequest = copier.pending
+    if (copyRequest != null) EntryCopyDialog(
+        fields = copyRequest.fields.map { field -> when (field) {
+            EntryEditor.CopyField.TOKEN_OR_NOTE -> "Code or note"
+            EntryEditor.CopyField.PASSWORD -> "Password"
+            EntryEditor.CopyField.SSH_PUBLIC_KEY -> "Public key"
+            EntryEditor.CopyField.SSH_PRIVATE_KEY -> "Private key"
+            EntryEditor.CopyField.SSH_PASSWORD -> "Connection password"
+        } },
+        onSelect = { index -> copyRequest.fields.getOrNull(index)?.let { performCopy(copyRequest, it) } },
+        onDismiss = { copier.dismiss(copyRequest); revision++ })
+    copyNotice?.let { message -> EntryConfirmationDialog(title = "Copy", message = message,
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { copyNotice = null }, onDismiss = { copyNotice = null }) }
     val addRequest = creation.pending
     if (addRequest != null) {
         ManualEntryDialog(
@@ -274,14 +323,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
             }
         )
-    }
-}
-
-/** Copies the digits only: spaces are a rendering detail, not part of the code. */
-private fun copyToken(token: String) {
-    runCatching {
-        Toolkit.getDefaultToolkit().systemClipboard
-            .setContents(StringSelection(token), null)
     }
 }
 

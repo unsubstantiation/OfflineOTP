@@ -653,3 +653,23 @@ preservation. The picker still needs real Compose focus, scrolling and visual/ac
 This completes the initial add/edit form's thumbnail selection, not the desktop cutover: structured
 credentials, clipboard behavior, backup/import/export, preferences, hardware/OpenPGP integration,
 async IO and packaging remain before the shipping Swing launcher can be retired.
+
+### Desktop replacement: persisted copying and clipboard expiry
+
+Compose now binds copy actions to exact frame-row and live-entry identities rather than copying
+displayed strings. Requests recheck current reveal/session authority and refresh time-based OTPs
+at copy time. Usage is persisted before any clipboard write; rejected writes roll back the usage
+metadata and return no secret. Static notes/passwords use the same path; SSH copying always
+explicitly chooses public key, private key or connection password, without showing values in the
+chooser. Persistent privacy flags are not temporarily mutated to grant Compose reveal authority.
+
+A session-owned, Swing-free clipboard lease expires after 30 seconds and clears on lock/disposal
+only when the current text still matches what this session copied. Recopy cancels the old lease;
+late callbacks cannot clear newer copies. Clipboard errors are surfaced without printing values.
+Clearing is best effort: busy/unavailable native clipboards and same-value writes by another app
+cannot be distinguished or atomically controlled through the desktop clipboard API.
+
+Headless tests cover live code refresh, persistence/reopen, usage rollback, original frame identity,
+same-ID replacement, hidden/locked/dismissed targets, SSH field selection, note whitespace and
+clipboard expiry/cancellation/errors. The native clipboard and Compose chooser still require
+display-backed validation; this is not the launcher cutover.

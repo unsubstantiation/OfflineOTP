@@ -144,9 +144,11 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertNotIn("EntryPinDialog(", host)
-        self.assertNotIn("EntryConfirmationDialog(", host)
-        self.assertNotIn("could not be saved", host)
+        # PIN/counter/delete routing remains shared; copy failure notices are host outcomes.
+        routed = host.split("    val request = dialogs.pending", 1)[1]
+        self.assertNotIn("EntryPinDialog(", routed)
+        self.assertNotIn("EntryConfirmationDialog(", routed)
+        self.assertNotIn("could not be saved", routed)
         self.assertEqual(2, host.count("dialogs.isCurrent(request)"))
         renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
         for kind in ("PIN", "COUNTER", "DELETE"):
@@ -171,7 +173,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_compose_host_delegates_interactions_to_presenter(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn("VaultPresenter(", host)
-        self.assertIn("actions = presenter.actions()", host)
+        self.assertIn("actions = presenter.actions(copyEntry =", host)
         self.assertNotIn("filter.withQuery", host)
         self.assertNotIn("mutableStateOf(emptySet<Long>())", host)
 
@@ -477,6 +479,18 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn("fun " + method + "(", contract)
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
+    def test_compose_copy_is_live_persisted_and_expires(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertNotIn("copyCode = ::copyToken", host)
+        self.assertIn("val copyFrame = copier.bind(state.cards)", host)
+        self.assertIn("presenter.isRevealed(request.entryId)", host)
+        self.assertIn("ExpiringClipboard(scheduler, AwtClipboard)", host)
+        self.assertIn("copier.close()", host)
+        self.assertIn("card.kind != VaultEntryKind.SSH_KEYS", host)
+        chooser = (UI_MAIN / "vault/EntryCopyDialog.kt").read_text()
+        self.assertNotIn("VaultCardState", chooser)
+        self.assertNotIn("EntryEditor", chooser)
 
     def test_manual_thumbnail_picker_uses_catalog_and_host_artwork_without_live_mutation(self):
         picker = (UI_MAIN / "vault/ThumbnailPicker.kt").read_text()

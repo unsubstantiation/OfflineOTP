@@ -97,10 +97,10 @@ class VaultPresenter(
     }
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
-    fun actions(): VaultActions = VaultActions(
+    fun actions(copyEntry: ((VaultCardState) -> Unit)? = null): VaultActions = VaultActions(
         onAddEntry = addEntry,
         onEditEntry = editEntry?.let { edit -> { card -> if (card.id in revealed) edit(card) } },
-        onCopyToken = { card -> copyToken(card) },
+        onCopyToken = { card -> if (copyEntry != null) copyEntry(card) else copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter,
         onEntryActions = entryActions,

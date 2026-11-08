@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Copy live, revealed entries only after persisting usage, with explicit SSH-field selection and 30-second clipboard expiry. Reject stale targets, roll back usage after failed writes, and best-effort clear matching clipboard content on lock.
+
  * Compose desktop: Add searchable bundled-artwork selection to the shared add/edit form. Preview choices lazily and persist the draft selection only on successful Save; failed saves retain the original artwork.
 
  * Compose desktop: Edit revealed OTP, note and SSH entries with fixed types and identity-bound save requests. Blank secret fields retain existing values; edits preserve artwork, privacy, usage metadata and row identity. Real Compose validation and remaining desktop workflows are still pending.
