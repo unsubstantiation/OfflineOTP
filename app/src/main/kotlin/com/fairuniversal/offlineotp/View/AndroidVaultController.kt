@@ -133,7 +133,7 @@ class AndroidVaultController(
                 val entry = shown[index]
                 if (!entry.areDetailsVisible()) card.copy(
                     detailsVisible = false, token = null, previousToken = null, tags = emptyList(),
-                    thumbnailName = "", counter = null, remainingSeconds = null, progress = null,
+                    thumbnailName = "", counter = null, remainingSeconds = null, progress = null, customPeriodSeconds = null,
                     expiring = false, revealed = false, revealedContent = null, pinRequired = false,
                     copyable = false
                 ) else card.copy(

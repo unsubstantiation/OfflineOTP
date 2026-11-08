@@ -46,7 +46,9 @@ data class VaultStrings(
     val emptyTabDescription: String = "Entries of this kind appear here.",
     val tagChipUntagged: String = "Untagged",
     /** Noun after the entry count in the app bar. */
-    val entriesSuffix: String = "entries"
+    val entriesSuffix: String = "entries",
+    /** Host formatting preserves localized units and number formatting (Android's existing resource). */
+    val customPeriod: (Int) -> String = { seconds -> "$seconds s" }
 ) {
     /**
      * Tab label for one category, in `EntryListPresentation.Category` order.

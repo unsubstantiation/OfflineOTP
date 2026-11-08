@@ -43,6 +43,29 @@ class VaultCardsTest {
             .apply { setDetailsVisible(revealed) }
 
     @Test
+    fun customPeriodIsTheRolloverIntervalNotTheRemainingTime() {
+        val entry = totp().apply { setPeriod(45) }
+        val card = VaultCards.of(entry, 1_000L, appearance = VaultAppearance(showIndividualCountdowns = false))
+        assertEquals(45, card.customPeriodSeconds)
+        assertEquals(44, card.remainingSeconds)
+        assertEquals(45, VaultCards.of(entry, 44_000L).customPeriodSeconds)
+        assertEquals("45 s", VaultStrings.English.customPeriod(card.customPeriodSeconds!!))
+        assertEquals("interval: 45", VaultStrings(customPeriod = { "interval: $it" }).customPeriod(45))
+    }
+
+    @Test
+    fun onlyNonDefaultTimeStepsCarryAPeriodLabelIncludingMotpBeforePinEntry() {
+        assertNull(VaultCards.of(totp(), 0L).customPeriodSeconds)
+        assertNull(VaultCards.of(hotp(), 0L).customPeriodSeconds)
+        assertNull(VaultCards.of(note(), 0L).customPeriodSeconds)
+        val motp = Entry(Entry.OTPType.MOTP, "0123456789abcdef", "mOTP", "alice", ArrayList())
+        val card = VaultCards.of(motp, 0L)
+        assertTrue(card.pinRequired)
+        assertNull(card.remainingSeconds)
+        assertEquals(10, card.customPeriodSeconds)
+    }
+
+    @Test
     fun androidGroupingAndPreviousCodePreferenceUseTheSharedFormatter() {
         val entry = totp().apply { updateOTPAt(60L, true) }
         for (size in listOf(0, 2, 3, 4, 10)) {

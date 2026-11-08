@@ -302,6 +302,10 @@ internal fun VaultEntryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                val customPeriod = card.customPeriodSeconds
+                if (card.detailsVisible && customPeriod != null) {
+                    Text(text = strings.customPeriod(customPeriod), style = ForestType.label, color = ForestPalette.textHint)
+                }
                 val detailLabel = card.detailLabel
                 if (card.detailsVisible && detailLabel != null) {
                     Text(text = detailLabel, style = ForestType.label, color = ForestPalette.textSecondary)

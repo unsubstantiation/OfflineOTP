@@ -1305,6 +1305,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val container = findViewById<FrameLayout>(R.id.cardList) ?: return
         val controller = adapter ?: return
         val strings = VaultStrings.English.copy(
+            customPeriod = { seconds -> getString(R.string.format_custom_period, seconds) },
             copyAction = getString(R.string.button_card_copy),
             copyContent = getString(R.string.compose_copy_content),
             privacyReveal = getString(R.string.privacy_reveal),

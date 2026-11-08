@@ -71,6 +71,7 @@ object VaultCards {
             counter = if (entry.isCounterBased()) entry.getCounter() else null,
             showCountdown = (appearance.showIndividualCountdowns || entry.hasNonDefaultTokenStep()) &&
                 (!appearance.hideCountdownWhenMasked || revealed),
+            customPeriodSeconds = if (entry.hasNonDefaultTokenStep()) entry.getTokenStepSeconds() else null,
             remainingSeconds = remaining,
             progress = if (remaining != null) TokenDisplay.progress(stepSeconds, nowMillis) else null,
             expiring = remaining != null && remaining <= appearance.expiringSeconds,

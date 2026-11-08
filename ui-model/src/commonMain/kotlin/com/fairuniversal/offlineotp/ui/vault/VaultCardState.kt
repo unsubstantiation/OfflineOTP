@@ -45,7 +45,9 @@ data class VaultCardState(
     val detailLabel: String? = null,
     val canMoveUp: Boolean = false,
     val canMoveDown: Boolean = false,
-    val showCountdown: Boolean = true
+    val showCountdown: Boolean = true,
+    /** Actual non-default rollover interval, not seconds remaining; absent on concealed rows. */
+    val customPeriodSeconds: Int? = null
 ) {
     /** Brand first, falling back to the account name when the entry has no issuer. */
     val title: String get() = issuer.ifBlank { label }

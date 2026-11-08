@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose: Restore non-default OTP period labels, including mOTP’s actual ten-second step. Android uses its existing localized period string and strips the label from concealed frames.
+
  * Android: Remove the unused RecyclerView card renderer and drag helpers from production sources; retain them only as androidTest regression fixtures. Scope the explicit RecyclerView dependency to tests and compile sandbox production independently of those fixtures.
 
  * Compose: Render bundled issuer artwork on Android and desktop, reusing their existing loaders. Keep letter-tile fallback and privacy gating, fit images without cropping, and cache Android assets with a bounded LRU rather than reloading every tick.

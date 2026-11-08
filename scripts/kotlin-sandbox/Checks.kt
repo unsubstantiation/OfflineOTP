@@ -6294,6 +6294,14 @@ fun main() {
                 .putBoolean(settingsKey(R.string.settings_key_show_individual_timeouts), true).commit()
             val enabled = controller.composeFrame(60_000L, strings)!!.state.cards.single()
             expect(enabled.previousToken != null && enabled.showCountdown, { "display toggles did not reach the frame" })
+            first.setPeriod(45)
+            expect(controller.composeFrame(61_000L, strings)!!.state.cards.single().customPeriodSeconds == 45,
+                { "custom period was not published independently of remaining time" })
+            first.setDetailsVisible(false)
+            expect(controller.composeFrame(61_000L, strings)!!.state.cards.single().customPeriodSeconds == null,
+                { "a concealed frame retained the custom period" })
+            first.setDetailsVisible(true)
+            first.setPeriod(30)
             fixture.seed(R.string.settings_key_card_layout, "full")
             fixture.seed(R.string.settings_key_label_display, "multiline")
             fixture.seed(R.string.settings_key_thumbnail_size, "48dp")

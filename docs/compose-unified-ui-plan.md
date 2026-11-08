@@ -524,3 +524,14 @@ The old card XML resources remain in main for existing instrumentation resource 
 requires a test-resource namespace/context migration. Historical card tests still exercise their
 old renderer, not Compose. Compose localization/accessibility and device rendering need validation,
 and fixture/XML deletion should follow replacement coverage rather than silently losing it.
+
+### Non-default token-period labels
+
+Shared cards now carry the actual non-default rollover interval separately from countdown
+seconds. Android formats the label through its existing localized `format_custom_period`
+resource; the desktop Compose default is “45 s”, for example. This follows
+`hasNonDefaultTokenStep()`, including mOTP's ten-second interval even before PIN entry,
+rather than relying on the legacy stored period. HOTP and static entries have no period label.
+Android concealed frames strip this metadata, and the renderer also checks detail visibility.
+Model tests distinguish interval from remaining time and cover default/static/mOTP behavior;
+the app harness verifies visible and concealed frames. Runtime layout validation is still pending.

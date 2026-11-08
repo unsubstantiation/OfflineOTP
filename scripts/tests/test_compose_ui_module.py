@@ -424,6 +424,15 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
 
+    def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("getString(R.string.format_custom_period, seconds)", activity)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.detailsVisible && customPeriod != null", widgets)
+        self.assertIn("text = strings.customPeriod(customPeriod)", widgets)
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("customPeriodSeconds = null", controller)
+
     def test_legacy_card_renderer_is_test_only(self):
         app = ROOT / "app/src/main/kotlin"
         legacy = {"EntriesCardAdapter", "EntryViewHolder", "SimpleDoubleClickListener",
