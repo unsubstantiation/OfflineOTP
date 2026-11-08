@@ -673,3 +673,20 @@ Headless tests cover live code refresh, persistence/reopen, usage rollback, orig
 same-ID replacement, hidden/locked/dismissed targets, SSH field selection, note whitespace and
 clipboard expiry/cancellation/errors. The native clipboard and Compose chooser still require
 display-backed validation; this is not the launcher cutover.
+
+### Desktop replacement: asynchronous unlock/create
+
+The Compose unlock screen now submits to a dedicated worker, with result adoption on the AWT
+thread. Duplicate submissions are rejected while an attempt or its UI delivery is pending. The
+password field is disabled while busy and cleared before handoff. Closing/disposal invalidates
+attempts, drops queued passwords and destroys unadopted loaded entries/keys; stale successful
+results cannot restore a session. Backend exceptions are reduced to an error enum, never shown
+verbatim. Adopted results belong to the new desktop session.
+
+Cancellation does not interrupt an in-flight atomic vault write: a canceled creation may finish
+writing the vault, but its result will not enter a closed UI. Immutable password strings cannot
+be zeroized while the backend is using them. Six deterministic worker/UI-queue tests cover success,
+serialization, close-before-start, close-after-result, close-during-backend, failures/retry and
+rejected dispatch. Real Compose busy/focus/close behavior still needs runtime validation. Unlock
+is asynchronous now; other persistence/import/export operations are not all migrated off the UI
+thread yet.

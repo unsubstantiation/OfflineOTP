@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Run password unlock/create on a worker, disable duplicate attempts, clear the password field before handoff, and discard unadopted keys/entries after screen disposal. Other persistence workflows still need asynchronous integration.
+
  * Compose desktop: Copy live, revealed entries only after persisting usage, with explicit SSH-field selection and 30-second clipboard expiry. Reject stale targets, roll back usage after failed writes, and best-effort clear matching clipboard content on lock.
 
  * Compose desktop: Add searchable bundled-artwork selection to the shared add/edit form. Preview choices lazily and persist the draft selection only on successful Save; failed saves retain the original artwork.

@@ -6,6 +6,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
 import com.fairuniversal.offlineotp.desktop.control.EntryEditor
+import com.fairuniversal.offlineotp.desktop.control.DesktopUnlockOperation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCopy
 import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
@@ -43,6 +44,8 @@ import com.fairuniversal.offlineotp.ui.vault.VaultScreen
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import com.fairuniversal.offlineotp.ui.vault.rememberNowMillis
 
+import java.util.concurrent.Executors
+import java.awt.EventQueue
 import java.awt.Toolkit
 import java.awt.AWTEvent
 import java.awt.Component
@@ -79,11 +82,11 @@ fun main() {
 @Composable
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
-    var failure by remember { mutableStateOf<String?>(null) }
-    var busy by remember { mutableStateOf(false) }
+    var closing by remember { mutableStateOf(false) }
 
     Window(
         onCloseRequest = {
+            closing = true
             session?.lock()
             session = null
             exitApplication()
@@ -94,32 +97,10 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
         ForestTheme {
             val vault = session
             if (vault == null) {
-                UnlockScreen(
-                    strings = VaultStrings.English,
-                    error = failure,
-                    busy = busy,
-                    hint = if (controller.isInitialized()) {
-                        null
-                    } else {
-                        "There is no vault in this folder yet. Choose a password to create one."
-                    },
-                    onSubmit = { password ->
-                        busy = true
-                        val outcome = if (controller.isInitialized()) {
-                            controller.openVault(password)
-                        } else {
-                            controller.createVault(password)
-                        }
-                        busy = false
-                        when (outcome) {
-                            is VaultController.Session.Loaded -> {
-                                failure = null
-                                session = DesktopVaultState(outcome.key).apply { load(outcome.entries) }
-                            }
-                            is VaultController.Session.Error -> failure = failureText(outcome.failure)
-                        }
-                    }
-                )
+                DesktopUnlockContent(controller) { loaded ->
+                    if (closing) DesktopUnlockOperation.discard(loaded)
+                    else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
+                }
             } else {
                 VaultContent(
                     controller = controller,
@@ -128,12 +109,38 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
                     onLock = {
                         vault.lock()
                         session = null
-                        failure = null
                     }
                 )
             }
         }
     }
+}
+
+/** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
+@Composable
+private fun DesktopUnlockContent(controller: VaultController, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+    var failure by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    val worker = remember(controller) {
+        Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP unlock").apply { isDaemon = true } }
+    }
+    val operation = remember(controller) {
+        DesktopUnlockOperation(worker, { task -> EventQueue.invokeLater(task) },
+            unlock = { password ->
+                if (controller.isInitialized()) controller.openVault(password) else controller.createVault(password)
+            },
+            onBusy = { busy = it },
+            onResult = { result -> when (result) {
+                is VaultController.Session.Loaded -> onLoaded(result)
+                is VaultController.Session.Error -> failure = failureText(result.failure)
+            } })
+    }
+    DisposableEffect(operation) {
+        onDispose { operation.close(); worker.shutdown() }
+    }
+    UnlockScreen(strings = VaultStrings.English, error = failure, busy = busy,
+        hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
+        onSubmit = { password -> failure = null; operation.submit(password); Unit })
 }
 
 @Composable

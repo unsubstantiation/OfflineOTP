@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_desktop_unlock_runs_off_ui_thread_and_releases_late_results(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopUnlockOperation(worker", host)
+        self.assertIn("EventQueue.invokeLater(task)", host)
+        self.assertIn("operation.close(); worker.shutdown()", host)
+        self.assertIn("if (closing) DesktopUnlockOperation.discard(loaded)", host)
+        unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        self.assertIn('password = ""\n                    onSubmit(submitted)', unlock)
+        self.assertIn("enabled = !busy", unlock)
+
     def test_compose_copy_is_live_persisted_and_expires(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertNotIn("copyCode = ::copyToken", host)
