@@ -40,16 +40,18 @@ class SharedClientLogicTest(unittest.TestCase):
 
     def test_both_clients_use_the_shared_usage_rules(self):
         # A copy on either client records one use through the shared helper.
-        self.assertIn("EntryUsage.recordUse(", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("EntryUsage.recordUse(", text(APP / "View/AndroidVaultController.kt"))
         self.assertIn("EntryUsage.recordUse(", text(DESKTOP / "control/EntryEditor.kt"))
         # New and imported entries are stamped through the shared helper as well.
-        self.assertIn("EntryUsage.markImported(", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("EntryUsage.markImported(", text(APP / "View/AndroidVaultController.kt"))
         # The manual-entry dialogs stamp through EntryDraft.create(..., newEntry = true).
         self.assertIn("EntryDraft.create(", text(APP / "Dialogs/ManualEntryDialog.kt"))
         self.assertIn("EntryUsage.markImported(", text(DESKTOP / "control/EntryEditor.kt"))
         # The HOTP advance and its ceiling are shared, not re-derived per client.
-        self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/EntriesCardAdapter.kt"))
-        self.assertIn("EntryUsage.advanceHotp(", text(DESKTOP / "control/EntryEditor.kt"))
+        self.assertIn("EntryUsage.advanceHotp(", text(APP / "View/AndroidVaultController.kt"))
+        self.assertIn("EntryUsage.advanceHotp(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertIn("state.advanceCounter(", text(DESKTOP / "control/EntryEditor.kt"))
+        self.assertIn("state.deleteEntry(", text(DESKTOP / "control/EntryEditor.kt"))
         for root in (APP, DESKTOP):
             # Copying metadata is fine; *counting* a use is what must go through the helper.
             for path in sources(root):
@@ -59,9 +61,23 @@ class SharedClientLogicTest(unittest.TestCase):
                 self.assertNotIn("Long.MAX_VALUE - 1", body,
                                  f"{path}: the HOTP ceiling belongs to EntryUsage")
 
+    def test_swing_confirmation_keeps_entry_identity(self):
+        window = text(DESKTOP / "ui/MainWindow.kt")
+        self.assertIn("editor?.remove(selected)", window)
+        self.assertNotIn("editor?.removeAt(unlocked.presentation.sourceIndex(row))", window)
+        editor = text(DESKTOP / "control/EntryEditor.kt")
+        self.assertIn("state.snapshot().none { it === entry }", editor)
+
     def test_the_tag_rule_and_tag_order_are_shared(self):
         self.assertIn("EntryTagFilter.matches(", text(CORE / "Database/EntryList.kt"))
-        self.assertIn("EntryTagFilter.matches(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        # The desktop no longer applies the tag rule itself: it hands a VaultFilter to the shared
+        # projection, which is the one place the selection is applied.
+        self.assertIn("EntryTagFilter.matches(", text(ROOT / "ui-model/src/commonMain/kotlin/"
+                         "com/fairuniversal/offlineotp/ui/vault/VaultProjection.kt"))
+        self.assertIn("projection.applyFilter(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertNotIn("EntryTagFilter", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertIn("VaultFilterCombination.SEARCH_AND_TAGS",
+                      text(DESKTOP / "control/DesktopVaultState.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(APP / "View/TagsAdapter.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/MainWindow.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/TagDialog.kt"))
@@ -76,7 +92,7 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("categoryOf(entry) == selected", text(CORE / "View/EntryListPresentation.kt"))
 
     def test_both_clients_use_the_shared_qr_predicate(self):
-        self.assertIn("hasOtpUri()", text(APP / "View/EntriesCardAdapter.kt"))
+        self.assertIn("hasOtpUri()", text(APP / "View/AndroidVaultController.kt"))
         self.assertIn("hasOtpUri()", text(DESKTOP / "qr/QrCodeImage.kt"))
         self.assertIn("fun hasOtpUri()", text(CORE / "Database/Entry.kt"))
 

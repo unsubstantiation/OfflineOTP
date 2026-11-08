@@ -47,7 +47,10 @@ if [[ ${#ANDROID_TEST_SOURCES[@]} -eq 0 ]]; then
     exit 2
 fi
 
-TEST_STUBS=("$SANDBOX"/stubs-android-test/android/app/*.kt
+TEST_STUBS=("$SANDBOX"/stubs-android-test/androidx/activity/*.kt
+    "$SANDBOX"/stubs-android-test/androidx/compose/ui/test/*.kt
+    "$SANDBOX"/stubs-android-test/androidx/compose/ui/test/junit4/*.kt
+    "$SANDBOX"/stubs-android-test/android/app/*.kt
     "$SANDBOX"/stubs-android-test/androidx/test/core/app/*.kt
     "$SANDBOX"/stubs-android-test/androidx/test/ext/junit/runners/*.kt
     "$SANDBOX"/stubs-android-test/androidx/test/platform/app/*.kt

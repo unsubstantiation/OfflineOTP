@@ -64,7 +64,7 @@ class KotlinSandboxHarnessTest(unittest.TestCase):
     def test_listed_sources_exist(self):
         """Every APP_SOURCES/CORE_SOURCES entry of run.sh must resolve to a file in the checkout."""
         missing = []
-        for variable in ("CORE_SOURCES", "APP_SOURCES"):
+        for variable in ("CORE_SOURCES", "APP_SOURCES", "LEGACY_FIXTURES"):
             for entry in run_sh_sources(variable):
                 if not (ROOT / expand_run_path(entry)).is_file():
                     missing.append(entry)

@@ -12,6 +12,18 @@ Android-free `:core` engine and password-backup codec. Use exported backups to t
 between distributions; copying an Android app-data vault is not a substitute for a backup. See
 [Desktop client](#desktop-client) for its scope and build instructions.
 
+The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui-model` module holds
+the toolkit-free frame layer — what a row shows, the shared filter transitions and the tab/sort
+wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
+tokens, the unlock screen and the `VaultComposeView` used by Android MainActivity, and
+`:desktop-compose` runs that screen over the existing desktop engine as a preview
+(`./gradlew :desktop-compose:run`). The Swing client already paints each row from that frame model
+(`VaultCards.of`), so the desktop and the Compose screen group codes, warn about expiry and pick tags
+the same way. Android MainActivity now renders the shared Compose cards while retaining its
+existing toolbar, tabs, tag drawer and action dialogs. Manual ordering uses up/down controls.
+Legacy renderer cleanup, display-preference parity and real Android build/device validation remain
+open in the [Compose UI plan](docs/compose-unified-ui-plan.md); the shipping desktop UI is still Swing.
+
 The Android application ID, namespace, and Kotlin/Java packages use `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app instead of being detected as its update. Updating an existing OfflineOTP installation still requires the same signing key, and it does not collide with andOTP.
 
 ## Features
@@ -439,6 +451,17 @@ With the Android SDK and JDK configured, run the Gradle unit tests and lint:
   :app:lintFdroidDebug :app:lintFdroidRelease :app:lintPlayDebug :app:lintPlayRelease
 ```
 
+`ComposeVaultDeviceTest` attaches the shipping `VaultComposeView` to a real ComponentActivity
+and checks Compose semantics, frame/action replacement, terminal clear, privacy and artwork
+loading. It does not use the historical XML renderer. The no-SDK instrumentation gate only
+type-checks this suite; its UI assertions require Android execution.
+
+For a focused CI run, manually dispatch the existing Android workflow on the branch under review
+(`gh workflow run android.yml --ref <branch>`). Its Compose validation job builds real debug APKs
+and runs the Compose-host/artwork tests on F-Droid/API 28 and Play/API 36 emulators. It requires
+passing test reports, not merely successful compilation, and uploads logs/reports without APKs.
+This focused matrix does not replace the full connected suite below.
+
 For instrumentation tests, use a disposable connected emulator or device:
 
 ```sh
@@ -454,6 +477,19 @@ desktop suite under `java.awt.headless=true`:
 bash scripts/kotlin-sandbox/bootstrap-toolchain.sh   # one-time, needs pypi and npm access
 bash scripts/kotlin-sandbox/compile-desktop.sh
 ```
+
+The shared UI has its own boundary gate: it compiles `:core`, then `:ui-model` with no Compose
+artifact on the classpath, then `ui/src/commonMain` against the compile-only Compose stubs in
+`scripts/kotlin-sandbox/stubs-compose`, then runs the frame-layer tests, then type-checks both hosts.
+It proves the shared sources need no Android, Swing, storage or session API; it does not render a
+single pixel.
+
+```sh
+bash scripts/kotlin-sandbox/compile-ui.sh
+```
+
+With Gradle, `./gradlew --no-daemon :ui:desktopTest` runs the same projection tests against the real
+Compose artifacts, and `./gradlew --no-daemon :desktop-compose:run` opens the Compose preview client.
 
 The deterministic vault/backup fixtures can be checked with
 `bash scripts/packaging/generate-golden-fixtures.sh`; the desktop suite also pins a real desktop
@@ -552,6 +588,7 @@ bash scripts/verify_reproducible_build.sh
 - [Kotlin conversion record](docs/kotlin-extracted-helpers.md) — conversion scope and verification limits.
 - [OTP URI parser](docs/kotlin-otp-parser-pilot.md) and [vault/session/task contracts](docs/kotlin-vault-session-task-contracts.md) — parser and contract boundaries.
 - [UI decomposition plan](docs/ui-decomposition-plan.md) — completed slices and remaining extraction work.
+- [Unified Compose UI plan](docs/compose-unified-ui-plan.md) — the shared `:ui-model`/`:ui` modules, what stage 1 covers, the cutover stages and their exit criteria.
 - [Android/desktop parity review](docs/client-parity-2026-11-02.md) — the four client behaviours that differed and how they were aligned.
 - [iOS client plan](docs/ios-client-plan.md) — the vault/backup format contract a native SwiftUI client must implement, the fixed-vector corpus it is verified against, and the milestones up to TestFlight.
 - [Existing-feature audit](docs/feature-audit-2026-10-26.md) — completed fixes, remaining enhancement requests and device-test limits.

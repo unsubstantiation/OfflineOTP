@@ -35,6 +35,18 @@ class EntryListPresentation(private val source: EntryList) {
         }
     }
 
+    /** Detached selection metadata for a renderer; reading it never changes the search revision. */
+    class Selection(
+        val category: Category?,
+        val sortMode: Constants.SortMode,
+        val query: String,
+        val includes: List<Constants.SearchIncludes>,
+        val tags: List<String>
+    )
+
+    @Synchronized fun selection(): Selection =
+        Selection(category, sortMode, searchQuery, ArrayList(searchIncludes), ArrayList(tags))
+
     /** Invalidates in-flight searches; caller then refreshes its current tag/search projection. */
     @Synchronized fun setCategory(value: Category?) { category = value; revision++ }
 

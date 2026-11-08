@@ -183,16 +183,47 @@ APP_SOURCES=(
     "$KOTLIN_APP/Utilities/UIHelper.kt"
     "$KOTLIN_APP/Utilities/VaultRestoreOperation.kt"
     "$KOTLIN_APP/View/AutoFillable/AutoFillableTextInputEditText.kt"
-    "$KOTLIN_APP/View/EntriesCardAdapter.kt"
+    "$KOTLIN_APP/View/EntryEditorHost.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/TokenDisplay.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultActions.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultCardState.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultCards.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultClock.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultDialogs.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultFrameHost.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultPresenter.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultProjection.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt"
+    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultUiState.kt"
+    "$ROOT/ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/Countdown.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryPinDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultEntryDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultScreen.kt"
+    "$KOTLIN_APP/View/AndroidIssuerArtwork.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultArtwork.kt"
+    "$KOTLIN_APP/View/AndroidVaultFrame.kt"
+    "$KOTLIN_APP/View/AndroidVaultController.kt"
+    "$KOTLIN_APP/View/EntryCardEvents.kt"
     "$KOTLIN_APP/View/EntryActionDialogs.kt"
-    "$KOTLIN_APP/View/EntryViewHolder.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperAdapter.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt"
-    "$KOTLIN_APP/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt"
-    "$KOTLIN_APP/View/SimpleDoubleClickListener.kt"
     "$KOTLIN_APP/View/TagsAdapter.kt"
     "$KOTLIN_APP/View/ThumbnailSelectionAdapter.kt"
     "$ROOT/app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Fragments/AboutFragment.kt"
+)
+
+# Historical renderer fixtures are never part of APP_SOURCES or the shipping source set.
+LEGACY_FIXTURES=(
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/SimpleDoubleClickListener.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperAdapter.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt"
+    "$ROOT/app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt"
 )
 
 STUBS=("$SANDBOX"/stubs/android/*.kt
@@ -234,6 +265,30 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/digest/*.kt
+    "$SANDBOX/stubs-compose/android/androidx/compose/ui/platform/ComposeView.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/Foundation.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/layout/Layout.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/lazy/Lazy.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/shape/Shape.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/material3/Material3.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/runtime/Runtime.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/Alignment.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/Modifier.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/draw/Clip.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/geometry/Geometry.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/Color.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/Shape.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/drawscope/DrawScope.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/TextStyle.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/font/Font.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/input/VisualTransformation.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/style/TextStyle.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/unit/Unit.kt"
+    "$SANDBOX/stubs-compose/kotlinx/coroutines/Coroutines.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/ImageBitmap.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/layout/ContentScale.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/Image.kt"
+    "$SANDBOX/stubs-compose/android/androidx/compose/ui/graphics/ImageBitmap.kt"
 )
 
 # No Java source is left in the app: the last two (Utilities/Constants and Utilities/FileHelper) are
@@ -273,5 +328,8 @@ echo "output:  $OUT"
 # Phase 2 compiles the app and its Checks harness against core's compiled output exactly as a Gradle
 # project dependency (core sources are deliberately absent here), plus the full platform stub set.
 "$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/core:$STDLIB" \
-    "${APP_SOURCES[@]}" "${STUBS[@]}" "$SANDBOX/Checks.kt" -d "$OUT/app"
-"$JAVA_BIN" -cp "$OUT/app:$OUT/core:$STDLIB" ChecksKt
+    "${APP_SOURCES[@]}" "${STUBS[@]}" -d "$OUT/app"
+# Compile the checks separately: production cannot accidentally depend on legacy fixtures.
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/app:$OUT/core:$STDLIB" \
+    -Xfriend-paths="$OUT/app" "${LEGACY_FIXTURES[@]}" "$SANDBOX/Checks.kt" -d "$OUT/checks"
+"$JAVA_BIN" -cp "$OUT/checks:$OUT/app:$OUT/core:$STDLIB" ChecksKt

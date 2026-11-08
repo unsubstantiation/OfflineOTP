@@ -1,7 +1,9 @@
 package com.fairuniversal.offlineotp.desktop.ui
 
-import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.desktop.model.EntryTableModel
+import com.fairuniversal.offlineotp.ui.vault.VaultCards
+import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 
 import java.awt.BasicStroke
 import java.awt.BorderLayout
@@ -46,8 +48,14 @@ import javax.swing.table.TableModel
 /**
  * Presents the existing privacy-aware table model as Android-inspired cards. The real Show cell
  * remains a Swing checkbox/editor rather than a painted hit target, so mouse, keyboard and assistive
- * technology can operate it. Other columns remain in the model for actions and accessibility; the
- * card renderer reads only redacted model values and, for revealed entries, their tags.
+ * technology can operate it. Other columns remain in the model for actions and accessibility.
+ *
+ * What a card shows — the code, its grouping, when the step is running out, the tags, the thumbnail
+ * — is not derived here: each row asks the shared frame model (`VaultCards.of`) for a
+ * `VaultCardState` and this file only paints it. That is the derivation the Compose screen uses, so
+ * the two clients cannot drift into showing the same entry differently. What stays Swing's own is
+ * the drawing and the row chrome the Compose card leaves to its host: the redacted placeholder text
+ * for stored passwords and keys, the kind label, the hidden label, and the wrapped note.
  *
  * The cards prefer the same bundled issuer artwork the Android app shows (see [IssuerIcons]) and
  * fall back to a generated letter tile, so Debian and Windows match the phone. Their face lifts on
@@ -139,16 +147,14 @@ private object CardHover {
     }
 }
 
-/** Seconds before the end of a step at which Android (and these cards) warn about expiry. */
-private const val EXPIRING_SECONDS = 8L
-
 /**
- * Clock seam for the countdown ring and expiry color. Painting must never mutate the entries (the
- * Android adapter updates them from its tick instead), so the remaining seconds are derived from
- * the wall clock here; tests pin the time rather than waiting for a real boundary.
+ * Clock seam for the shared row model, which decides from it whether a code is about to change.
+ * Painting must never mutate the entries (the vault state refreshes tokens from its tick instead,
+ * and [VaultCards.of] only reads the cache), so this is a pure read; tests pin the time rather than
+ * waiting for a real boundary.
  */
 internal object CardClock {
-    var nowSeconds: () -> Long = { System.currentTimeMillis() / 1000L }
+    var nowMillis: () -> Long = { System.currentTimeMillis() }
 }
 
 /** Fonts shared by the renderer and the row-height pass, so card and measurement cannot diverge. */
@@ -272,8 +278,11 @@ internal object CardRowHeights {
         if (modelRow !in 0 until model.rowCount) return CardMetrics.MIN_HEIGHT
         val entry = model.entryAt(modelRow)
         if (!entry.isNote() || !entry.areDetailsVisible()) return CardMetrics.MIN_HEIGHT
+        // The same string the renderer paints, so measurement and painting cannot disagree.
+        val note = VaultCards.of(entry, CardClock.nowMillis(), revealed = true).revealedContent
+            ?: return CardMetrics.MIN_HEIGHT
         val width = (table.columnModel.getColumn(0).width - CardMetrics.TEXT_INSET).coerceAtLeast(40)
-        val noteHeight = NoteText.height(entry.getNote(), width, table.getFontMetrics(CardFonts.NOTE))
+        val noteHeight = NoteText.height(note, width, table.getFontMetrics(CardFonts.NOTE))
         val identity = 2 * maxOf(table.getFontMetrics(CardFonts.TITLE).height,
             table.getFontMetrics(CardFonts.DETAIL).height)
         return maxOf(CardMetrics.MIN_HEIGHT,
@@ -338,25 +347,30 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
         fun text(col: EntryTableModel.Column): String = model.getValueAt(modelRow, col.ordinal) as String
         val shown = model.getValueAt(modelRow, EntryTableModel.Column.SHOW.ordinal) == true
         val entry = model.entryAt(modelRow)
-        val issuer = text(EntryTableModel.Column.ISSUER)
-        val label = text(EntryTableModel.Column.LABEL)
-        val type = text(EntryTableModel.Column.TYPE)
-        val token = text(EntryTableModel.Column.TOKEN)
-        val noteShown = shown && entry.isNote()
-        val placeholder = shown && !noteShown && token.trimStart().startsWith("[")
-        val secondsLeft = if (shown && !noteShown && !placeholder) secondsRemaining(entry) else null
-        val expiring = secondsLeft != null && secondsLeft <= EXPIRING_SECONDS
+        // Which code this row shows, how it is grouped, whether the step is running out and which
+        // tags it carries all come from the shared frame model, so the Swing card and the Compose
+        // card cannot answer those questions differently. Only the drawing is Swing's.
+        val card = VaultCards.of(entry, CardClock.nowMillis(), revealed = shown)
+        val token = card.token
+        val noteShown = shown && card.kind == VaultEntryKind.NOTES
+        // Non-code kinds keep the table's redacted placeholder text ("[Password hidden]"…): what a
+        // stored password looks like is desktop chrome the shared card leaves to its host.
+        val placeholder = shown && !noteShown && token == null && card.kind != VaultEntryKind.OTP
+        val expiring = card.showsExpiry
 
         (valueSlot.layout as CardLayout).show(valueSlot, if (noteShown) NOTE else VALUE)
-        note.text = if (noteShown) token else ""
+        note.text = if (noteShown) card.revealedContent.orEmpty() else ""
         value.text = when {
             !shown -> "Hidden"
             noteShown -> ""
-            else -> token.ifBlank { "Waiting for code…" }
+            token != null -> token
+            card.pinRequired -> VaultStrings.English.pinRequired
+            placeholder -> text(EntryTableModel.Column.TOKEN)
+            else -> VaultStrings.English.noCode
         }
         value.font = when {
             // Digits use a monospaced face so a one-second refresh never reflows the row.
-            shown && !placeholder -> CardFonts.TOKEN
+            shown && token != null -> CardFonts.TOKEN
             shown -> CardFonts.PLACEHOLDER
             else -> CardFonts.HIDDEN
         }
@@ -366,6 +380,8 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
             expiring -> ForestTheme.WARNING
             else -> ForestTheme.OTP_AMBER
         }
+        val issuer = card.issuer
+        val label = card.label
         title.text = if (shown && entry.getHiddenLabel().isNotBlank()) {
             listOf(issuer, label, entry.getHiddenLabel()).filter { it.isNotBlank() }.joinToString(" – ")
                 .ifBlank { "Unnamed entry" }
@@ -378,6 +394,9 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
             val parts = ArrayList<String>(3)
             // OTP type (TOTP/HOTP/etc) is not shown on the card; it is visible only while editing.
             // Other kinds (Secure note, SSH key, etc) remain as an identifier in their own tabs.
+            // This one line is desktop chrome — the Compose card leaves the kind to the tab strip —
+            // so it still reads the entry's type rather than the shared frame.
+            val type = text(EntryTableModel.Column.TYPE)
             if (!entry.isTimeBased() && !entry.isCounterBased()) {
                 val kind = when (type) {
                     "PASSWORD" -> "Password"
@@ -389,18 +408,20 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
                 parts.add(kind)
             }
             entry.getSshConnection()?.summary()?.let { parts.add(it) }
-            val tags = entry.getTags()
+            val tags = card.tags
             if (tags.isNotEmpty()) parts.add(tags.joinToString(", "))
             parts.joinToString(" · ")
         } else ""
         detail.foreground = ForestTheme.TEXT_SECONDARY
 
         // The stored thumbnail name is what the Android app shows for this entry; unknown names
-        // (and "Default") keep the generated letter tile.
-        avatar.artwork = IssuerIcons.artwork(entry.getThumbnailName())
-        avatar.initial = initial(if (shown) issuer.ifBlank { label } else label.ifBlank { issuer })
+        // (and "Default") keep the generated letter tile. The frame model carries it, so the two
+        // clients cannot pick different artwork for the same entry.
+        avatar.artwork = IssuerIcons.artwork(card.thumbnailName)
+        // A hidden row leads with the account name, a revealed one with the brand.
+        avatar.initial = initial(if (shown) card.title else card.subtitle.ifBlank { card.title })
         getAccessibleContext().accessibleName =
-            listOf(if (noteShown) token else value.text, title.text, detail.text)
+            listOf(if (noteShown) note.text else value.text, title.text, detail.text)
                 .filter { it.isNotBlank() }.joinToString(", ")
         return this
     }
@@ -412,13 +433,6 @@ private class CardRenderer : JPanel(BorderLayout(14, 0)), TableCellRenderer {
 
     private fun initial(text: String): String = text.trim().takeIf { it.isNotEmpty() }
         ?.let { String(Character.toChars(it.codePointAt(0))).uppercase(Locale.ROOT) } ?: "•"
-
-    /** Seconds left in the current step, or null for entries that do not expire on a clock. */
-    private fun secondsRemaining(entry: Entry): Long? {
-        if (!entry.isTimeBased()) return null
-        val step = entry.getTokenStepSeconds().coerceAtLeast(1).toLong()
-        return step - CardClock.nowSeconds() % step
-    }
 }
 
 /**

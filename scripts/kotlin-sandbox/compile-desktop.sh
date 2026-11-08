@@ -3,7 +3,8 @@
 # Desktop Swing boundary gate.
 #
 # Mirrors the Gradle :desktop -> :core dependency with two kotlinc phases and no Android SDK:
-#   phase 1 compiles :core (main+test) with only its pure-JVM third-party stubs, and
+#   phase 1 compiles :core (main+test) and :ui-model (the shared, Compose-free frame layer the
+#   Swing client takes its labels from) with only core's pure-JVM third-party stubs, and
 #   phase 2 compiles the desktop Swing sources and tests against core's compiled output and the
 #   JDK's java.desktop module (Swing/AWT need no stub and no third-party UI library).
 # A desktop source that imports android.* or reaches for an undeclared library fails to compile.
@@ -16,6 +17,10 @@ ROOT="$(cd "$SANDBOX/../.." && pwd)"
 CORE_MAIN="$ROOT/core/src/main/kotlin"
 CORE_TEST="$ROOT/core/src/test/kotlin"
 DESKTOP_MAIN="$ROOT/desktop/src/main/kotlin"
+# The Swing client shares the frame layer's wording (:ui-model), which is pure Kotlin. Phase 1
+# compiles it beside :core, so this gate proves that no Compose or Android artifact is needed to
+# build the shipping desktop client.
+UI_MODEL_MAIN="$ROOT/ui-model/src/commonMain/kotlin"
 DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"
 # Gradle puts both main and test resources on the test classpath; mirror that here.
 DESKTOP_RESOURCES="$ROOT/desktop/src/main/resources:$ROOT/desktop/src/test/resources"
@@ -62,7 +67,7 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "${YUBIKIT_CORE_STUBS[@]}")
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
-mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" -name '*.kt' -print0 | sort -z)
+mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" "$CORE_TEST" "$UI_MODEL_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' DESKTOP_SOURCES < <(find "$DESKTOP_MAIN" "$DESKTOP_TEST" -name '*.kt' -print0 | sort -z)
 # Desktop-only third-party compile stubs (PGPainless/BouncyCastle and the yubikit PC/SC module).
 # Phase 1 (core) never sees these: core speaks library-neutral ports and the portable yubikit
@@ -84,7 +89,7 @@ rm -rf "$OUT"
 mkdir -p "$OUT/core" "$OUT/desktop"
 
 echo "kotlinc: $KOTLINC"
-echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
+echo "phase 1: core + ui-model (${#CORE_SOURCES[@]} files, no android/androidx/compose stubs)"
 "$KOTLINC" -jvm-target 1.8 -nowarn \
     "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" "${JUNIT_SHIM[@]}" \
     -d "$OUT/core"

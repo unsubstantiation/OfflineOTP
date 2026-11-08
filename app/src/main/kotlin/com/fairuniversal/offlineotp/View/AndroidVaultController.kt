@@ -9,17 +9,14 @@ import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.view.LayoutInflater
 import android.view.MenuInflater
 import android.view.View
-import android.view.ViewGroup
 import android.widget.Filter
 import android.widget.Filterable
 import android.widget.ImageView
 import android.widget.Toast
 
 import androidx.appcompat.widget.PopupMenu
-import androidx.recyclerview.widget.RecyclerView
 
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder
@@ -45,7 +42,6 @@ import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
-import com.fairuniversal.offlineotp.View.ItemTouchHelper.ItemTouchHelperAdapter
 
 import java.util.ArrayList
 import java.util.HashMap
@@ -55,11 +51,19 @@ import java.util.concurrent.Callable
 import java.util.function.BiConsumer
 import java.util.function.Consumer
 
+import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
+import com.fairuniversal.offlineotp.ui.vault.VaultFilter
+import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
+import com.fairuniversal.offlineotp.ui.vault.VaultProjection
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import javax.crypto.SecretKey
 
-/** RecyclerView adapter for OTP entry cards, managing sorting, filtering, drag-and-drop, and persistence. */
-open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: TagsAdapter) :
-    RecyclerView.Adapter<EntryViewHolder>(), ItemTouchHelperAdapter, Filterable {
+/** Android vault operations and session/search ownership, independent of the list renderer. */
+class AndroidVaultController(
+    context: Context,
+    private val tagsFilterAdapter: TagsAdapter,
+    private val changes: Changes
+) : Filterable, EntryEditorHost {
 
     private val context: Context = context
     private val taskHandler: Handler = Handler(Looper.getMainLooper())
@@ -79,20 +83,134 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     /** The key the entries are encrypted with; null while the vault is locked. */
     var encryptionKey: SecretKey? = null
 
-    init {
-        setHasStableIds(true)
+    fun getItemCount(): Int = presentation.size()
+
+    fun getItemId(position: Int): Long = presentation.get(position).getListId()
+
+    /** One appearance mapping for both frame derivation and the Compose view's layout. */
+    fun composeAppearance(): VaultAppearance {
+        val density = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+        return VaultAppearance(
+            showControls = false,
+            showThumbnails = settings.getThumbnailVisible(),
+            thumbnailSizeDp = (settings.getThumbnailSize() / density).coerceAtLeast(0f),
+            labelSizeSp = settings.getLabelSize().takeIf { it > 0 },
+            cardLayout = settings.getCardLayout(),
+            labelDisplay = settings.getLabelDisplay(),
+            tokenGroupSize = settings.getTokenSplitGroupSize(),
+            showIssuer = !settings.isHideIssuerEnabled(),
+            showPreviousToken = settings.getShowPrevToken(),
+            showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled(),
+            hideCountdownWhenMasked = settings.getTapToReveal(),
+            expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
+        )
     }
 
-    override fun getItemCount(): Int = presentation.size()
+    /**
+     * Read the already-published Android projection. Never call applyFilter here: doing so would
+     * bypass EntryFilter's generation/revision-checked asynchronous publication.
+     */
+    fun composeFrame(nowMillis: Long, strings: VaultStrings): AndroidVaultFrame? {
+        synchronized(VaultSession.MutationLock) {
+            if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return null
+            val generation = VaultSession.generation()
+            val selection = presentation.selection()
+            val filter = VaultFilter(
+                query = selection.query, searchIncludes = selection.includes,
+                category = selection.category, sortMode = selection.sortMode,
+                selectedTags = selection.tags, untaggedSelected = settings.getNoTagsToggle(),
+                tagFunctionality = settings.getTagFunctionality(),
+                combination = VaultFilterCombination.SEARCH_OVERRIDES_TAGS
+            )
+            val shown = (0 until presentation.size()).map { presentation.get(it) }
+            val revealed = shown.filter { entry ->
+                entry.areDetailsVisible() &&
+                    ((!entry.isTimeBased() && !entry.isCounterBased()) || !settings.getTapToReveal() || entry.isVisible())
+            }.map { it.getListId() }.toSet()
+            val appearance = composeAppearance()
+            val projected = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
+            val state = projected.copy(cards = projected.cards.mapIndexed { index, card ->
+                val entry = shown[index]
+                if (!entry.areDetailsVisible()) card.copy(
+                    detailsVisible = false, token = null, previousToken = null, tags = emptyList(),
+                    thumbnailName = "", counter = null, remainingSeconds = null, progress = null, customPeriodSeconds = null,
+                    expiring = false, revealed = false, revealedContent = null, pinRequired = false,
+                    copyable = false
+                ) else card.copy(
+                    detailsVisible = true,
+                    detailLabel = entry.getHiddenLabel().ifEmpty {
+                        if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
+                    }.takeIf { it.isNotEmpty() },
+                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey()),
+                    canMoveUp = presentation.canDrag() && index > 0,
+                    canMoveDown = presentation.canDrag() && index < shown.lastIndex
+                )
+            })
+            val targets = shown.associate { it.getListId() to EntryActionTarget(it, generation) }
+            return AndroidVaultFrame(state) { id, command, anchor ->
+                val target = targets[id]
+                if (target == null) false else dispatchFrameCommand(target, generation, command, anchor)
+            }
+        }
+    }
 
-    override fun getItemId(position: Int): Long = presentation.get(position).getListId()
+    private fun dispatchFrameCommand(
+        target: EntryActionTarget, generation: Long, command: AndroidCardCommand, anchor: View?
+    ): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            if (!VaultSession.isCurrent(generation) || encryptionKey == null || VaultSession.getKey() !== encryptionKey)
+                return false
+            val entry = target.resolve(entries, generation) ?: return false
+            val position = presentation.indexOf(entry)
+            if (position < 0) return false
+            if (command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()) return false
+            // Obtain current token text from the live entry, never from a potentially stale frame.
+            when (command) {
+                AndroidCardCommand.PRIVACY -> cardActions.onPrivacyClicked(position)
+                AndroidCardCommand.COPY -> {
+                    if (entry.isTimeBased()) entry.updateOTP(false)
+                    if ((entry.isTimeBased() || entry.isCounterBased()) && !entry.hasCopyableToken() &&
+                        !(entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty())) return false
+                    cardActions.onCopyButtonClicked("", position)
+                }
+                AndroidCardCommand.REVEAL_TOKEN -> {
+                    if (!establishPinIfNeeded(position)) cardTapToRevealHandler(position)
+                }
+                AndroidCardCommand.NEXT_COUNTER -> {
+                    if (!entry.isCounterBased()) return false
+                    cardActions.onCounterClicked(position)
+                }
+                AndroidCardCommand.EDIT_COUNTER -> {
+                    if (!entry.isCounterBased()) return false
+                    cardActions.onCounterLongPressed(position)
+                }
+                AndroidCardCommand.ENTER_PIN -> {
+                    if (entry.getType() != Entry.OTPType.MOTP) return false
+                    establishPIN(position)
+                }
+                AndroidCardCommand.DELETE -> removeItem(position)
+                AndroidCardCommand.MENU -> {
+                    if (anchor == null) return false
+                    showPopupMenu(anchor, position)
+                }
+                AndroidCardCommand.MOVE_UP, AndroidCardCommand.MOVE_DOWN -> {
+                    val to = position + if (command == AndroidCardCommand.MOVE_UP) -1 else 1
+                    if (!presentation.canDrag() || !validDisplayedPosition(to)) return false
+                    onItemMove(position, to)
+                }
+                AndroidCardCommand.SINGLE_TAP -> cardActions.onCardSingleClicked(position, "")
+                AndroidCardCommand.DOUBLE_TAP -> cardActions.onCardDoubleClicked(position, "")
+            }
+            return true
+        }
+    }
 
     fun getEntries(): ArrayList<Entry> = entries.getEntries()
 
     fun hasIssuer(issuer: String?): Boolean = entries.hasIssuer(issuer)
 
     fun saveAndRefresh(auto_backup: Boolean) {
-        saveAndRefresh(auto_backup, RecyclerView.NO_POSITION)
+        saveAndRefresh(auto_backup, NO_POSITION)
     }
 
     fun saveAndRefresh(auto_backup: Boolean, itemPos: Int) {
@@ -105,7 +223,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * Takes ownership of [e], adds it (showing a toast on duplicate) and saves the database.
      * Destroys [e] if rejected or if saving fails.
      */
-    fun addEntry(e: Entry) {
+    override fun addEntry(e: Entry) {
         val added = try {
             if (encryptionKey == null || VaultSession.getKey() !== encryptionKey)
                 throw IllegalStateException("Vault locked")
@@ -131,7 +249,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * The replacement is validated and checked for duplicates (excluding the entry being replaced).
      * On any failure the replacement is destroyed and the vault is left unchanged.
      */
-    open fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+    override fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
         synchronized(VaultSession.MutationLock) {
             val key = encryptionKey
             if (key == null || VaultSession.getKey() !== key) {
@@ -231,7 +349,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
                 }
                 retained.addAll(accepted)
                 updateTagsFilter()
-                entriesChanged(RecyclerView.NO_POSITION)
+                entriesChanged(NO_POSITION)
                 (context as? MainActivity)?.showEntryCategory(accepted.first())
                 return BatchImportResult(accepted.size, skipped)
             }
@@ -251,7 +369,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
         presentation.refreshTags(settings.getNoTagsToggle(), settings.getTagFunctionality())
         notifyDataSetChanged()
 
-        if (itemPos == RecyclerView.NO_POSITION)
+        if (itemPos == NO_POSITION)
             notifyDataSetChanged()
         else if (validDisplayedPosition(itemPos))
             notifyItemChanged(itemPos)
@@ -350,7 +468,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             entries.updateEntries(ArrayList(), false)
             entries.updateEntries(result.takeEntries(), true)
             clearFilter()
-            entriesChanged(RecyclerView.NO_POSITION)
+            entriesChanged(NO_POSITION)
             return true
         }
     }
@@ -441,153 +559,119 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             notifyDataSetChanged()
     }
 
-    override fun onBindViewHolder(entryViewHolder: EntryViewHolder, i: Int) {
-        entryViewHolder.cancelPendingClicks()
-        val entry = presentation.get(i)
+    /** Prepare cached token/color state for a renderer without retaining a ViewHolder. */
+    fun prepareEntry(position: Int): Entry {
+        val entry = presentation.get(position)
+        if (!entry.isTimeBased() || entry.getCurrentOTP() == null) entry.updateOTP(false)
+        if (settings.isHighlightTokenOptionEnabled() && (!settings.getTapToReveal() || entry.isVisible())) {
+            entry.hasColorChanged()
+        }
+        return entry
+    }
 
-        if (!entry.isTimeBased() || entry.getCurrentOTP() == null)
-            entry.updateOTP(false)
-
-        if (settings.isHighlightTokenOptionEnabled()) {
-            if (!settings.getTapToReveal() || entry.isVisible()) {
-                entry.hasColorChanged()
-            }
-            entryViewHolder.updateColor(entry.getColor())
+    val cardActions: EntryCardEvents = object : EntryCardEvents {
+        override fun onMoveEventStart() {
+            callback?.onMoveEventStart()
         }
 
-        entryViewHolder.updateValues(entry, settings)
-
-        entryViewHolder.setLabelSize(settings.getLabelSize())
-        entryViewHolder.setLabelScroll(settings.getLabelDisplay(), settings.getCardLayout())
-
-        if (settings.getThumbnailVisible())
-            entryViewHolder.setThumbnailSize(settings.getThumbnailSize())
-    }
-
-    override fun onViewRecycled(holder: EntryViewHolder) {
-        super.onViewRecycled(holder)
-        holder.cancelPendingClicks()
-    }
-
-    override fun onCreateViewHolder(viewGroup: ViewGroup, i: Int): EntryViewHolder {
-        var cardLayout = R.layout.component_card_default
-
-        val layout = settings.getCardLayout()
-
-        if (layout == Constants.CardLayouts.COMPACT) {
-            cardLayout = R.layout.component_card_compact
-        } else if (layout == Constants.CardLayouts.FULL) {
-            cardLayout = R.layout.component_card_full
+        override fun onMoveEventStop() {
+            callback?.onMoveEventStop()
         }
 
-        val itemView = LayoutInflater.from(viewGroup.context).inflate(cardLayout, viewGroup, false)
-
-        val viewHolder = EntryViewHolder(context, itemView, settings.getTapToReveal())
-        viewHolder.setCallback(object : EntryViewHolder.Callback {
-            override fun onMoveEventStart() {
-                callback?.onMoveEventStart()
-            }
-
-            override fun onMoveEventStop() {
-                callback?.onMoveEventStop()
-            }
-
-            override fun onPrivacyClicked(position: Int) {
-                synchronized(VaultSession.MutationLock) {
-                    val key = encryptionKey
-                    if (key == null || VaultSession.getKey() !== key || !validDisplayedPosition(position)) return
-                    val entry = presentation.get(position)
-                    entry.setDetailsVisible(!entry.areDetailsVisible())
-                    val result = persistence.save(entries.getEntries(), key, settings.getAutoBackupEncryptedPasswordsEnabled(),
-                        UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
-                    if (result !is VaultWriteResult.Saved) {
-                        entry.setDetailsVisible(false)
-                        Toast.makeText(context, R.string.privacy_save_failed, Toast.LENGTH_LONG).show()
-                    }
-                    notifyEntryChanged(entry)
+        override fun onPrivacyClicked(position: Int) {
+            synchronized(VaultSession.MutationLock) {
+                val key = encryptionKey
+                if (key == null || VaultSession.getKey() !== key || !validDisplayedPosition(position)) return
+                val entry = presentation.get(position)
+                entry.setDetailsVisible(!entry.areDetailsVisible())
+                val result = persistence.save(entries.getEntries(), key, settings.getAutoBackupEncryptedPasswordsEnabled(),
+                    UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
+                if (result !is VaultWriteResult.Saved) {
+                    entry.setDetailsVisible(false)
+                    Toast.makeText(context, R.string.privacy_save_failed, Toast.LENGTH_LONG).show()
                 }
+                notifyEntryChanged(entry)
             }
+        }
 
-            override fun onMenuButtonClicked(parentView: View, position: Int) {
-                showPopupMenu(parentView, position)
+        override fun onMenuButtonClicked(parentView: View, position: Int) {
+            showPopupMenu(parentView, position)
+        }
+
+        override fun onCopyButtonClicked(text: String, position: Int) {
+            if (!establishPinIfNeeded(position)) {
+                copyHandler(position, text, settings.isMinimizeAppOnCopyEnabled())
             }
+        }
 
-            override fun onCopyButtonClicked(text: String, position: Int) {
-                if (!establishPinIfNeeded(position)) {
-                    copyHandler(position, text, settings.isMinimizeAppOnCopyEnabled())
-                }
-            }
-
-            override fun onCardSingleClicked(position: Int, text: String) {
-                when (settings.getTapSingle()) {
-                    Constants.TapMode.REVEAL -> {
-                        if (!establishPinIfNeeded(position)) {
-                            cardTapToRevealHandler(position)
-                        }
-                    }
-                    Constants.TapMode.COPY -> {
-                        if (!establishPinIfNeeded(position)) {
-                            copyHandler(position, text, false)
-                        }
-                    }
-                    Constants.TapMode.COPY_BACKGROUND -> {
-                        if (!establishPinIfNeeded(position)) {
-                            copyHandler(position, text, true)
-                        }
-                    }
-                    Constants.TapMode.SEND_KEYSTROKES -> {
-                        if (!establishPinIfNeeded(position)) {
-                            sendKeystrokes(position)
-                        }
-                    }
-                    else -> {
-                        // If tap-to-reveal is disabled a single tap still needs to establish the PIN
-                        if (!settings.getTapToReveal())
-                            establishPinIfNeeded(position)
+        override fun onCardSingleClicked(position: Int, text: String) {
+            when (settings.getTapSingle()) {
+                Constants.TapMode.REVEAL -> {
+                    if (!establishPinIfNeeded(position)) {
+                        cardTapToRevealHandler(position)
                     }
                 }
-            }
-
-            override fun onCardDoubleClicked(position: Int, text: String) {
-                when (settings.getTapDouble()) {
-                    Constants.TapMode.REVEAL -> {
-                        if (!establishPinIfNeeded(position)) {
-                            cardTapToRevealHandler(position)
-                        }
+                Constants.TapMode.COPY -> {
+                    if (!establishPinIfNeeded(position)) {
+                        copyHandler(position, text, false)
                     }
-                    Constants.TapMode.COPY -> {
-                        if (!establishPinIfNeeded(position)) {
-                            copyHandler(position, text, false)
-                        }
+                }
+                Constants.TapMode.COPY_BACKGROUND -> {
+                    if (!establishPinIfNeeded(position)) {
+                        copyHandler(position, text, true)
                     }
-                    Constants.TapMode.COPY_BACKGROUND -> {
-                        if (!establishPinIfNeeded(position)) {
-                            copyHandler(position, text, true)
-                        }
+                }
+                Constants.TapMode.SEND_KEYSTROKES -> {
+                    if (!establishPinIfNeeded(position)) {
+                        sendKeystrokes(position)
                     }
-                    Constants.TapMode.SEND_KEYSTROKES -> {
-                        if (!establishPinIfNeeded(position)) {
-                            sendKeystrokes(position)
-                        }
-                    }
-                    else -> Unit
+                }
+                else -> {
+                    // If tap-to-reveal is disabled a single tap still needs to establish the PIN
+                    if (!settings.getTapToReveal())
+                        establishPinIfNeeded(position)
                 }
             }
+        }
 
-            override fun onCounterClicked(position: Int) {
-                if (!validDisplayedPosition(position)) return
-                val realIndex = getRealIndex(position)
-                if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
-                updateEntry(presentation.get(position), entries.getEntry(realIndex), position)
+        override fun onCardDoubleClicked(position: Int, text: String) {
+            when (settings.getTapDouble()) {
+                Constants.TapMode.REVEAL -> {
+                    if (!establishPinIfNeeded(position)) {
+                        cardTapToRevealHandler(position)
+                    }
+                }
+                Constants.TapMode.COPY -> {
+                    if (!establishPinIfNeeded(position)) {
+                        copyHandler(position, text, false)
+                    }
+                }
+                Constants.TapMode.COPY_BACKGROUND -> {
+                    if (!establishPinIfNeeded(position)) {
+                        copyHandler(position, text, true)
+                    }
+                }
+                Constants.TapMode.SEND_KEYSTROKES -> {
+                    if (!establishPinIfNeeded(position)) {
+                        sendKeystrokes(position)
+                    }
+                }
+                else -> Unit
             }
+        }
 
-            override fun onCounterLongPressed(position: Int) {
-                setCounter(position)
-            }
-        })
+        override fun onCounterClicked(position: Int) {
+            if (!validDisplayedPosition(position)) return
+            val realIndex = getRealIndex(position)
+            if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
+            updateEntry(presentation.get(position), entries.getEntry(realIndex), position)
+        }
 
-        return viewHolder
+        override fun onCounterLongPressed(position: Int) {
+            setCounter(position)
+        }
     }
+
 
     /**
      * Prompts for the mOTP PIN when missing. Returns true when [position] is invalid or a PIN
@@ -791,7 +875,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     /** Swaps two entries within the selected tab, only in the unsorted, unfiltered view. */
-    override fun onItemMove(fromPosition: Int, toPosition: Int): Boolean {
+    fun onItemMove(fromPosition: Int, toPosition: Int): Boolean {
         if (presentation.canDrag() && validDisplayedPosition(fromPosition) && validDisplayedPosition(toPosition)) {
             entries.swapEntries(presentation.sourceIndex(fromPosition), presentation.sourceIndex(toPosition))
 
@@ -1078,7 +1162,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     /** Changes the sort order of the displayed entries. */
     fun setSortMode(mode: Constants.SortMode) {
         presentation.setSortMode(mode)
-        entriesChanged(RecyclerView.NO_POSITION)
+        entriesChanged(NO_POSITION)
     }
 
     fun getSortMode(): Constants.SortMode = presentation.getSortMode()
@@ -1104,10 +1188,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     /** In-use tags in the shared display order (see EntryTagFilter.sortedNames). */
-    fun getTags(): List<String> = entries.getSortedTags()
+    override fun getTags(): List<String> = entries.getSortedTags()
 
     /** Per-tag entry counts for the drawer rows (#994). */
-    fun getTagCounts(): Map<String, Int> = entries.getTagCounts()
+    override fun getTagCounts(): Map<String, Int> = entries.getTagCounts()
 
     /** Search filter that applies the configured search fields. */
     inner class EntryFilter : Filter() {
@@ -1137,6 +1221,20 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
             }
         }
     }
+
+    interface Changes {
+        fun changed()
+        fun itemChanged(position: Int)
+        fun itemMoved(from: Int, to: Int)
+        fun itemRemoved(position: Int)
+    }
+
+    fun notifyDataSetChanged() = changes.changed()
+    private fun notifyItemChanged(position: Int) = changes.itemChanged(position)
+    private fun notifyItemMoved(from: Int, to: Int) = changes.itemMoved(from, to)
+    private fun notifyItemRemoved(position: Int) = changes.itemRemoved(position)
+
+    private companion object { const val NO_POSITION = -1 }
 
     /** Lets the activity react to drag/drop events (pausing the token updater). */
     interface Callback {

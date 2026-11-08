@@ -73,11 +73,11 @@ class SortPreferenceTest {
     fun theStateAppliesTheSavedOrderOnLoad() {
         val key = javax.crypto.KeyGenerator.getInstance("AES").generateKey()
         val state = DesktopVaultState(key)
-        state.presentation.setSortMode(Constants.SortMode.ISSUER)
+        state.applySortMode(Constants.SortMode.ISSUER)
         val beta = entry("Beta", "b")
         val alpha = entry("Alpha", "a")
         state.load(arrayListOf(beta, alpha))
-        // load() rebuilds the projection through the presentation, which keeps the chosen order.
+        // load() rebuilds the projection from the state's filter, which keeps the chosen order.
         assertEquals("Alpha", state.presentation.get(0).getIssuer())
         assertEquals("Beta", state.presentation.get(1).getIssuer())
     }

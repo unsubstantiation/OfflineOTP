@@ -31,6 +31,21 @@ EXPECTED_DOCUMENT = ('{"secret":"JBSWY3DPEHPK3PXP","issuer":"Example","label":"a
 
 
 class AndroidTestSuiteStructureTest(unittest.TestCase):
+    def test_compose_device_tests_exercise_the_shipping_host_not_legacy_fixtures(self):
+        source = (ANDROID_TEST_ROOT / "com/fairuniversal/offlineotp/ComposeVaultDeviceTest.kt").read_text()
+        for marker in ("createAndroidComposeRule<ComponentActivity>()", "setContentView(view)",
+                       "view.clear()", "assertDoesNotExist()", "performClick()",
+                       "showThumbnails = false", "getString(R.string.format_custom_period, seconds)"):
+            self.assertIn(marker, source)
+        self.assertNotIn("EntryViewHolder", source)
+        self.assertNotIn("component_card_", source)
+        gradle = BUILD_GRADLE.read_text()
+        self.assertIn("androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.10.3'", gradle)
+        self.assertIn("debugImplementation 'androidx.compose.ui:ui-test-manifest:1.10.3'", gradle)
+        self.assertNotIn("implementation 'androidx.compose.ui:ui-test", gradle)
+        for path in (TEST_STUBS / "androidx/compose").rglob("*.kt"):
+            self.assertIn('error("device-only compile stub")', path.read_text())
+
     def test_application_test_exists_at_the_documented_path(self):
         self.assertTrue(APPLICATION_TEST.is_file(),
                         "docs/language-security-assessment.md links to this exact path")
@@ -55,6 +70,17 @@ class AndroidTestSuiteStructureTest(unittest.TestCase):
             expected = path.parent.relative_to(ANDROID_TEST_ROOT).as_posix().replace("/", ".")
             self.assertEqual(expected, package.group(1),
                              f"{path} package does not match its directory")
+            if path.relative_to(ANDROID_TEST_ROOT).as_posix() in {
+                "com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt",
+                "com/fairuniversal/offlineotp/View/EntryViewHolder.kt",
+                "com/fairuniversal/offlineotp/View/SimpleDoubleClickListener.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperAdapter.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/ItemTouchHelperViewHolder.kt",
+                "com/fairuniversal/offlineotp/View/ItemTouchHelper/SimpleItemTouchHelperCallback.kt",
+            }:
+                # Historical renderer fixtures, deliberately excluded from shipping app sources.
+                self.assertNotIn("@Test", text)
+                continue
             if path.name.endswith("Support.kt"):
                 # Shared fixtures, not a test class: these files must not be discovered as tests.
                 self.assertNotIn("@Test", text, f"{path.name} is support code but declares a test")

@@ -187,8 +187,11 @@ object MainWindow {
             val savedSort = controller.savedSortMode()
             selectSortChoice(savedSort)
             val unlocked = DesktopVaultState(session.key).apply {
-                presentation.setCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
-                presentation.setSortMode(savedSort)
+                // Through the state, never its presentation: the selection the state reapplies on
+                // every refresh is one VaultFilter, so a direct setCategory() here would be undone
+                // by the next refresh.
+                applyCategory(EntryListPresentation.Category.entries[screen.categories.selectedIndex])
+                applySortMode(savedSort)
                 load(session.entries)
             }
             state = unlocked
@@ -722,7 +725,7 @@ object MainWindow {
                     removalConfirmationMessage(selected.getLabel(), selected.getIssuer()),
                     "Remove", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE)
                 != JOptionPane.YES_OPTION) return@addActionListener
-            if (editor?.removeAt(unlocked.presentation.sourceIndex(row)) == true) {
+            if (editor?.remove(selected) == true) {
                 refreshProjection(unlocked)
             } else {
                 JOptionPane.showMessageDialog(frame, "The entry could not be deleted from the vault.",

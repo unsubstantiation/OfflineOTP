@@ -77,7 +77,12 @@ class DesktopIssuerIconsTest(unittest.TestCase):
         self.assertIn('"/thumbnails/"', icons)
         cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
             .read_text(encoding="utf-8")
-        self.assertIn("IssuerIcons.artwork(entry.getThumbnailName())", cards)
+        # The thumbnail name comes from the shared frame model, so the Swing card and the Compose
+        # card cannot pick different artwork for the same entry.
+        self.assertIn("IssuerIcons.artwork(card.thumbnailName)", cards)
+        model = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/"
+                       "VaultCards.kt").read_text(encoding="utf-8")
+        self.assertIn("thumbnailName = entry.getThumbnailName()", model)
         # A hidden entry must keep showing the letter tile, never a brand hint.
         self.assertIn("avatar.initial = initial(", cards)
 
@@ -115,7 +120,7 @@ class OtpAmberColorTest(unittest.TestCase):
             progress = root.find(f".//*[@{ANDROID}id='@+id/cardProgressBar']")
             self.assertEqual("@color/forest_otp_amber",
                              progress.get("{http://schemas.android.com/apk/res-auto}mpb_progressTint"), layout)
-        holder = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
+        holder = (ROOT / "app/src/androidTest/kotlin/com/fairuniversal/offlineotp/View/EntryViewHolder.kt")\
             .read_text(encoding="utf-8")
         self.assertIn("R.attr.colorOtp", holder)
         self.assertIn("R.attr.colorExpiring", holder)

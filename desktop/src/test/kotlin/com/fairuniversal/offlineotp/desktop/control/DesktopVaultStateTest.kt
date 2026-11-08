@@ -16,6 +16,8 @@ import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.View.EntryListPresentation
+import com.fairuniversal.offlineotp.ui.vault.VaultFilter
+import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
 import javax.crypto.KeyGenerator
 import java.util.ArrayList
 
@@ -26,6 +28,184 @@ class DesktopVaultStateTest {
     private fun entry(issuer: String, label: String, secret: String = "JBSWY3DPEHPK3PXP"): Entry =
         Entry(Entry.OTPType.TOTP, secret, 30, 6, issuer, label,
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
+
+    @Test
+    fun deletionSavesRemainingEntriesBeforeRemovingAndDestroyingTheTarget() {
+        val state = state()
+        val first = entry("First", "alice")
+        val second = entry("Second", "bob")
+        state.add(first)
+        state.add(second)
+        var writes = 0
+        assertTrue(state.deleteEntry(first.getListId()) { remaining ->
+            writes++
+            assertEquals(listOf(second), remaining)
+            assertEquals(2, state.snapshot().size)
+            assertEquals("First", first.getIssuer())
+            true
+        })
+        assertEquals(1, writes)
+        assertEquals(listOf(second), state.snapshot())
+        assertEquals("", first.getIssuer())
+        assertEquals("Second", second.getIssuer())
+    }
+
+    @Test
+    fun failedDeletionLeavesTheEntryAndSelectionIntactUntilRetry() {
+        val state = state()
+        val target = entry("Bank", "alice")
+        state.add(target)
+        state.applySearch("alice")
+        val filter = state.currentFilter()
+        assertFalse(state.deleteEntry(target.getListId()) { false })
+        assertFalse(state.deleteEntry(target.getListId()) { throw IllegalStateException("write failed") })
+        assertEquals(listOf(target), state.snapshot())
+        assertEquals("Bank", target.getIssuer())
+        assertEquals(filter, state.currentFilter())
+        assertEquals(1, state.presentation.size())
+        assertTrue(state.deleteEntry(target.getListId()) { true })
+        assertTrue(state.snapshot().isEmpty())
+        assertEquals(0, state.presentation.size())
+    }
+
+    @Test
+    fun delayedDeletionUsesIdentityRatherThanDisplayedPosition() {
+        val state = state()
+        val first = entry("Zebra", "alice")
+        val second = entry("Alpha", "bob")
+        state.add(first)
+        state.add(second)
+        val id = second.getListId()
+        state.applySortMode(Constants.SortMode.ISSUER)
+        state.applySearch("alice")
+        assertTrue(state.deleteEntry(id) { remaining -> remaining == arrayListOf(first) })
+        assertEquals(listOf(first), state.snapshot())
+        var writes = 0
+        assertFalse(state.deleteEntry(id) { writes++; true })
+        val firstId = first.getListId()
+        state.lock()
+        assertFalse(state.deleteEntry(firstId) { writes++; true })
+        assertEquals(0, writes)
+    }
+
+    private fun motp() = Entry(
+        Entry.OTPType.MOTP, "JBSWY3DPEHPK3PXP", 30, 6, "Router", "admin",
+        TokenCalculator.HashAlgorithm.SHA1, ArrayList()
+    )
+
+    @Test
+    fun submittingAPinPersistsItAndMakesTheTokenCopyable() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        assertTrue(state.submitPin(entry.getListId(), "0123") {
+            assertEquals("0123", entry.getPin())
+            true
+        })
+        assertEquals("0123", entry.getPin())
+        assertTrue(entry.hasCopyableToken())
+    }
+
+    @Test
+    fun failedPinWritesRestoreTheOldPinAndAllowRetry() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        assertFalse(state.submitPin(entry.getListId(), "0123") { false })
+        assertEquals("", entry.getPin())
+        assertFalse(entry.hasCopyableToken())
+        entry.setPin("9876")
+        assertFalse(state.submitPin(entry.getListId(), "0123") { throw IllegalStateException("write") })
+        assertEquals("9876", entry.getPin())
+        assertTrue(state.submitPin(entry.getListId(), "0123") { true })
+        assertEquals("0123", entry.getPin())
+    }
+
+    @Test
+    fun invalidOrStalePinSubmissionsNeverPersist() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        var writes = 0
+        val persist = { writes++; true }
+        val id = entry.getListId()
+        assertFalse(state.submitPin(id, "", persist))
+        assertFalse(state.submitPin(id, "1".repeat(com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TAG_CHARS + 1), persist))
+        val time = entry("Service", "alice")
+        state.add(time)
+        assertFalse(state.submitPin(time.getListId(), "0123", persist))
+        state.removeAt(0)
+        assertFalse(state.submitPin(id, "0123", persist))
+        val fresh = motp()
+        state.add(fresh)
+        val freshId = fresh.getListId()
+        state.lock()
+        assertFalse(state.submitPin(freshId, "0123", persist))
+        assertEquals(0, writes)
+    }
+
+    private fun hotp(counter: Long = 7L) = Entry(
+        Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", counter, 6, "Bank", "alice",
+        TokenCalculator.HashAlgorithm.SHA1, ArrayList()
+    )
+
+    @Test
+    fun confirmedCounterIsPersistedBeforeReportingSuccess() {
+        val state = state()
+        val entry = hotp()
+        state.add(entry)
+        var writes = 0
+        assertTrue(state.advanceCounter(entry.getListId()) {
+            writes++
+            assertEquals(8L, entry.getCounter())
+            true
+        })
+        assertEquals(1, writes)
+        assertEquals(8L, entry.getCounter())
+    }
+
+    @Test
+    fun failedCounterWritesRollBackAndRetryOnlyAdvancesOnce() {
+        val state = state()
+        val entry = hotp()
+        state.add(entry)
+        assertFalse(state.advanceCounter(entry.getListId()) { false })
+        assertEquals(7L, entry.getCounter())
+        assertFalse(state.advanceCounter(entry.getListId()) { throw IllegalStateException("write failed") })
+        assertEquals(7L, entry.getCounter())
+        assertTrue(state.advanceCounter(entry.getListId()) { true })
+        assertEquals(8L, entry.getCounter())
+    }
+
+    @Test
+    fun delayedCounterActionCannotWriteAfterRemovalOrLock() {
+        val state = state()
+        val first = hotp()
+        state.add(first)
+        val id = first.getListId()
+        state.removeAt(0)
+        state.add(hotp())
+        var writes = 0
+        assertFalse(state.advanceCounter(id) { writes++; true })
+        val nextId = state.snapshot().single().getListId()
+        state.lock()
+        assertFalse(state.advanceCounter(nextId) { writes++; true })
+        assertEquals(0, writes)
+    }
+
+    @Test
+    fun counterActionRejectsTimeTokensAndExhaustedCounters() {
+        val state = state()
+        val time = entry("Service", "alice")
+        state.add(time)
+        var writes = 0
+        assertFalse(state.advanceCounter(time.getListId()) { writes++; true })
+        val exhausted = hotp(Long.MAX_VALUE - 1L)
+        state.add(exhausted)
+        assertFalse(state.advanceCounter(exhausted.getListId()) { writes++; true })
+        assertEquals(0, writes)
+        assertEquals(Long.MAX_VALUE - 1L, exhausted.getCounter())
+    }
 
     @Test
     fun addReplaceAndRemoveMutateTheProjection() {
@@ -107,7 +287,7 @@ class DesktopVaultStateTest {
         val noTags = entry("Service", "charlie")
         val note = Entry(Entry.OTPType.NOTE, "body", "", "alice note", arrayListOf("work"))
         listOf(first, second, noTags, note).forEach { state.add(it) }
-        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyCategory(EntryListPresentation.Category.OTP)
         state.applyTagFilter(listOf("work"), false)
         state.applySearch("alice")
         assertEquals(1, state.presentation.size())
@@ -122,10 +302,10 @@ class DesktopVaultStateTest {
         assertEquals(2, state.presentation.size())
         state.removeAt(state.snapshot().indexOf(third))
         assertEquals(1, state.presentation.size())
-        state.presentation.setCategory(EntryListPresentation.Category.NOTES)
+        state.applyCategory(EntryListPresentation.Category.NOTES)
         state.refreshProjection()
         assertEquals("alice note", state.presentation.get(0).getLabel())
-        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyCategory(EntryListPresentation.Category.OTP)
         state.applyTagFilter(emptyList(), true)
         assertEquals(1, state.presentation.size())
         assertEquals("charlie", state.presentation.get(0).getLabel())
@@ -176,7 +356,7 @@ class DesktopVaultStateTest {
         val second = entry("Alpha", "bob")
         val third = entry("Beta", "alice")
         listOf(first, second, third).forEach { assertTrue(state.add(it)) }
-        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyCategory(EntryListPresentation.Category.OTP)
 
         fun order() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
         assertEquals(listOf("charlie", "bob", "alice"), order())
@@ -217,14 +397,15 @@ class DesktopVaultStateTest {
         val bob = entry("Service", "bob").apply { setTags(arrayListOf("work")) }
         val note = Entry(Entry.OTPType.NOTE, "body", "", "alice note", arrayListOf("work"))
         listOf(alice, bob, note).forEach { assertTrue(state.add(it)) }
-        state.presentation.setCategory(EntryListPresentation.Category.OTP)
+        state.applyCategory(EntryListPresentation.Category.OTP)
 
         fun labels() = (0 until state.presentation.size()).map { state.presentation.get(it).getLabel() }
 
         // Android's setCategory()/filterByTags() call clearFilter() only to drop the in-flight
         // Filter; refreshTags() re-runs the stored query, so the search keeps applying. The
         // sandbox check "the adapter keeps a live search across tag and sort refreshes" pins the
-        // same rule on the Android side.
+        // same rule on the Android side. Here the selection is one VaultFilter, changed through the
+        // state so that the next refresh applies it instead of resetting it.
         state.applySearch("alice")
         assertEquals(listOf("alice"), labels())
         state.applyTagFilter(listOf("work"), false)
@@ -237,6 +418,36 @@ class DesktopVaultStateTest {
         // Dropping the query restores the tag filter rather than the whole vault.
         state.applySearch("")
         assertEquals(listOf("alice", "bob"), labels())
+    }
+
+    @Test
+    fun theSelectionIsOneFilterWithTheDesktopCombination() {
+        val state = state()
+        // Desktop semantics: a search and a tag choice narrow together, unlike Android's search
+        // overriding the tags. That difference is a value, not a second implementation.
+        assertEquals(VaultFilterCombination.SEARCH_AND_TAGS, state.currentFilter().combination)
+
+        state.applySearch("alice", listOf(Constants.SearchIncludes.LABEL))
+        state.applyTagFilter(listOf("work"), false, Constants.TagFunctionality.AND)
+        state.applyCategory(EntryListPresentation.Category.NOTES)
+        state.applySortMode(Constants.SortMode.LABEL)
+        val filter = state.currentFilter()
+        assertEquals("alice", filter.query)
+        assertEquals(listOf(Constants.SearchIncludes.LABEL), filter.searchIncludes)
+        assertEquals(listOf("work"), filter.selectedTags)
+        assertEquals(Constants.TagFunctionality.AND, filter.tagFunctionality)
+        assertEquals(EntryListPresentation.Category.NOTES, filter.category)
+        assertEquals(Constants.SortMode.LABEL, filter.sortMode)
+        // The projection is the state's, so an edit that refreshes it cannot lose the selection.
+        state.refreshProjection()
+        assertEquals(filter, state.currentFilter())
+
+        // Locking forgets the selection: a re-unlock must not resurrect a filter or a tab.
+        state.lock()
+        assertEquals(VaultFilterCombination.SEARCH_AND_TAGS, state.currentFilter().combination)
+        assertFalse(state.currentFilter().hasQuery)
+        assertFalse(state.currentFilter().hasTagFilter)
+        assertEquals(null, state.currentFilter().category)
     }
 
     @Test
@@ -253,7 +464,7 @@ class DesktopVaultStateTest {
         for ((category, count) in listOf(EntryListPresentation.Category.OTP to 1,
             EntryListPresentation.Category.NOTES to 1, EntryListPresentation.Category.SSH_KEYS to 1,
             EntryListPresentation.Category.PASSWORDS to 2)) {
-            state.presentation.setCategory(category)
+            state.applyCategory(category)
             state.refreshProjection()
             assertEquals(count, state.presentation.size())
             state.applySearch("shared")

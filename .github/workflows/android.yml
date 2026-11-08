@@ -30,6 +30,65 @@ jobs:
         run: |
           set -euo pipefail
           cargo build --manifest-path rust/Cargo.toml --release --verbose
+  compose-validation:
+    # Explicit dispatch only: no extra emulator jobs on master pushes, no signing environment.
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - flavor: Fdroid
+            api: 28
+          - flavor: Play
+            api: 36
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Verify wrapper and compile debug app plus instrumentation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/check_build_inputs.py
+          mkdir -p reports/compose-validation
+          ./gradlew --no-daemon --stacktrace :app:assemble${{ matrix.flavor }}Debug :app:assemble${{ matrix.flavor }}DebugAndroidTest 2>&1 | tee reports/compose-validation/build.log
+      - name: Enable emulator acceleration
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Compose host and bundled artwork tests
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2 (resolved commit)
+        with:
+          api-level: ${{ matrix.api }}
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          script: bash -o pipefail -c './gradlew --no-daemon --stacktrace :app:connected${{ matrix.flavor }}DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fairuniversal.offlineotp.ComposeVaultDeviceTest,com.fairuniversal.offlineotp.IssuerArtworkDeviceTest 2>&1 | tee reports/compose-validation/device.log'
+      - name: Require all selected device assertions to have run
+        run: python3 scripts/check_compose_device_results.py app/build/outputs/androidTest-results/connected
+      - name: Upload validation logs and test reports (not APKs)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compose-validation-${{ matrix.flavor }}-api${{ matrix.api }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            reports/compose-validation/
+            app/build/reports/androidTests/
+            app/build/outputs/androidTest-results/
+
   signing-preflight:
     # Release signing is opt-in. The `secrets` context is not available to job-level `if`
     # expressions, so this tiny job publishes whether the keystore secret exists and lets the
@@ -59,7 +118,7 @@ jobs:
 
   sign-release:
     # Builds and verifies signed release APKs only when the keystore is configured; otherwise
-    # the job is skipped. No debug APK is built — use a local Gradle build for development.
+    # the job is skipped. Debug validation above is independent and never publishes APKs.
     needs: [signing-preflight, openpgp]
     if: needs.signing-preflight.outputs.enabled == 'true'
     runs-on: ubuntu-24.04

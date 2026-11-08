@@ -124,7 +124,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn('Button("Export browser passwords CSV…", action: exportBrowserPasswords)', ios_backup)
         popup_menu = (ROOT / "app/src/main/res/menu/menu_popup.xml").read_text(encoding="utf-8")
         self.assertIn('android:id="@+id/menu_popup_tags"', popup_menu)
-        adapter = (ANDROID / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (ANDROID / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("R.id.menu_popup_tags", adapter)
         ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
         self.assertIn("Copyright (c) 2026 unsubstantiation", ios_settings)

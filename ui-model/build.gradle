@@ -1,0 +1,50 @@
+// Toolkit-free UI frame layer: what a vault row shows, and the filter transitions that produce it.
+//
+// This module is the contract between the vault and every renderer. It depends on :core and on
+// nothing else — no Compose, no Android, no Swing, no storage, no session — and the sandbox gate
+// compiles it with *no* Compose stubs on the classpath, so the boundary is enforced by the compiler
+// rather than by a source guard:
+//
+//   :core  <-  :ui-model  <-  :ui (Compose)  <-  :app / :desktop-compose
+//                        <-  :desktop (Swing, shares the wording and the frame model)
+//
+// It is a Kotlin Multiplatform module only so that `:ui`'s commonMain can depend on it: a plain JVM
+// library cannot be a `commonMain` dependency. Both targets carry the same commonMain sources.
+apply plugin: 'org.jetbrains.kotlin.multiplatform'
+apply plugin: 'com.android.library'
+
+kotlin {
+    androidTarget {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
+    }
+    jvm('desktop') {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+        }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            // api, not implementation: VaultCardState is built from core's Entry, and hosts pass
+            // VaultFilter through core's Constants/EntryListPresentation enums.
+            api project(':core')
+        }
+        desktopTest.dependencies {
+            implementation 'junit:junit:4.13.2'
+        }
+    }
+}
+
+android {
+    namespace = "com.fairuniversal.offlineotp.ui.model"
+    compileSdk 36
+    defaultConfig {
+        minSdkVersion 28
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

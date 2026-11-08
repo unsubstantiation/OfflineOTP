@@ -14,6 +14,7 @@ DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
 DESKTOP_TEST = ROOT / "desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop"
 APP = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
 CORE = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp"
+MODEL_STRINGS = ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt"
 
 
 def text(path):
@@ -26,9 +27,14 @@ class DesktopEmailSupportTest(unittest.TestCase):
         self.assertIn("EntryListPresentation.Category.entries.forEach { addTab(", screen)
         # The old hard-coded four-label strip must not come back: it silently dropped a category.
         self.assertNotIn('listOf("OTP", "Notes", "SSH Keys", "Passwords")', screen)
+        # The labels are :ui-model's shared table now (the same one the Compose screen and the
+        # Android resources use), so the desktop no longer keeps a second copy to fall behind.
+        self.assertIn("VaultStrings.English.categoryTitle(category)", screen)
+        titles = re.search(
+            r"fun categoryTitle\([^)]*\): String = when \(.*?\n    \}",
+            MODEL_STRINGS.read_text(encoding="utf-8"), re.S)
+        self.assertIsNotNone(titles, "VaultStrings.categoryTitle must map every Category")
         # Every category needs a title, so a new core category cannot render a blank tab.
-        titles = re.search(r"fun categoryTitle\([^)]*\): String = when \(.*?\n\}", screen, re.S)
-        self.assertIsNotNone(titles, "categoryTitle must map every EntryListPresentation.Category")
         for category in ("OTP", "NOTES", "SSH_KEYS", "PASSWORDS", "EMAILS"):
             self.assertIn(f"Category.{category} ->", titles.group(0))
         self.assertIn('Category.EMAILS -> "Email"', titles.group(0))
@@ -85,7 +91,7 @@ class DesktopEmailSupportTest(unittest.TestCase):
         self.assertIn("const val SECRET_MASK", material)
         self.assertIn("fun details(account: Account, revealSecrets: Boolean)", material)
         # Android's card dialog uses the shared builder instead of its own row code.
-        adapter = (APP / "View/EntriesCardAdapter.kt").read_text(encoding="utf-8")
+        adapter = (APP / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)", adapter)
         self.assertNotIn('append("Auth type: ")', adapter)
         # The desktop dialog starts masked and only reveals on request.

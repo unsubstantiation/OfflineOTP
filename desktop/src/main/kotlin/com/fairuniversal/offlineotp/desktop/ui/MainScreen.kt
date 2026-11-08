@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.desktop.ui
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.desktop.model.EntryTableModel
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 
 import java.awt.BasicStroke
 import java.awt.BorderLayout
@@ -68,15 +69,12 @@ internal fun removalConfirmationMessage(label: String, issuer: String): String {
     return "Are you sure you want to remove the account \"$name\"? This cannot be undone."
 }
 
-/** Display label for one list order; the labels match the Android sort menu. */
+/**
+ * Display label for one list order, from :ui-model's shared strings: the same words the Compose
+ * screen shows and the Android `menu_sort_*` resources use.
+ */
 internal class SortChoice(val mode: Constants.SortMode) {
-    override fun toString(): String = when (mode) {
-        Constants.SortMode.UNSORTED -> "Unsorted"
-        Constants.SortMode.ISSUER -> "Issuer"
-        Constants.SortMode.LABEL -> "Label"
-        Constants.SortMode.LAST_USED -> "Last used"
-        Constants.SortMode.MOST_USED -> "Most used"
-    }
+    override fun toString(): String = VaultStrings.English.sortTitle(mode)
 }
 
 /** Lightweight main-window content, separated from JFrame so its layout can be checked headlessly. */
@@ -326,14 +324,10 @@ private class LockIcon(private val size: Int) : Icon {
 }
 
 /**
- * Tab title for an [EntryListPresentation.Category]. The list is derived from the enum so a new
- * entry kind cannot be added to `:core` while its tab silently disappears; the labels match the
- * Android tab strings the same categories map to.
+ * Tab title for an [EntryListPresentation.Category].
+ *
+ * The wording is :ui-model's `VaultStrings`, the same table the Compose screen renders, so a tab
+ * cannot be labelled differently in the two desktops or drift from the Android `tab_*` resources.
  */
-internal fun categoryTitle(category: EntryListPresentation.Category): String = when (category) {
-    EntryListPresentation.Category.OTP -> "OTP"
-    EntryListPresentation.Category.NOTES -> "Notes"
-    EntryListPresentation.Category.SSH_KEYS -> "SSH Keys"
-    EntryListPresentation.Category.PASSWORDS -> "Passwords"
-    EntryListPresentation.Category.EMAILS -> "Email"
-}
+internal fun categoryTitle(category: EntryListPresentation.Category): String =
+    VaultStrings.English.categoryTitle(category)

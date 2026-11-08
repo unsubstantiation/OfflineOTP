@@ -5,6 +5,8 @@ import android.os.SystemClock
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,8 +17,10 @@ import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultSession
-import com.fairuniversal.offlineotp.View.EntriesCardAdapter
+import com.fairuniversal.offlineotp.View.AndroidVaultController
 import com.fairuniversal.offlineotp.View.TagsAdapter
+import com.fairuniversal.offlineotp.View.AndroidCardCommand
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import javax.crypto.spec.SecretKeySpec
 
 /** Exercises the real Android Filter worker and main-thread publication without writing a vault. */
@@ -31,16 +35,22 @@ class EntrySearchDeviceTest {
         val third = entry("bob", "work")
         val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        var adapter: EntriesCardAdapter? = null
+        var adapter: AndroidVaultController? = null
+        var notifications = 0
         try {
             instrumentation.runOnMainSync {
                 val unlock = VaultSession.beginUnlock()
                 assertTrue(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied)
                 val tags = TagsAdapter(context, hashMapOf("work" to true, "home" to false))
-                val created = EntriesCardAdapter(context, tags)
+                val created = AndroidVaultController(context, tags, object : AndroidVaultController.Changes {
+                    override fun changed() { notifications++ }
+                    override fun itemChanged(position: Int) { notifications++ }
+                    override fun itemMoved(from: Int, to: Int) { notifications++ }
+                    override fun itemRemoved(position: Int) { notifications++ }
+                })
                 adapter = created
                 created.encryptionKey = key
-                val field = EntriesCardAdapter::class.java.getDeclaredField("entries")
+                val field = com.fairuniversal.offlineotp.View.AndroidVaultController::class.java.getDeclaredField("entries")
                 field.isAccessible = true
                 val source = field.get(created) as EntryList
                 source.addEntry(first)
@@ -48,6 +58,8 @@ class EntrySearchDeviceTest {
                 source.addEntry(third)
                 created.filterByTags(listOf("work"))
                 created.setSearchQuery("alice")
+                // Snapshotting during async search must not invalidate its pending revision.
+                assertEquals("alice", created.composeFrame(1_000L, VaultStrings.English)!!.state.filter.query)
             }
 
             val current = requireNotNull(adapter)
@@ -70,6 +82,16 @@ class EntrySearchDeviceTest {
                 assertEquals(listOf(second.getListId(), third.getListId(), first.getListId()), ids(current))
                 current.setSearchQuery("")
                 assertEquals(listOf(second.getListId()), ids(current))
+                assertTrue(notifications > 0)
+                val frame = current.composeFrame(1_000L, VaultStrings.English)!!
+                assertEquals(ids(current), frame.state.cards.map { it.id })
+                // Privacy is checked before commands, independently of the shared row's masking.
+                second.setDetailsVisible(false)
+                assertFalse(frame.perform(second.getListId(), AndroidCardCommand.COPY))
+                current.lockEntries()
+                assertNull(current.composeFrame(1_000L, VaultStrings.English))
+                assertFalse(frame.perform(second.getListId(), AndroidCardCommand.PRIVACY))
+                assertEquals(0, current.getItemCount())
             }
         } finally {
             instrumentation.runOnMainSync { adapter?.lockEntries() }
@@ -84,6 +106,6 @@ class EntrySearchDeviceTest {
         Entry(Entry.OTPType.TOTP, "JBSWY3DPEHPK3PXP", 30, 6, "", label,
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf(tag))
 
-    private fun ids(adapter: EntriesCardAdapter): List<Long> =
+    private fun ids(adapter: AndroidVaultController): List<Long> =
         (0 until adapter.getItemCount()).map { adapter.getItemId(it) }
 }

@@ -295,7 +295,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         # Usage metadata goes through the shared rule both clients use (see
         # test_shared_client_logic.py); clipboard/AWT must not leak into control.
         self.assertIn("EntryUsage.recordUse(", editor)
-        self.assertIn("EntryUsage.advanceHotp(", editor)
+        self.assertIn("state.advanceCounter(", editor)
         self.assertNotIn("javax.swing", editor)
         self.assertNotIn("java.awt", editor)
 

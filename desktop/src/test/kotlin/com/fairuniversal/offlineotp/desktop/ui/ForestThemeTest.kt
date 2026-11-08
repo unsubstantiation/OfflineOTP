@@ -10,6 +10,7 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.View.EntryListPresentation
+import com.fairuniversal.offlineotp.ui.vault.TokenDisplay
 import com.fairuniversal.offlineotp.desktop.model.EntryTableModel
 
 import java.awt.Color
@@ -137,24 +138,27 @@ class ForestThemeTest {
         val hidden = otp("Hidden brand", "hidden account", false)
         val table = JTable(model(entry, hidden))
         EntryCards.configure(table)
-        val previousClock = CardClock.nowSeconds
+        val previousClock = CardClock.nowMillis
         try {
             // 30-second step: 60s is a fresh code, 89s leaves one second.
-            CardClock.nowSeconds = { 60L }
+            CardClock.nowMillis = { 60_000L }
             val fresh = codeLabel(table)
             assertEquals(ForestTheme.OTP_AMBER, fresh.foreground)
             assertEquals("digits use a monospaced face so the tick never reflows",
                 Font.MONOSPACED, fresh.font.family)
+            // Grouped exactly as the shared frame model groups it, so the desktop card and the
+            // Compose card print the same code.
+            assertEquals(TokenDisplay.group(entry.getCurrentOTP().orEmpty()), fresh.text)
 
-            CardClock.nowSeconds = { 89L }
+            CardClock.nowMillis = { 89_000L }
             assertEquals(ForestTheme.WARNING, codeLabel(table).foreground)
 
-            CardClock.nowSeconds = { 60L }
+            CardClock.nowMillis = { 60_000L }
             val concealed = labels(card(table, 1)).first { it.text == "Hidden" }
             assertEquals(ForestTheme.TEXT_HINT, concealed.foreground)
             assertFalse(labels(card(table, 1)).any { it.text == hidden.getCurrentOTP() })
         } finally {
-            CardClock.nowSeconds = previousClock
+            CardClock.nowMillis = previousClock
         }
     }
 
@@ -208,7 +212,7 @@ class ForestThemeTest {
         assertEquals("Hidden, Hidden issuer – Visible title", hiddenCard.accessibleContext.accessibleName)
         assertFalse(hiddenCard.accessibleContext.accessibleName.contains(hidden.getCurrentOTP().orEmpty()))
         val shownText = labels(card(table, 1)).map { it.text }
-        assertTrue(shownText.contains(visible.getCurrentOTP()))
+        assertTrue(shownText.contains(TokenDisplay.group(visible.getCurrentOTP().orEmpty())))
         assertTrue(shownText.contains("Shown issuer – account@example.com"))
 
         for ((row, identity) in listOf(2 to "Notes issuer – Recovery", 3 to "Server issuer – Host")) {
@@ -297,7 +301,9 @@ class ForestThemeTest {
         assertTrue(screen.copyButton.isEnabled)
         assertTrue(screen.tagsButton.isEnabled)
         assertTrue(card(table, 0).accessibleContext.accessibleName.contains("Issuer – Account"))
-        assertTrue(card(table, 0).accessibleContext.accessibleName.contains(entry.getCurrentOTP().orEmpty()))
+        // The card prints the shared model's grouped code, and so does what it announces.
+        assertTrue(card(table, 0).accessibleContext.accessibleName
+            .contains(TokenDisplay.group(entry.getCurrentOTP().orEmpty())))
         model.refreshValues()
         assertEquals(0, table.selectedRow)
 

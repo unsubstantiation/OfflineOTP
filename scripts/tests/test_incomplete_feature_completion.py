@@ -30,7 +30,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-ADAPTER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntriesCardAdapter.kt"
+ADAPTER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt"
 ENTRY = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Database/Entry.kt"
 BIOMETRIC = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/BiometricKeyStore.kt"
 AUTH = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt"

@@ -48,7 +48,7 @@ def collect():
     groups = defaultdict(set)
     # Core sources are R-free, but scanning them too keeps this in lockstep with every list run.sh
     # compiles and fails loudly if a listed file disappears.
-    for variable in ("CORE_SOURCES", "APP_SOURCES"):
+    for variable in ("CORE_SOURCES", "APP_SOURCES", "LEGACY_FIXTURES"):
         for entry in source_lists(variable):
             source = Path(expand(entry))
             if not source.is_file():

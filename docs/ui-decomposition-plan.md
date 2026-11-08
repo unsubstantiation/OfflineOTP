@@ -1,6 +1,8 @@
 # UI decomposition plan
 
-> **Status:** the five decomposition slices below are implemented and the large UI classes were
+> **Status:** the Compose Multiplatform work is tracked separately in
+> [the unified UI plan](compose-unified-ui-plan.md); it adds a shared `:ui` module rather than
+> changing these boundaries. The five decomposition slices below are implemented and the large UI classes were
 > converted to Kotlin in the twenty-first batch. The extractions listed under "Still to extract"
 > remain open; this plan is not complete.
 

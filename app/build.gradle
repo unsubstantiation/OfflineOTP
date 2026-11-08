@@ -112,6 +112,8 @@ kotlin {
 dependencies {
     // Android-free OTP/parser/policy primitives shared with the desktop client.
     implementation project(':core')
+    implementation project(':ui-model')
+    implementation project(':ui')
 
     implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
         version { strictly '2.4.21' }
@@ -125,7 +127,7 @@ dependencies {
     implementation 'androidx.legacy:legacy-support-v4:1.0.0'
     implementation 'androidx.appcompat:appcompat:1.8.0'
     implementation 'androidx.cardview:cardview:1.0.0'
-    implementation 'androidx.recyclerview:recyclerview:1.4.0'
+    androidTestImplementation 'androidx.recyclerview:recyclerview:1.4.0' // Historical card fixtures only.
     implementation 'androidx.constraintlayout:constraintlayout:2.2.2'
     implementation "androidx.lifecycle:lifecycle-process:${lifecycle_version}"
     implementation "androidx.lifecycle:lifecycle-common-java8:${lifecycle_version}"
@@ -171,4 +173,7 @@ dependencies {
     androidTestImplementation 'androidx.test.ext:junit:1.2.1'
     androidTestImplementation 'androidx.test:runner:1.6.2'
     androidTestImplementation 'androidx.test:core:1.6.1'
+    // Device-only tests attach the real shared AbstractComposeView to ComponentActivity.
+    androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.10.3'
+    debugImplementation 'androidx.compose.ui:ui-test-manifest:1.10.3'
 }
