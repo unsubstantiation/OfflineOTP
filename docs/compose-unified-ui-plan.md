@@ -535,3 +535,19 @@ rather than relying on the legacy stored period. HOTP and static entries have no
 Android concealed frames strip this metadata, and the renderer also checks detail visibility.
 Model tests distinguish interval from remaining time and cover default/static/mOTP behavior;
 the app harness verifies visible and concealed frames. Runtime layout validation is still pending.
+
+### Compose device-test coverage (added, not executed in the sandbox)
+
+`ComposeVaultDeviceTest` uses `createAndroidComposeRule<ComponentActivity>()` and attaches the
+shipping `VaultComposeView` via `setContentView`, exercising its real lifecycle-owner integration.
+It asserts current-token/custom-period semantics, current-frame copy callbacks, terminal clear
+(including rejected late renders), concealed-frame text removal, thumbnail suppression and
+artwork lookup reuse/invalidation. Period formatting calls Android's localized resource. No
+legacy adapter/holder/XML is used. Inputs are synthetic frame values, so these tests do not
+replace end-to-end Activity/controller/session coverage.
+
+Compose's JUnit test dependency is instrumentation-only; its empty activity manifest is debug-only.
+The app test sources invoke no composables directly and need no Compose compiler plugin of their
+own. The sandbox has compile-only test APIs that throw if invoked; it cannot execute UI assertions.
+Both market-flavor connected-test tasks in README remain required on a disposable device/emulator.
+Legacy fixtures/XML are retained until replacement coverage has actually run and parity is reviewed.

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android tests: Add real Compose-host device tests for frame/action replacement, terminal clearing, concealed text, localized period labels and artwork loading. These are type-checked in the sandbox; device execution remains required.
+
  * Compose: Restore non-default OTP period labels, including mOTP’s actual ten-second step. Android uses its existing localized period string and strips the label from concealed frames.
 
  * Android: Remove the unused RecyclerView card renderer and drag helpers from production sources; retain them only as androidTest regression fixtures. Scope the explicit RecyclerView dependency to tests and compile sandbox production independently of those fixtures.

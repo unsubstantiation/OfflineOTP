@@ -31,6 +31,21 @@ EXPECTED_DOCUMENT = ('{"secret":"JBSWY3DPEHPK3PXP","issuer":"Example","label":"a
 
 
 class AndroidTestSuiteStructureTest(unittest.TestCase):
+    def test_compose_device_tests_exercise_the_shipping_host_not_legacy_fixtures(self):
+        source = (ANDROID_TEST_ROOT / "com/fairuniversal/offlineotp/ComposeVaultDeviceTest.kt").read_text()
+        for marker in ("createAndroidComposeRule<ComponentActivity>()", "setContentView(view)",
+                       "view.clear()", "assertDoesNotExist()", "performClick()",
+                       "showThumbnails = false", "getString(R.string.format_custom_period, seconds)"):
+            self.assertIn(marker, source)
+        self.assertNotIn("EntryViewHolder", source)
+        self.assertNotIn("component_card_", source)
+        gradle = BUILD_GRADLE.read_text()
+        self.assertIn("androidTestImplementation 'androidx.compose.ui:ui-test-junit4:1.10.3'", gradle)
+        self.assertIn("debugImplementation 'androidx.compose.ui:ui-test-manifest:1.10.3'", gradle)
+        self.assertNotIn("implementation 'androidx.compose.ui:ui-test", gradle)
+        for path in (TEST_STUBS / "androidx/compose").rglob("*.kt"):
+            self.assertIn('error("device-only compile stub")', path.read_text())
+
     def test_application_test_exists_at_the_documented_path(self):
         self.assertTrue(APPLICATION_TEST.is_file(),
                         "docs/language-security-assessment.md links to this exact path")

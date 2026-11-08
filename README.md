@@ -451,6 +451,11 @@ With the Android SDK and JDK configured, run the Gradle unit tests and lint:
   :app:lintFdroidDebug :app:lintFdroidRelease :app:lintPlayDebug :app:lintPlayRelease
 ```
 
+`ComposeVaultDeviceTest` attaches the shipping `VaultComposeView` to a real ComponentActivity
+and checks Compose semantics, frame/action replacement, terminal clear, privacy and artwork
+loading. It does not use the historical XML renderer. The no-SDK instrumentation gate only
+type-checks this suite; its UI assertions require Android execution.
+
 For instrumentation tests, use a disposable connected emulator or device:
 
 ```sh
