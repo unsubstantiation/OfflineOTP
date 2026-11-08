@@ -98,15 +98,17 @@ class VaultController(private val vault: PasswordVault) {
 
     /** Persists the idle auto-lock timeout (`0` or negative removes the preference). */
     fun saveInactivityLockSeconds(seconds: Int) {
-        try {
-            if (seconds <= 0) {
-                vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
-            } else {
-                vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
-            }
-        } catch (_: Exception) {
-            // The timeout still applies to the open session.
-        }
+        trySaveInactivityLockSeconds(seconds.coerceAtLeast(0))
+    }
+
+    /** Reports failure so the Compose settings form does not claim an unsaved change. */
+    fun trySaveInactivityLockSeconds(seconds: Int): Boolean {
+        if (seconds < 0) return false
+        return try {
+            if (seconds == 0) vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
+            else vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
+            true
+        } catch (_: Exception) { false }
     }
 
     fun backup(): Boolean = vault.backup()

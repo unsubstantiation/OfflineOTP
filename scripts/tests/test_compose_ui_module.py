@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_auto_lock_settings_are_guarded_and_do_not_recreate_the_session(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("controller::trySaveInactivityLockSeconds", host)
+        self.assertIn("autoLock.submit(timeoutRequest, seconds, lifetime)", host)
+        self.assertIn("autoLock.close()", host)
+        self.assertIn("val lifetime = remember(presenter)", host)
+        form = (UI_MAIN / "vault/AutoLockDialog.kt").read_text()
+        self.assertIn("remember(inputKey)", form)
+        self.assertIn("onSave(selected)", form)
+        self.assertNotIn("VaultController", form)
+
     def test_compose_manual_ordering_binds_the_frame_and_checks_drag_policy(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopEntryMove(vault, EntryEditor(controller, vault)::move)", host)
@@ -550,7 +561,8 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_desktop_compose_session_lifetime_is_wired_without_swing_widgets(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds())", host)
+        self.assertIn("DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false)", host)
+        self.assertIn("lifetime.start()", host)
         self.assertIn("DisposableEffect(presenter)", host)
         self.assertIn("presenter.lock()", host)
         self.assertIn("toolkit.removeAWTEventListener(listener)", host)

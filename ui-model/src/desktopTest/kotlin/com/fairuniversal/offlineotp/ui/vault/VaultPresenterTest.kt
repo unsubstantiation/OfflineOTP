@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun autoLockSettingsActionIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onConfigureAutoLock)
+        var opens = 0
+        val actions = presenter.actions(configureAutoLock = { opens++ })
+        actions.onConfigureAutoLock?.invoke()
+        assertEquals(1, opens)
+        presenter.lock()
+        actions.onConfigureAutoLock?.invoke()
+        assertEquals(1, opens)
+    }
+
+    @Test
     fun hostCopyOverridesDisplayStringCopyAndIsTerminalAfterLock() {
         val entry = totp("Example", "alice")
         val list = EntryList().apply { addEntry(entry) }

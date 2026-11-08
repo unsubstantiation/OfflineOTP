@@ -45,13 +45,15 @@ class VaultActions(
     val onSelectSort: (Constants.SortMode) -> Unit = {},
     val onLock: () -> Unit = {},
     val onAddEntry: (() -> Unit)? = null,
-    val onEditEntry: ((VaultCardState) -> Unit)? = null
+    val onEditEntry: ((VaultCardState) -> Unit)? = null,
+    val onConfigureAutoLock: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onConfigureAutoLock = onConfigureAutoLock?.let { action -> { if (isActive()) action() } },
         onEditEntry = onEditEntry?.let { action -> { if (isActive()) action(it) } },
         onAddEntry = onAddEntry?.let { action -> { if (isActive()) action() } },
         onCopyToken = { if (isActive()) onCopyToken(it) },

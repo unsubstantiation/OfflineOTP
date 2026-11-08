@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add session-bound auto-lock settings with immediate live updates after successful persistence. Reject stale/expired requests and roll back the desktop settings cache after failed writes.
+
  * Compose desktop: Add persisted up/down ordering for unsorted, unfiltered rows. Bind moves to the original entry and neighbor so stale controls cannot reorder replacements; reject failures without changing live order.
 
  * Compose desktop: Run password unlock/create on a worker, disable duplicate attempts, clear the password field before handoff, and discard unadopted keys/entries after screen disposal. Other persistence workflows still need asynchronous integration.

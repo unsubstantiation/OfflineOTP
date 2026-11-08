@@ -46,6 +46,11 @@ fun VaultScreen(
             lockLabel = strings.lockAction,
             onLock = actions.onLock
         )
+        actions.onConfigureAutoLock?.let { configure ->
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                ForestTextAction(text = strings.autoLock, onClick = configure)
+            }
+        }
         actions.onAddEntry?.let { add ->
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 ForestTextAction(text = strings.addEntry, onClick = add)

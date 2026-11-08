@@ -98,7 +98,9 @@ class VaultPresenter(
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
     fun actions(copyEntry: ((VaultCardState) -> Unit)? = null,
-                moveEntry: ((VaultCardState, Int) -> Unit)? = null): VaultActions = VaultActions(
+                moveEntry: ((VaultCardState, Int) -> Unit)? = null,
+                configureAutoLock: (() -> Unit)? = null): VaultActions = VaultActions(
+        onConfigureAutoLock = configureAutoLock,
         onMoveUp = moveEntry?.let { move -> { card -> move(card, -1) } },
         onMoveDown = moveEntry?.let { move -> { card -> move(card, 1) } },
         onAddEntry = addEntry,

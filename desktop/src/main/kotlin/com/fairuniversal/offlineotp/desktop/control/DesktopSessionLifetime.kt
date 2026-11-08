@@ -6,18 +6,41 @@ import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 class DesktopSessionLifetime(
     scheduler: ScreenTimerController.Scheduler,
     timeoutSeconds: Int,
+    startImmediately: Boolean = true,
     onLock: () -> Unit
 ) : AutoCloseable {
     private var lockAction: (() -> Unit)? = onLock
-    private val timeoutMillis = timeoutSeconds.coerceAtLeast(0).toLong() * 1000L
+    private var timeoutMillis = timeoutSeconds.coerceAtLeast(0).toLong() * 1000L
     private val timer = ScreenTimerController(scheduler, Runnable {}, Runnable { close() })
 
-    init { timer.restartInactivity(timeoutMillis) }
+    private var started = false
+    init { if (startImmediately) start() }
+
+    /** Compose installs side effects only after the remembered owner enters composition. */
+    fun start() {
+        if (started || lockAction == null) return
+        started = true
+        timer.restartInactivity(timeoutMillis)
+    }
 
     /** The first input after an overdue timer must lock, not revive the expired session. */
     fun activity() {
-        if (lockAction == null) return
-        if (timer.hasInactivityExpired()) close() else timer.restartInactivity(timeoutMillis)
+        if (checkActive()) timer.restartInactivity(timeoutMillis)
+    }
+
+    /** Check without resetting the deadline, including before a settings write. */
+    fun checkActive(): Boolean {
+        if (lockAction == null || !started) return false
+        if (timer.hasInactivityExpired()) { close(); return false }
+        return true
+    }
+
+    /** Updating the timeout must never revive a terminal or already overdue session. */
+    fun changeTimeout(seconds: Int): Boolean {
+        if (seconds < 0 || !checkActive()) return false
+        timeoutMillis = seconds.toLong() * 1000L
+        timer.restartInactivity(timeoutMillis)
+        return true
     }
 
     override fun close() {

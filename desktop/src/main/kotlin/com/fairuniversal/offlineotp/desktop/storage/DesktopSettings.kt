@@ -30,8 +30,7 @@ class DesktopSettings(private val file: File) : KeyValueSettings {
 
     @Synchronized
     override fun putString(key: String, value: String) {
-        properties.setProperty(key, value)
-        persist()
+        mutate(key, value)
     }
 
     @Synchronized
@@ -40,8 +39,7 @@ class DesktopSettings(private val file: File) : KeyValueSettings {
 
     @Synchronized
     override fun putInt(key: String, value: Int) {
-        properties.setProperty(key, value.toString())
-        persist()
+        mutate(key, value.toString())
     }
 
     @Synchronized
@@ -49,7 +47,17 @@ class DesktopSettings(private val file: File) : KeyValueSettings {
 
     @Synchronized
     override fun remove(key: String) {
-        if (properties.remove(key) != null) persist()
+        if (properties.containsKey(key)) mutate(key, null)
+    }
+
+    /** Call under the settings monitor; a failed disk write must not publish a cache-only value. */
+    private fun mutate(key: String, value: String?) {
+        val previous = properties.getProperty(key)
+        if (value == null) properties.remove(key) else properties.setProperty(key, value)
+        try { persist() } catch (error: Exception) {
+            if (previous == null) properties.remove(key) else properties.setProperty(key, previous)
+            throw error
+        }
     }
 
     @Throws(IOException::class)

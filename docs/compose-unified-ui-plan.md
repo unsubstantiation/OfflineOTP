@@ -705,3 +705,21 @@ The migration remains incomplete. In particular: native backup/restore and impor
 structured password/email editing, preferences and portable-location controls, OpenPGP/hardware
 workflows, QR/platform integrations, background persistence beyond unlock, packaging/launcher
 switch and display-backed parity review remain before Swing removal is safe.
+
+### Desktop replacement: auto-lock preference control
+
+The Compose toolbar now offers an optional Auto-lock action. Its session-bound dialog uses the
+existing desktop choices (disabled, 30 seconds, 1/2/5/15 minutes) and preserves a custom imported
+value until the user changes it. Cancel never persists; stale/replaced/locked requests are rejected.
+A successful write updates the existing lifetime controller rather than recreating or locking the
+session. Overdue sessions cannot be revived by changing or disabling the timeout, even if a slow
+settings write crosses the deadline. In that case the stored preference may change, but the current
+session locks. Timers are started in the composition effect, not while a remembered owner is built.
+
+The controller now exposes a checked preference write, and DesktopSettings restores its in-memory
+cache after a failed write. This prevents a failed save from applying only until the next restart.
+Tests cover dialog identity/cancel, successful updates, failed writes, existing/custom/disabled
+values, expiry during writes, deferred/idempotent timer startup, reopen persistence and cache
+rollback. The shared action is also guarded after presenter lock. Runtime keyboard/accessibility
+and native window validation remain pending. This is the auto-lock preference, not the complete
+preferences/import/export UI or desktop launcher cutover.

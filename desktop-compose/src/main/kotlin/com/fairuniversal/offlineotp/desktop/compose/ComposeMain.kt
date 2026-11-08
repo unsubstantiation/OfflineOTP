@@ -2,6 +2,8 @@ package com.fairuniversal.offlineotp.desktop.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.fairuniversal.offlineotp.desktop.control.DesktopAutoLockSettings
+import com.fairuniversal.offlineotp.ui.vault.AutoLockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
@@ -165,24 +167,27 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
+    val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
-            addEntry = { copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            addEntry = { autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
             editEntry = { card ->
+                autoLock.pending?.let { autoLock.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }; copyNotice = null
                 creation.pending?.let { creation.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 editing.open(card.id)
                 revision++
             },
-            advanceCounter = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
+            advanceCounter = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                autoLock.close()
                 copier.close()
                 copyNotice = null
                 editing.close()
@@ -193,10 +198,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onChange = { revision++ }
         )
     }
-    DisposableEffect(presenter) {
-        val lifetime = DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds()) {
+    val lifetime = remember(presenter) {
+        DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false) {
             presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
         }
+    }
+    DisposableEffect(presenter) {
+        lifetime.start()
         val listener = AWTEventListener { event ->
             var source = event.source as? Component
             while (source != null && source !== window) {
@@ -245,6 +253,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         state = state,
         strings = strings,
         actions = presenter.actions(copyEntry = { card ->
+            autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
             editing.pending?.let { editing.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
@@ -254,13 +263,28 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS) performCopy(request, request.fields.single())
             revision++
         }, moveEntry = { card, delta ->
+            autoLock.pending?.let { autoLock.dismiss(it) }
             moveFailed = !mover.move(moveFrame, card, delta)
             presenter.applyFilter(presenter.filter)
+            revision++
+        }, configureAutoLock = {
+            creation.pending?.let { creation.dismiss(it) }
+            editing.pending?.let { editing.dismiss(it) }
+            copier.pending?.let { copier.dismiss(it) }
+            dialogs.pending?.let { dialogs.dismiss(it) }
+            copyNotice = null; moveFailed = false
+            if (lifetime.checkActive()) autoLock.open()
             revision++
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val timeoutRequest = autoLock.pending
+    if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
+        currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,
+        failed = timeoutRequest.failed,
+        onSave = { seconds -> autoLock.submit(timeoutRequest, seconds, lifetime); revision++ },
+        onDismiss = { autoLock.dismiss(timeoutRequest); revision++ })
     if (moveFailed) EntryConfirmationDialog(title = "Move entry",
         message = "Could not move the entry. Its position or filter changed, or the vault could not be saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { moveFailed = false }, onDismiss = { moveFailed = false })
