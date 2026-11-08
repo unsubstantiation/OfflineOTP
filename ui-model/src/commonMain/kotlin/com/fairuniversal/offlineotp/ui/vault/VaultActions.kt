@@ -27,6 +27,8 @@ class VaultActions(
      * action, which is how a partially migrated host avoids advertising what it cannot do.
      */
     val onEntryActions: ((VaultCardState) -> Unit)? = null,
+    /** Request a PIN for an mOTP account. Null hides the input action. */
+    val onEnterPin: ((VaultCardState) -> Unit)? = null,
     val onQueryChange: (String) -> Unit = {},
     val onSelectCategory: (EntryListPresentation.Category) -> Unit = {},
     val onToggleTag: (String) -> Unit = {},

@@ -102,6 +102,19 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
+    def test_pin_dialog_masks_and_does_not_save_input(self):
+        dialog = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
+        self.assertIn("remember(entryId)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
+        self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("vault.submitPin(pinId, pin)", host)
+        self.assertIn("pendingPinId = null", host)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.pinRequired && enterPin != null", widgets)
+
     def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
         dialog = (UI_MAIN / "vault/EntryConfirmationDialog.kt").read_text()
         self.assertIn("AlertDialog(", dialog)

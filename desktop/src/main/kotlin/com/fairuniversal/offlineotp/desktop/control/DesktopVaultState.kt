@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
@@ -135,6 +136,21 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
             EntryUsage.advanceHotp(entry) && persist()
         }.getOrDefault(false)
         if (!saved) entry.setCounter(previous)
+        entry.updateOTP(true)
+        return saved
+    }
+
+    /** Submit an mOTP PIN for a live entry; failed persistence restores the previous PIN. */
+    fun submitPin(id: Long, pin: String, persist: () -> Boolean): Boolean {
+        val entry = entries.getEntries().firstOrNull { it.getListId() == id } ?: return false
+        if (entry.getType() != Entry.OTPType.MOTP || pin.isEmpty()) return false
+        if (runCatching { InputPolicy.text(pin, InputPolicy.MAX_TAG_CHARS) }.isFailure) return false
+        val previous = entry.getPin()
+        val saved = runCatching {
+            entry.setPin(pin)
+            persist()
+        }.getOrDefault(false)
+        if (!saved) entry.setPin(previous)
         entry.updateOTP(true)
         return saved
     }

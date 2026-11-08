@@ -17,6 +17,7 @@ import com.fairuniversal.offlineotp.desktop.control.VaultController
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.unlock.UnlockScreen
+import com.fairuniversal.offlineotp.ui.vault.EntryPinDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultPresenter
 import com.fairuniversal.offlineotp.ui.vault.VaultFilter
@@ -125,6 +126,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             combination = VaultFilterCombination.SEARCH_AND_TAGS
         )
     }
+    var pendingPinId by remember(vault) { mutableStateOf<Long?>(null) }
+    var pinError by remember(vault) { mutableStateOf<String?>(null) }
     var pendingCounterId by remember(vault) { mutableStateOf<Long?>(null) }
     var counterError by remember(vault) { mutableStateOf<String?>(null) }
     var revision by remember(vault) { mutableStateOf(0) }
@@ -135,10 +138,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             copyCode = ::copyToken,
             advanceCounter = { card ->
                 counterError = null
+                pendingPinId = null
+                pinError = null
                 pendingCounterId = card.id
+            },
+            enterPin = { card ->
+                pendingCounterId = null
+                counterError = null
+                pinError = null
+                pendingPinId = card.id
             },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                pendingPinId = null
+                pinError = null
                 pendingCounterId = null
                 counterError = null
                 onLock()
@@ -156,6 +169,27 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         actions = presenter.actions(),
         appearance = presenter.appearance
     )
+    val pinId = pendingPinId
+    if (pinId != null) {
+        EntryPinDialog(
+            entryId = pinId,
+            title = strings.enterPin,
+            inputLabel = "PIN",
+            confirmLabel = "Save",
+            dismissLabel = "Cancel",
+            error = pinError,
+            onDismiss = { pendingPinId = null; pinError = null },
+            onSubmit = { pin ->
+                if (vault.submitPin(pinId, pin) { controller.save(vault.key, vault.snapshot()) }) {
+                    pendingPinId = null
+                    pinError = null
+                } else {
+                    pinError = "The PIN could not be saved. Re-enter it to try again."
+                }
+                revision++
+            }
+        )
+    }
     val pendingId = pendingCounterId
     if (pendingId != null) {
         EntryConfirmationDialog(

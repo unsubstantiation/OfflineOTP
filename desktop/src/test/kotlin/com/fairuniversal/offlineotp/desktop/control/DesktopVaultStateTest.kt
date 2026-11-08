@@ -29,6 +29,62 @@ class DesktopVaultStateTest {
         Entry(Entry.OTPType.TOTP, secret, 30, 6, issuer, label,
             TokenCalculator.HashAlgorithm.SHA1, ArrayList())
 
+    private fun motp() = Entry(
+        Entry.OTPType.MOTP, "JBSWY3DPEHPK3PXP", 30, 6, "Router", "admin",
+        TokenCalculator.HashAlgorithm.SHA1, ArrayList()
+    )
+
+    @Test
+    fun submittingAPinPersistsItAndMakesTheTokenCopyable() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        assertTrue(state.submitPin(entry.getListId(), "0123") {
+            assertEquals("0123", entry.getPin())
+            true
+        })
+        assertEquals("0123", entry.getPin())
+        assertTrue(entry.hasCopyableToken())
+    }
+
+    @Test
+    fun failedPinWritesRestoreTheOldPinAndAllowRetry() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        assertFalse(state.submitPin(entry.getListId(), "0123") { false })
+        assertEquals("", entry.getPin())
+        assertFalse(entry.hasCopyableToken())
+        entry.setPin("9876")
+        assertFalse(state.submitPin(entry.getListId(), "0123") { throw IllegalStateException("write") })
+        assertEquals("9876", entry.getPin())
+        assertTrue(state.submitPin(entry.getListId(), "0123") { true })
+        assertEquals("0123", entry.getPin())
+    }
+
+    @Test
+    fun invalidOrStalePinSubmissionsNeverPersist() {
+        val state = state()
+        val entry = motp()
+        state.add(entry)
+        var writes = 0
+        val persist = { writes++; true }
+        val id = entry.getListId()
+        assertFalse(state.submitPin(id, "", persist))
+        assertFalse(state.submitPin(id, "1".repeat(com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TAG_CHARS + 1), persist))
+        val time = entry("Service", "alice")
+        state.add(time)
+        assertFalse(state.submitPin(time.getListId(), "0123", persist))
+        state.removeAt(0)
+        assertFalse(state.submitPin(id, "0123", persist))
+        val fresh = motp()
+        state.add(fresh)
+        val freshId = fresh.getListId()
+        state.lock()
+        assertFalse(state.submitPin(freshId, "0123", persist))
+        assertEquals(0, writes)
+    }
+
     private fun hotp(counter: Long = 7L) = Entry(
         Entry.OTPType.HOTP, "JBSWY3DPEHPK3PXP", counter, 6, "Bank", "alice",
         TokenCalculator.HashAlgorithm.SHA1, ArrayList()

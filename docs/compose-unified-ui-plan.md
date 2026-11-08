@@ -260,3 +260,15 @@ in-memory counter if saving fails; the dialog reports failure and permits retry.
 success, failed/throwing writes, retries, removed entries, locking, non-HOTP entries and exhaustion.
 Android and Swing dialog migration remains pending. Compose dialog rendering still requires
 a real Gradle build and desktop/device testing; sandbox stubs only check signatures.
+
+### Shared mOTP PIN dialog
+
+Compose cards with a missing mOTP PIN now offer an optional `onEnterPin` action. The desktop
+host supplies it using `EntryPinDialog` from `:ui`, with a masked input bounded by `InputPolicy`.
+Input is keyed to the target id, never saveable, and cleared before submission or dismissal.
+The host stores only the pending id and a generic error, drops pending dialogs on lock, and
+resolves the live entry again before saving. Failed writes restore the old PIN; a retry requires
+re-entry rather than retaining the submitted secret in the dialog. Setting a PIN does not verify
+it against the remote service. Android's existing PIN dialog is unchanged; adopting the shared
+one remains part of the Compose cutover. Runtime masking, focus and dismissal need real Compose
+testing; the sandbox checks signatures and the headless action/persistence rules only.

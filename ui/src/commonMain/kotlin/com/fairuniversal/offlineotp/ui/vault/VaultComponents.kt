@@ -313,6 +313,10 @@ internal fun VaultEntryCard(
                     onClick = { actions.onCopyToken(card) }
                 )
             }
+            val enterPin = actions.onEnterPin
+            if (card.pinRequired && enterPin != null) {
+                ForestTextAction(text = strings.enterPin, onClick = { enterPin(card) })
+            }
             val nextCounter = actions.onNextCounter
             if (card.counter != null && nextCounter != null) {
                 ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) })

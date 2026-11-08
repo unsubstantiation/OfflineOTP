@@ -62,6 +62,19 @@ class VaultPresenterTest {
     }
 
     @Test
+    fun pinEntryIsOptionalAndForwardsTheStableCardId() {
+        val list = EntryList().apply { addEntry(totp("Router", "admin"), false) }
+        val projection = VaultProjection(list, EntryListPresentation(list))
+        val filter = VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS)
+        assertNull(VaultPresenter(projection, filter).actions().onEnterPin)
+        var requested: Long? = null
+        val presenter = VaultPresenter(projection, filter, enterPin = { requested = it.id })
+        val card = presenter.frame(0L).cards.single()
+        presenter.actions().onEnterPin!!.invoke(card)
+        assertEquals(card.id, requested)
+    }
+
+    @Test
     fun aRowIsMaskedUntilItIsRevealedAndOnlyThenCarriesItsContent() {
         val harness = harnessOf(note())
         val card = harness.presenter.frame(0L).cards.single()

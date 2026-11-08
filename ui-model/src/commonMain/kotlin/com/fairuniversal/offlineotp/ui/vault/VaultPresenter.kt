@@ -26,6 +26,8 @@ class VaultPresenter(
     private val advanceCounter: ((VaultCardState) -> Unit)? = null,
     /** Opens the host's per-entry actions. Null hides the action. */
     private val entryActions: ((VaultCardState) -> Unit)? = null,
+    /** Opens PIN input; the host validates and persists the eventual submission. */
+    private val enterPin: ((VaultCardState) -> Unit)? = null,
     /** Remembers the chosen order after the filter has changed. */
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
@@ -79,6 +81,7 @@ class VaultPresenter(
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter?.let { advance -> { card -> advance(card) } },
         onEntryActions = entryActions,
+        onEnterPin = enterPin,
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
         onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
