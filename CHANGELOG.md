@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android CI: Add manual-only Compose/artwork emulator validation to the existing workflow, covering F-Droid/API 28 and Play/API 36. Require passing results for all selected tests and retain diagnostic logs without publishing debug APKs.
+
  * Android tests: Add real Compose-host device tests for frame/action replacement, terminal clearing, concealed text, localized period labels and artwork loading. These are type-checked in the sandbox; device execution remains required.
 
  * Compose: Restore non-default OTP period labels, including mOTP’s actual ten-second step. Android uses its existing localized period string and strips the label from concealed frames.

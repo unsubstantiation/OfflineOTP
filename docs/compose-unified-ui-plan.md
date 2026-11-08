@@ -551,3 +551,19 @@ The app test sources invoke no composables directly and need no Compose compiler
 own. The sandbox has compile-only test APIs that throw if invoked; it cannot execute UI assertions.
 Both market-flavor connected-test tasks in README remain required on a disposable device/emulator.
 Legacy fixtures/XML are retained until replacement coverage has actually run and parity is reviewed.
+
+### Manual real-Android validation gate
+
+The existing Android workflow now includes a manual-dispatch-only `compose-validation` job:
+F-Droid on API 28 and Play on API 36, using disposable x86_64 emulators. It first builds the real
+app and instrumentation APKs, then runs `ComposeVaultDeviceTest` and `IssuerArtworkDeviceTest`.
+A report checker requires all four selected cases to pass; absent, skipped, malformed or failed
+results cannot be mistaken for runtime validation. Logs and reports are uploaded even on failure;
+debug APKs are not published. This job uses no signing environment or secrets and does not run on
+master pushes. The existing release jobs remain restricted by their original signing gates.
+
+Dispatch against the branch under review with `gh workflow run android.yml --ref <branch>`.
+Only a completed successful emulator run is evidence of device-test success. A checked-in workflow,
+source guard pass or sandbox compile is not. This focused gate does not replace the full connected
+suite, manual accessibility/visual review or release validation; both flavors on both API levels
+are also outside this small matrix.

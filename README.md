@@ -456,6 +456,12 @@ and checks Compose semantics, frame/action replacement, terminal clear, privacy 
 loading. It does not use the historical XML renderer. The no-SDK instrumentation gate only
 type-checks this suite; its UI assertions require Android execution.
 
+For a focused CI run, manually dispatch the existing Android workflow on the branch under review
+(`gh workflow run android.yml --ref <branch>`). Its Compose validation job builds real debug APKs
+and runs the Compose-host/artwork tests on F-Droid/API 28 and Play/API 36 emulators. It requires
+passing test reports, not merely successful compilation, and uploads logs/reports without APKs.
+This focused matrix does not replace the full connected suite below.
+
 For instrumentation tests, use a disposable connected emulator or device:
 
 ```sh
