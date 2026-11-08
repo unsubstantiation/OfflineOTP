@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add persisted up/down ordering for unsorted, unfiltered rows. Bind moves to the original entry and neighbor so stale controls cannot reorder replacements; reject failures without changing live order.
+
  * Compose desktop: Run password unlock/create on a worker, disable duplicate attempts, clear the password field before handoff, and discard unadopted keys/entries after screen disposal. Other persistence workflows still need asynchronous integration.
 
  * Compose desktop: Copy live, revealed entries only after persisting usage, with explicit SSH-field selection and 30-second clipboard expiry. Reject stale targets, roll back usage after failed writes, and best-effort clear matching clipboard content on lock.

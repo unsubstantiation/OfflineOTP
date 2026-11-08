@@ -7,6 +7,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
 import com.fairuniversal.offlineotp.desktop.control.EntryEditor
 import com.fairuniversal.offlineotp.desktop.control.DesktopUnlockOperation
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryMove
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCopy
 import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
@@ -55,8 +56,8 @@ import java.awt.event.AWTEventListener
  * Compose Desktop entry point: the shared `:ui` screen over the existing portable vault.
  *
  * This is the migration-stage host, not a replacement for the Swing client yet. It deliberately
- * contains no presentation logic of its own: the frame comes from [VaultProjection], the widgets
- * come from `:ui`, and unlocking/saving go through the same [VaultController] and
+ * derives rows through [VaultProjection] and adds host capability flags; widgets come from `:ui`,
+ * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
  * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
@@ -159,6 +160,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val scheduler = remember(vault) { AwtScheduler() }
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
+    val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
+    var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
@@ -217,13 +220,16 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val state = remember(now, revision, presenter) {
         val frame = presenter.frame(now)
-        frame.copy(cards = frame.cards.map { card ->
-            card.copy(copyable = card.revealed && (card.copyable || card.kind in
+        frame.copy(cards = frame.cards.mapIndexed { index, card ->
+            card.copy(canMoveUp = vault.presentation.canDrag() && index > 0,
+                canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
+                copyable = card.revealed && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
         })
     }
     // Bind exact row instances even when a newly generated frame is structurally equal to the last.
     val copyFrame = copier.bind(state.cards)
+    val moveFrame = mover.bind(state.cards)
     fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
         copyNotice = when (copier.copy(request, field, presenter.isRevealed(request.entryId))) {
             DesktopEntryCopy.Result.COPIED -> null
@@ -247,10 +253,17 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (request == null) copyNotice = "No copyable value is available for this entry."
             else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS) performCopy(request, request.fields.single())
             revision++
+        }, moveEntry = { card, delta ->
+            moveFailed = !mover.move(moveFrame, card, delta)
+            presenter.applyFilter(presenter.filter)
+            revision++
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    if (moveFailed) EntryConfirmationDialog(title = "Move entry",
+        message = "Could not move the entry. Its position or filter changed, or the vault could not be saved.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { moveFailed = false }, onDismiss = { moveFailed = false })
     val copyRequest = copier.pending
     if (copyRequest != null) EntryCopyDialog(
         fields = copyRequest.fields.map { field -> when (field) {

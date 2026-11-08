@@ -211,7 +211,7 @@ through the state; otherwise the next refresh would have reset the user's tab.
 The Compose desktop host gains the remaining features (add/edit, backup/restore, OpenPGP,
 hardware keys, preferences, clipboard expiry, portable-location handling), then `desktop/src/main/.../ui`
 and the Swing entry point are deleted and `:desktop-compose` takes over the `:desktop` name. The
-engine (`control/`, `storage/`, `openpgp/`, `hardware/`) is untouched throughout.
+engine (`control/`, `storage/`, `openpgp/`, `hardware/`) remains shared; tested host-facing operations are added as needed.
 
 ### Stage 5 — iOS (out of scope)
 
@@ -690,3 +690,18 @@ serialization, close-before-start, close-after-result, close-during-backend, fai
 rejected dispatch. Real Compose busy/focus/close behavior still needs runtime validation. Unlock
 is asynchronous now; other persistence/import/export operations are not all migrated off the UI
 thread yet.
+
+### Desktop replacement: persisted manual ordering
+
+Unsorted/unfiltered Compose rows now expose up/down controls using the same `canDrag` policy and
+`EntryEditor.move` persistence path as Swing. Each callback binds the exact row instance, live
+entry and original adjacent entry. Filter/sort changes, replacement, lock or a changed neighbor
+reject stale moves rather than moving whatever now occupies an old row index. Failed writes
+leave the in-memory order unchanged. Tests cover persistence/reopen, stale neighbors, forged
+row values, changed filters/sorts, replacement, lock and failed writes. These are button-based
+controls, not touch dragging, and still need runtime interaction/accessibility validation.
+
+The migration remains incomplete. In particular: native backup/restore and import/export UI,
+structured password/email editing, preferences and portable-location controls, OpenPGP/hardware
+workflows, QR/platform integrations, background persistence beyond unlock, packaging/launcher
+switch and display-backed parity review remain before Swing removal is safe.

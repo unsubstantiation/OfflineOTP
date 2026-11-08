@@ -53,7 +53,12 @@ class DesktopEntryCopy(
     fun close() { closed = true; pending = null; clipboard.close() }
 
     fun copy(request: Request, field: EntryEditor.CopyField, revealed: Boolean): Result {
-        if (pending !== request || !revealed || !live(request.target) || field !in request.fields) return Result.UNAVAILABLE
+        if (pending !== request) return Result.UNAVAILABLE
+        if (!revealed || !live(request.target)) {
+            pending = null
+            return Result.UNAVAILABLE
+        }
+        if (field !in request.fields) return Result.UNAVAILABLE
         pending = null
         val target = request.target
         // Refresh live time codes at the instant of copy, even if the displayed frame is old.

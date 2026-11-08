@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_compose_manual_ordering_binds_the_frame_and_checks_drag_policy(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryMove(vault, EntryEditor(controller, vault)::move)", host)
+        self.assertIn("val moveFrame = mover.bind(state.cards)", host)
+        self.assertIn("canMoveUp = vault.presentation.canDrag()", host)
+        self.assertIn("mover.move(moveFrame, card, delta)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryMove.kt").read_text()
+        self.assertIn("shown.getOrNull(from + delta) !== neighbor", owner)
+        self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
+
     def test_desktop_unlock_runs_off_ui_thread_and_releases_late_results(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopUnlockOperation(worker", host)
