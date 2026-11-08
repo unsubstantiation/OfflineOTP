@@ -35,6 +35,7 @@ FRAME_FILES = {
     "vault/VaultCards.kt",
     "vault/VaultPresenter.kt",
     "vault/VaultDialogs.kt",
+    "vault/VaultFrameHost.kt",
 }
 
 HOST_PACKAGES = (
@@ -167,7 +168,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -359,6 +360,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("setContent {", text)
         self.assertIn("fun render(next: VaultUiState)", text)
         self.assertIn("fun clear()", text)
+        self.assertIn("host.close()", text)
+        self.assertIn("if (host.render(next))", text)
+        self.assertIn("actions = host.actions", text)
         self.assertIn("DisposeOnViewTreeLifecycleDestroyed", text)
         self.assertIn("VaultScreenHost(", text)
         for forbidden in ("SecretKey", "VaultSession", "DesktopVaultState", "PasswordVault",

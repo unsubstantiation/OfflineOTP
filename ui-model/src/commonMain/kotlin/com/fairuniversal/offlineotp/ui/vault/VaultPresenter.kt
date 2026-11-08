@@ -94,17 +94,14 @@ class VaultPresenter(
         }
     }
 
-    private fun whileUnlocked(callback: ((VaultCardState) -> Unit)?): ((VaultCardState) -> Unit)? =
-        callback?.let { action -> { card -> if (!locked) action(card) } }
-
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
     fun actions(): VaultActions = VaultActions(
         onCopyToken = { card -> copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
-        onNextCounter = whileUnlocked(advanceCounter),
-        onEntryActions = whileUnlocked(entryActions),
-        onEnterPin = whileUnlocked(enterPin),
-        onDelete = whileUnlocked(deleteEntry),
+        onNextCounter = advanceCounter,
+        onEntryActions = entryActions,
+        onEnterPin = enterPin,
+        onDelete = deleteEntry,
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
         onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
@@ -117,7 +114,7 @@ class VaultPresenter(
             }
         },
         onLock = { lock() }
-    )
+    ).guarded { !locked }
 
     /**
      * Copies the digits only: the grouping the card shows is a rendering detail, and a pasted

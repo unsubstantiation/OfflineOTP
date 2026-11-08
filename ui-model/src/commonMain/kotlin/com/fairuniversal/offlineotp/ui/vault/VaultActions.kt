@@ -39,6 +39,26 @@ class VaultActions(
     val onSelectSort: (Constants.SortMode) -> Unit = {},
     val onLock: () -> Unit = {}
 ) {
+    /**
+     * Check host liveness at invocation time, not when callbacks are captured by a frame.
+     * Optional actions remain null so unavailable features stay hidden.
+     */
+    fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onCopyToken = { if (isActive()) onCopyToken(it) },
+        onToggleReveal = { if (isActive()) onToggleReveal(it) },
+        onNextCounter = onNextCounter?.let { action -> { if (isActive()) action(it) } },
+        onEntryActions = onEntryActions?.let { action -> { if (isActive()) action(it) } },
+        onEnterPin = onEnterPin?.let { action -> { if (isActive()) action(it) } },
+        onDelete = onDelete?.let { action -> { if (isActive()) action(it) } },
+        onQueryChange = { if (isActive()) onQueryChange(it) },
+        onSelectCategory = { if (isActive()) onSelectCategory(it) },
+        onToggleTag = { if (isActive()) onToggleTag(it) },
+        onToggleUntagged = { if (isActive()) onToggleUntagged() },
+        onClearFilters = { if (isActive()) onClearFilters() },
+        onSelectSort = { if (isActive()) onSelectSort(it) },
+        onLock = { if (isActive()) onLock() }
+    )
+
     // Lambdas close over host state; keep them out of any diagnostic text.
     override fun toString(): String = "VaultActions"
 }

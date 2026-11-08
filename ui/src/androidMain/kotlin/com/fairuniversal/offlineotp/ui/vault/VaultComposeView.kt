@@ -34,13 +34,14 @@ import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 class VaultComposeView(
     context: Context,
     private val strings: VaultStrings,
-    private val actions: VaultActions,
+    actions: VaultActions,
     private val appearance: VaultAppearance = VaultAppearance()
 ) : AbstractComposeView(context) {
 
     // A Compose snapshot state owned by the view: platform code writes frames, the composition reads
     // them. The initial frame is empty, so nothing is disclosed before the host renders once.
-    private var frame by mutableStateOf(VaultUiState())
+    private val host = VaultFrameHost(actions)
+    private var frame by mutableStateOf(host.frame)
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -54,19 +55,20 @@ class VaultComposeView(
         VaultScreenHost(
             state = frame,
             strings = strings,
-            actions = actions,
+            actions = host.actions,
             appearance = appearance
         )
     }
 
     /** Publishes the next frame. Called from the UI thread, like any View mutation. */
     fun render(next: VaultUiState) {
-        frame = next
+        if (host.render(next)) frame = host.frame
     }
 
-    /** Replaces the frame with the empty one; call this when the session locks. */
+    /** End this view's session. Late frames/callbacks are ignored; create a new view on unlock. */
     fun clear() {
-        frame = VaultUiState()
+        host.close()
+        frame = host.frame
     }
 }
 

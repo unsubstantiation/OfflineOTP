@@ -322,3 +322,15 @@ API reference: [AndroidX ComposeView.android.kt](https://github.com/androidx/and
 This source check is not a successful build against the project's pinned Compose artifacts.
 The Activity still needs to supply lifecycle/saved-state owners, clear frames on lock, and
 validate callbacks when the Android screen is cut over; real Gradle/device gates remain pending.
+
+### Android frame lifecycle
+
+`VaultComposeView` delegates frame acceptance and action liveness to the toolkit-free
+`VaultFrameHost`. `clear()` now ends that view's session permanently: the frame is empty,
+retained callbacks are inert, and delayed `render` calls cannot repopulate the screen. Construct
+a new view after unlocking. Callbacks are also inert before the first frame is published.
+The `VaultActions.guarded` wrapper is shared with the desktop presenter and preserves null
+capabilities so unsupported actions remain hidden. Tests exercise every action, late frames,
+closing before first publication, repeated close and isolation from a fresh session.
+This does not replace Android's live-entry checks or same-session async search revision checks,
+and does not zeroize immutable frames already held by callers. No Activity wiring is changed.

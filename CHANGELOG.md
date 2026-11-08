@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose Android seam: Make clearing the view terminal for its session. Reject late frames and retained actions after clear, and share callback liveness guarding with the desktop presenter. A new unlock requires a new view.
+
  * Compose Android seam: Extend AbstractComposeView rather than the final ComposeView class. Correct the sandbox stub so it rejects the unsupported inheritance; Android cutover remains pending.
 
  * Compose: Make shared presenter locking terminal. Retained callbacks cannot copy tokens, change selections or request dialogs after lock; closed dialog sessions reject late requests.
