@@ -49,7 +49,7 @@ object VaultCards {
         val hasCode = hasCode(entry)
         val pinRequired = entry.getPin().isEmpty() && entry.getType() == Entry.OTPType.MOTP
         val rawToken = if (hasCode && !pinRequired) entry.getCurrentOTP().orEmpty() else ""
-        val token = if (rawToken.isEmpty()) null else TokenDisplay.group(rawToken, appearance.groupTokens)
+        val token = if (rawToken.isEmpty()) null else TokenDisplay.group(rawToken, appearance.groupTokens, appearance.tokenGroupSize)
         // Only a time-based code has a step to count down; an HOTP entry keeps a period field but
         // never expires.
         val stepSeconds = if (hasCode && !pinRequired && entry.isTimeBased()) entry.getTokenStepSeconds() else 0
@@ -57,18 +57,20 @@ object VaultCards {
         return VaultCardState(
             id = entry.getListId(),
             kind = kind,
-            issuer = entry.getIssuer(),
+            issuer = if (appearance.showIssuer) entry.getIssuer() else "",
             label = entry.getLabel(),
             thumbnailName = entry.getThumbnailName(),
             tags = entry.getTags().toList(),
             token = token,
-            previousToken = if (token != null && entry.isTimeBased() && entry.getType() != Entry.OTPType.MOTP) {
+            previousToken = if (appearance.showPreviousToken && token != null && entry.isTimeBased() && entry.getType() != Entry.OTPType.MOTP) {
                 entry.getPrevOTP()?.takeIf { it.isNotEmpty() }
-                    ?.let { TokenDisplay.group(it, appearance.groupTokens) }
+                    ?.let { TokenDisplay.group(it, appearance.groupTokens, appearance.tokenGroupSize) }
             } else {
                 null
             },
             counter = if (entry.isCounterBased()) entry.getCounter() else null,
+            showCountdown = (appearance.showIndividualCountdowns || entry.hasNonDefaultTokenStep()) &&
+                (!appearance.hideCountdownWhenMasked || revealed),
             remainingSeconds = remaining,
             progress = if (remaining != null) TokenDisplay.progress(stepSeconds, nowMillis) else null,
             expiring = remaining != null && remaining <= appearance.expiringSeconds,

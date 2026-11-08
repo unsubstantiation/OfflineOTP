@@ -44,7 +44,8 @@ data class VaultCardState(
     /** Protected auxiliary label; absent on concealed rows. */
     val detailLabel: String? = null,
     val canMoveUp: Boolean = false,
-    val canMoveDown: Boolean = false
+    val canMoveDown: Boolean = false,
+    val showCountdown: Boolean = true
 ) {
     /** Brand first, falling back to the account name when the entry has no issuer. */
     val title: String get() = issuer.ifBlank { label }

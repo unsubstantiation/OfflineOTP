@@ -56,19 +56,8 @@ object Tools {
     fun formatTokenString(token: Int, digits: Int): String = TokenFormat.formatTokenString(token, digits)
 
     /** Splits the token into groups of [chunkSize] characters. */
-    @JvmStatic fun formatToken(s: String?, chunkSize: Int): String? {
-        // A non-positive chunk never shrinks the index below zero and would loop forever.
-        if (chunkSize <= 0 || s == null) return s
-
-        val ret = StringBuilder()
-        var index = s.length
-        while (index > 0) {
-            ret.insert(0, s.substring(Math.max(index - chunkSize, 0), index))
-            ret.insert(0, " ")
-            index -= chunkSize
-        }
-        return ret.toString().trim()
-    }
+    @JvmStatic fun formatToken(s: String?, chunkSize: Int): String? =
+        TokenFormat.groupFromRight(s, chunkSize)
 
     /** The current date/time in the format used for backup file names. */
     @JvmStatic fun getDateTimeString(): String =

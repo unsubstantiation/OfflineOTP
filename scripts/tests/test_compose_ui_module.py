@@ -360,6 +360,19 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_android_token_display_preferences_reach_the_shared_model(self):
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        for expression in ("tokenGroupSize = settings.getTokenSplitGroupSize()",
+                           "showIssuer = !settings.isHideIssuerEnabled()",
+                           "showPreviousToken = settings.getShowPrevToken()",
+                           "showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled()",
+                           "hideCountdownWhenMasked = settings.getTapToReveal()"):
+            self.assertIn(expression, controller)
+        tools = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Tools.kt").read_text()
+        self.assertIn("TokenFormat.groupFromRight(s, chunkSize)", tools)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.hasCountdown && card.showCountdown", widgets)
+
     def test_activity_publishes_compose_frames_instead_of_attaching_recycler(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertNotIn("EntriesCardAdapter", activity)

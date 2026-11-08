@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android Compose: Honor token group size, Hide issuer, previous-code and individual-countdown preferences. Reuse the existing right-aligned grouping rule from shared core; keep custom-step countdowns and masked-token behavior.
+
  * Android: Switch MainActivity’s list display to the shared Compose cards over AndroidVaultController. Retain the existing toolbar, tabs, tag drawer and action dialogs; manual ordering uses up/down controls rather than dragging. Legacy renderer retirement, display-preference parity and real Android build/device validation remain pending.
 
  * Android: Bridge the extracted controller to shared vault frames with generation- and identity-checked card commands. Preserve asynchronous search publication and existing Android action handlers; Activity display cutover remains pending.

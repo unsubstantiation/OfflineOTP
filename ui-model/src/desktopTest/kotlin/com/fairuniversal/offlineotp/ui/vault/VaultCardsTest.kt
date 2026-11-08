@@ -43,6 +43,45 @@ class VaultCardsTest {
             .apply { setDetailsVisible(revealed) }
 
     @Test
+    fun androidGroupingAndPreviousCodePreferenceUseTheSharedFormatter() {
+        val entry = totp().apply { updateOTPAt(60L, true) }
+        for (size in listOf(0, 2, 3, 4, 10)) {
+            val card = VaultCards.of(entry, 60_000L, appearance = VaultAppearance(tokenGroupSize = size))
+            assertEquals(com.fairuniversal.offlineotp.Utilities.TokenFormat.groupFromRight(entry.getCurrentOTP(), size), card.token)
+            assertEquals(com.fairuniversal.offlineotp.Utilities.TokenFormat.groupFromRight(entry.getPrevOTP(), size), card.previousToken)
+        }
+        assertNull(VaultCards.of(entry, 60_000L, appearance = VaultAppearance(showPreviousToken = false)).previousToken)
+    }
+
+    @Test
+    fun hidingIssuerChangesOnlyTheDisplayIdentity() {
+        val entry = totp()
+        val card = VaultCards.of(entry, 0L, appearance = VaultAppearance(showIssuer = false))
+        assertEquals("", card.issuer)
+        assertEquals("alice", card.title)
+        assertEquals("", card.subtitle)
+        assertEquals("GitHub", entry.getIssuer())
+    }
+
+    @Test
+    fun standardCountdownCanBeHiddenWithoutLosingExpiryCalculation() {
+        val card = VaultCards.of(totp(), 25_000L, revealed = true,
+            appearance = VaultAppearance(showIndividualCountdowns = false))
+        assertFalse(card.showCountdown)
+        assertTrue(card.showsExpiry)
+        assertEquals(5, card.remainingSeconds)
+    }
+
+    @Test
+    fun customStepsKeepTheirCountdownExceptWhileMaskedByHostPolicy() {
+        val entry = totp().apply { setPeriod(60) }
+        val appearance = VaultAppearance(showIndividualCountdowns = false, hideCountdownWhenMasked = true)
+        assertFalse(VaultCards.of(entry, 1_000L, revealed = false, appearance = appearance).showCountdown)
+        assertTrue(VaultCards.of(entry, 1_000L, revealed = true, appearance = appearance).showCountdown)
+        assertFalse(VaultCards.of(hotp(), 0L, appearance = appearance).hasCountdown)
+    }
+
+    @Test
     fun aTimeEntryCarriesTheGroupedCodeAndItsCountdown() {
         val card = VaultCards.of(totp(), nowMillis = 1_000L)
         assertEquals(VaultEntryKind.OTP, card.kind)

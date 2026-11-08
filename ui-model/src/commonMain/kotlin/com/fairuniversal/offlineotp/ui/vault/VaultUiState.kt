@@ -131,6 +131,13 @@ data class VaultAppearance(
     val labelDisplay: Constants.LabelDisplay = Constants.LabelDisplay.TRUNCATE,
     /** Group a six-digit code into halves. */
     val groupTokens: Boolean = true,
+    /** Null keeps the desktop half-split convention; a value uses Android right-aligned groups. */
+    val tokenGroupSize: Int? = null,
+    val showIssuer: Boolean = true,
+    val showPreviousToken: Boolean = true,
+    /** Non-default token steps always keep a countdown even when the standard-step one is off. */
+    val showIndividualCountdowns: Boolean = true,
+    val hideCountdownWhenMasked: Boolean = false,
     /**
      * How many seconds before rollover a code is flagged as expiring. 8 matches the Android card's
      * `Entry.EXPIRY_TIME` and the Swing client's token colour change.

@@ -388,7 +388,7 @@ private fun VaultCodeArea(card: VaultCardState, strings: VaultStrings) {
                         maxLines = 1
                     )
                 }
-                if (card.hasCountdown) {
+                if (card.hasCountdown && card.showCountdown) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CountdownRing(
                             progress = card.progress ?: 0f,

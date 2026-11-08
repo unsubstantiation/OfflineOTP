@@ -452,3 +452,17 @@ the app against Compose stubs. The full app harness verifies view reuse on ticks
 on lock/unlock, but does not execute compositions. Existing legacy card tests remain attached to
 the compatibility renderer until equivalent real Compose UI tests are available. Device/Gradle
 validation, legacy fixture/renderer deletion and display-preference parity remain open.
+
+### Android token-display preference parity
+
+The shared appearance value now carries Android's explicit group size, Hide issuer, previous-code
+and individual-countdown preferences. Grouping is the existing right-aligned Android rule, moved
+to `TokenFormat.groupFromRight` in core and used by both the legacy `Tools` facade and shared cards.
+A null group size preserves the desktop's existing half-split convention. Current and previous
+codes use the same selected policy; stored issuer/token values are not modified by display choices.
+
+Standard-step countdowns respect the preference, non-default steps retain their indicator, and
+Android's tap-to-reveal policy hides countdowns while tokens are masked. Countdown visibility does
+not disable the underlying expiry calculation. Core/shared tests and the app sandbox harness
+cover these preferences. Label/thumbnail sizing, artwork and legacy card-layout parity remain
+separate work; real Android runtime validation and renderer retirement remain pending.

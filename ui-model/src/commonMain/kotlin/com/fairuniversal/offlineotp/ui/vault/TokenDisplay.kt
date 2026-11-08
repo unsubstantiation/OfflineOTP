@@ -1,5 +1,7 @@
 package com.fairuniversal.offlineotp.ui.vault
 
+import com.fairuniversal.offlineotp.Utilities.TokenFormat
+
 /**
  * Presentation arithmetic for one-time codes, shared by every Compose host.
  *
@@ -16,10 +18,12 @@ object TokenDisplay {
     /**
      * Splits a 6- to 8-digit numeric code into equal halves (`123456` -> `123 456`), the grouping
      * both clients show. Steam's five-character alphabet codes and mOTP hex digests are left alone:
-     * an odd-length or non-numeric code has no natural half.
+     * an odd-length or non-numeric code has no natural half. An explicit [chunkSize] instead uses
+     * Android's configured right-aligned grouping rule for every code type.
      */
-    fun group(code: String, group: Boolean = true): String {
+    fun group(code: String, group: Boolean = true, chunkSize: Int? = null): String {
         if (!group) return code
+        if (chunkSize != null) return TokenFormat.groupFromRight(code, chunkSize)!!
         if (code.length < 6 || code.length > MAX_GROUPED_DIGITS || code.length % 2 != 0) return code
         if (!code.all { it in '0'..'9' }) return code
         val half = code.length / 2

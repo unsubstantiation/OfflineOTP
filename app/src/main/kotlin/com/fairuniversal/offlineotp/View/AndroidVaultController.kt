@@ -111,7 +111,11 @@ class AndroidVaultController(
             val appearance = VaultAppearance(
                 showThumbnails = settings.getThumbnailVisible(),
                 labelDisplay = settings.getLabelDisplay(),
-                groupTokens = settings.getTokenSplitGroupSize() > 0,
+                tokenGroupSize = settings.getTokenSplitGroupSize(),
+                showIssuer = !settings.isHideIssuerEnabled(),
+                showPreviousToken = settings.getShowPrevToken(),
+                showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled(),
+                hideCountdownWhenMasked = settings.getTapToReveal(),
                 expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
             )
             val projected = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
