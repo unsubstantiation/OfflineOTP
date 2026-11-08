@@ -46,6 +46,11 @@ fun VaultScreen(
             lockLabel = strings.lockAction,
             onLock = actions.onLock
         )
+        actions.onAddEntry?.let { add ->
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                ForestTextAction(text = strings.addEntry, onClick = add)
+            }
+        }
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)

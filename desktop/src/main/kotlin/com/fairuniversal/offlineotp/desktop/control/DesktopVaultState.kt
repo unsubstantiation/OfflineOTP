@@ -27,6 +27,9 @@ import javax.crypto.SecretKey
  */
 class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryList()) {
 
+    var isLocked: Boolean = false
+        private set
+
     var key: SecretKey = key
         private set
 
@@ -50,6 +53,7 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
 
     /** Zeroizes every in-memory entry and clears the projection when locking the vault. */
     fun lock() {
+        isLocked = true
         val current = ArrayList(entries.getEntries())
         while (entries.getEntries().isNotEmpty()) entries.removeEntry(entries.getEntries().size - 1)
         current.forEach { it.destroy() }

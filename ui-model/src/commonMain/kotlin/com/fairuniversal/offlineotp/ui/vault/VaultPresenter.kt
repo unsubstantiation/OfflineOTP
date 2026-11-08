@@ -34,7 +34,8 @@ class VaultPresenter(
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
     private val lockVault: (() -> Unit)? = null,
-    private val onChange: (() -> Unit)? = null
+    private val onChange: (() -> Unit)? = null,
+    private val addEntry: (() -> Unit)? = null
 ) {
 
     /** The selection currently shown. Change it through the [actions], never by assigning here. */
@@ -96,6 +97,7 @@ class VaultPresenter(
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
     fun actions(): VaultActions = VaultActions(
+        onAddEntry = addEntry,
         onCopyToken = { card -> copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter,

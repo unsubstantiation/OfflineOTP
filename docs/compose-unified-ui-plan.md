@@ -588,3 +588,26 @@ Next desktop migration gates: add/edit forms and tag/thumbnail editing; persiste
 clipboard expiry; backup/restore/import/export including structured credentials; hardware-key and
 OpenPGP workflows; preferences/portable paths; then packaging/launcher cutover and Swing retirement.
 Unlock and persistence work also need asynchronous UI integration before shipping the Compose host.
+
+### Desktop replacement: manual entry creation
+
+The shared vault screen now exposes an optional guarded Add entry action; only the Compose desktop
+host supplies it (Android keeps its existing add flow). `ManualEntryDialog` collects TOTP, HOTP,
+Steam, mOTP, secure-note and SSH-key inputs, including tags, optional mOTP PIN and SSH connection
+metadata. Password/email imports remain separate workflows and are not offered as manual types.
+`ManualEntryInput` delegates construction/validation to `EntryDraft`, preserving Steam's fixed
+parameters and free-text notes. It redacts diagnostic output. Input is not saveable; secret fields
+are cleared before submission and after dismissal/type changes. Failed submissions require
+secret re-entry. Immutable JVM strings cannot be zeroized.
+
+`DesktopEntryCreation` binds submission to an exact dialog request and a live desktop state;
+dismissed/replaced requests and independently locked states cannot build or save an entry. It
+uses `EntryEditor.add` to persist before publication and destroys drafts that were not adopted.
+Pending creation is closed alongside other dialogs when the presenter locks. `DesktopVaultState`
+now exposes its terminal locked status for this boundary, without moving persistence into widgets.
+
+Tests cover all offered types, field clearing/redaction, add-action liveness, persistence/reopen,
+duplicates, failed/throwing saves and stale/locked requests. The form is type-checked with Compose
+stubs; layout, keyboard/focus behavior and scrolling require real runtime validation. This is
+add-only: existing-entry editing, tag/thumbnail editing, asynchronous persistence and the other
+desktop migration gates remain pending. The shipping launcher is unchanged.

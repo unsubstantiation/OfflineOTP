@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add manual OTP, note and SSH-key creation through the shared form and EntryDraft validation. Persist before publication, reject stale/locked dialog submissions, and discard unadopted drafts. Existing-entry editing and shipping launcher cutover remain pending.
+
  * Compose desktop: Honor the saved inactivity timeout, reject activity after expiry, and clear the vault on close/disposal. Add a Swing-free event-thread scheduler with headless lifecycle/timer tests. Shipping desktop launcher remains Swing pending parity and runtime validation.
 
  * Android CI: Add manual-only Compose/artwork emulator validation to the existing workflow, covering F-Droid/API 28 and Play/API 36. Require passing results for all selected tests and retain diagnostic logs without publishing debug APKs.

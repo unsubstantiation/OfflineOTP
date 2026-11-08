@@ -179,7 +179,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -477,6 +477,17 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn("fun " + method + "(", contract)
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
+    def test_desktop_manual_creation_uses_shared_form_and_guarded_persistence(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryCreation(vault, EntryEditor(controller, vault)::add)", host)
+        self.assertIn("creation.close()", host)
+        self.assertIn("ManualEntryDialog(", host)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("remember(inputKey)", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn("input = input.withoutSecrets()", form)
+        self.assertIn("PasswordVisualTransformation()", form)
 
     def test_desktop_compose_session_lifetime_is_wired_without_swing_widgets(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

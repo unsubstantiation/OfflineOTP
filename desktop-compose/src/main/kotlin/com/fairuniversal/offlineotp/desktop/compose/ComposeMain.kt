@@ -3,6 +3,9 @@ package com.fairuniversal.offlineotp.desktop.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
+import com.fairuniversal.offlineotp.desktop.control.EntryEditor
+import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,8 +51,7 @@ import java.awt.datatransfer.StringSelection
  * come from `:ui`, and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): add/edit
- * dialogs, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): editing existing entries, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -142,17 +144,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     var revision by remember(vault) { mutableStateOf(0) }
+    val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             copyCode = ::copyToken,
-            advanceCounter = { card -> dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> dialogs.open(VaultDialogKind.DELETE, card.id) },
+            addEntry = { dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            advanceCounter = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                creation.close()
                 dialogs.close()
                 onLock()
             },
@@ -194,6 +199,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val addRequest = creation.pending
+    if (addRequest != null) {
+        ManualEntryDialog(
+            inputKey = addRequest,
+            error = when (addRequest.failure) {
+                DesktopEntryCreation.Failure.INVALID_INPUT -> "Invalid entry. Check the fields and re-enter secret fields."
+                DesktopEntryCreation.Failure.SAVE_FAILED -> "Could not add the entry (duplicate or save failure). Re-enter secret fields to retry."
+                null -> null
+            },
+            onDismiss = { creation.dismiss(addRequest); revision++ },
+            onSubmit = { input ->
+                if (creation.submit(addRequest, input)) presenter.applyFilter(presenter.filter)
+                revision++
+            }
+        )
+    }
     val request = dialogs.pending
     if (request != null) {
         VaultEntryDialog(
