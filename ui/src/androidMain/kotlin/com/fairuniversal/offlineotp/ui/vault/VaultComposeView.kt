@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
@@ -15,9 +15,9 @@ import com.fairuniversal.offlineotp.ui.theme.ForestTheme
  * Android host seam for the shared vault screen.
  *
  * The Android app is built from Activities, Fragments and a RecyclerView, so the shared Compose
- * screen is reached through a [ComposeView]: the host calls [VaultComposeView.render] with the frame
+ * screen is reached through an [AbstractComposeView]: the host calls [VaultComposeView.render] with the frame
  * its own session produced and receives every interaction through the [VaultActions] it passed in.
- * Composition is created once in `init` and only the frame state changes, so a per-second refresh
+ * The base view owns composition creation and disposal; only frame state changes, so a per-second refresh
  * recomposes the screen instead of rebuilding it; a lock should [clear] the frame (or drop the view)
  * so no code outlives the session that produced it.
  *
@@ -36,7 +36,7 @@ class VaultComposeView(
     private val strings: VaultStrings,
     private val actions: VaultActions,
     private val appearance: VaultAppearance = VaultAppearance()
-) : ComposeView(context) {
+) : AbstractComposeView(context) {
 
     // A Compose snapshot state owned by the view: platform code writes frames, the composition reads
     // them. The initial frame is empty, so nothing is disclosed before the host renders once.
@@ -46,14 +46,17 @@ class VaultComposeView(
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
         // must not keep collecting state.
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
-        setContent {
-            VaultScreenHost(
-                state = frame,
-                strings = strings,
-                actions = actions,
-                appearance = appearance
-            )
-        }
+    }
+
+    // ComposeView itself is final. Custom Compose-backed Views implement this base-class hook.
+    @Composable
+    override fun Content() {
+        VaultScreenHost(
+            state = frame,
+            strings = strings,
+            actions = actions,
+            appearance = appearance
+        )
     }
 
     /** Publishes the next frame. Called from the UI thread, like any View mutation. */

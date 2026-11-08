@@ -57,7 +57,7 @@ growing a second UI inside `:desktop`.
 | Frame model | `ui-model/src/commonMain/.../ui/vault/{TokenDisplay,VaultCardState,VaultUiState,VaultStrings,VaultActions,VaultProjection,VaultCards}.kt` | A module with no Compose dependency at all. Everything a row shows — and the tab/sort wording the Swing client also uses — is computed here and unit-tested on a host JVM. |
 | Screen | `ui/src/commonMain/.../ui/vault/{VaultScreen,VaultComponents,Countdown}.kt` | Stateless: one immutable frame in, callbacks out. |
 | Unlock | `ui/src/commonMain/.../ui/unlock/UnlockScreen.kt` | Password field only; the host owns the unlock path. |
-| Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `ComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
+| Android seam | `ui/src/androidMain/.../ui/vault/VaultComposeView.kt` | `AbstractComposeView` subclass with `render(frame)`/`clear()`, so the Activity can push frames from its own session without rebuilding the composition. Type-checked by the gate against the app's Android stubs. |
 | Desktop host | `desktop-compose/src/main/kotlin/.../compose/ComposeMain.kt` | Unlock, list, copy, reveal, HOTP advance, search/tag/sort, lock — over the existing `VaultController`. |
 
 Deliberately absent from stage 1: add/edit/delete dialogs, tags/thumbnail editing, backup and
@@ -309,3 +309,16 @@ live entry ids; already-issued immutable frames cannot be zeroized by this layer
 
 The UI sandbox gate now puts its freshly compiled model/core first on the host classpath, so
 older desktop gate output cannot shadow a new shared API.
+
+### Android interop API correction
+
+`VaultComposeView` extends `AbstractComposeView` and implements its composable `Content()`
+hook. AndroidX `ComposeView` is final, so the previous subclass compiled only because the
+handwritten stub incorrectly marked it `open`. The corrected stub models the abstract base
+and final concrete view separately; source guards pin the distinction. A negative compilation
+probe verified that extending the stub's concrete view now fails with “this type is final”.
+
+API reference: [AndroidX ComposeView.android.kt](https://github.com/androidx/androidx/blob/ca175c23e35c88a0a4517e7d1bc01764a60e3dbf/compose/ui/ui/src/androidMain/kotlin/androidx/compose/ui/platform/ComposeView.android.kt).
+This source check is not a successful build against the project's pinned Compose artifacts.
+The Activity still needs to supply lifecycle/saved-state owners, clear frames on lock, and
+validate callbacks when the Android screen is cut over; real Gradle/device gates remain pending.

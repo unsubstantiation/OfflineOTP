@@ -349,12 +349,14 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertNotIn(marker, text)
 
     def test_android_seam_is_a_thin_view_and_holds_no_session(self):
-        """Stage 2 reaches the screen through one ComposeView subclass, not a second client."""
+        """Stage 2 uses the supported AbstractComposeView extension point."""
         seam = UI_ANDROID / "vault/VaultComposeView.kt"
         self.assertTrue(seam.is_file(), "missing the Android ComposeView seam")
         text = seam.read_text(encoding="utf-8")
         self.assertIn("class VaultComposeView(", text)
-        self.assertIn("ComposeView(context)", text)
+        self.assertIn(") : AbstractComposeView(context)", text)
+        self.assertIn("override fun Content()", text)
+        self.assertNotIn("setContent {", text)
         self.assertIn("fun render(next: VaultUiState)", text)
         self.assertIn("fun clear()", text)
         self.assertIn("DisposeOnViewTreeLifecycleDestroyed", text)
@@ -364,6 +366,14 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertNotIn(forbidden, text)
         self.assertNotIn("VaultEntryCard(", text)
         self.assertNotIn("Column(", text)
+
+    def test_android_stub_does_not_allow_subclassing_final_compose_view(self):
+        stub = (COMPOSE_STUBS / "android/androidx/compose/ui/platform/ComposeView.kt").read_text()
+        self.assertIn("abstract class AbstractComposeView(", stub)
+        self.assertIn("abstract fun Content()", stub)
+        self.assertIn("class ComposeView(", stub)
+        self.assertNotIn("open class ComposeView", stub)
+        self.assertIn(": AbstractComposeView(context, attrs, defStyleAttr)", stub)
 
     def test_sandbox_gate_compiles_the_frame_layer_without_compose(self):
         gate = SANDBOX / "compile-ui.sh"

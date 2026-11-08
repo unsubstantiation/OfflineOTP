@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose Android seam: Extend AbstractComposeView rather than the final ComposeView class. Correct the sandbox stub so it rejects the unsupported inheritance; Android cutover remains pending.
+
  * Compose: Make shared presenter locking terminal. Retained callbacks cannot copy tokens, change selections or request dialogs after lock; closed dialog sessions reject late requests.
 
  * Compose: Consolidate PIN, counter and deletion dialogs into a shared lifecycle model and renderer. Ignore callbacks from dismissed or replaced requests, and keep dialog wording localizable outside the desktop host.
