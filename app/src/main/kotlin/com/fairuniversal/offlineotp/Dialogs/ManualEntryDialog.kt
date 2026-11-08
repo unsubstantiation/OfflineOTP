@@ -35,7 +35,7 @@ import com.fairuniversal.offlineotp.Utilities.SshConnection
 import com.fairuniversal.offlineotp.Utilities.SshKeyMaterial
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultSession
-import com.fairuniversal.offlineotp.View.EntriesCardAdapter
+import com.fairuniversal.offlineotp.View.EntryEditorHost
 import com.fairuniversal.offlineotp.View.EntryActionDialogs
 import com.fairuniversal.offlineotp.View.TagsAdapter
 
@@ -56,25 +56,25 @@ object ManualEntryDialog {
 
     /** Opens the dialog to add a new entry. */
     @JvmStatic
-    fun show(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter) {
+    fun show(callingActivity: MainActivity, settings: Settings, adapter: EntryEditorHost) {
         show(callingActivity, settings, adapter, null, null)
     }
 
     /** Opens the new-entry dialog with [type] selected, using the same editor and validation. */
     @JvmStatic
-    fun showNew(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
+    fun showNew(callingActivity: MainActivity, settings: Settings, adapter: EntryEditorHost,
                 type: Entry.OTPType) {
         showEditor(callingActivity, settings, adapter, null, null, type)
     }
 
     /** Opens the dialog for a new entry, or to edit [oldEntry] if it is not null. */
     @JvmStatic
-    fun show(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
+    fun show(callingActivity: MainActivity, settings: Settings, adapter: EntryEditorHost,
              oldEntry: Entry?, updateCallback: UpdateCallback?) {
         showEditor(callingActivity, settings, adapter, oldEntry, updateCallback, null)
     }
 
-    private fun showEditor(callingActivity: MainActivity, settings: Settings, adapter: EntriesCardAdapter,
+    private fun showEditor(callingActivity: MainActivity, settings: Settings, adapter: EntryEditorHost,
                            oldEntry: Entry?, updateCallback: UpdateCallback?, initialType: Entry.OTPType?) {
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true)
         val isNewEntry = oldEntry == null

@@ -360,6 +360,18 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_manual_editor_accepts_a_renderer_independent_host(self):
+        app = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp"
+        dialog = (app / "Dialogs/ManualEntryDialog.kt").read_text()
+        self.assertNotIn("EntriesCardAdapter", dialog)
+        self.assertIn("adapter: EntryEditorHost", dialog)
+        contract = (app / "View/EntryEditorHost.kt").read_text()
+        self.assertIn("interface EntryEditorHost", contract)
+        for method in ("getTags", "getTagCounts", "addEntry", "replaceEntry"):
+            self.assertIn("fun " + method + "(", contract)
+        self.assertNotIn("import android", contract)
+        self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
     def test_android_seam_is_a_thin_view_and_holds_no_session(self):
         """Stage 2 uses the supported AbstractComposeView extension point."""
         seam = UI_ANDROID / "vault/VaultComposeView.kt"

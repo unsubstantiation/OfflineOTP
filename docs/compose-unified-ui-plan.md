@@ -355,3 +355,38 @@ the next refresh boundary. Tests cover forward/backward clock changes, resume af
 negative/extreme timestamps and invalid intervals. The Compose effect is keyed to the injected
 clock and remains cancelled when the screen leaves composition. Runtime coroutine scheduling
 and actual suspend/resume behavior still need real Compose validation.
+
+## Android cutover audit — not completed
+
+The shipping Activity still instantiates `EntriesCardAdapter` and attaches it to `cardList`.
+It does not yet instantiate `VaultComposeView`; the cutover must not be reported complete.
+
+The first direct adapter dependency outside the Activity has been removed: `ManualEntryDialog`
+now accepts `EntryEditorHost` (tags, tag counts, add and replacement). The existing adapter
+implements this renderer-independent contract without changing validation or persistence.
+
+Remaining work identified from the current code, in dependency order:
+
+1. Extract `EntriesCardAdapter`'s session/persistence/search ownership into an Android controller.
+   Preserve `VaultSession.MutationLock`, key identity/generation checks, revision-checked async
+   `EntryFilter.publishResults`, recovery handling, automatic backups and hide-task cancellation.
+2. Bridge stable-id Compose actions to the existing Android handlers: privacy persistence,
+   per-kind copying (including SSH/password/email choices), PIN establishment, HOTP edits,
+   QR export, tags/thumbnail editing, archive export and keyboard injection. Copying the
+   frame's displayed token alone is not equivalent to Android's usage/clipboard behavior.
+3. Preserve or explicitly replace tap/double-tap preferences, timed reveal, drag/manual order,
+   card-layout/display settings, accessibility and localized strings. These are not all
+   represented by the shared screen's current callback/appearance contract.
+4. Replace the Activity's RecyclerView, item-touch wiring and data observer with the Compose
+   host/controller publication. Reconcile existing tabs, search menu and tag drawer with the
+   shared screen rather than displaying duplicate controls. Create a fresh view after unlock
+   because `VaultComposeView.clear()` terminates its session.
+5. Wire `:app` to `:ui`, extend the Android source gate to compile the actual integration,
+   update device tests that construct/reflect on the adapter, and remove obsolete renderer
+   classes/layouts only once their last users are gone. Update guards to the new rule owners.
+6. Run a real Gradle Android build and device tests for unlock/lock, search races, each entry
+   kind, imports/exports, reordering and failure paths. Sandbox type-checks are not substitutes.
+
+The old rendered rows use `component_card_default`, `component_card_compact` and
+`component_card_full` through `EntryViewHolder`; deletion should follow actual references,
+not assume that removing a single `item_entry_card.xml` completes the UI migration.

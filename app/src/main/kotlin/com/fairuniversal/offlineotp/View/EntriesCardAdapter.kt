@@ -59,7 +59,7 @@ import javax.crypto.SecretKey
 
 /** RecyclerView adapter for OTP entry cards, managing sorting, filtering, drag-and-drop, and persistence. */
 open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: TagsAdapter) :
-    RecyclerView.Adapter<EntryViewHolder>(), ItemTouchHelperAdapter, Filterable {
+    RecyclerView.Adapter<EntryViewHolder>(), ItemTouchHelperAdapter, Filterable, EntryEditorHost {
 
     private val context: Context = context
     private val taskHandler: Handler = Handler(Looper.getMainLooper())
@@ -105,7 +105,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * Takes ownership of [e], adds it (showing a toast on duplicate) and saves the database.
      * Destroys [e] if rejected or if saving fails.
      */
-    fun addEntry(e: Entry) {
+    override fun addEntry(e: Entry) {
         val added = try {
             if (encryptionKey == null || VaultSession.getKey() !== encryptionKey)
                 throw IllegalStateException("Vault locked")
@@ -131,7 +131,7 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
      * The replacement is validated and checked for duplicates (excluding the entry being replaced).
      * On any failure the replacement is destroyed and the vault is left unchanged.
      */
-    open fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+    override fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
         synchronized(VaultSession.MutationLock) {
             val key = encryptionKey
             if (key == null || VaultSession.getKey() !== key) {
@@ -1104,10 +1104,10 @@ open class EntriesCardAdapter(context: Context, private val tagsFilterAdapter: T
     }
 
     /** In-use tags in the shared display order (see EntryTagFilter.sortedNames). */
-    fun getTags(): List<String> = entries.getSortedTags()
+    override fun getTags(): List<String> = entries.getSortedTags()
 
     /** Per-tag entry counts for the drawer rows (#994). */
-    fun getTagCounts(): Map<String, Int> = entries.getTagCounts()
+    override fun getTagCounts(): Map<String, Int> = entries.getTagCounts()
 
     /** Search filter that applies the configured search fields. */
     inner class EntryFilter : Filter() {
