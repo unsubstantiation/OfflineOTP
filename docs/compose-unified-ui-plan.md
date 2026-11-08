@@ -189,6 +189,22 @@ placeholder text for stored passwords, keys and mail accounts; the kind label; t
 the wrapped note geometry. None of it blocks stage 4 — the remaining work there is features
 (dialogs, backup, hardware keys), not derivation.
 
+### Stage 3c — the desktop selection is one `VaultFilter`
+
+`DesktopVaultState` used to keep four fields (`query`, `selectedTags`, `includeUntagged`, `tagMode`)
+plus its own search-then-`removeAll`-tag-mismatch composition. That was the desktop's second copy of
+the filter rules — and the one that differed from Android's, which is why the difference had to be
+documented. It now holds a single `VaultFilter(combination = SEARCH_AND_TAGS)` and applies it through
+`VaultProjection`, so `applySearch`/`applyCategory`/`applyTagFilter`/`applySortMode` only replace a
+field of that value and every refresh runs one shared implementation. The public API is unchanged;
+what changed is that the presentation is no longer mutated behind the state's back, which the desktop
+tests now respect (they call `applyCategory`/`applySortMode` instead of reaching into
+`presentation`).
+
+The main window's restore path was the one place that did reach in — it called
+`presentation.setCategory(...)`/`setSortMode(...)` directly when binding a vault — so it now goes
+through the state; otherwise the next refresh would have reset the user's tab.
+
 ### Stage 4 — desktop parity, then delete Swing
 
 The Compose desktop host gains the remaining features (add/edit/delete, backup/restore, OpenPGP,

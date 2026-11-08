@@ -61,7 +61,14 @@ class SharedClientLogicTest(unittest.TestCase):
 
     def test_the_tag_rule_and_tag_order_are_shared(self):
         self.assertIn("EntryTagFilter.matches(", text(CORE / "Database/EntryList.kt"))
-        self.assertIn("EntryTagFilter.matches(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        # The desktop no longer applies the tag rule itself: it hands a VaultFilter to the shared
+        # projection, which is the one place the selection is applied.
+        self.assertIn("EntryTagFilter.matches(", text(ROOT / "ui-model/src/commonMain/kotlin/"
+                         "com/fairuniversal/offlineotp/ui/vault/VaultProjection.kt"))
+        self.assertIn("projection.applyFilter(", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertNotIn("EntryTagFilter", text(DESKTOP / "control/DesktopVaultState.kt"))
+        self.assertIn("VaultFilterCombination.SEARCH_AND_TAGS",
+                      text(DESKTOP / "control/DesktopVaultState.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(APP / "View/TagsAdapter.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/MainWindow.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/TagDialog.kt"))

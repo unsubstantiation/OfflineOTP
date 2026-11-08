@@ -784,8 +784,7 @@ class EntryEditorAndBackupTest {
             // Android sets last-used for an imported entry so a "last used" list leads with it.
             assertTrue(imported.getLastUsed() >= before)
             assertTrue(imported.getLastUsed() <= System.currentTimeMillis())
-            state.presentation.setSortMode(Constants.SortMode.LAST_USED)
-            state.refreshProjection()
+            state.applySortMode(Constants.SortMode.LAST_USED)
             assertEquals("one", state.presentation.get(0).getLabel())
         } finally {
             state.snapshot().forEach { it.destroy() }

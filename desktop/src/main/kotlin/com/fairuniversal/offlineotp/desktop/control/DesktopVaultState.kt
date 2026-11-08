@@ -2,9 +2,11 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
-import com.fairuniversal.offlineotp.Database.EntryTagFilter
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
+import com.fairuniversal.offlineotp.ui.vault.VaultFilter
+import com.fairuniversal.offlineotp.ui.vault.VaultFilterCombination
+import com.fairuniversal.offlineotp.ui.vault.VaultProjection
 
 import javax.crypto.SecretKey
 
@@ -14,6 +16,12 @@ import javax.crypto.SecretKey
  * stays in `:core`), and exposes exactly the mutations the dialogs and menus trigger. The frame
  * only observes [presentation] through its table model, so every branch here is unit-testable
  * without a display.
+ *
+ * The selection — query, tags, order, tab — is one [VaultFilter] applied through
+ * [VaultProjection], the same value the Compose screen holds. This class used to keep four separate
+ * fields and re-run the search/tag composition itself, which was the desktop's second copy of a rule
+ * that already differed from Android's (here a search and a tag selection both narrow the list, so
+ * the combination is [VaultFilterCombination.SEARCH_AND_TAGS]).
  */
 class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryList()) {
 
@@ -21,15 +29,15 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
         private set
 
     val entryList: EntryList get() = entries
-    private var query = ""
-    private var searchIncludes = DEFAULT_INCLUDES
-    private var selectedTags: List<String> = emptyList()
-    private var includeUntagged = false
-    private var tagMode = Constants.TagFunctionality.OR
 
     val presentation: EntryListPresentation = EntryListPresentation(entries).apply {
         showReorderedEntries()
     }
+
+    /** The desktop's selection: a search and a tag choice narrow together. */
+    private var filter = VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS)
+
+    private val projection = VaultProjection(entries, presentation)
 
     /** Replaces the session key after a password change without losing open UI state. */
     fun updateKey(newKey: SecretKey) {
@@ -43,17 +51,20 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
         val current = ArrayList(entries.getEntries())
         while (entries.getEntries().isNotEmpty()) entries.removeEntry(entries.getEntries().size - 1)
         current.forEach { it.destroy() }
-        query = ""
-        selectedTags = emptyList()
-        includeUntagged = false
-        tagMode = Constants.TagFunctionality.OR
+        filter = VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS)
         refreshProjection()
         runCatching { key.destroy() }
     }
 
     /** Returns the active tag filter tuple (`selectedTags`, `includeUntagged`, `functionality`). */
     fun activeTagFilter(): Triple<List<String>, Boolean, Constants.TagFunctionality> =
-        Triple(selectedTags, includeUntagged, tagMode)
+        Triple(filter.selectedTags, filter.untaggedSelected, filter.tagFunctionality)
+
+    /**
+     * The selection this vault is showing. Read-only: the frame widget keeps its own copy while the
+     * user types, and hands changes back through the `apply*` methods below.
+     */
+    fun currentFilter(): VaultFilter = filter
 
     /** Replaces the list contents after an unlock or restore and resets the projection. */
     fun load(loaded: ArrayList<Entry>) {
@@ -127,8 +138,7 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
 
     /** Search and tag filters compose within the selected category. */
     fun applySearch(query: String, includes: List<Constants.SearchIncludes> = DEFAULT_INCLUDES) {
-        this.query = query
-        this.searchIncludes = includes.toList()
+        filter = filter.copy(query = query, searchIncludes = includes.toList())
         refreshProjection()
     }
 
@@ -139,16 +149,16 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
      * across tag and sort refreshes").
      */
     fun applyCategory(category: EntryListPresentation.Category) {
-        presentation.setCategory(category)
+        filter = filter.withCategory(category)
         refreshProjection()
     }
 
     /** Empty selection without untagged means all entries; otherwise select tags and/or tagless. */
     fun applyTagFilter(selected: List<String>, noTags: Boolean,
                        functionality: Constants.TagFunctionality = Constants.TagFunctionality.OR) {
-        selectedTags = selected.toList()
-        includeUntagged = noTags
-        tagMode = functionality
+        filter = filter.copy(
+            selectedTags = selected.toList(), untaggedSelected = noTags, tagFunctionality = functionality
+        )
         refreshProjection()
     }
 
@@ -157,21 +167,13 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
      * so choosing the unsorted mode again restores it; the active search and tag filter survive.
      */
     fun applySortMode(mode: Constants.SortMode) {
-        presentation.setSortMode(mode)
+        filter = filter.withSortMode(mode)
         refreshProjection()
     }
 
-    /** Reapply both filters after a mutation or tab change without destroying borrowed entries. */
+    /** Reapply the whole selection after a mutation or tab change, without destroying entries. */
     fun refreshProjection() {
-        presentation.setSearch(query, searchIncludes)
-        val result = presentation.search(query, searchIncludes)
-        if (selectedTags.isNotEmpty() || includeUntagged) {
-            // Shared with Android's tag drawer, so the same selection keeps the same rows.
-            result.entries?.removeAll { entry ->
-                !EntryTagFilter.matches(entry, selectedTags, includeUntagged, tagMode)
-            }
-        }
-        presentation.publishSearch(result)
+        projection.applyFilter(filter)
     }
 
     /**
@@ -187,10 +189,7 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
     }
 
     companion object {
-        val DEFAULT_INCLUDES: List<Constants.SearchIncludes> = listOf(
-            Constants.SearchIncludes.LABEL,
-            Constants.SearchIncludes.ISSUER,
-            Constants.SearchIncludes.TAGS
-        )
+        /** Both clients search label, issuer and tags unless the user narrows it. */
+        val DEFAULT_INCLUDES: List<Constants.SearchIncludes> = VaultFilter.DEFAULT_SEARCH_INCLUDES
     }
 }
