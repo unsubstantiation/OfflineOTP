@@ -1,5 +1,7 @@
 package com.fairuniversal.offlineotp.ui.vault
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -33,6 +35,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.TextUnit
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
@@ -256,33 +260,38 @@ internal fun VaultEntryCard(
                 onClick = { (actions.onCardTap ?: actions.onToggleReveal)(card) },
                 onDoubleClick = actions.onCardDoubleTap?.let { action -> { action(card) } }
             )
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = appearance.cardVerticalPaddingDp.dp)
     ) {
         Row(verticalAlignment = Alignment.Top) {
             if (appearance.showThumbnails && card.detailsVisible) {
-                VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title)
+                VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title, sizeDp = appearance.thumbnailSizeDp)
                 Spacer(modifier = Modifier.width(10.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = card.title,
+                    modifier = labelModifier(appearance),
+                    fontSize = appearance.labelSizeSp?.sp ?: TextUnit.Unspecified,
                     style = ForestType.title,
                     color = ForestPalette.textPrimary,
-                    maxLines = labelLines(appearance),
+                    maxLines = appearance.labelMaxLines,
                     overflow = TextOverflow.Ellipsis
                 )
                 if (card.subtitle.isNotEmpty()) {
                     Text(
                         text = card.subtitle,
+                        modifier = labelModifier(appearance),
+                        fontSize = appearance.labelSizeSp?.sp ?: TextUnit.Unspecified,
                         style = ForestType.subtitle,
                         color = ForestPalette.textSecondary,
-                        maxLines = 1,
+                        maxLines = appearance.labelMaxLines,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
                 if (card.tags.isNotEmpty()) {
                     Text(
                         text = card.tags.joinToString(" · "),
+                        fontSize = appearance.labelSizeSp?.let { (it * 0.75f).sp } ?: TextUnit.Unspecified,
                         style = ForestType.label,
                         color = ForestPalette.textHint,
                         maxLines = 1,
@@ -300,13 +309,17 @@ internal fun VaultEntryCard(
                         text = revealedContent,
                         style = ForestType.mono,
                         color = ForestPalette.textSecondary,
-                        maxLines = 3,
+                        maxLines = if (card.kind == VaultEntryKind.NOTES) Int.MAX_VALUE else 3,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            if (card.detailsVisible) VaultCodeArea(card = card, strings = strings)
+            if (card.detailsVisible && !appearance.codeBelowIdentity) VaultCodeArea(card = card, strings = strings)
+        }
+        if (card.detailsVisible && appearance.codeBelowIdentity) {
+            Spacer(modifier = Modifier.height(8.dp))
+            VaultCodeArea(card = card, strings = strings)
         }
         Spacer(modifier = Modifier.height(6.dp))
         Row(
@@ -458,10 +471,10 @@ internal fun CountdownRing(progress: Float, expiring: Boolean, diameter: Dp) {
 
 /** Issuer artwork stand-in: a coloured tile with the account's initial. */
 @Composable
-private fun VaultLetterTile(seed: String, title: String) {
+private fun VaultLetterTile(seed: String, title: String, sizeDp: Float) {
     Box(
         modifier = Modifier
-            .size(42.dp)
+            .size(sizeDp.coerceAtLeast(0f).dp)
             .clip(CircleShape)
             .background(ForestPalette.letterTileTint(seed)),
         contentAlignment = Alignment.Center
@@ -511,8 +524,7 @@ internal fun VaultEmptyState(title: String, description: String) {
     }
 }
 
-/** How many lines a title may take, from the user's label-display setting. */
-private fun labelLines(appearance: VaultAppearance): Int = when (appearance.labelDisplay) {
-    Constants.LabelDisplay.MULTILINE -> 2
-    Constants.LabelDisplay.TRUNCATE, Constants.LabelDisplay.SCROLL -> 1
-}
+/** A marquee is a renderer effect; its selection is part of the shared appearance value. */
+@OptIn(ExperimentalFoundationApi::class)
+private fun labelModifier(appearance: VaultAppearance): Modifier =
+    if (appearance.scrollLabels) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier

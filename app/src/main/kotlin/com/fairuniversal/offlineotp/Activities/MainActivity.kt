@@ -1327,8 +1327,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             container.removeAllViews()
             return
         }
-        val appearance = VaultAppearance(showControls = false,
-            showThumbnails = settings!!.getThumbnailVisible(), labelDisplay = settings!!.getLabelDisplay())
+        val appearance = controller.composeAppearance()
         val generation = VaultSession.generation()
         var view = composeVaultView
         if (view == null || composeVaultGeneration != generation || composeVaultAppearance != appearance) {

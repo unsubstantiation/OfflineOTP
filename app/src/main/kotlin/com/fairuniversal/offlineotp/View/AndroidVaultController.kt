@@ -87,6 +87,25 @@ class AndroidVaultController(
 
     fun getItemId(position: Int): Long = presentation.get(position).getListId()
 
+    /** One appearance mapping for both frame derivation and the Compose view's layout. */
+    fun composeAppearance(): VaultAppearance {
+        val density = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
+        return VaultAppearance(
+            showControls = false,
+            showThumbnails = settings.getThumbnailVisible(),
+            thumbnailSizeDp = (settings.getThumbnailSize() / density).coerceAtLeast(0f),
+            labelSizeSp = settings.getLabelSize().takeIf { it > 0 },
+            cardLayout = settings.getCardLayout(),
+            labelDisplay = settings.getLabelDisplay(),
+            tokenGroupSize = settings.getTokenSplitGroupSize(),
+            showIssuer = !settings.isHideIssuerEnabled(),
+            showPreviousToken = settings.getShowPrevToken(),
+            showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled(),
+            hideCountdownWhenMasked = settings.getTapToReveal(),
+            expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
+        )
+    }
+
     /**
      * Read the already-published Android projection. Never call applyFilter here: doing so would
      * bypass EntryFilter's generation/revision-checked asynchronous publication.
@@ -108,16 +127,7 @@ class AndroidVaultController(
                 entry.areDetailsVisible() &&
                     ((!entry.isTimeBased() && !entry.isCounterBased()) || !settings.getTapToReveal() || entry.isVisible())
             }.map { it.getListId() }.toSet()
-            val appearance = VaultAppearance(
-                showThumbnails = settings.getThumbnailVisible(),
-                labelDisplay = settings.getLabelDisplay(),
-                tokenGroupSize = settings.getTokenSplitGroupSize(),
-                showIssuer = !settings.isHideIssuerEnabled(),
-                showPreviousToken = settings.getShowPrevToken(),
-                showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled(),
-                hideCountdownWhenMasked = settings.getTapToReveal(),
-                expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
-            )
+            val appearance = composeAppearance()
             val projected = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
             val state = projected.copy(cards = projected.cards.mapIndexed { index, card ->
                 val entry = shown[index]

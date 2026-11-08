@@ -466,3 +466,20 @@ Android's tap-to-reveal policy hides countdowns while tokens are masked. Countdo
 not disable the underlying expiry calculation. Core/shared tests and the app sandbox harness
 cover these preferences. Label/thumbnail sizing, artwork and legacy card-layout parity remain
 separate work; real Android runtime validation and renderer retirement remain pending.
+
+### Android label and layout preferences
+
+`AndroidVaultController.composeAppearance()` is now the single mapping used by both shared frame
+derivation and the Activity's Compose view. It carries label size in SP, thumbnail size converted
+from Android pixels to DP, and the selected card layout. The view is recreated when this appearance
+changes so layout preferences apply without reopening the vault.
+
+Shared cards use the chosen size for title/account labels and the existing 75% tag-size ratio.
+Multiline permits ten lines; Scroll requests a single-line Compose marquee instead of truncation.
+Full places the code below identity, while Compact reduces vertical padding. These are shared
+Compose arrangements, not pixel-identical copies of the retired XML designs. Secure notes are
+no longer clipped to three lines. Artwork still uses the letter tile pending issuer-art rendering.
+
+Headless tests pin layout policy and the app sandbox checks stored preferences and density
+conversion. Actual marquee motion, font scaling, touch targets and layout need device validation.
+Legacy renderer removal and real Gradle/device gates remain outstanding.

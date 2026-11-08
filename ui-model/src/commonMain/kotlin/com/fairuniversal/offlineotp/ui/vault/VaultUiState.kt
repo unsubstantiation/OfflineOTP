@@ -127,6 +127,11 @@ data class VaultAppearance(
     val showThumbnails: Boolean = true,
     /** Android may retain its existing toolbar, tabs and tag drawer during migration. */
     val showControls: Boolean = true,
+    val cardLayout: Constants.CardLayouts = Constants.CardLayouts.DEFAULT,
+    /** SP, not pixels: platform font scaling remains the renderer's responsibility. */
+    val labelSizeSp: Int? = null,
+    /** DP; Android converts the stored pixel dimension using its display density. */
+    val thumbnailSizeDp: Float = 42f,
     /** Long-label behaviour, from the user's settings. */
     val labelDisplay: Constants.LabelDisplay = Constants.LabelDisplay.TRUNCATE,
     /** Group a six-digit code into halves. */
@@ -143,7 +148,16 @@ data class VaultAppearance(
      * `Entry.EXPIRY_TIME` and the Swing client's token colour change.
      */
     val expiringSeconds: Int = 8
-)
+) {
+    val labelMaxLines: Int get() = when (labelDisplay) {
+        Constants.LabelDisplay.MULTILINE -> 10
+        Constants.LabelDisplay.SCROLL -> 1
+        Constants.LabelDisplay.TRUNCATE -> if (cardLayout == Constants.CardLayouts.FULL) 2 else 1
+    }
+    val scrollLabels: Boolean get() = labelDisplay == Constants.LabelDisplay.SCROLL
+    val codeBelowIdentity: Boolean get() = cardLayout == Constants.CardLayouts.FULL
+    val cardVerticalPaddingDp: Int get() = if (cardLayout == Constants.CardLayouts.COMPACT) 8 else 12
+}
 
 /**
  * One immutable frame of the vault screen.

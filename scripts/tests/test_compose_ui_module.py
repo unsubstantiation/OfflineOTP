@@ -179,7 +179,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -360,6 +360,15 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_android_layout_preferences_reach_the_shared_renderer(self):
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        for call in ("settings.getLabelSize()", "settings.getThumbnailSize() / density", "settings.getCardLayout()"):
+            self.assertIn(call, controller)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        for marker in ("Modifier.basicMarquee", "appearance.labelSizeSp", "appearance.labelMaxLines",
+                       "appearance.thumbnailSizeDp", "appearance.codeBelowIdentity"):
+            self.assertIn(marker, widgets)
+
     def test_android_token_display_preferences_reach_the_shared_model(self):
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         for expression in ("tokenGroupSize = settings.getTokenSplitGroupSize()",
@@ -381,7 +390,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("VaultComposeView(this", activity)
         self.assertIn("view.render(published.state, VaultActions(", activity)
         self.assertIn("composeVaultGeneration != generation", activity)
-        self.assertIn("showControls = false", activity)
+        self.assertIn("val appearance = controller.composeAppearance()", activity)
         layout = (ROOT / "app/src/main/res/layout/activity_main.xml").read_text()
         self.assertNotIn("androidx.recyclerview.widget.RecyclerView", layout)
         self.assertIn("project(':ui')", (ROOT / "app/build.gradle").read_text())

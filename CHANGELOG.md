@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android Compose: Apply label/thumbnail sizes, ten-line multiline labels and marquee scrolling. Full stacks the code below identity; Compact reduces padding. Use one appearance mapping for frames and views, and show complete secure notes. Real layout/device validation remains pending.
+
  * Android Compose: Honor token group size, Hide issuer, previous-code and individual-countdown preferences. Reuse the existing right-aligned grouping rule from shared core; keep custom-step countdowns and masked-token behavior.
 
  * Android: Switch MainActivity’s list display to the shared Compose cards over AndroidVaultController. Retain the existing toolbar, tabs, tag drawer and action dialogs; manual ordering uses up/down controls rather than dragging. Legacy renderer retirement, display-preference parity and real Android build/device validation remain pending.

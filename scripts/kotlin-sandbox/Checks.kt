@@ -6265,6 +6265,20 @@ fun main() {
                 .putBoolean(settingsKey(R.string.settings_key_show_individual_timeouts), true).commit()
             val enabled = controller.composeFrame(60_000L, strings)!!.state.cards.single()
             expect(enabled.previousToken != null && enabled.showCountdown, { "display toggles did not reach the frame" })
+            fixture.seed(R.string.settings_key_card_layout, "full")
+            fixture.seed(R.string.settings_key_label_display, "multiline")
+            fixture.seed(R.string.settings_key_thumbnail_size, "48dp")
+            fixture.store.edit().putInt(settingsKey(R.string.settings_key_label_size), 22).commit()
+            val metrics = fixture.context.resources.displayMetrics
+            val oldDensity = metrics.density
+            try {
+                metrics.density = 2f
+                val appearance = controller.composeAppearance()
+                expect(appearance.labelSizeSp == 22 && appearance.labelMaxLines == 10,
+                    { "label preferences did not reach shared layout" })
+                expect(appearance.codeBelowIdentity, { "Full layout did not stack the token" })
+                expect(appearance.thumbnailSizeDp == 48f, { "thumbnail pixels were not converted back to dp" })
+            } finally { metrics.density = oldDensity }
             // Replacing with the same stable id must not transfer old-frame authority.
             val replacement = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "Bank", "new",
                 TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
