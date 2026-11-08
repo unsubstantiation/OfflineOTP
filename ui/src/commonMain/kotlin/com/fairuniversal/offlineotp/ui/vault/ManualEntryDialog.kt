@@ -22,25 +22,33 @@ import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 /** Add/edit form. Input stays in composition; the host validates and owns any created entry. */
 @Composable
 fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
-                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false) {
+                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null) {
     var input by remember(inputKey) { mutableStateOf(initial) }
+    var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
     fun dismiss() { input = ManualEntryInput(); onDismiss() }
     AlertDialog(
         onDismissRequest = { dismiss() },
         title = { Text(text = if (editing) "Edit entry" else "Add entry") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            if (pickingThumbnail) {
+                ThumbnailPicker(selected = input.thumbnailName, artwork = artwork,
+                    unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer",
+                    onSelect = { input = input.copy(thumbnailName = it); pickingThumbnail = false },
+                    onCancel = { pickingThumbnail = false })
+            } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(text = "Type: ${input.type}")
                 if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {
                     ForestTextAction(text = type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
                         input = ManualEntryInput(type = type, issuer = input.issuer, label = input.label,
-                            tags = input.tags, timing = if (type == Entry.OTPType.HOTP) "0" else "30")
+                            tags = input.tags, thumbnailName = input.thumbnailName, timing = if (type == Entry.OTPType.HOTP) "0" else "30")
                     })
                 }
                 EntryInputField("Issuer", input.issuer, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(issuer = it) }
                 EntryInputField("Label", input.label, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(label = it) }
+                Text(text = "Artwork: ${input.thumbnailName ?: if (editing) "Keep current" else "Automatic from issuer"}")
+                ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
                 val note = input.type == Entry.OTPType.NOTE
                 val ssh = input.type == Entry.OTPType.SSH_KEY
                 EntryInputField(if (note) "Note" else if (ssh) "Private key" else "Secret", input.secret,
@@ -73,7 +81,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
             }
         },
         confirmButton = {
-            ForestTextAction(text = "Save", onClick = {
+            ForestTextAction(text = "Save", enabled = !pickingThumbnail, onClick = {
                 val submitted = input
                 input = input.withoutSecrets()
                 onSubmit(submitted)

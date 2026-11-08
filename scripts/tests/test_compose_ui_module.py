@@ -478,6 +478,20 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_manual_thumbnail_picker_uses_catalog_and_host_artwork_without_live_mutation(self):
+        picker = (UI_MAIN / "vault/ThumbnailPicker.kt").read_text()
+        self.assertIn("ThumbnailCatalog.NAMES.filter", picker)
+        self.assertIn("ignoreCase = true", picker)
+        self.assertIn("LazyColumn(modifier = Modifier.height(240.dp))", picker)
+        self.assertIn("remember(artwork, name)", picker)
+        self.assertNotIn("EntryEditor", picker)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("input = input.copy(thumbnailName = it)", form)
+        self.assertIn("onCancel = { pickingThumbnail = false }", form)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("inputKey = addRequest, artwork = artwork", host)
+        self.assertIn("editing = true, artwork = artwork", host)
+
     def test_desktop_editing_reuses_the_form_and_rechecks_live_reveal(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace)", host)

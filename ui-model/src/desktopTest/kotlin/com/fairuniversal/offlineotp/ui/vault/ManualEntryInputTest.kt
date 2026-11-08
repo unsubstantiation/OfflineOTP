@@ -10,6 +10,38 @@ import org.junit.Test
 
 class ManualEntryInputTest {
     @Test
+    fun artworkCanBeAutomaticExplicitOrPreservedWithoutMutatingTheOriginal() {
+        val automatic = ManualEntryInput(issuer = "GitHub", secret = "JBSWY3DPEHPK3PXP").build()
+        try {
+            assertEquals("GitHub", automatic.getThumbnailName())
+            automatic.setThumbnailName("Google")
+            val initial = ManualEntryInput.fromEntry(automatic)
+            assertEquals("Google", initial.thumbnailName)
+            assertEquals("Google", initial.withoutSecrets().thumbnailName)
+            for ((choice, expected) in listOf(null to "Google", "Default" to "Default", "GitHub" to "GitHub")) {
+                val edited = initial.copy(thumbnailName = choice, issuer = "Changed").build(automatic)
+                try {
+                    assertEquals(expected, edited.getThumbnailName())
+                    assertEquals("Google", automatic.getThumbnailName())
+                    assertEquals(automatic.getSecretEncoded(), edited.getSecretEncoded())
+                } finally { edited.destroy() }
+            }
+            val explicit = ManualEntryInput(issuer = "GitHub", secret = "JBSWY3DPEHPK3PXP", thumbnailName = "Default").build()
+            try { assertEquals("Default", explicit.getThumbnailName()) } finally { explicit.destroy() }
+        } finally { automatic.destroy() }
+    }
+
+    @Test
+    fun thumbnailNamesMustComeFromTheBundledCatalog() {
+        for (name in listOf("", "github", "../logo", "not-a-brand")) {
+            var rejected = false
+            try { ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", thumbnailName = name).build().destroy() }
+            catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue("non-catalog choice was accepted", rejected)
+        }
+    }
+
+    @Test
     fun editsKeepSecretsOutOfTheFormAndPreserveMetadata() {
         val original = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", hiddenLabel = "protected").build()
         original.setLastUsed(123L)

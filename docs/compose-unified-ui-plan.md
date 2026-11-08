@@ -633,3 +633,23 @@ Tests cover secret/metadata preservation, fixed types, reveal guards, persist/re
 throwing saves, stale requests and same-ID replacements. Real Compose editing, focus/scrolling,
 async IO and the remaining desktop workflows still need validation/migration before launcher
 cutover. No Swing renderer was removed in this increment.
+
+### Desktop replacement: thumbnail selection
+
+The shared manual-entry form now includes a searchable catalog picker, supplied with the host's
+existing `VaultArtwork` loader. A bounded-height lazy list loads previews for composed choices,
+with memoization keyed by provider/name. Search is case-insensitive and does not persist. The
+picker offers explicit `Default` (letter tile), automatic issuer selection on creation, or keeping
+the original artwork while editing. Returning from the picker without choosing leaves the draft
+unchanged; canceling the form never writes a thumbnail. Save is disabled while browsing choices.
+
+`ManualEntryInput.thumbnailName` is a nullable, validated catalog choice. Null preserves the
+original on edit or leaves the constructor's automatic choice on creation. An explicit choice
+overrides that behavior only on the detached candidate, using the existing add/replace persistence
+path. Secret-field clearing and type switches retain the selected thumbnail. Tests cover the
+three selection modes, invalid names, original-entry isolation, save/reopen and failed-write
+preservation. The picker still needs real Compose focus, scrolling and visual/accessibility tests.
+
+This completes the initial add/edit form's thumbnail selection, not the desktop cutover: structured
+credentials, clipboard behavior, backup/import/export, preferences, hardware/OpenPGP integration,
+async IO and packaging remain before the shipping Swing launcher can be retired.

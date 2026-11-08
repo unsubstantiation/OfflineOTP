@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add searchable bundled-artwork selection to the shared add/edit form. Preview choices lazily and persist the draft selection only on successful Save; failed saves retain the original artwork.
+
  * Compose desktop: Edit revealed OTP, note and SSH entries with fixed types and identity-bound save requests. Blank secret fields retain existing values; edits preserve artwork, privacy, usage metadata and row identity. Real Compose validation and remaining desktop workflows are still pending.
 
  * Compose desktop: Add manual OTP, note and SSH-key creation through the shared form and EntryDraft validation. Persist before publication, reject stale/locked dialog submissions, and discard unadopted drafts. Existing-entry editing and shipping launcher cutover remain pending.

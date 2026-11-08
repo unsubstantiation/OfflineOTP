@@ -24,7 +24,7 @@ class DesktopEntryCreationTest {
             val creation = DesktopEntryCreation(state, EntryEditor(controller, state)::add)
             creation.open()
             val request = creation.pending!!
-            assertTrue(creation.submit(request, input))
+            assertTrue(creation.submit(request, input.copy(thumbnailName = "Google")))
             assertTrue(creation.pending == null)
             assertFalse(creation.submit(request, input))
             creation.open()
@@ -34,7 +34,10 @@ class DesktopEntryCreationTest {
             val reopened = controller.openVault("test-password") as VaultController.Session.Loaded
             val check = DesktopVaultState(reopened.key)
             check.load(reopened.entries)
-            try { assertEquals("alice", check.snapshot().single().getLabel()) } finally { check.lock() }
+            try {
+                assertEquals("alice", check.snapshot().single().getLabel())
+                assertEquals("Google", check.snapshot().single().getThumbnailName())
+            } finally { check.lock() }
         } finally { state.lock(); dir.deleteRecursively() }
     }
 

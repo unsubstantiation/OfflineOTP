@@ -211,7 +211,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val addRequest = creation.pending
     if (addRequest != null) {
         ManualEntryDialog(
-            inputKey = addRequest,
+            inputKey = addRequest, artwork = artwork,
             error = when (addRequest.failure) {
                 DesktopEntryCreation.Failure.INVALID_INPUT -> "Invalid entry. Check the fields and re-enter secret fields."
                 DesktopEntryCreation.Failure.SAVE_FAILED -> "Could not add the entry (duplicate or save failure). Re-enter secret fields to retry."
@@ -228,7 +228,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (editRequest != null) {
         val initial = remember(editRequest) { editing.initialInput(editRequest) }
         if (initial != null) ManualEntryDialog(
-            inputKey = editRequest, initial = initial, editing = true,
+            inputKey = editRequest, initial = initial, editing = true, artwork = artwork,
             error = when (editRequest.failure) {
                 DesktopEntryEditing.Failure.INVALID_INPUT -> "Invalid entry. Check the fields and re-enter any secret changes."
                 DesktopEntryEditing.Failure.SAVE_FAILED -> "Could not save changes. The original entry was retained; re-enter any secret changes to retry."

@@ -28,16 +28,20 @@ class DesktopEntryEditingTest {
             val edits = DesktopEntryEditing(state, editor::replace)
             edits.open(id)
             val request = edits.pending!!
-            assertTrue(edits.submit(request, edits.initialInput(request)!!.copy(label = "renamed"), true))
+            assertTrue(edits.submit(request, edits.initialInput(request)!!.copy(label = "renamed", thumbnailName = "Google"), true))
             val replacement = state.snapshot().single()
             assertEquals(id, replacement.getListId())
+            assertEquals("Google", replacement.getThumbnailName())
             assertEquals(0, original.getSecretSize())
             assertTrue(replacement.getSecretSize() > 0)
             assertFalse(edits.submit(request, input, true))
             val reopened = controller.openVault("test-password") as VaultController.Session.Loaded
             val check = DesktopVaultState(reopened.key)
             check.load(reopened.entries)
-            try { assertEquals("renamed", check.snapshot().single().getLabel()) } finally { check.lock() }
+            try {
+                assertEquals("renamed", check.snapshot().single().getLabel())
+                assertEquals("Google", check.snapshot().single().getThumbnailName())
+            } finally { check.lock() }
         } finally { state.lock(); dir.deleteRecursively() }
     }
 
@@ -45,7 +49,7 @@ class DesktopEntryEditingTest {
     fun failedOrThrowingWritesKeepOriginalAndDestroyReplacement() {
         for (throws in listOf(false, true)) {
             val state = state()
-            val original = input.build()
+            val original = input.copy(thumbnailName = "GitHub").build()
             state.add(original)
             var candidate: Entry? = null
             val edits = DesktopEntryEditing(state) { _, next ->
@@ -55,11 +59,12 @@ class DesktopEntryEditingTest {
             try {
                 edits.open(original.getListId())
                 val request = edits.pending!!
-                assertFalse(edits.submit(request, edits.initialInput(request)!!.copy(label = "changed"), true))
+                assertFalse(edits.submit(request, edits.initialInput(request)!!.copy(label = "changed", thumbnailName = "Google"), true))
                 assertEquals(0, candidate!!.getSecretSize())
                 assertTrue(state.snapshot().single() === original)
                 assertTrue(original.getSecretSize() > 0)
                 assertEquals("alice", original.getLabel())
+                assertEquals("GitHub", original.getThumbnailName())
                 assertEquals(DesktopEntryEditing.Failure.SAVE_FAILED, request.failure)
             } finally { edits.close(); state.lock() }
         }
