@@ -6180,6 +6180,46 @@ fun main() {
         }
     }
 
+    check("MainActivity publishes Compose views and replaces them across session generations") {
+        val fixture = SettingsFixture()
+        val container = FrameLayout(fixture.context)
+        val activity = object : MainActivity() {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : View> findViewById(id: Int): T? =
+                if (id == R.id.cardList) container as T else null
+        }
+        activity.settings = fixture.settings
+        val renderer = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val controller = renderer.controller
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, controller)
+        val publish = MainActivity::class.java.getDeclaredMethod("publishComposeVault").apply { isAccessible = true }
+        val viewField = MainActivity::class.java.getDeclaredField("composeVaultView").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 9 }, "AES")
+        try {
+            val unlock = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+            controller.encryptionKey = key
+            publish.invoke(activity)
+            val first = viewField.get(activity)
+            expect(first is com.fairuniversal.offlineotp.ui.vault.VaultComposeView, { "Activity did not create Compose host" })
+            publish.invoke(activity)
+            expect(viewField.get(activity) === first, { "a token tick rebuilt the Compose view" })
+            controller.lockEntries()
+            publish.invoke(activity)
+            expect(viewField.get(activity) == null, { "locked Activity retained its view" })
+            val reopen = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, reopen.generation) is SessionCommandResult.Applied, { "reopen" })
+            controller.encryptionKey = key
+            publish.invoke(activity)
+            expect(viewField.get(activity) != null && viewField.get(activity) !== first,
+                { "new session reused a terminated Compose host" })
+        } finally {
+            controller.lockEntries()
+            publish.invoke(activity)
+            VaultSession.lock()
+        }
+    }
+
     check("Android shared frames preserve projection and reject stale card commands") {
         val fixture = SettingsFixture()
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
@@ -6204,6 +6244,8 @@ fun main() {
             val frame = controller.composeFrame(1_000L, strings)!!
             expect(frame.state.cards.map { it.id } == listOf(first.getListId()), { "frame ignored async projection" })
             expect(frame.state.filter.query == "alice", { "frame lost search metadata" })
+            expect(frame.state.cards.single().token == null && frame.state.cards.single().tags.isEmpty(),
+                { "a concealed Android card retained protected details" })
             expect(!frame.perform(second.getListId(), privacy), { "a row absent from the frame gained authority" })
             first.setDetailsVisible(false)
             expect(!frame.perform(first.getListId(), copy), { "hidden entry could be copied" })

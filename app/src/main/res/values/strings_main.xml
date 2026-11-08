@@ -250,4 +250,11 @@
     <string name="linscp_export_empty">No SSH keys or login sessions to export</string>
     <string name="linscp_export_success">LinSCP encrypted vault exported</string>
     <string name="linscp_export_failed">Could not export LinSCP encrypted vault</string>
+    <string name="compose_copy_content">Copy</string>
+    <string name="compose_move_up">Move up</string>
+    <string name="compose_move_down">Move down</string>
+    <string name="compose_reveal_token">Reveal</string>
+    <string name="compose_hide_token">Hide</string>
+    <string name="compose_account_actions">Account actions</string>
+    <string name="compose_next_code">Next code</string>
 </resources>

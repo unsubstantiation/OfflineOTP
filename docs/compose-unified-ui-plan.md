@@ -1,14 +1,15 @@
 # Unified Compose Multiplatform UI
 
-> **Status:** stage 1 is in the checkout — a shared `:ui-model` frame layer (toolkit-free), a `:ui`
-> Compose Multiplatform widget module plus a desktop preview host (`:desktop-compose`); the Swing
-> desktop client already takes its tab and sort wording from the shared table. The Android app still renders the View/RecyclerView UI and the
-> shipping desktop client is still Swing, so **no client has been deleted yet**: this stage adds the
-> shared screen and the gates that keep it shareable. Stage 2 (Android cutover) and stage 4 (Swing
-> deletion) are the changes that actually shrink the codebase; their exit criteria are below.
-> Nothing in this document is a claim that the Compose screen has been run on a device: no Compose
-> artifact could be resolved in the environment that produced it, so Gradle and device checks are
-> still outstanding.
+> **Current status:** Android `MainActivity` now displays `VaultComposeView`/the shared Compose
+> cards, backed by `AndroidVaultController`. The existing toolbar, tabs, tag drawer and Android
+> dialogs remain. Manual order is exposed through Move up/Move down controls, not drag gestures.
+> The legacy adapter/holder/layout files are retained for the old regression fixtures and still
+> need retirement. Legacy card-layout sizing, artwork and other display-preference parity are not
+> complete. The desktop shipping UI remains Swing.
+>
+> Sandbox gates type-check the actual Activity-to-Compose integration and exercise its publication
+> lifecycle with recording stubs. **No real Gradle Android build or device rendering validation has
+> been performed.** This is the display wiring cutover, not completion of all stage-2 exit criteria.
 
 ## Why unify
 
@@ -431,3 +432,23 @@ ui-model sources, not stand-ins for the new bridge.
 
 Activity display still uses the compatibility renderer: binding this bridge to the Compose
 view, adding the remaining shared-screen capabilities and removing RecyclerView rows are next.
+
+### Android Activity display wiring
+
+`cardList` is now a FrameLayout containing `VaultComposeView`. `MainActivity` creates the
+controller directly, publishes frames on controller notifications and token ticks, and recreates
+the Compose view across session generations. Lock clears and removes the old view. Per-frame
+callbacks capture their own `AndroidVaultFrame`, not a mutable latest-frame pointer. The Activity
+retains its existing toolbar/search/category/tag controls; shared chrome is disabled for this host.
+
+Shared cards now support separate persisted privacy and timed token reveal, configured single/
+double taps, static-secret copying, HOTP long-press editing, popup entry actions and manual-order
+up/down buttons. Concealed Android frames strip protected token/tag/counter/artwork fields. Hidden
+labels/SSH connection summaries appear only in visible details. Existing Android dialogs, backups,
+imports and session checks still execute in the controller. New labels use Android resources.
+
+The app depends on `:ui`; its sandbox gate compiles real shared UI/platform seam sources alongside
+the app against Compose stubs. The full app harness verifies view reuse on ticks and replacement
+on lock/unlock, but does not execute compositions. Existing legacy card tests remain attached to
+the compatibility renderer until equivalent real Compose UI tests are available. Device/Gradle
+validation, legacy fixture/renderer deletion and display-preference parity remain open.

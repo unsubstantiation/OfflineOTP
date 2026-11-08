@@ -1,5 +1,13 @@
 package com.fairuniversal.offlineotp.Activities
 
+import android.widget.FrameLayout
+import android.view.ViewGroup
+import com.fairuniversal.offlineotp.View.AndroidCardCommand
+import com.fairuniversal.offlineotp.ui.vault.VaultComposeView
+import com.fairuniversal.offlineotp.ui.vault.VaultActions
+import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
+import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
+import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.KeyguardManager
@@ -35,9 +43,6 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import androidx.recyclerview.widget.ItemTouchHelper
-import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
 
 import com.google.zxing.integration.android.IntentIntegrator
 import com.google.android.material.tabs.TabLayout
@@ -86,8 +91,6 @@ import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.View.AndroidVaultController
-import com.fairuniversal.offlineotp.View.EntriesCardAdapter
-import com.fairuniversal.offlineotp.View.ItemTouchHelper.SimpleItemTouchHelperCallback
 import com.fairuniversal.offlineotp.View.TagsAdapter
 
 import java.util.Arrays
@@ -125,7 +128,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var linScpExportPasswordDialog: PasswordEntryDialog? = null
     private var sortMenu: MenuItem? = null
     private var searchMenu: MenuItem? = null
-    private var touchHelperCallback: SimpleItemTouchHelperCallback? = null
+    private var composeVaultView: VaultComposeView? = null
+    private var composeVaultGeneration: Long = -1L
+    private var composeVaultAppearance: VaultAppearance? = null
 
     private var encryptionType: EncryptionType = EncryptionType.KEYSTORE
     private var requireAuthentication = false
@@ -348,12 +353,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private fun restoreSortMode() {
         val currentAdapter = adapter
-        val callback = touchHelperCallback
-        if (settings != null && currentAdapter != null && callback != null) {
+        if (settings != null && currentAdapter != null) {
             val mode = settings!!.getSortMode()
             currentAdapter.setSortMode(mode)
 
-            callback.setDragEnabled(mode == SortMode.UNSORTED)
         }
     }
 
@@ -507,16 +510,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         progressBar = requireNotNull(findViewById<ProgressBar>(R.id.progressBar))
         emptyListView = requireNotNull(findViewById<TextView>(R.id.emptyListView))
 
-        val recList = requireNotNull(findViewById<RecyclerView>(R.id.cardList))
-        recList.setHasFixedSize(true)
-        val llm = LinearLayoutManager(this)
-        llm.setOrientation(LinearLayoutManager.VERTICAL)
-        recList.setLayoutManager(llm)
-
         val drawerAdapter = TagsAdapter(this, HashMap<String, Boolean?>())
         tagsDrawerAdapter = drawerAdapter
-        val cardAdapter = EntriesCardAdapter(this, drawerAdapter)
-        adapter = cardAdapter.controller
+        val cardAdapter = AndroidVaultController(this, drawerAdapter, object : AndroidVaultController.Changes {
+            override fun changed() { publishComposeVault(); hideProgressBar() }
+            override fun itemChanged(position: Int) = changed()
+            override fun itemMoved(from: Int, to: Int) = changed()
+            override fun itemRemoved(position: Int) = changed()
+        })
+        adapter = cardAdapter
         val categories = requireNotNull(findViewById<TabLayout>(R.id.entry_categories))
         listOf(R.string.tab_otp, R.string.tab_notes, R.string.tab_ssh_keys, R.string.tab_passwords, R.string.tab_email)
             .forEach { categories.addTab(categories.newTab().setText(getString(it))) }
@@ -531,45 +533,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val selectedCategory = savedInstanceState?.getInt("entry_category", 0) ?: 0
         categories.getTabAt(selectedCategory)?.select()
         cardAdapter.setCategory(EntryListPresentation.Category.entries.getOrElse(selectedCategory) { EntryListPresentation.Category.OTP })
-        cardAdapter.registerAdapterDataObserver(object : RecyclerView.AdapterDataObserver() {
-            override fun onChanged() {
-                super.onChanged()
-                hideProgressBar()
-            }
-
-            override fun onItemRangeChanged(positionStart: Int, itemCount: Int) {
-                super.onItemRangeChanged(positionStart, itemCount)
-                hideProgressBar()
-            }
-
-            override fun onItemRangeChanged(positionStart: Int, itemCount: Int, payload: Any?) {
-                super.onItemRangeChanged(positionStart, itemCount, payload)
-                hideProgressBar()
-            }
-
-            override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
-                super.onItemRangeInserted(positionStart, itemCount)
-                hideProgressBar()
-            }
-
-            override fun onItemRangeRemoved(positionStart: Int, itemCount: Int) {
-                super.onItemRangeRemoved(positionStart, itemCount)
-                hideProgressBar()
-            }
-
-            override fun onItemRangeMoved(fromPosition: Int, toPosition: Int, itemCount: Int) {
-                super.onItemRangeMoved(fromPosition, toPosition, itemCount)
-                hideProgressBar()
-            }
-        })
-
-        recList.setAdapter(cardAdapter)
-
-        val callback = SimpleItemTouchHelperCallback(cardAdapter)
-        touchHelperCallback = callback
-        val touchHelper = ItemTouchHelper(callback)
-        touchHelper.attachToRecyclerView(recList)
-
         NotificationHelper.initializeNotificationChannels(this)
         restoreSortMode()
 
@@ -580,7 +543,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
         animatorDuration = (1000 / durationScale).toLong()
 
-        cardAdapter.setCallback(object : EntriesCardAdapter.Callback {
+        cardAdapter.setCallback(object : AndroidVaultController.Callback {
             override fun onMoveEventStart() {
                 stopUpdater()
             }
@@ -1030,7 +993,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         menuSearch.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
             override fun onMenuItemActionExpand(menuItem: MenuItem): Boolean {
                 speedDial?.visibility = View.GONE
-                touchHelperCallback?.setDragEnabled(false)
                 sortMenu?.setVisible(false)
                 return true
             }
@@ -1038,8 +1000,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             override fun onMenuItemActionCollapse(menuItem: MenuItem): Boolean {
                 speedDial?.visibility = View.VISIBLE
 
-                if (adapter == null || adapter!!.getSortMode() == SortMode.UNSORTED)
-                    touchHelperCallback?.setDragEnabled(true)
 
                 sortMenu?.setVisible(true)
 
@@ -1096,7 +1056,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             saveSortMode(SortMode.UNSORTED)
             if (adapter != null) {
                 adapter!!.setSortMode(SortMode.UNSORTED)
-                touchHelperCallback?.setDragEnabled(true)
             }
         } else if (id == R.id.menu_sort_issuer) {
             item.setChecked(true)
@@ -1104,7 +1063,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             saveSortMode(SortMode.ISSUER)
             if (adapter != null) {
                 adapter!!.setSortMode(SortMode.ISSUER)
-                touchHelperCallback?.setDragEnabled(false)
             }
         } else if (id == R.id.menu_sort_label) {
             item.setChecked(true)
@@ -1112,7 +1070,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             saveSortMode(SortMode.LABEL)
             if (adapter != null) {
                 adapter!!.setSortMode(SortMode.LABEL)
-                touchHelperCallback?.setDragEnabled(false)
             }
         } else if (id == R.id.menu_sort_last_used) {
             item.setChecked(true)
@@ -1120,7 +1077,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             saveSortMode(SortMode.LAST_USED)
             if (adapter != null) {
                 adapter!!.setSortMode(SortMode.LAST_USED)
-                touchHelperCallback?.setDragEnabled(false)
             }
             if (!settings!!.getUsedTokensDialogShown())
                 showUsedTokensDialog()
@@ -1130,7 +1086,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             saveSortMode(SortMode.MOST_USED)
             if (adapter != null) {
                 adapter!!.setSortMode(SortMode.MOST_USED)
-                touchHelperCallback?.setDragEnabled(false)
             }
             if (!settings!!.getUsedTokensDialogShown())
                 showUsedTokensDialog()
@@ -1341,6 +1296,67 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             }
         }
         adapter?.updateTimeBasedTokens()
+        publishComposeVault()
+    }
+
+    /** Publish one shared frame. The existing Activity owns search/tabs/drawer and the tick. */
+    private fun publishComposeVault() {
+        val container = findViewById<FrameLayout>(R.id.cardList) ?: return
+        val controller = adapter ?: return
+        val strings = VaultStrings.English.copy(
+            copyAction = getString(R.string.button_card_copy),
+            copyContent = getString(R.string.compose_copy_content),
+            privacyReveal = getString(R.string.privacy_reveal),
+            privacyHide = getString(R.string.privacy_hide),
+            moveUp = getString(R.string.compose_move_up),
+            moveDown = getString(R.string.compose_move_down),
+            revealAction = getString(R.string.compose_reveal_token),
+            hideAction = getString(R.string.compose_hide_token),
+            enterPin = getString(R.string.menu_popup_establish_pin),
+            entryActions = getString(R.string.compose_account_actions),
+            nextCode = getString(R.string.compose_next_code),
+            emptyTitle = getString(R.string.empty_list_view_text), emptyDescription = "",
+            emptyTabTitle = getString(R.string.empty_list_view_text), emptyTabDescription = "",
+            noMatchesTitle = getString(R.string.empty_list_view_text), noMatchesDescription = ""
+        )
+        val published = controller.composeFrame(System.currentTimeMillis(), strings)
+        if (published == null) {
+            composeVaultView?.clear()
+            composeVaultView = null
+            composeVaultGeneration = -1L
+            container.removeAllViews()
+            return
+        }
+        val appearance = VaultAppearance(showControls = false,
+            showThumbnails = settings!!.getThumbnailVisible(), labelDisplay = settings!!.getLabelDisplay())
+        val generation = VaultSession.generation()
+        var view = composeVaultView
+        if (view == null || composeVaultGeneration != generation || composeVaultAppearance != appearance) {
+            view?.clear()
+            container.removeAllViews()
+            view = VaultComposeView(this, strings, VaultActions(), appearance)
+            composeVaultView = view
+            composeVaultGeneration = generation
+            composeVaultAppearance = appearance
+            container.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        val anchor = view
+        view.render(published.state, VaultActions(
+            onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
+            onTogglePrivacy = { published.perform(it.id, AndroidCardCommand.PRIVACY) },
+            onToggleReveal = {
+                published.perform(it.id, if (it.kind == VaultEntryKind.OTP)
+                    AndroidCardCommand.REVEAL_TOKEN else AndroidCardCommand.PRIVACY)
+            },
+            onCardTap = { published.perform(it.id, AndroidCardCommand.SINGLE_TAP) },
+            onCardDoubleTap = { published.perform(it.id, AndroidCardCommand.DOUBLE_TAP) },
+            onNextCounter = { published.perform(it.id, AndroidCardCommand.NEXT_COUNTER) },
+            onEditCounter = { published.perform(it.id, AndroidCardCommand.EDIT_COUNTER) },
+            onEnterPin = { published.perform(it.id, AndroidCardCommand.ENTER_PIN) },
+            onEntryActions = { published.perform(it.id, AndroidCardCommand.MENU, anchor) },
+            onMoveUp = { published.perform(it.id, AndroidCardCommand.MOVE_UP) },
+            onMoveDown = { published.perform(it.id, AndroidCardCommand.MOVE_DOWN) }
+        ))
     }
 
     fun showEntryCategory(entry: Entry) {
@@ -2301,7 +2317,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val itemCount = adapter?.getItemCount() ?: 0
         progressBar?.visibility =
             if (settings!!.isHideGlobalTimeoutEnabled() || itemCount <= 0) View.GONE else View.VISIBLE
-        emptyListView?.visibility = if (itemCount > 0) View.GONE else View.VISIBLE
+        emptyListView?.visibility = View.GONE // Empty states are part of the shared frame.
     }
 
     override fun shouldDestroyOnScreenOff(): Boolean {

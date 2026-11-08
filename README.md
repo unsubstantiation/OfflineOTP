@@ -15,13 +15,14 @@ between distributions; copying an Android app-data vault is not a substitute for
 The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui-model` module holds
 the toolkit-free frame layer — what a row shows, the shared filter transitions and the tab/sort
 wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
-tokens, the unlock screen and the `ComposeView` seam the Android app will host it through, and
+tokens, the unlock screen and the `VaultComposeView` used by Android MainActivity, and
 `:desktop-compose` runs that screen over the existing desktop engine as a preview
 (`./gradlew :desktop-compose:run`). The Swing client already paints each row from that frame model
 (`VaultCards.of`), so the desktop and the Compose screen group codes, warn about expiry and pick tags
-the same way. The Android app and the shipping Swing client keep their
-own UI until the staged cutover in the [Compose UI plan](docs/compose-unified-ui-plan.md) completes,
-so no client has lost a feature to the migration.
+the same way. Android MainActivity now renders the shared Compose cards while retaining its
+existing toolbar, tabs, tag drawer and action dialogs. Manual ordering uses up/down controls.
+Legacy renderer cleanup, display-preference parity and real Android build/device validation remain
+open in the [Compose UI plan](docs/compose-unified-ui-plan.md); the shipping desktop UI is still Swing.
 
 The Android application ID, namespace, and Kotlin/Java packages use `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app instead of being detected as its update. Updating an existing OfflineOTP installation still requires the same signing key, and it does not collide with andOTP.
 

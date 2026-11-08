@@ -109,7 +109,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_delete_action_requires_host_support_and_confirmation(self):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("val deleteEntry = actions.onDelete", widgets)
-        self.assertIn("if (deleteEntry != null)", widgets)
+        self.assertIn("if (card.detailsVisible && deleteEntry != null)", widgets)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
         self.assertIn('deleteTitle: String = "Delete account?"', wording)
@@ -360,6 +360,19 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_activity_publishes_compose_frames_instead_of_attaching_recycler(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertNotIn("EntriesCardAdapter", activity)
+        self.assertNotIn("RecyclerView", activity)
+        self.assertNotIn("touchHelperCallback", activity)
+        self.assertIn("VaultComposeView(this", activity)
+        self.assertIn("view.render(published.state, VaultActions(", activity)
+        self.assertIn("composeVaultGeneration != generation", activity)
+        self.assertIn("showControls = false", activity)
+        layout = (ROOT / "app/src/main/res/layout/activity_main.xml").read_text()
+        self.assertNotIn("androidx.recyclerview.widget.RecyclerView", layout)
+        self.assertIn("project(':ui')", (ROOT / "app/build.gradle").read_text())
+
     def test_android_frame_bridge_keeps_async_publication_and_live_identity_checks(self):
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         self.assertIn("VaultProjection(entries, presentation).snapshot(", controller)
@@ -411,7 +424,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("fun clear()", text)
         self.assertIn("host.close()", text)
         self.assertIn("if (host.render(next))", text)
-        self.assertIn("actions = host.actions", text)
+        self.assertIn("actions = renderedActions", text)
         self.assertIn("DisposeOnViewTreeLifecycleDestroyed", text)
         self.assertIn("VaultScreenHost(", text)
         for forbidden in ("SecretKey", "VaultSession", "DesktopVaultState", "PasswordVault",

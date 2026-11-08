@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android: Switch MainActivity’s list display to the shared Compose cards over AndroidVaultController. Retain the existing toolbar, tabs, tag drawer and action dialogs; manual ordering uses up/down controls rather than dragging. Legacy renderer retirement, display-preference parity and real Android build/device validation remain pending.
+
  * Android: Bridge the extracted controller to shared vault frames with generation- and identity-checked card commands. Preserve asynchronous search publication and existing Android action handlers; Activity display cutover remains pending.
 
  * Android: Extract vault/session/search/action ownership into AndroidVaultController. The Activity uses the controller for vault operations; RecyclerView remains a temporary renderer until the Compose cutover.

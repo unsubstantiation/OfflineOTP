@@ -12,7 +12,10 @@ class VaultFrameHost(actions: VaultActions) {
     var frame: VaultUiState = VaultUiState()
         private set
 
-    val actions: VaultActions = actions.guarded { published && !closed }
+    val actions: VaultActions = guard(actions)
+
+    /** Bind a new frame's callbacks without redirecting callbacks retained from older frames. */
+    fun guard(actions: VaultActions): VaultActions = actions.guarded { published && !closed }
 
     /** Returns false if the view's session has ended. */
     fun render(next: VaultUiState): Boolean {

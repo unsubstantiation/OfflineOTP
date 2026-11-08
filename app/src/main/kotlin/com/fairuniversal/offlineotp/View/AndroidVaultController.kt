@@ -110,9 +110,28 @@ class AndroidVaultController(
             }.map { it.getListId() }.toSet()
             val appearance = VaultAppearance(
                 showThumbnails = settings.getThumbnailVisible(),
-                labelDisplay = settings.getLabelDisplay()
+                labelDisplay = settings.getLabelDisplay(),
+                groupTokens = settings.getTokenSplitGroupSize() > 0,
+                expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
             )
-            val state = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
+            val projected = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
+            val state = projected.copy(cards = projected.cards.mapIndexed { index, card ->
+                val entry = shown[index]
+                if (!entry.areDetailsVisible()) card.copy(
+                    detailsVisible = false, token = null, previousToken = null, tags = emptyList(),
+                    thumbnailName = "", counter = null, remainingSeconds = null, progress = null,
+                    expiring = false, revealed = false, revealedContent = null, pinRequired = false,
+                    copyable = false
+                ) else card.copy(
+                    detailsVisible = true,
+                    detailLabel = entry.getHiddenLabel().ifEmpty {
+                        if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
+                    }.takeIf { it.isNotEmpty() },
+                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey()),
+                    canMoveUp = presentation.canDrag() && index > 0,
+                    canMoveDown = presentation.canDrag() && index < shown.lastIndex
+                )
+            })
             val targets = shown.associate { it.getListId() to EntryActionTarget(it, generation) }
             return AndroidVaultFrame(state) { id, command, anchor ->
                 val target = targets[id]
@@ -159,6 +178,11 @@ class AndroidVaultController(
                 AndroidCardCommand.MENU -> {
                     if (anchor == null) return false
                     showPopupMenu(anchor, position)
+                }
+                AndroidCardCommand.MOVE_UP, AndroidCardCommand.MOVE_DOWN -> {
+                    val to = position + if (command == AndroidCardCommand.MOVE_UP) -1 else 1
+                    if (!presentation.canDrag() || !validDisplayedPosition(to)) return false
+                    onItemMove(position, to)
                 }
                 AndroidCardCommand.SINGLE_TAP -> cardActions.onCardSingleClicked(position, "")
                 AndroidCardCommand.DOUBLE_TAP -> cardActions.onCardDoubleClicked(position, "")

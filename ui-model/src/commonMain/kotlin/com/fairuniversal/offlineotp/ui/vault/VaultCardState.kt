@@ -39,7 +39,12 @@ data class VaultCardState(
     /** mOTP entry whose PIN has not been entered yet. */
     val pinRequired: Boolean = false,
     /** Whether the host may copy [token] (HOTP needs an explicit calculation first). */
-    val copyable: Boolean = false
+    val copyable: Boolean = false,
+    val detailsVisible: Boolean = true,
+    /** Protected auxiliary label; absent on concealed rows. */
+    val detailLabel: String? = null,
+    val canMoveUp: Boolean = false,
+    val canMoveDown: Boolean = false
 ) {
     /** Brand first, falling back to the account name when the entry has no issuer. */
     val title: String get() = issuer.ifBlank { label }

@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.ui.vault
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -251,11 +252,14 @@ internal fun VaultEntryCard(
             .clip(shape)
             .background(if (card.revealed) ForestPalette.surfaceElevated else ForestPalette.surface)
             .border(1.dp, ForestPalette.divider, shape)
-            .clickable { actions.onToggleReveal(card) }
+            .combinedClickable(
+                onClick = { (actions.onCardTap ?: actions.onToggleReveal)(card) },
+                onDoubleClick = actions.onCardDoubleTap?.let { action -> { action(card) } }
+            )
             .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.Top) {
-            if (appearance.showThumbnails) {
+            if (appearance.showThumbnails && card.detailsVisible) {
                 VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title)
                 Spacer(modifier = Modifier.width(10.dp))
             }
@@ -285,6 +289,10 @@ internal fun VaultEntryCard(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+                val detailLabel = card.detailLabel
+                if (card.detailsVisible && detailLabel != null) {
+                    Text(text = detailLabel, style = ForestType.label, color = ForestPalette.textSecondary)
+                }
                 // Read once into a local: a property from another module cannot be smart-cast.
                 val revealedContent = card.revealedContent
                 if (revealedContent != null) {
@@ -298,42 +306,54 @@ internal fun VaultEntryCard(
                 }
             }
             Spacer(modifier = Modifier.width(12.dp))
-            VaultCodeArea(card = card, strings = strings)
+            if (card.detailsVisible) VaultCodeArea(card = card, strings = strings)
         }
         Spacer(modifier = Modifier.height(6.dp))
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (card.hasToken) {
+            val privacy = actions.onTogglePrivacy
+            if (privacy != null) {
                 ForestTextAction(
-                    text = strings.copyAction,
+                    text = if (card.detailsVisible) strings.privacyHide else strings.privacyReveal,
+                    onClick = { privacy(card) }
+                )
+            }
+            if (card.detailsVisible && (card.hasToken || card.copyable)) {
+                ForestTextAction(
+                    text = if (card.hasToken) strings.copyAction else strings.copyContent,
                     enabled = card.copyable,
                     onClick = { actions.onCopyToken(card) }
                 )
             }
             val enterPin = actions.onEnterPin
-            if (card.pinRequired && enterPin != null) {
+            if (card.detailsVisible && card.pinRequired && enterPin != null) {
                 ForestTextAction(text = strings.enterPin, onClick = { enterPin(card) })
             }
             val nextCounter = actions.onNextCounter
-            if (card.counter != null && nextCounter != null) {
-                ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) })
+            if (card.detailsVisible && card.counter != null && nextCounter != null) {
+                ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) },
+                    onLongClick = actions.onEditCounter?.let { action -> { action(card) } })
             }
-            if (card.hasToken || card.kind != VaultEntryKind.OTP) {
+            if (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP)) {
                 ForestTextAction(
                     text = if (card.revealed) strings.hideAction else strings.revealAction,
                     onClick = { actions.onToggleReveal(card) }
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.width(4.dp))
+            val up = actions.onMoveUp
+            val down = actions.onMoveDown
+            if (card.canMoveUp && up != null) ForestTextAction(text = strings.moveUp, onClick = { up(card) })
+            if (card.canMoveDown && down != null) ForestTextAction(text = strings.moveDown, onClick = { down(card) })
             val deleteEntry = actions.onDelete
-            if (deleteEntry != null) {
+            if (card.detailsVisible && deleteEntry != null) {
                 ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
             }
             val entryActions = actions.onEntryActions
-            if (entryActions != null) {
+            if (card.detailsVisible && entryActions != null) {
                 ForestTextAction(
                     text = strings.entryActions,
                     color = ForestPalette.textSecondary,
@@ -460,6 +480,7 @@ internal fun ForestTextAction(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
+    onLongClick: (() -> Unit)? = null,
     color: Color = ForestPalette.accent
 ) {
     Text(
@@ -469,7 +490,7 @@ internal fun ForestTextAction(
         maxLines = 1,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .clickable(enabled = enabled, onClick = onClick)
+            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 10.dp, vertical = 6.dp)
     )
 }

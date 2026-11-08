@@ -42,6 +42,7 @@ class VaultComposeView(
     // them. The initial frame is empty, so nothing is disclosed before the host renders once.
     private val host = VaultFrameHost(actions)
     private var frame by mutableStateOf(host.frame)
+    private var renderedActions by mutableStateOf(host.actions)
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -55,7 +56,7 @@ class VaultComposeView(
         VaultScreenHost(
             state = frame,
             strings = strings,
-            actions = host.actions,
+            actions = renderedActions,
             appearance = appearance
         )
     }
@@ -65,9 +66,18 @@ class VaultComposeView(
         if (host.render(next)) frame = host.frame
     }
 
+    /** Publish callbacks bound to this exact frame, not to a mutable latest-frame pointer. */
+    fun render(next: VaultUiState, actions: VaultActions) {
+        if (host.render(next)) {
+            renderedActions = host.guard(actions)
+            frame = host.frame
+        }
+    }
+
     /** End this view's session. Late frames/callbacks are ignored; create a new view on unlock. */
     fun clear() {
         host.close()
+        renderedActions = VaultActions()
         frame = host.frame
     }
 }

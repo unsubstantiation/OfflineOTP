@@ -125,6 +125,8 @@ data class VaultSortOption(
 data class VaultAppearance(
     /** Show issuer artwork; hosts without the asset pack still render a letter tile. */
     val showThumbnails: Boolean = true,
+    /** Android may retain its existing toolbar, tabs and tag drawer during migration. */
+    val showControls: Boolean = true,
     /** Long-label behaviour, from the user's settings. */
     val labelDisplay: Constants.LabelDisplay = Constants.LabelDisplay.TRUNCATE,
     /** Group a six-digit code into halves. */

@@ -38,6 +38,7 @@ fun VaultScreen(
     appearance: VaultAppearance = VaultAppearance()
 ) {
     Column(modifier = modifier.fillMaxSize().background(ForestPalette.backgroundDeep)) {
+        if (appearance.showControls) {
         VaultTopBar(
             title = strings.appTitle,
             countLabel = countLabel(state, strings),
@@ -73,6 +74,7 @@ fun VaultScreen(
                 strings = strings,
                 onSelect = actions.onSelectSort
             )
+        }
         }
         Spacer(modifier = Modifier.height(2.dp))
         if (state.isEmpty) {

@@ -195,6 +195,16 @@ APP_SOURCES=(
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultProjection.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultUiState.kt"
+    "$ROOT/ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/Countdown.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryPinDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultEntryDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultScreen.kt"
     "$KOTLIN_APP/View/AndroidVaultFrame.kt"
     "$KOTLIN_APP/View/AndroidVaultController.kt"
     "$KOTLIN_APP/View/EntryCardEvents.kt"
@@ -249,6 +259,26 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/digest/*.kt
+    "$SANDBOX/stubs-compose/android/androidx/compose/ui/platform/ComposeView.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/Foundation.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/layout/Layout.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/lazy/Lazy.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/shape/Shape.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/material3/Material3.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/runtime/Runtime.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/Alignment.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/Modifier.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/draw/Clip.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/geometry/Geometry.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/Color.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/Shape.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/drawscope/DrawScope.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/TextStyle.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/font/Font.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/input/VisualTransformation.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/text/style/TextStyle.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/unit/Unit.kt"
+    "$SANDBOX/stubs-compose/kotlinx/coroutines/Coroutines.kt"
 )
 
 # No Java source is left in the app: the last two (Utilities/Constants and Utilities/FileHelper) are

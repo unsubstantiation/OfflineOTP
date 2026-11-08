@@ -36,3 +36,10 @@ fun Canvas(modifier: Modifier, onDraw: DrawScope.() -> Unit) {
 internal val Origin: Offset = Offset.Zero
 
 internal val NoPadding: PaddingValues? = null
+
+fun Modifier.combinedClickable(
+    enabled: Boolean = true,
+    onDoubleClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit
+): Modifier = this

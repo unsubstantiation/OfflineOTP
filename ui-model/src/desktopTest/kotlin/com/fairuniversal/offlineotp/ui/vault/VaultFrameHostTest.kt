@@ -30,6 +30,38 @@ class VaultFrameHostTest {
     }
 
     @Test
+    fun perFrameGuardsKeepTheirOriginalTargetsAndAllNewActionsStopOnClose() {
+        var calls = 0
+        var first = 0
+        var second = 0
+        val host = VaultFrameHost(VaultActions())
+        host.render(frame)
+        val old = host.guard(VaultActions(onCopyToken = { first++ }))
+        val fresh = host.guard(VaultActions(onCopyToken = { second++ }))
+        old.onCopyToken(card)
+        fresh.onCopyToken(card)
+        assertEquals(1, first)
+        assertEquals(1, second)
+        val extra = host.guard(VaultActions(
+            onTogglePrivacy = { calls++ }, onCardTap = { calls++ }, onCardDoubleTap = { calls++ },
+            onEditCounter = { calls++ }, onMoveUp = { calls++ }, onMoveDown = { calls++ }
+        ))
+        fun invokeExtras() {
+            extra.onTogglePrivacy!!(card); extra.onCardTap!!(card); extra.onCardDoubleTap!!(card)
+            extra.onEditCounter!!(card); extra.onMoveUp!!(card); extra.onMoveDown!!(card)
+        }
+        invokeExtras()
+        assertEquals(6, calls)
+        host.close()
+        invokeExtras()
+        old.onCopyToken(card)
+        fresh.onCopyToken(card)
+        assertEquals(6, calls)
+        assertEquals(1, first)
+        assertEquals(1, second)
+    }
+
+    @Test
     fun callbacksRequireAPublishedFrameAndStopPermanentlyOnClose() {
         var calls = 0
         val host = VaultFrameHost(VaultActions(
