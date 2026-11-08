@@ -35,7 +35,8 @@ fun VaultScreen(
     strings: VaultStrings,
     actions: VaultActions,
     modifier: Modifier = Modifier,
-    appearance: VaultAppearance = VaultAppearance()
+    appearance: VaultAppearance = VaultAppearance(),
+    artwork: VaultArtwork? = null
 ) {
     Column(modifier = modifier.fillMaxSize().background(ForestPalette.backgroundDeep)) {
         if (appearance.showControls) {
@@ -92,7 +93,8 @@ fun VaultScreen(
                         card = card,
                         strings = strings,
                         appearance = appearance,
-                        actions = actions
+                        actions = actions,
+                        artwork = artwork
                     )
                 }
             }

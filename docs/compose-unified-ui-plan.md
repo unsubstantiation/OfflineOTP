@@ -4,8 +4,8 @@
 > cards, backed by `AndroidVaultController`. The existing toolbar, tabs, tag drawer and Android
 > dialogs remain. Manual order is exposed through Move up/Move down controls, not drag gestures.
 > The legacy adapter/holder/layout files are retained for the old regression fixtures and still
-> need retirement. Legacy card-layout sizing, artwork and other display-preference parity are not
-> complete. The desktop shipping UI remains Swing.
+> need retirement. Sizing and label preferences are wired, and both Compose hosts now load bundled
+> issuer artwork; runtime visual/accessibility parity still needs validation. The desktop shipping UI remains Swing.
 >
 > Sandbox gates type-check the actual Activity-to-Compose integration and exercise its publication
 > lifecycle with recording stubs. **No real Gradle Android build or device rendering validation has
@@ -483,3 +483,25 @@ no longer clipped to three lines. Artwork still uses the letter tile pending iss
 Headless tests pin layout policy and the app sandbox checks stored preferences and density
 conversion. Actual marquee motion, font scaling, touch targets and layout need device validation.
 Legacy renderer removal and real Gradle/device gates remain outstanding.
+
+### Bundled issuer artwork in Compose
+
+`VaultArtwork` is a host-provided lookup in `:ui`, not `:ui-model`: frame values still contain
+only the persisted thumbnail name, never a bitmap or platform resource. The common card requests
+artwork only when thumbnails and entry details are visible. Images are aspect-fitted without
+cropping/tinting; missing providers, default/unknown selections and null loads use the letter tile.
+Decorative images have no separate accessibility description because identity text is adjacent.
+
+Android wires `AndroidIssuerArtwork` through `VaultComposeView`. It uses the existing resource
+loader/thumbnail enumeration (including that loader's app-icon fallback on resource failure),
+with a 64-entry LRU cache of named assets and failed lookups. It caches no account labels and
+never recycles evicted bitmaps that a composed row might still reference. The view owns the cache
+lifetime. Compose Desktop uses the same `IssuerIcons` vector rasterizer/cache as Swing. Shared
+`remember` keys include provider and thumbnail name, so ticks do not reload a row's image and
+changing the selected thumbnail invalidates its remembered lookup.
+
+The app sandbox exercises cache hits, eviction, unknown/default handling and failed-load caching.
+Source guards cover privacy gating and platform wiring. A new Android device test checks visible,
+distinct bundled brand pixels and cache reuse; it is type-checked but not executed here. Existing
+desktop artwork rasterization tests remain green. Actual Compose image layout/device validation
+and legacy renderer retirement remain pending.

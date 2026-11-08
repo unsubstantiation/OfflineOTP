@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose: Render bundled issuer artwork on Android and desktop, reusing their existing loaders. Keep letter-tile fallback and privacy gating, fit images without cropping, and cache Android assets with a bounded LRU rather than reloading every tick.
+
  * Android Compose: Apply label/thumbnail sizes, ten-line multiline labels and marquee scrolling. Full stacks the code below identity; Compact reduces padding. Use one appearance mapping for frames and views, and show complete secure notes. Real layout/device validation remains pending.
 
  * Android Compose: Honor token group size, Hide issuer, previous-code and individual-countdown preferences. Reuse the existing right-aligned grouping rule from shared core; keep custom-step countdowns and masked-token behavior.

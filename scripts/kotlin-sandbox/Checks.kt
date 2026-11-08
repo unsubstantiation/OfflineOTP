@@ -6180,6 +6180,35 @@ fun main() {
         }
     }
 
+    check("Compose issuer artwork caches bounded named assets without recycling live images") {
+        val fixture = SettingsFixture()
+        val reads = ArrayList<String>()
+        val cache = com.fairuniversal.offlineotp.View.AndroidIssuerArtwork(fixture.context, capacity = 2) { asset ->
+            reads.add(asset.name)
+            android.graphics.Bitmap.createBitmap(2, 2, android.graphics.Bitmap.Config.ARGB_8888)
+        }
+        expect(cache.load("Default") == null && cache.load("../unknown") == null && reads.isEmpty(),
+            { "default/unknown artwork should stay a shared letter tile" })
+        val github = cache.load("GitHub")!!
+        cache.load("Google")
+        expect(cache.load("GitHub") === github, { "a token tick reloaded the same artwork" })
+        cache.load("Amazon") // Google is least recently used.
+        expect(cache.load("GitHub") === github, { "recent artwork was evicted" })
+        cache.load("Google")
+        expect(reads == listOf("GitHub", "Google", "Amazon", "Google"), { "cache did not honor its bound/LRU order" })
+        expect(!github.isRecycled(), { "eviction invalidated a bitmap that a row may still use" })
+        var failures = 0
+        val broken = com.fairuniversal.offlineotp.View.AndroidIssuerArtwork(fixture.context) {
+            failures++
+            throw IllegalStateException("asset load failed")
+        }
+        expect(broken.load("GitHub") == null && broken.load("GitHub") == null && failures == 1,
+            { "failed artwork was not cached as a fallback" })
+        expectThrows(IllegalArgumentException::class.java) {
+            com.fairuniversal.offlineotp.View.AndroidIssuerArtwork(fixture.context, capacity = 0)
+        }
+    }
+
     check("MainActivity publishes Compose views and replaces them across session generations") {
         val fixture = SettingsFixture()
         val container = FrameLayout(fixture.context)

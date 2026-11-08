@@ -205,6 +205,8 @@ APP_SOURCES=(
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultEntryDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultScreen.kt"
+    "$KOTLIN_APP/View/AndroidIssuerArtwork.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultArtwork.kt"
     "$KOTLIN_APP/View/AndroidVaultFrame.kt"
     "$KOTLIN_APP/View/AndroidVaultController.kt"
     "$KOTLIN_APP/View/EntryCardEvents.kt"
@@ -279,6 +281,10 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX/stubs-compose/androidx/compose/ui/text/style/TextStyle.kt"
     "$SANDBOX/stubs-compose/androidx/compose/ui/unit/Unit.kt"
     "$SANDBOX/stubs-compose/kotlinx/coroutines/Coroutines.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/graphics/ImageBitmap.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/ui/layout/ContentScale.kt"
+    "$SANDBOX/stubs-compose/androidx/compose/foundation/Image.kt"
+    "$SANDBOX/stubs-compose/android/androidx/compose/ui/graphics/ImageBitmap.kt"
 )
 
 # No Java source is left in the app: the last two (Utilities/Constants and Utilities/FileHelper) are

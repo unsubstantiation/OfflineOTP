@@ -360,6 +360,23 @@ class ComposeUiWiringTest(unittest.TestCase):
         for marker in ("Canvas(", "Column(", "Row(", "VaultEntryCard(", "material3."):
             self.assertNotIn(marker, text)
 
+    def test_compose_artwork_uses_host_loaders_and_preserves_privacy(self):
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("appearance.showThumbnails && card.detailsVisible", widgets)
+        self.assertIn("remember(artwork, card.thumbnailName)", widgets)
+        self.assertIn("contentScale = ContentScale.Fit", widgets)
+        self.assertIn("contentDescription = null", widgets)
+        self.assertIn("if (image == null)", widgets)
+        self.assertIn("VaultLetterTile(", widgets)
+        seam = (UI_ANDROID / "vault/VaultComposeView.kt").read_text()
+        self.assertIn("loader(name)?.asImageBitmap()", seam)
+        desktop = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("IssuerIcons.artwork(name)?.toComposeImageBitmap()", desktop)
+        android = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("AndroidIssuerArtwork(this)::load", android)
+        for path in kotlin_files(MODEL_MAIN):
+            self.assertNotIn("ImageBitmap", path.read_text(), "images must not enter the toolkit-free frame layer")
+
     def test_android_layout_preferences_reach_the_shared_renderer(self):
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         for call in ("settings.getLabelSize()", "settings.getThumbnailSize() / density", "settings.getCardLayout()"):

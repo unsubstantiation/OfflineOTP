@@ -1,6 +1,8 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import android.content.Context
+import android.graphics.Bitmap
+import androidx.compose.ui.graphics.asImageBitmap
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -35,8 +37,13 @@ class VaultComposeView(
     context: Context,
     private val strings: VaultStrings,
     actions: VaultActions,
-    private val appearance: VaultAppearance = VaultAppearance()
+    private val appearance: VaultAppearance = VaultAppearance(),
+    artworkLoader: ((String) -> Bitmap?)? = null
 ) : AbstractComposeView(context) {
+
+    private val artwork: VaultArtwork? = artworkLoader?.let { loader ->
+        VaultArtwork { name -> loader(name)?.asImageBitmap() }
+    }
 
     // A Compose snapshot state owned by the view: platform code writes frames, the composition reads
     // them. The initial frame is empty, so nothing is disclosed before the host renders once.
@@ -57,7 +64,8 @@ class VaultComposeView(
             state = frame,
             strings = strings,
             actions = renderedActions,
-            appearance = appearance
+            appearance = appearance,
+            artwork = artwork
         )
     }
 
@@ -91,14 +99,16 @@ fun VaultScreenHost(
     state: VaultUiState,
     strings: VaultStrings,
     actions: VaultActions,
-    appearance: VaultAppearance = VaultAppearance()
+    appearance: VaultAppearance = VaultAppearance(),
+    artwork: VaultArtwork? = null
 ) {
     ForestTheme {
         VaultScreen(
             state = state,
             strings = strings,
             actions = actions,
-            appearance = appearance
+            appearance = appearance,
+            artwork = artwork
         )
     }
 }

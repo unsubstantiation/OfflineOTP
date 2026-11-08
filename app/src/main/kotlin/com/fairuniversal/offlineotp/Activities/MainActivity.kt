@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.Activities
 
 import android.widget.FrameLayout
 import android.view.ViewGroup
+import com.fairuniversal.offlineotp.View.AndroidIssuerArtwork
 import com.fairuniversal.offlineotp.View.AndroidCardCommand
 import com.fairuniversal.offlineotp.ui.vault.VaultComposeView
 import com.fairuniversal.offlineotp.ui.vault.VaultActions
@@ -1333,7 +1334,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (view == null || composeVaultGeneration != generation || composeVaultAppearance != appearance) {
             view?.clear()
             container.removeAllViews()
-            view = VaultComposeView(this, strings, VaultActions(), appearance)
+            view = VaultComposeView(this, strings, VaultActions(), appearance, AndroidIssuerArtwork(this)::load)
             composeVaultView = view
             composeVaultGeneration = generation
             composeVaultAppearance = appearance

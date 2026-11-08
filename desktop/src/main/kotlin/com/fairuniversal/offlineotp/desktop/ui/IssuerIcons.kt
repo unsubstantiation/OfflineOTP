@@ -17,7 +17,7 @@ import java.io.InputStream
  * up as input lag. Only the event dispatch thread renders cards, but the cache is synchronized so
  * tests and future background warm-up cannot corrupt it.
  */
-internal object IssuerIcons {
+object IssuerIcons {
     /** Pixels per cached mark; cards request smaller sizes and downscale smoothly. */
     const val SIZE = 96
 

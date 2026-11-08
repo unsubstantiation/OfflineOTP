@@ -6,6 +6,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import com.fairuniversal.offlineotp.desktop.ui.IssuerIcons
+import com.fairuniversal.offlineotp.ui.vault.VaultArtwork
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
@@ -148,13 +151,17 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
     val now = rememberNowMillis(clock)
+    val artwork = remember(vault) {
+        VaultArtwork { name -> IssuerIcons.artwork(name)?.toComposeImageBitmap() }
+    }
     val state = remember(now, revision, presenter) { presenter.frame(now) }
 
     VaultScreen(
         state = state,
         strings = strings,
         actions = presenter.actions(),
-        appearance = presenter.appearance
+        appearance = presenter.appearance,
+        artwork = artwork
     )
     val request = dialogs.pending
     if (request != null) {

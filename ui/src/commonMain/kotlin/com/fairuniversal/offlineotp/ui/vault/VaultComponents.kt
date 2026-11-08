@@ -2,6 +2,9 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.Image
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -247,7 +250,8 @@ internal fun VaultEntryCard(
     card: VaultCardState,
     strings: VaultStrings,
     appearance: VaultAppearance,
-    actions: VaultActions
+    actions: VaultActions,
+    artwork: VaultArtwork? = null
 ) {
     val shape = RoundedCornerShape(14.dp)
     Column(
@@ -264,7 +268,7 @@ internal fun VaultEntryCard(
     ) {
         Row(verticalAlignment = Alignment.Top) {
             if (appearance.showThumbnails && card.detailsVisible) {
-                VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title, sizeDp = appearance.thumbnailSizeDp)
+                VaultIssuerArtwork(card, appearance.thumbnailSizeDp, artwork)
                 Spacer(modifier = Modifier.width(10.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -465,6 +469,24 @@ internal fun CountdownRing(progress: Float, expiring: Boolean, diameter: Dp) {
             topLeft = Offset(inset, inset),
             size = arcSize,
             style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+        )
+    }
+}
+
+/** Called only for visible rows with thumbnails enabled; image loading is memoized across ticks. */
+@Composable
+private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
+    val image = remember(artwork, card.thumbnailName) {
+        try { artwork?.load(card.thumbnailName) } catch (_: Exception) { null }
+    }
+    if (image == null) {
+        VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title, sizeDp = sizeDp)
+    } else {
+        Image(
+            bitmap = image,
+            contentDescription = null, // Decorative: the adjacent identity text is already announced.
+            modifier = Modifier.size(sizeDp.coerceAtLeast(0f).dp),
+            contentScale = ContentScale.Fit
         )
     }
 }
