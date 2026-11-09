@@ -46,6 +46,11 @@ fun VaultScreen(
             lockLabel = strings.lockAction,
             onLock = actions.onLock
         )
+        actions.onImportEmail?.let { import ->
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                ForestTextAction(text = strings.importEmail, onClick = import)
+            }
+        }
         actions.onImportPasswords?.let { import ->
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 ForestTextAction(text = strings.importPasswords, onClick = import)

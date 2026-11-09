@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Import FairEmail JSON, gzip and encrypted backups with masked password input, bounded worker decoding and explicit merge confirmation. Share cancellable file-import ownership with browser-password import.
+
  * Compose desktop: Import browser password files as individual credentials or preserved archives using bounded worker parsing, explicit confirmation and session-owned cleanup. The source plaintext file remains unchanged; final persistence is synchronous.
 
  * Compose desktop: Edit imported password URL, username and password with blank-preserves semantics, retained extra columns and live-session/reveal checks. Unsupported or conflicting column layouts remain excluded.

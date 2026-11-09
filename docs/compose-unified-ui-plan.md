@@ -874,3 +874,27 @@ explicit confirmation, queued/ready cancellation, expired delivery, cancellation
 rejected dispatch, malformed CSV and failed persistence. Actual Compose/native-picker validation
 remains pending. Plaintext export of credentials/archives, foreign structured imports and email
 workflows remain incomplete; Swing remains shipping.
+
+### Desktop replacement: FairEmail backup import
+
+Compose now imports FairEmail plaintext JSON, gzip agent backups and encrypted exports through
+a native picker and a shared confirmation dialog. Blank password supports unencrypted input;
+nonblank passwords stay masked and are cleared before worker submission. The existing EmailAccounts
+parser and 8 MiB file limit remain authoritative. No credentials are rendered in the confirmation,
+only an account count. Confirmation merges through EntryEditor into current state, skipping
+identical entries, saving before publication and retaining existing accounts. Source files remain
+unchanged. Email creation/editing/details/export remain separate migration work.
+
+DesktopFileImport now owns the common browser-password/FairEmail lifecycle: queued inputs are
+released on cancel, worker results have explicit ownership, queued/ready results are destroyed
+on dismissal or close, and stale/expired delivery cannot install entries. Each format supplies
+its bounded decoder; both use the same UI-thread commit path. Password/JSON strings cannot be
+zeroized while in use. Final persistence is still synchronous and dispatch rejection may leave a
+busy indicator until dismissal.
+
+Tests cover plaintext, gzip and encrypted v0/v1 through vault reopen, incoming/SMTP credential
+preservation, unchanged source bytes, wrong-password retry, stale requests and cancellation
+before/after worker execution. Browser-password lifecycle regression tests remain green after
+extraction. Sandbox UI checks are not real Compose/native-picker validation. Swing still ships;
+remaining structured export, OpenPGP/hardware, preferences, async persistence and runtime/cutover
+work is not complete.

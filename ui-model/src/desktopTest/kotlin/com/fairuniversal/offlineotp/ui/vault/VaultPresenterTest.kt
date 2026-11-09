@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun emailImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportEmail)
+        var calls = 0
+        val actions = presenter.actions(importEmail = { calls++ })
+        actions.onImportEmail?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportEmail?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
     fun passwordImportIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())

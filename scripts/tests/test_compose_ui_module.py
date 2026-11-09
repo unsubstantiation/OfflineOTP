@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_email_import_uses_worker_confirmation_and_clears_password_draft(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEmailImport(vault, exportWorker", host)
+        self.assertIn("emailImporter.confirm(emailRequest, lifetime::checkActive)", host)
+        self.assertIn("emailImporter.close()", host)
+        form = (UI_MAIN / "vault/EmailImportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; onRead(submitted)', form)
+
     def test_password_import_uses_worker_confirmation_and_terminal_cleanup(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopPasswordImport(vault, exportWorker", host)
