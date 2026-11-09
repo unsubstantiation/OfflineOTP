@@ -3,6 +3,8 @@ package com.fairuniversal.offlineotp.desktop.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
+import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordImport
+import com.fairuniversal.offlineotp.ui.vault.PasswordImportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopUriImport
 import com.fairuniversal.offlineotp.ui.vault.UriImportDialog
 import com.fairuniversal.offlineotp.desktop.control.BackupCoordinator
@@ -175,6 +177,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val restorer = remember(vault) { DesktopEncryptedRestore(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, BackupCoordinator(controller, vault)::restoreEntries) }
+    val passwordImporter = remember(vault) { DesktopPasswordImport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
     val uriImporter = remember(vault) { DesktopUriImport(vault, BackupCoordinator(controller, vault)) }
     val imageReader = remember(vault) { DesktopQrImageRead(exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
@@ -206,6 +210,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                passwordImporter.close()
                 imageReader.close()
                 uriImporter.close()
                 restorer.close()
@@ -240,7 +245,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
+            passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -300,7 +305,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (lifetime.checkActive()) autoLock.open()
             revision++
         }, exportEncrypted = {
-            if (!vault.isLocked && exporter.pending == null && restorer.pending == null && uriImporter.pending == null && lifetime.checkActive()) {
+            if (!vault.isLocked && exporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
@@ -315,7 +320,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, restoreEncrypted = {
-            if (restorer.pending == null && exporter.pending == null && uriImporter.pending == null && lifetime.checkActive()) {
+            if (restorer.pending == null && exporter.pending == null && uriImporter.pending == null && passwordImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
@@ -329,7 +334,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, importUri = {
-            if (restorer.pending == null && exporter.pending == null && lifetime.checkActive()) {
+            if (restorer.pending == null && exporter.pending == null && passwordImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
@@ -338,10 +343,34 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 uriImporter.open(); revision++
             }
+        }, importPasswords = {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                try {
+                    val file = DesktopSavePicker.openPasswordFile(window)
+                    if (file != null && lifetime.checkActive() && !vault.isLocked) passwordImporter.open(file)
+                } catch (_: Exception) { copyNotice = "The password file could not be selected." }
+                revision++
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val passwordRequest = passwordImporter.pending
+    if (passwordRequest != null) PasswordImportDialog(inputKey = passwordRequest, busy = passwordRequest.busy,
+        count = passwordRequest.count, failed = passwordRequest.failed,
+        onRead = { mode -> passwordImporter.submit(passwordRequest, mode, lifetime::checkActive) },
+        onConfirm = {
+            if (passwordImporter.confirm(passwordRequest, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+        }, onDismiss = { passwordImporter.dismiss(passwordRequest) })
+    passwordImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "Password import",
+        message = "Imported $count items. Identical entries were skipped. Protect or remove the original plaintext file separately.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { passwordImporter.dismissNotice() }, onDismiss = { passwordImporter.dismissNotice() }) }
     val importRequest = uriImporter.pending
     if (importRequest != null) UriImportDialog(inputKey = importRequest, message = importRequest.message,
         collecting = importRequest.collecting,

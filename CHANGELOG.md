@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Import browser password files as individual credentials or preserved archives using bounded worker parsing, explicit confirmation and session-owned cleanup. The source plaintext file remains unchanged; final persistence is synchronous.
+
  * Compose desktop: Edit imported password URL, username and password with blank-preserves semantics, retained extra columns and live-session/reveal checks. Unsupported or conflicting column layouts remain excluded.
 
  * Compose desktop: Read QR image files through a native picker with bounded worker decoding and explicit import confirmation. Discard canceled/locked results and keep decoded payloads hidden; camera capture remains pending.

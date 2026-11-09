@@ -852,3 +852,25 @@ reveal/lock/stale guards and excluded alias layouts. Form drafts are non-saveabl
 redacted. Immutable strings cannot be zeroized. This does not add password file import/export or
 complete structured credential migration; real Compose runtime/accessibility validation and
 asynchronous persistence remain pending. Swing remains shipping.
+
+### Desktop replacement: browser password file import
+
+Compose now offers a native password-file picker and two import modes: individual credentials
+(default) or preservation of the original bytes as a password-archive entry. The dialog warns
+that the source contains plaintext and is neither deleted nor protected by import. It reports
+only a prepared item count, never file contents or credentials, and requires explicit confirmation
+before merging into the vault. The original file is not modified.
+
+Worker reads use the shared 4 MiB limit and PasswordImport parser/expansion bounds. Input bytes
+are wiped after parsing. Prepared entries are owned by a cancellable task while delivery is queued,
+then by the dialog request; cancellation, lock/disposal, stale delivery or rejected dispatch
+destroys unadopted entries. Confirmation checks lifetime and transfers ownership to EntryEditor,
+which deduplicates against current state, saves before publication and destroys failed/duplicate
+candidates. Final save remains synchronous on the UI thread. Immutable parser strings cannot
+be zeroized; rejected dispatch can leave the busy indicator until dismissal.
+
+Tests cover both modes through persistence/reopen, source-file preservation, duplicate handling,
+explicit confirmation, queued/ready cancellation, expired delivery, cancellation during decode,
+rejected dispatch, malformed CSV and failed persistence. Actual Compose/native-picker validation
+remains pending. Plaintext export of credentials/archives, foreign structured imports and email
+workflows remain incomplete; Swing remains shipping.

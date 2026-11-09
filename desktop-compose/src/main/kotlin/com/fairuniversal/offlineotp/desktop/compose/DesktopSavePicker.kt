@@ -9,6 +9,16 @@ import java.util.Date
 
 /** Native platform picker, not a Swing widget. The encrypted writer refuses existing files. */
 internal object DesktopSavePicker {
+    fun openPasswordFile(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Open browser password export", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
     fun openQrImage(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Open QR image", FileDialog.LOAD)

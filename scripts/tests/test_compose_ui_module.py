@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_password_import_uses_worker_confirmation_and_terminal_cleanup(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPasswordImport(vault, exportWorker", host)
+        self.assertIn("passwordImporter.confirm(passwordRequest, lifetime::checkActive)", host)
+        self.assertIn("passwordImporter.close()", host)
+        form = (UI_MAIN / "vault/PasswordImportDialog.kt").read_text()
+        self.assertIn("PasswordImport.Mode.INDIVIDUAL", form)
+        self.assertIn("PasswordImport.Mode.ARCHIVE", form)
+        self.assertIn("does not delete or protect the source file", form)
+        self.assertIn("No current entries will be replaced", form)
+
     def test_password_edit_clears_drafts_and_checks_live_reveal(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId))", host)

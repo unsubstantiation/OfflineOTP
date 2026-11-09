@@ -102,7 +102,9 @@ class VaultPresenter(
                 configureAutoLock: (() -> Unit)? = null,
                 exportEncrypted: (() -> Unit)? = null,
                 restoreEncrypted: (() -> Unit)? = null,
-                importUri: (() -> Unit)? = null): VaultActions = VaultActions(
+                importUri: (() -> Unit)? = null,
+                importPasswords: (() -> Unit)? = null): VaultActions = VaultActions(
+        onImportPasswords = importPasswords,
         onImportUri = importUri,
         onRestoreEncrypted = restoreEncrypted,
         onExportEncrypted = exportEncrypted,
