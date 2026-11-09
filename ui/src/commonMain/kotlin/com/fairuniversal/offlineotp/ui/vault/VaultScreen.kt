@@ -46,6 +46,11 @@ fun VaultScreen(
             lockLabel = strings.lockAction,
             onLock = actions.onLock
         )
+        actions.onRestoreEncrypted?.let { restore ->
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                ForestTextAction(text = strings.restoreEncrypted, onClick = restore)
+            }
+        }
         actions.onExportEncrypted?.let { export ->
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 ForestTextAction(text = strings.exportEncrypted, onClick = export)

@@ -100,7 +100,9 @@ class VaultPresenter(
     fun actions(copyEntry: ((VaultCardState) -> Unit)? = null,
                 moveEntry: ((VaultCardState, Int) -> Unit)? = null,
                 configureAutoLock: (() -> Unit)? = null,
-                exportEncrypted: (() -> Unit)? = null): VaultActions = VaultActions(
+                exportEncrypted: (() -> Unit)? = null,
+                restoreEncrypted: (() -> Unit)? = null): VaultActions = VaultActions(
+        onRestoreEncrypted = restoreEncrypted,
         onExportEncrypted = exportEncrypted,
         onConfigureAutoLock = configureAutoLock,
         onMoveUp = moveEntry?.let { move -> { card -> move(card, -1) } },

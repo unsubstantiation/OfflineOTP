@@ -2,6 +2,9 @@ package com.fairuniversal.offlineotp.desktop.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.fairuniversal.offlineotp.desktop.control.BackupCoordinator
+import com.fairuniversal.offlineotp.desktop.control.DesktopEncryptedRestore
+import com.fairuniversal.offlineotp.ui.vault.EncryptedRestoreDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEncryptedExport
 import com.fairuniversal.offlineotp.ui.vault.EncryptedExportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopAutoLockSettings
@@ -64,7 +67,7 @@ import java.awt.event.AWTEventListener
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, backup restore/OpenPGP, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, OpenPGP backup/restore, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -166,6 +169,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val exporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val restorer = remember(vault) { DesktopEncryptedRestore(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, BackupCoordinator(controller, vault)::restoreEntries) }
     val scheduler = remember(vault) { AwtScheduler() }
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
@@ -194,6 +199,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                restorer.close()
                 exporter.close()
                 autoLock.close()
                 copier.close()
@@ -225,6 +231,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
+            restorer.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -284,7 +291,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (lifetime.checkActive()) autoLock.open()
             revision++
         }, exportEncrypted = {
-            if (!vault.isLocked && exporter.pending == null && lifetime.checkActive()) {
+            if (!vault.isLocked && exporter.pending == null && restorer.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
@@ -298,10 +305,36 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
                 revision++
             }
+        }, restoreEncrypted = {
+            if (restorer.pending == null && exporter.pending == null && lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                try {
+                    val source = DesktopSavePicker.openEncryptedBackup(window)
+                    if (source != null && lifetime.checkActive() && !vault.isLocked) restorer.open(source)
+                } catch (_: Exception) { copyNotice = "The backup source could not be selected." }
+                revision++
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val restoreRequest = restorer.pending
+    if (restoreRequest != null) EncryptedRestoreDialog(inputKey = restoreRequest,
+        busy = restoreRequest.busy, count = restoreRequest.count, failed = restoreRequest.failed,
+        onDecode = { password -> restorer.submit(restoreRequest, password, lifetime::checkActive) },
+        onConfirm = { replace ->
+            if (restorer.confirm(restoreRequest, replace, lifetime::checkActive)) {
+                presenter.applyFilter(presenter.filter)
+            }
+        }, onDismiss = { restorer.dismiss(restoreRequest) })
+    restorer.restoredCount?.let { count -> EntryConfirmationDialog(title = "Restore complete",
+        message = "$count entries restored or added. Existing accounts are kept unchanged when merging.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { restorer.dismissNotice() }, onDismiss = { restorer.dismissNotice() }) }
     val exportRequest = exporter.pending
     if (exportRequest != null) EncryptedExportDialog(inputKey = exportRequest, busy = exportRequest.busy,
         error = when (exportRequest.failure) {

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Restore password-encrypted backups with worker decoding and a separate merge/replace confirmation. Default to merge, discard canceled results, and save before changing live entries. Final persistence remains synchronous; native UI validation is pending.
+
  * Compose desktop: Export full password-encrypted backups through a native save picker and shared confirmation form. Encrypt a detached snapshot on a worker, refuse existing destinations, and cancel pending work on lock without adopting stale results. Restore and runtime validation remain pending.
 
  * Compose desktop: Add session-bound auto-lock settings with immediate live updates after successful persistence. Reject stale/expired requests and roll back the desktop settings cache after failed writes.

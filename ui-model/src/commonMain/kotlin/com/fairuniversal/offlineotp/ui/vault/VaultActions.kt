@@ -47,13 +47,15 @@ class VaultActions(
     val onAddEntry: (() -> Unit)? = null,
     val onEditEntry: ((VaultCardState) -> Unit)? = null,
     val onConfigureAutoLock: (() -> Unit)? = null,
-    val onExportEncrypted: (() -> Unit)? = null
+    val onExportEncrypted: (() -> Unit)? = null,
+    val onRestoreEncrypted: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onRestoreEncrypted = onRestoreEncrypted?.let { action -> { if (isActive()) action() } },
         onExportEncrypted = onExportEncrypted?.let { action -> { if (isActive()) action() } },
         onConfigureAutoLock = onConfigureAutoLock?.let { action -> { if (isActive()) action() } },
         onEditEntry = onEditEntry?.let { action -> { if (isActive()) action(it) } },

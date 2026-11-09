@@ -750,3 +750,30 @@ permissions, password validation, duplicate/stale requests, cancellation before 
 encryption, independent lock, late delivery and failure cleanup. Native picker focus, Compose
 password/progress behavior and real Gradle/display validation remain pending. Restore/merge/replace
 UI and OpenPGP export are not part of this increment; the shipping launcher is still Swing.
+
+### Desktop replacement: password-encrypted restore
+
+Compose now offers a native AWT open picker and a masked password dialog followed by a separate
+confirmation step showing the decoded entry count. Merge is the default; replace is explicitly
+labeled as deleting all current entries. Picker return, decoding delivery and final confirmation
+check the current session/lifetime. Password drafts are cleared before worker submission. The
+worker uses bounded file reads and shared backup/JSON decoding; empty or duplicate-account
+backups are rejected. No worker accesses the live key or mutable live entries.
+
+Decoded entries remain owned by a cancellable task while UI delivery is queued, then by the
+request until confirmation. Cancel/close destroys pending entries immediately; late or rejected
+delivery destroys its unadopted result. The existing coordinator now accepts this ownership
+transfer and consumes entries on both success and failure. Merge plans against the current vault
+at confirmation, retaining existing accounts and their metadata. Persistence succeeds before live
+state is replaced; failed persistence preserves current entries. The final save remains synchronous
+on the UI thread, serialized with other mutations; asynchronous transactional persistence is still
+pending. A save crossing the inactivity deadline is not interruptible; the timer handles expiry
+when the event thread resumes. Immutable decoded JSON/password strings cannot be zeroized.
+
+Tests cover real encrypted backup decoding, confirmation, merge/replace and reopening, concurrent
+pre-confirmation additions, cancellation before work/during decoding/while delivery is queued,
+expired delivery, rejected dispatch, wrong passwords, malformed/empty/duplicate backups, and
+failed persistence. Shared action guards and both platform UI seams pass sandbox type checks.
+Real native picker, Compose rendering/accessibility and device validation remain outstanding;
+Swing remains the shipping UI. OpenPGP, QR, structured credentials and remaining preferences
+continue to be migration work.

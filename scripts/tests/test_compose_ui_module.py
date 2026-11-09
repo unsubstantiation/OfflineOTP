@@ -480,6 +480,19 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_encrypted_restore_requires_confirmation_and_lifetime_checks(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEncryptedRestore(vault, exportWorker", host)
+        self.assertIn("source != null && lifetime.checkActive() && !vault.isLocked", host)
+        self.assertIn("restorer.confirm(restoreRequest, replace, lifetime::checkActive)", host)
+        self.assertIn("restorer.close()", host)
+        form = (UI_MAIN / "vault/EncryptedRestoreDialog.kt").read_text()
+        self.assertIn("mutableStateOf(false)", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn("Replace all entries", form)
+        self.assertIn('password = ""; onDecode(text)', form)
+
     def test_encrypted_export_uses_a_worker_and_rechecks_after_native_picker(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopEncryptedExport(vault, exportWorker", host)
