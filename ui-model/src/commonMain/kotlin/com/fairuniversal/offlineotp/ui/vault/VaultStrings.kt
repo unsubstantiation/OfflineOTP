@@ -15,6 +15,7 @@ data class VaultStrings(
     val appTitle: String = "OfflineOTP",
     val addEntry: String = "Add entry",
     val autoLock: String = "Auto-lock",
+    val importUri: String = "Import OTP URI",
     val restoreEncrypted: String = "Restore encrypted backup",
     val exportEncrypted: String = "Export encrypted backup",
     val editEntry: String = "Edit",

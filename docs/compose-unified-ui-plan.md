@@ -793,3 +793,25 @@ input, reset of retry intent, persistence/reopen, failed writes, and reveal/stal
 No new secret is preloaded into the form. These changes use the existing replacement persistence
 path; native Compose visual/accessibility validation is still pending. This closes the optional
 PIN/password/protected-label clearing limitation, not structured-credential migration.
+
+### Desktop replacement: pasted OTP URI import
+
+The Compose toolbar now opens a shared masked URI form for `otpauth://` and
+`otpauth-migration://` payloads. It uses the existing coordinator/parser/collector and persistence
+path, not a second URI implementation. Draft text is bounded and cleared before submission or
+dismissal, never saveable, and parser messages/URIs are not echoed into result text. JVM immutable
+strings still cannot be zeroized. Parsing and saving remain synchronous on the UI thread.
+
+Additional accounts for existing issuers are excluded by default; an explicit option allows
+them while exact duplicates remain skipped. That policy is fixed when a migration batch starts.
+The dialog reports received/expected parts; only a completed batch can save. Duplicate parts,
+other exports and non-migration payloads cannot silently join the active batch. Cancel, lock and
+disposal discard buffered seeds; stale request identity and lifetime checks prevent delayed
+submissions. Results report the actual count added (which can be zero after duplicate/policy
+filtering). Failed persistence rolls back appended entries through the existing coordinator.
+
+Tests cover persisted single imports, duplicate policy, invalid and oversized inputs, stale/expired/
+locked requests, multi-part buffering, cancellation and frozen policy, and failed-write rollback.
+Shared UI/action guards and platform seams pass sandbox gates, not real rendering/accessibility
+validation. Native QR image decoding/camera capture and structured-credential imports remain
+separate work. Swing remains the shipping launcher.

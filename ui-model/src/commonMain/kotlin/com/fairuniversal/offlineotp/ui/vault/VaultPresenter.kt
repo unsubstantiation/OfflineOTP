@@ -101,7 +101,9 @@ class VaultPresenter(
                 moveEntry: ((VaultCardState, Int) -> Unit)? = null,
                 configureAutoLock: (() -> Unit)? = null,
                 exportEncrypted: (() -> Unit)? = null,
-                restoreEncrypted: (() -> Unit)? = null): VaultActions = VaultActions(
+                restoreEncrypted: (() -> Unit)? = null,
+                importUri: (() -> Unit)? = null): VaultActions = VaultActions(
+        onImportUri = importUri,
         onRestoreEncrypted = restoreEncrypted,
         onExportEncrypted = exportEncrypted,
         onConfigureAutoLock = configureAutoLock,

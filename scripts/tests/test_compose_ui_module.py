@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_uri_import_bounds_masks_and_clears_seed_payloads(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)", host)
+        self.assertIn("uriImporter.close()", host)
+        form = (UI_MAIN / "vault/UriImportDialog.kt").read_text()
+        self.assertIn("InputPolicy.MAX_URI_CHARS", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('val submitted = uri; uri = ""; onSubmit', form)
+        self.assertIn("enabled = !collecting", form)
+
     def test_optional_secret_removal_is_explicit_edit_only_and_undoable(self):
         form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
         self.assertIn("Removal choices apply only when you Save", form)
