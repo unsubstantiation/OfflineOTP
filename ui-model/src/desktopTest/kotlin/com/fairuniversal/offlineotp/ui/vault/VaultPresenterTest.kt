@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun encryptedExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportEncrypted)
+        var exports = 0
+        val actions = presenter.actions(exportEncrypted = { exports++ })
+        actions.onExportEncrypted?.invoke()
+        assertEquals(1, exports)
+        presenter.lock()
+        actions.onExportEncrypted?.invoke()
+        assertEquals(1, exports)
+    }
+
+    @Test
     fun autoLockSettingsActionIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())

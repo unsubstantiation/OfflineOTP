@@ -480,6 +480,21 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_encrypted_export_uses_a_worker_and_rechecks_after_native_picker(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEncryptedExport(vault, exportWorker", host)
+        self.assertIn("target != null && lifetime.checkActive() && !vault.isLocked", host)
+        self.assertIn("exporter.close()", host)
+        self.assertIn("exportWorker.shutdown()", host)
+        picker = (COMPOSE_HOST / "DesktopSavePicker.kt").read_text()
+        self.assertIn("FileDialog.SAVE", picker)
+        self.assertNotIn("javax.swing", picker)
+        form = (UI_MAIN / "vault/EncryptedExportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; confirmation = ""', form)
+        self.assertIn("password == confirmation", form)
+
     def test_auto_lock_settings_are_guarded_and_do_not_recreate_the_session(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("controller::trySaveInactivityLockSeconds", host)
@@ -566,7 +581,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DisposableEffect(presenter)", host)
         self.assertIn("presenter.lock()", host)
         self.assertIn("toolkit.removeAWTEventListener(listener)", host)
-        self.assertIn("try { lifetime.close() } finally { scheduler.close() }", host)
+        self.assertIn("try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }", host)
         self.assertIn("session?.lock()", host)
         self.assertIn("source === window", host)
         for source in COMPOSE_HOST.glob("*.kt"):

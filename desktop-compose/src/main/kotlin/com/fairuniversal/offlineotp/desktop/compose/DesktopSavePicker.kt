@@ -1,0 +1,22 @@
+package com.fairuniversal.offlineotp.desktop.compose
+
+import com.fairuniversal.offlineotp.Utilities.BackupFileNames
+import java.awt.Dialog
+import java.awt.FileDialog
+import java.awt.Window
+import java.io.File
+import java.util.Date
+
+/** Native platform picker, not a Swing widget. The encrypted writer refuses existing files. */
+internal object DesktopSavePicker {
+    fun encryptedBackup(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Save encrypted backup (choose a new filename)", FileDialog.SAVE)
+        return try {
+            picker.file = BackupFileNames.encrypted(Date())
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+}

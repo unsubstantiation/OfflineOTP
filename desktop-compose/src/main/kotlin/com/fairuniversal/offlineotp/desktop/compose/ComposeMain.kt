@@ -2,6 +2,8 @@ package com.fairuniversal.offlineotp.desktop.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.fairuniversal.offlineotp.desktop.control.DesktopEncryptedExport
+import com.fairuniversal.offlineotp.ui.vault.EncryptedExportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopAutoLockSettings
 import com.fairuniversal.offlineotp.ui.vault.AutoLockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
@@ -62,7 +64,7 @@ import java.awt.event.AWTEventListener
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, backup/restore, hardware keys, preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, backup restore/OpenPGP, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -159,6 +161,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     var revision by remember(vault) { mutableStateOf(0) }
+    val exportWorker = remember(vault) {
+        Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP backup").apply { isDaemon = true } }
+    }
+    val exporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val scheduler = remember(vault) { AwtScheduler() }
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
@@ -187,6 +194,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                exporter.close()
                 autoLock.close()
                 copier.close()
                 copyNotice = null
@@ -218,7 +226,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
             toolkit.removeAWTEventListener(listener)
-            try { lifetime.close() } finally { scheduler.close() }
+            try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
     }
     val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
@@ -275,10 +283,39 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             copyNotice = null; moveFailed = false
             if (lifetime.checkActive()) autoLock.open()
             revision++
+        }, exportEncrypted = {
+            if (!vault.isLocked && exporter.pending == null && lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                try {
+                    val target = DesktopSavePicker.encryptedBackup(window)
+                    // Native modal pickers run a nested event loop: auto-lock may fire while open.
+                    if (target != null && lifetime.checkActive() && !vault.isLocked) exporter.open(target)
+                } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
+                revision++
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val exportRequest = exporter.pending
+    if (exportRequest != null) EncryptedExportDialog(inputKey = exportRequest, busy = exportRequest.busy,
+        error = when (exportRequest.failure) {
+            DesktopEncryptedExport.Failure.PASSWORD -> "Enter matching, nonempty passwords."
+            DesktopEncryptedExport.Failure.EXISTS -> "That filename already exists. Cancel and choose a new filename."
+            DesktopEncryptedExport.Failure.EXPORT -> "Backup export failed. A partial encrypted file may remain; choose a new filename before retrying."
+            null -> null
+        },
+        onSubmit = { password, confirmation ->
+            if (lifetime.checkActive()) exporter.submit(exportRequest, password, confirmation)
+        },
+        onDismiss = { exporter.dismiss(exportRequest) })
+    if (exporter.saved) EntryConfirmationDialog(title = "Encrypted backup", message = "Encrypted backup saved.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { exporter.dismissNotice() }, onDismiss = { exporter.dismissNotice() })
     val timeoutRequest = autoLock.pending
     if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
         currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,

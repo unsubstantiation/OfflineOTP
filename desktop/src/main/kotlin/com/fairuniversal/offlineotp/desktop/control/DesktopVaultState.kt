@@ -27,7 +27,7 @@ import javax.crypto.SecretKey
  */
 class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryList()) {
 
-    var isLocked: Boolean = false
+    @Volatile var isLocked: Boolean = false
         private set
 
     var key: SecretKey = key

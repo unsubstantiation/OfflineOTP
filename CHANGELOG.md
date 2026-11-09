@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Export full password-encrypted backups through a native save picker and shared confirmation form. Encrypt a detached snapshot on a worker, refuse existing destinations, and cancel pending work on lock without adopting stale results. Restore and runtime validation remain pending.
+
  * Compose desktop: Add session-bound auto-lock settings with immediate live updates after successful persistence. Reject stale/expired requests and roll back the desktop settings cache after failed writes.
 
  * Compose desktop: Add persisted up/down ordering for unsorted, unfiltered rows. Bind moves to the original entry and neighbor so stale controls cannot reorder replacements; reject failures without changing live order.

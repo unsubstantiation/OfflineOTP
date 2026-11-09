@@ -723,3 +723,30 @@ values, expiry during writes, deferred/idempotent timer startup, reopen persiste
 rollback. The shared action is also guarded after presenter lock. Runtime keyboard/accessibility
 and native window validation remain pending. This is the auto-lock preference, not the complete
 preferences/import/export UI or desktop launcher cutover.
+
+### Desktop replacement: password-encrypted backup export
+
+The Compose toolbar now offers encrypted export through a native AWT save picker and a shared
+masked password/confirmation dialog. Existing filenames are refused, including a file created
+after the picker closes: the writer uses `CREATE_NEW`, never truncate/replace. A selected filename
+is rechecked against session lifetime after the native modal event loop returns. No Swing dialog
+is used. Android retains its existing export flow.
+
+Submission serializes a detached full-vault snapshot on the UI thread, then uses the shared
+`EncryptedBackupCodec` on a worker to produce the Android-compatible password-encrypted format.
+The worker never borrows live entries or the vault key. UI password fields clear before handoff;
+immutable password/JSON strings cannot be zeroized while encryption uses them. Queued input is
+dropped on cancel/lock, ciphertext buffers are wiped after use, and stale UI completions are
+ignored. Lock state is volatile for cancellation checks; all entry access stays on the UI thread.
+
+The output is restricted before ciphertext is written (0600 on POSIX; inherited directory ACLs
+remain relevant elsewhere) and force-synced before success. Writing is exclusive, not a transactional
+replace: an interrupted/failed write can leave a partial encrypted file and the UI explicitly
+reports that risk. A write already authorized by the worker may finish after cancellation/lock.
+No plaintext backup is written and existing destinations are not deleted or overwritten.
+
+Tests exercise shared-codec round-trip, detached snapshot isolation, exclusive-create behavior,
+permissions, password validation, duplicate/stale requests, cancellation before and during
+encryption, independent lock, late delivery and failure cleanup. Native picker focus, Compose
+password/progress behavior and real Gradle/display validation remain pending. Restore/merge/replace
+UI and OpenPGP export are not part of this increment; the shipping launcher is still Swing.
