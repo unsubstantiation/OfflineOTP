@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose entry editing: Explicit, undoable removal choices for stored mOTP PINs, SSH connection passwords and protected labels. Blank fields still preserve values; removal only applies on Save and resets after a failed submission.
+
  * Compose desktop: Restore password-encrypted backups with worker decoding and a separate merge/replace confirmation. Default to merge, discard canceled results, and save before changing live entries. Final persistence remains synchronous; native UI validation is pending.
 
  * Compose desktop: Export full password-encrypted backups through a native save picker and shared confirmation form. Encrypt a detached snapshot on a worker, refuse existing destinations, and cancel pending work on lock without adopting stale results. Restore and runtime validation remain pending.

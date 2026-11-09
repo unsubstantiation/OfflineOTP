@@ -10,6 +10,51 @@ import org.junit.Test
 
 class ManualEntryInputTest {
     @Test
+    fun explicitRemovalClearsOnlySelectedOptionalSecretsWithoutMutatingOriginal() {
+        val motp = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef",
+            pin = "1234", hiddenLabel = "protected").build()
+        val ssh = ManualEntryInput(type = Entry.OTPType.SSH_KEY, label = "Server", secret = "private", publicKey = "public",
+            sshHost = "host", sshPassword = "password").build()
+        try {
+            val cleared = ManualEntryInput.fromEntry(motp).copy(clearPin = true, clearHiddenLabel = true).build(motp)
+            try {
+                assertEquals("", cleared.getPin())
+                assertEquals("", cleared.getHiddenLabel())
+                assertEquals(motp.getSecretEncoded(), cleared.getSecretEncoded())
+                assertEquals("1234", motp.getPin())
+                assertEquals("protected", motp.getHiddenLabel())
+            } finally { cleared.destroy() }
+            val changed = ManualEntryInput.fromEntry(ssh).copy(clearSshPassword = true).build(ssh)
+            try {
+                assertEquals("", changed.getSshConnection()!!.password)
+                assertEquals("host", changed.getSshConnection()!!.host)
+                assertEquals(ssh.getSshKeys()!!.privateKey, changed.getSshKeys()!!.privateKey)
+                assertEquals("password", ssh.getSshConnection()!!.password)
+            } finally { changed.destroy() }
+            val retry = ManualEntryInput.fromEntry(motp).copy(clearPin = true, clearHiddenLabel = true).withoutSecrets()
+            assertFalse(retry.clearPin || retry.clearHiddenLabel || retry.clearSshPassword)
+        } finally { motp.destroy(); ssh.destroy() }
+    }
+
+    @Test
+    fun removalRejectsCreationWrongTypesAndConflictingReplacementText() {
+        val original = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef", pin = "1234").build()
+        try {
+            val initial = ManualEntryInput.fromEntry(original)
+            for (invalid in listOf(initial.copy(clearPin = true, pin = "new"),
+                initial.copy(clearHiddenLabel = true, hiddenLabel = "new"), initial.copy(clearSshPassword = true))) {
+                var rejected = false
+                try { invalid.build(original).destroy() } catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+            var rejected = false
+            try { ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", clearHiddenLabel = true).build().destroy() }
+            catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+        } finally { original.destroy() }
+    }
+
+    @Test
     fun artworkCanBeAutomaticExplicitOrPreservedWithoutMutatingTheOriginal() {
         val automatic = ManualEntryInput(issuer = "GitHub", secret = "JBSWY3DPEHPK3PXP").build()
         try {

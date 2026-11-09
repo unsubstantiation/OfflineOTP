@@ -15,6 +15,40 @@ class DesktopEntryEditingTest {
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
 
     @Test
+    fun optionalSecretRemovalPersistsAndFailedSaveKeepsOriginal() {
+        val dir = Files.createTempDirectory("compose-clear-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("test-password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        try {
+            val editor = EntryEditor(controller, state)
+            val original = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef",
+                pin = "1234", hiddenLabel = "protected").build()
+            assertTrue(editor.add(original))
+            val failing = DesktopEntryEditing(state) { _, _ -> false }
+            failing.open(original.getListId())
+            val failed = failing.pending!!
+            assertFalse(failing.submit(failed, failing.initialInput(failed)!!.copy(clearPin = true, clearHiddenLabel = true), true))
+            assertEquals("1234", original.getPin())
+            assertEquals("protected", original.getHiddenLabel())
+            failing.close()
+            val edits = DesktopEntryEditing(state, editor::replace)
+            edits.open(original.getListId())
+            val request = edits.pending!!
+            val clear = edits.initialInput(request)!!.copy(clearPin = true, clearHiddenLabel = true)
+            assertFalse(edits.submit(request, clear, false))
+            assertTrue(edits.submit(request, clear, true))
+            assertFalse(edits.submit(request, clear, true))
+            val reopened = controller.openVault("test-password") as VaultController.Session.Loaded
+            try {
+                assertEquals("", reopened.entries.single().getPin())
+                assertEquals("", reopened.entries.single().getHiddenLabel())
+                assertTrue(reopened.entries.single().getSecretSize() > 0)
+            } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { state.lock(); dir.deleteRecursively() }
+    }
+
+    @Test
     fun replacementPersistsAndPreservesIdWhileDestroyingOnlyTheOldEntry() {
         val dir = Files.createTempDirectory("compose-edit-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))

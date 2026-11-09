@@ -777,3 +777,19 @@ failed persistence. Shared action guards and both platform UI seams pass sandbox
 Real native picker, Compose rendering/accessibility and device validation remain outstanding;
 Swing remains the shipping UI. OpenPGP, QR, structured credentials and remaining preferences
 continue to be migration work.
+
+### Desktop replacement: explicit optional-secret removal
+
+The shared edit form now provides deliberate, undoable removal choices for mOTP PINs, SSH
+connection passwords and OTP protected labels. Blank fields continue to preserve existing values.
+Selecting removal clears/hides the corresponding draft text and displays the pending operation;
+undo restores the preserve behavior, not previously typed text. Only Save applies the change.
+Submission clears secret drafts and deletion intent, so a failed save requires selecting removal
+again. Creation/type switching never carries deletion intent. The model rejects removal on
+creation, inapplicable entry types and simultaneous replacement text plus removal.
+
+Tests cover preservation of original fields/key material, explicit removal, invalid/conflicting
+input, reset of retry intent, persistence/reopen, failed writes, and reveal/stale-request guards.
+No new secret is preloaded into the form. These changes use the existing replacement persistence
+path; native Compose visual/accessibility validation is still pending. This closes the optional
+PIN/password/protected-label clearing limitation, not structured-credential migration.

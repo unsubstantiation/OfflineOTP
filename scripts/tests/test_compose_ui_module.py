@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_optional_secret_removal_is_explicit_edit_only_and_undoable(self):
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("Removal choices apply only when you Save", form)
+        for flag in ("clearPin", "clearHiddenLabel", "clearSshPassword"):
+            self.assertIn(f"if (!input.{flag}) EntryInputField", form)
+            self.assertIn(f"{flag} = !input.{flag}", form)
+        self.assertIn("Will remove PIN — undo", form)
+        self.assertIn("Will remove SSH password — undo", form)
+        self.assertIn("Will remove protected label — undo", form)
+
     def test_encrypted_restore_requires_confirmation_and_lifetime_checks(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopEncryptedRestore(vault, exportWorker", host)

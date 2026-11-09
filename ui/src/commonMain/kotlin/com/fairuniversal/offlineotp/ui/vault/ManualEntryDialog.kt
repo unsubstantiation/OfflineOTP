@@ -37,7 +37,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     onCancel = { pickingThumbnail = false })
             } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(text = "Type: ${input.type}")
-                if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values.")
+                if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values. Removal choices apply only when you Save.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {
                     ForestTextAction(text = type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
@@ -63,17 +63,26 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     }
                 }
                 if (!note && !ssh) {
-                    EntryInputField("Protected label (optional)", input.hiddenLabel, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
+                    if (editing) ForestTextAction(
+                        text = if (input.clearHiddenLabel) "Will remove protected label — undo" else "Remove stored protected label",
+                        onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) })
+                    if (!input.clearHiddenLabel) EntryInputField("Protected label (optional)", input.hiddenLabel, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
                 }
                 if (input.type == Entry.OTPType.MOTP) {
-                    EntryInputField("PIN (optional)", input.pin, masked = true, limit = InputPolicy.MAX_TAG_CHARS) { input = input.copy(pin = it) }
+                    if (editing) ForestTextAction(
+                        text = if (input.clearPin) "Will remove PIN — undo" else "Remove stored PIN",
+                        onClick = { input = input.copy(pin = "", clearPin = !input.clearPin) })
+                    if (!input.clearPin) EntryInputField("PIN (optional)", input.pin, masked = true, limit = InputPolicy.MAX_TAG_CHARS) { input = input.copy(pin = it) }
                 }
                 if (ssh) {
                     EntryInputField("Public key", input.publicKey, multiline = true) { input = input.copy(publicKey = it) }
                     EntryInputField("Host (optional)", input.sshHost) { input = input.copy(sshHost = it) }
                     EntryInputField("Port (optional)", input.sshPort, limit = 5) { input = input.copy(sshPort = it) }
                     EntryInputField("Username (optional)", input.sshUser) { input = input.copy(sshUser = it) }
-                    EntryInputField("Password (optional)", input.sshPassword, masked = true) { input = input.copy(sshPassword = it) }
+                    if (editing) ForestTextAction(
+                        text = if (input.clearSshPassword) "Will remove SSH password — undo" else "Remove stored SSH password",
+                        onClick = { input = input.copy(sshPassword = "", clearSshPassword = !input.clearSshPassword) })
+                    if (!input.clearSshPassword) EntryInputField("Password (optional)", input.sshPassword, masked = true) { input = input.copy(sshPassword = it) }
                 }
                 EntryInputField("Tags (one per line)", input.tags, multiline = true,
                     limit = InputPolicy.MAX_TAGS * (InputPolicy.MAX_TAG_CHARS + 1)) { input = input.copy(tags = it) }
