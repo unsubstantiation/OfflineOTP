@@ -23,6 +23,7 @@ import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryDialog
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -70,7 +71,7 @@ import java.awt.event.AWTEventListener
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): structured-credential editing, OpenPGP backup/restore, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): email/archived-credential editing, OpenPGP backup/restore, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -434,7 +435,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
-    if (editRequest != null) {
+    if (editRequest != null && editRequest.isPassword) {
+        val initial = remember(editRequest) { editing.initialPasswordInput(editRequest) }
+        if (initial != null) PasswordEntryDialog(inputKey = editRequest, initial = initial,
+            failed = editRequest.failure != null,
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                if (lifetime.checkActive() && editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                    presenter.applyFilter(presenter.filter)
+                }
+                revision++
+            })
+    }
+    if (editRequest != null && !editRequest.isPassword) {
         val initial = remember(editRequest) { editing.initialInput(editRequest) }
         if (initial != null) ManualEntryDialog(
             inputKey = editRequest, initial = initial, editing = true, artwork = artwork,

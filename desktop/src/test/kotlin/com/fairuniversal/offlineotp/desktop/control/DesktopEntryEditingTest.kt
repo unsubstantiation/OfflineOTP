@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 import java.nio.file.Files
 import javax.crypto.spec.SecretKeySpec
@@ -13,6 +14,55 @@ import org.junit.Test
 class DesktopEntryEditingTest {
     private val input = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", issuer = "Example", label = "alice")
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
+
+    @Test
+    fun passwordEditsAreGuardedPersistedAndPreserveUneditedColumns() {
+        val dir = Files.createTempDirectory("compose-password-edit-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("test-password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        try {
+            val original = Entry.passwordFields("alice", "site", listOf("url" to "https://old", "username" to "alice",
+                "password" to "secret", "notes" to "preserved"))
+            val editor = EntryEditor(controller, state)
+            assertTrue(editor.add(original))
+            val edits = DesktopEntryEditing(state, editor::replace)
+            edits.open(original.getListId()); val request = edits.pending!!
+            assertTrue(request.isPassword)
+            assertTrue(edits.initialInput(request) == null)
+            val input = edits.initialPasswordInput(request)!!.copy(username = "bob", password = "changed")
+            assertEquals("", edits.initialPasswordInput(request)!!.password)
+            assertFalse(edits.submitPassword(request, input, false))
+            assertTrue(edits.submitPassword(request, input, true))
+            assertFalse(edits.submitPassword(request, input, true))
+            val reopened = controller.openVault("test-password") as VaultController.Session.Loaded
+            try {
+                val fields = reopened.entries.single().getPasswordFields()
+                assertEquals("bob", fields.value("username"))
+                assertEquals("changed", fields.value("password"))
+                assertEquals("preserved", fields.value("notes"))
+            } finally { DesktopUnlockOperation.discard(reopened) }
+            edits.open(state.snapshot().single().getListId()); val locked = edits.pending!!
+            state.lock()
+            assertFalse(edits.submitPassword(locked, input, true))
+        } finally { state.lock(); dir.deleteRecursively() }
+    }
+
+    @Test
+    fun failedPasswordEditKeepsOriginalAndDestroysCandidate() {
+        val state = state()
+        val original = Entry.passwordFields("alice", "site", listOf("url" to "site", "username" to "alice", "password" to "secret"))
+        state.add(original)
+        var candidate: Entry? = null
+        val edits = DesktopEntryEditing(state) { _, next -> candidate = next; false }
+        try {
+            edits.open(original.getListId()); val request = edits.pending!!
+            assertFalse(edits.submitPassword(request, PasswordEntryInput("new", "bob", "changed"), true))
+            assertEquals(0, candidate!!.getSecretSize())
+            assertTrue(state.snapshot().single() === original)
+            assertEquals("secret", original.getPasswordFields().value("password"))
+        } finally { edits.close(); state.lock() }
+    }
 
     @Test
     fun optionalSecretRemovalPersistsAndFailedSaveKeepsOriginal() {

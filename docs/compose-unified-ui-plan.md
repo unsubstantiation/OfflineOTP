@@ -836,3 +836,19 @@ after work, expired/stale results, rejected scheduling/delivery and invalid/over
 A real ImageIO rejection test covers non-images; actual ZXing decoding remains stubbed in sandbox
 gates and needs Gradle/runtime validation. Native picker behavior and Compose rendering still
 need display-backed tests. No camera capture or launcher cutover is included.
+
+### Desktop replacement: imported password editing
+
+Compose now edits common imported password fields through the shared PasswordCsvExport builder.
+The password field starts empty, stays masked and clears before submission; blank preserves the
+stored password. URL and username may be changed or emptied. Notes, GUIDs, tags and other stored
+columns are preserved along with artwork/color and usage/visibility metadata. The existing
+identity-bound edit owner rejects stale/locked/hidden requests and destroys failed candidates.
+Only layouts with one canonical URL/username/password column and no conflicting editable aliases
+are offered; foreign layouts, archives and email account editing remain pending.
+
+Tests cover persistence/reopen, extra-column preservation, blank/new passwords, failed writes,
+reveal/lock/stale guards and excluded alias layouts. Form drafts are non-saveable and diagnostics
+redacted. Immutable strings cannot be zeroized. This does not add password file import/export or
+complete structured credential migration; real Compose runtime/accessibility validation and
+asynchronous persistence remain pending. Swing remains shipping.

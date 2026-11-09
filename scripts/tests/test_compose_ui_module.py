@@ -181,7 +181,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "PasswordEntryInputTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -479,6 +479,14 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn("fun " + method + "(", contract)
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
+    def test_password_edit_clears_drafts_and_checks_live_reveal(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId))", host)
+        form = (UI_MAIN / "vault/PasswordEntryDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertIn("input = input.withoutPassword()", form)
+        self.assertNotIn("rememberSaveable", form)
 
     def test_qr_image_read_is_guarded_and_requires_explicit_import(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

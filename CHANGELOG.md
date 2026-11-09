@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit imported password URL, username and password with blank-preserves semantics, retained extra columns and live-session/reveal checks. Unsupported or conflicting column layouts remain excluded.
+
  * Compose desktop: Read QR image files through a native picker with bounded worker decoding and explicit import confirmation. Discard canceled/locked results and keep decoded payloads hidden; camera capture remains pending.
 
  * Compose desktop: Import pasted OTP URIs and multi-part Google Authenticator migration payloads through the shared coordinator, with masked drafts, explicit duplicate-issuer policy and session-bound batch cleanup. Image/camera QR import remains pending.
