@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.compose
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
 import com.fairuniversal.offlineotp.desktop.control.DesktopUriImport
 import com.fairuniversal.offlineotp.ui.vault.UriImportDialog
 import com.fairuniversal.offlineotp.desktop.control.BackupCoordinator
@@ -174,6 +175,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val restorer = remember(vault) { DesktopEncryptedRestore(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, BackupCoordinator(controller, vault)::restoreEntries) }
     val uriImporter = remember(vault) { DesktopUriImport(vault, BackupCoordinator(controller, vault)) }
+    val imageReader = remember(vault) { DesktopQrImageRead(exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val scheduler = remember(vault) { AwtScheduler() }
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
@@ -202,6 +205,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                imageReader.close()
                 uriImporter.close()
                 restorer.close()
                 exporter.close()
@@ -235,7 +239,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            uriImporter.close(); restorer.close(); exporter.close()
+            imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -343,7 +347,28 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onSubmit = { uri, allow ->
             if (uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
             revision++
-        }, onDismiss = { uriImporter.dismiss(importRequest); revision++ })
+        }, onDismiss = { imageReader.clear(); uriImporter.dismiss(importRequest); revision++ },
+        imageBusy = imageReader.busy, imageReady = imageReader.ready, imageFailed = imageReader.failed,
+        onChooseImage = {
+            if (lifetime.checkActive() && uriImporter.pending === importRequest) {
+                imageReader.clear()
+                try {
+                    val file = DesktopSavePicker.openQrImage(window)
+                    if (file != null) imageReader.submit(file) {
+                        lifetime.checkActive() && !vault.isLocked && uriImporter.pending === importRequest
+                    }
+                } catch (_: Exception) { copyNotice = "The QR image could not be selected." }
+            }
+        },
+        onDiscardImage = { imageReader.clear() },
+        onImportImage = { allow ->
+            if (lifetime.checkActive() && uriImporter.pending === importRequest) {
+                imageReader.take()?.let { uri ->
+                    if (uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                }
+                revision++
+            }
+        })
     val restoreRequest = restorer.pending
     if (restoreRequest != null) EncryptedRestoreDialog(inputKey = restoreRequest,
         busy = restoreRequest.busy, count = restoreRequest.count, failed = restoreRequest.failed,

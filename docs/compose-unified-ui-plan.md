@@ -815,3 +815,24 @@ locked requests, multi-part buffering, cancellation and frozen policy, and faile
 Shared UI/action guards and platform seams pass sandbox gates, not real rendering/accessibility
 validation. Native QR image decoding/camera capture and structured-credential imports remain
 separate work. Swing remains the shipping launcher.
+
+### Desktop replacement: QR image file import
+
+The OTP import dialog now offers a native image picker. A worker reads at most the shared document
+limit and delegates dimension/pixel limits and decoding to the existing `ZxingQrDecoder`. Decoded
+text is bounded by the URI limit, kept hidden, and requires an explicit Import action through the
+existing URI coordinator. Image selection alone never imports accounts. Multi-part migration
+images use the same batch ownership and fixed issuer policy as pasted payloads.
+
+A cancellable task owns the pending decoded string until guarded UI delivery; cancel, lock and
+disposal discard it. A ready payload can be consumed once or explicitly discarded. Submission
+clears the pasted draft, and the paste field is disabled while decoding or while an image result
+is ready. File bytes are wiped after decoding; immutable decoded strings and image-library
+buffers cannot be guaranteed zeroized. Dispatch rejection drops results but can leave the busy
+indicator until dismissal. Parsing/final persistence remain on the UI thread.
+
+Queue-based tests cover one-time consumption, duplicate submission, cancellation before/during/
+after work, expired/stale results, rejected scheduling/delivery and invalid/oversized output.
+A real ImageIO rejection test covers non-images; actual ZXing decoding remains stubbed in sandbox
+gates and needs Gradle/runtime validation. Native picker behavior and Compose rendering still
+need display-backed tests. No camera capture or launcher cutover is included.

@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_qr_image_read_is_guarded_and_requires_explicit_import(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopQrImageRead(exportWorker", host)
+        self.assertIn("imageReader.close()", host)
+        self.assertIn("lifetime.checkActive() && !vault.isLocked && uriImporter.pending === importRequest", host)
+        self.assertIn("onImportImage = { allow ->", host)
+        form = (UI_MAIN / "vault/UriImportDialog.kt").read_text()
+        self.assertIn("enabled = !imageBusy && !imageReady", form)
+        self.assertIn("Discard image payload", form)
+        self.assertIn("Choose Import to validate and save it", form)
+
     def test_uri_import_bounds_masks_and_clears_seed_payloads(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)", host)

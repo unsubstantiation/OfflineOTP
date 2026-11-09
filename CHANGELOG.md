@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Read QR image files through a native picker with bounded worker decoding and explicit import confirmation. Discard canceled/locked results and keep decoded payloads hidden; camera capture remains pending.
+
  * Compose desktop: Import pasted OTP URIs and multi-part Google Authenticator migration payloads through the shared coordinator, with masked drafts, explicit duplicate-issuer policy and session-bound batch cleanup. Image/camera QR import remains pending.
 
  * Compose entry editing: Explicit, undoable removal choices for stored mOTP PINs, SSH connection passwords and protected labels. Blank fields still preserve values; removal only applies on Save and resets after a failed submission.
