@@ -43,6 +43,8 @@ data class VaultCardState(
     val detailsVisible: Boolean = true,
     /** Protected auxiliary label; absent on concealed rows. */
     val detailLabel: String? = null,
+    /** Host explicitly supports editing this structured password layout. */
+    val canEditPassword: Boolean = false,
     val canMoveUp: Boolean = false,
     val canMoveDown: Boolean = false,
     val showCountdown: Boolean = true,

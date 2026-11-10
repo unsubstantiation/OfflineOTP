@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: View email connection and SMTP identity details with passwords masked by default and guarded explicit reveal. Also fix the missing Edit button for supported imported password layouts.
+
  * Compose desktop: Import FairEmail JSON, gzip and encrypted backups with masked password input, bounded worker decoding and explicit merge confirmation. Share cancellable file-import ownership with browser-password import.
 
  * Compose desktop: Import browser password files as individual credentials or preserved archives using bounded worker parsing, explicit confirmation and session-owned cleanup. The source plaintext file remains unchanged; final persistence is synchronous.

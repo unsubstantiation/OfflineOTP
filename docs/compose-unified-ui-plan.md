@@ -898,3 +898,23 @@ before/after worker execution. Browser-password lifecycle regression tests remai
 extraction. Sandbox UI checks are not real Compose/native-picker validation. Swing still ships;
 remaining structured export, OpenPGP/hardware, preferences, async persistence and runtime/cutover
 work is not complete.
+
+### Desktop replacement: email connection details and password edit reachability
+
+Revealed email cards now offer Connection details through an optional host action. The read-only
+scrollable dialog uses EmailAccounts' shared incoming/SMTP identity rows, initially masking
+passwords. Show passwords is a separate deliberate action; both row generation and toggling
+check current presenter reveal, session liveness and exact Entry identity. Concealment, replacement,
+lock and dismissal invalidate the request. No rendered credential strings are retained by the
+owner or remembered by the form. Secrets displayed in immutable frame strings cannot be zeroized.
+Tests cover mask/show/hide, unchanged live entries, stale requests, replacement retaining an id,
+concealment and terminal close/lock. Native rendering and accessibility remain unvalidated.
+
+During integration, the previous password-edit form was found unreachable from cards because the
+shared button still allowed only OTP/note/SSH kinds. The desktop now supplies an explicit
+canEditPassword flag for revealed supported layouts; the shared card offers Edit only with that
+flag. Default-false behavior leaves other hosts unchanged, and archives/unsupported layouts stay
+excluded. This is a reachability correction, not a claim of prior runtime validation.
+
+Email editing/export, remaining migration features and background persistence remain incomplete.
+Swing still ships; no launcher cutover or PR is included.

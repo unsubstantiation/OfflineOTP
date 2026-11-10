@@ -3,6 +3,8 @@ package com.fairuniversal.offlineotp.desktop.compose
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
+import com.fairuniversal.offlineotp.desktop.control.DesktopEmailDetails
+import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEmailImport
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordImport
@@ -27,6 +29,7 @@ import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryDialog
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
@@ -193,6 +196,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
+    val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
@@ -200,20 +204,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
-            addEntry = { autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            addEntry = { autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
             editEntry = { card ->
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }; copyNotice = null
                 creation.pending?.let { creation.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
                 editing.open(card.id)
                 revision++
             },
-            advanceCounter = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
+            advanceCounter = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                emailDetails.close()
                 emailImporter.close()
                 passwordImporter.close()
                 imageReader.close()
@@ -250,7 +256,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
+            emailDetails.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -262,8 +268,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val state = remember(now, revision, presenter) {
         val frame = presenter.frame(now)
+        val liveEntries = vault.snapshot().associateBy { it.getListId() }
         frame.copy(cards = frame.cards.mapIndexed { index, card ->
-            card.copy(canMoveUp = vault.presentation.canDrag() && index > 0,
+            card.copy(canEditPassword = card.revealed && liveEntries[card.id]?.let {
+                it.isPassword() && PasswordEntryInput.supports(it)
+            } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
                 copyable = card.revealed && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
@@ -289,7 +298,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         actions = presenter.actions(copyEntry = { card ->
             autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
-            editing.pending?.let { editing.dismiss(it) }
+            emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null
             val request = copier.open(copyFrame, card, presenter.isRevealed(card.id))
@@ -303,7 +312,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             revision++
         }, configureAutoLock = {
             creation.pending?.let { creation.dismiss(it) }
-            editing.pending?.let { editing.dismiss(it) }
+            emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
             copier.pending?.let { copier.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null; moveFailed = false
@@ -312,7 +321,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, exportEncrypted = {
             if (!vault.isLocked && exporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -327,7 +336,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, restoreEncrypted = {
             if (restorer.pending == null && exporter.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -341,7 +350,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, importUri = {
             if (restorer.pending == null && exporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -351,7 +360,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, importPasswords = {
             if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && emailImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -365,7 +374,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, importEmail = {
             if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && emailImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -376,10 +385,31 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 } catch (_: Exception) { copyNotice = "The FairEmail backup could not be selected." }
                 revision++
             }
+        }, viewEmailDetails = { card ->
+            if (lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                emailDetails.open(card.id, presenter.isRevealed(card.id))
+                revision++
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
     )
+    val detailsRequest = emailDetails.pending
+    if (detailsRequest != null) {
+        val rows = emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))
+        if (emailDetails.pending === detailsRequest) EmailDetailsDialog(rows = rows,
+            secretsVisible = detailsRequest.secretsVisible,
+            onToggleSecrets = {
+                if (lifetime.checkActive()) emailDetails.toggleSecrets(detailsRequest, presenter.isRevealed(detailsRequest.entryId))
+                revision++
+            }, onDismiss = { emailDetails.dismiss(detailsRequest); revision++ })
+    }
     val emailRequest = emailImporter.pending
     if (emailRequest != null) EmailImportDialog(inputKey = emailRequest, busy = emailRequest.busy,
         count = emailRequest.count, failed = emailRequest.failed,

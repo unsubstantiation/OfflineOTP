@@ -104,7 +104,9 @@ class VaultPresenter(
                 restoreEncrypted: (() -> Unit)? = null,
                 importUri: (() -> Unit)? = null,
                 importPasswords: (() -> Unit)? = null,
-                importEmail: (() -> Unit)? = null): VaultActions = VaultActions(
+                importEmail: (() -> Unit)? = null,
+                viewEmailDetails: ((VaultCardState) -> Unit)? = null): VaultActions = VaultActions(
+        onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },
         onImportEmail = importEmail,
         onImportPasswords = importPasswords,
         onImportUri = importUri,

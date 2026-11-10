@@ -19,6 +19,31 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun emailDetailsRequiresLiveRevealAndIsTerminalAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS))
+        assertNull(presenter.actions().onViewEmailDetails)
+        var calls = 0
+        val actions = presenter.actions(viewEmailDetails = { calls++ })
+        val card = presenter.frame(0L).cards.single().copy(kind = VaultEntryKind.EMAILS)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(0, calls)
+        presenter.toggleReveal(card.id)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        actions.onViewEmailDetails?.invoke(card.copy(kind = VaultEntryKind.OTP))
+        assertEquals(1, calls)
+        presenter.toggleReveal(card.id)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        entry.destroy()
+    }
+
+    @Test
     fun emailImportIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
