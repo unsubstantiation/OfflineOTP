@@ -201,11 +201,23 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("ExclusiveExportFile::writeNew", owner)
         self.assertIn("finally { data.fill(0) }", owner)
 
+    def test_email_credential_editor_is_optional_masked_and_live_guarded(self):
+        dialog = (UI_MAIN / "vault/EmailPasswordDialog.kt").read_text()
+        details = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("onEditPasswords: (() -> Unit)? = null", details)
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
+        self.assertIn("lifetime.checkActive() && editing.submitEmailPasswords", host)
+        self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null", host)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.

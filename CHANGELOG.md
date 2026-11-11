@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Change stored email passwords/tokens from revealed connection details. Preserve blank credentials, all SMTP identities, provider metadata and vault presentation settings; reject stale or concealed edit requests.
+
  * Compose desktop: Export all email accounts to FairEmail-compatible plaintext JSON after an explicit secrets warning. Preserve extra identities/provider metadata, ignore display filters, refuse existing files, and wipe worker-owned output buffers.
 
  * Compose desktop: Add email accounts from the manual entry dialog, with independent incoming/SMTP credentials, protocol/encryption settings, bounded fields and tags. Validate via shared FairEmail material and persist through the identity-bound creation transaction.

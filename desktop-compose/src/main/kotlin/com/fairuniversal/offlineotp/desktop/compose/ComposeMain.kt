@@ -45,6 +45,7 @@ import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
+import com.fairuniversal.offlineotp.ui.vault.EmailPasswordDialog
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryDialog
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
 import androidx.compose.runtime.getValue
@@ -540,6 +541,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         val rows = emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))
         if (emailDetails.pending === detailsRequest) EmailDetailsDialog(rows = rows,
             secretsVisible = detailsRequest.secretsVisible,
+            onEditPasswords = {
+                if (lifetime.checkActive() && emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null) {
+                    editing.open(detailsRequest.entryId)
+                    emailDetails.dismiss(detailsRequest)
+                }
+                revision++
+            },
             onToggleSecrets = {
                 if (lifetime.checkActive()) emailDetails.toggleSecrets(detailsRequest, presenter.isRevealed(detailsRequest.entryId))
                 revision++
@@ -784,6 +792,18 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
+    if (editRequest != null && editRequest.isEmail) {
+        val initial = remember(editRequest) { editing.initialEmailPasswords(editRequest) }
+        if (initial != null) EmailPasswordDialog(inputKey = editRequest, initial = initial,
+            failed = editRequest.failure != null,
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                if (lifetime.checkActive() && editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                    presenter.entryRemoved(editRequest.entryId)
+                }
+                revision++
+            })
+    }
     if (editRequest != null && editRequest.isPassword) {
         val initial = remember(editRequest) { editing.initialPasswordInput(editRequest) }
         if (initial != null) PasswordEntryDialog(inputKey = editRequest, initial = initial,
@@ -796,7 +816,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             })
     }
-    if (editRequest != null && !editRequest.isPassword) {
+    if (editRequest != null && !editRequest.isPassword && !editRequest.isEmail) {
         val initial = remember(editRequest) { editing.initialInput(editRequest) }
         if (initial != null) ManualEntryDialog(
             inputKey = editRequest, initial = initial, editing = true, artwork = artwork,

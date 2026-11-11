@@ -2,6 +2,8 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
+import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
+import com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 import java.nio.file.Files
@@ -14,6 +16,55 @@ import org.junit.Test
 class DesktopEntryEditingTest {
     private val input = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", issuer = "Example", label = "alice")
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
+
+    private fun email() = EmailEntryInput(address = "alice@example.com", incomingHost = "imap.example.com",
+        outgoingHost = "smtp.example.com", incomingPassword = "incoming", outgoingPassword = "outgoing").build()
+
+    @Test fun emailCredentialsPersistOnlyWithCurrentRevealedAuthority() {
+        val dir = Files.createTempDirectory("compose-email-edit-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        val editor = EntryEditor(controller, state)
+        val edits = DesktopEntryEditing(state, editor::replace)
+        try {
+            val original = email(); assertTrue(editor.add(original))
+            edits.open(original.getListId()); val request = edits.pending!!
+            assertTrue(request.isEmail); assertTrue(edits.initialInput(request) == null)
+            val input = edits.initialEmailPasswords(request)!!.copy(incoming = "new credential")
+            assertFalse(edits.submitEmailPasswords(request, input, false))
+            assertTrue(edits.submitEmailPasswords(request, input, true))
+            assertFalse(edits.submitEmailPasswords(request, input, true))
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try {
+                val account = reopened.entries.single().getEmailAccount()
+                assertEquals("new credential", account.account.getString("password"))
+                assertEquals("outgoing", account.identity.getString("password"))
+            } finally { DesktopUnlockOperation.discard(reopened) }
+            edits.open(state.snapshot().single().getListId()); val locked = edits.pending!!
+            state.lock(); assertFalse(edits.submitEmailPasswords(locked, input, true))
+        } finally { edits.close(); state.lock(); dir.deleteRecursively() }
+    }
+    @Test fun failedEmailEditDestroysCandidateAndStaleOrRemovedTargetsCannotSave() {
+        val state = state(); val original = email(); state.add(original)
+        var candidate: Entry? = null
+        val edits = DesktopEntryEditing(state) { _, next -> candidate = next; false }
+        try {
+            edits.open(original.getListId()); val first = edits.pending!!
+            val input = EmailPasswordInput("new", listOf(""))
+            assertFalse(edits.submitEmailPasswords(first, input, true))
+            assertEquals(0, candidate!!.getSecretSize())
+            assertEquals("incoming", original.getEmailAccount().account.getString("password"))
+            candidate = null
+            edits.open(original.getListId()); val second = edits.pending!!
+            assertFalse(edits.submitEmailPasswords(first, input, true))
+            edits.dismiss(second); assertFalse(edits.submitEmailPasswords(second, input, true))
+            edits.open(original.getListId()); val third = edits.pending!!
+            state.replace(original, email())
+            assertFalse(edits.submitEmailPasswords(third, input, true))
+            assertTrue(candidate == null)
+        } finally { edits.close(); state.lock() }
+    }
 
     @Test
     fun passwordEditsAreGuardedPersistedAndPreserveUneditedColumns() {

@@ -1183,3 +1183,27 @@ exclusive destination handling, queued/in-flight cancellation, write/dispatch/ex
 buffer wiping and late-result suppression. Native picker, filesystem portability, Compose visual/
 accessibility/device checks remain release gates. Email editing, other export types, hardware
 workflows and remaining migration parity are still pending. Swing remains shipping.
+
+### Email credential replacement (not full account editing)
+
+Revealed desktop email connection details now offer Change passwords / tokens. This opens a
+separate ephemeral masked form with incoming credentials and one outgoing field per stored SMTP
+identity, in connection-details order. Stored secrets are never prefilled; blank means preserve.
+The form clears entered secrets before submit and on dismissal. It explicitly does not change
+provider passwords or refresh OAuth tokens, and authentication types/server settings stay intact.
+There is no credential-removal operation in this increment.
+
+EmailPasswordInput updates only nonblank password fields on the detached decoded account and
+identities, validates/encodes through EmailMaterial, then replaces the cloned entry's secret.
+All imported provider fields and additional identities are preserved, as are custom vault labels,
+issuer, protected label, tags, artwork, visibility and usage metadata. Mutable encoded buffers
+are wiped; immutable JSON/password strings cannot be zeroized. DesktopEntryEditing binds the
+request to the exact live entry and checks current reveal authority before building/saving. The
+Compose host checks the idle deadline and drops old reveal state after successful replacement.
+Failed writes retain the original entry and destroy unadopted candidates.
+
+Tests cover multiple-identity selective changes, blank retention, size/count rejection, diagnostic
+redaction, all-envelope metadata preservation, original-account isolation, persistence/reopen,
+concealed/stale/dismissed/removed/locked requests and failure cleanup. Broader email metadata and
+identity editing remain pending. Final persistence is still synchronous. Actual Compose visual,
+accessibility and native/device execution remain unvalidated; Swing remains shipping.
