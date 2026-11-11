@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
+import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 import java.nio.file.Files
 import javax.crypto.spec.SecretKeySpec
@@ -13,6 +14,51 @@ import org.junit.Test
 class DesktopEntryCreationTest {
     private val input = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", issuer = "Example", label = "alice")
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
+
+    private val email = EmailEntryInput(address = "alice@example.com", incomingHost = "imap.example.com",
+        outgoingHost = "smtp.example.com", incomingPassword = "incoming", outgoingPassword = "outgoing")
+
+    @Test fun emailCreationPersistsBothCredentialsAndRejectsReusedRequest() {
+        val dir = Files.createTempDirectory("compose-email-add-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        val creation = DesktopEntryCreation(state, EntryEditor(controller, state)::add)
+        try {
+            creation.open(); val request = creation.pending!!
+            assertTrue(creation.submitEmail(request, email))
+            assertFalse(creation.submitEmail(request, email))
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try {
+                val account = reopened.entries.single().getEmailAccount()
+                assertEquals("incoming", account.account.getString("password"))
+                assertEquals("outgoing", account.identity.getString("password"))
+            } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { creation.close(); state.lock(); dir.deleteRecursively() }
+    }
+
+    @Test fun emailFailureCleanupAndStaleAuthorityUseTheSameCreationTransaction() {
+        val state = state(); var rejected: Entry? = null
+        val creation = DesktopEntryCreation(state) { rejected = it; false }
+        try {
+            creation.open(); val first = creation.pending!!
+            assertFalse(creation.submitEmail(first, email.copy(incomingPort = "bad")))
+            assertEquals(DesktopEntryCreation.Failure.INVALID_INPUT, first.failure)
+            assertTrue(rejected == null)
+            assertFalse(creation.submitEmail(first, email))
+            assertEquals(DesktopEntryCreation.Failure.SAVE_FAILED, first.failure)
+            assertEquals(0, rejected!!.getSecretSize())
+            rejected = null
+            creation.open(); val second = creation.pending!!
+            assertFalse(creation.submitEmail(first, email))
+            creation.dismiss(second)
+            assertFalse(creation.submitEmail(second, email))
+            creation.open(); val third = creation.pending!!
+            state.lock()
+            assertFalse(creation.submitEmail(third, email))
+            assertTrue(rejected == null)
+        } finally { creation.close(); state.lock() }
+    }
 
     @Test
     fun successfulAddPersistsAndDuplicateDoesNotReplaceLiveEntry() {

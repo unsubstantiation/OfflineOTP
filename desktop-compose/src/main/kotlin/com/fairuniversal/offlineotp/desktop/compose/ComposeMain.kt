@@ -740,6 +740,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (addRequest != null) {
         ManualEntryDialog(
             inputKey = addRequest, artwork = artwork,
+            onEmailSubmit = { input ->
+                if (lifetime.checkActive() && creation.submitEmail(addRequest, input)) presenter.applyFilter(presenter.filter)
+                revision++
+            },
             error = when (addRequest.failure) {
                 DesktopEntryCreation.Failure.INVALID_INPUT -> "Invalid entry. Check the fields and re-enter secret fields."
                 DesktopEntryCreation.Failure.SAVE_FAILED -> "Could not add the entry (duplicate or save failure). Re-enter secret fields to retry."
@@ -747,7 +751,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onDismiss = { creation.dismiss(addRequest); revision++ },
             onSubmit = { input ->
-                if (creation.submit(addRequest, input)) presenter.applyFilter(presenter.filter)
+                if (lifetime.checkActive() && creation.submit(addRequest, input)) presenter.applyFilter(presenter.filter)
                 revision++
             }
         )

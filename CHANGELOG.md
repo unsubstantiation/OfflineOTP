@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add email accounts from the manual entry dialog, with independent incoming/SMTP credentials, protocol/encryption settings, bounded fields and tags. Validate via shared FairEmail material and persist through the identity-bound creation transaction.
+
  * Compose desktop security: Immediately destroy unadopted unlock entries and keys when the locked screen closes, even if UI delivery is still queued. Guard reentrant close during busy-state completion.
 
  * Compose desktop: Preview and confirm portable preferences imports with bounded worker reads and single-write persistence. Refresh only imported sort/layout/timeout settings, preserving the old auto-lock deadline until the write completes.

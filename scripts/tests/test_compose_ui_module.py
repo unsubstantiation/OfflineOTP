@@ -177,11 +177,23 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("filter.withQuery", host)
         self.assertNotIn("mutableStateOf(emptySet<Long>())", host)
 
+    def test_email_creation_is_optional_ephemeral_and_deadline_guarded(self):
+        dialog = (UI_MAIN / "vault/EmailEntryDialog.kt").read_text()
+        manual = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
+        self.assertIn("input = ManualEntryInput(); email = true", manual)
+        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input)", host)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.

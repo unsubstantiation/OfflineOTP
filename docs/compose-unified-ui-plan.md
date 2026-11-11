@@ -1134,3 +1134,27 @@ cancellation during backend execution. This does not interrupt an already-runnin
 or zero immutable password strings; no native-window test is claimed. Remaining feature parity,
 background persistence and actual Compose/device validation are still pending. Swing remains
 shipping.
+
+### Compose manual email account creation
+
+The existing Add entry form now offers Email account on desktop. Switching drops the prior
+manual-entry form values; the email form uses ephemeral remembered state, masked incoming and
+outgoing passwords, explicit IMAP/POP and SSL/STARTTLS/unencrypted choices, port and FairEmail
+authentication-type inputs, plus bounded metadata/tags. Defaults are IMAP/SSL 993 and SMTP/SSL
+465 with password authentication type 1; changing protocol/encryption deliberately does not
+silently rewrite ports. The form states that it stores details offline without contacting servers.
+Passwords are removed from form state before each submit and on dismissal; immutable strings
+cannot be zeroized.
+
+EmailEntryInput builds a fresh one-identity account using shared EmailMaterial validation.
+DesktopEntryCreation routes it through the same identity/liveness gate, save-before-publication
+and unadopted-entry cleanup as OTP/note/SSH creation. The host rechecks the idle deadline for
+both creation paths. This is creation-only, never an imported-account reconstruction that could
+drop additional identities or provider metadata. The email path is optional in the shared dialog
+and not enabled by the Android host.
+
+Tests cover separate credentials, FairEmail JSON roundtrip, invalid numeric/range/size/tag inputs,
+redaction, save/reopen, failure cleanup and stale/dismissed/locked requests. Actual Compose layout,
+accessibility and device/native-window execution remain unvalidated by the stub harness. Email
+editing/export, other remaining parity, and asynchronous final persistence remain pending; Swing
+continues shipping.

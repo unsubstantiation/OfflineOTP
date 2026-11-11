@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 
 /** Identity-bound add dialog. Owns requests, never form secrets; called only on the UI thread. */
@@ -20,9 +21,12 @@ class DesktopEntryCreation(private val state: DesktopVaultState, private val sav
     fun dismiss(request: Request) { if (pending === request) pending = null }
     fun close() { closed = true; pending = null }
 
-    fun submit(request: Request, input: ManualEntryInput): Boolean {
+    fun submit(request: Request, input: ManualEntryInput): Boolean = submitDraft(request) { input.build() }
+    fun submitEmail(request: Request, input: EmailEntryInput): Boolean = submitDraft(request) { input.build() }
+
+    private fun submitDraft(request: Request, build: () -> Entry): Boolean {
         if (closed || state.isLocked || pending !== request) return false
-        val draft = try { input.build() } catch (_: IllegalArgumentException) {
+        val draft = try { build() } catch (_: IllegalArgumentException) {
             request.failure = Failure.INVALID_INPUT
             return false
         }

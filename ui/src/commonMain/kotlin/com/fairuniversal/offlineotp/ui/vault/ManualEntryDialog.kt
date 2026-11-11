@@ -22,9 +22,15 @@ import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 /** Add/edit form. Input stays in composition; the host validates and owns any created entry. */
 @Composable
 fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
-                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null) {
+                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null,
+                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
+    var email by remember(inputKey) { mutableStateOf(false) }
+    if (email && !editing && onEmailSubmit != null) {
+        EmailEntryDialog(inputKey, error, onEmailSubmit, onDismiss)
+        return
+    }
     fun dismiss() { input = ManualEntryInput(); onDismiss() }
     AlertDialog(
         onDismissRequest = { dismiss() },
@@ -45,6 +51,9 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                             tags = input.tags, thumbnailName = input.thumbnailName, timing = if (type == Entry.OTPType.HOTP) "0" else "30")
                     })
                 }
+                if (!editing && onEmailSubmit != null) ForestTextAction(text = "Email account", onClick = {
+                    input = ManualEntryInput(); email = true
+                })
                 EntryInputField("Issuer", input.issuer, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(issuer = it) }
                 EntryInputField("Label", input.label, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(label = it) }
                 Text(text = "Artwork: ${input.thumbnailName ?: if (editing) "Keep current" else "Automatic from issuer"}")
