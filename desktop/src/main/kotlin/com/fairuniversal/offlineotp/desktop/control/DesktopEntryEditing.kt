@@ -37,46 +37,52 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
     fun initialEmailPasswords(request: Request): EmailPasswordInput? =
         if (current(request) && request.isEmail) EmailPasswordInput.fromEntry(request.target) else null
 
-    fun submitEmailPasswords(request: Request, input: EmailPasswordInput, revealed: Boolean): Boolean {
-        if (!revealed || !current(request) || !request.isEmail) return false
+    fun submitEmailPasswords(request: Request, input: EmailPasswordInput, revealed: Boolean, active: () -> Boolean = { true }): Boolean {
+        if (!revealed || !current(request) || !active() || !current(request) || !request.isEmail) return false
         val replacement = try { input.build(request.target) } catch (_: IllegalArgumentException) {
             request.failure = Failure.INVALID_INPUT
             return false
         }
-        return persist(request, replacement)
+        return persist(request, replacement, active)
     }
 
-    fun submitPassword(request: Request, input: PasswordEntryInput, revealed: Boolean): Boolean {
-        if (!revealed || !current(request) || !request.isPassword) return false
+    fun submitPassword(request: Request, input: PasswordEntryInput, revealed: Boolean, active: () -> Boolean = { true }): Boolean {
+        if (!revealed || !current(request) || !active() || !current(request) || !request.isPassword) return false
         val replacement = try { input.build(request.target) } catch (_: IllegalArgumentException) {
             request.failure = Failure.INVALID_INPUT
             return false
         }
-        return persist(request, replacement)
+        return persist(request, replacement, active)
     }
     fun dismiss(request: Request) { if (pending === request) pending = null }
     fun close() { closed = true; pending = null }
 
     /** [revealed] is checked against the presenter's live reveal set, never the opening frame. */
-    fun submit(request: Request, input: ManualEntryInput, revealed: Boolean): Boolean {
-        if (!revealed || !current(request) || request.isPassword || request.isEmail) return false
+    fun submit(request: Request, input: ManualEntryInput, revealed: Boolean, active: () -> Boolean = { true }): Boolean {
+        if (!revealed || !current(request) || !active() || !current(request) || request.isPassword || request.isEmail) return false
         val replacement = try { input.build(request.target) } catch (_: IllegalArgumentException) {
             request.failure = Failure.INVALID_INPUT
             return false
         }
-        return persist(request, replacement)
+        return persist(request, replacement, active)
     }
 
-    private fun persist(request: Request, replacement: Entry): Boolean {
+    private fun requestActive(request: Request) = !closed && !state.isLocked && pending === request
+
+    private fun persist(request: Request, replacement: Entry, active: () -> Boolean): Boolean {
         try {
-            if (replace(request.target, replacement)) {
+            if (!active() || !current(request)) return false
+            val saved = replace(request.target, replacement)
+            // On success the original is no longer in state. Check request identity instead.
+            if (!active() || !requestActive(request)) return false
+            if (saved) {
                 pending = null
                 return true
             }
             request.failure = Failure.SAVE_FAILED
             return false
         } catch (_: Exception) {
-            request.failure = Failure.SAVE_FAILED
+            if (active() && requestActive(request)) request.failure = Failure.SAVE_FAILED
             return false
         } finally {
             if (state.snapshot().none { it === replacement }) replacement.destroy()

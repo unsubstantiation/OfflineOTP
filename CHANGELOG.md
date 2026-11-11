@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Recheck idle deadlines before and after synchronous entry add/edit saves, including failure paths. Suppress late dialog completion after lock or request replacement while retaining already-persisted changes.
+
  * Compose desktop: Change stored email passwords/tokens from revealed connection details. Preserve blank credentials, all SMTP identities, provider metadata and vault presentation settings; reject stale or concealed edit requests.
 
  * Compose desktop: Export all email accounts to FairEmail-compatible plaintext JSON after an explicit secrets warning. Preserve extra identities/provider metadata, ignore display filters, refuse existing files, and wipe worker-owned output buffers.

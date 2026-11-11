@@ -187,7 +187,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
         self.assertIn("input = ManualEntryInput(); email = true", manual)
-        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input)", host)
+        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)", host)
 
     def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
@@ -212,6 +212,14 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
         self.assertIn("lifetime.checkActive() && editing.submitEmailPasswords", host)
         self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null", host)
+
+    def test_all_compose_add_edit_paths_supply_live_save_guard(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        for call in ("creation.submit(addRequest, input, lifetime::checkActive)",
+                     "creation.submitEmail(addRequest, input, lifetime::checkActive)"):
+            self.assertIn(call, host)
+        for method in ("submit", "submitPassword", "submitEmailPasswords"):
+            self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
 
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
@@ -632,7 +640,7 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_password_edit_clears_drafts_and_checks_live_reveal(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId))", host)
+        self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
         form = (UI_MAIN / "vault/PasswordEntryDialog.kt").read_text()
         self.assertIn("PasswordVisualTransformation()", form)
         self.assertIn("input = input.withoutPassword()", form)

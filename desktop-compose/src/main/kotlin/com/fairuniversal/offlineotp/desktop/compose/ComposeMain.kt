@@ -776,7 +776,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         ManualEntryDialog(
             inputKey = addRequest, artwork = artwork,
             onEmailSubmit = { input ->
-                if (lifetime.checkActive() && creation.submitEmail(addRequest, input)) presenter.applyFilter(presenter.filter)
+                if (lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
                 revision++
             },
             error = when (addRequest.failure) {
@@ -786,7 +786,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onDismiss = { creation.dismiss(addRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && creation.submit(addRequest, input)) presenter.applyFilter(presenter.filter)
+                if (lifetime.checkActive() && creation.submit(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
                 revision++
             }
         )
@@ -798,7 +798,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                if (lifetime.checkActive() && editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
                     presenter.entryRemoved(editRequest.entryId)
                 }
                 revision++
@@ -810,7 +810,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                if (lifetime.checkActive() && editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
                     presenter.applyFilter(presenter.filter)
                 }
                 revision++
@@ -827,7 +827,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                if (editing.submit(editRequest, input, presenter.isRevealed(editRequest.entryId))) {
+                if (editing.submit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
                     presenter.entryRemoved(editRequest.entryId) // Discard prior reveal state for the replacement.
                 }
                 revision++

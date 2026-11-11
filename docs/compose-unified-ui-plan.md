@@ -1207,3 +1207,25 @@ redaction, all-envelope metadata preservation, original-account isolation, persi
 concealed/stale/dismissed/removed/locked requests and failure cleanup. Broader email metadata and
 identity editing remain pending. Final persistence is still synchronous. Actual Compose visual,
 accessibility and native/device execution remain unvalidated; Swing remains shipping.
+
+### Add/edit persistence deadline and reentrancy hardening
+
+DesktopEntryCreation and DesktopEntryEditing accept a live session guard on submissions. The
+Compose host supplies lifetime.checkActive for manual/email creation and manual/password/email
+credential editing. Owners check the deadline and current request before construction, before
+persistence and immediately after synchronous persistence, including failed/throwing saves.
+Guard callbacks can themselves lock/dismiss the owner, so identity is rechecked after the guard.
+Successful replacements no longer require the old entry to remain in state, but do require the
+same pending request and live unlocked owner. Completion of an old save cannot clear a newer
+dialog or mutate its failure state. Unadopted candidates are destroyed as before.
+
+This closes the blocked-UI-thread window where a save crosses the idle deadline while the timer
+callback is waiting. It does not interrupt or roll back an authorized disk write. A save that
+finishes after the deadline can remain persisted; the session locks before reporting success,
+and those changes are visible on the next unlock. Final entry persistence remains synchronous.
+
+Tests use a deterministic monotonic scheduler and real save/reopen for all three edit kinds,
+both creation paths, expiration before build/save, reentrant guard/dismissal, replacement dialog
+completion, and expired failing/throwing saves with candidate cleanup. No real Compose/device
+execution is claimed. Remaining feature parity and native/device validation are unchanged; Swing
+continues shipping.
