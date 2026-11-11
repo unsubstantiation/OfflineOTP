@@ -1302,3 +1302,31 @@ queued cancellation, failure/rejected delivery cleanup and late results. Native 
 Compose/device/accessibility validation remain pending. Other remaining migration work includes
 password-change UI, broader preferences and email settings, hardware/camera integrations,
 background persistence, packaging and cutover validation. Swing remains shipping.
+
+### Lock-first password-change owner (UI wiring pending)
+
+DesktopPasswordChange is a window-level owner for an asynchronous password rekey, not yet
+exposed in Compose. It validates bounded nonempty current/new passwords, matching confirmation
+and a changed password, checks live authority, then requires a synchronous lock callback that
+actually destroys the old session before scheduling backend work. A failed/no-op lock callback
+never authorizes the backend. One owner allows one authorized attempt; retries require a fresh
+unlock. The existing VaultController.changePassword performs the storage rekey. Returned keys
+and entries are destroyed immediately on the worker, before status delivery; none are adopted
+or captured by a queued UI result.
+
+Closing before worker start drops credential references and suppresses the backend. Closing
+during rekey suppresses UI completion but does not interrupt the storage transaction; the new
+password may take effect. Immutable password strings cannot be zeroized. Success, rejection and
+backend failure all leave the original session locked. Rejected dispatch leaves WORKING until
+the host closes the owner. No new UI/notifications or recovery claims are made in this increment.
+
+Future Compose integration MUST retain the owner outside vault composition, disable unlock and
+all other vault operations until backend execution has ended, and serialize credential operations
+against an in-flight rekey even after dismissal. Locking the old state alone does not prevent a
+separate new unlock/write racing the backend. These host lifecycle gates, status presentation,
+explicit irreversible-operation messaging and fresh-unlock flow remain required before exposure.
+
+Tests cover real save/rekey/reopen, wrong-current-password disk preservation, invalid/expired
+input, lock enforcement, reentrant close, queued/in-flight cancellation, worker/dispatch/backend
+failures and immediate key/entry destruction. Sandbox crypto/storage tests are not native UI or
+device validation. Swing remains shipping and migration parity is still incomplete.

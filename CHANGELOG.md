@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop migration groundwork: Add a lock-first asynchronous password-change owner. Validate confirmation, prevent duplicate submissions, and discard returned keys/entries before UI delivery. Compose password-change UI is not enabled yet.
+
  * Compose desktop: Export one stored password archive byte-for-byte after explicit plaintext confirmation. Bind selection to the exact live entry, use a safe fixed picker filename, refuse existing destinations, and wipe worker output buffers.
 
  * Compose desktop: Export one lossless browser-password CSV group at a time with exclusion counts and explicit plaintext confirmation. Use exclusive worker writes, dispose unselected snapshots, and suppress canceled/expired completion.
