@@ -1229,3 +1229,26 @@ both creation paths, expiration before build/save, reentrant guard/dismissal, re
 completion, and expired failing/throwing saves with candidate cleanup. No real Compose/device
 execution is claimed. Remaining feature parity and native/device validation are unchanged; Swing
 continues shipping.
+
+### Browser password export preparation (not yet exposed in Compose)
+
+DesktopPasswordExportPlan prepares all recognized browser-password rows independent of filters
+and reveal state. It groups by browser dialect and normalized ordered source headers, preserving
+first-seen group order and row order. Unlike the existing cross-browser conversion API, it never
+merges unlike headers into a canonical header, so provider-specific columns, notes, GUIDs and
+OTPAuth are not silently dropped. It writes exact source cells through the shared CSV serializer,
+not conversion aliases: an empty name/note remains empty even if title/notes also exists.
+
+The plan retains mutable CSV bytes, not live entries. Each group transfers ownership once to a
+future writer, whose responsibility is to wipe the bytes. Closing wipes all untransferred groups.
+Diagnostic strings expose only counts/dialects. Foreign password records and password archives
+are counted separately and not exported; other entry kinds are ignored. Preparation requires an
+unlocked vault. This is only a tested data/ownership boundary: no file is written and no Compose
+action is enabled. A future owner must enforce current plaintext confirmation, request/lifetime
+guards, exclusive writes, and cancellation/late-result cleanup. Serialization remains synchronous
+and immutable parser/CSV strings cannot be zeroized.
+
+Tests cover mixed headers/dialects, unknown columns, quoting/newlines, source order, blank alias
+cells, filter-independent detached snapshots, exclusions, one-time transfer, disposal, diagnostics
+and locked-state rejection. Browser-password export UI and archive export remain pending, as do
+real Compose/native/device validation and other migration parity. Swing remains shipping.

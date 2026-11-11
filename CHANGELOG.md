@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop migration groundwork: Prepare detached browser-password CSV groups without canonical-header conversion or alias substitution. Preserve source-specific columns and blank cells; count excluded foreign credentials and archives. No Compose export action is enabled yet.
+
  * Compose desktop security: Recheck idle deadlines before and after synchronous entry add/edit saves, including failure paths. Suppress late dialog completion after lock or request replacement while retaining already-persisted changes.
 
  * Compose desktop: Change stored email passwords/tokens from revealed connection details. Preserve blank credentials, all SMTP identities, provider metadata and vault presentation settings; reject stale or concealed edit requests.
