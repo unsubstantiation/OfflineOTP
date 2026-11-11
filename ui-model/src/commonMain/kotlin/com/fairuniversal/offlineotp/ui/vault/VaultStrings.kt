@@ -13,6 +13,11 @@ import com.fairuniversal.offlineotp.View.EntryListPresentation
  */
 data class VaultStrings(
     val appTitle: String = "OfflineOTP",
+    val tools: String = "Tools",
+    val importTools: String = "Import accounts",
+    val backupTools: String = "Encrypted backups",
+    val settingsTools: String = "Display and security",
+    val closeTools: String = "Close",
     val addEntry: String = "Add entry",
     val cardLayout: String = "Card layout",
     val autoLock: String = "Auto-lock",

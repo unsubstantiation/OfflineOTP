@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose vault: Group import, encrypted-backup and settings actions in a scrollable Tools dialog instead of stacking them above the entry list. Keep Add entry directly accessible and omit unsupported tools.
+
  * Compose desktop: Import LinSCP encrypted vaults, backup bundles and session files with optional sessions.key selection, bounded worker decoding and explicit merge confirmation. Source/key files remain unchanged.
 
  * Compose desktop: Persist Default, Compact or Full card layout, apply only after successful save without resetting filters/reveal state, and include the setting in desktop portable preferences.

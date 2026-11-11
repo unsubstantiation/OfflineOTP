@@ -181,7 +181,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "PasswordEntryInputTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -479,6 +479,18 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn("fun " + method + "(", contract)
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
+    def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        self.assertIn("VaultToolsBar(actions = actions, strings = strings)", screen)
+        self.assertNotIn("actions.onImportLinScp", screen)
+        tools = (UI_MAIN / "vault/VaultToolsBar.kt").read_text()
+        self.assertIn("VaultTool.available(actions)", tools)
+        self.assertIn("heightIn(max = 400.dp).verticalScroll", tools)
+        self.assertIn("horizontalScroll", tools)
+        self.assertIn("actions.onAddEntry", tools)
+        self.assertIn("expanded = false\n                        tool.invoke(actions)", tools)
+        self.assertNotIn("rememberSaveable", tools)
 
     def test_linscp_import_guards_native_key_selection_and_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

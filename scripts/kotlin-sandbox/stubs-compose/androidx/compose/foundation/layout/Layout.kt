@@ -94,6 +94,7 @@ fun Modifier.size(width: Dp, height: Dp): Modifier = this
 fun Modifier.width(width: Dp): Modifier = this
 
 fun Modifier.height(height: Dp): Modifier = this
+fun Modifier.heightIn(min: Dp = Dp(0f), max: Dp = Dp(Float.MAX_VALUE)): Modifier = this
 
 fun Modifier.widthIn(min: Dp = Dp(0f), max: Dp = Dp(Float.MAX_VALUE)): Modifier = this
 

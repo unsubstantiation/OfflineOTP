@@ -955,3 +955,18 @@ missing/wrong/oversized keys, wrong-password retry, ignored irrelevant key selec
 requests and queued-result cleanup. Shared lifecycle regression gates remain green. Native picker
 and Compose runtime/accessibility validation, LinSCP export and remaining migration work are
 still pending; Swing remains shipping.
+
+### Shared Compose controls: grouped secondary tools
+
+Import, encrypted-backup and display/security actions now live in a grouped Tools dialog instead
+of a growing stack of full-height toolbar rows. Add entry stays directly accessible beside Tools
+in a horizontally scrollable row. Tools and empty groups disappear when their optional callbacks
+are absent, preserving Android's incremental host capabilities. The dialog content has a bounded
+scrollable height, and invoking an action closes the menu before dispatch to a picker or dialog.
+Only ephemeral menu visibility is remembered; tool IDs retain no session callbacks or secrets.
+Labels come from host-supplied VaultStrings. Lock and search/filter controls remain in place.
+
+Model tests cover stable order/grouping, unavailable actions, callback routing, terminal guards
+and host wording. Source guards cover scroll bounds and close-before-dispatch. The sandbox gained
+a type-check-only heightIn signature; no real renderer/layout/focus/accessibility test is claimed.
+This addresses control growth during migration, not feature parity or launcher cutover.
