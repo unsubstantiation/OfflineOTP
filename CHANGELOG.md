@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Merge OpenPGP backups using a selected secret-key file, masked optional passphrase, bounded worker decoding and explicit confirmation. Bound and wipe decoded provider byte buffers in the shared codec. Native crypto/UI validation remains pending.
+
  * Compose desktop: Export SSH keys and password credentials to an encrypted LinSCP vault using a detached snapshot, worker encryption and exclusive file creation. Confirm scope and password; existing files are never overwritten.
 
  * Compose vault: Group import, encrypted-backup and settings actions in a scrollable Tools dialog instead of stacking them above the entry list. Keep Add entry directly accessible and omit unsupported tools.

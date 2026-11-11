@@ -992,3 +992,24 @@ snapshot isolation, no-compatible/locked rejection, wrong-kind rejection, exclus
 protection and cancellation. Tool routing and terminal action guards pass. Native picker/Compose
 validation remains pending. Plaintext structured exports, OpenPGP/hardware workflows and other
 remaining migration work are not complete; Swing remains shipping.
+
+### Desktop replacement: OpenPGP file-key import
+
+Tools now offers OpenPGP backup import with a required secret-key file and an optional masked
+passphrase (blank for unprotected keys). Message/key file reads each enforce the shared 16 MiB
+limit. Source and key selections are native pickers with session/lifetime rechecks. Worker
+decoding uses the existing RpgpOpenPgpPort and shared backup/JSON codecs; empty and duplicate
+account documents are rejected. Confirmation merges into current state through EntryEditor,
+without replace-all semantics. Sources remain unchanged.
+
+Mutable message/key/passphrase buffers are wiped after decoding, and the shared OpenPGP codec
+now bounds plaintext output before string conversion and wipes the provider's returned buffer
+on success/failure. Immutable passphrase/JSON strings remain non-zeroizable. Shared file-import
+ownership discards unadopted entries on cancel/lock/stale delivery. Final persistence remains
+synchronous.
+
+New tests use an injected fake OpenPGP port to verify confirmation, persistence/reopen, boundary
+buffer cleanup, missing/wrong credentials, malformed/empty payloads and cancellation. They do not
+prove real cryptographic interoperability or the native backend. Existing core codec tests pass.
+Real key/native/Compose validation, OpenPGP export and replace-all restore, hardware workflows and
+remaining migration work are pending. Swing remains shipping.

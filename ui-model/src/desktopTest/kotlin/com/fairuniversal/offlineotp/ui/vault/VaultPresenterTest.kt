@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun openPgpImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportOpenPgp)
+        var calls = 0
+        val actions = presenter.actions(importOpenPgp = { calls++ })
+        actions.onImportOpenPgp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportOpenPgp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
     fun linScpExportIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())

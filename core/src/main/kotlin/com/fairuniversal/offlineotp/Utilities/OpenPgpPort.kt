@@ -70,8 +70,11 @@ object OpenPgpBackupCodec {
         require(secretKeyBlock.isNotEmpty()) { "Missing OpenPGP secret key" }
 
         val plainBytes = port.decrypt(message, secretKeyBlock, passphrase)
-        val document = String(plainBytes, Charsets.UTF_8)
-        require(OpenPgpOutputPolicy.hasContent(document)) { "OpenPGP provider returned blank content" }
-        return document
+        try {
+            require(plainBytes.size <= BoundedInputReader.MAX_DOCUMENT_BYTES) { "OpenPGP plaintext exceeds size limit" }
+            val document = String(plainBytes, Charsets.UTF_8)
+            require(OpenPgpOutputPolicy.hasContent(document)) { "OpenPGP provider returned blank content" }
+            return document
+        } finally { plainBytes.fill(0) }
     }
 }

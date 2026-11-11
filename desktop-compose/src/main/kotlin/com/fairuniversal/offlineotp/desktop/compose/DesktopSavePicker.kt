@@ -9,6 +9,26 @@ import java.util.Date
 
 /** Native platform picker, not a Swing widget. The encrypted writer refuses existing files. */
 internal object DesktopSavePicker {
+    fun openOpenPgpBackup(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Open OpenPGP backup", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
+    fun openOpenPgpKey(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Select OpenPGP secret-key file", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
     fun openLinScpBackup(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Open LinSCP vault, backup or sessions file", FileDialog.LOAD)

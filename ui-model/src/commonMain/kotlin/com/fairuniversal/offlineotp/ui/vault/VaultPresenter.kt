@@ -117,7 +117,9 @@ class VaultPresenter(
                 viewEmailDetails: ((VaultCardState) -> Unit)? = null,
                 configureLayout: (() -> Unit)? = null,
                 importLinScp: (() -> Unit)? = null,
-                exportLinScp: (() -> Unit)? = null): VaultActions = VaultActions(
+                exportLinScp: (() -> Unit)? = null,
+                importOpenPgp: (() -> Unit)? = null): VaultActions = VaultActions(
+        onImportOpenPgp = importOpenPgp,
         onExportLinScp = exportLinScp,
         onImportLinScp = importLinScp,
         onConfigureLayout = configureLayout,

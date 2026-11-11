@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_openpgp_import_requires_key_and_live_confirmation(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopOpenPgpImport(vault, exportWorker", host)
+        self.assertIn("openPgpImporter.confirm(openPgpRequest, lifetime::checkActive)", host)
+        self.assertIn("openPgpImporter.close()", host)
+        form = (UI_MAIN / "vault/OpenPgpImportDialog.kt").read_text()
+        self.assertIn("count != null || keySelected", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+
     def test_linscp_export_uses_detached_worker_path_and_explains_scope(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("seal = DesktopLinScpExport::seal", host)
