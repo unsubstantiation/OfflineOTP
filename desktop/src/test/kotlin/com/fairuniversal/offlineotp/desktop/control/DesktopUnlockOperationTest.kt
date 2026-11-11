@@ -26,6 +26,68 @@ class DesktopUnlockOperationTest {
         arrayListOf(ManualEntryInput(label = "alice", secret = "JBSWY3DPEHPK3PXP").build()), key)
 
     @Test
+    fun closeWhileARealWorkerIsDecryptingDiscardsItsLateResult() {
+        val entered = java.util.concurrent.CountDownLatch(1)
+        val release = java.util.concurrent.CountDownLatch(1)
+        val finished = java.util.concurrent.CountDownLatch(1)
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val key = Key(); val loaded = result(key)
+        val dispatched = java.util.concurrent.atomic.AtomicInteger(0)
+        val worker = Executor { task -> executor.execute { try { task.run() } finally { finished.countDown() } } }
+        val operation = DesktopUnlockOperation(worker, { dispatched.incrementAndGet() }, {
+            entered.countDown()
+            check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            loaded
+        }, {}, { error("closed operation adopted a vault") })
+        try {
+            operation.submit("password")
+            assertTrue(entered.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            operation.close(); release.countDown()
+            assertTrue(finished.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            assertTrue(key.destroyed); assertTrue(loaded.entries.isEmpty())
+            assertEquals(0, dispatched.get())
+        } finally { release.countDown(); operation.close(); executor.shutdownNow() }
+    }
+
+    @Test
+    fun closeDuringBusyCompletionDoesNotAdoptTheTakenResult() {
+        val worker = Queue(); val ui = Queue(); val key = Key(); val loaded = result(key)
+        var adopted = false
+        lateinit var operation: DesktopUnlockOperation
+        operation = DesktopUnlockOperation(worker, ui::execute, { loaded }, { busy ->
+            if (!busy) operation.close()
+        }, { adopted = true })
+        operation.submit("password"); worker.runNext(); ui.runNext()
+        assertFalse(adopted); assertTrue(key.destroyed); assertTrue(loaded.entries.isEmpty())
+    }
+
+    @Test
+    fun cancellationBetweenWorkerOfferAndDispatcherEnqueueWipesImmediately() {
+        val worker = Queue(); val ui = Queue(); val key = Key(); val loaded = result(key)
+        lateinit var operation: DesktopUnlockOperation
+        operation = DesktopUnlockOperation(worker, { callback ->
+            operation.close()
+            assertTrue(key.destroyed)
+            assertTrue(loaded.entries.isEmpty())
+            ui.execute(callback)
+        }, { loaded }, {}, { error("closed") })
+        operation.submit("password"); worker.runNext(); ui.runNext()
+        assertTrue(key.destroyed)
+    }
+
+    @Test
+    fun rejectedDispatchAfterEnqueueDropsResultEvenIfCallbackLaterRuns() {
+        val worker = Queue(); val ui = Queue(); val key = Key(); val loaded = result(key)
+        val operation = DesktopUnlockOperation(worker, { callback ->
+            ui.execute(callback)
+            throw RejectedExecutionException()
+        }, { loaded }, {}, { error("discarded result adopted") })
+        operation.submit("password"); worker.runNext()
+        assertTrue(key.destroyed); assertTrue(loaded.entries.isEmpty())
+        ui.runNext(); operation.close()
+    }
+
+    @Test
     fun backendRunsOnWorkerAndOnlyOneAttemptCanBePending() {
         val worker = Queue(); val ui = Queue(); val key = Key(); val loaded = result(key)
         var backendCalls = 0
@@ -71,10 +133,12 @@ class DesktopUnlockOperationTest {
         operation.submit("password")
         worker.runNext()
         operation.close()
-        ui.runNext()
+        // Cleanup must not depend on a live UI queue: assert BEFORE delivery.
         assertEquals(0, entry.getSecretSize())
         assertTrue(loaded.entries.isEmpty())
         assertTrue(key.destroyed)
+        ui.runNext() // Late delivery is harmless after immediate cleanup.
+        assertTrue(loaded.entries.isEmpty())
     }
 
     @Test

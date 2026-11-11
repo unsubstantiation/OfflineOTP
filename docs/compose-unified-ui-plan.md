@@ -1116,3 +1116,21 @@ canceled/expired results, stale confirmation, failed commit and slow-write expir
 and terminal guards are tested. Rejected worker dispatch can leave the loading state until
 dismissal, as with other import owners. Real Compose/native-picker validation and remaining
 migration/cutover work are pending. Swing remains shipping.
+
+### Async unlock lifecycle hardening: queued result ownership
+
+A review found that DesktopUnlockOperation previously captured loaded entries/key directly in
+the queued UI Runnable. Closing invalidated adoption, but cleanup waited for that callback to
+run. A stalled/discarded event queue could therefore retain decrypted vault material longer
+than the screen lifetime. The attempt now owns the result under a monitor; the Runnable retains
+only the attempt. Close cancels and destroys an offered result immediately, while results
+finishing after cancellation are destroyed at handoff. Successful adoption transfers ownership
+once and close no longer touches the adopted session.
+
+Completion also rechecks terminal state after onBusy(false), since a host callback can close
+synchronously. Tests assert destruction before queued callback delivery, cancellation between
+offer/enqueue, dispatch rejection after enqueue, reentrant close, and a real executor/latch
+cancellation during backend execution. This does not interrupt an already-running create/write
+or zero immutable password strings; no native-window test is claimed. Remaining feature parity,
+background persistence and actual Compose/device validation are still pending. Swing remains
+shipping.

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Immediately destroy unadopted unlock entries and keys when the locked screen closes, even if UI delivery is still queued. Guard reentrant close during busy-state completion.
+
  * Compose desktop: Preview and confirm portable preferences imports with bounded worker reads and single-write persistence. Refresh only imported sort/layout/timeout settings, preserving the old auto-lock deadline until the write completes.
 
  * Desktop preferences: Prepare an allowlisted import plan and apply the batch with one settings-file write instead of per-key writes. Publish cached settings only after persistence; the existing Swing import now uses this path ahead of the Compose import UI.
