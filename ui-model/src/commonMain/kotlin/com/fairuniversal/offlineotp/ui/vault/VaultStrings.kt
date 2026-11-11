@@ -17,6 +17,7 @@ data class VaultStrings(
     val cardLayout: String = "Card layout",
     val autoLock: String = "Auto-lock",
     val emailDetails: String = "Connection details",
+    val importLinScp: String = "Import LinSCP credentials",
     val importEmail: String = "Import FairEmail backup",
     val importPasswords: String = "Import password file",
     val importUri: String = "Import OTP URI",

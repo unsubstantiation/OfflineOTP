@@ -935,3 +935,23 @@ Tests cover save/reopen, invalid values, settings-cache rollback on failed write
 expired/locked requests, presenter continuity and portable preference round-trip. Actual Compose
 layout, focus and accessibility checks remain pending. Other appearance settings, preferences
 import/export UI, async persistence and the wider migration/cutover are not complete.
+
+### Desktop replacement: LinSCP credential import
+
+Compose now imports LinSCP encrypted vaults, backup bundles and standalone sessions.ini files
+through the existing LinScpCredentials codec and shared DesktopFileImport owner. Native source
+and optional sessions.key pickers recheck lifetime after returning; paths are not displayed or
+logged in result messages. Password drafts are masked, non-saveable and cleared before submission.
+Worker reads enforce the shared 16 MiB source limit and a 4096-byte key-file limit. Encrypted vaults
+ignore any selected external key; unencrypted session input may use an embedded or selected key.
+Source/key bytes are wiped after decoding. Immutable password/decoded strings cannot be zeroized.
+
+Prepared entries require explicit merge confirmation. EntryEditor handles duplicate/capacity rules
+and save-before-publication; cancel, lock/disposal and stale/rejected delivery destroy unadopted
+entries. The source/key files remain unchanged. Final persistence is still synchronous.
+
+Tests cover vault/bundle/external-key decoding through persistence/reopen, unchanged files,
+missing/wrong/oversized keys, wrong-password retry, ignored irrelevant key selection, stale
+requests and queued-result cleanup. Shared lifecycle regression gates remain green. Native picker
+and Compose runtime/accessibility validation, LinSCP export and remaining migration work are
+still pending; Swing remains shipping.

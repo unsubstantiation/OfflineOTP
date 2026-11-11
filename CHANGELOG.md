@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Import LinSCP encrypted vaults, backup bundles and session files with optional sessions.key selection, bounded worker decoding and explicit merge confirmation. Source/key files remain unchanged.
+
  * Compose desktop: Persist Default, Compact or Full card layout, apply only after successful save without resetting filters/reveal state, and include the setting in desktop portable preferences.
 
  * Compose desktop: View email connection and SMTP identity details with passwords masked by default and guarded explicit reveal. Also fix the missing Edit button for supported imported password layouts.

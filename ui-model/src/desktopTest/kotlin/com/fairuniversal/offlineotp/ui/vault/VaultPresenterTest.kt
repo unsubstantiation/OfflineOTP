@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun linScpImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportLinScp)
+        var calls = 0
+        val actions = presenter.actions(importLinScp = { calls++ })
+        actions.onImportLinScp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportLinScp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
     fun changingCardLayoutPreservesRevealAndFilterAndStopsAfterLock() {
         val entry = totp("Example", "alice")
         val list = EntryList().apply { addEntry(entry) }

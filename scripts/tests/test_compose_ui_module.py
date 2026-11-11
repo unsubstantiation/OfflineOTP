@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_linscp_import_guards_native_key_selection_and_confirmation(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopLinScpImport(vault, exportWorker", host)
+        self.assertIn("linScpImporter.confirm(linScpRequest, lifetime::checkActive)", host)
+        self.assertIn("lifetime.checkActive() && linScpImporter.pending === linScpRequest && selected != null", host)
+        self.assertIn("linScpImporter.close()", host)
+        form = (UI_MAIN / "vault/LinScpImportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; onRead(submitted)', form)
+
     def test_layout_settings_load_persist_and_apply_without_recreating_presenter(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("appearance = VaultAppearance(cardLayout = controller.savedCardLayout())", host)
