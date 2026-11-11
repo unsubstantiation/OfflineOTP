@@ -480,6 +480,13 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_preferences_export_uses_worker_and_rechecks_lifetime(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPreferencesExport(vault, exportWorker", host)
+        self.assertIn("preferencesExporter.submit(target, lifetime::checkActive)", host)
+        self.assertIn("preferencesExporter.close()", host)
+        self.assertIn("No vault entries, passwords or authentication material", host)
+
     def test_openpgp_export_confirms_scope_and_recipient(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)

@@ -4,7 +4,7 @@ package com.fairuniversal.offlineotp.ui.vault
 enum class VaultTool(val group: Group) {
     IMPORT_URI(Group.IMPORT), IMPORT_PASSWORDS(Group.IMPORT), IMPORT_EMAIL(Group.IMPORT), IMPORT_LINSCP(Group.IMPORT),
     EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
-    CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS);
+    CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS);
 
     enum class Group { IMPORT, BACKUP, SETTINGS }
 
@@ -19,6 +19,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_ENCRYPTED -> strings.exportEncrypted
         RESTORE_ENCRYPTED -> strings.restoreEncrypted
         CARD_LAYOUT -> strings.cardLayout
+        EXPORT_PREFERENCES -> strings.exportPreferences
         AUTO_LOCK -> strings.autoLock
     }
     private fun callback(actions: VaultActions): (() -> Unit)? = when (this) {
@@ -32,6 +33,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_ENCRYPTED -> actions.onExportEncrypted
         RESTORE_ENCRYPTED -> actions.onRestoreEncrypted
         CARD_LAYOUT -> actions.onConfigureLayout
+        EXPORT_PREFERENCES -> actions.onExportPreferences
         AUTO_LOCK -> actions.onConfigureAutoLock
     }
     fun invoke(actions: VaultActions) { callback(actions)?.invoke() }

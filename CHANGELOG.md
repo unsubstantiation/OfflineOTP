@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Export allowlisted portable preferences on a worker without vault credentials or authentication material. Refuse existing destinations and reuse the restricted exclusive-file writer.
+
  * Compose desktop: Add explicit replace-all confirmation for OpenPGP restore while retaining merge as the default. Save before replacing live entries and preserve the original vault on failed writes.
 
  * Compose desktop: Export full OpenPGP backups to a selected recipient public-key file with explicit scope confirmation, worker encryption and exclusive destination creation. Wipe provider plaintext inputs after encryption. Native crypto/UI validation remains pending.

@@ -22,6 +22,7 @@ data class VaultStrings(
     val cardLayout: String = "Card layout",
     val autoLock: String = "Auto-lock",
     val emailDetails: String = "Connection details",
+    val exportPreferences: String = "Export preferences",
     val exportOpenPgp: String = "Export OpenPGP backup",
     val importOpenPgp: String = "Import OpenPGP backup",
     val exportLinScp: String = "Export encrypted LinSCP vault",

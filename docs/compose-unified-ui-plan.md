@@ -1053,3 +1053,24 @@ Injected-provider tests cover explicit replacement through reopen, old-entry des
 success, save-failure cleanup with old entries intact, missing replacement authority, expiration
 before confirmation, stale repeat confirmation and merge preservation. Native OpenPGP and real
 Compose validation are still pending; this does not complete hardware or launcher migration.
+
+### Desktop replacement: portable preferences export
+
+Tools now offers Export preferences through a native save picker. The controller uses the shared
+PreferencesExport codec and DesktopPreferencesPort with includeSecrets=false and desktop platform
+selection. Only catalogued sort order, inactivity timeout and card layout are eligible; vault
+entries, auth/KDF state, backup passwords and unknown keys are excluded. Success reports the
+actual exported setting count, including zero for an untouched configuration.
+
+The UI thread captures the settings document; a worker writes it through ExclusiveExportFile,
+extracted from the existing ciphertext writer without changing its exclusive-create, permission
+or force-sync behavior. EncryptedBackupFile remains a ciphertext-only facade. Existing files are
+never overwritten. Snapshot bytes are wiped after write/failure/cancellation. Dismissing queued
+work prevents its write; work already taken by the worker may finish, but cannot publish success
+after cancellation/lock. A failure may leave a partial settings file. Rejected dispatch can leave
+the progress notice until dismissal. Native picker return and result delivery check lifetime.
+
+Tests verify catalog-only contents and portable decode, auth/secret/unknown-key exclusion,
+existing-file preservation, canceled snapshots, late completion, failed writes and expiry.
+Real native/Compose validation, preferences import UI and remaining migration work are pending.
+Swing remains shipping.

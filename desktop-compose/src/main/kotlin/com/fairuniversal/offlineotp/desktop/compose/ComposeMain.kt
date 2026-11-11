@@ -5,6 +5,7 @@ import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
 import com.fairuniversal.offlineotp.desktop.control.DesktopEmailDetails
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopOpenPgpExport
 import com.fairuniversal.offlineotp.ui.vault.OpenPgpExportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopOpenPgpImport
@@ -195,6 +196,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val preferencesExporter = remember(vault) { DesktopPreferencesExport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, controller::exportPreferences, { revision++ }) }
     val restorer = remember(vault) { DesktopEncryptedRestore(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, BackupCoordinator(controller, vault)::restoreEntries) }
     val passwordImporter = remember(vault) { DesktopPasswordImport(vault, exportWorker,
@@ -249,6 +252,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 imageReader.close()
                 uriImporter.close()
                 restorer.close()
+                preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -283,7 +287,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -492,6 +496,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, exportPreferences = {
+            if (lifetime.checkActive() && preferencesExporter.status != DesktopPreferencesExport.Status.WRITING) {
+                try {
+                    val target = DesktopSavePicker.preferencesExport(window)
+                    if (target != null && lifetime.checkActive() && !vault.isLocked) preferencesExporter.submit(target, lifetime::checkActive)
+                } catch (_: Exception) { copyNotice = "The preferences destination could not be selected." }
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
@@ -608,6 +619,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     restorer.restoredCount?.let { count -> EntryConfirmationDialog(title = "Restore complete",
         message = "$count entries restored or added. Existing accounts are kept unchanged when merging.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { restorer.dismissNotice() }, onDismiss = { restorer.dismissNotice() }) }
+    preferencesExporter.status?.let { status -> EntryConfirmationDialog(title = "Export preferences",
+        message = when (status) {
+            DesktopPreferencesExport.Status.WRITING -> "Writing portable settings only—no vault entries, passwords or authentication material. Cancel stops queued work; a write already started may finish."
+            DesktopPreferencesExport.Status.SAVED -> "Exported ${preferencesExporter.count} portable settings. No vault entries, passwords or authentication material were included."
+            DesktopPreferencesExport.Status.EXISTS -> "That filename already exists. Choose a new filename; nothing was overwritten."
+            DesktopPreferencesExport.Status.FAILED -> "Could not export preferences. A partial settings file may remain; choose a new filename before retrying."
+        }, confirmLabel = if (status == DesktopPreferencesExport.Status.WRITING) "Cancel" else "OK",
+        dismissLabel = "Close", onConfirm = { preferencesExporter.dismiss() }, onDismiss = { preferencesExporter.dismiss() }) }
     val pgpExportRequest = openPgpExporter.pending
     if (pgpExportRequest != null) {
         var recipientFile by remember(pgpExportRequest) { mutableStateOf<java.io.File?>(null) }

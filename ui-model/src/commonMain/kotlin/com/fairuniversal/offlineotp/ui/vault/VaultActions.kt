@@ -57,13 +57,15 @@ class VaultActions(
     val onImportLinScp: (() -> Unit)? = null,
     val onExportLinScp: (() -> Unit)? = null,
     val onImportOpenPgp: (() -> Unit)? = null,
-    val onExportOpenPgp: (() -> Unit)? = null
+    val onExportOpenPgp: (() -> Unit)? = null,
+    val onExportPreferences: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onExportPreferences = onExportPreferences?.let { action -> { if (isActive()) action() } },
         onExportOpenPgp = onExportOpenPgp?.let { action -> { if (isActive()) action() } },
         onImportOpenPgp = onImportOpenPgp?.let { action -> { if (isActive()) action() } },
         onExportLinScp = onExportLinScp?.let { action -> { if (isActive()) action() } },

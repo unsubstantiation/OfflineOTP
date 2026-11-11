@@ -119,6 +119,16 @@ internal object DesktopSavePicker {
             File(picker.directory, name)
         } finally { picker.dispose(); parent.dispose() }
     }
+    fun preferencesExport(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Export portable preferences (choose a new filename)", FileDialog.SAVE)
+        return try {
+            picker.file = "offlineotp-preferences.json"
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
     fun encryptedBackup(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Save encrypted backup (choose a new filename)", FileDialog.SAVE)

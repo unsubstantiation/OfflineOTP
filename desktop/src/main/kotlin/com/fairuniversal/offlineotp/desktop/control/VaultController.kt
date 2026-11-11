@@ -121,6 +121,12 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    /** Portable allowlisted preferences only; never export vault auth state or backup passwords. */
+    fun exportPreferences(): com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export =
+        com.fairuniversal.offlineotp.Utilities.PreferencesExport.export(
+            com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesPort(vault.preferences),
+            includeSecrets = false, platform = com.fairuniversal.offlineotp.Utilities.PreferencesExport.PLATFORM_DESKTOP)
+
     fun backup(): Boolean = vault.backup()
 
     private companion object {
