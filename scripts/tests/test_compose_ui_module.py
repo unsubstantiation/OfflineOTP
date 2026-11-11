@@ -480,6 +480,17 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_preferences_import_refreshes_only_mentioned_settings_after_lifetime_check(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPreferencesImport(vault, exportWorker", host)
+        self.assertIn("preferencesImporter.confirm(preferencesRequest, lifetime::checkActive)", host)
+        for key in ("UI_INACTIVITY_LOCK_SECONDS", "UI_CARD_LAYOUT", "UI_SORT_MODE"):
+            self.assertIn(f"plan.contains(PreferencesExport.{key})", host)
+        self.assertIn("preferencesImporter.close()", host)
+        form = (UI_MAIN / "vault/PreferencesImportDialog.kt").read_text()
+        self.assertIn("A file may disable auto-lock", form)
+        self.assertIn("enabled = !busy && count != null", form)
+
     def test_preferences_export_uses_worker_and_rechecks_lifetime(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopPreferencesExport(vault, exportWorker", host)

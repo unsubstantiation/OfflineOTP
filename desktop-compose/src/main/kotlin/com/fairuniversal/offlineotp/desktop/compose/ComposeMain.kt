@@ -5,6 +5,9 @@ import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
 import com.fairuniversal.offlineotp.desktop.control.DesktopEmailDetails
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesImport
+import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
+import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopOpenPgpExport
 import com.fairuniversal.offlineotp.ui.vault.OpenPgpExportDialog
@@ -198,6 +201,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val preferencesExporter = remember(vault) { DesktopPreferencesExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, controller::exportPreferences, { revision++ }) }
+    val preferencesImporter = remember(vault) { DesktopPreferencesImport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, controller::importPreferences) }
     val restorer = remember(vault) { DesktopEncryptedRestore(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, BackupCoordinator(controller, vault)::restoreEntries) }
     val passwordImporter = remember(vault) { DesktopPasswordImport(vault, exportWorker,
@@ -252,6 +257,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 imageReader.close()
                 uriImporter.close()
                 restorer.close()
+                preferencesImporter.close()
                 preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
@@ -287,7 +293,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -503,6 +509,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     if (target != null && lifetime.checkActive() && !vault.isLocked) preferencesExporter.submit(target, lifetime::checkActive)
                 } catch (_: Exception) { copyNotice = "The preferences destination could not be selected." }
             }
+        }, importPreferences = {
+            if (lifetime.checkActive() && preferencesImporter.pending == null) {
+                layoutSettings.pending?.let { layoutSettings.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                try {
+                    val source = DesktopSavePicker.openPreferences(window)
+                    if (source != null && lifetime.checkActive() && !vault.isLocked) preferencesImporter.open(source, lifetime::checkActive)
+                } catch (_: Exception) { copyNotice = "The preferences file could not be selected." }
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
@@ -619,6 +634,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     restorer.restoredCount?.let { count -> EntryConfirmationDialog(title = "Restore complete",
         message = "$count entries restored or added. Existing accounts are kept unchanged when merging.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { restorer.dismissNotice() }, onDismiss = { restorer.dismissNotice() }) }
+    val preferencesRequest = preferencesImporter.pending
+    if (preferencesRequest != null) PreferencesImportDialog(busy = preferencesRequest.busy,
+        count = preferencesRequest.plan?.applied,
+        skipped = preferencesRequest.plan?.let { it.unknownCount + it.refusedCount } ?: 0,
+        failed = preferencesRequest.failed,
+        onConfirm = {
+            preferencesImporter.confirm(preferencesRequest, lifetime::checkActive) { plan ->
+                if (plan.contains(PreferencesExport.UI_INACTIVITY_LOCK_SECONDS)) lifetime.changeTimeout(controller.savedInactivityLockSeconds())
+                if (plan.contains(PreferencesExport.UI_CARD_LAYOUT)) presenter.setCardLayout(controller.savedCardLayout())
+                if (plan.contains(PreferencesExport.UI_SORT_MODE)) presenter.applyFilter(presenter.filter.copy(sortMode = controller.savedSortMode()))
+            }
+        }, onDismiss = { preferencesImporter.dismiss(preferencesRequest) })
+    preferencesImporter.appliedCount?.let { count -> EntryConfirmationDialog(title = "Preferences imported",
+        message = "Applied $count settings. Vault entries and authentication material were not changed.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { preferencesImporter.dismissNotice() }, onDismiss = { preferencesImporter.dismissNotice() }) }
     preferencesExporter.status?.let { status -> EntryConfirmationDialog(title = "Export preferences",
         message = when (status) {
             DesktopPreferencesExport.Status.WRITING -> "Writing portable settings only—no vault entries, passwords or authentication material. Cancel stops queued work; a write already started may finish."

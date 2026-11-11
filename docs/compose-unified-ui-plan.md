@@ -1095,3 +1095,24 @@ per-key persistence loop. Tests cover one-write publication, preparation without
 omitted-key preservation, full cache/disk rollback for injected write failure, retry, malformed
 input, wrong platform/type, excluded keys and no-op empty plans. Compose import UI and live
 timeout/layout refresh remain the next increment; Swing still ships.
+
+### Desktop replacement: preferences import UI and live refresh
+
+Tools now offers Import preferences through a native picker, bounded worker parsing and a
+confirmation dialog reporting accepted/skipped counts. The dialog explains that absent settings
+are retained, vault/auth data is untouched, and an imported timeout may disable auto-lock.
+Only the validated DesktopPreferencesImportPlan reaches the single-write controller path.
+Malformed/wrong-platform files cannot be confirmed; failed saves do not refresh the live view.
+
+The session/request is checked before and after commit. If persistence crosses the old inactivity
+deadline, that deadline locks the current session before an imported disabled/longer timeout can
+be applied. The setting may still be persisted for a future session. Only keys present in the
+plan update the existing presenter's sort/layout or the live timer; omitted timeout does not
+restart inactivity. Other filters and reveal state are preserved. Disk persistence remains
+synchronous; worker parsing and result adoption are cancellable, not in-flight settings writes.
+
+Tests cover preview/no mutation, explicit confirmation and reopen, omitted-key preservation,
+canceled/expired results, stale confirmation, failed commit and slow-write expiry. Tool availability
+and terminal guards are tested. Rejected worker dispatch can leave the loading state until
+dismissal, as with other import owners. Real Compose/native-picker validation and remaining
+migration/cutover work are pending. Swing remains shipping.

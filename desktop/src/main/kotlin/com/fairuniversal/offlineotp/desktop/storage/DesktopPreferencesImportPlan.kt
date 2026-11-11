@@ -8,6 +8,8 @@ class DesktopPreferencesImportPlan private constructor(
     private val values: Map<String, String>,
     val applied: Int, val unknownCount: Int, val refusedCount: Int
 ) {
+    fun contains(key: String): Boolean = values.containsKey(key)
+
     /** Merge only mentioned keys with one atomic-file write, preserving current auth/unmentioned keys. */
     fun applyTo(settings: KeyValueSettings) {
         require(settings is DesktopSettings) { "Atomic desktop settings store required" }

@@ -127,6 +127,11 @@ class VaultController(private val vault: PasswordVault) {
             com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesPort(vault.preferences),
             includeSecrets = false, platform = com.fairuniversal.offlineotp.Utilities.PreferencesExport.PLATFORM_DESKTOP)
 
+    fun importPreferences(plan: com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesImportPlan): Boolean = try {
+        plan.applyTo(vault.preferences)
+        true
+    } catch (_: Exception) { false }
+
     fun backup(): Boolean = vault.backup()
 
     private companion object {

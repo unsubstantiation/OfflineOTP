@@ -59,6 +59,16 @@ internal object DesktopSavePicker {
         } finally { picker.dispose(); parent.dispose() }
     }
 
+    fun openPreferences(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Import desktop preferences", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
     fun openEmailBackup(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Open FairEmail backup", FileDialog.LOAD)

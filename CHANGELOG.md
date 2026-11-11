@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Preview and confirm portable preferences imports with bounded worker reads and single-write persistence. Refresh only imported sort/layout/timeout settings, preserving the old auto-lock deadline until the write completes.
+
  * Desktop preferences: Prepare an allowlisted import plan and apply the batch with one settings-file write instead of per-key writes. Publish cached settings only after persistence; the existing Swing import now uses this path ahead of the Compose import UI.
 
  * Compose desktop: Export allowlisted portable preferences on a worker without vault credentials or authentication material. Refuse existing destinations and reuse the restricted exclusive-file writer.
