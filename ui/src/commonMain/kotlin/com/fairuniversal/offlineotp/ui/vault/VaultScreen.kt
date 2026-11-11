@@ -71,6 +71,11 @@ fun VaultScreen(
                 ForestTextAction(text = strings.exportEncrypted, onClick = export)
             }
         }
+        actions.onConfigureLayout?.let { configure ->
+            Box(modifier = Modifier.padding(horizontal = 16.dp)) {
+                ForestTextAction(text = strings.cardLayout, onClick = configure)
+            }
+        }
         actions.onConfigureAutoLock?.let { configure ->
             Box(modifier = Modifier.padding(horizontal = 16.dp)) {
                 ForestTextAction(text = strings.autoLock, onClick = configure)

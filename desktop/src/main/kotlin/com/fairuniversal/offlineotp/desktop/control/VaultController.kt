@@ -111,6 +111,16 @@ class VaultController(private val vault: PasswordVault) {
         } catch (_: Exception) { false }
     }
 
+    fun savedCardLayout(): Constants.CardLayouts = try {
+        Constants.CardLayouts.valueOf(vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_CARD_LAYOUT, Constants.CardLayouts.DEFAULT.name))
+    } catch (_: RuntimeException) { Constants.CardLayouts.DEFAULT }
+
+    fun trySaveCardLayout(layout: Constants.CardLayouts): Boolean = try {
+        vault.preferences.putString(com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_CARD_LAYOUT, layout.name)
+        true
+    } catch (_: Exception) { false }
+
     fun backup(): Boolean = vault.backup()
 
     private companion object {

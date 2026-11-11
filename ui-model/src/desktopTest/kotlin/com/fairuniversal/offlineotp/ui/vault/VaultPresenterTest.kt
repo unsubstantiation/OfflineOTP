@@ -19,6 +19,31 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun changingCardLayoutPreservesRevealAndFilterAndStopsAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS))
+        val card = presenter.frame(0L).cards.single()
+        presenter.toggleReveal(card.id)
+        val filter = presenter.filter
+        assertNull(presenter.actions().onConfigureLayout)
+        var opens = 0
+        val actions = presenter.actions(configureLayout = { opens++ })
+        actions.onConfigureLayout?.invoke()
+        presenter.setCardLayout(Constants.CardLayouts.FULL)
+        assertEquals(Constants.CardLayouts.FULL, presenter.appearance.cardLayout)
+        assertEquals(filter, presenter.filter)
+        assertTrue(presenter.frame(0L).cards.single().revealed)
+        presenter.lock()
+        presenter.setCardLayout(Constants.CardLayouts.COMPACT)
+        actions.onConfigureLayout?.invoke()
+        assertEquals(Constants.CardLayouts.FULL, presenter.appearance.cardLayout)
+        assertEquals(1, opens)
+        entry.destroy()
+    }
+
+    @Test
     fun emailDetailsRequiresLiveRevealAndIsTerminalAfterLock() {
         val entry = totp("Example", "alice")
         val list = EntryList().apply { addEntry(entry) }

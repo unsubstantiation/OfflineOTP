@@ -918,3 +918,20 @@ excluded. This is a reachability correction, not a claim of prior runtime valida
 
 Email editing/export, remaining migration features and background persistence remain incomplete.
 Swing still ships; no launcher cutover or PR is included.
+
+### Desktop replacement: persisted card layout
+
+A session-owned Card layout dialog offers Default, Compact and Full. Save persists the enum name
+under the desktop `ui_card_layout` preference before applying it to the existing presenter.
+Opening/canceling does not write; failed persistence leaves the live layout unchanged. Request
+identity, terminal session state and lifetime are checked before/after save; a slow save crossing
+expiry can persist a preference for next time but cannot update the expired session. Unknown
+stored names fall back to Default.
+
+The presenter changes only its appearance layout, preserving other appearance options, filters
+and reveal state; updates/actions become inert after lock. The new desktop-specific preference
+is included in the existing portable settings catalog; Swing ignores the renderer-specific key.
+Tests cover save/reopen, invalid values, settings-cache rollback on failed writes, cancel/stale/
+expired/locked requests, presenter continuity and portable preference round-trip. Actual Compose
+layout, focus and accessibility checks remain pending. Other appearance settings, preferences
+import/export UI, async persistence and the wider migration/cutover are not complete.

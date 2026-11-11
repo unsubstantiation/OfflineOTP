@@ -52,13 +52,15 @@ class VaultActions(
     val onImportUri: (() -> Unit)? = null,
     val onImportPasswords: (() -> Unit)? = null,
     val onImportEmail: (() -> Unit)? = null,
-    val onViewEmailDetails: ((VaultCardState) -> Unit)? = null
+    val onViewEmailDetails: ((VaultCardState) -> Unit)? = null,
+    val onConfigureLayout: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
      * Optional actions remain null so unavailable features stay hidden.
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
+        onConfigureLayout = onConfigureLayout?.let { action -> { if (isActive()) action() } },
         onViewEmailDetails = onViewEmailDetails?.let { action -> { if (isActive()) action(it) } },
         onImportEmail = onImportEmail?.let { action -> { if (isActive()) action() } },
         onImportPasswords = onImportPasswords?.let { action -> { if (isActive()) action() } },

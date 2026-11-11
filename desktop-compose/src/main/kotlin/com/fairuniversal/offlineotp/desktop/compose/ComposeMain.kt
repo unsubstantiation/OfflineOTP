@@ -16,6 +16,9 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopEncryptedRestore
 import com.fairuniversal.offlineotp.ui.vault.EncryptedRestoreDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEncryptedExport
 import com.fairuniversal.offlineotp.ui.vault.EncryptedExportDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopLayoutSettings
+import com.fairuniversal.offlineotp.ui.vault.CardLayoutDialog
+import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.desktop.control.DesktopAutoLockSettings
 import com.fairuniversal.offlineotp.ui.vault.AutoLockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
@@ -198,12 +201,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
     val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
+    val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
+            appearance = VaultAppearance(cardLayout = controller.savedCardLayout()),
             addEntry = { autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
             editEntry = { card ->
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -226,6 +231,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 exporter.close()
+                layoutSettings.close()
                 autoLock.close()
                 copier.close()
                 copyNotice = null
@@ -256,7 +262,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            emailDetails.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -396,6 +402,17 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 emailDetails.open(card.id, presenter.isRevealed(card.id))
                 revision++
             }
+        }, configureLayout = {
+            if (lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                layoutSettings.open(); revision++
+            }
         }),
         appearance = presenter.appearance,
         artwork = artwork
@@ -484,6 +501,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onDismiss = { exporter.dismiss(exportRequest) })
     if (exporter.saved) EntryConfirmationDialog(title = "Encrypted backup", message = "Encrypted backup saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { exporter.dismissNotice() }, onDismiss = { exporter.dismissNotice() })
+    val layoutRequest = layoutSettings.pending
+    if (layoutRequest != null) CardLayoutDialog(inputKey = layoutRequest, current = layoutRequest.current,
+        failed = layoutRequest.failed,
+        onSave = { layout ->
+            layoutSettings.submit(layoutRequest, layout, lifetime::checkActive, presenter::setCardLayout)
+            revision++
+        }, onDismiss = { layoutSettings.dismiss(layoutRequest); revision++ })
     val timeoutRequest = autoLock.pending
     if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
         currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,

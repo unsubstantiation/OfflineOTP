@@ -190,17 +190,19 @@ object PreferencesExport {
     /**
      * The desktop's portable settings, and the whole of them.
      *
-     * The desktop stores two user preferences beside the vault: the list order and the inactivity
-     * lock delay. Everything else in its properties file is `auth_*` and describes *this vault's*
+     * The desktop stores list order, inactivity lock delay and Compose card layout beside the vault. Everything else in its properties file is `auth_*` and describes *this vault's*
      * KDF and verifier, so it belongs to the vault rather than to the app and cannot be moved to
      * another install (a new vault has its own salt). A desktop export is therefore a small file,
      * and [Export.keysWritten] says so instead of implying more.
      */
     val desktopCatalog: List<Setting> = listOf(
         Setting(UI_SORT_MODE, Kind.STRING),
-        Setting(UI_INACTIVITY_LOCK_SECONDS, Kind.INTEGER)
+        Setting(UI_INACTIVITY_LOCK_SECONDS, Kind.INTEGER),
+        Setting(UI_CARD_LAYOUT, Kind.STRING)
     )
 
+    /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
+    const val UI_CARD_LAYOUT = "ui_card_layout"
     /** Desktop key for the saved list order. Mirrors `VaultController.SORT_MODE_KEY`. */
     const val UI_SORT_MODE = "ui_sort_mode"
     /** Desktop key for the inactivity lock delay. Mirrors `VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS`. */

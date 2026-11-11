@@ -19,7 +19,7 @@ class VaultPresenter(
     private val projection: VaultProjection,
     initialFilter: VaultFilter,
     val strings: VaultStrings = VaultStrings.English,
-    val appearance: VaultAppearance = VaultAppearance(),
+    appearance: VaultAppearance = VaultAppearance(),
     /** Puts a code on the clipboard. Receives digits only; null leaves Copy doing nothing. */
     private val copyCode: ((String) -> Unit)? = null,
     /** Advances an HOTP counter and persists it. Null hides the action. */
@@ -42,6 +42,15 @@ class VaultPresenter(
     /** The selection currently shown. Change it through the [actions], never by assigning here. */
     var filter: VaultFilter = initialFilter
         private set
+
+    var appearance: VaultAppearance = appearance
+        private set
+
+    fun setCardLayout(layout: Constants.CardLayouts) {
+        if (locked) return
+        appearance = appearance.copy(cardLayout = layout)
+        onChange?.invoke()
+    }
 
     private val revealed = LinkedHashSet<Long>()
     private var locked = false
@@ -105,7 +114,9 @@ class VaultPresenter(
                 importUri: (() -> Unit)? = null,
                 importPasswords: (() -> Unit)? = null,
                 importEmail: (() -> Unit)? = null,
-                viewEmailDetails: ((VaultCardState) -> Unit)? = null): VaultActions = VaultActions(
+                viewEmailDetails: ((VaultCardState) -> Unit)? = null,
+                configureLayout: (() -> Unit)? = null): VaultActions = VaultActions(
+        onConfigureLayout = configureLayout,
         onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },
         onImportEmail = importEmail,
         onImportPasswords = importPasswords,

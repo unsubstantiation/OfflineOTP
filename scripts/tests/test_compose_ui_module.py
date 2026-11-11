@@ -480,6 +480,15 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_layout_settings_load_persist_and_apply_without_recreating_presenter(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("appearance = VaultAppearance(cardLayout = controller.savedCardLayout())", host)
+        self.assertIn("layoutSettings.submit(layoutRequest, layout, lifetime::checkActive, presenter::setCardLayout)", host)
+        self.assertIn("layoutSettings.close()", host)
+        form = (UI_MAIN / "vault/CardLayoutDialog.kt").read_text()
+        self.assertIn("Constants.CardLayouts.values()", form)
+        self.assertIn('ForestTextAction(text = "Save"', form)
+
     def test_email_details_rechecks_reveal_and_password_edit_is_reachable(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))", host)
