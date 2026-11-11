@@ -13,9 +13,17 @@ import java.util.concurrent.Executor
 /** File-key OpenPGP import. No provider UI or hardware key access is implied. */
 class DesktopOpenPgpImport(
     state: DesktopVaultState, worker: Executor, dispatch: (Runnable) -> Unit, changed: () -> Unit,
-    install: (List<Entry>) -> Int?, port: OpenPgpPort = RpgpOpenPgpPort()
+    install: (List<Entry>) -> Int?, port: OpenPgpPort = RpgpOpenPgpPort(),
+    private val replaceAll: ((List<Entry>) -> Int?)? = null
 ) : DesktopFileImport<DesktopOpenPgpImport.Input>(state, worker, dispatch, changed, install,
     { source, input -> readBackup(source, input, port) }) {
+    /** Merge remains the default API. Replacement requires an explicit host-provided transaction. */
+    fun confirmRestore(request: Request, replace: Boolean, active: () -> Boolean): Boolean {
+        if (!replace) return confirm(request, active)
+        val commit = replaceAll ?: return false
+        return confirmUsing(request, active, commit)
+    }
+
     class Input(val passphrase: String, val keyFile: File?) {
         override fun toString() = "OpenPgpImportInput(redacted)"
     }

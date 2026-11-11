@@ -204,7 +204,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val linScpImporter = remember(vault) { DesktopLinScpImport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
     val openPgpImporter = remember(vault) { DesktopOpenPgpImport(vault, exportWorker,
-        { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries,
+        replaceAll = { entries -> BackupCoordinator(controller, vault).restoreEntries(ArrayList(entries), replace = true) }) }
     val uriImporter = remember(vault) { DesktopUriImport(vault, BackupCoordinator(controller, vault)) }
     val imageReader = remember(vault) { DesktopQrImageRead(exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
@@ -519,12 +520,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
             }, onClearKey = { keyFile = null },
             onRead = { password -> openPgpImporter.submit(openPgpRequest, DesktopOpenPgpImport.Input(password, keyFile), lifetime::checkActive) },
-            onConfirm = {
-                if (openPgpImporter.confirm(openPgpRequest, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+            onConfirm = { replace ->
+                if (openPgpImporter.confirmRestore(openPgpRequest, replace, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
             }, onDismiss = { keyFile = null; openPgpImporter.dismiss(openPgpRequest) })
     }
     openPgpImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "OpenPGP import",
-        message = "Imported $count entries. Identical entries were skipped. Original files are unchanged.",
+        message = "Restored or added $count entries. Original backup and key files are unchanged.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { openPgpImporter.dismissNotice() }, onDismiss = { openPgpImporter.dismissNotice() }) }
     val linScpRequest = linScpImporter.pending
     if (linScpRequest != null) {

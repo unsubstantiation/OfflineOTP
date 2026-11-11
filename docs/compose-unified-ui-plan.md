@@ -1034,3 +1034,22 @@ stale success suppression. Shared codec regression gates pass. These tests are o
 tests, not real OpenPGP interoperability or native crypto validation. Native picker, Compose
 rendering/accessibility, hardware workflows and remaining migration/cutover work are pending.
 Swing remains shipping.
+
+### Desktop replacement: OpenPGP replace-all restore
+
+OpenPGP confirmation now offers Merge (default) or Replace all current entries. Replacement
+shows a deletion warning and a distinctly labeled confirm action; the choice resets when a new
+decoded result or retry starts. It is not part of file selection or decryption. The existing
+merge behavior stays available and preserves current accounts.
+
+DesktopFileImport exposes a protected confirmation transaction hook while its public default
+confirmation stays merge-only. DesktopOpenPgpImport requires an explicit host replacement
+callback to use that hook. The desktop supplies BackupCoordinator.restoreEntries with replace
+enabled: save first, install next, destroy removed entries only after successful persistence.
+Session/request/lifetime checks still run before commit; canceled/expired/stale requests cannot
+replace entries. Persistence remains synchronous and an already-running save is not interruptible.
+
+Injected-provider tests cover explicit replacement through reopen, old-entry destruction after
+success, save-failure cleanup with old entries intact, missing replacement authority, expiration
+before confirmation, stale repeat confirmation and merge preservation. Native OpenPGP and real
+Compose validation are still pending; this does not complete hardware or launcher migration.

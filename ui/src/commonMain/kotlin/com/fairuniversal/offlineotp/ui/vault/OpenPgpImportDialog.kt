@@ -15,8 +15,9 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 @Composable
 fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean, keySelected: Boolean,
                        onChooseKey: () -> Unit, onClearKey: () -> Unit,
-                       onRead: (String) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+                       onRead: (String) -> Unit, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit) {
     var password by remember(inputKey) { mutableStateOf("") }
+    var replace by remember(inputKey, count) { mutableStateOf(false) }
     fun dismiss() { password = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OpenPGP backup") },
         text = { Column {
@@ -31,12 +32,17 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
                 if (keySelected) ForestTextAction(text = "Clear key selection", enabled = !busy, onClick = onClearKey)
             }
             if (busy) Text(text = "Decrypting OpenPGP backup…")
-            if (count != null) Text(text = "$count entries ready. Import merges them into the current vault; identical entries are skipped. No current entries are replaced.")
+            if (count != null) {
+                Text(text = "$count entries ready. Merge preserves current accounts and skips identical entries.")
+                ForestTextAction(text = if (!replace) "Selected: Merge" else "Merge", onClick = { replace = false })
+                ForestTextAction(text = if (replace) "Selected: Replace all current entries" else "Replace all current entries", onClick = { replace = true })
+                if (replace) Text(text = "Warning: Restore will delete all current entries and replace them with this backup.")
+            }
             if (failed) Text(text = "Could not import the file. Check the passphrase, key file, format, size, vault capacity and storage. Re-enter the passphrase to retry.")
         } },
-        confirmButton = { ForestTextAction(text = if (count == null) "Read file" else "Import", enabled = !busy && (count != null || keySelected),
+        confirmButton = { ForestTextAction(text = if (count == null) "Read file" else if (replace) "Replace all entries" else "Merge entries", enabled = !busy && (count != null || keySelected),
             onClick = {
-                if (count != null) onConfirm()
+                if (count != null) onConfirm(replace)
                 else { val submitted = password; password = ""; onRead(submitted) }
             }) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) })

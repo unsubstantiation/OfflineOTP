@@ -81,12 +81,15 @@ open class DesktopFileImport<Input : Any>(
         return true
     }
     /** Confirmation merges into the current vault, deduplicating through EntryEditor. */
-    fun confirm(request: Request, active: () -> Boolean): Boolean {
+    fun confirm(request: Request, active: () -> Boolean): Boolean = confirmUsing(request, active, install)
+
+    /** Specialized backup hosts may supply a replace transaction; it must consume entries on every outcome. */
+    protected fun confirmUsing(request: Request, active: () -> Boolean, commit: (List<Entry>) -> Int?): Boolean {
         if (!valid(request) || request.busy || !active()) return false
         val entries = request.entries ?: return false
         request.entries = null
         try {
-            importedCount = install(entries) ?: throw IllegalStateException("Import failed")
+            importedCount = commit(entries) ?: throw IllegalStateException("Import failed")
             pending = null
         } catch (_: Exception) { request.failed = true }
         changed()

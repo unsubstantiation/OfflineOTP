@@ -493,10 +493,13 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_openpgp_import_requires_key_and_live_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpImport(vault, exportWorker", host)
-        self.assertIn("openPgpImporter.confirm(openPgpRequest, lifetime::checkActive)", host)
+        self.assertIn("openPgpImporter.confirmRestore(openPgpRequest, replace, lifetime::checkActive)", host)
         self.assertIn("openPgpImporter.close()", host)
         form = (UI_MAIN / "vault/OpenPgpImportDialog.kt").read_text()
         self.assertIn("count != null || keySelected", form)
+        self.assertIn("mutableStateOf(false)", form)
+        self.assertIn("Replace all entries", form)
+        self.assertIn("delete all current entries", form)
         self.assertIn("PasswordVisualTransformation()", form)
         self.assertNotIn("rememberSaveable", form)
 

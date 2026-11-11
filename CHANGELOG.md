@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Add explicit replace-all confirmation for OpenPGP restore while retaining merge as the default. Save before replacing live entries and preserve the original vault on failed writes.
+
  * Compose desktop: Export full OpenPGP backups to a selected recipient public-key file with explicit scope confirmation, worker encryption and exclusive destination creation. Wipe provider plaintext inputs after encryption. Native crypto/UI validation remains pending.
 
  * Compose desktop: Merge OpenPGP backups using a selected secret-key file, masked optional passphrase, bounded worker decoding and explicit confirmation. Bound and wipe decoded provider byte buffers in the shared codec. Native crypto/UI validation remains pending.

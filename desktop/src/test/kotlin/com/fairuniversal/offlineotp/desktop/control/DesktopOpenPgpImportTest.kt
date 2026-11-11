@@ -42,6 +42,66 @@ class DesktopOpenPgpImportTest {
         val port = try { Port(VaultJson.entriesToString(listOf(entry))) } finally { entry.destroy() }
         try { test(dir, controller, state, port) } finally { state.lock(); dir.deleteRecursively() }
     }
+    @Test fun explicitReplacementPersistsAndDestroysOnlyRemovedLiveEntries() = harness { dir, controller, state, port ->
+        val original = ManualEntryInput(label = "old", secret = "JBSWY3DPEHPK3PXP").build()
+        assertTrue(EntryEditor(controller, state).add(original))
+        val source = File(dir, "backup.pgp").apply { writeText("message") }
+        val key = File(dir, "secret.asc").apply { writeText("key") }
+        val worker = Queue(); val ui = Queue()
+        val importer = DesktopOpenPgpImport(state, worker, ui::execute, {}, EntryEditor(controller, state)::importEntries, port,
+            replaceAll = { BackupCoordinator(controller, state).restoreEntries(ArrayList(it), replace = true) })
+        try {
+            importer.open(source); val request = importer.pending!!
+            importer.submit(request, DesktopOpenPgpImport.Input("correct", key)) { true }; worker.run(); ui.run()
+            assertTrue(state.snapshot().single() === original)
+            assertFalse(importer.confirmRestore(request, true) { false })
+            assertTrue(original.getSecretSize() > 0)
+            assertTrue(importer.confirmRestore(request, true) { true })
+            assertEquals(0, original.getSecretSize())
+            assertEquals("imported", state.snapshot().single().getLabel())
+            assertFalse(importer.confirmRestore(request, true) { true })
+            val reopened = controller.openVault("vault-password") as VaultController.Session.Loaded
+            try { assertEquals(listOf("imported"), reopened.entries.map { it.getLabel() }) }
+            finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { importer.close() }
+    }
+    @Test fun failedReplacementRetainsOriginalAndConsumesPreparedEntries() = harness { dir, controller, state, port ->
+        val original = ManualEntryInput(label = "old", secret = "JBSWY3DPEHPK3PXP").build()
+        assertTrue(EntryEditor(controller, state).add(original))
+        val source = File(dir, "backup.pgp").apply { writeText("message") }
+        val key = File(dir, "secret.asc").apply { writeText("key") }
+        val worker = Queue(); val ui = Queue()
+        val importer = DesktopOpenPgpImport(state, worker, ui::execute, {}, EntryEditor(controller, state)::importEntries, port,
+            replaceAll = { BackupCoordinator(controller, state).restoreEntries(ArrayList(it), replace = true) })
+        try {
+            importer.open(source); val request = importer.pending!!
+            importer.submit(request, DesktopOpenPgpImport.Input("correct", key)) { true }; worker.run(); ui.run()
+            val prepared = request.entries!!.single()
+            dir.deleteRecursively(); dir.writeText("not a directory")
+            assertFalse(importer.confirmRestore(request, true) { true })
+            assertTrue(request.failed); assertTrue(request.count == null)
+            assertEquals(0, prepared.getSecretSize())
+            assertTrue(state.snapshot().single() === original); assertTrue(original.getSecretSize() > 0)
+        } finally { importer.close() }
+    }
+    @Test fun replacementRequiresHostAuthorityAndMergeKeepsCurrentEntries() = harness { dir, controller, state, port ->
+        val original = ManualEntryInput(label = "old", secret = "JBSWY3DPEHPK3PXP").build()
+        assertTrue(EntryEditor(controller, state).add(original))
+        val source = File(dir, "backup.pgp").apply { writeText("message") }
+        val key = File(dir, "secret.asc").apply { writeText("key") }
+        val worker = Queue(); val ui = Queue()
+        val importer = DesktopOpenPgpImport(state, worker, ui::execute, {}, EntryEditor(controller, state)::importEntries, port)
+        try {
+            importer.open(source); val request = importer.pending!!
+            importer.submit(request, DesktopOpenPgpImport.Input("correct", key)) { true }; worker.run(); ui.run()
+            assertFalse(importer.confirmRestore(request, true) { true })
+            assertEquals(1, request.count)
+            assertTrue(importer.confirmRestore(request, false) { true })
+            assertEquals(2, state.snapshot().size)
+            assertTrue(state.snapshot().any { it === original }); assertTrue(original.getSecretSize() > 0)
+        } finally { importer.close() }
+    }
+
     @Test fun requiresConfirmationPersistsAndWipesMutableBoundaryBuffers() = harness { dir, controller, state, port ->
         val source = File(dir, "backup.pgp").apply { writeText("message") }
         val key = File(dir, "secret.asc").apply { writeText("key") }
