@@ -480,6 +480,16 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_openpgp_export_confirms_scope_and_recipient(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)
+        self.assertIn("openPgpExporter.submit(pgpExportRequest, recipientFile)", host)
+        self.assertIn("openPgpExporter.close()", host)
+        form = (UI_MAIN / "vault/OpenPgpExportDialog.kt").read_text()
+        self.assertIn("including concealed entries and regardless of filters", form)
+        self.assertIn("intended recipient", form)
+        self.assertIn("enabled = !busy && keySelected", form)
+
     def test_openpgp_import_requires_key_and_live_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpImport(vault, exportWorker", host)

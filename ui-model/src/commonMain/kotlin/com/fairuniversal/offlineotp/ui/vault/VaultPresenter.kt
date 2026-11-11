@@ -118,7 +118,9 @@ class VaultPresenter(
                 configureLayout: (() -> Unit)? = null,
                 importLinScp: (() -> Unit)? = null,
                 exportLinScp: (() -> Unit)? = null,
-                importOpenPgp: (() -> Unit)? = null): VaultActions = VaultActions(
+                importOpenPgp: (() -> Unit)? = null,
+                exportOpenPgp: (() -> Unit)? = null): VaultActions = VaultActions(
+        onExportOpenPgp = exportOpenPgp,
         onImportOpenPgp = importOpenPgp,
         onExportLinScp = exportLinScp,
         onImportLinScp = importLinScp,

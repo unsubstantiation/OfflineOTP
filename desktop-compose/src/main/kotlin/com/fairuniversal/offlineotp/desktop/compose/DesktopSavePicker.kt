@@ -19,6 +19,16 @@ internal object DesktopSavePicker {
         } finally { picker.dispose(); parent.dispose() }
     }
 
+    fun openOpenPgpRecipient(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Select OpenPGP recipient public-key file", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
     fun openOpenPgpKey(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Select OpenPGP secret-key file", FileDialog.LOAD)
@@ -94,6 +104,16 @@ internal object DesktopSavePicker {
         val picker = FileDialog(parent, "Export encrypted LinSCP vault (choose a new filename)", FileDialog.SAVE)
         return try {
             picker.file = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.exportFilename()
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+    fun openPgpExport(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Save OpenPGP backup (choose a new filename)", FileDialog.SAVE)
+        return try {
+            picker.file = BackupFileNames.openPgp(Date())
             picker.isVisible = true
             val name = picker.file ?: return null
             File(picker.directory, name)

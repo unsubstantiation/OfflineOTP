@@ -1013,3 +1013,24 @@ buffer cleanup, missing/wrong credentials, malformed/empty payloads and cancella
 prove real cryptographic interoperability or the native backend. Existing core codec tests pass.
 Real key/native/Compose validation, OpenPGP export and replace-all restore, hardware workflows and
 remaining migration work are pending. Swing remains shipping.
+
+### Desktop replacement: OpenPGP recipient-file export
+
+Tools now offers full-vault OpenPGP export to a selected recipient public-key file. The confirmation
+explains that concealed entries and all categories are included regardless of filters, asks the
+user to verify the recipient file, and warns that the matching secret key can decrypt the backup.
+This step does not inspect/display a recipient fingerprint or offer hardware recipients.
+
+The UI thread captures a detached JSON snapshot; a worker reads the recipient within the shared
+16 MiB limit and delegates to the existing OpenPGP codec/desktop port. Input key bytes, provider
+plaintext bytes and output ciphertext buffers are wiped when no longer needed. Immutable JSON
+strings cannot be zeroized. Existing destination files are refused through exclusive creation,
+and output uses the existing restricted-file path. Cancel/lock discard queued work and late
+completion; an already-authorized write may finish, and failure can leave a partial encrypted file.
+
+Injected-provider tests verify snapshot isolation, explicit submission, required/nonempty keys,
+provider failure cleanup, existing-file protection, cancellation before/during encryption and
+stale success suppression. Shared codec regression gates pass. These tests are orchestration
+tests, not real OpenPGP interoperability or native crypto validation. Native picker, Compose
+rendering/accessibility, hardware workflows and remaining migration/cutover work are pending.
+Swing remains shipping.
