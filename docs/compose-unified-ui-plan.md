@@ -1074,3 +1074,24 @@ Tests verify catalog-only contents and portable decode, auth/secret/unknown-key 
 existing-file preservation, canceled snapshots, late completion, failed writes and expiry.
 Real native/Compose validation, preferences import UI and remaining migration work are pending.
 Swing remains shipping.
+
+### Preferences import prerequisite: one-write settings transaction
+
+Before exposing Compose preferences import, DesktopPreferencesImportPlan now validates into an
+isolated in-memory adapter, retaining only allowlisted encoded values and counts of accepted,
+unknown and refused keys. Preview never touches live settings. Applying a plan requires the
+DesktopSettings backend and merges the mentioned keys into its current state under the settings
+monitor, preserving auth and unmentioned keys even if they changed after preview.
+
+DesktopSettings now serializes a candidate map and performs one existing AtomicFiles write
+before publishing its cache. Single-key writes use the same candidate-before-publication path.
+Injected pre-promotion failures leave disk/cache unchanged; successful imports survive reopening.
+As before, underlying AtomicFiles has a non-atomic fallback on filesystems without atomic moves;
+this is not a promise of crash atomicity on every filesystem or recovery from post-promotion
+permission errors. No new secret keys are made portable.
+
+The shipping Swing preferences import now previews and applies the same plan, replacing its
+per-key persistence loop. Tests cover one-write publication, preparation without mutation,
+omitted-key preservation, full cache/disk rollback for injected write failure, retry, malformed
+input, wrong platform/type, excluded keys and no-op empty plans. Compose import UI and live
+timeout/layout refresh remain the next increment; Swing still ships.

@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.desktop.ui
 import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.Utilities.KeyValueSettings
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
+import com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesImportPlan
 import com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesPort
 
 import javax.swing.JFileChooser
@@ -61,12 +62,7 @@ internal object PreferencesDialogs {
             }
             // Validate before asking: the codec applies nothing unless the whole document is valid.
             val preview = try {
-                PreferencesExport.import(bytes, object : PreferencesExport.SettingsPort {
-                    override fun storedKeys(): Set<String> = emptySet()
-                    override fun read(key: String): PreferencesExport.Value? = null
-                    override fun readBackupPassword(): String? = null
-                    override fun write(key: String, value: PreferencesExport.Value) { }
-                }, PreferencesExport.PLATFORM_DESKTOP)
+                DesktopPreferencesImportPlan.prepare(bytes)
             } catch (error: IllegalArgumentException) {
                 // A file for another client is a different message from an unreadable one.
                 val detail = if (error is PreferencesExport.WrongPlatformException)
@@ -79,16 +75,16 @@ internal object PreferencesDialogs {
                     "Apply ${preview.applied} settings from this file? Settings it does not mention keep their " +
                         "current values, and the vault, its password and its accounts are not touched.",
                     TITLE, JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE) != JOptionPane.OK_OPTION) return false
-            val result = try {
-                PreferencesExport.import(bytes, DesktopPreferencesPort(settings), PreferencesExport.PLATFORM_DESKTOP)
+            try {
+                preview.applyTo(settings)
             } catch (_: Exception) {
                 JOptionPane.showMessageDialog(parent, "The preferences could not be imported.",
                     TITLE, JOptionPane.ERROR_MESSAGE)
                 return false
             }
-            val skipped = if (result.unknownKeys.isEmpty()) "" else
-                "\n\n${result.unknownKeys.size} settings in the file are not known to this version and were skipped."
-            JOptionPane.showMessageDialog(parent, "${result.applied} settings imported.$skipped",
+            val skipped = if (preview.unknownCount == 0) "" else
+                "\n\n${preview.unknownCount} settings in the file are not known to this version and were skipped."
+            JOptionPane.showMessageDialog(parent, "${preview.applied} settings imported.$skipped",
                 TITLE, JOptionPane.INFORMATION_MESSAGE)
             return true
         } catch (_: Exception) {

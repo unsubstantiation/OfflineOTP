@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop preferences: Prepare an allowlisted import plan and apply the batch with one settings-file write instead of per-key writes. Publish cached settings only after persistence; the existing Swing import now uses this path ahead of the Compose import UI.
+
  * Compose desktop: Export allowlisted portable preferences on a worker without vault credentials or authentication material. Refuse existing destinations and reuse the restricted exclusive-file writer.
 
  * Compose desktop: Add explicit replace-all confirmation for OpenPGP restore while retaining merge as the default. Save before replacing live entries and preserve the original vault on failed writes.

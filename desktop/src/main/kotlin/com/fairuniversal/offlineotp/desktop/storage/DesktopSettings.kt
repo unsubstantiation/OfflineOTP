@@ -14,7 +14,8 @@ import java.util.Properties
  * same way. Each mutation is persisted through a synced temp file and an atomic move, matching the
  * durability guarantees of [NioAtomicFileStore].
  */
-class DesktopSettings(private val file: File) : KeyValueSettings {
+class DesktopSettings(private val file: File,
+    private val write: (File, ByteArray) -> Unit = AtomicFiles::writeAtomic) : KeyValueSettings {
 
     private val properties = Properties()
 
@@ -50,26 +51,35 @@ class DesktopSettings(private val file: File) : KeyValueSettings {
         if (properties.containsKey(key)) mutate(key, null)
     }
 
-    /** Call under the settings monitor; a failed disk write must not publish a cache-only value. */
+    /** Merge a validated batch with one file promotion. Publish the cache only after persistence. */
+    @Synchronized
+    internal fun putAll(values: Map<String, String>) {
+        if (values.isEmpty()) return
+        val candidate = Properties().apply { putAll(properties); putAll(values) }
+        persist(candidate)
+        properties.clear()
+        properties.putAll(candidate)
+    }
+
+    /** Call under the settings monitor; readers cannot observe a partially applied mutation. */
     private fun mutate(key: String, value: String?) {
-        val previous = properties.getProperty(key)
-        if (value == null) properties.remove(key) else properties.setProperty(key, value)
-        try { persist() } catch (error: Exception) {
-            if (previous == null) properties.remove(key) else properties.setProperty(key, previous)
-            throw error
-        }
+        val candidate = Properties().apply { putAll(properties) }
+        if (value == null) candidate.remove(key) else candidate.setProperty(key, value)
+        persist(candidate)
+        properties.clear()
+        properties.putAll(candidate)
     }
 
     @Throws(IOException::class)
-    private fun persist() {
+    private fun persist(candidate: Properties) {
         val buffer = ByteArrayOutputStream()
-        properties.store(buffer, null)
+        candidate.store(buffer, null)
         // Properties.store always adds a date comment; strip comment lines so the persisted file
         // is deterministic across machines and writes (only key=value lines remain).
         val deterministic = buffer.toString(Charsets.ISO_8859_1)
             .lineSequence()
             .filterNot { it.startsWith("#") }
             .joinToString(separator = "\n", postfix = "\n")
-        AtomicFiles.writeAtomic(file, deterministic.toByteArray(Charsets.ISO_8859_1))
+        write(file, deterministic.toByteArray(Charsets.ISO_8859_1))
     }
 }
