@@ -189,6 +189,18 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("input = ManualEntryInput(); email = true", manual)
         self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input)", host)
 
+    def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEmailExport.kt").read_text()
+        self.assertIn("Export plaintext secrets", host)
+        self.assertIn("including hidden or filtered-out accounts", host)
+        self.assertIn("partial plaintext file may remain", host)
+        self.assertIn("emailExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("emailExporter.close()"), 2)
+        self.assertIn("request.status != Status.CONFIRM", owner)
+        self.assertIn("ExclusiveExportFile::writeNew", owner)
+        self.assertIn("finally { data.fill(0) }", owner)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

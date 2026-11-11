@@ -1158,3 +1158,28 @@ redaction, save/reopen, failure cleanup and stale/dismissed/locked requests. Act
 accessibility and device/native-window execution remain unvalidated by the stub harness. Email
 editing/export, other remaining parity, and asynchronous final persistence remain pending; Swing
 continues shipping.
+
+### Confirmed plaintext FairEmail export
+
+Tools now offers an optional desktop-only FairEmail export action. After the native destination
+picker returns and the current idle deadline is checked, an identity-bound request presents an
+explicit warning: ALL email accounts, including concealed/filtered-out accounts, all their
+identities, and plaintext passwords/tokens are exported. No snapshot or worker write occurs until
+that request is confirmed. The export is not encrypted and the user must protect/remove the file.
+
+The UI thread serializes email entries with EmailAccounts.exportBackup (the shared FairEmail
+codec), preserving imported provider fields/extra identities without reconstructing the account.
+Only detached bytes cross to the worker. ExclusiveExportFile uses CREATE_NEW and restricted POSIX
+permissions where supported; existing files are never overwritten. Mutable bytes are wiped after
+success/failure, rejection, or queued cancellation. Closing/locking invalidates confirmation and
+late completion; it does not interrupt an already-started authorized write. Partial plaintext
+files may remain on write failure and the UI warns about that. Serialization still runs on the
+UI thread, immutable JSON strings cannot be zeroized, and a rejected dispatcher can leave the
+progress notice until dismissal. No stronger cancellation or secure-deletion guarantee is made.
+
+Tests cover explicit confirmation, empty/expired/locked/stale requests, filter-independent email
+selection, detached snapshot, multiple identities/provider metadata, FairEmail JSON roundtrip,
+exclusive destination handling, queued/in-flight cancellation, write/dispatch/executor failures,
+buffer wiping and late-result suppression. Native picker, filesystem portability, Compose visual/
+accessibility/device checks remain release gates. Email editing, other export types, hardware
+workflows and remaining migration parity are still pending. Swing remains shipping.

@@ -8,6 +8,7 @@ import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesImport
 import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
+import com.fairuniversal.offlineotp.desktop.control.DesktopEmailExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopOpenPgpExport
 import com.fairuniversal.offlineotp.ui.vault.OpenPgpExportDialog
@@ -199,6 +200,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val emailExporter = remember(vault) { DesktopEmailExport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val preferencesExporter = remember(vault) { DesktopPreferencesExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, controller::exportPreferences, { revision++ }) }
     val preferencesImporter = remember(vault) { DesktopPreferencesImport(vault, exportWorker,
@@ -258,7 +261,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                preferencesExporter.close()
+                emailExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -293,7 +296,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -502,6 +505,16 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, exportEmail = {
+            if (lifetime.checkActive() && emailExporter.pending == null) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                try {
+                    val target = DesktopSavePicker.emailExport(window)
+                    if (target != null && lifetime.checkActive() && !vault.isLocked) emailExporter.open(target)
+                } catch (_: Exception) { copyNotice = "The email export destination could not be selected." }
+            }
         }, exportPreferences = {
             if (lifetime.checkActive() && preferencesExporter.status != DesktopPreferencesExport.Status.WRITING) {
                 try {
@@ -649,6 +662,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     preferencesImporter.appliedCount?.let { count -> EntryConfirmationDialog(title = "Preferences imported",
         message = "Applied $count settings. Vault entries and authentication material were not changed.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { preferencesImporter.dismissNotice() }, onDismiss = { preferencesImporter.dismissNotice() }) }
+    emailExporter.pending?.let { request ->
+        EntryConfirmationDialog(title = "Export FairEmail accounts (plaintext)",
+            message = when (request.status) {
+                DesktopEmailExport.Status.CONFIRM -> "Export ALL email accounts, including hidden or filtered-out accounts? This unencrypted JSON file contains incoming and outgoing passwords or tokens and every stored identity. Anyone with the file can read them. Store it securely and remove it when no longer needed. Existing files will not be overwritten."
+                DesktopEmailExport.Status.WRITING -> "Writing plaintext accounts. Closing this dialog cannot stop a write that has already started."
+                DesktopEmailExport.Status.SAVED -> "Exported ${request.count} email accounts. The file contains plaintext secrets; protect it."
+                DesktopEmailExport.Status.EXISTS -> "The destination already exists and was not overwritten. Choose a new filename."
+                DesktopEmailExport.Status.FAILED -> "Could not export email accounts (none available, invalid account or write failure). A partial plaintext file may remain; inspect and remove it securely."
+            }, confirmLabel = if (request.status == DesktopEmailExport.Status.CONFIRM) "Export plaintext secrets" else "Close",
+            dismissLabel = "Cancel", onConfirm = {
+                if (request.status == DesktopEmailExport.Status.CONFIRM) emailExporter.confirm(request, lifetime::checkActive)
+                else emailExporter.dismiss(request)
+            }, onDismiss = { emailExporter.dismiss(request) })
+    }
     preferencesExporter.status?.let { status -> EntryConfirmationDialog(title = "Export preferences",
         message = when (status) {
             DesktopPreferencesExport.Status.WRITING -> "Writing portable settings only—no vault entries, passwords or authentication material. Cancel stops queued work; a write already started may finish."
