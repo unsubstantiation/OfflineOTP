@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Export SSH keys and password credentials to an encrypted LinSCP vault using a detached snapshot, worker encryption and exclusive file creation. Confirm scope and password; existing files are never overwritten.
+
  * Compose vault: Group import, encrypted-backup and settings actions in a scrollable Tools dialog instead of stacking them above the entry list. Keep Add entry directly accessible and omit unsupported tools.
 
  * Compose desktop: Import LinSCP encrypted vaults, backup bundles and session files with optional sessions.key selection, bounded worker decoding and explicit merge confirmation. Source/key files remain unchanged.

@@ -480,6 +480,14 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
 
+    def test_linscp_export_uses_detached_worker_path_and_explains_scope(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("seal = DesktopLinScpExport::seal", host)
+        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault) }", host)
+        self.assertIn("including concealed entries, regardless of filters", host)
+        self.assertIn("linScpExporter.close()", host)
+        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation)", host)
+
     def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
         screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
         self.assertIn("VaultToolsBar(actions = actions, strings = strings)", screen)

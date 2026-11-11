@@ -15,13 +15,15 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 /** Only collects a new backup password. Neither password nor confirmation is saveable. */
 @Composable
 fun EncryptedExportDialog(inputKey: Any, busy: Boolean, error: String?,
-                          onSubmit: (String, String) -> Unit, onDismiss: () -> Unit) {
+                          onSubmit: (String, String) -> Unit, onDismiss: () -> Unit,
+                          title: String = "Export encrypted backup",
+                          description: String = "Protect the full vault with a backup password. It cannot be recovered if forgotten. Existing files will not be overwritten.") {
     var password by remember(inputKey) { mutableStateOf("") }
     var confirmation by remember(inputKey) { mutableStateOf("") }
     fun dismiss() { password = ""; confirmation = ""; onDismiss() }
-    AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Export encrypted backup") },
+    AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = title) },
         text = { Column {
-            Text(text = "Protect the full vault with a backup password. It cannot be recovered if forgotten. Existing files will not be overwritten.")
+            Text(text = description)
             OutlinedTextField(value = password,
                 onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = "Backup password") }, visualTransformation = PasswordVisualTransformation())

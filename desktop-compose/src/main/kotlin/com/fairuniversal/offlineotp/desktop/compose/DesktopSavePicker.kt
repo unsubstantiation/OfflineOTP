@@ -69,6 +69,16 @@ internal object DesktopSavePicker {
         } finally { picker.dispose(); parent.dispose() }
     }
 
+    fun linScpExport(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Export encrypted LinSCP vault (choose a new filename)", FileDialog.SAVE)
+        return try {
+            picker.file = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.exportFilename()
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
     fun encryptedBackup(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Save encrypted backup (choose a new filename)", FileDialog.SAVE)

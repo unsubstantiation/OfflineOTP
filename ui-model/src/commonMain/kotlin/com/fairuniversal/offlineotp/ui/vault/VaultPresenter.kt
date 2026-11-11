@@ -116,7 +116,9 @@ class VaultPresenter(
                 importEmail: (() -> Unit)? = null,
                 viewEmailDetails: ((VaultCardState) -> Unit)? = null,
                 configureLayout: (() -> Unit)? = null,
-                importLinScp: (() -> Unit)? = null): VaultActions = VaultActions(
+                importLinScp: (() -> Unit)? = null,
+                exportLinScp: (() -> Unit)? = null): VaultActions = VaultActions(
+        onExportLinScp = exportLinScp,
         onImportLinScp = importLinScp,
         onConfigureLayout = configureLayout,
         onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },

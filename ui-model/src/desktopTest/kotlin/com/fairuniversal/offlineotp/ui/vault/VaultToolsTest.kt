@@ -9,7 +9,7 @@ class VaultToolsTest {
         onAddEntry = { calls.add("add") },
         onImportUri = { calls.add("uri") }, onImportPasswords = { calls.add("passwords") },
         onImportEmail = { calls.add("email") }, onImportLinScp = { calls.add("linscp") },
-        onExportEncrypted = { calls.add("export") }, onRestoreEncrypted = { calls.add("restore") },
+        onExportLinScp = { calls.add("linscp-export") }, onExportEncrypted = { calls.add("export") }, onRestoreEncrypted = { calls.add("restore") },
         onConfigureLayout = { calls.add("layout") }, onConfigureAutoLock = { calls.add("lock") })
 
     @Test fun unavailableToolsAndEmptyGroupsAreAbsent() {
@@ -25,7 +25,7 @@ class VaultToolsTest {
         val tools = VaultTool.available(actions)
         assertEquals(VaultTool.values().toList(), tools)
         tools.forEach { it.invoke(actions) }
-        assertEquals(listOf("uri", "passwords", "email", "linscp", "export", "restore", "layout", "lock"), calls)
+        assertEquals(listOf("uri", "passwords", "email", "linscp", "export", "restore", "linscp-export", "layout", "lock"), calls)
         assertTrue(tools.all { it.label(VaultStrings.English).isNotBlank() })
     }
     @Test fun storedToolIdsDoNotRetainCallbacksAndRespectTerminalGuards() {
@@ -33,10 +33,10 @@ class VaultToolsTest {
         val ids = VaultTool.available(actions(old))
         val guarded = actions(current).guarded { active }
         ids.forEach { it.invoke(guarded) }
-        assertEquals(8, current.size); assertTrue(old.isEmpty())
+        assertEquals(9, current.size); assertTrue(old.isEmpty())
         active = false
         ids.forEach { it.invoke(guarded) }
-        assertEquals(8, current.size)
+        assertEquals(9, current.size)
         ids.forEach { it.invoke(VaultActions()) }
     }
     @Test fun labelsUseHostSuppliedStrings() {

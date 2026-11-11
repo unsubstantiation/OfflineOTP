@@ -15,7 +15,8 @@ class DesktopEncryptedExport(
     private val dispatch: (Runnable) -> Unit,
     private val changed: () -> Unit,
     private val seal: (String, String) -> ByteArray = EncryptedBackupCodec::seal,
-    private val write: (File, ByteArray) -> Unit = EncryptedBackupFile::writeNew
+    private val write: (File, ByteArray) -> Unit = EncryptedBackupFile::writeNew,
+    private val snapshot: () -> String = { VaultJson.entriesToString(state.snapshot()) }
 ) {
     enum class Failure { PASSWORD, EXPORT, EXISTS }
     class Request internal constructor(internal val target: File) {
@@ -61,7 +62,7 @@ class DesktopEncryptedExport(
             request.failure = Failure.PASSWORD; changed(); return false
         }
         // Serialization is on the UI thread so the worker never borrows mutable live entries/keys.
-        val document = try { VaultJson.entriesToString(state.snapshot()) } catch (_: Exception) {
+        val document = try { snapshot() } catch (_: Exception) {
             request.failure = Failure.EXPORT; changed(); return false
         }
         val task = Work(Input(password, document))

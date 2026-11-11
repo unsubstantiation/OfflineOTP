@@ -970,3 +970,25 @@ Model tests cover stable order/grouping, unavailable actions, callback routing, 
 and host wording. Source guards cover scroll bounds and close-before-dispatch. The sandbox gained
 a type-check-only heightIn signature; no real renderer/layout/focus/accessibility test is claimed.
 This addresses control growth during migration, not feature parity or launcher cutover.
+
+### Desktop replacement: encrypted LinSCP export
+
+Tools now offers encrypted LinSCP export through the native save picker and shared masked
+password/confirmation form. Scope is explicit: all SSH keys and individual password credentials,
+including concealed entries and regardless of filters. OTPs, notes, emails and password archives
+are excluded. An empty compatible set fails before any worker/file write. This is not plaintext
+export and does not require exposing card contents.
+
+DesktopEncryptedExport now accepts an injected UI-thread snapshot provider, defaulting to the
+unchanged full-vault behavior. The LinSCP provider serializes only compatible entries; worker
+parsing owns detached entries and destroys them after the shared LinScpCredentials encoder runs.
+Password drafts clear before submission; immutable passwords/JSON cannot be zeroized. Ciphertext
+is written with the existing exclusive-create/restricted-file path and wiped after use. Cancel
+or lock suppresses pending work and stale success delivery; a write already authorized may
+finish, and an interrupted write may leave a partial encrypted file. Existing files are refused.
+
+Tests cover compatible-only snapshots, concealed/filtered entries, real encrypted round-trip,
+snapshot isolation, no-compatible/locked rejection, wrong-kind rejection, exclusive destination
+protection and cancellation. Tool routing and terminal action guards pass. Native picker/Compose
+validation remains pending. Plaintext structured exports, OpenPGP/hardware workflows and other
+remaining migration work are not complete; Swing remains shipping.

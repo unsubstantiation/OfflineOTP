@@ -19,6 +19,20 @@ import org.junit.Test
 class VaultPresenterTest {
 
     @Test
+    fun linScpExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportLinScp)
+        var calls = 0
+        val actions = presenter.actions(exportLinScp = { calls++ })
+        actions.onExportLinScp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onExportLinScp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
     fun linScpImportIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
