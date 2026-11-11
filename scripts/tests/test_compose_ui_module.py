@@ -231,6 +231,17 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("spreadsheet formulas", dialog)
         self.assertIn("password archives", dialog)
 
+    def test_archive_export_requires_plaintext_consent_and_ignores_stored_paths(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        picker = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/DesktopSavePicker.kt").read_text()
+        dialog = (UI_MAIN / "vault/ArchiveExportDialog.kt").read_text()
+        self.assertIn("archiveExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertIn("archiveExporter.choose(request, index, target, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("archiveExporter.close()"), 2)
+        self.assertIn('picker.file = "password-archive.bin"', picker)
+        self.assertIn("exact imported bytes", dialog)
+        self.assertIn("No encryption is added", host)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

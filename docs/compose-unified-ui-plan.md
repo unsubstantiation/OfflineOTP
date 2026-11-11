@@ -1277,3 +1277,28 @@ exclusive writes, stale/expired/reentrant guards, lock before worker, rejection,
 cleanup and late delivery. App/instrumentation harness checks are not real Compose/native/device
 validation. Password archive export, broader email settings, remaining parity and release
 validation are still pending. Swing remains shipping.
+
+### Exact password archive export
+
+Tools now offers Export password archive (plaintext). A label-only chooser includes concealed
+and filtered-out archives but excludes ordinary password rows and other entry types. It retains
+exact entry identities, not copied archive secrets. After selecting an archive and native
+destination, the user must confirm that the file may contain plaintext passwords, notes, OTP
+seeds and other secrets. The chooser warns that contents are restored without sanitization and
+should not be executed as formulas/scripts. A fixed password-archive.bin picker default avoids
+using untrusted stored labels as paths; the user chooses the actual name/extension.
+
+DesktopArchiveExport rechecks request/lifetime authority after the picker and before copying
+bytes. If the selected entry has been replaced/removed, confirmation is dismissed. Only a
+confirmed exact live archive is copied to a worker; no conversion, decoding, compression or
+encryption is performed. ExclusiveExportFile refuses existing files. Queued cancellation and
+lock suppress work, output buffers are wiped, and stale results cannot revive a dialog. Writes
+already started may finish after cancellation; partial plaintext output may remain on failure.
+Rejected UI dispatch can leave progress until dismissal. These are not secure-deletion guarantees.
+
+Tests cover byte fidelity (including non-UTF8 data), filter-independent archive-only selection,
+explicit confirmation, hostile stored filenames, replacement/dismissal/expiry, exclusive writes,
+queued cancellation, failure/rejected delivery cleanup and late results. Native picker and real
+Compose/device/accessibility validation remain pending. Other remaining migration work includes
+password-change UI, broader preferences and email settings, hardware/camera integrations,
+background persistence, packaging and cutover validation. Swing remains shipping.

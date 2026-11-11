@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Export one stored password archive byte-for-byte after explicit plaintext confirmation. Bind selection to the exact live entry, use a safe fixed picker filename, refuse existing destinations, and wipe worker output buffers.
+
  * Compose desktop: Export one lossless browser-password CSV group at a time with exclusion counts and explicit plaintext confirmation. Use exclusive worker writes, dispose unselected snapshots, and suppress canceled/expired completion.
 
  * Desktop migration groundwork: Prepare detached browser-password CSV groups without canonical-header conversion or alias substitution. Preserve source-specific columns and blank cells; count excluded foreign credentials and archives. No Compose export action is enabled yet.

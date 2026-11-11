@@ -8,6 +8,8 @@ import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesImport
 import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
+import com.fairuniversal.offlineotp.desktop.control.DesktopArchiveExport
+import com.fairuniversal.offlineotp.ui.vault.ArchiveExportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordExport
 import com.fairuniversal.offlineotp.ui.vault.PasswordExportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEmailExport
@@ -203,6 +205,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val archiveExporter = remember(vault) { DesktopArchiveExport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val passwordExporter = remember(vault) { DesktopPasswordExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val emailExporter = remember(vault) { DesktopEmailExport(vault, exportWorker,
@@ -266,7 +270,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+                archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -301,7 +305,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -510,6 +514,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, exportArchives = {
+            if (lifetime.checkActive() && archiveExporter.pending == null) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                if (!archiveExporter.open(lifetime::checkActive) && lifetime.checkActive()) copyNotice = "Could not prepare password archives for export."
+            }
         }, exportPasswords = {
             if (lifetime.checkActive() && passwordExporter.pending == null) {
                 creation.pending?.let { creation.dismiss(it) }
@@ -681,6 +692,30 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     preferencesImporter.appliedCount?.let { count -> EntryConfirmationDialog(title = "Preferences imported",
         message = "Applied $count settings. Vault entries and authentication material were not changed.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { preferencesImporter.dismissNotice() }, onDismiss = { preferencesImporter.dismissNotice() }) }
+    archiveExporter.pending?.let { request ->
+        if (request.status == DesktopArchiveExport.Status.SELECT) ArchiveExportDialog(
+            labels = request.labels,
+            onSelect = { index ->
+                if (lifetime.checkActive() && archiveExporter.pending === request) {
+                    try {
+                        val target = DesktopSavePicker.archiveExport(window)
+                        if (target != null) archiveExporter.choose(request, index, target, lifetime::checkActive)
+                    } catch (_: Exception) { copyNotice = "The password export destination could not be selected." }
+                }
+            }, onDismiss = { archiveExporter.dismiss(request) })
+        else EntryConfirmationDialog(title = "Export password archive (plaintext)",
+            message = when (request.status) {
+                DesktopArchiveExport.Status.CONFIRM -> "Export archive ${request.selected + 1}? This file restores the exact stored bytes and may contain passwords, notes, OTP seeds and other secrets. No encryption is added. Anyone with the file can read them. Store it securely and remove it when no longer needed. Existing files will not be overwritten."
+                DesktopArchiveExport.Status.WRITING -> "Writing the archive. Closing cannot stop an already-started write."
+                DesktopArchiveExport.Status.SAVED -> "Selected archive exported. Protect this plaintext file. Reopen Export for another archive."
+                DesktopArchiveExport.Status.EXISTS -> "Destination already exists and was not overwritten. Reopen Export and choose a new filename."
+                else -> "Export failed. A partial plaintext file may remain; inspect and remove it securely."
+            }, confirmLabel = if (request.status == DesktopArchiveExport.Status.CONFIRM) "Export plaintext secrets" else "Close",
+            dismissLabel = "Cancel", onConfirm = {
+                if (request.status == DesktopArchiveExport.Status.CONFIRM) archiveExporter.confirm(request, lifetime::checkActive)
+                else archiveExporter.dismiss(request)
+            }, onDismiss = { archiveExporter.dismiss(request) })
+    }
     passwordExporter.pending?.let { request ->
         if (request.status == DesktopPasswordExport.Status.SELECT) PasswordExportDialog(
             groups = request.groups.mapIndexed { index, group -> "Group ${index + 1}: ${group.dialect} — ${group.count} records" },
