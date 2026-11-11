@@ -1252,3 +1252,28 @@ Tests cover mixed headers/dialects, unknown columns, quoting/newlines, source or
 cells, filter-independent detached snapshots, exclusions, one-time transfer, disposal, diagnostics
 and locked-state rejection. Browser-password export UI and archive export remain pending, as do
 real Compose/native/device validation and other migration parity. Swing remains shipping.
+
+### Confirmed browser-password CSV export UI
+
+The previous preparation groundwork is now exposed in desktop Tools. Opening Export browser
+passwords prepares a filter-independent snapshot and shows numbered dialect/count groups, plus
+excluded foreign-password and archive counts. Each group has matching original ordered columns.
+The user selects one group, picks a native destination, and explicitly confirms plaintext export.
+The warning includes passwords, notes, OTP seeds and provider-specific secrets; the chooser warns
+not to execute CSV cells as spreadsheet formulas. Values remain unchanged for lossless roundtrip.
+No passwords/columns enter the chooser. Reopen Export to save another group.
+
+DesktopPasswordExport owns the plan and binds choice/confirmation to the current request and
+idle deadline, including after native picker return. Confirmation transfers only the selected
+CSV buffer to a worker and immediately disposes unselected groups. ExclusiveExportFile refuses
+existing destinations. Dismissal/lock wipes queued bytes and invalidates late delivery; worker
+output is wiped on success/failure. A write already started can finish after cancellation, partial
+plaintext files can remain after failure, and a rejected dispatcher can leave progress until
+dismissal. The UI explains these limits. Serialization remains on the UI thread and immutable
+strings cannot be zeroized.
+
+Tests exercise selection versus consent, exclusions/group preparation (existing plan suite),
+exclusive writes, stale/expired/reentrant guards, lock before worker, rejection, mutable-buffer
+cleanup and late delivery. App/instrumentation harness checks are not real Compose/native/device
+validation. Password archive export, broader email settings, remaining parity and release
+validation are still pending. Swing remains shipping.

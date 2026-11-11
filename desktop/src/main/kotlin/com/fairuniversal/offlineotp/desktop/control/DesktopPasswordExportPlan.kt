@@ -6,7 +6,7 @@ import com.fairuniversal.offlineotp.Utilities.ThunderbirdCsv
 import java.util.Locale
 
 /**
- * UI-thread preparation for a future confirmed browser export. No writes or UI authority here.
+ * UI-thread preparation for confirmed browser export. No writes or UI authority here.
  * Never converts unlike headers: canonical conversion can discard provider-specific columns.
  * Owns mutable CSV snapshots until taken by a writer or closed. Do not log payloads.
  */

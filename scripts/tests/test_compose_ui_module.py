@@ -221,6 +221,16 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         for method in ("submit", "submitPassword", "submitEmailPasswords"):
             self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
 
+    def test_password_export_is_explicit_plaintext_and_lifetime_guarded(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/PasswordExportDialog.kt").read_text()
+        self.assertIn("passwordExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertIn("passwordExporter.choose(request, index, target, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("passwordExporter.close()"), 2)
+        self.assertIn("OTP seeds and provider-specific secrets", host)
+        self.assertIn("spreadsheet formulas", dialog)
+        self.assertIn("password archives", dialog)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

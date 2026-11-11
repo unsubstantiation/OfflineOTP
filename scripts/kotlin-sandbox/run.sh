@@ -217,6 +217,7 @@ APP_SOURCES=(
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailPasswordDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEntryDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryDialog.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordExportDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordImportDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailImportDialog.kt"

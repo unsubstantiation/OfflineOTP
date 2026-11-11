@@ -6,6 +6,7 @@ import org.junit.Test
 
 class VaultToolsTest {
     private fun actions(calls: MutableList<String>) = VaultActions(
+        onExportPasswords = { calls.add("password-export") },
         onExportEmail = { calls.add("email-export") },
         onAddEntry = { calls.add("add") },
         onImportUri = { calls.add("uri") }, onImportPasswords = { calls.add("passwords") },
@@ -26,7 +27,7 @@ class VaultToolsTest {
         val tools = VaultTool.available(actions)
         assertEquals(VaultTool.values().toList(), tools)
         tools.forEach { it.invoke(actions) }
-        assertEquals(listOf("uri", "passwords", "email", "linscp", "email-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "layout", "lock", "preferences", "preferences-import"), calls)
+        assertEquals(listOf("uri", "passwords", "email", "linscp", "password-export", "email-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "layout", "lock", "preferences", "preferences-import"), calls)
         assertTrue(tools.all { it.label(VaultStrings.English).isNotBlank() })
     }
     @Test fun storedToolIdsDoNotRetainCallbacksAndRespectTerminalGuards() {
@@ -34,10 +35,10 @@ class VaultToolsTest {
         val ids = VaultTool.available(actions(old))
         val guarded = actions(current).guarded { active }
         ids.forEach { it.invoke(guarded) }
-        assertEquals(14, current.size); assertTrue(old.isEmpty())
+        assertEquals(15, current.size); assertTrue(old.isEmpty())
         active = false
         ids.forEach { it.invoke(guarded) }
-        assertEquals(14, current.size)
+        assertEquals(15, current.size)
         ids.forEach { it.invoke(VaultActions()) }
     }
     @Test fun labelsUseHostSuppliedStrings() {
