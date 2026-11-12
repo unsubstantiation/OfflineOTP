@@ -80,6 +80,46 @@ class DesktopUriImportTest {
         assertTrue(state.snapshot().isEmpty())
         assertTrue(request.message!!.contains("Could not save"))
     }
+    @Test fun expiryAfterCommittedImportSuppressesMessageButPreservesDiskWrite() = harness { controller, state, importer, _ ->
+        importer.open(); val request = importer.pending!!; var checks = 0
+        assertFalse(importer.submit(request, uri("alice"), true) {
+            if (++checks == 2) { importer.close(); state.lock(); false } else true
+        })
+        assertEquals(2, checks); assertTrue(importer.pending == null); assertTrue(request.message == null)
+        val reopened = controller.openVault("test-password") as VaultController.Session.Loaded
+        try { assertEquals("alice", reopened.entries.single().getLabel()) }
+        finally { DesktopUnlockOperation.discard(reopened) }
+    }
+    @Test fun expiredPartialBatchIsDiscardedEvenIfGuardDoesNotCloseOwner() = harness { _, state, importer, _ ->
+        importer.open(); val request = importer.pending!!; var checks = 0
+        assertFalse(importer.submit(request, migrationUri(0, "first"), true) { ++checks == 1 })
+        assertTrue(importer.pending == null); assertTrue(request.message == null)
+        importer.open(); val fresh = importer.pending!!
+        assertFalse(importer.submit(fresh, migrationUri(1, "second"), true) { true })
+        assertTrue(state.snapshot().isEmpty()); assertTrue(fresh.collecting)
+    }
+    @Test fun reentrantGuardCannotAuthorizeOldRequestOrOverwriteNewMessage() = harness { _, state, importer, _ ->
+        importer.open(); val old = importer.pending!!
+        assertFalse(importer.submit(old, uri("not saved"), true) {
+            importer.dismiss(old); importer.open(); true
+        })
+        assertTrue(state.snapshot().isEmpty())
+        val next = importer.pending!!; var checks = 0
+        assertFalse(importer.submit(next, uri("saved"), true) {
+            if (++checks == 2) { importer.dismiss(next); importer.open() }
+            true
+        })
+        assertEquals(1, state.snapshot().size)
+        assertTrue(importer.pending !== next); assertTrue(importer.pending!!.message == null)
+    }
+    @Test fun failedPersistenceChecksPostWriteExpiry() = harness { _, state, importer, dir ->
+        importer.open(); val request = importer.pending!!; var checks = 0
+        dir.deleteRecursively(); dir.writeText("not a directory")
+        assertFalse(importer.submit(request, uri("alice"), true) { ++checks == 1 })
+        assertEquals(2, checks); assertTrue(importer.pending == null)
+        assertTrue(request.message == null); assertTrue(state.snapshot().isEmpty())
+    }
+
     private fun migrationUri(partIndex: Int, label: String): String {
         val secret = byteArrayOf(0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x21, partIndex.toByte(), 1, 2, 3)
         val account = fieldBytes(1, secret) +

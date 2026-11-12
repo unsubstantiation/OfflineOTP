@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Recheck session lifetime after URI/migration import processing and persistence. Suppress expired completion messages, discard abandoned multipart batches, and preserve newer requests across reentrant guards.
+
  * Compose desktop security: Route delete, HOTP advance and mOTP PIN dialogs through a shared pre/post-save lifetime guard. Suppress expired/stale completion and preserve normal failure retries.
 
  * Compose desktop security: Check the live idle deadline before and after copy-related usage persistence. Suppress clipboard publication and stale UI notices after expiry or request replacement, while retaining completed disk writes.

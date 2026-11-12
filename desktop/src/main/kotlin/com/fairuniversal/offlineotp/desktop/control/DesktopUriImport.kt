@@ -26,7 +26,7 @@ class DesktopUriImport(private val state: DesktopVaultState, private val coordin
 
     /** Returns true only when the vault changed; neither raw URI nor parser details are retained. */
     fun submit(request: Request, uri: String, allowDuplicateIssuers: Boolean, active: () -> Boolean): Boolean {
-        if (closed || state.isLocked || pending !== request || !active()) return false
+        if (!current(request) || !active() || !current(request)) return false
         if (uri.isBlank() || uri.length > InputPolicy.MAX_URI_CHARS) {
             request.message = "Enter a supported OTP URI within the size limit."
             return false
@@ -35,10 +35,12 @@ class DesktopUriImport(private val state: DesktopVaultState, private val coordin
         val result = try {
             coordinator.importQrPayload(uri, BackupCoordinator.DuplicateIssuerPolicy { policy })
         } catch (_: Exception) {
+            if (!afterImport(request, active)) return false
             coordinator.cancelMigrationImport(); request.duplicatePolicy = null
             request.message = "Import failed. Check the URI and vault storage, then try again."
             return false
         }
+        if (!afterImport(request, active)) return false
         request.duplicatePolicy = if (coordinator.migrationInProgress()) policy else null
         request.message = when (result) {
             is BackupCoordinator.ImportResult.Imported -> "Imported ${result.count} accounts. Exact duplicates and excluded issuers are skipped."
@@ -56,4 +58,15 @@ class DesktopUriImport(private val state: DesktopVaultState, private val coordin
         }
         return result is BackupCoordinator.ImportResult.Imported && result.count > 0
     }
+    private fun current(request: Request) = !closed && !state.isLocked && pending === request
+
+    private fun afterImport(request: Request, active: () -> Boolean): Boolean {
+        // A write may already be committed. Invalidate completion and buffered migration data,
+        // but never cancel a newer request created by a reentrant guard.
+        val live = active()
+        if (live && current(request)) return true
+        if (pending === request) dismiss(request)
+        return false
+    }
+
 }

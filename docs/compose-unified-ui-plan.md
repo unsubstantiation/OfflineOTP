@@ -1635,3 +1635,19 @@ exercise failed/throwing writes, stale/reentrant guards, wrong callback kind and
 retry/deletion notification exactly once. These operations still persist synchronously and
 do not claim real Compose/native/device execution. Camera, OpenPGP hardware integration,
 background persistence and release/cutover validation remain pending; Swing remains shipping.
+
+### URI/migration import completion lifetime
+
+DesktopUriImport now rechecks current request identity after the pre-submit lifetime callback
+and checks lifetime after coordinator processing/persistence, including exception and failed
+write paths. Expired completion cannot publish a success/retry message. If the current request
+is abandoned, incomplete migration material is canceled; a newer request created by a reentrant
+guard is not canceled or overwritten. Authorized disk writes may already be committed and are
+not rolled back solely because expiry happens afterwards. The same owner handles pasted URI
+and decoded QR-image payloads.
+
+Tests cover actual committed import/reopen with suppressed expired completion, partial-batch
+cleanup, false guard without explicit owner closure, failed persistence and reentrant request
+replacement before/after import. Parsing/final persistence remain synchronous. Camera capture,
+OpenPGP hardware integration, asynchronous persistence and native/device release validation
+remain unfinished; Swing remains shipping.
