@@ -644,12 +644,14 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_openpgp_export_confirms_scope_and_recipient(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)
-        self.assertIn("openPgpExporter.submit(pgpExportRequest, recipientFile)", host)
+        self.assertIn("openPgpExporter.submitRecipients(pgpExportRequest, recipientFiles, lifetime::checkActive)", host)
         self.assertIn("openPgpExporter.close()", host)
         form = (UI_MAIN / "vault/OpenPgpExportDialog.kt").read_text()
         self.assertIn("including concealed entries and regardless of filters", form)
         self.assertIn("intended recipient", form)
-        self.assertIn("enabled = !busy && keySelected", form)
+        self.assertIn("enabled = !busy && recipientNames.isNotEmpty()", form)
+        self.assertIn("ANY matching secret key", form)
+        self.assertIn("16 MiB combined", form)
 
     def test_openpgp_import_requires_key_and_live_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

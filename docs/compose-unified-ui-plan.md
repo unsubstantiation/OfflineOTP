@@ -1582,3 +1582,26 @@ rejection, queued/in-flight cancellation and storage-provider/executor failure. 
 manager tests cover enrollment/PRF roundtrip, not physical key behavior. Real FIDO/PCSC, Compose
 modal/accessibility, packaging and device validation remain pending. OpenPGP hardware integration,
 camera and asynchronous persistence still block migration completion. Swing remains shipping.
+
+### Multiple OpenPGP recipient files
+
+Compose OpenPGP backup export now allows 1–8 distinct recipient file selections, shows their
+filenames and provides Clear recipients. It explicitly warns that ANY matching secret key can
+decrypt the whole backup (not threshold protection), and that filenames are not verified
+fingerprints. The native picker still selects one file at a time.
+
+DesktopOpenPgpExport copies the selection list at submit and reads every file on the worker
+under a shared 16 MiB budget. Empty/unreadable/oversized inputs fail the whole export before
+provider invocation; it does not silently skip a recipient. All successfully read key buffers
+are wiped even if a later file fails, and all-or-nothing provider encryption remains delegated
+to the shared codec. Existing exclusive writes and canceled/late-result suppression remain.
+The host now passes the live deadline across snapshot and completion. A file can change after
+selection; key verification/fingerprint confirmation and hardware/agent recipients are not
+implemented by this increment. Duplicate file paths are rejected; aliases or identical key
+contents in different files are left to the crypto provider.
+
+Tests cover selection snapshot/order, empty/duplicate/excessive selections, missing/empty later
+files, combined size limits, provider failure cleanup and expired completion. These use an
+injected fake crypto port, not native multi-recipient interoperability. Real crypto/Compose/
+hardware/device release validation and remaining migration work still block cutover. Swing
+remains shipping.

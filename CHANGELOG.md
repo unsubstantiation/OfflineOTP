@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Export OpenPGP backups to up to eight recipient key files with a 16 MiB combined input bound, explicit any-recipient-can-decrypt warning, selection snapshotting and all-or-nothing read/encryption failure handling.
+
  * Compose desktop: Enroll/replace local FIDO2 PRF hardware unlock with explicit consent, lock-first detached-key ownership and a window-level unlock/exit interlock. Enrollment runs after prior hardware work and requires fresh unlock afterwards.
 
  * Compose desktop: Confirm and remove the local hardware-unlock record on a worker, including corrupt records. Report deletion failures rather than claiming success; explain password fallback and that physical-key credentials and external copies are unaffected.

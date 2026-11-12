@@ -21,15 +21,16 @@ class DesktopOpenPgpExportTest {
     }
     private class Port : OpenPgpPort {
         var plain: ByteArray? = null; var key: ByteArray? = null; var output: ByteArray? = null
+        var keys = emptyList<ByteArray>(); var received = emptyList<String>()
         var calls = 0; var fail = false; var afterEncrypt: () -> Unit = {}
         override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray {
-            calls++; plain = plaintext; key = recipientKeyBlocks.single()
+            calls++; plain = plaintext; key = recipientKeyBlocks.first(); keys = recipientKeyBlocks.toList(); received = recipientKeyBlocks.map { String(it) }
             if (fail) throw IllegalArgumentException("private diagnostic")
             return plaintext.reversedArray().also { output = it; afterEncrypt() }
         }
         override fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?) = message.reversedArray()
         fun wiped() {
-            assertTrue(plain!!.all { it == 0.toByte() }); assertTrue(key!!.all { it == 0.toByte() })
+            assertTrue(plain!!.all { it == 0.toByte() }); keys.forEach { value -> assertTrue(value.all { it == 0.toByte() }) }
             output?.let { assertTrue(it.all { byte -> byte == 0.toByte() }) }
         }
     }
@@ -42,6 +43,58 @@ class DesktopOpenPgpExportTest {
         try { test(dir, state, worker, ui, port, exporter) }
         finally { exporter.close(); state.lock(); dir.deleteRecursively() }
     }
+    @Test fun multipleRecipientFilesAreSnapshottedInOrderAndAllBuffersWiped() = harness { dir, _, worker, ui, port, exporter ->
+        val first = File(dir, "first.asc").apply { writeText("first recipient") }
+        val second = File(dir, "second.asc").apply { writeText("second recipient") }
+        val selected = arrayListOf(first, second)
+        val target = File(dir, "multiple.gpg")
+        exporter.open(target); val request = exporter.pending!!
+        assertTrue(exporter.submitRecipients(request, selected)); selected.clear()
+        worker.run(); ui.run()
+        assertEquals(listOf("first recipient", "second recipient"), port.received)
+        assertTrue(exporter.saved); assertTrue(target.exists()); port.wiped()
+    }
+    @Test fun invalidSelectionAndExpiredAuthorityNeverQueueEncryption() = harness { dir, _, worker, _, port, exporter ->
+        val key = File(dir, "key.asc").apply { writeText("key") }
+        exporter.open(File(dir, "out.gpg")); val request = exporter.pending!!
+        assertFalse(exporter.submitRecipients(request, emptyList()))
+        assertFalse(exporter.submitRecipients(request, listOf(key, key)))
+        assertFalse(exporter.submitRecipients(request, (0..8).map { File(dir, "$it.asc") }))
+        assertFalse(exporter.submitRecipients(request, listOf(key)) { false })
+        assertEquals(0, worker.tasks.size); assertEquals(0, port.calls)
+    }
+    @Test fun oneUnreadableOrEmptyRecipientFailsTheWholeExport() = harness { dir, _, worker, ui, port, exporter ->
+        val first = File(dir, "first.asc").apply { writeText("first") }
+        val second = File(dir, "second.asc")
+        val target = File(dir, "out.gpg")
+        exporter.open(target); val request = exporter.pending!!
+        exporter.submitRecipients(request, listOf(first, second)); worker.run(); ui.run()
+        assertEquals(DesktopOpenPgpExport.Failure.EXPORT, request.failure); assertEquals(0, port.calls)
+        second.writeText("")
+        exporter.submitRecipients(request, listOf(first, second)); worker.run(); ui.run()
+        assertEquals(0, port.calls); assertFalse(target.exists())
+    }
+    @Test fun combinedSizeLimitIsEnforcedBeforeCallingProvider() = harness { dir, _, worker, ui, port, exporter ->
+        val first = File(dir, "first.asc").apply { writeText("first") }
+        val second = File(dir, "large.asc")
+        java.io.RandomAccessFile(second, "rw").use { it.setLength(com.fairuniversal.offlineotp.Utilities.BoundedInputReader.MAX_DOCUMENT_BYTES.toLong()) }
+        val target = File(dir, "out.gpg")
+        exporter.open(target); val request = exporter.pending!!
+        exporter.submitRecipients(request, listOf(first, second)); worker.run(); ui.run()
+        assertEquals(DesktopOpenPgpExport.Failure.EXPORT, request.failure)
+        assertEquals(0, port.calls); assertFalse(target.exists())
+    }
+    @Test fun multiRecipientProviderFailureWipesEveryKeyAndExpiredDeliveryDoesNotPublish() = harness { dir, _, worker, ui, port, exporter ->
+        val keys = listOf("a", "b").map { name -> File(dir, name).apply { writeText(name) } }
+        exporter.open(File(dir, "out.gpg")); val request = exporter.pending!!
+        port.fail = true
+        exporter.submitRecipients(request, keys); worker.run(); ui.run(); port.wiped()
+        assertEquals(DesktopOpenPgpExport.Failure.EXPORT, request.failure)
+        port.fail = false; var active = true
+        exporter.submitRecipients(request, keys) { active }; worker.run(); active = false; ui.run()
+        assertFalse(exporter.saved); port.wiped()
+    }
+
     @Test fun writesDetachedSnapshotOnlyAfterExplicitSubmissionAndWipesBuffers() = harness { dir, state, worker, ui, port, exporter ->
         val key = File(dir, "public.asc").apply { writeText("recipient") }
         val target = File(dir, "backup.gpg")

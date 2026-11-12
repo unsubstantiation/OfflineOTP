@@ -932,10 +932,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         dismissLabel = "Close", onConfirm = { preferencesExporter.dismiss() }, onDismiss = { preferencesExporter.dismiss() }) }
     val pgpExportRequest = openPgpExporter.pending
     if (pgpExportRequest != null) {
-        var recipientFile by remember(pgpExportRequest) { mutableStateOf<java.io.File?>(null) }
-        OpenPgpExportDialog(busy = pgpExportRequest.busy, keySelected = recipientFile != null,
+        var recipientFiles by remember(pgpExportRequest) { mutableStateOf<List<java.io.File>>(emptyList()) }
+        OpenPgpExportDialog(busy = pgpExportRequest.busy, recipientNames = recipientFiles.map { it.name },
             error = when (pgpExportRequest.failure) {
-                DesktopOpenPgpExport.Failure.KEY -> "Select a recipient public-key file."
+                DesktopOpenPgpExport.Failure.KEY -> "Select 1–8 distinct recipient public-key files."
                 DesktopOpenPgpExport.Failure.EXISTS -> "That filename exists. Cancel and choose a new filename."
                 DesktopOpenPgpExport.Failure.EXPORT -> "Could not export. Check the recipient key and destination. A partial encrypted file may remain; choose a new filename to retry."
                 null -> null
@@ -943,12 +943,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 if (lifetime.checkActive() && openPgpExporter.pending === pgpExportRequest) {
                     try {
                         val key = DesktopSavePicker.openOpenPgpRecipient(window)
-                        if (key != null && lifetime.checkActive() && openPgpExporter.pending === pgpExportRequest) recipientFile = key
+                        if (key != null && lifetime.checkActive() && openPgpExporter.pending === pgpExportRequest && recipientFiles.size < DesktopOpenPgpExport.MAX_RECIPIENT_FILES && key !in recipientFiles) recipientFiles = recipientFiles + key
                     } catch (_: Exception) { copyNotice = "The recipient key could not be selected." }
                 }
-            }, onExport = {
-                if (lifetime.checkActive()) openPgpExporter.submit(pgpExportRequest, recipientFile)
-            }, onDismiss = { recipientFile = null; openPgpExporter.dismiss(pgpExportRequest) })
+            }, onClearKeys = { recipientFiles = emptyList() }, onExport = {
+                if (lifetime.checkActive()) openPgpExporter.submitRecipients(pgpExportRequest, recipientFiles, lifetime::checkActive)
+            }, onDismiss = { recipientFiles = emptyList(); openPgpExporter.dismiss(pgpExportRequest) })
     }
     if (openPgpExporter.saved) EntryConfirmationDialog(title = "OpenPGP export", message = "OpenPGP backup saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { openPgpExporter.dismissNotice() }, onDismiss = { openPgpExporter.dismissNotice() })
