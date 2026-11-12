@@ -255,6 +255,17 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("rememberSaveable", dialog)
         self.assertIn("clear(); onSubmit(a, b, c)", dialog)
 
+    def test_storage_location_uses_startup_path_and_plain_read_only_text(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/StorageLocationDialog.kt").read_text()
+        self.assertIn("ComposeVaultApp(controller, DesktopStorageLocation(directory))", host)
+        self.assertIn("directory = location.dataDirectory", host)
+        self.assertIn("showStorageLocation = false", host)
+        self.assertIn("Text(text = directory)", dialog)
+        self.assertIn("data subfolder is appended automatically", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertNotIn("Clipboard", dialog)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

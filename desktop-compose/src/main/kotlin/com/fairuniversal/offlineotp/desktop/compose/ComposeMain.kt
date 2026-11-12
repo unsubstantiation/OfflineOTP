@@ -3,6 +3,8 @@ package com.fairuniversal.offlineotp.desktop.compose
 import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChange
 import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChangeFlow
 import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
+import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
+import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -118,12 +120,12 @@ fun main() {
         return
     }
     application {
-        ComposeVaultApp(controller)
+        ComposeVaultApp(controller, DesktopStorageLocation(directory))
     }
 }
 
 @Composable
-private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
+private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
     var rekeyRevision by remember { mutableStateOf(0) }
@@ -158,7 +160,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
                 VaultContent(
                     controller = controller,
                     vault = vault,
-                    window = window,
+                    window = window, location = location,
                     onChangePassword = { active, lock -> rekey.open(vault, active, lock); Unit },
                     onLock = {
                         vault.lock()
@@ -209,7 +211,7 @@ private fun DesktopUnlockContent(controller: VaultController, onLoaded: (VaultCo
 }
 
 @Composable
-private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
+private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
@@ -259,6 +261,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
     val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
+    var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
@@ -287,6 +290,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
+                showStorageLocation = false
                 emailDetails.close()
                 openPgpImporter.close()
                 linScpImporter.close()
@@ -540,6 +544,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, storageLocation = {
+            if (lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                showStorageLocation = true
+            }
         }, changePassword = {
             if (lifetime.checkActive()) onChangePassword(lifetime::checkActive, presenter::lock)
         }, exportArchives = {
@@ -586,6 +597,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         appearance = presenter.appearance,
         artwork = artwork
     )
+    if (showStorageLocation) StorageLocationDialog(directory = location.dataDirectory,
+        filenames = listOf(location.vaultFilename, location.backupFilename, location.settingsFilename, location.hardwareFilename),
+        onDismiss = { showStorageLocation = false })
     val detailsRequest = emailDetails.pending
     if (detailsRequest != null) {
         val rows = emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))

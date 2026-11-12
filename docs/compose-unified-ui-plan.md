@@ -1400,3 +1400,24 @@ failure after request replacement, reentrant layout guards before/after save, an
 during a successful timeout write. Existing success/reopen/cache rollback tests remain in place.
 This is lifecycle hardening, not additional preference UI or real Compose/native validation.
 Remaining feature parity and device/release validation still block cutover; Swing remains shipping.
+
+### Read-only portable storage location
+
+Desktop Tools now includes Portable storage location. The host passes a DesktopStorageLocation
+captured from the actual directory supplied to DesktopStorage.open at startup, rather than
+re-reading environment/system properties later. The absolute path retains any lexical dot
+segments rather than rewriting symlink-dependent paths, and the model neither creates files
+nor inspects vault contents. Diagnostics redact the path.
+
+The shared dialog renders the directory and managed vault/backup/settings/hardware-record
+filenames as plain text. It makes clear that listed files need not exist and external exports
+are not enumerated. Guidance explains closing all instances before relocation, keeping a verified
+backup, copying the whole data folder, avoiding concurrent clients, the system-property/environment
+program-folder overrides and automatic data subfolder. No links, clipboard writes, shell execution,
+file moves or live switching are provided. The action is optional/guarded and lock removes the
+dialog; Android does not advertise it.
+
+Tests cover actual startup-path retention, no file creation, fixed filename provenance, redacted
+diagnostics and changed overrides. Tools routing/terminal guards remain covered. Real Compose
+layout/accessibility/native validation and broader portable migration/recovery workflows remain
+pending. Swing remains shipping.
