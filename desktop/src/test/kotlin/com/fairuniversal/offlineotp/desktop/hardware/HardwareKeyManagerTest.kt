@@ -150,6 +150,49 @@ class HardwareKeyManagerTest {
         assertEquals(1, OathSandbox.calculations)
     }
 
+    @Test fun enrollmentWipesEncodedKeyOnSuccessFailureAndPostDeviceCancellation() {
+        for (mode in 0..3) {
+            val id = byteArrayOf(4, 2)
+            FidoSandbox.enrollment = PublicKeyCredential(id, Extensions(mapOf("prf" to mapOf("enabled" to true))))
+            rearmAssertion(id) { ByteArray(32) { 7 } }
+            val token = HardwareKeyManager.CancelToken()
+            val original = ByteArray(32) { (it + 1).toByte() }
+            var encoded: ByteArray? = null
+            val key = object : javax.crypto.SecretKey {
+                override fun getAlgorithm() = "AES"
+                override fun getFormat() = "RAW"
+                override fun getEncoded(): ByteArray = original.clone().also {
+                    encoded = it
+                    if (mode == 2) token.cancel() // After the device returns, before local write.
+                }
+            }
+            var writes = 0
+            val store = object : HardwareUnlockStoragePort {
+                override fun readEnvelope(): ByteArray? = null
+                override fun writeEnvelope(envelope: ByteArray): Boolean {
+                    writes++
+                    if (mode == 3) error("storage failure")
+                    return mode == 0
+                }
+                override fun removeEnvelope() {}
+            }
+            val manager = managerWithStore(FakeSource(listOf(smartCardDevice())), store)
+            val pin = "123456".toCharArray()
+            try {
+                val result = manager.enroll(pin, key, token)
+                when (mode) {
+                    0 -> assertTrue(result is HardwareKeyManager.Result.Ok)
+                    2 -> assertTrue(result is HardwareKeyManager.Result.Canceled)
+                    else -> assertTrue(result is HardwareKeyManager.Result.Failed)
+                }
+                assertEquals(if (mode == 2) 0 else 1, writes)
+                assertTrue(encoded!!.all { it == 0.toByte() })
+                assertTrue(pin.all { it == ' ' })
+                assertArrayEquals(ByteArray(32) { (it + 1).toByte() }, original)
+            } finally { manager.close() }
+        }
+    }
+
     @Test
     fun enrollmentPersistsAnEnvelopeAndHardwareUnlockRecoversTheVaultKey() {
         val dir = Files.createTempDirectory("offlineotp-hw-").toFile()

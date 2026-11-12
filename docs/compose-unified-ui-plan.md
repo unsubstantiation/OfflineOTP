@@ -1490,3 +1490,21 @@ new tests; existing sandbox manager tests cover shared copy behavior. Physical k
 Compose/accessibility and packaging validation remain pending. FIDO enrollment/unlock, OpenPGP
 hardware integration, camera and background persistence still block feature completion. Swing
 remains shipping.
+
+### FIDO enrollment prerequisite: key-buffer cleanup and cancellation
+
+Review of the shared HardwareKeyManager enrollment routine found that it wiped a clone of
+SecretKey.encoded but retained the original encoded array, and did not wipe the key recovered
+for roundtrip envelope verification. Enrollment now uses/wipes the encoded copy directly and
+wipes the recovered verification array in a finally block. It also rechecks its cancellation
+token after verification, immediately before local envelope persistence. Cancellation observed
+there prevents replacing the local enrollment; it cannot undo authenticator credential creation
+or interrupt an already-started storage write. Existing Swing enrollment uses this shared fix.
+
+A scripted FIDO test covers successful enrollment, false/throwing storage failures, and
+cancellation triggered after device work at key encoding. It verifies encoded-buffer and PIN
+cleanup, unchanged source key bytes, and no store call after observed cancellation. The recovered
+verification buffer cleanup is enforced directly by finally, not a claimed native memory test.
+FIDO UI enrollment/unlock still require session/key ownership and lifecycle integration; this
+increment does not expose them in Compose. Physical key/PCSC and native UI validation remain
+pending. Swing remains shipping.

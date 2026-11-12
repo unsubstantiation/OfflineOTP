@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop hardware security: Wipe both encoded and roundtrip-recovered vault-key buffers during FIDO enrollment, and recheck cancellation immediately before persisting an enrollment envelope.
+
  * Compose desktop: Copy compatible TOTP/HOTP seeds to a PC/SC OATH key with explicit export consent and touch required. Use detached worker-owned entries, exact-selection guards, PIN cleanup and cancellation; never remove the vault copy.
 
  * Compose desktop: Browse OATH accounts on a PC/SC security key and explicitly calculate a code, with HOTP counter-advance warning, masked per-operation OATH password, worker cancellation, expiry masking and stale-result guards. Hardware enrollment/unlock and copy-to-key remain pending.
