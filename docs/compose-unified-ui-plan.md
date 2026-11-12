@@ -1381,3 +1381,22 @@ retain originals and destroy unadopted candidates. Tests cover multi-identity pr
 legacy flags, all envelope metadata, bounds, redaction, save/reopen, mode/reveal/expiry/lock
 checks and failure cleanup. Native/Compose layout, accessibility and device validation remain
 pending. Final persistence is still synchronous, and Swing remains shipping.
+
+### Preference dialog save-boundary hardening
+
+The individual layout and auto-lock owners now check the existing idle deadline immediately
+after persistence whether the write succeeds, returns false or throws. A failed write that
+blocks the UI past its deadline locks before any failure state is rendered. Previously the
+failure branch returned before this check, leaving expiry to a queued timer.
+
+Both owners recheck current request identity after guard callbacks and after persistence. A
+reentrant write that replaces/dismisses/closes its dialog cannot clear a newer request, apply
+a stale layout, or disable/extend the current timeout. Auto-lock changes the live timer only
+after successful persistence AND current live authority. Already-persisted preferences are
+not rolled back; they can apply on the next session. Persistence remains synchronous.
+
+Deterministic scheduler tests cover failing/throwing writes crossing expiry, stale success and
+failure after request replacement, reentrant layout guards before/after save, and owner closure
+during a successful timeout write. Existing success/reopen/cache rollback tests remain in place.
+This is lifecycle hardening, not additional preference UI or real Compose/native validation.
+Remaining feature parity and device/release validation still block cutover; Swing remains shipping.

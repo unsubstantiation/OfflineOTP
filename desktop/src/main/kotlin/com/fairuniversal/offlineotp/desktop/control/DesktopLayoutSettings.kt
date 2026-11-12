@@ -18,11 +18,12 @@ class DesktopLayoutSettings(private val state: DesktopVaultState,
     fun close() { closed = true; pending = null }
     fun submit(request: Request, layout: Constants.CardLayouts, active: () -> Boolean,
                apply: (Constants.CardLayouts) -> Unit): Boolean {
-        if (!valid(request) || !active()) return false
+        if (!valid(request) || !active() || !valid(request)) return false
         val saved = try { write(layout) } catch (_: Exception) { false }
+        // Check the old deadline even on failure, before touching a dialog or live appearance.
+        // The guard may synchronously close/replace the request, so check identity afterwards.
+        if (!active() || !valid(request)) return false
         if (!saved) { request.failed = true; return false }
-        // A slow write can persist a future preference while expiry closes the current vault.
-        if (!valid(request) || !active()) return false
         pending = null; apply(layout); return true
     }
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request

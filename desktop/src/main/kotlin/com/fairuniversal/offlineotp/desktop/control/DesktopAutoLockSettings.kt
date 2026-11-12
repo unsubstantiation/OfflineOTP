@@ -18,15 +18,19 @@ class DesktopAutoLockSettings(
     fun close() { closed = true; pending = null }
 
     fun submit(request: Request, seconds: Int, lifetime: DesktopSessionLifetime): Boolean {
-        if (closed || state.isLocked || pending !== request || !lifetime.checkActive()) return false
+        if (!valid(request) || !lifetime.checkActive() || !valid(request)) return false
         if (seconds < 0 || (seconds !in OPTIONS && seconds != request.currentSeconds)) return false
         val saved = try { write(seconds) } catch (_: Exception) { false }
+        // Keep a persisted preference for the next session, but never revive an expired one.
+        // Also check failures: an overdue timer may still be queued behind this settings write.
+        if (!lifetime.checkActive() || !valid(request)) return false
         if (!saved) { request.failed = true; return false }
-        // A slow settings write may have crossed the deadline; keep the preference but lock now.
-        if (!lifetime.changeTimeout(seconds)) return false
+        if (!lifetime.changeTimeout(seconds) || !valid(request)) return false
         pending = null
         return true
     }
+
+    private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 
     companion object { val OPTIONS = listOf(0, 30, 60, 120, 300, 900) }
 }

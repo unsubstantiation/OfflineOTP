@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Enforce the old idle deadline after failed or throwing layout/auto-lock preference writes. Recheck request identity after persistence and guard callbacks so stale completions cannot disable timers, apply layouts or clear newer dialogs.
+
  * Compose desktop: Edit incoming protocol and per-identity email connection hosts, ports, encryption and usernames from revealed details. Preserve credentials, authentication types, identities and provider metadata with guarded save/reopen coverage.
 
  * Compose desktop: Add vault password change with a window-level rekey interlock. Lock before worker execution, block unlock/dismissal/normal exit while running, discard returned session material, and require fresh unlock after the result.
