@@ -5,6 +5,8 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChangeFlow
 import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
 import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
+import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareOath
 import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
 import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
@@ -238,6 +240,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val hardwareCopy = remember(vault) { DesktopHardwareCopy(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, copy = { pin, entry, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.copyEntryToKey(pin?.takeIf { it.isNotEmpty() }, entry, requireTouch = true, token = token) } finally { manager.close() }
+        }) }
     val hardwareOath = remember(vault) { DesktopHardwareOath(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ },
         list = { pin, token ->
@@ -314,7 +321,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+                hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -349,7 +356,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -561,8 +568,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, hardwareCopy = {
+            if (lifetime.checkActive() && hardwareOath.pending == null) hardwareCopy.open()
         }, hardwareOath = {
-            if (lifetime.checkActive()) hardwareOath.open()
+            if (lifetime.checkActive() && hardwareCopy.pending == null) hardwareOath.open()
         }, storageLocation = {
             if (lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
@@ -616,6 +625,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         appearance = presenter.appearance,
         artwork = artwork
     )
+    hardwareCopy.pending?.let { request ->
+        HardwareCopyDialog(inputKey = request, labels = request.labels, selected = request.selected,
+            selecting = request.status == DesktopHardwareCopy.Status.SELECT, confirming = request.status == DesktopHardwareCopy.Status.CONFIRM,
+            message = when (request.status) {
+                DesktopHardwareCopy.Status.WRITING -> "Writing to security key… Touch it if prompted."
+                DesktopHardwareCopy.Status.COPIED -> "Copied to key with touch required. Vault entry unchanged."
+                DesktopHardwareCopy.Status.NO_KEY -> "No PC/SC security key found."
+                DesktopHardwareCopy.Status.FAILED -> "Copy did not report success. Check the key before retrying: an issued device write may have completed."
+                else -> null
+            }, onSelect = { index -> hardwareCopy.select(request, index, lifetime::checkActive) },
+            onSubmit = { pin -> hardwareCopy.submit(request, pin, lifetime::checkActive) },
+            onDismiss = { hardwareCopy.dismiss(request) })
+    }
     hardwareOath.pending?.let { request ->
         val rows = hardwareOath.rows(request, now)
         HardwareOathDialog(inputKey = request, labels = rows.map { it.label }, codes = rows.map { it.code }, counters = rows.map { it.counter },

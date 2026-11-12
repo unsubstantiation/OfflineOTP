@@ -1461,3 +1461,32 @@ Compose layout/accessibility, Gradle/native packaging and device validation rema
 FIDO enrollment/unlock, copy-to-key, OpenPGP hardware/agent integration, camera capture and
 background persistence remain unfinished; therefore feature migration is NOT complete and
 Swing remains shipping.
+
+### Compose copy OTP to OATH security key
+
+Tools now offers Copy OTP to security key. A metadata-only chooser lists compatible TOTP/HOTP
+entries independent of filters/concealment. Selection is followed by explicit secret-seed export
+consent, an optional masked OATH password (not FIDO PIN), and warnings to connect only the intended
+PC/SC key. Touch is always required for future hardware calculations in this increment. The
+shared HardwareOathClient enforces parameter/name constraints and refuses duplicate hardware
+credential IDs instead of overwriting. The vault entry is not removed or modified.
+
+DesktopHardwareCopy validates the exact live selected entry and current session deadline, clones
+the entry only at confirmed submission, then transfers it and the mutable password array to the
+worker. Cancellation before start destroys the clone/password; in-flight cancellation signals
+the manager token and suppresses completion. All worker outcomes destroy the detached entry and
+wipe the password. Provider errors are mapped to generic status, never copied to UI. Copy and
+browse dialogs cannot be opened concurrently. Other hardware requests share the serial worker.
+
+A device write already issued may finish despite cancellation or a later failure; the UI says to
+inspect the key before retrying. HOTP copies start from the vault counter and can diverge if both
+are used. Immutable serialization/password strings cannot be zeroized, and a rejected dispatcher
+can leave progress until dismissal. No device seed rollback or secure-erasure claim is made.
+
+Tests cover explicit consent, filter-independent compatible selection, detached snapshots,
+source preservation, stale/replaced/expired requests, queued/locked/in-flight cancellation,
+provider failures and executor rejection with cleanup. Provider behavior is injected in these
+new tests; existing sandbox manager tests cover shared copy behavior. Physical key/PCSC, native
+Compose/accessibility and packaging validation remain pending. FIDO enrollment/unlock, OpenPGP
+hardware integration, camera and background persistence still block feature completion. Swing
+remains shipping.

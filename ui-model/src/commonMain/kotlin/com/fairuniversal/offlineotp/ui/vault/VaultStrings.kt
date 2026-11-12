@@ -23,6 +23,7 @@ data class VaultStrings(
     val autoLock: String = "Auto-lock",
     val emailDetails: String = "Connection details",
     val importPreferences: String = "Import preferences",
+    val hardwareCopy: String = "Copy OTP to security key",
     val hardwareOath: String = "OATH security key",
     val storageLocation: String = "Portable storage location",
     val changePassword: String = "Change vault password",
