@@ -1435,3 +1435,29 @@ that cross a deterministic idle deadline, alongside existing real persisted orde
 and failed-write order preservation. Persistence remains synchronous. Real Compose/device
 validation and remaining hardware/camera/preferences/cutover work are still pending; Swing
 remains shipping.
+
+### Compose PC/SC OATH account browser
+
+Tools now offers OATH security key: list accounts on the first connected PC/SC-compatible key,
+then explicitly calculate/show a selected code. Listing does not reveal calculated TOTP values.
+HOTP action text explicitly says it advances the device counter; it is never auto-calculated.
+The shared backend binds calculation to the listed device ID. TOTP validity is checked at render
+time using the host clock; HOTP codes remain visible until another operation, dismissal or lock.
+No clipboard copying, seed import, enrollment or vault mutation is added.
+
+A session-owned controller serializes its request on the existing worker, transfers a mutable
+OATH password array, wipes it on all completion/rejection paths, and invokes manager cancellation
+hooks on dismissal/lock. Each operation creates/closes its PC/SC manager on the worker, not during
+composition. UI text distinguishes the OATH password from a FIDO PIN and requires re-entry per
+operation. Provider messages are never displayed. Delivered account/code references are dropped
+on close; queued results live in a cancelable holder instead of the UI Runnable. Immutable SDK
+strings cannot be zeroized. Cancellation cannot undo an already-issued device counter command.
+Rejected UI dispatch can leave the busy view until dismissal.
+
+Headless tests cover worker/PIN ownership, failures, expiry/stale requests, cancellation, hidden
+list codes, device binding and explicit calculation/expiry. The account/credential scenario uses
+the repository's scripted YubiKit sandbox fixtures; it is not a physical key test. Real PC/SC,
+Compose layout/accessibility, Gradle/native packaging and device validation remain pending.
+FIDO enrollment/unlock, copy-to-key, OpenPGP hardware/agent integration, camera capture and
+background persistence remain unfinished; therefore feature migration is NOT complete and
+Swing remains shipping.

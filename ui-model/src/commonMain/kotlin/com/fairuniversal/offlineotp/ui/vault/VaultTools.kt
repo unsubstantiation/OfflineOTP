@@ -4,7 +4,7 @@ package com.fairuniversal.offlineotp.ui.vault
 enum class VaultTool(val group: Group) {
     IMPORT_URI(Group.IMPORT), IMPORT_PASSWORDS(Group.IMPORT), IMPORT_EMAIL(Group.IMPORT), IMPORT_LINSCP(Group.IMPORT),
     EXPORT_ARCHIVES(Group.BACKUP), EXPORT_PASSWORDS(Group.BACKUP), EXPORT_EMAIL(Group.BACKUP), EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
-    STORAGE_LOCATION(Group.SETTINGS), CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
+    HARDWARE_OATH(Group.SETTINGS), STORAGE_LOCATION(Group.SETTINGS), CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
 
     enum class Group { IMPORT, BACKUP, SETTINGS }
 
@@ -21,6 +21,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_EMAIL -> strings.exportEmail
         EXPORT_ENCRYPTED -> strings.exportEncrypted
         RESTORE_ENCRYPTED -> strings.restoreEncrypted
+        HARDWARE_OATH -> strings.hardwareOath
         STORAGE_LOCATION -> strings.storageLocation
         CHANGE_PASSWORD -> strings.changePassword
         CARD_LAYOUT -> strings.cardLayout
@@ -41,6 +42,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_EMAIL -> actions.onExportEmail
         EXPORT_ENCRYPTED -> actions.onExportEncrypted
         RESTORE_ENCRYPTED -> actions.onRestoreEncrypted
+        HARDWARE_OATH -> actions.onHardwareOath
         STORAGE_LOCATION -> actions.onStorageLocation
         CHANGE_PASSWORD -> actions.onChangePassword
         CARD_LAYOUT -> actions.onConfigureLayout

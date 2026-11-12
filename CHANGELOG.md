@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Browse OATH accounts on a PC/SC security key and explicitly calculate a code, with HOTP counter-advance warning, masked per-operation OATH password, worker cancellation, expiry masking and stale-result guards. Hardware enrollment/unlock and copy-to-key remain pending.
+
  * Compose desktop security: Guard manual-order saves with the live idle deadline, including failed/throwing writes, and suppress filter/error updates after expiry locks the session.
 
  * Compose desktop: Show the startup data-directory path and managed filenames in Tools → Portable storage location, with relocation/override guidance. Read-only: no file moves, path execution or live vault switching.

@@ -5,6 +5,11 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChangeFlow
 import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
 import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareOath
+import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
+import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
+import com.fairuniversal.offlineotp.desktop.storage.DesktopHardwareUnlockStore
+import com.fairuniversal.offlineotp.ui.vault.HardwareOathDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -233,6 +238,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val hardwareOath = remember(vault) { DesktopHardwareOath(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ },
+        list = { pin, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.listOathAccounts(pin?.takeIf { it.isNotEmpty() }, token) } finally { manager.close() }
+        }, calculate = { pin, deviceId, account, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.calculateOath(pin?.takeIf { it.isNotEmpty() }, deviceId, account, token) } finally { manager.close() }
+        }) }
     val archiveExporter = remember(vault) { DesktopArchiveExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val passwordExporter = remember(vault) { DesktopPasswordExport(vault, exportWorker,
@@ -300,7 +314,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+                hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -335,7 +349,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -547,6 +561,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, hardwareOath = {
+            if (lifetime.checkActive()) hardwareOath.open()
         }, storageLocation = {
             if (lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
@@ -600,6 +616,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         appearance = presenter.appearance,
         artwork = artwork
     )
+    hardwareOath.pending?.let { request ->
+        val rows = hardwareOath.rows(request, now)
+        HardwareOathDialog(inputKey = request, labels = rows.map { it.label }, codes = rows.map { it.code }, counters = rows.map { it.counter },
+            busy = request.busy, message = request.message,
+            onSubmit = { pin, index -> hardwareOath.submit(request, pin, index, lifetime::checkActive) },
+            onDismiss = { hardwareOath.dismiss(request) })
+    }
     if (showStorageLocation) StorageLocationDialog(directory = location.dataDirectory,
         filenames = listOf(location.vaultFilename, location.backupFilename, location.settingsFilename, location.hardwareFilename),
         onDismiss = { showStorageLocation = false })

@@ -266,6 +266,16 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("rememberSaveable", dialog)
         self.assertNotIn("Clipboard", dialog)
 
+    def test_hardware_oath_ui_has_explicit_counter_action_and_lifetime_guard(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/HardwareOathDialog.kt").read_text()
+        self.assertIn("hardwareOath.submit(request, pin, index, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("hardwareOath.close()"), 2)
+        self.assertIn("Advance HOTP counter and show code", dialog)
+        self.assertIn("not the FIDO PIN", dialog)
+        self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

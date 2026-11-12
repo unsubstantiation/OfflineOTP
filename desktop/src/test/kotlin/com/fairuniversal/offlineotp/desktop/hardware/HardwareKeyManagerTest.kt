@@ -83,6 +83,34 @@ class HardwareKeyManagerTest {
         FidoSandbox.reset()
     }
 
+    @Test fun composeOathBrowserRequiresExplicitCalculationAndHidesExpiredCodes() {
+        val state = com.fairuniversal.offlineotp.desktop.control.DesktopVaultState(javax.crypto.spec.SecretKeySpec(ByteArray(32), "AES"))
+        val tasks = arrayListOf<Runnable>(); val delivered = arrayListOf<Runnable>()
+        val credential = Credential(byteArrayOf(1), OathType.TOTP, "Example", "alice")
+        val counter = Credential(byteArrayOf(2), OathType.HOTP, "Example", "counter")
+        val accounts = com.fairuniversal.offlineotp.Utilities.HardwareOathClient.Accounts("bound-device", listOf(
+            com.fairuniversal.offlineotp.Utilities.HardwareOathClient.Account(credential, "123456", 30000, 0),
+            com.fairuniversal.offlineotp.Utilities.HardwareOathClient.Account(counter, null, 0)))
+        var calculations = 0
+        val owner = com.fairuniversal.offlineotp.desktop.control.DesktopHardwareOath(state,
+            java.util.concurrent.Executor { tasks.add(it) }, { delivered.add(it) }, {},
+            { _, _ -> HardwareKeyManager.Result.Ok(accounts) }, { _, device, selected, _ ->
+                assertEquals("bound-device", device); calculations++
+                HardwareKeyManager.Result.Ok(com.fairuniversal.offlineotp.Utilities.HardwareOathClient.Account(selected.credential, "654321", 30000, 0))
+            })
+        try {
+            owner.open(); val request = owner.pending!!
+            owner.submit(request, charArrayOf(), null) { true }; tasks.removeAt(0).run(); delivered.removeAt(0).run()
+            assertTrue(owner.rows(request, 1000).all { it.code == null }); assertEquals(0, calculations)
+            owner.submit(request, charArrayOf(), 0) { true }; tasks.removeAt(0).run(); delivered.removeAt(0).run()
+            assertEquals("654321", owner.rows(request, 1000)[0].code)
+            assertEquals(null, owner.rows(request, 30000)[0].code)
+            owner.submit(request, charArrayOf(), 1) { true }; tasks.removeAt(0).run(); delivered.removeAt(0).run()
+            assertEquals(2, calculations); assertTrue(owner.rows(request, 40000)[1].counter)
+            assertEquals("654321", owner.rows(request, 40000)[1].code)
+        } finally { owner.close(); state.lock() }
+    }
+
     @Test
     fun missingKeyCancellationAndProviderFailureAreTypedResults() {
         val dir = Files.createTempDirectory("offlineotp-hw-").toFile()
