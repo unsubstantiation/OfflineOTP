@@ -288,6 +288,18 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("pin.toCharArray(); pin =", dialog)
         self.assertNotIn("rememberSaveable", dialog)
 
+    def test_hardware_unlock_is_optional_serialized_and_ephemeral(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        dialog = (UI_MAIN / "unlock/HardwareUnlockDialog.kt").read_text()
+        self.assertIn("onHardwareUnlock: (() -> Unit)? = null", screen)
+        self.assertIn("DesktopHardwareUnlock(worker", host)
+        self.assertIn("!busy && !hardwareDialog", host)
+        self.assertIn("hardwareUnlock.close(); operation.close(); worker.shutdown()", host)
+        self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

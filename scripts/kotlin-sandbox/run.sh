@@ -205,6 +205,7 @@ APP_SOURCES=(
     "$ROOT/ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt"
+    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/HardwareUnlockDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/Countdown.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt"

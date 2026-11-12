@@ -46,7 +46,8 @@ fun UnlockScreen(
     modifier: Modifier = Modifier,
     error: String? = null,
     busy: Boolean = false,
-    hint: String? = null
+    hint: String? = null,
+    onHardwareUnlock: (() -> Unit)? = null
 ) {
     var password by remember { mutableStateOf("") }
     val canSubmit = !busy && password.isNotEmpty()
@@ -77,6 +78,8 @@ fun UnlockScreen(
             if (hint != null) {
                 Text(text = hint, style = ForestType.label, color = ForestPalette.textHint)
             }
+            if (onHardwareUnlock != null) ForestTextAction(text = "Unlock with security key", enabled = !busy,
+                onClick = { password = ""; onHardwareUnlock() })
             Spacer(modifier = Modifier.height(4.dp))
             ForestTextAction(
                 text = if (busy) strings.unlocking else strings.unlockAction,

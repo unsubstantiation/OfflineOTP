@@ -1508,3 +1508,28 @@ verification buffer cleanup is enforced directly by finally, not a claimed nativ
 FIDO UI enrollment/unlock still require session/key ownership and lifecycle integration; this
 increment does not expose them in Compose. Physical key/PCSC and native UI validation remain
 pending. Swing remains shipping.
+
+### Compose hardware unlock for existing FIDO enrollments
+
+The locked desktop screen now offers Unlock with security key for an initialized vault. A
+separate ephemeral masked FIDO PIN form invokes the existing HardwareKeyManager PRF-envelope
+recovery and VaultController.unlockWithKey, using the actual startup data directory. Missing,
+invalid/outdated enrollment, wrong key/PIN or provider failure produces generic guidance to use
+password unlock; provider text is not exposed. No enrollment is created by this action.
+
+DesktopHardwareUnlock wraps the existing DesktopUnlockOperation result owner, adding mutable
+PIN transfer, cancellation token and recovered-key ownership. A failed/throwing vault open or a
+returned different session key releases the recovered key; successful same-key opens transfer
+it to the session. Canceled/queued loaded results are destroyed by the existing result holder.
+SecretKey.destroy remains best-effort for provider implementations, and immutable PIN strings
+in Compose cannot be zeroized. Password and hardware attempts share one serial worker and
+busy gating. The password form is disabled while the hardware dialog is open; returning is
+disabled during an attempt. Closing the window disposes both owners and cancels hardware work.
+The window-level password-change interlock still prevents either unlock during rekey.
+
+Tests use injected recovery/open functions to cover adoption, cancellation during recovery,
+queued-result cleanup, failed/different-key opens, duplicate submission, rejection and PIN
+wiping. Existing scripted manager tests exercise PRF envelope/controller interoperability,
+not physical devices. Real FIDO/PCSC, native Compose modal behavior, accessibility, packaging
+and device checks remain pending. Compose enrollment/removal UI, OpenPGP hardware integration,
+camera and background persistence remain unfinished. Swing remains shipping.

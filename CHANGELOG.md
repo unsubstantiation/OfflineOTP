@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Unlock existing vaults with a previously enrolled FIDO2 PRF key over PC/SC. Share the password-unlock worker, clear per-attempt PINs, and dispose unadopted recovered keys/decrypted entries. Enrollment setup remains pending.
+
  * Desktop hardware security: Wipe both encoded and roundtrip-recovered vault-key buffers during FIDO enrollment, and recheck cancellation immediately before persisting an enrollment envelope.
 
  * Compose desktop: Copy compatible TOTP/HOTP seeds to a PC/SC OATH key with explicit export consent and touch required. Use detached worker-owned entries, exact-selection guards, PIN cleanup and cancellation; never remove the vault copy.

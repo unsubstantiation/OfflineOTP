@@ -5,6 +5,8 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChangeFlow
 import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
 import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
+import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareOath
@@ -159,7 +161,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
             if (vault == null && rekey.canUnlock) {
-                DesktopUnlockContent(controller) { loaded ->
+                DesktopUnlockContent(controller, location) { loaded ->
                     if (closing) DesktopUnlockOperation.discard(loaded)
                     else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
                 }
@@ -192,7 +194,8 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
-private fun DesktopUnlockContent(controller: VaultController, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+    var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     val worker = remember(controller) {
@@ -209,12 +212,26 @@ private fun DesktopUnlockContent(controller: VaultController, onLoaded: (VaultCo
                 is VaultController.Session.Error -> failure = failureText(result.failure)
             } })
     }
+    val hardwareUnlock = remember(controller) { DesktopHardwareUnlock(worker, { task -> EventQueue.invokeLater(task) },
+        recover = { pin, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.unlockWithKey(pin, token) } finally { manager.close() }
+        }, open = controller::unlockWithKey, onBusy = { busy = it }, onResult = { result ->
+            when (result) {
+                is VaultController.Session.Loaded -> onLoaded(result)
+                is VaultController.Session.Error -> failure = "Hardware unlock failed. Check the enrolled key, FIDO PIN, connection and touch. A missing, invalid or outdated enrollment also requires password unlock."
+            }
+        }) }
     DisposableEffect(operation) {
-        onDispose { operation.close(); worker.shutdown() }
+        onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
-    UnlockScreen(strings = VaultStrings.English, error = failure, busy = busy,
+    UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
+        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
-        onSubmit = { password -> failure = null; operation.submit(password); Unit })
+        onSubmit = { password -> if (!busy && !hardwareDialog) { failure = null; operation.submit(password) }; Unit })
+    if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
+        onSubmit = { pin -> if (!busy) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
+        onDismiss = { if (!busy) { hardwareDialog = false; failure = null } })
 }
 
 @Composable
