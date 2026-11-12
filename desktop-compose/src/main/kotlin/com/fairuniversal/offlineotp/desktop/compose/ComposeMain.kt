@@ -9,6 +9,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
 import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareEnrollment
 import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryDialogActions
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
@@ -343,6 +344,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
+    val entryDialogActions = remember(vault, dialogs) { DesktopEntryDialogActions(vault, dialogs) { entries -> controller.save(vault.key, entries) } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
@@ -1092,30 +1094,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             request = request,
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
-                if (dialogs.isCurrent(request)) {
-                    val saved = when (request.kind) {
-                        VaultDialogKind.DELETE -> vault.deleteEntry(request.entryId) { remaining ->
-                            controller.save(vault.key, remaining)
-                        }
-                        VaultDialogKind.COUNTER -> vault.advanceCounter(request.entryId) {
-                            controller.save(vault.key, vault.snapshot())
-                        }
-                        VaultDialogKind.PIN -> false // PIN uses the separate input callback.
-                    }
-                    dialogs.complete(request, saved)
-                    if (saved && request.kind == VaultDialogKind.DELETE) {
-                        presenter.entryRemoved(request.entryId)
-                    }
-                }
+                entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
             },
-            onPinSubmit = { pin ->
-                if (dialogs.isCurrent(request) && request.kind == VaultDialogKind.PIN) {
-                    val saved = vault.submitPin(request.entryId, pin) {
-                        controller.save(vault.key, vault.snapshot())
-                    }
-                    dialogs.complete(request, saved)
-                }
-            }
+            onPinSubmit = { pin -> entryDialogActions.submitPin(request, pin, lifetime::checkActive) }
+
         )
     }
 }

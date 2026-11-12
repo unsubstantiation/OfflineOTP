@@ -1620,3 +1620,18 @@ clipboard publication after lock, failed-write deadline checks and reentrant req
 Existing clipboard expiry, ownership and persistence failure coverage remains. Persistence is
 still synchronous; real clipboard/native UI/device validation and remaining migration features
 remain pending. Swing remains shipping.
+
+### Remaining entry-dialog persistence boundaries
+
+Delete, HOTP advance and mOTP PIN submission now use DesktopEntryDialogActions rather than
+inline Compose persistence callbacks. It checks current request/session/deadline before the
+transaction and immediately afterwards, including false/throwing writes. Expiry locks before
+a retry dialog or presenter deletion notification can be published; replaced requests are not
+cleared by old completions. State transaction methods retain their existing failure rollback
+semantics. Completed writes are not rolled back merely because the session expires afterwards.
+
+Tests perform real save/reopen for all three operations crossing a simulated idle deadline,
+exercise failed/throwing writes, stale/reentrant guards, wrong callback kind and successful
+retry/deletion notification exactly once. These operations still persist synchronously and
+do not claim real Compose/native/device execution. Camera, OpenPGP hardware integration,
+background persistence and release/cutover validation remain pending; Swing remains shipping.
