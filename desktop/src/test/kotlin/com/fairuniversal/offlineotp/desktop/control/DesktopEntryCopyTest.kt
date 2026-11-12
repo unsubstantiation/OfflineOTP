@@ -35,6 +35,47 @@ class DesktopEntryCopyTest {
         override fun close() { dir.setWritable(true, false); clipboardFails = false; copier.close(); state.lock(); dir.deleteRecursively() }
     }
 
+    @Test fun expiryAfterPersistenceLocksWithoutPublishingCapturedSecret() {
+        val h = Harness()
+        val lifetime = DesktopSessionLifetime(object : ScreenTimerController.Scheduler {
+            override fun elapsedRealtime() = h.now
+            override fun postDelayed(runnable: Runnable, delayMillis: Long) {}
+            override fun remove(runnable: Runnable) {}
+        }, 30) { h.copier.close(); h.state.lock() }
+        try {
+            val before = h.entry.getUsedFrequency()
+            val card = VaultCards.of(h.entry, h.now, revealed = true)
+            val request = h.copier.open(h.copier.bind(listOf(card)), card, true)!!
+            var checks = 0
+            assertEquals(DesktopEntryCopy.Result.UNAVAILABLE, h.copier.copy(request, EntryEditor.CopyField.TOKEN_OR_NOTE, true) {
+                if (++checks == 2) h.now += 30_000 // Simulate the synchronous write crossing its deadline.
+                lifetime.checkActive()
+            })
+            assertTrue(h.state.isLocked); assertEquals("", h.clipboardValue)
+            val reopened = h.controller.openVault("test-password") as VaultController.Session.Loaded
+            try { assertEquals(before + 1, reopened.entries.single().getUsedFrequency()) }
+            finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { lifetime.close(); h.close() }
+    }
+
+    @Test fun failedPersistenceStillChecksDeadlineAndReentrantGuardCannotStealCopyAuthority() {
+        val h = Harness()
+        try {
+            val card = VaultCards.of(h.entry, h.now, revealed = true)
+            val frame = h.copier.bind(listOf(card)); val request = h.copier.open(frame, card, true)!!
+            var replacement: DesktopEntryCopy.Request? = null
+            assertEquals(DesktopEntryCopy.Result.UNAVAILABLE, h.copier.copy(request, EntryEditor.CopyField.TOKEN_OR_NOTE, true) {
+                replacement = h.copier.open(frame, card, true); true
+            })
+            assertTrue(h.copier.pending === replacement); assertEquals("", h.clipboardValue)
+            assertTrue(h.dir.setWritable(false, false)); var checks = 0
+            assertEquals(DesktopEntryCopy.Result.UNAVAILABLE, h.copier.copy(replacement!!, EntryEditor.CopyField.TOKEN_OR_NOTE, true) {
+                if (++checks == 2) { h.copier.close(); h.state.lock(); false } else true
+            })
+            assertEquals(2, checks); assertTrue(h.state.isLocked); assertEquals("", h.clipboardValue)
+        } finally { h.close() }
+    }
+
     @Test
     fun noteCopyPreservesWhitespaceAndRejectsUnsupportedFields() {
         val h = Harness()

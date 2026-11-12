@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Check the live idle deadline before and after copy-related usage persistence. Suppress clipboard publication and stale UI notices after expiry or request replacement, while retaining completed disk writes.
+
  * Compose desktop: Export OpenPGP backups to up to eight recipient key files with a 16 MiB combined input bound, explicit any-recipient-can-decrypt warning, selection snapshotting and all-or-nothing read/encryption failure handling.
 
  * Compose desktop: Enroll/replace local FIDO2 PRF hardware unlock with explicit consent, lock-first detached-key ownership and a window-level unlock/exit interlock. Enrollment runs after prior hardware work and requires fresh unlock afterwards.

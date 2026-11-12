@@ -1605,3 +1605,18 @@ files, combined size limits, provider failure cleanup and expired completion. Th
 injected fake crypto port, not native multi-recipient interoperability. Real crypto/Compose/
 hardware/device release validation and remaining migration work still block cutover. Swing
 remains shipping.
+
+### Clipboard publication after usage persistence
+
+DesktopEntryCopy now accepts the live session guard, checks it before consuming copy authority
+and after EntryEditor.copyRevealed persists usage, and rechecks target/request liveness before
+publishing to the clipboard. A failed write still checks expiry. The host suppresses notices
+and filter refresh once the lifetime or vault is terminal. An old captured value cannot be
+published after an idle deadline crossed during synchronous persistence. Completed usage writes
+remain persisted, and immutable returned token strings cannot be zeroized.
+
+Tests cover real usage save/reopen with simulated elapsed time at post-write validation, no
+clipboard publication after lock, failed-write deadline checks and reentrant request replacement.
+Existing clipboard expiry, ownership and persistence failure coverage remains. Persistence is
+still synchronous; real clipboard/native UI/device validation and remaining migration features
+remain pending. Swing remains shipping.

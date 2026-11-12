@@ -434,7 +434,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val copyFrame = copier.bind(state.cards)
     val moveFrame = mover.bind(state.cards)
     fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
-        copyNotice = when (copier.copy(request, field, presenter.isRevealed(request.entryId))) {
+        val result = copier.copy(request, field, presenter.isRevealed(request.entryId), lifetime::checkActive)
+        if (!lifetime.checkActive() || vault.isLocked) return
+        copyNotice = when (result) {
             DesktopEntryCopy.Result.COPIED -> null
             DesktopEntryCopy.Result.UNAVAILABLE -> "No value is available, or the entry is no longer revealed."
             DesktopEntryCopy.Result.SAVE_FAILED -> "Nothing was copied: the vault could not be saved."

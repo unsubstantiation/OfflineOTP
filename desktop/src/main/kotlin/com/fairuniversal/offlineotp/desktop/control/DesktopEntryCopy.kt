@@ -52,8 +52,9 @@ class DesktopEntryCopy(
     fun dismiss(request: Request) { if (pending === request) pending = null }
     fun close() { closed = true; pending = null; clipboard.close() }
 
-    fun copy(request: Request, field: EntryEditor.CopyField, revealed: Boolean): Result {
+    fun copy(request: Request, field: EntryEditor.CopyField, revealed: Boolean, active: () -> Boolean = { true }): Result {
         if (pending !== request) return Result.UNAVAILABLE
+        if (!active() || pending !== request) return Result.UNAVAILABLE
         if (!revealed || !live(request.target)) {
             pending = null
             return Result.UNAVAILABLE
@@ -65,7 +66,11 @@ class DesktopEntryCopy(
         if (target.isTimeBased()) {
             try { target.updateOTPAt(nowMillis() / 1000L, false) } catch (_: Exception) { return Result.UNAVAILABLE }
         }
-        return when (val copied = editor.copyRevealed(target, field, true)) {
+        val copied = editor.copyRevealed(target, field, true)
+        // Usage persistence may have blocked the UI past its deadline. Never publish the
+        // captured secret after lock, target replacement or another copy dialog opening.
+        if (!active() || !live(target) || pending != null) return Result.UNAVAILABLE
+        return when (copied) {
             EntryEditor.TokenCopyResult.Unavailable -> Result.UNAVAILABLE
             EntryEditor.TokenCopyResult.PersistenceFailed -> Result.SAVE_FAILED
             is EntryEditor.TokenCopyResult.Copied ->
