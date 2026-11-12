@@ -1421,3 +1421,17 @@ Tests cover actual startup-path retention, no file creation, fixed filename prov
 diagnostics and changed overrides. Tools routing/terminal guards remain covered. Real Compose
 layout/accessibility/native validation and broader portable migration/recovery workflows remain
 pending. Swing remains shipping.
+
+### Manual-order save deadline guard
+
+DesktopEntryMove now checks live authority before resolving its exact-entry/adjacent-entry
+frame and after save returns or throws. The Compose callback supplies the current lifetime
+and only publishes filter/error updates if that lifetime and vault remain active. Reentrant
+pre-save guards cannot bypass the existing identity/order/filter checks. Already-authorized
+disk writes are not interrupted or rolled back; this change suppresses stale UI completion.
+
+Tests cover expired/reentrant guards before persistence and successful/failed/throwing saves
+that cross a deterministic idle deadline, alongside existing real persisted ordering/reopen
+and failed-write order preservation. Persistence remains synchronous. Real Compose/device
+validation and remaining hardware/camera/preferences/cutover work are still pending; Swing
+remains shipping.

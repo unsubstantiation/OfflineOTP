@@ -14,6 +14,46 @@ import org.junit.Test
 class DesktopEntryMoveTest {
     private fun entry(label: String) = ManualEntryInput(label = label, secret = "JBSWY3DPEHPK3PXP").build()
 
+    @Test fun expiredOrReentrantGuardsCannotPersistMoves() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+        val a = entry("a"); val b = entry("b"); state.add(a); state.add(b)
+        val cards = listOf(a, b).map { VaultCards.of(it, 0L) }
+        var writes = 0
+        val mover = DesktopEntryMove(state) { _, _ -> writes++; true }
+        val frame = mover.bind(cards)
+        try {
+            assertFalse(mover.move(frame, cards[0], 1) { false })
+            assertFalse(mover.move(frame, cards[0], 1) { state.replace(b, entry("replacement")); true })
+            assertEquals(0, writes)
+        } finally { state.lock() }
+    }
+
+    @Test fun slowSuccessfulFailedAndThrowingMovesCheckExpiryBeforeCompletion() {
+        for (outcome in 0..2) {
+            val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+            val a = entry("a"); val b = entry("b"); state.add(a); state.add(b)
+            val cards = listOf(a, b).map { VaultCards.of(it, 0L) }
+            var now = 0L
+            val clock = object : com.fairuniversal.offlineotp.Utilities.ScreenTimerController.Scheduler {
+                override fun elapsedRealtime() = now
+                override fun postDelayed(runnable: Runnable, delayMillis: Long) {}
+                override fun remove(runnable: Runnable) {}
+            }
+            val lifetime = DesktopSessionLifetime(clock, 30) { state.lock() }
+            var writes = 0
+            val mover = DesktopEntryMove(state) { _, _ ->
+                writes++; now = 30_000
+                when (outcome) { 0 -> true; 1 -> false; else -> error("write failed") }
+            }
+            try {
+                val frame = mover.bind(cards)
+                assertFalse(mover.move(frame, cards[0], 1, lifetime::checkActive))
+                assertEquals(1, writes); assertTrue(state.isLocked)
+                assertFalse(lifetime.checkActive())
+            } finally { lifetime.close(); state.lock() }
+        }
+    }
+
     @Test
     fun movePersistsManualOrderAndStaleNeighborCannotMoveAgain() {
         val dir = Files.createTempDirectory("compose-move-").toFile()

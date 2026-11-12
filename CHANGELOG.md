@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Guard manual-order saves with the live idle deadline, including failed/throwing writes, and suppress filter/error updates after expiry locks the session.
+
  * Compose desktop: Show the startup data-directory path and managed filenames in Tools → Portable storage location, with relocation/override guidance. Read-only: no file moves, path execution or live vault switching.
 
  * Compose desktop security: Enforce the old idle deadline after failed or throwing layout/auto-lock preference writes. Recheck request identity after persistence and guard callbacks so stale completions cannot disable timers, apply layouts or clear newer dialogs.

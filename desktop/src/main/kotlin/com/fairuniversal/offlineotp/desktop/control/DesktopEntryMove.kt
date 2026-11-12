@@ -23,13 +23,17 @@ class DesktopEntryMove(private val state: DesktopVaultState, private val saveMov
         return Frame(targets)
     }
 
-    fun move(frame: Frame, card: VaultCardState, delta: Int): Boolean {
+    fun move(frame: Frame, card: VaultCardState, delta: Int, active: () -> Boolean = { true }): Boolean {
+        if (!active()) return false
         if (state.isLocked || !state.presentation.canDrag() || delta !in listOf(-1, 1)) return false
         val target = frame.targets[card] ?: return false
         val neighbor = (if (delta < 0) target.previous else target.next) ?: return false
         val shown = (0 until state.presentation.size()).map { state.presentation.get(it) }
         val from = shown.indexOfFirst { it === target.entry }
         if (from < 0 || shown.getOrNull(from + delta) !== neighbor) return false
-        return try { saveMove(from, from + delta) } catch (_: Exception) { false }
+        val saved = try { saveMove(from, from + delta) } catch (_: Exception) { false }
+        // The write may finish after the old deadline, even when it fails. Do not revive UI.
+        if (!active() || state.isLocked) return false
+        return saved
     }
 }

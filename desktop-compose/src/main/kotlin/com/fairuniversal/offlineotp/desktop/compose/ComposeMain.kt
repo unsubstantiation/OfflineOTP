@@ -386,8 +386,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             revision++
         }, moveEntry = { card, delta ->
             autoLock.pending?.let { autoLock.dismiss(it) }
-            moveFailed = !mover.move(moveFrame, card, delta)
-            presenter.applyFilter(presenter.filter)
+            val moved = mover.move(moveFrame, card, delta, lifetime::checkActive)
+            if (lifetime.checkActive() && !vault.isLocked) {
+                moveFailed = !moved
+                presenter.applyFilter(presenter.filter)
+            }
             revision++
         }, configureAutoLock = {
             creation.pending?.let { creation.dismiss(it) }

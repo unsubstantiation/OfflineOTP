@@ -767,7 +767,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopEntryMove(vault, EntryEditor(controller, vault)::move)", host)
         self.assertIn("val moveFrame = mover.bind(state.cards)", host)
         self.assertIn("canMoveUp = vault.presentation.canDrag()", host)
-        self.assertIn("mover.move(moveFrame, card, delta)", host)
+        self.assertIn("mover.move(moveFrame, card, delta, lifetime::checkActive)", host)
         owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryMove.kt").read_text()
         self.assertIn("shown.getOrNull(from + delta) !== neighbor", owner)
         self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
