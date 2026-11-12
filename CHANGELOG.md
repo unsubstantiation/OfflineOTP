@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit incoming protocol and per-identity email connection hosts, ports, encryption and usernames from revealed details. Preserve credentials, authentication types, identities and provider metadata with guarded save/reopen coverage.
+
  * Compose desktop: Add vault password change with a window-level rekey interlock. Lock before worker execution, block unlock/dismissal/normal exit while running, discard returned session material, and require fresh unlock after the result.
 
  * Desktop migration groundwork: Add a lock-first asynchronous password-change owner. Validate confirmation, prevent duplicate submissions, and discard returned keys/entries before UI delivery. Compose password-change UI is not enabled yet.

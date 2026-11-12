@@ -12,7 +12,7 @@ import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 /** Host supplies current rows only; no remembered, saveable or selectable credential copies. */
 @Composable
 fun EmailDetailsDialog(rows: List<EmailMaterial.Detail>?, secretsVisible: Boolean,
-                       onToggleSecrets: () -> Unit, onDismiss: () -> Unit, onEditPasswords: (() -> Unit)? = null) {
+                       onToggleSecrets: () -> Unit, onDismiss: () -> Unit, onEditPasswords: (() -> Unit)? = null, onEditSettings: (() -> Unit)? = null) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Email connection details") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Text(text = "Read-only account and SMTP identity settings. Passwords are hidden until explicitly shown.")
@@ -23,6 +23,7 @@ fun EmailDetailsDialog(rows: List<EmailMaterial.Detail>?, secretsVisible: Boolea
             }
         } },
         confirmButton = { Column {
+            if (rows != null && onEditSettings != null) ForestTextAction(text = "Edit connection settings", onClick = onEditSettings)
             if (rows != null && onEditPasswords != null) ForestTextAction(text = "Change passwords / tokens", onClick = onEditPasswords)
             if (rows != null) ForestTextAction(text = if (secretsVisible) "Hide passwords" else "Show passwords", onClick = onToggleSecrets)
         } },

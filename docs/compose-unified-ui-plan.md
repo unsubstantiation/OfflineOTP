@@ -1360,3 +1360,24 @@ Existing rekey tests cover real controller roundtrip and wrong-current-password 
 Source guards/typechecks cover the Compose boundary, not real modal/window event behavior.
 Native/Compose/accessibility/device validation, hardware integration and remaining migration
 parity still block cutover. Swing remains shipping.
+
+### Email connection settings editor
+
+Revealed email details now offer Edit connection settings separately from password/token changes.
+The ephemeral form edits incoming IMAP/POP, hosts, bounded ports, SSL/STARTTLS/None, and usernames
+for incoming and each existing SMTP identity. It warns that no servers are contacted, ports do
+not auto-adjust, and None disables transport encryption. The input contains no passwords/tokens.
+
+The model modifies detached account/identity JSON, validates through EmailMaterial, and replaces
+the cloned entry secret. Credentials, authentication types, identity addresses/UUIDs, provider
+fields and vault metadata remain intact. Existing legacy pop/starttls flags are synchronized
+with edited protocol/encryption fields. It does not add/remove/reorder identities or change auth
+types, addresses or account display names. Those broader account-management features remain
+out of scope. Encoded mutable buffers are wiped; immutable JSON strings cannot be zeroized.
+
+Requests carry an explicit settings-versus-credential edit mode; the wrong submit path is
+rejected. Exact-entry, live reveal and before/after save idle-deadline guards apply. Failed saves
+retain originals and destroy unadopted candidates. Tests cover multi-identity preservation,
+legacy flags, all envelope metadata, bounds, redaction, save/reopen, mode/reveal/expiry/lock
+checks and failure cleanup. Native/Compose layout, accessibility and device validation remain
+pending. Final persistence is still synchronous, and Swing remains shipping.

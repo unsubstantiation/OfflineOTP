@@ -52,6 +52,7 @@ import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
+import com.fairuniversal.offlineotp.ui.vault.EmailSettingsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailPasswordDialog
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryDialog
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
@@ -590,6 +591,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         val rows = emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))
         if (emailDetails.pending === detailsRequest) EmailDetailsDialog(rows = rows,
             secretsVisible = detailsRequest.secretsVisible,
+            onEditSettings = {
+                if (lifetime.checkActive() && emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null) {
+                    editing.open(detailsRequest.entryId, emailSettings = true)
+                    emailDetails.dismiss(detailsRequest)
+                }
+                revision++
+            },
             onEditPasswords = {
                 if (lifetime.checkActive() && emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null) {
                     editing.open(detailsRequest.entryId)
@@ -890,7 +898,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
-    if (editRequest != null && editRequest.isEmail) {
+    if (editRequest != null && editRequest.isEmail && editRequest.emailSettings) {
+        val initial = remember(editRequest) { editing.initialEmailSettings(editRequest) }
+        if (initial != null) EmailSettingsDialog(inputKey = editRequest, initial = initial,
+            failed = editRequest.failure != null,
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                if (lifetime.checkActive() && editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
+                    presenter.entryRemoved(editRequest.entryId)
+                }
+                revision++
+            })
+    }
+    if (editRequest != null && editRequest.isEmail && !editRequest.emailSettings) {
         val initial = remember(editRequest) { editing.initialEmailPasswords(editRequest) }
         if (initial != null) EmailPasswordDialog(inputKey = editRequest, initial = initial,
             failed = editRequest.failure != null,
