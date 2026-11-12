@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Confirm and remove the local hardware-unlock record on a worker, including corrupt records. Report deletion failures rather than claiming success; explain password fallback and that physical-key credentials and external copies are unaffected.
+
  * Compose desktop: Unlock existing vaults with a previously enrolled FIDO2 PRF key over PC/SC. Share the password-unlock worker, clear per-attempt PINs, and dispose unadopted recovered keys/decrypted entries. Enrollment setup remains pending.
 
  * Desktop hardware security: Wipe both encoded and roundtrip-recovered vault-key buffers during FIDO enrollment, and recheck cancellation immediately before persisting an enrollment envelope.

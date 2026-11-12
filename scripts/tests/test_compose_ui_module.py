@@ -300,6 +300,14 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertNotIn("rememberSaveable", dialog)
 
+    def test_hardware_removal_requires_consent_and_distinguishes_local_record(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("hardwareRemoval.confirm(request, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("hardwareRemoval.close()"), 2)
+        self.assertIn("Make sure you know the vault password", host)
+        self.assertIn("revoke copies of this record elsewhere", host)
+        self.assertIn("do not assume hardware unlock was disabled", host)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

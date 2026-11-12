@@ -6,6 +6,7 @@ import org.junit.Test
 
 class VaultToolsTest {
     private fun actions(calls: MutableList<String>) = VaultActions(
+        onRemoveHardwareUnlock = { calls.add("hardware-remove") },
         onHardwareCopy = { calls.add("hardware-copy") },
         onHardwareOath = { calls.add("hardware") },
         onStorageLocation = { calls.add("storage") },
@@ -32,7 +33,7 @@ class VaultToolsTest {
         val tools = VaultTool.available(actions)
         assertEquals(VaultTool.values().toList(), tools)
         tools.forEach { it.invoke(actions) }
-        assertEquals(listOf("uri", "passwords", "email", "linscp", "archive-export", "password-export", "email-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "hardware-copy", "hardware", "storage", "rekey", "layout", "lock", "preferences", "preferences-import"), calls)
+        assertEquals(listOf("uri", "passwords", "email", "linscp", "archive-export", "password-export", "email-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "hardware-remove", "hardware-copy", "hardware", "storage", "rekey", "layout", "lock", "preferences", "preferences-import"), calls)
         assertTrue(tools.all { it.label(VaultStrings.English).isNotBlank() })
     }
     @Test fun storedToolIdsDoNotRetainCallbacksAndRespectTerminalGuards() {
@@ -40,10 +41,10 @@ class VaultToolsTest {
         val ids = VaultTool.available(actions(old))
         val guarded = actions(current).guarded { active }
         ids.forEach { it.invoke(guarded) }
-        assertEquals(20, current.size); assertTrue(old.isEmpty())
+        assertEquals(21, current.size); assertTrue(old.isEmpty())
         active = false
         ids.forEach { it.invoke(guarded) }
-        assertEquals(20, current.size)
+        assertEquals(21, current.size)
         ids.forEach { it.invoke(VaultActions()) }
     }
     @Test fun labelsUseHostSuppliedStrings() {

@@ -118,11 +118,10 @@ class HardwareKeyManager(
             }
         }
 
-    fun removeEnrollment(): Boolean {
-        if (unlockStore.readEnvelope() == null) return false
-        unlockStore.removeEnvelope()
-        return true
-    }
+    fun removeEnrollment(): Boolean = try {
+        if (unlockStore.readEnvelope() == null) false
+        else { unlockStore.removeEnvelope(); true }
+    } catch (_: Exception) { false }
 
     /**
      * Recovers the vault key from the enrolled envelope and the key's PRF. The returned key owns

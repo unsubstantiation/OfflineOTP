@@ -7,6 +7,7 @@ import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
 import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
 import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareOath
@@ -257,6 +258,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         snapshot = { DesktopLinScpExport.snapshot(vault) }) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val hardwareRemoval = remember(vault) { DesktopHardwareRemoval(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) },
+        { DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).removeEnvelope() }, { revision++ }) }
     val hardwareCopy = remember(vault) { DesktopHardwareCopy(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, copy = { pin, entry, token ->
             val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
@@ -338,7 +342,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+                hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -373,7 +377,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -585,6 +589,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, removeHardwareUnlock = {
+            if (lifetime.checkActive()) hardwareRemoval.open()
         }, hardwareCopy = {
             if (lifetime.checkActive() && hardwareOath.pending == null) hardwareCopy.open()
         }, hardwareOath = {
@@ -642,6 +648,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         appearance = presenter.appearance,
         artwork = artwork
     )
+    hardwareRemoval.pending?.let { request ->
+        EntryConfirmationDialog(title = "Remove local hardware unlock",
+            message = when (request.status) {
+                DesktopHardwareRemoval.Status.CONFIRM -> "Remove the hardware-unlock record from this data directory? Make sure you know the vault password before proceeding. This does not delete the vault, change its password, reset the security key, delete OATH accounts, or revoke copies of this record elsewhere. The current session stays open."
+                DesktopHardwareRemoval.Status.REMOVING -> "Removing the local record… Closing cannot undo a deletion already started."
+                DesktopHardwareRemoval.Status.REMOVED -> "Local hardware-unlock record is absent. Use the vault password next time; hardware unlock requires enrollment again."
+                DesktopHardwareRemoval.Status.FAILED -> "Could not remove the local record. Check storage permissions; do not assume hardware unlock was disabled."
+            }, confirmLabel = if (request.status == DesktopHardwareRemoval.Status.CONFIRM) "Remove local record" else "Close",
+            dismissLabel = "Cancel", onConfirm = {
+                if (request.status == DesktopHardwareRemoval.Status.CONFIRM) hardwareRemoval.confirm(request, lifetime::checkActive)
+                else hardwareRemoval.dismiss(request)
+            }, onDismiss = { hardwareRemoval.dismiss(request) })
+    }
     hardwareCopy.pending?.let { request ->
         HardwareCopyDialog(inputKey = request, labels = request.labels, selected = request.selected,
             selecting = request.status == DesktopHardwareCopy.Status.SELECT, confirming = request.status == DesktopHardwareCopy.Status.CONFIRM,

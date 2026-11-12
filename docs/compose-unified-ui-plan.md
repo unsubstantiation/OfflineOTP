@@ -1533,3 +1533,24 @@ wiping. Existing scripted manager tests exercise PRF envelope/controller interop
 not physical devices. Real FIDO/PCSC, native Compose modal behavior, accessibility, packaging
 and device checks remain pending. Compose enrollment/removal UI, OpenPGP hardware integration,
 camera and background persistence remain unfinished. Swing remains shipping.
+
+### Local hardware-unlock removal
+
+Tools now exposes Remove local hardware unlock. Confirmation warns to know the vault password
+first and distinguishes deleting this installation's local envelope from resetting a physical
+key, deleting OATH accounts or revoking copies elsewhere. It does not lock or alter the current
+vault session, change its password or delete vault data. Enrollment setup remains pending.
+
+DesktopHardwareRemoval checks current request/lifetime authority, performs deletion on the
+serial worker, suppresses queued canceled/locked work and ignores stale delivery. Once deletion
+starts it may complete despite cancellation; an old record is never restored automatically.
+Missing records are a successful no-op and corrupt records can be removed without parsing.
+DesktopHardwareUnlockStore now uses Files.deleteIfExists so filesystem errors are surfaced.
+HardwareKeyManager maps removal exceptions to false for existing Swing callers, avoiding a
+false success while preserving its boolean API. Rejected UI dispatch may leave progress until
+dismissal. No secure deletion or physical-key revocation guarantee is made.
+
+Tests cover real file removal, absent/corrupt records, nonempty-directory deletion failure,
+explicit consent, stale/expired/locked/canceled requests, executor rejection and late delivery.
+Real native UI, filesystem portability, hardware and device validation remain pending; Swing
+remains shipping and migration parity is not complete.

@@ -120,6 +120,7 @@ class VaultPresenter(
                 exportLinScp: (() -> Unit)? = null,
                 importOpenPgp: (() -> Unit)? = null,
                 exportOpenPgp: (() -> Unit)? = null,
+                removeHardwareUnlock: (() -> Unit)? = null,
                 hardwareCopy: (() -> Unit)? = null,
                 hardwareOath: (() -> Unit)? = null,
                 storageLocation: (() -> Unit)? = null,
@@ -130,6 +131,7 @@ class VaultPresenter(
                 exportPreferences: (() -> Unit)? = null,
                 importPreferences: (() -> Unit)? = null): VaultActions = VaultActions(
         onImportPreferences = importPreferences,
+        onRemoveHardwareUnlock = removeHardwareUnlock,
         onHardwareCopy = hardwareCopy,
         onHardwareOath = hardwareOath,
         onStorageLocation = storageLocation,
