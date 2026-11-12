@@ -36,7 +36,7 @@ class DesktopPasswordChange(private val state: DesktopVaultState, private val wo
             status = Status.INVALID_INPUT; changed(); return false
         }
         val task = Credentials(current, next)
-        credentials = task; attempted = true
+        credentials = task; attempted = true; status = Status.WORKING
         // Never let another old-key save race a worker rekey, including during nested UI loops.
         try { lockSession() } catch (_: Exception) {
             task.clear(); credentials = null

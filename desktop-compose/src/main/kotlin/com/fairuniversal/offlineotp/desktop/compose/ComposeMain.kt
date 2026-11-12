@@ -1,5 +1,8 @@
 package com.fairuniversal.offlineotp.desktop.compose
 
+import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChange
+import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordChangeFlow
+import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -98,7 +101,7 @@ import java.awt.event.AWTEventListener
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): email/archived-credential editing, OpenPGP backup/restore, hardware keys, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): broader email settings editing, hardware integrations, camera import, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
@@ -122,34 +125,56 @@ fun main() {
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
+    var rekeyRevision by remember { mutableStateOf(0) }
+    val rekeyWorker = remember(controller) { Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP rekey") } }
+    val rekey = remember(controller) { DesktopPasswordChangeFlow(rekeyWorker,
+        { task -> EventQueue.invokeLater(task) }, controller::changePassword, { rekeyRevision++ }) }
+    DisposableEffect(rekey) { onDispose { rekey.close(); rekeyWorker.shutdown() } }
+
 
     Window(
         onCloseRequest = {
-            closing = true
-            session?.lock()
-            session = null
-            exitApplication()
+            if (rekey.canCloseWindow) {
+                closing = true
+                rekey.close()
+                session?.lock()
+                session = null
+                exitApplication()
+            }
         },
         title = "OfflineOTP",
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
         ForestTheme {
+            @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
-            if (vault == null) {
+            if (vault == null && rekey.canUnlock) {
                 DesktopUnlockContent(controller) { loaded ->
                     if (closing) DesktopUnlockOperation.discard(loaded)
                     else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
                 }
-            } else {
+            } else if (vault != null) {
                 VaultContent(
                     controller = controller,
                     vault = vault,
                     window = window,
+                    onChangePassword = { active, lock -> rekey.open(vault, active, lock); Unit },
                     onLock = {
                         vault.lock()
                         session = null
+                        rekey.sessionLocked()
                     }
                 )
+            }
+            rekey.operation?.let { owner ->
+                PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
+                    invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
+                    result = when (owner.status) {
+                        DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
+                        DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
+                        else -> null
+                    }, onSubmit = { current, next, confirmation -> rekey.submit(owner, current, next, confirmation) },
+                    onDismiss = { rekey.dismiss(owner) })
             }
         }
     }
@@ -183,7 +208,7 @@ private fun DesktopUnlockContent(controller: VaultController, onLoaded: (VaultCo
 }
 
 @Composable
-private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, onLock: () -> Unit) {
+private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
@@ -514,6 +539,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, changePassword = {
+            if (lifetime.checkActive()) onChangePassword(lifetime::checkActive, presenter::lock)
         }, exportArchives = {
             if (lifetime.checkActive() && archiveExporter.pending == null) {
                 creation.pending?.let { creation.dismiss(it) }

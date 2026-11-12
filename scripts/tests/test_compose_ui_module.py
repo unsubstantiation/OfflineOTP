@@ -242,6 +242,19 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("exact imported bytes", dialog)
         self.assertIn("No encryption is added", host)
 
+    def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
+        self.assertIn("if (rekey.canCloseWindow)", host)
+        self.assertIn("vault == null && rekey.canUnlock", host)
+        self.assertIn("rekey.sessionLocked()", host)
+        self.assertIn("onChangePassword(lifetime::checkActive, presenter::lock)", host)
+        self.assertIn("if (!busy)", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("clear(); onSubmit(a, b, c)", dialog)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(

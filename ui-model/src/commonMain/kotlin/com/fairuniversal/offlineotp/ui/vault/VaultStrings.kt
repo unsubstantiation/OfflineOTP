@@ -23,6 +23,7 @@ data class VaultStrings(
     val autoLock: String = "Auto-lock",
     val emailDetails: String = "Connection details",
     val importPreferences: String = "Import preferences",
+    val changePassword: String = "Change vault password",
     val exportArchives: String = "Export password archive (plaintext)",
     val exportPasswords: String = "Export browser passwords (plaintext)",
     val exportEmail: String = "Export FairEmail accounts (plaintext)",

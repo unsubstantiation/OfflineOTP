@@ -4,7 +4,7 @@ package com.fairuniversal.offlineotp.ui.vault
 enum class VaultTool(val group: Group) {
     IMPORT_URI(Group.IMPORT), IMPORT_PASSWORDS(Group.IMPORT), IMPORT_EMAIL(Group.IMPORT), IMPORT_LINSCP(Group.IMPORT),
     EXPORT_ARCHIVES(Group.BACKUP), EXPORT_PASSWORDS(Group.BACKUP), EXPORT_EMAIL(Group.BACKUP), EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
-    CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
+    CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
 
     enum class Group { IMPORT, BACKUP, SETTINGS }
 
@@ -21,6 +21,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_EMAIL -> strings.exportEmail
         EXPORT_ENCRYPTED -> strings.exportEncrypted
         RESTORE_ENCRYPTED -> strings.restoreEncrypted
+        CHANGE_PASSWORD -> strings.changePassword
         CARD_LAYOUT -> strings.cardLayout
         IMPORT_PREFERENCES -> strings.importPreferences
         EXPORT_PREFERENCES -> strings.exportPreferences
@@ -39,6 +40,7 @@ enum class VaultTool(val group: Group) {
         EXPORT_EMAIL -> actions.onExportEmail
         EXPORT_ENCRYPTED -> actions.onExportEncrypted
         RESTORE_ENCRYPTED -> actions.onRestoreEncrypted
+        CHANGE_PASSWORD -> actions.onChangePassword
         CARD_LAYOUT -> actions.onConfigureLayout
         IMPORT_PREFERENCES -> actions.onImportPreferences
         EXPORT_PREFERENCES -> actions.onExportPreferences

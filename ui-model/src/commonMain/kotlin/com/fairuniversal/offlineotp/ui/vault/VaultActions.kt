@@ -58,6 +58,7 @@ class VaultActions(
     val onExportLinScp: (() -> Unit)? = null,
     val onImportOpenPgp: (() -> Unit)? = null,
     val onExportOpenPgp: (() -> Unit)? = null,
+    val onChangePassword: (() -> Unit)? = null,
     val onExportArchives: (() -> Unit)? = null,
     val onExportPasswords: (() -> Unit)? = null,
     val onExportEmail: (() -> Unit)? = null,
@@ -70,6 +71,7 @@ class VaultActions(
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
         onImportPreferences = onImportPreferences?.let { action -> { if (isActive()) action() } },
+        onChangePassword = onChangePassword?.let { action -> { if (isActive()) action() } },
         onExportArchives = onExportArchives?.let { action -> { if (isActive()) action() } },
         onExportPasswords = onExportPasswords?.let { action -> { if (isActive()) action() } },
         onExportEmail = onExportEmail?.let { action -> { if (isActive()) action() } },

@@ -1330,3 +1330,33 @@ Tests cover real save/rekey/reopen, wrong-current-password disk preservation, in
 input, lock enforcement, reentrant close, queued/in-flight cancellation, worker/dispatch/backend
 failures and immediate key/entry destruction. Sandbox crypto/storage tests are not native UI or
 device validation. Swing remains shipping and migration parity is still incomplete.
+
+### Compose password-change UI and window-level interlock
+
+Tools now exposes Change vault password. An ephemeral masked current/new/confirmation form
+warns that submission locks the vault and requires fresh unlock, cannot be canceled once started,
+and does not change existing backup passwords. Values are dropped before submit and dismissal;
+immutable strings cannot be wiped. Invalid input permits retry while still unlocked. Idle lock
+dismisses an unsubmitted form.
+
+DesktopPasswordChangeFlow lives at the window level, outside VaultContent. It owns the operation
+and blocks fresh unlock whenever a form/result exists. The owner enters WORKING before calling
+presenter.lock, so the lock callback cannot accidentally dismiss the authorized operation. That
+callback closes all vault authorities and destroys the old state synchronously, before the rekey
+worker is scheduled. VaultContent disposal may run later but cannot authorize old-key writes.
+While WORKING, form dismissal and normal window-close requests are refused. The unlock UI is
+not composed until a completed result is explicitly dismissed. This prevents another unlock or
+vault mutation racing backend rekey. The dedicated worker shuts down on window disposal.
+
+Success tells the user to unlock with the new password. Failure gives conservative current/new
+password and file-preservation guidance, not a claim that the transaction rolled back. Rejected UI
+delivery fails closed: progress/close/unlock stay blocked. There is no force-quit/process-crash
+guarantee, and no retry is authorized by a completed owner. These tradeoffs are intentional until
+a more robust recovery/status transport exists.
+
+Headless interlock tests cover deliberate lock versus idle lock, disabled dismissal/window exit/
+unlock throughout queued work and queued delivery, stale submissions and rejected dispatch.
+Existing rekey tests cover real controller roundtrip and wrong-current-password preservation.
+Source guards/typechecks cover the Compose boundary, not real modal/window event behavior.
+Native/Compose/accessibility/device validation, hardware integration and remaining migration
+parity still block cutover. Swing remains shipping.
