@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Enroll/replace local FIDO2 PRF hardware unlock with explicit consent, lock-first detached-key ownership and a window-level unlock/exit interlock. Enrollment runs after prior hardware work and requires fresh unlock afterwards.
+
  * Compose desktop: Confirm and remove the local hardware-unlock record on a worker, including corrupt records. Report deletion failures rather than claiming success; explain password fallback and that physical-key credentials and external copies are unaffected.
 
  * Compose desktop: Unlock existing vaults with a previously enrolled FIDO2 PRF key over PC/SC. Share the password-unlock worker, clear per-attempt PINs, and dispose unadopted recovered keys/decrypted entries. Enrollment setup remains pending.

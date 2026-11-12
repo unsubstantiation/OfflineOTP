@@ -58,6 +58,7 @@ class VaultActions(
     val onExportLinScp: (() -> Unit)? = null,
     val onImportOpenPgp: (() -> Unit)? = null,
     val onExportOpenPgp: (() -> Unit)? = null,
+    val onEnrollHardwareUnlock: (() -> Unit)? = null,
     val onRemoveHardwareUnlock: (() -> Unit)? = null,
     val onHardwareCopy: (() -> Unit)? = null,
     val onHardwareOath: (() -> Unit)? = null,
@@ -75,6 +76,7 @@ class VaultActions(
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
         onImportPreferences = onImportPreferences?.let { action -> { if (isActive()) action() } },
+        onEnrollHardwareUnlock = onEnrollHardwareUnlock?.let { action -> { if (isActive()) action() } },
         onRemoveHardwareUnlock = onRemoveHardwareUnlock?.let { action -> { if (isActive()) action() } },
         onHardwareCopy = onHardwareCopy?.let { action -> { if (isActive()) action() } },
         onHardwareOath = onHardwareOath?.let { action -> { if (isActive()) action() } },

@@ -245,7 +245,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
-        self.assertIn("if (rekey.canCloseWindow)", host)
+        self.assertIn("if (rekey.canCloseWindow && enrollment?.busy != true)", host)
         self.assertIn("vault == null && rekey.canUnlock", host)
         self.assertIn("rekey.sessionLocked()", host)
         self.assertIn("onChangePassword(lifetime::checkActive, presenter::lock)", host)
@@ -307,6 +307,18 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("Make sure you know the vault password", host)
         self.assertIn("revoke copies of this record elsewhere", host)
         self.assertIn("do not assume hardware unlock was disabled", host)
+
+    def test_hardware_enrollment_blocks_unlock_exit_and_serializes_old_hardware_work(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "unlock/HardwareEnrollmentDialog.kt").read_text()
+        self.assertIn("rekey.canCloseWindow && enrollment?.busy != true", host)
+        self.assertIn("rekey.canUnlock && enrollment == null", host)
+        self.assertIn("DesktopHardwareEnrollment(vault, hardwareWorker", host)
+        self.assertIn("onEnrollHardware(lifetime::checkActive, presenter::lock, exportWorker)", host)
+        self.assertIn("Lock and replace local enrollment", dialog)
+        self.assertIn("REPLACES", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
 
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}

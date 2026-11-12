@@ -1554,3 +1554,31 @@ Tests cover real file removal, absent/corrupt records, nonempty-directory deleti
 explicit consent, stale/expired/locked/canceled requests, executor rejection and late delivery.
 Real native UI, filesystem portability, hardware and device validation remain pending; Swing
 remains shipping and migration parity is not complete.
+
+### Compose FIDO enrollment setup
+
+Tools now offers Enroll hardware unlock with explicit replacement consent, FIDO PIN entry and
+password/backup retention warnings. This creates an authenticator credential and replaces the
+local enrollment only after the shared backend's envelope verification. It does not revoke
+external copies of an old record. The screen warns not to force-quit and that failure cannot
+undo a credential already created on the authenticator.
+
+DesktopHardwareEnrollment copies the current key into a destroyable owned key, marks itself
+WORKING, and synchronously locks the old session before scheduling backend enrollment. The
+window retains this owner outside vault composition; it blocks unlock, rekey and normal close
+until delivered completion and explicit result dismissal. Idle lock dismisses an unsubmitted
+form. Enrollment uses the old session's serial export/hardware worker, so an already-started
+local-record removal must finish before enrollment writes a new record. Disposal shuts that
+worker down gracefully rather than interrupting accepted enrollment work. No live session key
+is borrowed by a worker. Key/PIN buffers are cleaned on rejection, cancellation and completion.
+
+Success requires fresh password or hardware unlock; failure recommends password access and
+inspection before retry. Rejected UI delivery fails closed with WORKING remaining visible.
+In-flight cancellation only signals the backend: it cannot guarantee device/storage rollback.
+Immutable PIN strings cannot be zeroized, and force-quit/crash behavior is not a safety guarantee.
+
+Headless tests cover lock-before-worker, detached key cleanup, PIN wiping, expired/no-op-lock
+rejection, queued/in-flight cancellation and storage-provider/executor failure. Existing scripted
+manager tests cover enrollment/PRF roundtrip, not physical key behavior. Real FIDO/PCSC, Compose
+modal/accessibility, packaging and device validation remain pending. OpenPGP hardware integration,
+camera and asynchronous persistence still block migration completion. Swing remains shipping.

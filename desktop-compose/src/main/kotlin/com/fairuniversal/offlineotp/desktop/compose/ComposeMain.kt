@@ -7,6 +7,8 @@ import com.fairuniversal.offlineotp.desktop.storage.DesktopStorageLocation
 import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
 import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareEnrollment
+import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
@@ -138,17 +140,20 @@ fun main() {
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
+    var enrollment by remember { mutableStateOf<DesktopHardwareEnrollment?>(null) }
+    var enrollmentActive by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var rekeyRevision by remember { mutableStateOf(0) }
     val rekeyWorker = remember(controller) { Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP rekey") } }
     val rekey = remember(controller) { DesktopPasswordChangeFlow(rekeyWorker,
         { task -> EventQueue.invokeLater(task) }, controller::changePassword, { rekeyRevision++ }) }
-    DisposableEffect(rekey) { onDispose { rekey.close(); rekeyWorker.shutdown() } }
+    DisposableEffect(rekey) { onDispose { enrollment?.close(); rekey.close(); rekeyWorker.shutdown() } }
 
 
     Window(
         onCloseRequest = {
-            if (rekey.canCloseWindow) {
+            if (rekey.canCloseWindow && enrollment?.busy != true) {
                 closing = true
+                enrollment?.close()
                 rekey.close()
                 session?.lock()
                 session = null
@@ -161,7 +166,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
         ForestTheme {
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
-            if (vault == null && rekey.canUnlock) {
+            if (vault == null && rekey.canUnlock && enrollment == null) {
                 DesktopUnlockContent(controller, location) { loaded ->
                     if (closing) DesktopUnlockOperation.discard(loaded)
                     else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
@@ -171,13 +176,39 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                     controller = controller,
                     vault = vault,
                     window = window, location = location,
-                    onChangePassword = { active, lock -> rekey.open(vault, active, lock); Unit },
+                    onChangePassword = { active, lock -> if (enrollment == null) rekey.open(vault, active, lock); Unit },
+                    onEnrollHardware = { active, lock, hardwareWorker ->
+                        if (enrollment == null && rekey.operation == null && active()) {
+                            enrollmentActive = active
+                            enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
+                                enroll = { pin, key, token ->
+                                    val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+                                    try { manager.enroll(pin, key, token) } finally { manager.close() }
+                                }, changed = { rekeyRevision++ })
+                        }
+                    },
                     onLock = {
                         vault.lock()
                         session = null
                         rekey.sessionLocked()
+                        if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
+                            enrollment?.close(); enrollment = null; enrollmentActive = null
+                        }
                     }
                 )
+            }
+            enrollment?.let { owner ->
+                HardwareEnrollmentDialog(inputKey = owner, busy = owner.busy,
+                    result = when (owner.status) {
+                        DesktopHardwareEnrollment.Status.ENROLLED -> "Enrollment saved. Try hardware unlock; keep password access as a fallback."
+                        DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
+                        else -> null
+                    }, onSubmit = { pin ->
+                        if (enrollment === owner && !closing) owner.submit(pin) { enrollmentActive?.invoke() == true }
+                        else pin.fill(' ')
+                    }, onDismiss = {
+                        if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
+                    })
             }
             rekey.operation?.let { owner ->
                 PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
@@ -236,7 +267,7 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
 }
 
 @Composable
-private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
+private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onEnrollHardware: (() -> Boolean, () -> Unit, java.util.concurrent.Executor) -> Unit, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
@@ -589,6 +620,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
             }
+        }, enrollHardwareUnlock = {
+            if (lifetime.checkActive() && hardwareRemoval.pending == null && hardwareCopy.pending == null && hardwareOath.pending == null)
+                onEnrollHardware(lifetime::checkActive, presenter::lock, exportWorker)
         }, removeHardwareUnlock = {
             if (lifetime.checkActive()) hardwareRemoval.open()
         }, hardwareCopy = {
