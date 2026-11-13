@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop security: Revalidate file-import decode ownership after lifetime callbacks; destroy expired results and dismiss abandoned busy dialogs without overwriting newer work.
+
  * Compose desktop security: Recheck lifetime after shared file-import confirmation saves, suppress expired success/retry notices, and reject request replacement during authority checks.
 
  * Compose desktop security: Recheck session lifetime after URI/migration import processing and persistence. Suppress expired completion messages, discard abandoned multipart batches, and preserve newer requests across reentrant guards.

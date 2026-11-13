@@ -11,6 +11,55 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DesktopFileImportTest {
+    private class Queue : Executor {
+        val tasks = ArrayList<Runnable>()
+        override fun execute(command: Runnable) { tasks.add(command) }
+        fun run() { tasks.removeAt(0).run() }
+    }
+    @Test fun expiredDeliveryDestroysDecodedEntriesAndDismissesBusyRequest() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val worker = Queue(); val ui = Queue()
+        val decoded = arrayListOf(ManualEntryInput(label = "alice", secret = "JBSWY3DPEHPK3PXP").build())
+        val importer = DesktopFileImport<Unit>(state, worker, { ui.execute(it) }, {}, { error("unexpected commit") }, { _, _ -> decoded })
+        try {
+            importer.open(File("old")); val request = importer.pending!!; var live = true
+            importer.submit(request, Unit) { live }; worker.run(); live = false; ui.run()
+            assertTrue(decoded.isEmpty()); assertTrue(importer.pending == null)
+            assertTrue(request.count == null); assertTrue(importer.importedCount == null)
+        } finally { importer.close(); state.lock() }
+    }
+    @Test fun deliveryGuardReplacementPreservesNewWorkAndDestroysOldResult() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val worker = Queue(); val ui = Queue()
+        val batches = ArrayList<ArrayList<Entry>>()
+        val importer = DesktopFileImport<Unit>(state, worker, { ui.execute(it) }, {}, { entries -> entries.forEach { it.destroy() }; 1 },
+            { _, _ -> arrayListOf(ManualEntryInput(label = "alice", secret = "JBSWY3DPEHPK3PXP").build()).also { batches.add(it) } })
+        try {
+            importer.open(File("old")); val old = importer.pending!!; var checks = 0
+            importer.submit(old, Unit) {
+                if (++checks == 2) {
+                    importer.dismiss(old); importer.open(File("new"))
+                    importer.submit(importer.pending!!, Unit) { true }
+                }
+                true
+            }
+            worker.run(); ui.run()
+            val fresh = importer.pending!!
+            assertTrue(fresh !== old); assertTrue(fresh.busy); assertTrue(batches[0].isEmpty())
+            worker.run(); ui.run()
+            assertFalse(fresh.busy); assertEquals(1, fresh.count)
+            assertTrue(importer.confirm(fresh) { true })
+        } finally { importer.close(); state.lock() }
+    }
+    @Test fun submissionGuardCannotOverwriteReentrantSubmission() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val worker = Queue(); val ui = Queue()
+        var decodes = 0
+        val importer = DesktopFileImport<Unit>(state, worker, { ui.execute(it) }, {}, { 0 }, { _, _ -> decodes++; arrayListOf() })
+        try {
+            importer.open(File("old")); val request = importer.pending!!
+            assertFalse(importer.submit(request, Unit) { assertTrue(importer.submit(request, Unit) { true }); true })
+            assertEquals(1, worker.tasks.size); worker.run(); ui.run()
+            assertEquals(1, decodes); assertEquals(0, request.count); assertFalse(request.failed)
+        } finally { importer.close(); state.lock() }
+    }
     private fun testImport(commit: (List<Entry>) -> Int?, test: (DesktopFileImport<Unit>, DesktopVaultState) -> Unit) {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
         val importer = DesktopFileImport<Unit>(state, Executor { it.run() }, { it.run() }, {}, commit,

@@ -1666,3 +1666,17 @@ false guard without closure, reentrant replacement before/after persistence and 
 success/retry behavior. They exercise the shared orchestration with injected installers, not
 native UI or device execution. Final persistence remains synchronous; remaining migration
 features and release validation still block cutover. Swing remains shipping.
+
+### File-import worker handoff ownership
+
+File-import submission now rechecks readiness after the lifetime callback so reentrant
+submission cannot overwrite an already queued decode. Delivery rechecks request and work
+identity after that callback as well. Expired results are destroyed and the still-owned
+request is dismissed rather than left busy; newer work is preserved. Worker scheduling
+failures only update the request if the failed task still owns it.
+
+Queued-worker regression tests exercise expiry without explicit owner closure, replacement
+and new submission during delivery, and recursive submission during the initial guard.
+They verify detached-result cleanup and that the new decode can still complete/confirm.
+These are orchestration tests, not native UI execution. Background final persistence, remaining
+migration features and real device/release validation remain pending. Swing stays shipping.

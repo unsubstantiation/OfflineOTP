@@ -57,7 +57,7 @@ open class DesktopFileImport<Input : Any>(
         pending = null; importedCount = null
     }
     fun submit(request: Request, input: Input, active: () -> Boolean): Boolean {
-        if (!valid(request) || request.busy || request.count != null || !active()) return false
+        if (!ready(request) || !active() || !ready(request)) return false
         val task = Work(input)
         work = task; request.busy = true; request.failed = false; changed()
         try {
@@ -68,7 +68,13 @@ open class DesktopFileImport<Input : Any>(
                 if (entries != null && !task.offer(entries)) return@execute
                 if (state.isLocked) { task.cancel(); return@execute }
                 try { dispatch(Runnable {
-                    if (!valid(request) || work !== task || !active()) { task.cancel(); return@Runnable }
+                    if (!valid(request) || work !== task) { task.cancel(); return@Runnable }
+                    val live = active()
+                    if (!live || !valid(request) || work !== task) {
+                        task.cancel()
+                        if (pending === request && work === task) dismiss(request)
+                        return@Runnable
+                    }
                     work = null; request.busy = false
                     request.entries = task.take()
                     request.failed = request.entries == null
@@ -76,7 +82,10 @@ open class DesktopFileImport<Input : Any>(
                 }) } catch (_: Exception) { task.cancel() }
             }
         } catch (_: Exception) {
-            task.cancel(); work = null; request.busy = false; request.failed = true; changed()
+            task.cancel()
+            if (valid(request) && work === task) {
+                work = null; request.busy = false; request.failed = true; changed()
+            }
         }
         return true
     }
@@ -104,6 +113,7 @@ open class DesktopFileImport<Input : Any>(
         return count != null
     }
 
+    private fun ready(request: Request) = valid(request) && !request.busy && request.count == null
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 
     companion object {
