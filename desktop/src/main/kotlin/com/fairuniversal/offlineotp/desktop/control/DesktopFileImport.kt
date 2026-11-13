@@ -85,16 +85,25 @@ open class DesktopFileImport<Input : Any>(
 
     /** Specialized backup hosts may supply a replace transaction; it must consume entries on every outcome. */
     protected fun confirmUsing(request: Request, active: () -> Boolean, commit: (List<Entry>) -> Int?): Boolean {
-        if (!valid(request) || request.busy || !active()) return false
+        if (!valid(request) || request.busy || !active() || !valid(request)) return false
         val entries = request.entries ?: return false
         request.entries = null
-        try {
-            importedCount = commit(entries) ?: throw IllegalStateException("Import failed")
+        val count = try { commit(entries) } catch (_: Exception) { null }
+        // The installer owns entries on every outcome. Completed disk writes remain committed,
+        // but a deadline crossed during persistence must not publish a notice or retry dialog.
+        val live = active()
+        if (!live || !valid(request)) {
+            if (pending === request) dismiss(request)
+            return false
+        }
+        if (count != null) {
+            importedCount = count
             pending = null
-        } catch (_: Exception) { request.failed = true }
+        } else request.failed = true
         changed()
-        return pending == null
+        return count != null
     }
+
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 
     companion object {

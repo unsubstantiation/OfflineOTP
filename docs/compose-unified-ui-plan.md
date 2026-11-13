@@ -1651,3 +1651,18 @@ cleanup, false guard without explicit owner closure, failed persistence and reen
 replacement before/after import. Parsing/final persistence remain synchronous. Camera capture,
 OpenPGP hardware integration, asynchronous persistence and native/device release validation
 remain unfinished; Swing remains shipping.
+
+### File-import confirmation completion
+
+DesktopFileImport confirmation now rechecks request identity after its pre-save lifetime
+callback and checks lifetime after the installer returns or throws. A save crossing expiry
+cannot publish an imported-count notice or failed retry dialog. An abandoned current request
+is dismissed even if the guard only returns false; a newer request is preserved. Entry ownership
+remains with the installer on every outcome, and completed disk writes are not rolled back.
+This also covers specialized replace transactions routed through confirmUsing.
+
+Regression tests cover success/null/throwing saves, closure during post-save validation, a
+false guard without closure, reentrant replacement before/after persistence and ordinary live
+success/retry behavior. They exercise the shared orchestration with injected installers, not
+native UI or device execution. Final persistence remains synchronous; remaining migration
+features and release validation still block cutover. Swing remains shipping.
