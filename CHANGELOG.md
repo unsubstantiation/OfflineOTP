@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background persistence groundwork: Add a save-before-adopt deletion transaction with detached candidate preparation, failure retry, stale-list rejection and lock-on-abandonment. Compose dialog integration remains pending.
+
  * Desktop write coordination: Check pending persistence before window close, unlock submission/adoption, rekey and hardware enrollment; show a wait notice and discard blocked unlock results. Background UI save transactions are not yet enabled.
 
  * Background persistence groundwork: Production VaultController now gates save/create/open/hardware-key unlock/rekey through one controller-owned write lease and creates detached-save workers using that same gate. UI save migration remains pending.

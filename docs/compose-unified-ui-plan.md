@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; transaction adoption/rollback and asynchronous UI save wiring remain. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; save-before-adopt deletion transaction is tested; asynchronous Compose dialog wiring remains. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1879,3 +1879,20 @@ Source guards verify these host boundaries and sandbox Compose compilation passe
 interaction/device validation is not asserted. The controller gate remains the storage backstop
 if busy status changes after a UI check. Final UI saves remain synchronous: safe candidate adoption,
 rollback and terminal-failure recovery are still prerequisites to background transaction wiring.
+
+### Save-before-adopt deletion transaction
+
+DesktopEntryDeletion prepares a detached candidate without the target, destroys the removed
+clone, and persists through DesktopDetachedSave. The live entry is not removed until the worker
+succeeds and UI authority remains valid. A failed save leaves the original list intact and allows
+retry, so no optimistic rollback is needed. Changed list identity/order or expired authority
+locks rather than applying the result to a different live list. Closing a pending transaction
+locks because an already-started disk write cannot be undone. The host must close the owner on
+session disposal and prevent every other mutation while busy (including in-place metadata changes,
+which list identity checks do not detect).
+
+Tests cover actual save/reopen, unchanged live state before delivery, failure/retry, duplicate
+submission, changed/expired sessions and queued cancellation. Candidate preparation is UI-thread
+work; encryption/storage run on the worker. This controller is NOT yet connected to the Compose
+delete dialog, so production deletion remains synchronous. Busy-state presentation, lifetime
+disposal wiring and terminal-failure recovery remain required before enabling it.

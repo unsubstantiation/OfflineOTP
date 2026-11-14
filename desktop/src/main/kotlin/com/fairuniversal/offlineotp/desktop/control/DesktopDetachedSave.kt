@@ -35,7 +35,12 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
     /** Rejected UI delivery deliberately leaves this true: the host must fail closed. */
     val busy: Boolean get() = work != null
 
-    fun submit(state: DesktopVaultState, active: () -> Boolean, completed: (Boolean) -> Unit): Boolean {
+    fun submit(state: DesktopVaultState, active: () -> Boolean, completed: (Boolean) -> Unit): Boolean =
+        submitCandidate(state, active, {}, completed)
+
+    /** prepare may mutate only owned clones; removed clones must be destroyed by prepare. */
+    fun submitCandidate(state: DesktopVaultState, active: () -> Boolean,
+                        prepare: (ArrayList<Entry>) -> Unit, completed: (Boolean) -> Unit): Boolean {
         fun authorized() = try { active() } catch (_: Exception) { false }
         fun ready() = !closed && work == null && !state.isLocked
         if (!ready() || !authorized() || !ready()) return false
@@ -45,6 +50,7 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
         val snapshot = try {
             // Clones are created on the UI thread; live entries never cross into the worker.
             state.snapshot().forEach { entries.add(Entry(it.toJSON())) }
+            prepare(entries)
             key = OwnedKey(state.key.encoded ?: error("Unexportable key"))
             Snapshot(key, entries)
         } catch (_: Exception) {
