@@ -249,7 +249,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
-        self.assertIn("if (rekey.canCloseWindow && enrollment?.busy != true)", host)
+        self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
         self.assertIn("vault == null && rekey.canUnlock", host)
         self.assertIn("rekey.sessionLocked()", host)
         self.assertIn("onChangePassword(lifetime::checkActive, presenter::lock)", host)
@@ -637,6 +637,19 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("preferencesExporter.close()", host)
         self.assertIn("No vault entries, passwords or authentication material", host)
 
+    def test_window_checks_live_write_gate_before_close_unlock_and_hardware_actions(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("if (!controller.persistenceBusy) return true", host)
+        self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
+        self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
+        self.assertIn("if (storageAvailable()) rekey.submit(owner, current, next, confirmation)", host)
+        self.assertIn("if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin)", host)
+        self.assertIn("!busy && !hardwareDialog && storageAvailable()", host)
+        self.assertIn("if (!busy && storageAvailable()) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ')", host)
+        self.assertIn('title = "Vault write pending"', host)
+        # Do not conditionally dispose an in-progress unlock screen on its own controller lease.
+        self.assertIn("if (vault == null && rekey.canUnlock && enrollment == null)", host)
+
     def test_openpgp_export_confirms_scope_and_recipient(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)
@@ -829,7 +842,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopUnlockOperation(worker", host)
         self.assertIn("EventQueue.invokeLater(task)", host)
         self.assertIn("operation.close(); worker.shutdown()", host)
-        self.assertIn("if (closing) DesktopUnlockOperation.discard(loaded)", host)
+        self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
         unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
         self.assertIn('password = ""\n                    onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop write coordination: Check pending persistence before window close, unlock submission/adoption, rekey and hardware enrollment; show a wait notice and discard blocked unlock results. Background UI save transactions are not yet enabled.
+
  * Background persistence groundwork: Production VaultController now gates save/create/open/hardware-key unlock/rekey through one controller-owned write lease and creates detached-save workers using that same gate. UI save migration remains pending.
 
  * Background persistence groundwork: Add a shared write lease to detached saves. Hold it through worker completion and UI adoption; prevent abandoned in-flight saves from releasing it early. Production save/rekey/unlock wiring is still pending.

@@ -152,6 +152,12 @@ fun main() {
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
+    var writePendingNotice by remember { mutableStateOf(false) }
+    fun storageAvailable(): Boolean {
+        if (!controller.persistenceBusy) return true
+        writePendingNotice = true
+        return false
+    }
     var enrollment by remember { mutableStateOf<DesktopHardwareEnrollment?>(null) }
     var enrollmentActive by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var rekeyRevision by remember { mutableStateOf(0) }
@@ -163,7 +169,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
     Window(
         onCloseRequest = {
-            if (rekey.canCloseWindow && enrollment?.busy != true) {
+            if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true) {
                 closing = true
                 enrollment?.close()
                 rekey.close()
@@ -179,8 +185,8 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
             if (vault == null && rekey.canUnlock && enrollment == null) {
-                DesktopUnlockContent(controller, location) { loaded ->
-                    if (closing) DesktopUnlockOperation.discard(loaded)
+                DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
+                    if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
                     else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
                 }
             } else if (vault != null) {
@@ -188,9 +194,9 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                     controller = controller,
                     vault = vault,
                     window = window, location = location,
-                    onChangePassword = { active, lock -> if (enrollment == null) rekey.open(vault, active, lock); Unit },
+                    onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
                     onEnrollHardware = { active, lock, hardwareWorker ->
-                        if (enrollment == null && rekey.operation == null && active()) {
+                        if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
                             enrollmentActive = active
                             enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
                                 enroll = { pin, key, token ->
@@ -216,12 +222,17 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                         DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
                         else -> null
                     }, onSubmit = { pin ->
-                        if (enrollment === owner && !closing) owner.submit(pin) { enrollmentActive?.invoke() == true }
+                        if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
                         else pin.fill(' ')
                     }, onDismiss = {
                         if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
                     })
             }
+            if (writePendingNotice) EntryConfirmationDialog(
+                title = "Vault write pending",
+                message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
+                confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
+                onDismiss = { writePendingNotice = false })
             rekey.operation?.let { owner ->
                 PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
                     invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
@@ -229,7 +240,9 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                         DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
                         DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
                         else -> null
-                    }, onSubmit = { current, next, confirmation -> rekey.submit(owner, current, next, confirmation) },
+                    }, onSubmit = { current, next, confirmation ->
+                        if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
+                    },
                     onDismiss = { rekey.dismiss(owner) })
             }
         }
@@ -238,7 +251,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
-private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
     var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -270,11 +283,11 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
         onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
     UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
-        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy) { failure = null; hardwareDialog = true } }) else null,
+        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
-        onSubmit = { password -> if (!busy && !hardwareDialog) { failure = null; operation.submit(password) }; Unit })
+        onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
     if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
-        onSubmit = { pin -> if (!busy) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
+        onSubmit = { pin -> if (!busy && storageAvailable()) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
         onDismiss = { if (!busy) { hardwareDialog = false; failure = null } })
 }
 

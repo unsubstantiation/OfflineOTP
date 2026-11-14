@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; add window busy-state handling and transaction adoption/rollback before migrating synchronous saves. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; transaction adoption/rollback and asynchronous UI save wiring remain. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1864,3 +1864,18 @@ This is per-controller coordination, not a cross-process lock. Preference writes
 enrollment records are outside this vault-data gate. Production saves still run synchronously;
 window-level busy/error presentation, normal-close blocking, candidate adoption and rollback are
 still required before any UI mutation uses the detached factory. No runtime/device test is claimed.
+
+### Window admission during pending vault writes
+
+The Compose window now checks live controller persistence status before normal close, password
+or hardware unlock submission/result adoption, rekey opening/submission and hardware enrollment
+opening/submission. A blocked action displays a wait notice, without claiming the write failed or
+retrying it automatically. Rejected hardware PIN submissions wipe the transferred array; loaded
+unlock results rejected at adoption are discarded through the existing owned-result cleanup.
+Manual/idle lock remains available. The unlock screen is not conditionally removed based on its
+own storage lease, which would cancel its in-flight operation during recomposition.
+
+Source guards verify these host boundaries and sandbox Compose compilation passes; real modal
+interaction/device validation is not asserted. The controller gate remains the storage backstop
+if busy status changes after a UI check. Final UI saves remain synchronous: safe candidate adoption,
+rollback and terminal-failure recovery are still prerequisites to background transaction wiring.
