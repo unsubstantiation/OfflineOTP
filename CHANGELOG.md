@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Shared email details: Show sender name, address and primary status for every SMTP identity, including secondary senders, while continuing to mask credentials by default.
+
  * Compose desktop: Ignore unsaved field errors in SMTP identities marked for removal; Undo restores validation. Add disk round-trip coverage for identity removal, canceled drafts and expired authorization.
 
  * Compose desktop: Stage removal of additional non-primary SMTP identities, with Undo before Save and explicit credential-removal warnings. First/primary identities are protected by core validation.

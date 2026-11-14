@@ -81,6 +81,11 @@ class DesktopEntryEditingTest {
                 assertEquals(2, account.account.getInt("auth_type"))
                 assertEquals("Sender", account.identity.getString("name"))
                 assertEquals("sender@example.com", account.identity.getString("email"))
+                val details = EmailAccounts.details(reopened.entries.single(), false)!!
+                assertEquals("Sender", details.single { it.label == "Outgoing (SMTP) sender name" }.value)
+                assertEquals("sender@example.com", details.single { it.label == "Outgoing (SMTP) sender address" }.value)
+                assertEquals(com.fairuniversal.offlineotp.Utilities.EmailMaterial.SECRET_MASK,
+                    details.single { it.label == "Outgoing (SMTP) password" }.value)
                 assertEquals("outgoing", account.identity.getString("password"))
                 assertEquals("incoming", account.account.getString("password"))
             } finally { DesktopUnlockOperation.discard(reopened) }

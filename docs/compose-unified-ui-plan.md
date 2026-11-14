@@ -1746,3 +1746,14 @@ followed by removal/undo and a real desktop save/reopen retaining the primary id
 Canceled drafts and expired pre-save authorization leave both identities unchanged. Existing
 failure/rollback tests still apply to the shared replacement transaction. Native UI/device
 validation and remaining migration features remain pending; Swing stays shipping.
+
+### Verifiable SMTP identity details
+
+Shared read-only email detail rows now include each SMTP sender name/address and stored primary
+flag, so edited secondary identities can be checked without reopening settings or revealing
+credentials. Existing connection labels remain stable; primary flags are reported as stored,
+not inferred from list position or normalized. The shared codec feeds desktop and Android
+consumers. Core tests check multiple identities, masking, reveal behavior and nonmutation;
+desktop save/reopen checks edited sender values reach the masked details adapter. This is
+headless coverage, not actual Compose/Android visual validation. Remaining migration features
+and native/device release checks remain pending. Swing stays shipping.

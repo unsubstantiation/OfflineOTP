@@ -50,8 +50,11 @@ object EmailMaterial {
         val protocol = if (account.account.optInt("protocol", 0) == 1) "POP" else "IMAP"
         rows.addAll(connection("Incoming ($protocol)", account.account, revealSecrets))
         account.identities.forEachIndexed { index, identity ->
-            rows.addAll(connection("Outgoing (SMTP)" + if (index == 0) "" else " #${index + 1}",
-                identity, revealSecrets))
+            val title = "Outgoing (SMTP)" + if (index == 0) "" else " #${index + 1}"
+            rows.add(Detail("$title sender name", identity.optString("name").orEmpty()))
+            rows.add(Detail("$title sender address", identity.optString("email").orEmpty()))
+            rows.add(Detail("$title primary identity", if (identity.optBoolean("primary")) "Yes" else "No"))
+            rows.addAll(connection(title, identity, revealSecrets))
         }
         return rows
     }
