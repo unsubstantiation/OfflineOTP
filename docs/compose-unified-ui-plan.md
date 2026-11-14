@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Move remaining synchronous saves off the UI thread without losing session authority, entry ownership, serialized writes or rollback guarantees. |
+| Background final persistence | Detached worker-save component implemented/tested, not yet wired. Add a window-level write interlock and transaction adoption/rollback before migrating synchronous saves. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1816,3 +1816,19 @@ A new source guard forbids Swing imports and verifies the sole host/library boun
 This user-requested removal is not proof of feature parity or runtime validation. Existing
 release/runtime/device gaps remain in the cutover ledger. Rollback needs a prior release and
 backup, not an in-tree fallback. No vault-format migration is included.
+
+### Detached worker-save prerequisite (not production integration)
+
+DesktopDetachedSave clones entries and owns an exportable AES key snapshot before scheduling
+a worker write. The worker never accesses live entries; snapshot entries and key bytes are
+destroyed before result delivery on success or failure. Closing cancels queued work and suppresses
+late delivery without interrupting a started write. A rejected UI dispatch leaves the owner busy
+(fail closed); a scheduling rejection frees the snapshot. Lifetime guards run on the UI thread,
+including a second check after snapshotting and before completion. Snapshotting remains synchronous.
+
+Tests cover detached mutation, actual save/reopen, duplicate submission, queued/in-flight closure,
+exceptions, expiry, throwing/reentrant guards and rejected scheduling/delivery. This component is
+not connected to production mutation paths. A window-level coordinator must serialize writes
+across sessions/rekeys and own result adoption/rollback before any existing save moves off-thread.
+Closing the component alone is NOT a write-completion signal or permission for another writer.
+No UI responsiveness improvement or new device test is claimed by this prerequisite.

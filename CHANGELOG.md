@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background persistence groundwork: Add an owned, detached worker-save component with secret cleanup and stale-result suppression. Not yet connected to production saves; window-level write serialization and transaction adoption remain required.
+
  * Documentation: Record the user-reported successful build/device check without inferring its platform or scope; consolidate current post-Swing status and distinguish historical migration notes from remaining work.
 
  * Desktop: Remove Swing UI, launcher, fallback packaging, table model and Swing-only tests. Retain shared engine, native integration and AWT artwork for Compose. Runtime/device/release validation remains pending; no in-tree Swing fallback remains.
