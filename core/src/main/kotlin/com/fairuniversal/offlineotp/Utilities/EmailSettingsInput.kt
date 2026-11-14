@@ -6,19 +6,25 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import org.json.JSONObject
 
 /** Only explicitly editable transport metadata. Never contains stored passwords/tokens. */
-data class EmailConnectionInput(val host: String, val port: String, val encryption: Int, val username: String) {
+data class EmailConnectionInput(val host: String, val port: String, val encryption: Int, val username: String, val authentication: String? = null) {
     internal fun applyTo(json: JSONObject) {
         require(host.isNotBlank()); InputPolicy.text(host, InputPolicy.MAX_TEXT_CHARS)
         InputPolicy.text(username, EmailMaterial.MAX_CREDENTIAL_CHARS)
         val number = port.toIntOrNull() ?: throw IllegalArgumentException("Invalid port")
         require(number in 1..65535); require(encryption in 0..2)
+        authentication?.let { text ->
+            require(text.length in 1..10 && text.all { it in '0'..'9' })
+            val type = text.toIntOrNull() ?: throw IllegalArgumentException("Invalid authentication type")
+            require(type >= 0)
+            json.put("auth_type", type)
+        }
         json.put("host", host.trim()).put("port", number).put("encryption", encryption).put("user", username.trim())
     }
     override fun toString() = "EmailConnectionInput(redacted)"
     companion object {
         internal fun from(json: JSONObject) = EmailConnectionInput(json.optString("host").orEmpty(), json.optInt("port").toString(),
             if (json.has("encryption")) json.optInt("encryption") else if (json.optBoolean("starttls")) 1 else 0,
-            json.optString("user").orEmpty())
+            json.optString("user").orEmpty(), json.optInt("auth_type", 0).toString())
     }
 }
 

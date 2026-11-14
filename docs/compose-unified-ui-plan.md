@@ -1708,3 +1708,18 @@ Model tests cover validation, exact unrelated-field preservation and legacy omis
 desktop save/reopen verifies persistence through the existing guarded replacement transaction.
 This remains offline editing, not server verification. Identity creation/removal, authentication
 mode editing and broader migration/native-device validation remain pending. Swing stays shipping.
+
+### Email authentication-type metadata
+
+Connection settings now expose the numeric authentication type for incoming and each SMTP
+connection, matching the Swing numeric-field convention (1 = password). Other nonnegative
+Int values are retained/supported as opaque provider metadata, not interpreted as verified
+OAuth modes. The form warns that changing the type does not sign in, refresh tokens or convert
+credentials and can make an exported account unusable. Passwords/tokens, unknown imported
+fields and nonedited identities remain unchanged. Legacy callers may omit the optional field.
+
+Tests cover exact-field preservation, incoming/secondary SMTP edits, unknown positive values,
+legacy omission, malformed/negative/overflow rejection and desktop save/reopen with credentials
+retained. This is offline metadata parity, not OAuth authorization management. Identity
+creation/removal, camera/OpenPGP hardware, asynchronous final persistence and real native/device
+release validation remain pending. Swing stays shipping.

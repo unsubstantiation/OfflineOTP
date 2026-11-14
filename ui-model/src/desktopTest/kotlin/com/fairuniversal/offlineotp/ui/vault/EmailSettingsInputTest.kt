@@ -98,6 +98,30 @@ class EmailSettingsInputTest {
             finally { legacy.destroy() }
         } finally { original.destroy() }
     }
+    @Test fun authenticationMetadataChangesPreserveCredentialsAndUnknownFields() {
+        val original = entry()
+        try {
+            val input = EmailSettingsInput.fromEntry(original)
+            val edited = input.copy(incoming = input.incoming.copy(authentication = "2"),
+                outgoing = input.outgoing.mapIndexed { index, old -> if (index == 1) old.copy(authentication = "42") else old }).build(original)
+            try {
+                val before = original.getEmailAccount(); val after = edited.getEmailAccount()
+                assertEquals(JSONObject(before.account.toString()).put("auth_type", 2).toString(), after.account.toString())
+                assertEquals(before.identities[0].toString(), after.identities[0].toString())
+                assertEquals(JSONObject(before.identities[1].toString()).put("auth_type", 42).toString(), after.identities[1].toString())
+                assertEquals("1", EmailSettingsInput.fromEntry(original).incoming.authentication)
+            } finally { edited.destroy() }
+            val legacy = input.copy(incoming = input.incoming.copy(authentication = null)).build(original)
+            try { assertEquals(original.getEmailAccount().account.toString(), legacy.getEmailAccount().account.toString()) }
+            finally { legacy.destroy() }
+            for (text in listOf("", "-1", "+1", " 1", "1.0", "2147483648", "99999999999", "password")) {
+                var rejected = false
+                try { input.copy(incoming = input.incoming.copy(authentication = text)).build(original).destroy() }
+                catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+        } finally { original.destroy() }
+    }
     @Test fun invalidInputIsRejectedAndDiagnosticsDoNotExposeMetadata() {
         val original = entry()
         try {

@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit incoming and SMTP authentication-type metadata with numeric validation and explicit warnings that credentials are preserved and no sign-in/token conversion occurs.
+
  * Compose desktop: Edit the email account display name independently of the vault label and SMTP sender names, retaining credentials and imported metadata.
 
  * Compose desktop: Edit sender display names and email addresses for existing SMTP identities alongside connection settings, preserving credentials, authentication modes, identity ordering and unknown imported fields.

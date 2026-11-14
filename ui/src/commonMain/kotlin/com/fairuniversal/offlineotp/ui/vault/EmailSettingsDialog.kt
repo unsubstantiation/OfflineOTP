@@ -21,7 +21,7 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
     var input by remember(inputKey) { mutableStateOf(initial) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email settings") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens, authentication types and identity ordering are preserved. Changing an address does not change the login username or authorize sending from that address. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
+            Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens and identity ordering are preserved. Authentication type is offline metadata only: 1 means password. Changing it does not sign in, refresh tokens or convert credentials; an incorrect type may make the exported account unusable. Changing an address does not change the login username or authorize sending from that address. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
             Text(text = "Account display name is exported with the email account; it does not rename the vault entry or change SMTP sender names.")
             input.accountName?.let { name ->
                 OutlinedTextField(value = name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) input = input.copy(accountName = it) }, label = { Text(text = "Account display name") }, singleLine = true)
@@ -45,7 +45,7 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
                     input = input.copy(outgoing = input.outgoing.mapIndexed { i, old -> if (i == index) next else old })
                 }
             }
-            if (failed) Text(text = "Could not save settings. Check account name, sender addresses, hosts, ports, encryption and storage. Original account retained.")
+            if (failed) Text(text = "Could not save settings. Check account name, sender addresses, hosts, ports, encryption, authentication types and storage. Original account retained.")
         } }, confirmButton = { ForestTextAction(text = "Save", onClick = { onSubmit(input) }) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })
 }
@@ -56,6 +56,9 @@ private fun ConnectionFields(label: String, input: EmailConnectionInput, change:
     OutlinedTextField(value = input.host, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) change(input.copy(host = it)) }, label = { Text(text = "$label host") }, singleLine = true)
     OutlinedTextField(value = input.port, onValueChange = { if (it.length <= 5) change(input.copy(port = it)) }, label = { Text(text = "$label port (1–65535)") }, singleLine = true)
     OutlinedTextField(value = input.username, onValueChange = { if (it.length <= EmailMaterial.MAX_CREDENTIAL_CHARS) change(input.copy(username = it)) }, label = { Text(text = "$label username") }, singleLine = true)
+    input.authentication?.let { authentication ->
+        OutlinedTextField(value = authentication, onValueChange = { if (it.length <= 10) change(input.copy(authentication = it)) }, label = { Text(text = "$label authentication type (1 = password)") }, singleLine = true)
+    }
     val modes = listOf("SSL", "STARTTLS", "None (unencrypted)")
     Text(text = "$label encryption: ${modes.getOrNull(input.encryption) ?: "Unknown"}")
     modes.forEachIndexed { index, name -> ForestTextAction(text = "$label: $name", onClick = { change(input.copy(encryption = index)) }) }
