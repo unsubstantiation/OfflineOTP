@@ -49,3 +49,5 @@ annotation class ExperimentalFoundationApi
 
 @ExperimentalFoundationApi
 fun Modifier.basicMarquee(iterations: Int = 3): Modifier = this
+
+fun Modifier.verticalScroll(state: ScrollState): Modifier = this

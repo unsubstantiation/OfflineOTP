@@ -46,7 +46,6 @@ class CrossAppFeatureParityTest(unittest.TestCase):
     def test_vault_password_change_auto_lock_and_clipboard_expiry_exist_everywhere(self):
         core_vault = (CORE / "Utilities/PasswordVault.kt").read_text(encoding="utf-8")
         desktop_ctrl = (DESKTOP / "control/VaultController.kt").read_text(encoding="utf-8")
-        desktop_win = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
         ios_vault = (IOS_KIT / "PasswordVault.swift").read_text(encoding="utf-8")
         ios_store = (IOS_APP / "VaultStore.swift").read_text(encoding="utf-8")
         ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
@@ -56,28 +55,22 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         # Password change
         self.assertIn("fun changePassword(", core_vault)
         self.assertIn("fun changePassword(", desktop_ctrl)
-        self.assertIn("Change vault password…", desktop_win)
         self.assertIn("public func changePassword(", ios_vault)
         self.assertIn("public func changePassword(", ios_store)
         self.assertIn("Change vault password", ios_settings)
 
         # Manual lock & auto-lock on inactivity
-        self.assertIn("Lock vault", desktop_win)
-        self.assertIn("Auto-lock timeout…", desktop_win)
         self.assertIn("UI_INACTIVITY_LOCK_SECONDS", desktop_ctrl)
         self.assertIn("inactivitySettingKey = \"ui_inactivity_lock_seconds\"", ios_store)
         self.assertIn("checkInactivityAutoLock", ios_store)
         self.assertIn("ScreenTimerController", android_main)
 
         # 30s clipboard auto-clear
-        self.assertIn("Timer(30_000)", desktop_win)
         self.assertIn("expirySeconds: TimeInterval = 30", ios_clip)
 
     def test_otp_uri_import_multi_tag_filter_and_reordering_exist_across_clients(self):
         android_dialog = (ANDROID / "Dialogs/ManualEntryDialog.kt").read_text(encoding="utf-8")
         desktop_coord = (DESKTOP / "control/BackupCoordinator.kt").read_text(encoding="utf-8")
-        desktop_win = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
-        desktop_tags = (DESKTOP / "ui/TagDialog.kt").read_text(encoding="utf-8")
         ios_backup = (IOS_APP / "BackupView.swift").read_text(encoding="utf-8")
         ios_list = (IOS_APP / "EntryListView.swift").read_text(encoding="utf-8")
         ios_details = (IOS_APP / "CredentialDetailViews.swift").read_text(encoding="utf-8")
@@ -85,29 +78,24 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         # Text otpauth:// URI import
         self.assertIn("otpUriInput", android_dialog)
         self.assertIn("fun importQrPayload(", desktop_coord)
-        self.assertIn("Import otpauth:// link…", desktop_win)
         self.assertIn("store.importUri(", ios_backup)
 
         # Multi-tag filtering (OR / AND / SINGLE + Untagged) & Tag editing
-        self.assertIn("class MultiTagFilterPanel(", desktop_tags)
-        self.assertIn("Filter by tags…", desktop_win)
         self.assertIn("struct TagStrip:", ios_list)
         self.assertIn("struct TagEditorSheet:", ios_details)
 
         # Manual reordering
-        self.assertIn("moveSelected(", desktop_win)
         self.assertIn("store.moveDisplayed(", ios_list)
 
     def test_all_credential_import_and_export_workflows_are_exposed_across_clients(self):
         android_backup = (ANDROID / "Activities/BackupActivity.kt").read_text(encoding="utf-8")
         android_main = (ANDROID / "Activities/MainActivity.kt").read_text(encoding="utf-8")
         android_surface = android_backup + "\n" + android_main
-        desktop_win = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
         ios_backup = (IOS_APP / "BackupView.swift").read_text(encoding="utf-8")
         ios_list = (IOS_APP / "EntryListView.swift").read_text(encoding="utf-8")
 
-        # Full Encrypted Backup + OpenPGP + FairEmail + Thunderbird + LinSCP + Browser Passwords
-        for text in (android_surface, desktop_win, ios_backup):
+        # Android/iOS surface checks remain; Compose host wiring is covered separately.
+        for text in (android_surface, ios_backup):
             self.assertTrue("OpenPGP" in text or "openPgp" in text)
             self.assertIn("FairEmail", text)
             self.assertIn("Thunderbird", text)

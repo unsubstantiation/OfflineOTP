@@ -98,19 +98,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Build Windows app image
         shell: pwsh
         run: |
-          .\gradlew.bat --no-daemon :desktop:packageDesktop
+          .\gradlew.bat --no-daemon :desktop-compose:packageDesktop
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          if (-not (Test-Path 'desktop/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
+          if (-not (Test-Path 'desktop-compose/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
             throw 'jpackage did not produce the Windows launcher'
           }
       - name: Archive app image and checksum
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
-          Compress-Archive -Path desktop/build/release/OfflineOTP -DestinationPath artifacts/OfflineOTP-windows-x64.zip
+          Compress-Archive -Path desktop-compose/build/release/OfflineOTP -DestinationPath artifacts/OfflineOTP-windows-x64.zip
           $hash = (Get-FileHash artifacts/OfflineOTP-windows-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
           [System.IO.File]::WriteAllText("$PWD/artifacts/SHA256SUMS.txt", "$hash  OfflineOTP-windows-x64.zip`n")
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

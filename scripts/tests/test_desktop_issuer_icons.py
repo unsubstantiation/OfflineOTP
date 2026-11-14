@@ -75,16 +75,12 @@ class DesktopIssuerIconsTest(unittest.TestCase):
             .read_text(encoding="utf-8")
         self.assertIn("ThumbnailAssets", icons)
         self.assertIn('"/thumbnails/"', icons)
-        cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
-            .read_text(encoding="utf-8")
         # The thumbnail name comes from the shared frame model, so the Swing card and the Compose
         # card cannot pick different artwork for the same entry.
-        self.assertIn("IssuerIcons.artwork(card.thumbnailName)", cards)
         model = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/"
                        "VaultCards.kt").read_text(encoding="utf-8")
         self.assertIn("thumbnailName = entry.getThumbnailName()", model)
         # A hidden entry must keep showing the letter tile, never a brand hint.
-        self.assertIn("avatar.initial = initial(", cards)
 
 
 class OtpAmberColorTest(unittest.TestCase):
@@ -125,17 +121,6 @@ class OtpAmberColorTest(unittest.TestCase):
         self.assertIn("R.attr.colorOtp", holder)
         self.assertIn("R.attr.colorExpiring", holder)
 
-    def test_desktop_cards_use_the_amber_token_for_revealed_codes(self):
-        cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
-            .read_text(encoding="utf-8")
-        theme = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/ForestTheme.kt")\
-            .read_text(encoding="utf-8")
-        self.assertIn("val OTP_AMBER = ColorUIResource(0xFF, 0xC8, 0x57)", theme)
-        self.assertIn("else -> ForestTheme.OTP_AMBER", cards)
-        self.assertIn("expiring -> ForestTheme.WARNING", cards)
-        # Hover and selection lift the card with a gradient instead of a flat fill.
-        self.assertIn("fun cardPaint(height: Int, hovered: Boolean, selected: Boolean): Paint", theme)
-        self.assertIn("ForestTheme.cardPaint(height, hovered, selected)", cards)
 
 
 if __name__ == "__main__":

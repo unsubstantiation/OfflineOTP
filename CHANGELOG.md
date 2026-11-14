@@ -2,6 +2,132 @@
 
 #### Unreleased
 
+ * Desktop: Remove Swing UI, launcher, fallback packaging, table model and Swing-only tests. Retain shared engine, native integration and AWT artwork for Compose. Runtime/device/release validation remains pending; no in-tree Swing fallback remains.
+
+ * Desktop cutover: Select Compose for default run/release packaging; retain explicit runSwing/packageSwingDesktop fallback. Stage native crypto libraries and shared icons for Compose distributions. Runtime/device/release validation and remaining feature gaps are still pending.
+
+ * Migration validation: Add a manual-only Linux/Windows/macOS Compose Gradle build/test/distribution workflow and an evidence-based desktop cutover checklist. No launcher switch or device-validation claim.
+
+ * Shared email details: Honor legacy POP/STARTTLS flags when modern transport fields are absent, retain modern-field precedence, and label unknown protocol values instead of implying IMAP.
+
+ * Shared email details: Show sender name, address and primary status for every SMTP identity, including secondary senders, while continuing to mask credentials by default.
+
+ * Compose desktop: Ignore unsaved field errors in SMTP identities marked for removal; Undo restores validation. Add disk round-trip coverage for identity removal, canceled drafts and expired authorization.
+
+ * Compose desktop: Stage removal of additional non-primary SMTP identities, with Undo before Save and explicit credential-removal warnings. First/primary identities are protected by core validation.
+
+ * Compose desktop: Edit incoming and SMTP authentication-type metadata with numeric validation and explicit warnings that credentials are preserved and no sign-in/token conversion occurs.
+
+ * Compose desktop: Edit the email account display name independently of the vault label and SMTP sender names, retaining credentials and imported metadata.
+
+ * Compose desktop: Edit sender display names and email addresses for existing SMTP identities alongside connection settings, preserving credentials, authentication modes, identity ordering and unknown imported fields.
+
+ * Compose desktop security: Revalidate file-import decode ownership after lifetime callbacks; destroy expired results and dismiss abandoned busy dialogs without overwriting newer work.
+
+ * Compose desktop security: Recheck lifetime after shared file-import confirmation saves, suppress expired success/retry notices, and reject request replacement during authority checks.
+
+ * Compose desktop security: Recheck session lifetime after URI/migration import processing and persistence. Suppress expired completion messages, discard abandoned multipart batches, and preserve newer requests across reentrant guards.
+
+ * Compose desktop security: Route delete, HOTP advance and mOTP PIN dialogs through a shared pre/post-save lifetime guard. Suppress expired/stale completion and preserve normal failure retries.
+
+ * Compose desktop security: Check the live idle deadline before and after copy-related usage persistence. Suppress clipboard publication and stale UI notices after expiry or request replacement, while retaining completed disk writes.
+
+ * Compose desktop: Export OpenPGP backups to up to eight recipient key files with a 16 MiB combined input bound, explicit any-recipient-can-decrypt warning, selection snapshotting and all-or-nothing read/encryption failure handling.
+
+ * Compose desktop: Enroll/replace local FIDO2 PRF hardware unlock with explicit consent, lock-first detached-key ownership and a window-level unlock/exit interlock. Enrollment runs after prior hardware work and requires fresh unlock afterwards.
+
+ * Compose desktop: Confirm and remove the local hardware-unlock record on a worker, including corrupt records. Report deletion failures rather than claiming success; explain password fallback and that physical-key credentials and external copies are unaffected.
+
+ * Compose desktop: Unlock existing vaults with a previously enrolled FIDO2 PRF key over PC/SC. Share the password-unlock worker, clear per-attempt PINs, and dispose unadopted recovered keys/decrypted entries. Enrollment setup remains pending.
+
+ * Desktop hardware security: Wipe both encoded and roundtrip-recovered vault-key buffers during FIDO enrollment, and recheck cancellation immediately before persisting an enrollment envelope.
+
+ * Compose desktop: Copy compatible TOTP/HOTP seeds to a PC/SC OATH key with explicit export consent and touch required. Use detached worker-owned entries, exact-selection guards, PIN cleanup and cancellation; never remove the vault copy.
+
+ * Compose desktop: Browse OATH accounts on a PC/SC security key and explicitly calculate a code, with HOTP counter-advance warning, masked per-operation OATH password, worker cancellation, expiry masking and stale-result guards. Hardware enrollment/unlock and copy-to-key remain pending.
+
+ * Compose desktop security: Guard manual-order saves with the live idle deadline, including failed/throwing writes, and suppress filter/error updates after expiry locks the session.
+
+ * Compose desktop: Show the startup data-directory path and managed filenames in Tools → Portable storage location, with relocation/override guidance. Read-only: no file moves, path execution or live vault switching.
+
+ * Compose desktop security: Enforce the old idle deadline after failed or throwing layout/auto-lock preference writes. Recheck request identity after persistence and guard callbacks so stale completions cannot disable timers, apply layouts or clear newer dialogs.
+
+ * Compose desktop: Edit incoming protocol and per-identity email connection hosts, ports, encryption and usernames from revealed details. Preserve credentials, authentication types, identities and provider metadata with guarded save/reopen coverage.
+
+ * Compose desktop: Add vault password change with a window-level rekey interlock. Lock before worker execution, block unlock/dismissal/normal exit while running, discard returned session material, and require fresh unlock after the result.
+
+ * Desktop migration groundwork: Add a lock-first asynchronous password-change owner. Validate confirmation, prevent duplicate submissions, and discard returned keys/entries before UI delivery. Compose password-change UI is not enabled yet.
+
+ * Compose desktop: Export one stored password archive byte-for-byte after explicit plaintext confirmation. Bind selection to the exact live entry, use a safe fixed picker filename, refuse existing destinations, and wipe worker output buffers.
+
+ * Compose desktop: Export one lossless browser-password CSV group at a time with exclusion counts and explicit plaintext confirmation. Use exclusive worker writes, dispose unselected snapshots, and suppress canceled/expired completion.
+
+ * Desktop migration groundwork: Prepare detached browser-password CSV groups without canonical-header conversion or alias substitution. Preserve source-specific columns and blank cells; count excluded foreign credentials and archives. No Compose export action is enabled yet.
+
+ * Compose desktop security: Recheck idle deadlines before and after synchronous entry add/edit saves, including failure paths. Suppress late dialog completion after lock or request replacement while retaining already-persisted changes.
+
+ * Compose desktop: Change stored email passwords/tokens from revealed connection details. Preserve blank credentials, all SMTP identities, provider metadata and vault presentation settings; reject stale or concealed edit requests.
+
+ * Compose desktop: Export all email accounts to FairEmail-compatible plaintext JSON after an explicit secrets warning. Preserve extra identities/provider metadata, ignore display filters, refuse existing files, and wipe worker-owned output buffers.
+
+ * Compose desktop: Add email accounts from the manual entry dialog, with independent incoming/SMTP credentials, protocol/encryption settings, bounded fields and tags. Validate via shared FairEmail material and persist through the identity-bound creation transaction.
+
+ * Compose desktop security: Immediately destroy unadopted unlock entries and keys when the locked screen closes, even if UI delivery is still queued. Guard reentrant close during busy-state completion.
+
+ * Compose desktop: Preview and confirm portable preferences imports with bounded worker reads and single-write persistence. Refresh only imported sort/layout/timeout settings, preserving the old auto-lock deadline until the write completes.
+
+ * Desktop preferences: Prepare an allowlisted import plan and apply the batch with one settings-file write instead of per-key writes. Publish cached settings only after persistence; the existing Swing import now uses this path ahead of the Compose import UI.
+
+ * Compose desktop: Export allowlisted portable preferences on a worker without vault credentials or authentication material. Refuse existing destinations and reuse the restricted exclusive-file writer.
+
+ * Compose desktop: Add explicit replace-all confirmation for OpenPGP restore while retaining merge as the default. Save before replacing live entries and preserve the original vault on failed writes.
+
+ * Compose desktop: Export full OpenPGP backups to a selected recipient public-key file with explicit scope confirmation, worker encryption and exclusive destination creation. Wipe provider plaintext inputs after encryption. Native crypto/UI validation remains pending.
+
+ * Compose desktop: Merge OpenPGP backups using a selected secret-key file, masked optional passphrase, bounded worker decoding and explicit confirmation. Bound and wipe decoded provider byte buffers in the shared codec. Native crypto/UI validation remains pending.
+
+ * Compose desktop: Export SSH keys and password credentials to an encrypted LinSCP vault using a detached snapshot, worker encryption and exclusive file creation. Confirm scope and password; existing files are never overwritten.
+
+ * Compose vault: Group import, encrypted-backup and settings actions in a scrollable Tools dialog instead of stacking them above the entry list. Keep Add entry directly accessible and omit unsupported tools.
+
+ * Compose desktop: Import LinSCP encrypted vaults, backup bundles and session files with optional sessions.key selection, bounded worker decoding and explicit merge confirmation. Source/key files remain unchanged.
+
+ * Compose desktop: Persist Default, Compact or Full card layout, apply only after successful save without resetting filters/reveal state, and include the setting in desktop portable preferences.
+
+ * Compose desktop: View email connection and SMTP identity details with passwords masked by default and guarded explicit reveal. Also fix the missing Edit button for supported imported password layouts.
+
+ * Compose desktop: Import FairEmail JSON, gzip and encrypted backups with masked password input, bounded worker decoding and explicit merge confirmation. Share cancellable file-import ownership with browser-password import.
+
+ * Compose desktop: Import browser password files as individual credentials or preserved archives using bounded worker parsing, explicit confirmation and session-owned cleanup. The source plaintext file remains unchanged; final persistence is synchronous.
+
+ * Compose desktop: Edit imported password URL, username and password with blank-preserves semantics, retained extra columns and live-session/reveal checks. Unsupported or conflicting column layouts remain excluded.
+
+ * Compose desktop: Read QR image files through a native picker with bounded worker decoding and explicit import confirmation. Discard canceled/locked results and keep decoded payloads hidden; camera capture remains pending.
+
+ * Compose desktop: Import pasted OTP URIs and multi-part Google Authenticator migration payloads through the shared coordinator, with masked drafts, explicit duplicate-issuer policy and session-bound batch cleanup. Image/camera QR import remains pending.
+
+ * Compose entry editing: Explicit, undoable removal choices for stored mOTP PINs, SSH connection passwords and protected labels. Blank fields still preserve values; removal only applies on Save and resets after a failed submission.
+
+ * Compose desktop: Restore password-encrypted backups with worker decoding and a separate merge/replace confirmation. Default to merge, discard canceled results, and save before changing live entries. Final persistence remains synchronous; native UI validation is pending.
+
+ * Compose desktop: Export full password-encrypted backups through a native save picker and shared confirmation form. Encrypt a detached snapshot on a worker, refuse existing destinations, and cancel pending work on lock without adopting stale results. Restore and runtime validation remain pending.
+
+ * Compose desktop: Add session-bound auto-lock settings with immediate live updates after successful persistence. Reject stale/expired requests and roll back the desktop settings cache after failed writes.
+
+ * Compose desktop: Add persisted up/down ordering for unsorted, unfiltered rows. Bind moves to the original entry and neighbor so stale controls cannot reorder replacements; reject failures without changing live order.
+
+ * Compose desktop: Run password unlock/create on a worker, disable duplicate attempts, clear the password field before handoff, and discard unadopted keys/entries after screen disposal. Other persistence workflows still need asynchronous integration.
+
+ * Compose desktop: Copy live, revealed entries only after persisting usage, with explicit SSH-field selection and 30-second clipboard expiry. Reject stale targets, roll back usage after failed writes, and best-effort clear matching clipboard content on lock.
+
+ * Compose desktop: Add searchable bundled-artwork selection to the shared add/edit form. Preview choices lazily and persist the draft selection only on successful Save; failed saves retain the original artwork.
+
+ * Compose desktop: Edit revealed OTP, note and SSH entries with fixed types and identity-bound save requests. Blank secret fields retain existing values; edits preserve artwork, privacy, usage metadata and row identity. Real Compose validation and remaining desktop workflows are still pending.
+
+ * Compose desktop: Add manual OTP, note and SSH-key creation through the shared form and EntryDraft validation. Persist before publication, reject stale/locked dialog submissions, and discard unadopted drafts. Existing-entry editing and shipping launcher cutover remain pending.
+
+ * Compose desktop: Honor the saved inactivity timeout, reject activity after expiry, and clear the vault on close/disposal. Add a Swing-free event-thread scheduler with headless lifecycle/timer tests. Shipping desktop launcher remains Swing pending parity and runtime validation.
+
  * Android CI: Add manual-only Compose/artwork emulator validation to the existing workflow, covering F-Droid/API 28 and Play/API 36. Require passing results for all selected tests and retain diagnostic logs without publishing debug APKs.
 
  * Android tests: Add real Compose-host device tests for frame/action replacement, terminal clearing, concealed text, localized period labels and artwork loading. These are type-checked in the sandbox; device execution remains required.

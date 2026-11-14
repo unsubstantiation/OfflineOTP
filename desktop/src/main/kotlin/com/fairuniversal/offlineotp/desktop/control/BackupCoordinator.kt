@@ -91,9 +91,14 @@ class BackupCoordinator(
      * "Replace existing entries" switch starts off.
      */
     private fun restoreDocument(document: String, replace: Boolean): Int {
-        val imported = VaultJson.stringToEntries(document)
+        return restoreEntries(VaultJson.stringToEntries(document), replace)
+    }
+
+    /** UI-thread ownership transfer: consumes detached entries on success AND failure. */
+    fun restoreEntries(imported: ArrayList<Entry>, replace: Boolean = false): Int {
         var installed = false
         try {
+            check(!state.isLocked) { "Vault is locked" }
             // Android also rejects an empty import rather than replacing a vault with it.
             require(imported.isNotEmpty()) { "Backup contains no entries" }
             // EntryList treats equal account identities as one entry. Reject ambiguous backups

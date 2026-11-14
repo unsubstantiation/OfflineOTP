@@ -1,0 +1,54 @@
+name: Compose desktop validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  desktop:
+    name: Compose build and headless tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022, macos-14]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+      - name: Verify wrapper provenance
+        shell: bash
+        run: python scripts/check_build_inputs.py
+      - name: Compile, test and assemble the Compose distribution
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p reports/compose-desktop-validation
+          git rev-parse HEAD > reports/compose-desktop-validation/commit.txt
+          java -version 2> reports/compose-desktop-validation/java.txt
+          bash ./gradlew --no-daemon --stacktrace :core:test :ui-model:desktopTest :desktop:test :desktop-compose:test :desktop-compose:installDist 2>&1 | tee reports/compose-desktop-validation/gradle.log
+      - name: Upload validation evidence (no application or vault files)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compose-desktop-validation-${{ matrix.os }}
+          if-no-files-found: warn
+          retention-days: 14
+          path: |
+            reports/compose-desktop-validation/
+            core/build/test-results/
+            ui-model/build/test-results/
+            desktop/build/test-results/
+            desktop-compose/build/test-results/

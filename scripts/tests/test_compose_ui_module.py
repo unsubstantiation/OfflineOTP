@@ -113,9 +113,10 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
         self.assertIn('deleteTitle: String = "Delete account?"', wording)
-        self.assertIn("vault.deleteEntry(request.entryId)", host)
-        self.assertIn("controller.save(vault.key, remaining)", host)
-        self.assertIn("presenter.entryRemoved(request.entryId)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
+        self.assertIn("state.deleteEntry(request.entryId, save)", owner)
+        self.assertIn("controller.save(vault.key, entries)", host)
+        self.assertIn("entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)", host)
         self.assertIn("dialogs.close()", host)
 
     def test_pin_dialog_masks_and_does_not_save_input(self):
@@ -126,7 +127,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
         self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("vault.submitPin(request.entryId, pin)", host)
+        self.assertIn("entryDialogActions.submitPin(request, pin, lifetime::checkActive)", host)
         self.assertIn("dialogs.close()", host)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.pinRequired && enterPin != null", widgets)
@@ -139,15 +140,20 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("VaultEntryDialog(", host)
         self.assertIn("VaultDialogs { revision++ }", host)
-        self.assertIn("vault.advanceCounter(request.entryId)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
+        self.assertIn("state.advanceCounter(request.entryId)", owner)
         self.assertIn("dialogs.close()", host)
 
     def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertNotIn("EntryPinDialog(", host)
-        self.assertNotIn("EntryConfirmationDialog(", host)
-        self.assertNotIn("could not be saved", host)
-        self.assertEqual(2, host.count("dialogs.isCurrent(request)"))
+        # PIN/counter/delete routing remains shared; copy failure notices are host outcomes.
+        routed = host.split("    val request = dialogs.pending", 1)[1]
+        self.assertNotIn("EntryPinDialog(", routed)
+        self.assertNotIn("EntryConfirmationDialog(", routed)
+        self.assertNotIn("could not be saved", routed)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
+        self.assertIn("dialogs.isCurrent(request)", owner)
+        self.assertIn("if (!active() || !current(request)) return false", owner)
         renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
         for kind in ("PIN", "COUNTER", "DELETE"):
             self.assertIn("VaultDialogKind." + kind, renderer)
@@ -171,15 +177,158 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_compose_host_delegates_interactions_to_presenter(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn("VaultPresenter(", host)
-        self.assertIn("actions = presenter.actions()", host)
+        self.assertIn("actions = presenter.actions(copyEntry =", host)
         self.assertNotIn("filter.withQuery", host)
         self.assertNotIn("mutableStateOf(emptySet<Long>())", host)
+
+    def test_email_creation_is_optional_ephemeral_and_deadline_guarded(self):
+        dialog = (UI_MAIN / "vault/EmailEntryDialog.kt").read_text()
+        manual = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
+        self.assertIn("input = ManualEntryInput(); email = true", manual)
+        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)", host)
+
+    def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEmailExport.kt").read_text()
+        self.assertIn("Export plaintext secrets", host)
+        self.assertIn("including hidden or filtered-out accounts", host)
+        self.assertIn("partial plaintext file may remain", host)
+        self.assertIn("emailExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("emailExporter.close()"), 2)
+        self.assertIn("request.status != Status.CONFIRM", owner)
+        self.assertIn("ExclusiveExportFile::writeNew", owner)
+        self.assertIn("finally { data.fill(0) }", owner)
+
+    def test_email_credential_editor_is_optional_masked_and_live_guarded(self):
+        dialog = (UI_MAIN / "vault/EmailPasswordDialog.kt").read_text()
+        details = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("onEditPasswords: (() -> Unit)? = null", details)
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
+        self.assertIn("lifetime.checkActive() && editing.submitEmailPasswords", host)
+        self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null", host)
+
+    def test_all_compose_add_edit_paths_supply_live_save_guard(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        for call in ("creation.submit(addRequest, input, lifetime::checkActive)",
+                     "creation.submitEmail(addRequest, input, lifetime::checkActive)"):
+            self.assertIn(call, host)
+        for method in ("submit", "submitPassword", "submitEmailPasswords", "submitEmailSettings"):
+            self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
+
+    def test_password_export_is_explicit_plaintext_and_lifetime_guarded(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/PasswordExportDialog.kt").read_text()
+        self.assertIn("passwordExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertIn("passwordExporter.choose(request, index, target, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("passwordExporter.close()"), 2)
+        self.assertIn("OTP seeds and provider-specific secrets", host)
+        self.assertIn("spreadsheet formulas", dialog)
+        self.assertIn("password archives", dialog)
+
+    def test_archive_export_requires_plaintext_consent_and_ignores_stored_paths(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        picker = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/DesktopSavePicker.kt").read_text()
+        dialog = (UI_MAIN / "vault/ArchiveExportDialog.kt").read_text()
+        self.assertIn("archiveExporter.confirm(request, lifetime::checkActive)", host)
+        self.assertIn("archiveExporter.choose(request, index, target, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("archiveExporter.close()"), 2)
+        self.assertIn('picker.file = "password-archive.bin"', picker)
+        self.assertIn("exact imported bytes", dialog)
+        self.assertIn("No encryption is added", host)
+
+    def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
+        self.assertIn("if (rekey.canCloseWindow && enrollment?.busy != true)", host)
+        self.assertIn("vault == null && rekey.canUnlock", host)
+        self.assertIn("rekey.sessionLocked()", host)
+        self.assertIn("onChangePassword(lifetime::checkActive, presenter::lock)", host)
+        self.assertIn("if (!busy)", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("clear(); onSubmit(a, b, c)", dialog)
+
+    def test_storage_location_uses_startup_path_and_plain_read_only_text(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/StorageLocationDialog.kt").read_text()
+        self.assertIn("ComposeVaultApp(controller, DesktopStorageLocation(directory))", host)
+        self.assertIn("directory = location.dataDirectory", host)
+        self.assertIn("showStorageLocation = false", host)
+        self.assertIn("Text(text = directory)", dialog)
+        self.assertIn("data subfolder is appended automatically", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertNotIn("Clipboard", dialog)
+
+    def test_hardware_oath_ui_has_explicit_counter_action_and_lifetime_guard(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/HardwareOathDialog.kt").read_text()
+        self.assertIn("hardwareOath.submit(request, pin, index, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("hardwareOath.close()"), 2)
+        self.assertIn("Advance HOTP counter and show code", dialog)
+        self.assertIn("not the FIDO PIN", dialog)
+        self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+
+    def test_hardware_copy_requires_explicit_seed_export_and_touch(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "vault/HardwareCopyDialog.kt").read_text()
+        self.assertIn("requireTouch = true", host)
+        self.assertIn("hardwareCopy.submit(request, pin, lifetime::checkActive)", host)
+        self.assertIn("hardwareCopy.select(request, index, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("hardwareCopy.close()"), 2)
+        self.assertIn("Export seed to connected key", dialog)
+        self.assertIn("Cancellation cannot undo", dialog)
+        self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+
+    def test_hardware_unlock_is_optional_serialized_and_ephemeral(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        dialog = (UI_MAIN / "unlock/HardwareUnlockDialog.kt").read_text()
+        self.assertIn("onHardwareUnlock: (() -> Unit)? = null", screen)
+        self.assertIn("DesktopHardwareUnlock(worker", host)
+        self.assertIn("!busy && !hardwareDialog", host)
+        self.assertIn("hardwareUnlock.close(); operation.close(); worker.shutdown()", host)
+        self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+
+    def test_hardware_removal_requires_consent_and_distinguishes_local_record(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("hardwareRemoval.confirm(request, lifetime::checkActive)", host)
+        self.assertGreaterEqual(host.count("hardwareRemoval.close()"), 2)
+        self.assertIn("Make sure you know the vault password", host)
+        self.assertIn("revoke copies of this record elsewhere", host)
+        self.assertIn("do not assume hardware unlock was disabled", host)
+
+    def test_hardware_enrollment_blocks_unlock_exit_and_serializes_old_hardware_work(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        dialog = (UI_MAIN / "unlock/HardwareEnrollmentDialog.kt").read_text()
+        self.assertIn("rekey.canCloseWindow && enrollment?.busy != true", host)
+        self.assertIn("rekey.canUnlock && enrollment == null", host)
+        self.assertIn("DesktopHardwareEnrollment(vault, hardwareWorker", host)
+        self.assertIn("onEnrollHardware(lifetime::checkActive, presenter::lock, exportWorker)", host)
+        self.assertIn("Lock and replace local enrollment", dialog)
+        self.assertIn("REPLACES", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
 
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -263,14 +412,6 @@ class VaultWordingParityTest(unittest.TestCase):
         }
         self.assertEqual(expected, labels)
 
-    def test_desktop_client_takes_its_labels_from_the_shared_table(self):
-        screen = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainScreen.kt")
-        text = screen.read_text(encoding="utf-8")
-        self.assertIn("VaultStrings.English.categoryTitle(category)", text)
-        self.assertIn("VaultStrings.English.sortTitle(mode)", text)
-        # No second label table may reappear in the Swing client.
-        self.assertNotIn('"SSH Keys"', text)
-        self.assertNotIn('"Most used"', text)
 
 
 class ComposeUiWiringTest(unittest.TestCase):
@@ -320,7 +461,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertNotRegex(text, r"compose[^'\n]*:[\.\+]")
 
     def test_swing_client_stays_compose_free(self):
-        """`:desktop` keeps its Swing-only gate and tests while both clients share the engine."""
+        """`:desktop` stays toolkit-free while the Compose host uses its shared engine."""
         offenders = []
         for path in kotlin_files(ROOT / "desktop/src"):
             for number, imported in imports(path):
@@ -477,6 +618,284 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn("fun " + method + "(", contract)
         self.assertNotIn("import android", contract)
         self.assertIn('"$KOTLIN_APP/View/EntryEditorHost.kt"', (SANDBOX / "run.sh").read_text())
+
+    def test_preferences_import_refreshes_only_mentioned_settings_after_lifetime_check(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPreferencesImport(vault, exportWorker", host)
+        self.assertIn("preferencesImporter.confirm(preferencesRequest, lifetime::checkActive)", host)
+        for key in ("UI_INACTIVITY_LOCK_SECONDS", "UI_CARD_LAYOUT", "UI_SORT_MODE"):
+            self.assertIn(f"plan.contains(PreferencesExport.{key})", host)
+        self.assertIn("preferencesImporter.close()", host)
+        form = (UI_MAIN / "vault/PreferencesImportDialog.kt").read_text()
+        self.assertIn("A file may disable auto-lock", form)
+        self.assertIn("enabled = !busy && count != null", form)
+
+    def test_preferences_export_uses_worker_and_rechecks_lifetime(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPreferencesExport(vault, exportWorker", host)
+        self.assertIn("preferencesExporter.submit(target, lifetime::checkActive)", host)
+        self.assertIn("preferencesExporter.close()", host)
+        self.assertIn("No vault entries, passwords or authentication material", host)
+
+    def test_openpgp_export_confirms_scope_and_recipient(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)
+        self.assertIn("openPgpExporter.submitRecipients(pgpExportRequest, recipientFiles, lifetime::checkActive)", host)
+        self.assertIn("openPgpExporter.close()", host)
+        form = (UI_MAIN / "vault/OpenPgpExportDialog.kt").read_text()
+        self.assertIn("including concealed entries and regardless of filters", form)
+        self.assertIn("intended recipient", form)
+        self.assertIn("enabled = !busy && recipientNames.isNotEmpty()", form)
+        self.assertIn("ANY matching secret key", form)
+        self.assertIn("16 MiB combined", form)
+
+    def test_openpgp_import_requires_key_and_live_confirmation(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopOpenPgpImport(vault, exportWorker", host)
+        self.assertIn("openPgpImporter.confirmRestore(openPgpRequest, replace, lifetime::checkActive)", host)
+        self.assertIn("openPgpImporter.close()", host)
+        form = (UI_MAIN / "vault/OpenPgpImportDialog.kt").read_text()
+        self.assertIn("count != null || keySelected", form)
+        self.assertIn("mutableStateOf(false)", form)
+        self.assertIn("Replace all entries", form)
+        self.assertIn("delete all current entries", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+
+    def test_linscp_export_uses_detached_worker_path_and_explains_scope(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("seal = DesktopLinScpExport::seal", host)
+        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault) }", host)
+        self.assertIn("including concealed entries, regardless of filters", host)
+        self.assertIn("linScpExporter.close()", host)
+        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation)", host)
+
+    def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        self.assertIn("VaultToolsBar(actions = actions, strings = strings)", screen)
+        self.assertNotIn("actions.onImportLinScp", screen)
+        tools = (UI_MAIN / "vault/VaultToolsBar.kt").read_text()
+        self.assertIn("VaultTool.available(actions)", tools)
+        self.assertIn("heightIn(max = 400.dp).verticalScroll", tools)
+        self.assertIn("horizontalScroll", tools)
+        self.assertIn("actions.onAddEntry", tools)
+        self.assertIn("expanded = false\n                        tool.invoke(actions)", tools)
+        self.assertNotIn("rememberSaveable", tools)
+
+    def test_linscp_import_guards_native_key_selection_and_confirmation(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopLinScpImport(vault, exportWorker", host)
+        self.assertIn("linScpImporter.confirm(linScpRequest, lifetime::checkActive)", host)
+        self.assertIn("lifetime.checkActive() && linScpImporter.pending === linScpRequest && selected != null", host)
+        self.assertIn("linScpImporter.close()", host)
+        form = (UI_MAIN / "vault/LinScpImportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; onRead(submitted)', form)
+
+    def test_layout_settings_load_persist_and_apply_without_recreating_presenter(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("appearance = VaultAppearance(cardLayout = controller.savedCardLayout())", host)
+        self.assertIn("layoutSettings.submit(layoutRequest, layout, lifetime::checkActive, presenter::setCardLayout)", host)
+        self.assertIn("layoutSettings.close()", host)
+        form = (UI_MAIN / "vault/CardLayoutDialog.kt").read_text()
+        self.assertIn("Constants.CardLayouts.values()", form)
+        self.assertIn('ForestTextAction(text = "Save"', form)
+
+    def test_email_details_rechecks_reveal_and_password_edit_is_reachable(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId))", host)
+        self.assertIn("emailDetails.close()", host)
+        self.assertIn("PasswordEntryInput.supports(it)", host)
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.kind == VaultEntryKind.PASSWORDS && card.canEditPassword", components)
+        form = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
+        self.assertIn("Show passwords", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertNotIn("SelectionContainer", form)
+
+    def test_email_import_uses_worker_confirmation_and_clears_password_draft(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEmailImport(vault, exportWorker", host)
+        self.assertIn("emailImporter.confirm(emailRequest, lifetime::checkActive)", host)
+        self.assertIn("emailImporter.close()", host)
+        form = (UI_MAIN / "vault/EmailImportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; onRead(submitted)', form)
+
+    def test_password_import_uses_worker_confirmation_and_terminal_cleanup(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopPasswordImport(vault, exportWorker", host)
+        self.assertIn("passwordImporter.confirm(passwordRequest, lifetime::checkActive)", host)
+        self.assertIn("passwordImporter.close()", host)
+        form = (UI_MAIN / "vault/PasswordImportDialog.kt").read_text()
+        self.assertIn("PasswordImport.Mode.INDIVIDUAL", form)
+        self.assertIn("PasswordImport.Mode.ARCHIVE", form)
+        self.assertIn("does not delete or protect the source file", form)
+        self.assertIn("No current entries will be replaced", form)
+
+    def test_password_edit_clears_drafts_and_checks_live_reveal(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
+        form = (UI_MAIN / "vault/PasswordEntryDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertIn("input = input.withoutPassword()", form)
+        self.assertNotIn("rememberSaveable", form)
+
+    def test_qr_image_read_is_guarded_and_requires_explicit_import(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopQrImageRead(exportWorker", host)
+        self.assertIn("imageReader.close()", host)
+        self.assertIn("lifetime.checkActive() && !vault.isLocked && uriImporter.pending === importRequest", host)
+        self.assertIn("onImportImage = { allow ->", host)
+        form = (UI_MAIN / "vault/UriImportDialog.kt").read_text()
+        self.assertIn("enabled = !imageBusy && !imageReady", form)
+        self.assertIn("Discard image payload", form)
+        self.assertIn("Choose Import to validate and save it", form)
+
+    def test_uri_import_bounds_masks_and_clears_seed_payloads(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)", host)
+        self.assertIn("uriImporter.close()", host)
+        form = (UI_MAIN / "vault/UriImportDialog.kt").read_text()
+        self.assertIn("InputPolicy.MAX_URI_CHARS", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('val submitted = uri; uri = ""; onSubmit', form)
+        self.assertIn("enabled = !collecting", form)
+
+    def test_optional_secret_removal_is_explicit_edit_only_and_undoable(self):
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("Removal choices apply only when you Save", form)
+        for flag in ("clearPin", "clearHiddenLabel", "clearSshPassword"):
+            self.assertIn(f"if (!input.{flag}) EntryInputField", form)
+            self.assertIn(f"{flag} = !input.{flag}", form)
+        self.assertIn("Will remove PIN — undo", form)
+        self.assertIn("Will remove SSH password — undo", form)
+        self.assertIn("Will remove protected label — undo", form)
+
+    def test_encrypted_restore_requires_confirmation_and_lifetime_checks(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEncryptedRestore(vault, exportWorker", host)
+        self.assertIn("source != null && lifetime.checkActive() && !vault.isLocked", host)
+        self.assertIn("restorer.confirm(restoreRequest, replace, lifetime::checkActive)", host)
+        self.assertIn("restorer.close()", host)
+        form = (UI_MAIN / "vault/EncryptedRestoreDialog.kt").read_text()
+        self.assertIn("mutableStateOf(false)", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn("Replace all entries", form)
+        self.assertIn('password = ""; onDecode(text)', form)
+
+    def test_encrypted_export_uses_a_worker_and_rechecks_after_native_picker(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEncryptedExport(vault, exportWorker", host)
+        self.assertIn("target != null && lifetime.checkActive() && !vault.isLocked", host)
+        self.assertIn("exporter.close()", host)
+        self.assertIn("exportWorker.shutdown()", host)
+        picker = (COMPOSE_HOST / "DesktopSavePicker.kt").read_text()
+        self.assertIn("FileDialog.SAVE", picker)
+        self.assertNotIn("javax.swing", picker)
+        form = (UI_MAIN / "vault/EncryptedExportDialog.kt").read_text()
+        self.assertIn("PasswordVisualTransformation()", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn('password = ""; confirmation = ""', form)
+        self.assertIn("password == confirmation", form)
+
+    def test_auto_lock_settings_are_guarded_and_do_not_recreate_the_session(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("controller::trySaveInactivityLockSeconds", host)
+        self.assertIn("autoLock.submit(timeoutRequest, seconds, lifetime)", host)
+        self.assertIn("autoLock.close()", host)
+        self.assertIn("val lifetime = remember(presenter)", host)
+        form = (UI_MAIN / "vault/AutoLockDialog.kt").read_text()
+        self.assertIn("remember(inputKey)", form)
+        self.assertIn("onSave(selected)", form)
+        self.assertNotIn("VaultController", form)
+
+    def test_compose_manual_ordering_binds_the_frame_and_checks_drag_policy(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryMove(vault, EntryEditor(controller, vault)::move)", host)
+        self.assertIn("val moveFrame = mover.bind(state.cards)", host)
+        self.assertIn("canMoveUp = vault.presentation.canDrag()", host)
+        self.assertIn("mover.move(moveFrame, card, delta, lifetime::checkActive)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryMove.kt").read_text()
+        self.assertIn("shown.getOrNull(from + delta) !== neighbor", owner)
+        self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
+
+    def test_desktop_unlock_runs_off_ui_thread_and_releases_late_results(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopUnlockOperation(worker", host)
+        self.assertIn("EventQueue.invokeLater(task)", host)
+        self.assertIn("operation.close(); worker.shutdown()", host)
+        self.assertIn("if (closing) DesktopUnlockOperation.discard(loaded)", host)
+        unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        self.assertIn('password = ""\n                    onSubmit(submitted)', unlock)
+        self.assertIn("enabled = !busy", unlock)
+
+    def test_compose_copy_is_live_persisted_and_expires(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertNotIn("copyCode = ::copyToken", host)
+        self.assertIn("val copyFrame = copier.bind(state.cards)", host)
+        self.assertIn("presenter.isRevealed(request.entryId)", host)
+        self.assertIn("ExpiringClipboard(scheduler, AwtClipboard)", host)
+        self.assertIn("copier.close()", host)
+        self.assertIn("card.kind != VaultEntryKind.SSH_KEYS", host)
+        chooser = (UI_MAIN / "vault/EntryCopyDialog.kt").read_text()
+        self.assertNotIn("VaultCardState", chooser)
+        self.assertNotIn("EntryEditor", chooser)
+
+    def test_manual_thumbnail_picker_uses_catalog_and_host_artwork_without_live_mutation(self):
+        picker = (UI_MAIN / "vault/ThumbnailPicker.kt").read_text()
+        self.assertIn("ThumbnailCatalog.NAMES.filter", picker)
+        self.assertIn("ignoreCase = true", picker)
+        self.assertIn("LazyColumn(modifier = Modifier.height(240.dp))", picker)
+        self.assertIn("remember(artwork, name)", picker)
+        self.assertNotIn("EntryEditor", picker)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("input = input.copy(thumbnailName = it)", form)
+        self.assertIn("onCancel = { pickingThumbnail = false }", form)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("inputKey = addRequest, artwork = artwork", host)
+        self.assertIn("editing = true, artwork = artwork", host)
+
+    def test_desktop_editing_reuses_the_form_and_rechecks_live_reveal(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace)", host)
+        self.assertIn("presenter.isRevealed(editRequest.entryId)", host)
+        self.assertIn("editing.close()", host)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("if (!editing) for (type", form)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
+        self.assertIn("it === request.target", owner)
+        self.assertIn("replacement.destroy()", owner)
+
+    def test_desktop_manual_creation_uses_shared_form_and_guarded_persistence(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopEntryCreation(vault, EntryEditor(controller, vault)::add)", host)
+        self.assertIn("creation.close()", host)
+        self.assertIn("ManualEntryDialog(", host)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("remember(inputKey)", form)
+        self.assertNotIn("rememberSaveable", form)
+        self.assertIn("input = input.withoutSecrets()", form)
+        self.assertIn("PasswordVisualTransformation()", form)
+
+    def test_desktop_compose_session_lifetime_is_wired_without_swing_widgets(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false)", host)
+        self.assertIn("lifetime.start()", host)
+        self.assertIn("DisposableEffect(presenter)", host)
+        self.assertIn("presenter.lock()", host)
+        self.assertIn("toolkit.removeAWTEventListener(listener)", host)
+        self.assertIn("try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }", host)
+        self.assertIn("session?.lock()", host)
+        self.assertIn("source === window", host)
+        for source in COMPOSE_HOST.glob("*.kt"):
+            self.assertNotIn("javax.swing", source.read_text())
+        gate = (ROOT / "scripts/kotlin-sandbox/compile-ui.sh").read_text()
+        self.assertIn('JvmTestRunnerKt "$OUT/host-tests"', gate)
 
     def test_android_seam_is_a_thin_view_and_holds_no_session(self):
         """Stage 2 uses the supported AbstractComposeView extension point."""

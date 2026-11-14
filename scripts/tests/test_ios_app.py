@@ -22,7 +22,6 @@ PALETTE = (SOURCES / "ForestPalette.swift").read_text(encoding="utf-8")
 KIT = IOS / "Sources/OfflineOTPKit"
 UTILITIES = ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities"
 ANDROID_VALUES = ROOT / "app/src/main/res/values"
-FOREST = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/ForestTheme.kt"
 WORKFLOW = (ROOT / ".github/workflows/ios.yml").read_text(encoding="utf-8")
 
 
@@ -114,7 +113,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_palette_is_the_shared_dark_forest(self):
         """Every token the app draws with comes from the same numbers as the desktop theme."""
-        forest = FOREST.read_text(encoding="utf-8")
+        forest = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt").read_text()
         tokens = {
             "BACKGROUND": "background",
             "BACKGROUND_DEEP": "backgroundDeep",
@@ -135,10 +134,9 @@ class IosAppTest(unittest.TestCase):
             "OTP_AMBER_MUTED": "otpAmberMuted",
         }
         for kotlin_name, swift_name in tokens.items():
-            kotlin = re.search(
-                rf"val {kotlin_name} = ColorUIResource\(0x([0-9A-Fa-f]{{2}}), "
-                rf"0x([0-9A-Fa-f]{{2}}), 0x([0-9A-Fa-f]{{2}})\)", forest)
-            self.assertIsNotNone(kotlin, f"{kotlin_name} missing from ForestTheme")
+            palette_name = {"thumbnail": "thumbnailBackground"}.get(swift_name, swift_name)
+            kotlin = re.search(rf"val {palette_name} = Color\(0xFF([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})\)", forest)
+            self.assertIsNotNone(kotlin, f"{palette_name} missing from Compose palette")
             red, green, blue = (int(group, 16) for group in kotlin.groups())
             expected = (f"public static let {swift_name} = Color(red: 0x{red:02X} / 255, "
                         f"green: 0x{green:02X} / 255, blue: 0x{blue:02X} / 255)")
@@ -275,11 +273,6 @@ class IosAppTest(unittest.TestCase):
 
     def test_an_edit_keeps_the_metadata_the_form_does_not_show(self):
         draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
-        dialog = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/"
-                  "EntryDialog.kt").read_text(encoding="utf-8")
-        for field in ("setDetailsVisible", "setLastUsed", "setUsedFrequency"):
-            self.assertIn(f"replacement.{field}(existing", dialog)
-            self.assertIn(f"result.{field}(existing", draft)
 
     def test_the_views_do_not_compute_codes_or_touch_files(self):
         """A view asks the store or the format layer; it never reimplements either."""
@@ -424,10 +417,6 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("replace ? fresh : fresh + current", swift)
         self.assertIn("Set(merged).count == merged.count", swift)
         # The summary is the desktop's sentence, because Android's toast says only "Backup restored."
-        dialogs = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/"
-                   "BackupDialogs.kt").read_text(encoding="utf-8")
-        self.assertIn('"Merged $count new entr', dialogs)
-        self.assertIn('"The backup had no entries the vault does not already hold."', dialogs)
         wording = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
         self.assertIn("Merged \\(plan.added) new \\(noun) into the vault", wording)
         self.assertIn("The backup had no entries the vault does not already hold.", wording)

@@ -23,6 +23,51 @@ class EmailMaterialTest {
         "person@example.org", "incoming secret", 0,
         "smtp.example.org", 465, 0, "person@example.org", "outgoing secret", 0)
 
+    @Test fun detailsIdentifyEverySenderWithoutExposingCredentialsOrMutatingRecords() {
+        val source = sample()
+        val alias = JSONObject(source.identity.toString()).put("name", "Alternate")
+            .put("email", "alias@example.org").put("primary", false).put("password", "alias-token")
+        val account = EmailMaterial.Account(source.account, listOf(source.identity, alias))
+        val before = account.identities.map { it.toString() }
+        val masked = EmailMaterial.details(account, false)
+        fun value(label: String) = masked.single { it.label == label }.value
+        assertEquals("Work", value("Outgoing (SMTP) sender name"))
+        assertEquals("person@example.org", value("Outgoing (SMTP) sender address"))
+        assertEquals("Yes", value("Outgoing (SMTP) primary identity"))
+        assertEquals("Alternate", value("Outgoing (SMTP) #2 sender name"))
+        assertEquals("alias@example.org", value("Outgoing (SMTP) #2 sender address"))
+        assertEquals("No", value("Outgoing (SMTP) #2 primary identity"))
+        assertEquals(3, masked.count { it.secret })
+        assertTrue(masked.filter { it.secret }.all { it.value == EmailMaterial.SECRET_MASK })
+        assertTrue(masked.none { it.value in listOf("incoming secret", "outgoing secret", "alias-token") })
+        val revealed = EmailMaterial.details(account, true)
+        assertEquals(masked.filter { !it.secret }, revealed.filter { !it.secret })
+        assertEquals("alias-token", revealed.single { it.label == "Outgoing (SMTP) #2 password" }.value)
+        assertEquals(before, account.identities.map { it.toString() })
+    }
+
+    @Test fun detailsHonorLegacyTransportFlagsAndExplicitModernPrecedence() {
+        val incoming = JSONObject().put("name", "Legacy").put("pop", true).put("starttls", true)
+            .put("password", "incoming-secret")
+        val outgoing = JSONObject().put("email", "legacy@example.org").put("starttls", true)
+            .put("password", "outgoing-secret")
+        val account = EmailMaterial.Account(incoming, listOf(outgoing))
+        val before = incoming.toString() to outgoing.toString()
+        val legacy = EmailMaterial.details(account, false)
+        assertEquals("STARTTLS", legacy.single { it.label == "Incoming (POP) encryption" }.value)
+        assertEquals("STARTTLS", legacy.single { it.label == "Outgoing (SMTP) encryption" }.value)
+        assertTrue(legacy.filter { it.secret }.all { it.value == EmailMaterial.SECRET_MASK })
+        assertEquals(before, incoming.toString() to outgoing.toString())
+        incoming.put("protocol", 0).put("encryption", 0)
+        outgoing.put("encryption", 2)
+        val modern = EmailMaterial.details(account, false)
+        assertEquals("SSL", modern.single { it.label == "Incoming (IMAP) encryption" }.value)
+        assertEquals("None", modern.single { it.label == "Outgoing (SMTP) encryption" }.value)
+        incoming.put("protocol", 7).put("encryption", 8)
+        val unknown = EmailMaterial.details(account, false)
+        assertEquals("Unknown (8)", unknown.single { it.label == "Incoming (Unknown (7)) encryption" }.value)
+    }
+
     @Test fun accountCredentialsRoundTripThroughEncryptedVaultJson() {
         val source = sample()
         val entry = Entry.email(source.account, source.identity)

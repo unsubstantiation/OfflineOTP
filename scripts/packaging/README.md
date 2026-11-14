@@ -1,21 +1,21 @@
 # Desktop packaging and release
 
-The desktop client is a pure-JVM Swing application. Two Gradle outputs matter for releases:
+The default desktop client is Compose Multiplatform; Swing has been removed. Real runtime and release validation remain outstanding (see `docs/compose-desktop-cutover.md`). Two Gradle outputs matter for releases:
 
-- `./gradlew :desktop:distZip` (and `installDist`) from the standard `application` plugin — a
-  platform-independent distribution with launcher scripts and all dependency jars.
-- `./gradlew packageDesktop` — a native, installable app image produced by the JDK's
+- `./gradlew :desktop-compose:distZip` (and `installDist`) from the standard `application` plugin — a
+  host-specific distribution (Compose/Skiko native artifacts follow the build OS) with launcher scripts and all dependency jars.
+- `./gradlew :desktop-compose:packageDesktop` — a native, installable app image produced by the JDK's
   [`jpackage`](https://docs.oracle.com/en/java/javase/17/jpackage/packaging-tool-user-guide.pdf).
 
 ## Requirements
 
 - A **full JDK 17 or newer**. `jpackage` is not part of a JRE and is absent from stripped
-  runtimes; the `packageDesktop` task detects this and skips itself rather than failing the build.
+  runtimes; the `packageDesktop` task detects this and fails explicitly if jpackage is unavailable.
 - Platform installers are produced per operating system: run the task on Windows for `.msi`/`.exe`,
   macOS for `.pkg`/`.app`, and Linux for `.deb`/`.rpm`. The default task builds an `app-image`
   (no packager-specific toolchain required); pass `--type` through project properties when
   extending it to native installers.
-- On macOS the result is `desktop/build/release/OfflineOTP.app`. jpackage ad-hoc signs it, so it
+- On macOS the result is `desktop-compose/build/release/OfflineOTP.app`. jpackage ad-hoc signs it, so it
   starts locally but needs **right-click → Open** after a download until it is signed with an Apple
   Developer ID. Pass `-PmacIconFile=/path/to/offlineotp.icns` to give the bundle an icon; the `.icns`
   is deliberately not in the repository (`iconutil` builds it from `offlineotp.png`, which is what
@@ -26,7 +26,7 @@ The desktop client is a pure-JVM Swing application. Two Gradle outputs matter fo
 
 ## Application icons
 
-The Swing window loads its icon from `desktop/src/main/resources/offlineotp.png`, which is also
+Shared packaging artwork is stored at `desktop/src/main/resources/offlineotp.png`, which is also
 used by jpackage on Linux. Windows jpackage uses `desktop/packaging/offlineotp.ico`, containing
 multiple sizes for Explorer and the launcher. Both are generated from the same approved artwork
 as the Android icons; regenerate them with `python scripts/branding/generate_icons.py` (Pillow
@@ -47,7 +47,7 @@ unpacked archives) or point `-Dofflineotp.home` at one.
 
 ## Reproducible builds
 
-`verify-desktop-build.sh` builds `:desktop:distZip` twice from independent source trees and
+`verify-desktop-build.sh` builds `:desktop-compose:distZip` twice from independent source trees and
 Gradle homes with all caches disabled, then compares the archives byte-for-byte. The build
 configures `preserveFileTimestamps = false` and `reproducibleFileOrder = true` on every archive
 task, and the checked-in golden interop blobs under `desktop/src/test/resources/golden/` are
@@ -75,3 +75,5 @@ Gradle cannot run in the offline sandbox, so release packaging is structurally g
   tests under `-Djava.awt.headless=true`.
 - `scripts/tests/test_desktop_packaging.py` pins the Gradle packaging configuration, the
   reproducibility script and the CI script so the release wiring cannot silently disappear.
+
+No Swing fallback is built. Rollback requires a previously validated release and a backup; do not run two processes against one vault.

@@ -48,13 +48,15 @@ object OpenPgpBackupCodec {
         require(recipientKeyBlocks.none { it.isEmpty() }) { "An OpenPGP recipient key block is empty" }
 
         val plainBytes = plain.toByteArray(Charsets.UTF_8)
-        // Match the password vault/backup headroom rule: stay inside the bounded document window.
-        require(plainBytes.size <= BoundedInputReader.MAX_DOCUMENT_BYTES - 64) { "OpenPGP backup too large" }
-
-        val message = port.encrypt(plainBytes, recipientKeyBlocks)
-        require(message.isNotEmpty()) { "OpenPGP provider returned no output" }
-        require(message.size <= BoundedInputReader.MAX_DOCUMENT_BYTES) { "OpenPGP message exceeds size limit" }
-        return message
+        try {
+            require(plainBytes.size <= BoundedInputReader.MAX_DOCUMENT_BYTES - 64) { "OpenPGP backup too large" }
+            val message = port.encrypt(plainBytes, recipientKeyBlocks)
+            if (message.isEmpty() || message.size > BoundedInputReader.MAX_DOCUMENT_BYTES) {
+                message.fill(0)
+                throw IllegalArgumentException("OpenPGP provider output is empty or oversized")
+            }
+            return message
+        } finally { plainBytes.fill(0) }
     }
 
     /**
@@ -70,8 +72,11 @@ object OpenPgpBackupCodec {
         require(secretKeyBlock.isNotEmpty()) { "Missing OpenPGP secret key" }
 
         val plainBytes = port.decrypt(message, secretKeyBlock, passphrase)
-        val document = String(plainBytes, Charsets.UTF_8)
-        require(OpenPgpOutputPolicy.hasContent(document)) { "OpenPGP provider returned blank content" }
-        return document
+        try {
+            require(plainBytes.size <= BoundedInputReader.MAX_DOCUMENT_BYTES) { "OpenPGP plaintext exceeds size limit" }
+            val document = String(plainBytes, Charsets.UTF_8)
+            require(OpenPgpOutputPolicy.hasContent(document)) { "OpenPGP provider returned blank content" }
+            return document
+        } finally { plainBytes.fill(0) }
     }
 }

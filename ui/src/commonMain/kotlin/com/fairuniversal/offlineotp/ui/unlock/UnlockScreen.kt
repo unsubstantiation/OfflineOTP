@@ -32,8 +32,8 @@ import com.fairuniversal.offlineotp.ui.vault.VaultStrings
  *
  * The typed password lives in a `remember { mutableStateOf(...) }` and deliberately **not** in
  * `rememberSaveable`: process death must return to a closed vault, never to a filled field. The
- * composable keeps the text after a failed attempt so the user can correct a typo; on success the
- * host replaces the screen and the state leaves composition with it.
+ * composable clears the field before handing off an attempt. Failure requires re-entry, rather
+ * than retaining the password in UI state during background work. JVM strings cannot be zeroized.
  *
  * Nothing is decided here. [onSubmit] hands the password to the host's own unlock path (Android's
  * `VaultSession`, the desktop's `VaultController`), which owns the rate limiting, key derivation and
@@ -46,7 +46,8 @@ fun UnlockScreen(
     modifier: Modifier = Modifier,
     error: String? = null,
     busy: Boolean = false,
-    hint: String? = null
+    hint: String? = null,
+    onHardwareUnlock: (() -> Unit)? = null
 ) {
     var password by remember { mutableStateOf("") }
     val canSubmit = !busy && password.isNotEmpty()
@@ -63,6 +64,7 @@ fun UnlockScreen(
             Text(text = strings.unlockTitle, style = ForestType.body, color = ForestPalette.textSecondary)
             OutlinedTextField(
                 value = password,
+                enabled = !busy,
                 onValueChange = { password = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -76,11 +78,17 @@ fun UnlockScreen(
             if (hint != null) {
                 Text(text = hint, style = ForestType.label, color = ForestPalette.textHint)
             }
+            if (onHardwareUnlock != null) ForestTextAction(text = "Unlock with security key", enabled = !busy,
+                onClick = { password = ""; onHardwareUnlock() })
             Spacer(modifier = Modifier.height(4.dp))
             ForestTextAction(
                 text = if (busy) strings.unlocking else strings.unlockAction,
                 enabled = canSubmit,
-                onClick = { onSubmit(password) }
+                onClick = {
+                    val submitted = password
+                    password = ""
+                    onSubmit(submitted)
+                }
             )
         }
     }

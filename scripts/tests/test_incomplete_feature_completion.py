@@ -65,10 +65,6 @@ class AndroidRemovalPromptNamesTheEntryTest(unittest.TestCase):
         self.assertIn("fun privacyTitle(): String = label.ifBlank { issuer }", entry)
 
     def test_the_other_clients_already_fall_back_to_the_issuer(self):
-        desktop = (
-            ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainScreen.kt"
-        ).read_text(encoding="utf-8")
-        self.assertIn("val name = label.ifBlank { issuer }", desktop)
         ios = (ROOT / "ios/App/Sources/VaultStore.swift").read_text(encoding="utf-8")
         self.assertIn("public static func displayName(_ entry: Entry) -> String", ios)
         self.assertIn('return issuer.isEmpty ? "this entry" : issuer', ios)
@@ -93,10 +89,6 @@ class IosTagChipsShowCountsTest(unittest.TestCase):
         adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/TagsAdapter.kt")\
             .read_text(encoding="utf-8")
         self.assertIn('checkedTextView.setText(if (count != null) "$tag ($count)" else tag)', adapter)
-        dialog = (
-            ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/TagDialog.kt"
-        ).read_text(encoding="utf-8")
-        self.assertIn('JCheckBox("$name (${counts.getValue(name)})"', dialog)
 
 
 class AndroidBiometricWordingIsTranslatableTest(unittest.TestCase):

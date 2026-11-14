@@ -96,15 +96,19 @@ class HardwareKeyManager(
             val commandState = CommandState().also { token.addCancelHook(it::cancel) }
             HardwareFidoClient.enroll(device, pin, commandState, permitted).use { enrollment ->
                 if (!permitted()) throw IllegalStateException("Canceled")
-                val raw = vaultKey.encoded ?: throw IllegalStateException("Vault key is not exportable")
-                val keyBytes = raw.clone()
+                val keyBytes = vaultKey.encoded ?: throw IllegalStateException("Vault key is not exportable")
                 try {
                     val envelope = HardwareUnlockEnvelope.seal(
                         enrollment.credentialId, enrollment.salt, enrollment.prf, keyBytes)
                     val recovered = HardwareUnlockEnvelope.open(envelope, enrollment.prf)
-                    if (recovered == null || !MessageDigest.isEqual(recovered, keyBytes)) {
-                        throw IllegalStateException("Hardware enrollment verification failed")
-                    }
+                    try {
+                        if (recovered == null || !MessageDigest.isEqual(recovered, keyBytes)) {
+                            throw IllegalStateException("Hardware enrollment verification failed")
+                        }
+                    } finally { recovered?.fill(0) }
+                    // Device work and verification can outlive a canceled UI request. Do not
+                    // replace the local enrollment after that cancellation has been observed.
+                    if (!permitted()) throw IllegalStateException("Canceled")
                     if (!unlockStore.writeEnvelope(envelope)) {
                         throw IllegalStateException("Hardware envelope persistence failed")
                     }
@@ -114,11 +118,10 @@ class HardwareKeyManager(
             }
         }
 
-    fun removeEnrollment(): Boolean {
-        if (unlockStore.readEnvelope() == null) return false
-        unlockStore.removeEnvelope()
-        return true
-    }
+    fun removeEnrollment(): Boolean = try {
+        if (unlockStore.readEnvelope() == null) false
+        else { unlockStore.removeEnvelope(); true }
+    } catch (_: Exception) { false }
 
     /**
      * Recovers the vault key from the enrolled envelope and the key's PRF. The returned key owns

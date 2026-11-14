@@ -104,6 +104,10 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Generate the application icon
         shell: bash
         run: |
@@ -129,8 +133,8 @@ jobs:
           set -euo pipefail
           # -PmacIconFile keeps the generated icon out of the source tree; the task falls back to
           # the default icon when the property is absent (a plain local build).
-          ./gradlew --no-daemon :desktop:packageDesktop -PmacIconFile="$PWD/build/offlineotp.icns"
-          APP=desktop/build/release/OfflineOTP.app
+          ./gradlew --no-daemon :desktop-compose:packageDesktop -PmacIconFile="$PWD/build/offlineotp.icns"
+          APP=desktop-compose/build/release/OfflineOTP.app
           test -d "$APP"
           test -x "$APP/Contents/MacOS/OfflineOTP"
           # The declared entry point has to survive into the bundle, or the app cannot start.
@@ -140,7 +144,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APP=desktop/build/release/OfflineOTP.app
+          APP=desktop-compose/build/release/OfflineOTP.app
           # jpackage ad-hoc signs the app image; if the toolchain ever stops doing that, sign it
           # ad-hoc here so the bundle is self-consistent instead of failing verification.
           if ! codesign --verify --strict "$APP" 2>/dev/null; then
@@ -156,7 +160,7 @@ jobs:
           # ditto, not zip: it preserves the bundle's symlinks, executable bits and resource forks
           # that a plain zip would flatten into an unusable .app.
           ditto -c -k --sequesterRsrc --keepParent \
-            desktop/build/release/OfflineOTP.app artifacts/OfflineOTP-macos-arm64.zip
+            desktop-compose/build/release/OfflineOTP.app artifacts/OfflineOTP-macos-arm64.zip
           # Smoke-test the archive itself: a bundle that lost its launcher is a broken download.
           mkdir -p build/unpacked
           ditto -x -k artifacts/OfflineOTP-macos-arm64.zip build/unpacked

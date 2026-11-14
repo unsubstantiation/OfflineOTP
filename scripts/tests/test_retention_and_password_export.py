@@ -133,15 +133,6 @@ class BrowserPasswordExportTest(unittest.TestCase):
         constants = read(CORE / "Constants.kt")
         self.assertIn("INTENT_MAIN_PASSWORD_CSV_EXPORT = 113", constants)
 
-    def test_desktop_offers_the_same_edit_and_export(self):
-        window = read(DESKTOP / "ui/MainWindow.kt")
-        self.assertIn('"Edit password…"', window)
-        self.assertIn('"Export as browser CSV…"', window)
-        self.assertIn('"Export passwords as browser CSV…"', window)
-        self.assertIn("PasswordCsvExport.support(entry) is PasswordCsvExport.Support.Exportable", window)
-        dialogs = read(DESKTOP / "ui/PasswordImportDialogs.kt")
-        self.assertIn("fun edit(parent: JFrame, entry: Entry): Entry?", dialogs)
-        self.assertIn("fun exportCsv(parent: JFrame, entries: List<Entry>", dialogs)
 
     def test_ios_edits_in_place_and_exports_one_entry(self):
         details = read(IOS_APP / "CredentialDetailViews.swift")

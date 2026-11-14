@@ -19,7 +19,7 @@ class VaultPresenter(
     private val projection: VaultProjection,
     initialFilter: VaultFilter,
     val strings: VaultStrings = VaultStrings.English,
-    val appearance: VaultAppearance = VaultAppearance(),
+    appearance: VaultAppearance = VaultAppearance(),
     /** Puts a code on the clipboard. Receives digits only; null leaves Copy doing nothing. */
     private val copyCode: ((String) -> Unit)? = null,
     /** Advances an HOTP counter and persists it. Null hides the action. */
@@ -34,12 +34,23 @@ class VaultPresenter(
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
     private val lockVault: (() -> Unit)? = null,
-    private val onChange: (() -> Unit)? = null
+    private val onChange: (() -> Unit)? = null,
+    private val addEntry: (() -> Unit)? = null,
+    private val editEntry: ((VaultCardState) -> Unit)? = null
 ) {
 
     /** The selection currently shown. Change it through the [actions], never by assigning here. */
     var filter: VaultFilter = initialFilter
         private set
+
+    var appearance: VaultAppearance = appearance
+        private set
+
+    fun setCardLayout(layout: Constants.CardLayouts) {
+        if (locked) return
+        appearance = appearance.copy(cardLayout = layout)
+        onChange?.invoke()
+    }
 
     private val revealed = LinkedHashSet<Long>()
     private var locked = false
@@ -95,8 +106,59 @@ class VaultPresenter(
     }
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
-    fun actions(): VaultActions = VaultActions(
-        onCopyToken = { card -> copyToken(card) },
+    fun actions(copyEntry: ((VaultCardState) -> Unit)? = null,
+                moveEntry: ((VaultCardState, Int) -> Unit)? = null,
+                configureAutoLock: (() -> Unit)? = null,
+                exportEncrypted: (() -> Unit)? = null,
+                restoreEncrypted: (() -> Unit)? = null,
+                importUri: (() -> Unit)? = null,
+                importPasswords: (() -> Unit)? = null,
+                importEmail: (() -> Unit)? = null,
+                viewEmailDetails: ((VaultCardState) -> Unit)? = null,
+                configureLayout: (() -> Unit)? = null,
+                importLinScp: (() -> Unit)? = null,
+                exportLinScp: (() -> Unit)? = null,
+                importOpenPgp: (() -> Unit)? = null,
+                exportOpenPgp: (() -> Unit)? = null,
+                enrollHardwareUnlock: (() -> Unit)? = null,
+                removeHardwareUnlock: (() -> Unit)? = null,
+                hardwareCopy: (() -> Unit)? = null,
+                hardwareOath: (() -> Unit)? = null,
+                storageLocation: (() -> Unit)? = null,
+                changePassword: (() -> Unit)? = null,
+                exportArchives: (() -> Unit)? = null,
+                exportPasswords: (() -> Unit)? = null,
+                exportEmail: (() -> Unit)? = null,
+                exportPreferences: (() -> Unit)? = null,
+                importPreferences: (() -> Unit)? = null): VaultActions = VaultActions(
+        onImportPreferences = importPreferences,
+        onEnrollHardwareUnlock = enrollHardwareUnlock,
+        onRemoveHardwareUnlock = removeHardwareUnlock,
+        onHardwareCopy = hardwareCopy,
+        onHardwareOath = hardwareOath,
+        onStorageLocation = storageLocation,
+        onChangePassword = changePassword,
+        onExportArchives = exportArchives,
+        onExportPasswords = exportPasswords,
+        onExportEmail = exportEmail,
+        onExportPreferences = exportPreferences,
+        onExportOpenPgp = exportOpenPgp,
+        onImportOpenPgp = importOpenPgp,
+        onExportLinScp = exportLinScp,
+        onImportLinScp = importLinScp,
+        onConfigureLayout = configureLayout,
+        onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },
+        onImportEmail = importEmail,
+        onImportPasswords = importPasswords,
+        onImportUri = importUri,
+        onRestoreEncrypted = restoreEncrypted,
+        onExportEncrypted = exportEncrypted,
+        onConfigureAutoLock = configureAutoLock,
+        onMoveUp = moveEntry?.let { move -> { card -> move(card, -1) } },
+        onMoveDown = moveEntry?.let { move -> { card -> move(card, 1) } },
+        onAddEntry = addEntry,
+        onEditEntry = editEntry?.let { edit -> { card -> if (card.id in revealed) edit(card) } },
+        onCopyToken = { card -> if (copyEntry != null) copyEntry(card) else copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter,
         onEntryActions = entryActions,

@@ -46,7 +46,7 @@ class DesktopHardwareUnlockStore(directory: File) : HardwareUnlockStoragePort {
 
     @Synchronized
     override fun removeEnvelope() {
-        file.delete()
+        java.nio.file.Files.deleteIfExists(file.toPath())
     }
 
     companion object {

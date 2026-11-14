@@ -18,6 +18,267 @@ import org.junit.Test
  */
 class VaultPresenterTest {
 
+    @Test
+    fun preferencesImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportPreferences)
+        var calls = 0
+        val actions = presenter.actions(importPreferences = { calls++ })
+        actions.onImportPreferences?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportPreferences?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun preferencesExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportPreferences)
+        var calls = 0
+        val actions = presenter.actions(exportPreferences = { calls++ })
+        actions.onExportPreferences?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onExportPreferences?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun openPgpExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportOpenPgp)
+        var calls = 0
+        val actions = presenter.actions(exportOpenPgp = { calls++ })
+        actions.onExportOpenPgp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onExportOpenPgp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun openPgpImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportOpenPgp)
+        var calls = 0
+        val actions = presenter.actions(importOpenPgp = { calls++ })
+        actions.onImportOpenPgp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportOpenPgp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun linScpExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportLinScp)
+        var calls = 0
+        val actions = presenter.actions(exportLinScp = { calls++ })
+        actions.onExportLinScp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onExportLinScp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun linScpImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportLinScp)
+        var calls = 0
+        val actions = presenter.actions(importLinScp = { calls++ })
+        actions.onImportLinScp?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportLinScp?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun changingCardLayoutPreservesRevealAndFilterAndStopsAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS))
+        val card = presenter.frame(0L).cards.single()
+        presenter.toggleReveal(card.id)
+        val filter = presenter.filter
+        assertNull(presenter.actions().onConfigureLayout)
+        var opens = 0
+        val actions = presenter.actions(configureLayout = { opens++ })
+        actions.onConfigureLayout?.invoke()
+        presenter.setCardLayout(Constants.CardLayouts.FULL)
+        assertEquals(Constants.CardLayouts.FULL, presenter.appearance.cardLayout)
+        assertEquals(filter, presenter.filter)
+        assertTrue(presenter.frame(0L).cards.single().revealed)
+        presenter.lock()
+        presenter.setCardLayout(Constants.CardLayouts.COMPACT)
+        actions.onConfigureLayout?.invoke()
+        assertEquals(Constants.CardLayouts.FULL, presenter.appearance.cardLayout)
+        assertEquals(1, opens)
+        entry.destroy()
+    }
+
+    @Test
+    fun emailDetailsRequiresLiveRevealAndIsTerminalAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS))
+        assertNull(presenter.actions().onViewEmailDetails)
+        var calls = 0
+        val actions = presenter.actions(viewEmailDetails = { calls++ })
+        val card = presenter.frame(0L).cards.single().copy(kind = VaultEntryKind.EMAILS)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(0, calls)
+        presenter.toggleReveal(card.id)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        actions.onViewEmailDetails?.invoke(card.copy(kind = VaultEntryKind.OTP))
+        assertEquals(1, calls)
+        presenter.toggleReveal(card.id)
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onViewEmailDetails?.invoke(card)
+        assertEquals(1, calls)
+        entry.destroy()
+    }
+
+    @Test
+    fun emailImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportEmail)
+        var calls = 0
+        val actions = presenter.actions(importEmail = { calls++ })
+        actions.onImportEmail?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportEmail?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun passwordImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportPasswords)
+        var calls = 0
+        val actions = presenter.actions(importPasswords = { calls++ })
+        actions.onImportPasswords?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportPasswords?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun uriImportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onImportUri)
+        var calls = 0
+        val actions = presenter.actions(importUri = { calls++ })
+        actions.onImportUri?.invoke()
+        assertEquals(1, calls)
+        presenter.lock()
+        actions.onImportUri?.invoke()
+        assertEquals(1, calls)
+    }
+
+    @Test
+    fun encryptedRestoreIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onRestoreEncrypted)
+        var restores = 0
+        val actions = presenter.actions(restoreEncrypted = { restores++ })
+        actions.onRestoreEncrypted?.invoke()
+        assertEquals(1, restores)
+        presenter.lock()
+        actions.onRestoreEncrypted?.invoke()
+        assertEquals(1, restores)
+    }
+
+    @Test
+    fun encryptedExportIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onExportEncrypted)
+        var exports = 0
+        val actions = presenter.actions(exportEncrypted = { exports++ })
+        actions.onExportEncrypted?.invoke()
+        assertEquals(1, exports)
+        presenter.lock()
+        actions.onExportEncrypted?.invoke()
+        assertEquals(1, exports)
+    }
+
+    @Test
+    fun autoLockSettingsActionIsOptionalAndTerminalAfterLock() {
+        val list = EntryList()
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())
+        assertNull(presenter.actions().onConfigureAutoLock)
+        var opens = 0
+        val actions = presenter.actions(configureAutoLock = { opens++ })
+        actions.onConfigureAutoLock?.invoke()
+        assertEquals(1, opens)
+        presenter.lock()
+        actions.onConfigureAutoLock?.invoke()
+        assertEquals(1, opens)
+    }
+
+    @Test
+    fun hostCopyOverridesDisplayStringCopyAndIsTerminalAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        var rawCopies = 0
+        var boundCopies = 0
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS), copyCode = { rawCopies++ })
+        val card = presenter.frame(0L).cards.single()
+        val actions = presenter.actions(copyEntry = { assertTrue(it === card); boundCopies++ })
+        actions.onCopyToken(card)
+        assertEquals(1, boundCopies)
+        assertEquals(0, rawCopies)
+        presenter.lock()
+        actions.onCopyToken(card)
+        assertEquals(1, boundCopies)
+        entry.destroy()
+    }
+
+    @Test
+    fun editingRequiresCurrentRevealAndBecomesInertAfterLock() {
+        val entry = totp("Example", "alice")
+        val list = EntryList().apply { addEntry(entry) }
+        var edits = 0
+        val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            editEntry = { edits++ })
+        val actions = presenter.actions()
+        val card = presenter.frame(0L).cards.single()
+        actions.onEditEntry?.invoke(card)
+        assertEquals(0, edits)
+        presenter.toggleReveal(card.id)
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        presenter.toggleReveal(card.id)
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        presenter.toggleReveal(card.id)
+        presenter.lock()
+        actions.onEditEntry?.invoke(card)
+        assertEquals(1, edits)
+        entry.destroy()
+    }
+
     private val secret = "JBSWY3DPEHPK3PXP"
 
     private fun totp(issuer: String, label: String, tags: List<String> = emptyList()) =

@@ -1,3 +1,8 @@
+> **Current desktop status:** User-approved default launcher/release cutover to Compose.
+> Swing UI and fallback tasks have now been removed at user request. Historical stage notes below describe earlier
+> states; device/runtime/packaging validation is still pending. See
+> [cutover ledger](compose-desktop-cutover.md). No feature-parity or validated-release claim.
+
 # Unified Compose Multiplatform UI
 
 > **Current status:** Android `MainActivity` now displays `VaultComposeView`/the shared Compose
@@ -208,10 +213,10 @@ through the state; otherwise the next refresh would have reset the user's tab.
 
 ### Stage 4 — desktop parity, then delete Swing
 
-The Compose desktop host gains the remaining features (add/edit/delete, backup/restore, OpenPGP,
-hardware keys, preferences, auto-lock, portable-location handling), then `desktop/src/main/.../ui`
+The Compose desktop host gains the remaining features (add/edit, backup/restore, OpenPGP,
+hardware keys, preferences, clipboard expiry, portable-location handling), then `desktop/src/main/.../ui`
 and the Swing entry point are deleted and `:desktop-compose` takes over the `:desktop` name. The
-engine (`control/`, `storage/`, `openpgp/`, `hardware/`) is untouched throughout.
+engine (`control/`, `storage/`, `openpgp/`, `hardware/`) remains shared; tested host-facing operations are added as needed.
 
 ### Stage 5 — iOS (out of scope)
 
@@ -567,3 +572,1226 @@ Only a completed successful emulator run is evidence of device-test success. A c
 source guard pass or sandbox compile is not. This focused gate does not replace the full connected
 suite, manual accessibility/visual review or release validation; both flavors on both API levels
 are also outside this small matrix.
+
+### Desktop replacement: session lifetime prerequisite
+
+The Compose desktop host now honors `savedInactivityLockSeconds()` using a Swing-free AWT
+scheduler and the shared `ScreenTimerController` through `DesktopSessionLifetime`. Input from
+the host window and its owned dialogs resets a live deadline; input after expiry locks rather
+than extending the session. Timeout closes the shared presenter/dialogs and destroys the owned
+vault state. Disposal removes the global input listener, invalidates pending timers and locks
+the presenter. Window-close explicitly clears the vault before exiting. Zero retains the existing
+disabled-timeout preference. The Compose preference editor is not implemented yet.
+
+Four headless policy tests cover expiry, rearming/stale timers, disabled/large timeouts and failing
+cleanup. Three additional tests execute real JDK AWT scheduling (not Compose stubs), including EDT
+delivery, cancellation and terminal close; `compile-ui.sh` now runs these after type-checking hosts.
+Real Compose window lifecycle/input delivery and operating-system suspend/resume still need
+display-backed validation. This does not switch the shipping launcher or remove Swing.
+
+Next desktop migration gates: add/edit forms and tag/thumbnail editing; persistence-aware copy and
+clipboard expiry; backup/restore/import/export including structured credentials; hardware-key and
+OpenPGP workflows; preferences/portable paths; then packaging/launcher cutover and Swing retirement.
+Unlock and persistence work also need asynchronous UI integration before shipping the Compose host.
+
+### Desktop replacement: manual entry creation
+
+The shared vault screen now exposes an optional guarded Add entry action; only the Compose desktop
+host supplies it (Android keeps its existing add flow). `ManualEntryDialog` collects TOTP, HOTP,
+Steam, mOTP, secure-note and SSH-key inputs, including tags, optional mOTP PIN and SSH connection
+metadata. Password/email imports remain separate workflows and are not offered as manual types.
+`ManualEntryInput` delegates construction/validation to `EntryDraft`, preserving Steam's fixed
+parameters and free-text notes. It redacts diagnostic output. Input is not saveable; secret fields
+are cleared before submission and after dismissal/type changes. Failed submissions require
+secret re-entry. Immutable JVM strings cannot be zeroized.
+
+`DesktopEntryCreation` binds submission to an exact dialog request and a live desktop state;
+dismissed/replaced requests and independently locked states cannot build or save an entry. It
+uses `EntryEditor.add` to persist before publication and destroys drafts that were not adopted.
+Pending creation is closed alongside other dialogs when the presenter locks. `DesktopVaultState`
+now exposes its terminal locked status for this boundary, without moving persistence into widgets.
+
+Tests cover all offered types, field clearing/redaction, add-action liveness, persistence/reopen,
+duplicates, failed/throwing saves and stale/locked requests. The form is type-checked with Compose
+stubs; layout, keyboard/focus behavior and scrolling require real runtime validation. This is
+add-only: existing-entry editing, tag/thumbnail editing, asynchronous persistence and the other
+desktop migration gates remain pending. The shipping launcher is unchanged.
+
+### Desktop replacement: editing existing manual-entry types
+
+Revealed OTP/note/SSH rows now offer Edit through the shared action contract. The presenter checks
+its current reveal set before opening, and the host checks it again on submission. Password/archive
+and email entries remain outside this form. `DesktopEntryEditing` binds the dialog to the actual
+entry object and exact request: removal, same-ID replacement, dismissal, type changes or terminal
+lock invalidate the operation. It delegates persistence/publication to `EntryEditor.replace`,
+destroys unadopted replacements, and leaves the original unchanged on rejected/failed writes.
+
+The shared form locks the type while editing and preloads metadata only. Blank secret/note/key,
+PIN, SSH password and protected-label fields mean keep the original; sensitive content is not
+preloaded into form state. Editing such values replaces them in full; clearing an existing PIN,
+SSH password or protected label is not yet offered. Metadata edits retain usage stamps, chosen
+artwork and persistent privacy; the existing replacement path preserves row ID and manual order.
+Successful replacement drops the old transient reveal state. Tags can be changed in the form;
+a dedicated tag/thumbnail picker remains pending.
+
+Tests cover secret/metadata preservation, fixed types, reveal guards, persist/reopen, failed and
+throwing saves, stale requests and same-ID replacements. Real Compose editing, focus/scrolling,
+async IO and the remaining desktop workflows still need validation/migration before launcher
+cutover. No Swing renderer was removed in this increment.
+
+### Desktop replacement: thumbnail selection
+
+The shared manual-entry form now includes a searchable catalog picker, supplied with the host's
+existing `VaultArtwork` loader. A bounded-height lazy list loads previews for composed choices,
+with memoization keyed by provider/name. Search is case-insensitive and does not persist. The
+picker offers explicit `Default` (letter tile), automatic issuer selection on creation, or keeping
+the original artwork while editing. Returning from the picker without choosing leaves the draft
+unchanged; canceling the form never writes a thumbnail. Save is disabled while browsing choices.
+
+`ManualEntryInput.thumbnailName` is a nullable, validated catalog choice. Null preserves the
+original on edit or leaves the constructor's automatic choice on creation. An explicit choice
+overrides that behavior only on the detached candidate, using the existing add/replace persistence
+path. Secret-field clearing and type switches retain the selected thumbnail. Tests cover the
+three selection modes, invalid names, original-entry isolation, save/reopen and failed-write
+preservation. The picker still needs real Compose focus, scrolling and visual/accessibility tests.
+
+This completes the initial add/edit form's thumbnail selection, not the desktop cutover: structured
+credentials, clipboard behavior, backup/import/export, preferences, hardware/OpenPGP integration,
+async IO and packaging remain before the shipping Swing launcher can be retired.
+
+### Desktop replacement: persisted copying and clipboard expiry
+
+Compose now binds copy actions to exact frame-row and live-entry identities rather than copying
+displayed strings. Requests recheck current reveal/session authority and refresh time-based OTPs
+at copy time. Usage is persisted before any clipboard write; rejected writes roll back the usage
+metadata and return no secret. Static notes/passwords use the same path; SSH copying always
+explicitly chooses public key, private key or connection password, without showing values in the
+chooser. Persistent privacy flags are not temporarily mutated to grant Compose reveal authority.
+
+A session-owned, Swing-free clipboard lease expires after 30 seconds and clears on lock/disposal
+only when the current text still matches what this session copied. Recopy cancels the old lease;
+late callbacks cannot clear newer copies. Clipboard errors are surfaced without printing values.
+Clearing is best effort: busy/unavailable native clipboards and same-value writes by another app
+cannot be distinguished or atomically controlled through the desktop clipboard API.
+
+Headless tests cover live code refresh, persistence/reopen, usage rollback, original frame identity,
+same-ID replacement, hidden/locked/dismissed targets, SSH field selection, note whitespace and
+clipboard expiry/cancellation/errors. The native clipboard and Compose chooser still require
+display-backed validation; this is not the launcher cutover.
+
+### Desktop replacement: asynchronous unlock/create
+
+The Compose unlock screen now submits to a dedicated worker, with result adoption on the AWT
+thread. Duplicate submissions are rejected while an attempt or its UI delivery is pending. The
+password field is disabled while busy and cleared before handoff. Closing/disposal invalidates
+attempts, drops queued passwords and destroys unadopted loaded entries/keys; stale successful
+results cannot restore a session. Backend exceptions are reduced to an error enum, never shown
+verbatim. Adopted results belong to the new desktop session.
+
+Cancellation does not interrupt an in-flight atomic vault write: a canceled creation may finish
+writing the vault, but its result will not enter a closed UI. Immutable password strings cannot
+be zeroized while the backend is using them. Six deterministic worker/UI-queue tests cover success,
+serialization, close-before-start, close-after-result, close-during-backend, failures/retry and
+rejected dispatch. Real Compose busy/focus/close behavior still needs runtime validation. Unlock
+is asynchronous now; other persistence/import/export operations are not all migrated off the UI
+thread yet.
+
+### Desktop replacement: persisted manual ordering
+
+Unsorted/unfiltered Compose rows now expose up/down controls using the same `canDrag` policy and
+`EntryEditor.move` persistence path as Swing. Each callback binds the exact row instance, live
+entry and original adjacent entry. Filter/sort changes, replacement, lock or a changed neighbor
+reject stale moves rather than moving whatever now occupies an old row index. Failed writes
+leave the in-memory order unchanged. Tests cover persistence/reopen, stale neighbors, forged
+row values, changed filters/sorts, replacement, lock and failed writes. These are button-based
+controls, not touch dragging, and still need runtime interaction/accessibility validation.
+
+The migration remains incomplete. In particular: native backup/restore and import/export UI,
+structured password/email editing, preferences and portable-location controls, OpenPGP/hardware
+workflows, QR/platform integrations, background persistence beyond unlock, packaging/launcher
+switch and display-backed parity review remain before Swing removal is safe.
+
+### Desktop replacement: auto-lock preference control
+
+The Compose toolbar now offers an optional Auto-lock action. Its session-bound dialog uses the
+existing desktop choices (disabled, 30 seconds, 1/2/5/15 minutes) and preserves a custom imported
+value until the user changes it. Cancel never persists; stale/replaced/locked requests are rejected.
+A successful write updates the existing lifetime controller rather than recreating or locking the
+session. Overdue sessions cannot be revived by changing or disabling the timeout, even if a slow
+settings write crosses the deadline. In that case the stored preference may change, but the current
+session locks. Timers are started in the composition effect, not while a remembered owner is built.
+
+The controller now exposes a checked preference write, and DesktopSettings restores its in-memory
+cache after a failed write. This prevents a failed save from applying only until the next restart.
+Tests cover dialog identity/cancel, successful updates, failed writes, existing/custom/disabled
+values, expiry during writes, deferred/idempotent timer startup, reopen persistence and cache
+rollback. The shared action is also guarded after presenter lock. Runtime keyboard/accessibility
+and native window validation remain pending. This is the auto-lock preference, not the complete
+preferences/import/export UI or desktop launcher cutover.
+
+### Desktop replacement: password-encrypted backup export
+
+The Compose toolbar now offers encrypted export through a native AWT save picker and a shared
+masked password/confirmation dialog. Existing filenames are refused, including a file created
+after the picker closes: the writer uses `CREATE_NEW`, never truncate/replace. A selected filename
+is rechecked against session lifetime after the native modal event loop returns. No Swing dialog
+is used. Android retains its existing export flow.
+
+Submission serializes a detached full-vault snapshot on the UI thread, then uses the shared
+`EncryptedBackupCodec` on a worker to produce the Android-compatible password-encrypted format.
+The worker never borrows live entries or the vault key. UI password fields clear before handoff;
+immutable password/JSON strings cannot be zeroized while encryption uses them. Queued input is
+dropped on cancel/lock, ciphertext buffers are wiped after use, and stale UI completions are
+ignored. Lock state is volatile for cancellation checks; all entry access stays on the UI thread.
+
+The output is restricted before ciphertext is written (0600 on POSIX; inherited directory ACLs
+remain relevant elsewhere) and force-synced before success. Writing is exclusive, not a transactional
+replace: an interrupted/failed write can leave a partial encrypted file and the UI explicitly
+reports that risk. A write already authorized by the worker may finish after cancellation/lock.
+No plaintext backup is written and existing destinations are not deleted or overwritten.
+
+Tests exercise shared-codec round-trip, detached snapshot isolation, exclusive-create behavior,
+permissions, password validation, duplicate/stale requests, cancellation before and during
+encryption, independent lock, late delivery and failure cleanup. Native picker focus, Compose
+password/progress behavior and real Gradle/display validation remain pending. Restore/merge/replace
+UI and OpenPGP export are not part of this increment; the shipping launcher is still Swing.
+
+### Desktop replacement: password-encrypted restore
+
+Compose now offers a native AWT open picker and a masked password dialog followed by a separate
+confirmation step showing the decoded entry count. Merge is the default; replace is explicitly
+labeled as deleting all current entries. Picker return, decoding delivery and final confirmation
+check the current session/lifetime. Password drafts are cleared before worker submission. The
+worker uses bounded file reads and shared backup/JSON decoding; empty or duplicate-account
+backups are rejected. No worker accesses the live key or mutable live entries.
+
+Decoded entries remain owned by a cancellable task while UI delivery is queued, then by the
+request until confirmation. Cancel/close destroys pending entries immediately; late or rejected
+delivery destroys its unadopted result. The existing coordinator now accepts this ownership
+transfer and consumes entries on both success and failure. Merge plans against the current vault
+at confirmation, retaining existing accounts and their metadata. Persistence succeeds before live
+state is replaced; failed persistence preserves current entries. The final save remains synchronous
+on the UI thread, serialized with other mutations; asynchronous transactional persistence is still
+pending. A save crossing the inactivity deadline is not interruptible; the timer handles expiry
+when the event thread resumes. Immutable decoded JSON/password strings cannot be zeroized.
+
+Tests cover real encrypted backup decoding, confirmation, merge/replace and reopening, concurrent
+pre-confirmation additions, cancellation before work/during decoding/while delivery is queued,
+expired delivery, rejected dispatch, wrong passwords, malformed/empty/duplicate backups, and
+failed persistence. Shared action guards and both platform UI seams pass sandbox type checks.
+Real native picker, Compose rendering/accessibility and device validation remain outstanding;
+Swing remains the shipping UI. OpenPGP, QR, structured credentials and remaining preferences
+continue to be migration work.
+
+### Desktop replacement: explicit optional-secret removal
+
+The shared edit form now provides deliberate, undoable removal choices for mOTP PINs, SSH
+connection passwords and OTP protected labels. Blank fields continue to preserve existing values.
+Selecting removal clears/hides the corresponding draft text and displays the pending operation;
+undo restores the preserve behavior, not previously typed text. Only Save applies the change.
+Submission clears secret drafts and deletion intent, so a failed save requires selecting removal
+again. Creation/type switching never carries deletion intent. The model rejects removal on
+creation, inapplicable entry types and simultaneous replacement text plus removal.
+
+Tests cover preservation of original fields/key material, explicit removal, invalid/conflicting
+input, reset of retry intent, persistence/reopen, failed writes, and reveal/stale-request guards.
+No new secret is preloaded into the form. These changes use the existing replacement persistence
+path; native Compose visual/accessibility validation is still pending. This closes the optional
+PIN/password/protected-label clearing limitation, not structured-credential migration.
+
+### Desktop replacement: pasted OTP URI import
+
+The Compose toolbar now opens a shared masked URI form for `otpauth://` and
+`otpauth-migration://` payloads. It uses the existing coordinator/parser/collector and persistence
+path, not a second URI implementation. Draft text is bounded and cleared before submission or
+dismissal, never saveable, and parser messages/URIs are not echoed into result text. JVM immutable
+strings still cannot be zeroized. Parsing and saving remain synchronous on the UI thread.
+
+Additional accounts for existing issuers are excluded by default; an explicit option allows
+them while exact duplicates remain skipped. That policy is fixed when a migration batch starts.
+The dialog reports received/expected parts; only a completed batch can save. Duplicate parts,
+other exports and non-migration payloads cannot silently join the active batch. Cancel, lock and
+disposal discard buffered seeds; stale request identity and lifetime checks prevent delayed
+submissions. Results report the actual count added (which can be zero after duplicate/policy
+filtering). Failed persistence rolls back appended entries through the existing coordinator.
+
+Tests cover persisted single imports, duplicate policy, invalid and oversized inputs, stale/expired/
+locked requests, multi-part buffering, cancellation and frozen policy, and failed-write rollback.
+Shared UI/action guards and platform seams pass sandbox gates, not real rendering/accessibility
+validation. Native QR image decoding/camera capture and structured-credential imports remain
+separate work. Swing remains the shipping launcher.
+
+### Desktop replacement: QR image file import
+
+The OTP import dialog now offers a native image picker. A worker reads at most the shared document
+limit and delegates dimension/pixel limits and decoding to the existing `ZxingQrDecoder`. Decoded
+text is bounded by the URI limit, kept hidden, and requires an explicit Import action through the
+existing URI coordinator. Image selection alone never imports accounts. Multi-part migration
+images use the same batch ownership and fixed issuer policy as pasted payloads.
+
+A cancellable task owns the pending decoded string until guarded UI delivery; cancel, lock and
+disposal discard it. A ready payload can be consumed once or explicitly discarded. Submission
+clears the pasted draft, and the paste field is disabled while decoding or while an image result
+is ready. File bytes are wiped after decoding; immutable decoded strings and image-library
+buffers cannot be guaranteed zeroized. Dispatch rejection drops results but can leave the busy
+indicator until dismissal. Parsing/final persistence remain on the UI thread.
+
+Queue-based tests cover one-time consumption, duplicate submission, cancellation before/during/
+after work, expired/stale results, rejected scheduling/delivery and invalid/oversized output.
+A real ImageIO rejection test covers non-images; actual ZXing decoding remains stubbed in sandbox
+gates and needs Gradle/runtime validation. Native picker behavior and Compose rendering still
+need display-backed tests. No camera capture or launcher cutover is included.
+
+### Desktop replacement: imported password editing
+
+Compose now edits common imported password fields through the shared PasswordCsvExport builder.
+The password field starts empty, stays masked and clears before submission; blank preserves the
+stored password. URL and username may be changed or emptied. Notes, GUIDs, tags and other stored
+columns are preserved along with artwork/color and usage/visibility metadata. The existing
+identity-bound edit owner rejects stale/locked/hidden requests and destroys failed candidates.
+Only layouts with one canonical URL/username/password column and no conflicting editable aliases
+are offered; foreign layouts, archives and email account editing remain pending.
+
+Tests cover persistence/reopen, extra-column preservation, blank/new passwords, failed writes,
+reveal/lock/stale guards and excluded alias layouts. Form drafts are non-saveable and diagnostics
+redacted. Immutable strings cannot be zeroized. This does not add password file import/export or
+complete structured credential migration; real Compose runtime/accessibility validation and
+asynchronous persistence remain pending. Swing remains shipping.
+
+### Desktop replacement: browser password file import
+
+Compose now offers a native password-file picker and two import modes: individual credentials
+(default) or preservation of the original bytes as a password-archive entry. The dialog warns
+that the source contains plaintext and is neither deleted nor protected by import. It reports
+only a prepared item count, never file contents or credentials, and requires explicit confirmation
+before merging into the vault. The original file is not modified.
+
+Worker reads use the shared 4 MiB limit and PasswordImport parser/expansion bounds. Input bytes
+are wiped after parsing. Prepared entries are owned by a cancellable task while delivery is queued,
+then by the dialog request; cancellation, lock/disposal, stale delivery or rejected dispatch
+destroys unadopted entries. Confirmation checks lifetime and transfers ownership to EntryEditor,
+which deduplicates against current state, saves before publication and destroys failed/duplicate
+candidates. Final save remains synchronous on the UI thread. Immutable parser strings cannot
+be zeroized; rejected dispatch can leave the busy indicator until dismissal.
+
+Tests cover both modes through persistence/reopen, source-file preservation, duplicate handling,
+explicit confirmation, queued/ready cancellation, expired delivery, cancellation during decode,
+rejected dispatch, malformed CSV and failed persistence. Actual Compose/native-picker validation
+remains pending. Plaintext export of credentials/archives, foreign structured imports and email
+workflows remain incomplete; Swing remains shipping.
+
+### Desktop replacement: FairEmail backup import
+
+Compose now imports FairEmail plaintext JSON, gzip agent backups and encrypted exports through
+a native picker and a shared confirmation dialog. Blank password supports unencrypted input;
+nonblank passwords stay masked and are cleared before worker submission. The existing EmailAccounts
+parser and 8 MiB file limit remain authoritative. No credentials are rendered in the confirmation,
+only an account count. Confirmation merges through EntryEditor into current state, skipping
+identical entries, saving before publication and retaining existing accounts. Source files remain
+unchanged. Email creation/editing/details/export remain separate migration work.
+
+DesktopFileImport now owns the common browser-password/FairEmail lifecycle: queued inputs are
+released on cancel, worker results have explicit ownership, queued/ready results are destroyed
+on dismissal or close, and stale/expired delivery cannot install entries. Each format supplies
+its bounded decoder; both use the same UI-thread commit path. Password/JSON strings cannot be
+zeroized while in use. Final persistence is still synchronous and dispatch rejection may leave a
+busy indicator until dismissal.
+
+Tests cover plaintext, gzip and encrypted v0/v1 through vault reopen, incoming/SMTP credential
+preservation, unchanged source bytes, wrong-password retry, stale requests and cancellation
+before/after worker execution. Browser-password lifecycle regression tests remain green after
+extraction. Sandbox UI checks are not real Compose/native-picker validation. Swing still ships;
+remaining structured export, OpenPGP/hardware, preferences, async persistence and runtime/cutover
+work is not complete.
+
+### Desktop replacement: email connection details and password edit reachability
+
+Revealed email cards now offer Connection details through an optional host action. The read-only
+scrollable dialog uses EmailAccounts' shared incoming/SMTP identity rows, initially masking
+passwords. Show passwords is a separate deliberate action; both row generation and toggling
+check current presenter reveal, session liveness and exact Entry identity. Concealment, replacement,
+lock and dismissal invalidate the request. No rendered credential strings are retained by the
+owner or remembered by the form. Secrets displayed in immutable frame strings cannot be zeroized.
+Tests cover mask/show/hide, unchanged live entries, stale requests, replacement retaining an id,
+concealment and terminal close/lock. Native rendering and accessibility remain unvalidated.
+
+During integration, the previous password-edit form was found unreachable from cards because the
+shared button still allowed only OTP/note/SSH kinds. The desktop now supplies an explicit
+canEditPassword flag for revealed supported layouts; the shared card offers Edit only with that
+flag. Default-false behavior leaves other hosts unchanged, and archives/unsupported layouts stay
+excluded. This is a reachability correction, not a claim of prior runtime validation.
+
+Email editing/export, remaining migration features and background persistence remain incomplete.
+Swing still ships; no launcher cutover or PR is included.
+
+### Desktop replacement: persisted card layout
+
+A session-owned Card layout dialog offers Default, Compact and Full. Save persists the enum name
+under the desktop `ui_card_layout` preference before applying it to the existing presenter.
+Opening/canceling does not write; failed persistence leaves the live layout unchanged. Request
+identity, terminal session state and lifetime are checked before/after save; a slow save crossing
+expiry can persist a preference for next time but cannot update the expired session. Unknown
+stored names fall back to Default.
+
+The presenter changes only its appearance layout, preserving other appearance options, filters
+and reveal state; updates/actions become inert after lock. The new desktop-specific preference
+is included in the existing portable settings catalog; Swing ignores the renderer-specific key.
+Tests cover save/reopen, invalid values, settings-cache rollback on failed writes, cancel/stale/
+expired/locked requests, presenter continuity and portable preference round-trip. Actual Compose
+layout, focus and accessibility checks remain pending. Other appearance settings, preferences
+import/export UI, async persistence and the wider migration/cutover are not complete.
+
+### Desktop replacement: LinSCP credential import
+
+Compose now imports LinSCP encrypted vaults, backup bundles and standalone sessions.ini files
+through the existing LinScpCredentials codec and shared DesktopFileImport owner. Native source
+and optional sessions.key pickers recheck lifetime after returning; paths are not displayed or
+logged in result messages. Password drafts are masked, non-saveable and cleared before submission.
+Worker reads enforce the shared 16 MiB source limit and a 4096-byte key-file limit. Encrypted vaults
+ignore any selected external key; unencrypted session input may use an embedded or selected key.
+Source/key bytes are wiped after decoding. Immutable password/decoded strings cannot be zeroized.
+
+Prepared entries require explicit merge confirmation. EntryEditor handles duplicate/capacity rules
+and save-before-publication; cancel, lock/disposal and stale/rejected delivery destroy unadopted
+entries. The source/key files remain unchanged. Final persistence is still synchronous.
+
+Tests cover vault/bundle/external-key decoding through persistence/reopen, unchanged files,
+missing/wrong/oversized keys, wrong-password retry, ignored irrelevant key selection, stale
+requests and queued-result cleanup. Shared lifecycle regression gates remain green. Native picker
+and Compose runtime/accessibility validation, LinSCP export and remaining migration work are
+still pending; Swing remains shipping.
+
+### Shared Compose controls: grouped secondary tools
+
+Import, encrypted-backup and display/security actions now live in a grouped Tools dialog instead
+of a growing stack of full-height toolbar rows. Add entry stays directly accessible beside Tools
+in a horizontally scrollable row. Tools and empty groups disappear when their optional callbacks
+are absent, preserving Android's incremental host capabilities. The dialog content has a bounded
+scrollable height, and invoking an action closes the menu before dispatch to a picker or dialog.
+Only ephemeral menu visibility is remembered; tool IDs retain no session callbacks or secrets.
+Labels come from host-supplied VaultStrings. Lock and search/filter controls remain in place.
+
+Model tests cover stable order/grouping, unavailable actions, callback routing, terminal guards
+and host wording. Source guards cover scroll bounds and close-before-dispatch. The sandbox gained
+a type-check-only heightIn signature; no real renderer/layout/focus/accessibility test is claimed.
+This addresses control growth during migration, not feature parity or launcher cutover.
+
+### Desktop replacement: encrypted LinSCP export
+
+Tools now offers encrypted LinSCP export through the native save picker and shared masked
+password/confirmation form. Scope is explicit: all SSH keys and individual password credentials,
+including concealed entries and regardless of filters. OTPs, notes, emails and password archives
+are excluded. An empty compatible set fails before any worker/file write. This is not plaintext
+export and does not require exposing card contents.
+
+DesktopEncryptedExport now accepts an injected UI-thread snapshot provider, defaulting to the
+unchanged full-vault behavior. The LinSCP provider serializes only compatible entries; worker
+parsing owns detached entries and destroys them after the shared LinScpCredentials encoder runs.
+Password drafts clear before submission; immutable passwords/JSON cannot be zeroized. Ciphertext
+is written with the existing exclusive-create/restricted-file path and wiped after use. Cancel
+or lock suppresses pending work and stale success delivery; a write already authorized may
+finish, and an interrupted write may leave a partial encrypted file. Existing files are refused.
+
+Tests cover compatible-only snapshots, concealed/filtered entries, real encrypted round-trip,
+snapshot isolation, no-compatible/locked rejection, wrong-kind rejection, exclusive destination
+protection and cancellation. Tool routing and terminal action guards pass. Native picker/Compose
+validation remains pending. Plaintext structured exports, OpenPGP/hardware workflows and other
+remaining migration work are not complete; Swing remains shipping.
+
+### Desktop replacement: OpenPGP file-key import
+
+Tools now offers OpenPGP backup import with a required secret-key file and an optional masked
+passphrase (blank for unprotected keys). Message/key file reads each enforce the shared 16 MiB
+limit. Source and key selections are native pickers with session/lifetime rechecks. Worker
+decoding uses the existing RpgpOpenPgpPort and shared backup/JSON codecs; empty and duplicate
+account documents are rejected. Confirmation merges into current state through EntryEditor,
+without replace-all semantics. Sources remain unchanged.
+
+Mutable message/key/passphrase buffers are wiped after decoding, and the shared OpenPGP codec
+now bounds plaintext output before string conversion and wipes the provider's returned buffer
+on success/failure. Immutable passphrase/JSON strings remain non-zeroizable. Shared file-import
+ownership discards unadopted entries on cancel/lock/stale delivery. Final persistence remains
+synchronous.
+
+New tests use an injected fake OpenPGP port to verify confirmation, persistence/reopen, boundary
+buffer cleanup, missing/wrong credentials, malformed/empty payloads and cancellation. They do not
+prove real cryptographic interoperability or the native backend. Existing core codec tests pass.
+Real key/native/Compose validation, OpenPGP export and replace-all restore, hardware workflows and
+remaining migration work are pending. Swing remains shipping.
+
+### Desktop replacement: OpenPGP recipient-file export
+
+Tools now offers full-vault OpenPGP export to a selected recipient public-key file. The confirmation
+explains that concealed entries and all categories are included regardless of filters, asks the
+user to verify the recipient file, and warns that the matching secret key can decrypt the backup.
+This step does not inspect/display a recipient fingerprint or offer hardware recipients.
+
+The UI thread captures a detached JSON snapshot; a worker reads the recipient within the shared
+16 MiB limit and delegates to the existing OpenPGP codec/desktop port. Input key bytes, provider
+plaintext bytes and output ciphertext buffers are wiped when no longer needed. Immutable JSON
+strings cannot be zeroized. Existing destination files are refused through exclusive creation,
+and output uses the existing restricted-file path. Cancel/lock discard queued work and late
+completion; an already-authorized write may finish, and failure can leave a partial encrypted file.
+
+Injected-provider tests verify snapshot isolation, explicit submission, required/nonempty keys,
+provider failure cleanup, existing-file protection, cancellation before/during encryption and
+stale success suppression. Shared codec regression gates pass. These tests are orchestration
+tests, not real OpenPGP interoperability or native crypto validation. Native picker, Compose
+rendering/accessibility, hardware workflows and remaining migration/cutover work are pending.
+Swing remains shipping.
+
+### Desktop replacement: OpenPGP replace-all restore
+
+OpenPGP confirmation now offers Merge (default) or Replace all current entries. Replacement
+shows a deletion warning and a distinctly labeled confirm action; the choice resets when a new
+decoded result or retry starts. It is not part of file selection or decryption. The existing
+merge behavior stays available and preserves current accounts.
+
+DesktopFileImport exposes a protected confirmation transaction hook while its public default
+confirmation stays merge-only. DesktopOpenPgpImport requires an explicit host replacement
+callback to use that hook. The desktop supplies BackupCoordinator.restoreEntries with replace
+enabled: save first, install next, destroy removed entries only after successful persistence.
+Session/request/lifetime checks still run before commit; canceled/expired/stale requests cannot
+replace entries. Persistence remains synchronous and an already-running save is not interruptible.
+
+Injected-provider tests cover explicit replacement through reopen, old-entry destruction after
+success, save-failure cleanup with old entries intact, missing replacement authority, expiration
+before confirmation, stale repeat confirmation and merge preservation. Native OpenPGP and real
+Compose validation are still pending; this does not complete hardware or launcher migration.
+
+### Desktop replacement: portable preferences export
+
+Tools now offers Export preferences through a native save picker. The controller uses the shared
+PreferencesExport codec and DesktopPreferencesPort with includeSecrets=false and desktop platform
+selection. Only catalogued sort order, inactivity timeout and card layout are eligible; vault
+entries, auth/KDF state, backup passwords and unknown keys are excluded. Success reports the
+actual exported setting count, including zero for an untouched configuration.
+
+The UI thread captures the settings document; a worker writes it through ExclusiveExportFile,
+extracted from the existing ciphertext writer without changing its exclusive-create, permission
+or force-sync behavior. EncryptedBackupFile remains a ciphertext-only facade. Existing files are
+never overwritten. Snapshot bytes are wiped after write/failure/cancellation. Dismissing queued
+work prevents its write; work already taken by the worker may finish, but cannot publish success
+after cancellation/lock. A failure may leave a partial settings file. Rejected dispatch can leave
+the progress notice until dismissal. Native picker return and result delivery check lifetime.
+
+Tests verify catalog-only contents and portable decode, auth/secret/unknown-key exclusion,
+existing-file preservation, canceled snapshots, late completion, failed writes and expiry.
+Real native/Compose validation, preferences import UI and remaining migration work are pending.
+Swing remains shipping.
+
+### Preferences import prerequisite: one-write settings transaction
+
+Before exposing Compose preferences import, DesktopPreferencesImportPlan now validates into an
+isolated in-memory adapter, retaining only allowlisted encoded values and counts of accepted,
+unknown and refused keys. Preview never touches live settings. Applying a plan requires the
+DesktopSettings backend and merges the mentioned keys into its current state under the settings
+monitor, preserving auth and unmentioned keys even if they changed after preview.
+
+DesktopSettings now serializes a candidate map and performs one existing AtomicFiles write
+before publishing its cache. Single-key writes use the same candidate-before-publication path.
+Injected pre-promotion failures leave disk/cache unchanged; successful imports survive reopening.
+As before, underlying AtomicFiles has a non-atomic fallback on filesystems without atomic moves;
+this is not a promise of crash atomicity on every filesystem or recovery from post-promotion
+permission errors. No new secret keys are made portable.
+
+The shipping Swing preferences import now previews and applies the same plan, replacing its
+per-key persistence loop. Tests cover one-write publication, preparation without mutation,
+omitted-key preservation, full cache/disk rollback for injected write failure, retry, malformed
+input, wrong platform/type, excluded keys and no-op empty plans. Compose import UI and live
+timeout/layout refresh remain the next increment; Swing still ships.
+
+### Desktop replacement: preferences import UI and live refresh
+
+Tools now offers Import preferences through a native picker, bounded worker parsing and a
+confirmation dialog reporting accepted/skipped counts. The dialog explains that absent settings
+are retained, vault/auth data is untouched, and an imported timeout may disable auto-lock.
+Only the validated DesktopPreferencesImportPlan reaches the single-write controller path.
+Malformed/wrong-platform files cannot be confirmed; failed saves do not refresh the live view.
+
+The session/request is checked before and after commit. If persistence crosses the old inactivity
+deadline, that deadline locks the current session before an imported disabled/longer timeout can
+be applied. The setting may still be persisted for a future session. Only keys present in the
+plan update the existing presenter's sort/layout or the live timer; omitted timeout does not
+restart inactivity. Other filters and reveal state are preserved. Disk persistence remains
+synchronous; worker parsing and result adoption are cancellable, not in-flight settings writes.
+
+Tests cover preview/no mutation, explicit confirmation and reopen, omitted-key preservation,
+canceled/expired results, stale confirmation, failed commit and slow-write expiry. Tool availability
+and terminal guards are tested. Rejected worker dispatch can leave the loading state until
+dismissal, as with other import owners. Real Compose/native-picker validation and remaining
+migration/cutover work are pending. Swing remains shipping.
+
+### Async unlock lifecycle hardening: queued result ownership
+
+A review found that DesktopUnlockOperation previously captured loaded entries/key directly in
+the queued UI Runnable. Closing invalidated adoption, but cleanup waited for that callback to
+run. A stalled/discarded event queue could therefore retain decrypted vault material longer
+than the screen lifetime. The attempt now owns the result under a monitor; the Runnable retains
+only the attempt. Close cancels and destroys an offered result immediately, while results
+finishing after cancellation are destroyed at handoff. Successful adoption transfers ownership
+once and close no longer touches the adopted session.
+
+Completion also rechecks terminal state after onBusy(false), since a host callback can close
+synchronously. Tests assert destruction before queued callback delivery, cancellation between
+offer/enqueue, dispatch rejection after enqueue, reentrant close, and a real executor/latch
+cancellation during backend execution. This does not interrupt an already-running create/write
+or zero immutable password strings; no native-window test is claimed. Remaining feature parity,
+background persistence and actual Compose/device validation are still pending. Swing remains
+shipping.
+
+### Compose manual email account creation
+
+The existing Add entry form now offers Email account on desktop. Switching drops the prior
+manual-entry form values; the email form uses ephemeral remembered state, masked incoming and
+outgoing passwords, explicit IMAP/POP and SSL/STARTTLS/unencrypted choices, port and FairEmail
+authentication-type inputs, plus bounded metadata/tags. Defaults are IMAP/SSL 993 and SMTP/SSL
+465 with password authentication type 1; changing protocol/encryption deliberately does not
+silently rewrite ports. The form states that it stores details offline without contacting servers.
+Passwords are removed from form state before each submit and on dismissal; immutable strings
+cannot be zeroized.
+
+EmailEntryInput builds a fresh one-identity account using shared EmailMaterial validation.
+DesktopEntryCreation routes it through the same identity/liveness gate, save-before-publication
+and unadopted-entry cleanup as OTP/note/SSH creation. The host rechecks the idle deadline for
+both creation paths. This is creation-only, never an imported-account reconstruction that could
+drop additional identities or provider metadata. The email path is optional in the shared dialog
+and not enabled by the Android host.
+
+Tests cover separate credentials, FairEmail JSON roundtrip, invalid numeric/range/size/tag inputs,
+redaction, save/reopen, failure cleanup and stale/dismissed/locked requests. Actual Compose layout,
+accessibility and device/native-window execution remain unvalidated by the stub harness. Email
+editing/export, other remaining parity, and asynchronous final persistence remain pending; Swing
+continues shipping.
+
+### Confirmed plaintext FairEmail export
+
+Tools now offers an optional desktop-only FairEmail export action. After the native destination
+picker returns and the current idle deadline is checked, an identity-bound request presents an
+explicit warning: ALL email accounts, including concealed/filtered-out accounts, all their
+identities, and plaintext passwords/tokens are exported. No snapshot or worker write occurs until
+that request is confirmed. The export is not encrypted and the user must protect/remove the file.
+
+The UI thread serializes email entries with EmailAccounts.exportBackup (the shared FairEmail
+codec), preserving imported provider fields/extra identities without reconstructing the account.
+Only detached bytes cross to the worker. ExclusiveExportFile uses CREATE_NEW and restricted POSIX
+permissions where supported; existing files are never overwritten. Mutable bytes are wiped after
+success/failure, rejection, or queued cancellation. Closing/locking invalidates confirmation and
+late completion; it does not interrupt an already-started authorized write. Partial plaintext
+files may remain on write failure and the UI warns about that. Serialization still runs on the
+UI thread, immutable JSON strings cannot be zeroized, and a rejected dispatcher can leave the
+progress notice until dismissal. No stronger cancellation or secure-deletion guarantee is made.
+
+Tests cover explicit confirmation, empty/expired/locked/stale requests, filter-independent email
+selection, detached snapshot, multiple identities/provider metadata, FairEmail JSON roundtrip,
+exclusive destination handling, queued/in-flight cancellation, write/dispatch/executor failures,
+buffer wiping and late-result suppression. Native picker, filesystem portability, Compose visual/
+accessibility/device checks remain release gates. Email editing, other export types, hardware
+workflows and remaining migration parity are still pending. Swing remains shipping.
+
+### Email credential replacement (not full account editing)
+
+Revealed desktop email connection details now offer Change passwords / tokens. This opens a
+separate ephemeral masked form with incoming credentials and one outgoing field per stored SMTP
+identity, in connection-details order. Stored secrets are never prefilled; blank means preserve.
+The form clears entered secrets before submit and on dismissal. It explicitly does not change
+provider passwords or refresh OAuth tokens, and authentication types/server settings stay intact.
+There is no credential-removal operation in this increment.
+
+EmailPasswordInput updates only nonblank password fields on the detached decoded account and
+identities, validates/encodes through EmailMaterial, then replaces the cloned entry's secret.
+All imported provider fields and additional identities are preserved, as are custom vault labels,
+issuer, protected label, tags, artwork, visibility and usage metadata. Mutable encoded buffers
+are wiped; immutable JSON/password strings cannot be zeroized. DesktopEntryEditing binds the
+request to the exact live entry and checks current reveal authority before building/saving. The
+Compose host checks the idle deadline and drops old reveal state after successful replacement.
+Failed writes retain the original entry and destroy unadopted candidates.
+
+Tests cover multiple-identity selective changes, blank retention, size/count rejection, diagnostic
+redaction, all-envelope metadata preservation, original-account isolation, persistence/reopen,
+concealed/stale/dismissed/removed/locked requests and failure cleanup. Broader email metadata and
+identity editing remain pending. Final persistence is still synchronous. Actual Compose visual,
+accessibility and native/device execution remain unvalidated; Swing remains shipping.
+
+### Add/edit persistence deadline and reentrancy hardening
+
+DesktopEntryCreation and DesktopEntryEditing accept a live session guard on submissions. The
+Compose host supplies lifetime.checkActive for manual/email creation and manual/password/email
+credential editing. Owners check the deadline and current request before construction, before
+persistence and immediately after synchronous persistence, including failed/throwing saves.
+Guard callbacks can themselves lock/dismiss the owner, so identity is rechecked after the guard.
+Successful replacements no longer require the old entry to remain in state, but do require the
+same pending request and live unlocked owner. Completion of an old save cannot clear a newer
+dialog or mutate its failure state. Unadopted candidates are destroyed as before.
+
+This closes the blocked-UI-thread window where a save crosses the idle deadline while the timer
+callback is waiting. It does not interrupt or roll back an authorized disk write. A save that
+finishes after the deadline can remain persisted; the session locks before reporting success,
+and those changes are visible on the next unlock. Final entry persistence remains synchronous.
+
+Tests use a deterministic monotonic scheduler and real save/reopen for all three edit kinds,
+both creation paths, expiration before build/save, reentrant guard/dismissal, replacement dialog
+completion, and expired failing/throwing saves with candidate cleanup. No real Compose/device
+execution is claimed. Remaining feature parity and native/device validation are unchanged; Swing
+continues shipping.
+
+### Browser password export preparation (not yet exposed in Compose)
+
+DesktopPasswordExportPlan prepares all recognized browser-password rows independent of filters
+and reveal state. It groups by browser dialect and normalized ordered source headers, preserving
+first-seen group order and row order. Unlike the existing cross-browser conversion API, it never
+merges unlike headers into a canonical header, so provider-specific columns, notes, GUIDs and
+OTPAuth are not silently dropped. It writes exact source cells through the shared CSV serializer,
+not conversion aliases: an empty name/note remains empty even if title/notes also exists.
+
+The plan retains mutable CSV bytes, not live entries. Each group transfers ownership once to a
+future writer, whose responsibility is to wipe the bytes. Closing wipes all untransferred groups.
+Diagnostic strings expose only counts/dialects. Foreign password records and password archives
+are counted separately and not exported; other entry kinds are ignored. Preparation requires an
+unlocked vault. This is only a tested data/ownership boundary: no file is written and no Compose
+action is enabled. A future owner must enforce current plaintext confirmation, request/lifetime
+guards, exclusive writes, and cancellation/late-result cleanup. Serialization remains synchronous
+and immutable parser/CSV strings cannot be zeroized.
+
+Tests cover mixed headers/dialects, unknown columns, quoting/newlines, source order, blank alias
+cells, filter-independent detached snapshots, exclusions, one-time transfer, disposal, diagnostics
+and locked-state rejection. Browser-password export UI and archive export remain pending, as do
+real Compose/native/device validation and other migration parity. Swing remains shipping.
+
+### Confirmed browser-password CSV export UI
+
+The previous preparation groundwork is now exposed in desktop Tools. Opening Export browser
+passwords prepares a filter-independent snapshot and shows numbered dialect/count groups, plus
+excluded foreign-password and archive counts. Each group has matching original ordered columns.
+The user selects one group, picks a native destination, and explicitly confirms plaintext export.
+The warning includes passwords, notes, OTP seeds and provider-specific secrets; the chooser warns
+not to execute CSV cells as spreadsheet formulas. Values remain unchanged for lossless roundtrip.
+No passwords/columns enter the chooser. Reopen Export to save another group.
+
+DesktopPasswordExport owns the plan and binds choice/confirmation to the current request and
+idle deadline, including after native picker return. Confirmation transfers only the selected
+CSV buffer to a worker and immediately disposes unselected groups. ExclusiveExportFile refuses
+existing destinations. Dismissal/lock wipes queued bytes and invalidates late delivery; worker
+output is wiped on success/failure. A write already started can finish after cancellation, partial
+plaintext files can remain after failure, and a rejected dispatcher can leave progress until
+dismissal. The UI explains these limits. Serialization remains on the UI thread and immutable
+strings cannot be zeroized.
+
+Tests exercise selection versus consent, exclusions/group preparation (existing plan suite),
+exclusive writes, stale/expired/reentrant guards, lock before worker, rejection, mutable-buffer
+cleanup and late delivery. App/instrumentation harness checks are not real Compose/native/device
+validation. Password archive export, broader email settings, remaining parity and release
+validation are still pending. Swing remains shipping.
+
+### Exact password archive export
+
+Tools now offers Export password archive (plaintext). A label-only chooser includes concealed
+and filtered-out archives but excludes ordinary password rows and other entry types. It retains
+exact entry identities, not copied archive secrets. After selecting an archive and native
+destination, the user must confirm that the file may contain plaintext passwords, notes, OTP
+seeds and other secrets. The chooser warns that contents are restored without sanitization and
+should not be executed as formulas/scripts. A fixed password-archive.bin picker default avoids
+using untrusted stored labels as paths; the user chooses the actual name/extension.
+
+DesktopArchiveExport rechecks request/lifetime authority after the picker and before copying
+bytes. If the selected entry has been replaced/removed, confirmation is dismissed. Only a
+confirmed exact live archive is copied to a worker; no conversion, decoding, compression or
+encryption is performed. ExclusiveExportFile refuses existing files. Queued cancellation and
+lock suppress work, output buffers are wiped, and stale results cannot revive a dialog. Writes
+already started may finish after cancellation; partial plaintext output may remain on failure.
+Rejected UI dispatch can leave progress until dismissal. These are not secure-deletion guarantees.
+
+Tests cover byte fidelity (including non-UTF8 data), filter-independent archive-only selection,
+explicit confirmation, hostile stored filenames, replacement/dismissal/expiry, exclusive writes,
+queued cancellation, failure/rejected delivery cleanup and late results. Native picker and real
+Compose/device/accessibility validation remain pending. Other remaining migration work includes
+password-change UI, broader preferences and email settings, hardware/camera integrations,
+background persistence, packaging and cutover validation. Swing remains shipping.
+
+### Lock-first password-change owner (UI wiring pending)
+
+DesktopPasswordChange is a window-level owner for an asynchronous password rekey, not yet
+exposed in Compose. It validates bounded nonempty current/new passwords, matching confirmation
+and a changed password, checks live authority, then requires a synchronous lock callback that
+actually destroys the old session before scheduling backend work. A failed/no-op lock callback
+never authorizes the backend. One owner allows one authorized attempt; retries require a fresh
+unlock. The existing VaultController.changePassword performs the storage rekey. Returned keys
+and entries are destroyed immediately on the worker, before status delivery; none are adopted
+or captured by a queued UI result.
+
+Closing before worker start drops credential references and suppresses the backend. Closing
+during rekey suppresses UI completion but does not interrupt the storage transaction; the new
+password may take effect. Immutable password strings cannot be zeroized. Success, rejection and
+backend failure all leave the original session locked. Rejected dispatch leaves WORKING until
+the host closes the owner. No new UI/notifications or recovery claims are made in this increment.
+
+Future Compose integration MUST retain the owner outside vault composition, disable unlock and
+all other vault operations until backend execution has ended, and serialize credential operations
+against an in-flight rekey even after dismissal. Locking the old state alone does not prevent a
+separate new unlock/write racing the backend. These host lifecycle gates, status presentation,
+explicit irreversible-operation messaging and fresh-unlock flow remain required before exposure.
+
+Tests cover real save/rekey/reopen, wrong-current-password disk preservation, invalid/expired
+input, lock enforcement, reentrant close, queued/in-flight cancellation, worker/dispatch/backend
+failures and immediate key/entry destruction. Sandbox crypto/storage tests are not native UI or
+device validation. Swing remains shipping and migration parity is still incomplete.
+
+### Compose password-change UI and window-level interlock
+
+Tools now exposes Change vault password. An ephemeral masked current/new/confirmation form
+warns that submission locks the vault and requires fresh unlock, cannot be canceled once started,
+and does not change existing backup passwords. Values are dropped before submit and dismissal;
+immutable strings cannot be wiped. Invalid input permits retry while still unlocked. Idle lock
+dismisses an unsubmitted form.
+
+DesktopPasswordChangeFlow lives at the window level, outside VaultContent. It owns the operation
+and blocks fresh unlock whenever a form/result exists. The owner enters WORKING before calling
+presenter.lock, so the lock callback cannot accidentally dismiss the authorized operation. That
+callback closes all vault authorities and destroys the old state synchronously, before the rekey
+worker is scheduled. VaultContent disposal may run later but cannot authorize old-key writes.
+While WORKING, form dismissal and normal window-close requests are refused. The unlock UI is
+not composed until a completed result is explicitly dismissed. This prevents another unlock or
+vault mutation racing backend rekey. The dedicated worker shuts down on window disposal.
+
+Success tells the user to unlock with the new password. Failure gives conservative current/new
+password and file-preservation guidance, not a claim that the transaction rolled back. Rejected UI
+delivery fails closed: progress/close/unlock stay blocked. There is no force-quit/process-crash
+guarantee, and no retry is authorized by a completed owner. These tradeoffs are intentional until
+a more robust recovery/status transport exists.
+
+Headless interlock tests cover deliberate lock versus idle lock, disabled dismissal/window exit/
+unlock throughout queued work and queued delivery, stale submissions and rejected dispatch.
+Existing rekey tests cover real controller roundtrip and wrong-current-password preservation.
+Source guards/typechecks cover the Compose boundary, not real modal/window event behavior.
+Native/Compose/accessibility/device validation, hardware integration and remaining migration
+parity still block cutover. Swing remains shipping.
+
+### Email connection settings editor
+
+Revealed email details now offer Edit connection settings separately from password/token changes.
+The ephemeral form edits incoming IMAP/POP, hosts, bounded ports, SSL/STARTTLS/None, and usernames
+for incoming and each existing SMTP identity. It warns that no servers are contacted, ports do
+not auto-adjust, and None disables transport encryption. The input contains no passwords/tokens.
+
+The model modifies detached account/identity JSON, validates through EmailMaterial, and replaces
+the cloned entry secret. Credentials, authentication types, identity addresses/UUIDs, provider
+fields and vault metadata remain intact. Existing legacy pop/starttls flags are synchronized
+with edited protocol/encryption fields. It does not add/remove/reorder identities or change auth
+types, addresses or account display names. Those broader account-management features remain
+out of scope. Encoded mutable buffers are wiped; immutable JSON strings cannot be zeroized.
+
+Requests carry an explicit settings-versus-credential edit mode; the wrong submit path is
+rejected. Exact-entry, live reveal and before/after save idle-deadline guards apply. Failed saves
+retain originals and destroy unadopted candidates. Tests cover multi-identity preservation,
+legacy flags, all envelope metadata, bounds, redaction, save/reopen, mode/reveal/expiry/lock
+checks and failure cleanup. Native/Compose layout, accessibility and device validation remain
+pending. Final persistence is still synchronous, and Swing remains shipping.
+
+### Preference dialog save-boundary hardening
+
+The individual layout and auto-lock owners now check the existing idle deadline immediately
+after persistence whether the write succeeds, returns false or throws. A failed write that
+blocks the UI past its deadline locks before any failure state is rendered. Previously the
+failure branch returned before this check, leaving expiry to a queued timer.
+
+Both owners recheck current request identity after guard callbacks and after persistence. A
+reentrant write that replaces/dismisses/closes its dialog cannot clear a newer request, apply
+a stale layout, or disable/extend the current timeout. Auto-lock changes the live timer only
+after successful persistence AND current live authority. Already-persisted preferences are
+not rolled back; they can apply on the next session. Persistence remains synchronous.
+
+Deterministic scheduler tests cover failing/throwing writes crossing expiry, stale success and
+failure after request replacement, reentrant layout guards before/after save, and owner closure
+during a successful timeout write. Existing success/reopen/cache rollback tests remain in place.
+This is lifecycle hardening, not additional preference UI or real Compose/native validation.
+Remaining feature parity and device/release validation still block cutover; Swing remains shipping.
+
+### Read-only portable storage location
+
+Desktop Tools now includes Portable storage location. The host passes a DesktopStorageLocation
+captured from the actual directory supplied to DesktopStorage.open at startup, rather than
+re-reading environment/system properties later. The absolute path retains any lexical dot
+segments rather than rewriting symlink-dependent paths, and the model neither creates files
+nor inspects vault contents. Diagnostics redact the path.
+
+The shared dialog renders the directory and managed vault/backup/settings/hardware-record
+filenames as plain text. It makes clear that listed files need not exist and external exports
+are not enumerated. Guidance explains closing all instances before relocation, keeping a verified
+backup, copying the whole data folder, avoiding concurrent clients, the system-property/environment
+program-folder overrides and automatic data subfolder. No links, clipboard writes, shell execution,
+file moves or live switching are provided. The action is optional/guarded and lock removes the
+dialog; Android does not advertise it.
+
+Tests cover actual startup-path retention, no file creation, fixed filename provenance, redacted
+diagnostics and changed overrides. Tools routing/terminal guards remain covered. Real Compose
+layout/accessibility/native validation and broader portable migration/recovery workflows remain
+pending. Swing remains shipping.
+
+### Manual-order save deadline guard
+
+DesktopEntryMove now checks live authority before resolving its exact-entry/adjacent-entry
+frame and after save returns or throws. The Compose callback supplies the current lifetime
+and only publishes filter/error updates if that lifetime and vault remain active. Reentrant
+pre-save guards cannot bypass the existing identity/order/filter checks. Already-authorized
+disk writes are not interrupted or rolled back; this change suppresses stale UI completion.
+
+Tests cover expired/reentrant guards before persistence and successful/failed/throwing saves
+that cross a deterministic idle deadline, alongside existing real persisted ordering/reopen
+and failed-write order preservation. Persistence remains synchronous. Real Compose/device
+validation and remaining hardware/camera/preferences/cutover work are still pending; Swing
+remains shipping.
+
+### Compose PC/SC OATH account browser
+
+Tools now offers OATH security key: list accounts on the first connected PC/SC-compatible key,
+then explicitly calculate/show a selected code. Listing does not reveal calculated TOTP values.
+HOTP action text explicitly says it advances the device counter; it is never auto-calculated.
+The shared backend binds calculation to the listed device ID. TOTP validity is checked at render
+time using the host clock; HOTP codes remain visible until another operation, dismissal or lock.
+No clipboard copying, seed import, enrollment or vault mutation is added.
+
+A session-owned controller serializes its request on the existing worker, transfers a mutable
+OATH password array, wipes it on all completion/rejection paths, and invokes manager cancellation
+hooks on dismissal/lock. Each operation creates/closes its PC/SC manager on the worker, not during
+composition. UI text distinguishes the OATH password from a FIDO PIN and requires re-entry per
+operation. Provider messages are never displayed. Delivered account/code references are dropped
+on close; queued results live in a cancelable holder instead of the UI Runnable. Immutable SDK
+strings cannot be zeroized. Cancellation cannot undo an already-issued device counter command.
+Rejected UI dispatch can leave the busy view until dismissal.
+
+Headless tests cover worker/PIN ownership, failures, expiry/stale requests, cancellation, hidden
+list codes, device binding and explicit calculation/expiry. The account/credential scenario uses
+the repository's scripted YubiKit sandbox fixtures; it is not a physical key test. Real PC/SC,
+Compose layout/accessibility, Gradle/native packaging and device validation remain pending.
+FIDO enrollment/unlock, copy-to-key, OpenPGP hardware/agent integration, camera capture and
+background persistence remain unfinished; therefore feature migration is NOT complete and
+Swing remains shipping.
+
+### Compose copy OTP to OATH security key
+
+Tools now offers Copy OTP to security key. A metadata-only chooser lists compatible TOTP/HOTP
+entries independent of filters/concealment. Selection is followed by explicit secret-seed export
+consent, an optional masked OATH password (not FIDO PIN), and warnings to connect only the intended
+PC/SC key. Touch is always required for future hardware calculations in this increment. The
+shared HardwareOathClient enforces parameter/name constraints and refuses duplicate hardware
+credential IDs instead of overwriting. The vault entry is not removed or modified.
+
+DesktopHardwareCopy validates the exact live selected entry and current session deadline, clones
+the entry only at confirmed submission, then transfers it and the mutable password array to the
+worker. Cancellation before start destroys the clone/password; in-flight cancellation signals
+the manager token and suppresses completion. All worker outcomes destroy the detached entry and
+wipe the password. Provider errors are mapped to generic status, never copied to UI. Copy and
+browse dialogs cannot be opened concurrently. Other hardware requests share the serial worker.
+
+A device write already issued may finish despite cancellation or a later failure; the UI says to
+inspect the key before retrying. HOTP copies start from the vault counter and can diverge if both
+are used. Immutable serialization/password strings cannot be zeroized, and a rejected dispatcher
+can leave progress until dismissal. No device seed rollback or secure-erasure claim is made.
+
+Tests cover explicit consent, filter-independent compatible selection, detached snapshots,
+source preservation, stale/replaced/expired requests, queued/locked/in-flight cancellation,
+provider failures and executor rejection with cleanup. Provider behavior is injected in these
+new tests; existing sandbox manager tests cover shared copy behavior. Physical key/PCSC, native
+Compose/accessibility and packaging validation remain pending. FIDO enrollment/unlock, OpenPGP
+hardware integration, camera and background persistence still block feature completion. Swing
+remains shipping.
+
+### FIDO enrollment prerequisite: key-buffer cleanup and cancellation
+
+Review of the shared HardwareKeyManager enrollment routine found that it wiped a clone of
+SecretKey.encoded but retained the original encoded array, and did not wipe the key recovered
+for roundtrip envelope verification. Enrollment now uses/wipes the encoded copy directly and
+wipes the recovered verification array in a finally block. It also rechecks its cancellation
+token after verification, immediately before local envelope persistence. Cancellation observed
+there prevents replacing the local enrollment; it cannot undo authenticator credential creation
+or interrupt an already-started storage write. Existing Swing enrollment uses this shared fix.
+
+A scripted FIDO test covers successful enrollment, false/throwing storage failures, and
+cancellation triggered after device work at key encoding. It verifies encoded-buffer and PIN
+cleanup, unchanged source key bytes, and no store call after observed cancellation. The recovered
+verification buffer cleanup is enforced directly by finally, not a claimed native memory test.
+FIDO UI enrollment/unlock still require session/key ownership and lifecycle integration; this
+increment does not expose them in Compose. Physical key/PCSC and native UI validation remain
+pending. Swing remains shipping.
+
+### Compose hardware unlock for existing FIDO enrollments
+
+The locked desktop screen now offers Unlock with security key for an initialized vault. A
+separate ephemeral masked FIDO PIN form invokes the existing HardwareKeyManager PRF-envelope
+recovery and VaultController.unlockWithKey, using the actual startup data directory. Missing,
+invalid/outdated enrollment, wrong key/PIN or provider failure produces generic guidance to use
+password unlock; provider text is not exposed. No enrollment is created by this action.
+
+DesktopHardwareUnlock wraps the existing DesktopUnlockOperation result owner, adding mutable
+PIN transfer, cancellation token and recovered-key ownership. A failed/throwing vault open or a
+returned different session key releases the recovered key; successful same-key opens transfer
+it to the session. Canceled/queued loaded results are destroyed by the existing result holder.
+SecretKey.destroy remains best-effort for provider implementations, and immutable PIN strings
+in Compose cannot be zeroized. Password and hardware attempts share one serial worker and
+busy gating. The password form is disabled while the hardware dialog is open; returning is
+disabled during an attempt. Closing the window disposes both owners and cancels hardware work.
+The window-level password-change interlock still prevents either unlock during rekey.
+
+Tests use injected recovery/open functions to cover adoption, cancellation during recovery,
+queued-result cleanup, failed/different-key opens, duplicate submission, rejection and PIN
+wiping. Existing scripted manager tests exercise PRF envelope/controller interoperability,
+not physical devices. Real FIDO/PCSC, native Compose modal behavior, accessibility, packaging
+and device checks remain pending. Compose enrollment/removal UI, OpenPGP hardware integration,
+camera and background persistence remain unfinished. Swing remains shipping.
+
+### Local hardware-unlock removal
+
+Tools now exposes Remove local hardware unlock. Confirmation warns to know the vault password
+first and distinguishes deleting this installation's local envelope from resetting a physical
+key, deleting OATH accounts or revoking copies elsewhere. It does not lock or alter the current
+vault session, change its password or delete vault data. Enrollment setup remains pending.
+
+DesktopHardwareRemoval checks current request/lifetime authority, performs deletion on the
+serial worker, suppresses queued canceled/locked work and ignores stale delivery. Once deletion
+starts it may complete despite cancellation; an old record is never restored automatically.
+Missing records are a successful no-op and corrupt records can be removed without parsing.
+DesktopHardwareUnlockStore now uses Files.deleteIfExists so filesystem errors are surfaced.
+HardwareKeyManager maps removal exceptions to false for existing Swing callers, avoiding a
+false success while preserving its boolean API. Rejected UI dispatch may leave progress until
+dismissal. No secure deletion or physical-key revocation guarantee is made.
+
+Tests cover real file removal, absent/corrupt records, nonempty-directory deletion failure,
+explicit consent, stale/expired/locked/canceled requests, executor rejection and late delivery.
+Real native UI, filesystem portability, hardware and device validation remain pending; Swing
+remains shipping and migration parity is not complete.
+
+### Compose FIDO enrollment setup
+
+Tools now offers Enroll hardware unlock with explicit replacement consent, FIDO PIN entry and
+password/backup retention warnings. This creates an authenticator credential and replaces the
+local enrollment only after the shared backend's envelope verification. It does not revoke
+external copies of an old record. The screen warns not to force-quit and that failure cannot
+undo a credential already created on the authenticator.
+
+DesktopHardwareEnrollment copies the current key into a destroyable owned key, marks itself
+WORKING, and synchronously locks the old session before scheduling backend enrollment. The
+window retains this owner outside vault composition; it blocks unlock, rekey and normal close
+until delivered completion and explicit result dismissal. Idle lock dismisses an unsubmitted
+form. Enrollment uses the old session's serial export/hardware worker, so an already-started
+local-record removal must finish before enrollment writes a new record. Disposal shuts that
+worker down gracefully rather than interrupting accepted enrollment work. No live session key
+is borrowed by a worker. Key/PIN buffers are cleaned on rejection, cancellation and completion.
+
+Success requires fresh password or hardware unlock; failure recommends password access and
+inspection before retry. Rejected UI delivery fails closed with WORKING remaining visible.
+In-flight cancellation only signals the backend: it cannot guarantee device/storage rollback.
+Immutable PIN strings cannot be zeroized, and force-quit/crash behavior is not a safety guarantee.
+
+Headless tests cover lock-before-worker, detached key cleanup, PIN wiping, expired/no-op-lock
+rejection, queued/in-flight cancellation and storage-provider/executor failure. Existing scripted
+manager tests cover enrollment/PRF roundtrip, not physical key behavior. Real FIDO/PCSC, Compose
+modal/accessibility, packaging and device validation remain pending. OpenPGP hardware integration,
+camera and asynchronous persistence still block migration completion. Swing remains shipping.
+
+### Multiple OpenPGP recipient files
+
+Compose OpenPGP backup export now allows 1–8 distinct recipient file selections, shows their
+filenames and provides Clear recipients. It explicitly warns that ANY matching secret key can
+decrypt the whole backup (not threshold protection), and that filenames are not verified
+fingerprints. The native picker still selects one file at a time.
+
+DesktopOpenPgpExport copies the selection list at submit and reads every file on the worker
+under a shared 16 MiB budget. Empty/unreadable/oversized inputs fail the whole export before
+provider invocation; it does not silently skip a recipient. All successfully read key buffers
+are wiped even if a later file fails, and all-or-nothing provider encryption remains delegated
+to the shared codec. Existing exclusive writes and canceled/late-result suppression remain.
+The host now passes the live deadline across snapshot and completion. A file can change after
+selection; key verification/fingerprint confirmation and hardware/agent recipients are not
+implemented by this increment. Duplicate file paths are rejected; aliases or identical key
+contents in different files are left to the crypto provider.
+
+Tests cover selection snapshot/order, empty/duplicate/excessive selections, missing/empty later
+files, combined size limits, provider failure cleanup and expired completion. These use an
+injected fake crypto port, not native multi-recipient interoperability. Real crypto/Compose/
+hardware/device release validation and remaining migration work still block cutover. Swing
+remains shipping.
+
+### Clipboard publication after usage persistence
+
+DesktopEntryCopy now accepts the live session guard, checks it before consuming copy authority
+and after EntryEditor.copyRevealed persists usage, and rechecks target/request liveness before
+publishing to the clipboard. A failed write still checks expiry. The host suppresses notices
+and filter refresh once the lifetime or vault is terminal. An old captured value cannot be
+published after an idle deadline crossed during synchronous persistence. Completed usage writes
+remain persisted, and immutable returned token strings cannot be zeroized.
+
+Tests cover real usage save/reopen with simulated elapsed time at post-write validation, no
+clipboard publication after lock, failed-write deadline checks and reentrant request replacement.
+Existing clipboard expiry, ownership and persistence failure coverage remains. Persistence is
+still synchronous; real clipboard/native UI/device validation and remaining migration features
+remain pending. Swing remains shipping.
+
+### Remaining entry-dialog persistence boundaries
+
+Delete, HOTP advance and mOTP PIN submission now use DesktopEntryDialogActions rather than
+inline Compose persistence callbacks. It checks current request/session/deadline before the
+transaction and immediately afterwards, including false/throwing writes. Expiry locks before
+a retry dialog or presenter deletion notification can be published; replaced requests are not
+cleared by old completions. State transaction methods retain their existing failure rollback
+semantics. Completed writes are not rolled back merely because the session expires afterwards.
+
+Tests perform real save/reopen for all three operations crossing a simulated idle deadline,
+exercise failed/throwing writes, stale/reentrant guards, wrong callback kind and successful
+retry/deletion notification exactly once. These operations still persist synchronously and
+do not claim real Compose/native/device execution. Camera, OpenPGP hardware integration,
+background persistence and release/cutover validation remain pending; Swing remains shipping.
+
+### URI/migration import completion lifetime
+
+DesktopUriImport now rechecks current request identity after the pre-submit lifetime callback
+and checks lifetime after coordinator processing/persistence, including exception and failed
+write paths. Expired completion cannot publish a success/retry message. If the current request
+is abandoned, incomplete migration material is canceled; a newer request created by a reentrant
+guard is not canceled or overwritten. Authorized disk writes may already be committed and are
+not rolled back solely because expiry happens afterwards. The same owner handles pasted URI
+and decoded QR-image payloads.
+
+Tests cover actual committed import/reopen with suppressed expired completion, partial-batch
+cleanup, false guard without explicit owner closure, failed persistence and reentrant request
+replacement before/after import. Parsing/final persistence remain synchronous. Camera capture,
+OpenPGP hardware integration, asynchronous persistence and native/device release validation
+remain unfinished; Swing remains shipping.
+
+### File-import confirmation completion
+
+DesktopFileImport confirmation now rechecks request identity after its pre-save lifetime
+callback and checks lifetime after the installer returns or throws. A save crossing expiry
+cannot publish an imported-count notice or failed retry dialog. An abandoned current request
+is dismissed even if the guard only returns false; a newer request is preserved. Entry ownership
+remains with the installer on every outcome, and completed disk writes are not rolled back.
+This also covers specialized replace transactions routed through confirmUsing.
+
+Regression tests cover success/null/throwing saves, closure during post-save validation, a
+false guard without closure, reentrant replacement before/after persistence and ordinary live
+success/retry behavior. They exercise the shared orchestration with injected installers, not
+native UI or device execution. Final persistence remains synchronous; remaining migration
+features and release validation still block cutover. Swing remains shipping.
+
+### File-import worker handoff ownership
+
+File-import submission now rechecks readiness after the lifetime callback so reentrant
+submission cannot overwrite an already queued decode. Delivery rechecks request and work
+identity after that callback as well. Expired results are destroyed and the still-owned
+request is dismissed rather than left busy; newer work is preserved. Worker scheduling
+failures only update the request if the failed task still owns it.
+
+Queued-worker regression tests exercise expiry without explicit owner closure, replacement
+and new submission during delivery, and recursive submission during the initial guard.
+They verify detached-result cleanup and that the new decode can still complete/confirm.
+These are orchestration tests, not native UI execution. Background final persistence, remaining
+migration features and real device/release validation remain pending. Swing stays shipping.
+
+### Existing SMTP identity metadata editing
+
+The Compose email settings form now exposes each existing SMTP identity's sender display name
+and email address. Credentials/authentication modes, ordering, account metadata and unknown
+identity fields are retained. Address edits do not update login usernames or establish server
+authorization; the form explicitly says so. Core validation bounds metadata, rejects control
+characters and malformed/whitespace-bearing addresses, and requires the same identity count.
+Inputs redact diagnostics. Existing transport-only callers may omit identity edits.
+
+Model tests verify exact non-edited identity/account preservation, modified identity fields,
+credential retention, original-entry immutability and invalid address/count rejection. Desktop
+save/reopen coverage verifies sender changes persist through the existing reveal/lifetime guards.
+The form uses per-request remembered state, not saved-instance state. This does not add/remove
+identities, edit authentication modes, contact servers or verify address ownership. Those broader
+email workflows, camera/OpenPGP hardware, asynchronous persistence and native/device validation
+remain pending. Swing remains shipping.
+
+### Email account display-name editing
+
+Email settings now includes the account display name, explicitly distinguished from the vault
+entry label and SMTP sender names. Core validation rejects blank, oversized and control-bearing
+names, trims changed names, and preserves all other account/identity/envelope fields. Existing
+transport-only callers may omit the optional name. Inputs continue to redact diagnostics.
+Model tests cover validation, exact unrelated-field preservation and legacy omission, while
+desktop save/reopen verifies persistence through the existing guarded replacement transaction.
+This remains offline editing, not server verification. Identity creation/removal, authentication
+mode editing and broader migration/native-device validation remain pending. Swing stays shipping.
+
+### Email authentication-type metadata
+
+Connection settings now expose the numeric authentication type for incoming and each SMTP
+connection, matching the Swing numeric-field convention (1 = password). Other nonnegative
+Int values are retained/supported as opaque provider metadata, not interpreted as verified
+OAuth modes. The form warns that changing the type does not sign in, refresh tokens or convert
+credentials and can make an exported account unusable. Passwords/tokens, unknown imported
+fields and nonedited identities remain unchanged. Legacy callers may omit the optional field.
+
+Tests cover exact-field preservation, incoming/secondary SMTP edits, unknown positive values,
+legacy omission, malformed/negative/overflow rejection and desktop save/reopen with credentials
+retained. This is offline metadata parity, not OAuth authorization management. Identity
+creation/removal, camera/OpenPGP hardware, asynchronous final persistence and real native/device
+release validation remain pending. Swing stays shipping.
+
+### Additional SMTP identity removal
+
+Email settings supports marking additional non-primary identities for removal and undoing
+that mark before Save. The form warns that the identity's credentials/settings are removed
+from this vault entry, not from the server, and recommends a backup. Core derives removal
+authority from stored identity position/primary flags rather than trusting UI hints; the first
+identity and all primary-marked identities are protected, and invalid indices are rejected.
+Remaining identities preserve their order/fields; the existing guarded replacement transaction
+persists the result. Model tests cover exact retained records, original immutability and forged
+removal hints/primary/out-of-range rejection. Identity creation and primary reassignment remain
+out of scope, along with native UI/device validation and remaining migration work. Swing stays
+shipping.
+
+### Staged identity-removal validation and persistence
+
+Removed identity drafts no longer block Save with errors in hidden fields. Removal authority
+and full-list shape remain validated, but connection/metadata edits apply only to retained
+identities. Undo restores the draft and its validation. Tests exercise invalid draft fields
+followed by removal/undo and a real desktop save/reopen retaining the primary identity exactly.
+Canceled drafts and expired pre-save authorization leave both identities unchanged. Existing
+failure/rollback tests still apply to the shared replacement transaction. Native UI/device
+validation and remaining migration features remain pending; Swing stays shipping.
+
+### Verifiable SMTP identity details
+
+Shared read-only email detail rows now include each SMTP sender name/address and stored primary
+flag, so edited secondary identities can be checked without reopening settings or revealing
+credentials. Existing connection labels remain stable; primary flags are reported as stored,
+not inferred from list position or normalized. The shared codec feeds desktop and Android
+consumers. Core tests check multiple identities, masking, reveal behavior and nonmutation;
+desktop save/reopen checks edited sender values reach the masked details adapter. This is
+headless coverage, not actual Compose/Android visual validation. Remaining migration features
+and native/device release checks remain pending. Swing stays shipping.
+
+### Legacy email transport details
+
+Shared email details now honor legacy pop/starttls flags when protocol/encryption fields are
+absent, consistent with the settings editor. Explicit modern values take precedence even when
+legacy flags conflict. Unknown explicit protocol values are shown as unknown rather than IMAP.
+Regression tests cover incoming/SMTP fallback, modern precedence, unknown values, masking and
+nonmutation. This improves shared read-only descriptions without rewriting imported records.
+Actual Android/Compose rendering and device validation remain pending, as does remaining
+migration work. Swing remains shipping.
+
+### Desktop validation and cutover preparation
+
+See [Compose desktop cutover gates](compose-desktop-cutover.md) for the current evidence ledger
+and manual runtime/release checklist. A manual-only Compose desktop workflow now assembles
+installDist and runs real JVM tests on Linux, Windows and macOS. It does not replace native UI,
+hardware, crypto or installer validation. No branch validation runs were available when this
+workflow was prepared; workflow dispatch from Arena remains permission-blocked. Swing remains
+the shipping entry point and no PR or release cutover is implied.
+
+### Swing retirement
+
+Removed the legacy Main entry point, Swing windows/dialogs/forms/theme/timers/table adapter and
+their tests. The desktop module is now a library, keeping controllers, storage, hardware, crypto
+and AWT issuer artwork used by Compose. Old run/packageDesktop command aliases delegate to
+Compose; no runSwing/packageSwingDesktop or Swing distributions remain. Swing-dependent source
+assertions were retired while independent Android/iOS/core assertions and Compose wiring tests
+remain; iOS palette comparison now uses the Compose palette. Test counts therefore decrease.
+A new source guard forbids Swing imports and verifies the sole host/library boundary.
+
+This user-requested removal is not proof of feature parity or runtime validation. Existing
+release/runtime/device gaps remain in the cutover ledger. Rollback needs a prior release and
+backup, not an in-tree fallback. No vault-format migration is included.

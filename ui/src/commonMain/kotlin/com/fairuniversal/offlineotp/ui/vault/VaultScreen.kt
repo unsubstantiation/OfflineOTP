@@ -21,7 +21,7 @@ import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 /**
  * The vault screen, shared by every Compose host.
  *
- * The composable is stateless: [state] is one immutable frame and every interaction goes back out
+ * Vault data remains stateless (only the Tools menu owns ephemeral visibility): [state] is one immutable frame and every interaction goes back out
  * through [actions]. That is what makes the Android `ComposeView` and the desktop window the same
  * code, and it keeps the frame free of entries, keys and session authority — a stale frame can only
  * ask the host to do something, and the host re-checks the session when it does.
@@ -46,6 +46,7 @@ fun VaultScreen(
             lockLabel = strings.lockAction,
             onLock = actions.onLock
         )
+        VaultToolsBar(actions = actions, strings = strings)
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)

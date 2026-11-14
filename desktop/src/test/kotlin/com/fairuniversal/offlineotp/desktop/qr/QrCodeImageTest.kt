@@ -7,7 +7,6 @@ import org.junit.Test
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
-import com.fairuniversal.offlineotp.desktop.ui.QrCodeDialog
 
 import java.util.ArrayList
 
@@ -67,22 +66,4 @@ class QrCodeImageTest {
         }
     }
 
-    @Test
-    fun theDialogHeadingNamesTheEntryWithoutConcealedFields() {
-        val entry = totp("GitHub", "alice")
-        try {
-            assertEquals("GitHub – alice", QrCodeDialog.entryTitle(entry))
-        } finally { entry.destroy() }
-        val labelOnly = totp("", "alice")
-        val issuerOnly = totp("GitHub", "")
-        try {
-            assertEquals("alice", QrCodeDialog.entryTitle(labelOnly))
-            assertEquals("GitHub", QrCodeDialog.entryTitle(issuerOnly))
-        } finally { labelOnly.destroy(); issuerOnly.destroy() }
-    }
-
-    @Test
-    fun theRefusalMessageExplainsTheMissingCode() {
-        assertTrue(QrCodeDialog.UNSUPPORTED.contains("cannot be shown as a QR code"))
-    }
 }

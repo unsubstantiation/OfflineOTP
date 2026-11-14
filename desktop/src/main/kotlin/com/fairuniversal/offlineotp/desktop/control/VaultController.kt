@@ -98,16 +98,39 @@ class VaultController(private val vault: PasswordVault) {
 
     /** Persists the idle auto-lock timeout (`0` or negative removes the preference). */
     fun saveInactivityLockSeconds(seconds: Int) {
-        try {
-            if (seconds <= 0) {
-                vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
-            } else {
-                vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
-            }
-        } catch (_: Exception) {
-            // The timeout still applies to the open session.
-        }
+        trySaveInactivityLockSeconds(seconds.coerceAtLeast(0))
     }
+
+    /** Reports failure so the Compose settings form does not claim an unsaved change. */
+    fun trySaveInactivityLockSeconds(seconds: Int): Boolean {
+        if (seconds < 0) return false
+        return try {
+            if (seconds == 0) vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
+            else vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedCardLayout(): Constants.CardLayouts = try {
+        Constants.CardLayouts.valueOf(vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_CARD_LAYOUT, Constants.CardLayouts.DEFAULT.name))
+    } catch (_: RuntimeException) { Constants.CardLayouts.DEFAULT }
+
+    fun trySaveCardLayout(layout: Constants.CardLayouts): Boolean = try {
+        vault.preferences.putString(com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_CARD_LAYOUT, layout.name)
+        true
+    } catch (_: Exception) { false }
+
+    /** Portable allowlisted preferences only; never export vault auth state or backup passwords. */
+    fun exportPreferences(): com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export =
+        com.fairuniversal.offlineotp.Utilities.PreferencesExport.export(
+            com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesPort(vault.preferences),
+            includeSecrets = false, platform = com.fairuniversal.offlineotp.Utilities.PreferencesExport.PLATFORM_DESKTOP)
+
+    fun importPreferences(plan: com.fairuniversal.offlineotp.desktop.storage.DesktopPreferencesImportPlan): Boolean = try {
+        plan.applyTo(vault.preferences)
+        true
+    } catch (_: Exception) { false }
 
     fun backup(): Boolean = vault.backup()
 

@@ -174,10 +174,37 @@ class EntryEditor(
         return recordCopy(entry, password)
     }
 
+    enum class CopyField { TOKEN_OR_NOTE, PASSWORD, SSH_PUBLIC_KEY, SSH_PRIVATE_KEY, SSH_PASSWORD }
+
+    /** Compose uses transient reveal authority, not a temporary mutation of stored privacy. */
+    fun copyRevealed(entry: Entry, field: CopyField, revealed: Boolean): TokenCopyResult {
+        if (!revealed || state.isLocked || state.snapshot().none { it === entry }) return TokenCopyResult.Unavailable
+        val text = when (field) {
+            CopyField.TOKEN_OR_NOTE -> when {
+                entry.isNote() -> entry.getNote()
+                entry.hasCopyableToken() -> entry.getCurrentOTP().orEmpty()
+                else -> ""
+            }
+            CopyField.PASSWORD -> if (entry.isPassword()) entry.getPasswordFields().value("password") else ""
+            CopyField.SSH_PUBLIC_KEY -> if (entry.isSshKey()) entry.getSshKeys().publicKey else ""
+            CopyField.SSH_PRIVATE_KEY -> if (entry.isSshKey()) entry.getSshKeys().privateKey else ""
+            CopyField.SSH_PASSWORD -> if (entry.isSshKey()) entry.getSshConnection()?.password.orEmpty() else ""
+        }
+        return if (text.isEmpty()) TokenCopyResult.Unavailable else recordCopy(entry, text)
+    }
+
     private fun recordCopy(entry: Entry, token: String): TokenCopyResult {
+        if (state.isLocked || state.snapshot().none { it === entry }) return TokenCopyResult.Unavailable
+        val lastUsed = entry.getLastUsed()
+        val frequency = entry.getUsedFrequency()
         EntryUsage.recordUse(entry)
+        val saved = try { persist() } catch (_: Exception) { false }
+        if (!saved) {
+            entry.setLastUsed(lastUsed)
+            entry.setUsedFrequency(frequency)
+        }
         state.presentation.resortAfterUsage()
-        return if (persist()) TokenCopyResult.Copied(token) else TokenCopyResult.PersistenceFailed
+        return if (saved) TokenCopyResult.Copied(token) else TokenCopyResult.PersistenceFailed
     }
 
     /**

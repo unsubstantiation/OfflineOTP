@@ -224,17 +224,19 @@ class PreferencesExportTest {
         val roundTrip = PreferencesExport.import(androidDocument.bytes, FakePort(), PreferencesExport.PLATFORM_ANDROID)
         assertEquals(4, roundTrip.applied)
 
-        // A desktop document carries the desktop's own two settings and restores on the desktop.
+        // A desktop document carries the desktop's own settings and restores on the desktop.
         val desktopSource = FakePort()
+            .seed(PreferencesExport.UI_CARD_LAYOUT, PreferencesExport.Value.Text("COMPACT"))
             .seed(PreferencesExport.UI_SORT_MODE, PreferencesExport.Value.Text("AZ"))
             .seed(PreferencesExport.UI_INACTIVITY_LOCK_SECONDS, PreferencesExport.Value.IntValue(120))
         val desktopExport = PreferencesExport.export(
             desktopSource, includeSecrets = false, platform = PreferencesExport.PLATFORM_DESKTOP)
-        assertEquals(2, desktopExport.keysWritten)
+        assertEquals(3, desktopExport.keysWritten)
         val target = FakePort()
         val desktopResult = PreferencesExport.import(
             desktopExport.bytes, target, PreferencesExport.PLATFORM_DESKTOP)
-        assertEquals(2, desktopResult.applied)
+        assertEquals(3, desktopResult.applied)
+        assertEquals(PreferencesExport.Value.Text("COMPACT"), target.writes[PreferencesExport.UI_CARD_LAYOUT])
         assertEquals(PreferencesExport.Value.Text("AZ"), target.writes[PreferencesExport.UI_SORT_MODE])
         assertEquals(PreferencesExport.Value.IntValue(120),
             target.writes[PreferencesExport.UI_INACTIVITY_LOCK_SECONDS])
