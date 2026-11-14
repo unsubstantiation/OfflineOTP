@@ -1,20 +1,41 @@
-> **Current desktop status:** User-approved default launcher/release cutover to Compose.
-> Swing UI and fallback tasks have now been removed at user request. Historical stage notes below describe earlier
-> states; device/runtime/packaging validation is still pending. See
-> [cutover ledger](compose-desktop-cutover.md). No feature-parity or validated-release claim.
-
 # Unified Compose Multiplatform UI
 
-> **Current status:** Android `MainActivity` now displays `VaultComposeView`/the shared Compose
-> cards, backed by `AndroidVaultController`. The existing toolbar, tabs, tag drawer and Android
-> dialogs remain. Manual order is exposed through Move up/Move down controls, not drag gestures.
-> The legacy adapter/holder/layout files are retained for the old regression fixtures and still
-> need retirement. Sizing and label preferences are wired, and both Compose hosts now load bundled
-> issuer artwork; runtime visual/accessibility parity still needs validation. The desktop shipping UI remains Swing.
->
-> Sandbox gates type-check the actual Activity-to-Compose integration and exercise its publication
-> lifecycle with recording stubs. **No real Gradle Android build or device rendering validation has
-> been performed.** This is the display wiring cutover, not completion of all stage-2 exit criteria.
+## Current status — 2026-11-07
+
+**The desktop replacement is complete:** Compose is the default launcher/release target;
+Swing UI, its fallback tasks and Swing-specific tests were removed in PR #125 (merged at
+`3e8fb2700a5622f6c7e4062283190cf82ac7165d`). The `:desktop` module remains the shared engine
+and AWT artwork library, not a second UI. Android MainActivity uses the shared Compose cards
+with Activity chrome/dialogs still retained.
+
+The user reports a successful build and operation on a device. Platform, tested artifact/commit
+and workflow scope are not yet specified. This is recorded in the
+[validation ledger](compose-desktop-cutover.md); it does not establish all-platform or hardware
+coverage. Completing the migration does not require another Swing cutover.
+
+### Remaining work, separated by purpose
+
+| Work | Purpose / completion criterion |
+| --- | --- |
+| Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
+| Background final persistence | Move remaining synchronous saves off the UI thread without losing session authority, entry ownership, serialized writes or rollback guarantees. |
+| Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
+| OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
+| Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
+| Android legacy renderer cleanup | Retire remaining old renderer fixtures/XML only after preserving necessary regression coverage; complete visual/accessibility checks. |
+| Remaining preferences/shared-UI parity | Audit the supported settings and platform chrome against the intended release scope rather than assuming complete parity. |
+
+Feature additions may be deferred explicitly for a scoped release. Release checks (backup/restore,
+lock behavior, native integration, accessibility and packaging on supported platforms) need
+recorded evidence or explicit limitations; they are not interchangeable with sandbox typechecks.
+
+## Historical migration journal
+
+**Everything below records earlier implementation stages, not current release status.** In
+particular, past statements that Swing is shipping, authentication editing is absent, or no
+build/device test has occurred describe those stages only. The current-status section above and
+the linked ledger supersede those statements. The original design and incremental notes are
+retained for traceability rather than presented as a current task list.
 
 ## Why unify
 

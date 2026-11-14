@@ -10,13 +10,14 @@ The current build is `versionName 0.9.0.1` (versionCode 39).
 The default desktop client is now **Compose Multiplatform** in `:desktop-compose`, sharing
 `:core`, `:ui-model` and the desktop engine in `:desktop`. Run it with
 `./gradlew :desktop-compose:run` (the old `:desktop:run` command delegates to it).
-Desktop release workflows now package Compose. This is an approved launcher cutover, **not a
-claim of completed runtime/device validation or feature parity**. See the
+Desktop release workflows now package Compose. A successful build/device check has been
+reported by the user; its platform and test scope are not yet recorded. This is **not a claim of
+complete release-matrix validation or feature parity**. See the
 [cutover status and rollback instructions](docs/compose-desktop-cutover.md).
 
 Swing has been removed, including its fallback tasks, dialogs and table renderer.
 Do not run multiple clients against the same vault simultaneously.
-Keep an encrypted backup before testing either client. Android MainActivity uses the shared
+Keep an encrypted backup before testing a new build. Android MainActivity uses the shared
 Compose cards while retaining Activity chrome and dialogs. Remaining feature gaps and validation
 work are tracked in the [Compose UI plan](docs/compose-unified-ui-plan.md).
 

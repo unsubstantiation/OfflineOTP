@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Documentation: Record the user-reported successful build/device check without inferring its platform or scope; consolidate current post-Swing status and distinguish historical migration notes from remaining work.
+
  * Desktop: Remove Swing UI, launcher, fallback packaging, table model and Swing-only tests. Retain shared engine, native integration and AWT artwork for Compose. Runtime/device/release validation remains pending; no in-tree Swing fallback remains.
 
  * Desktop cutover: Select Compose for default run/release packaging; retain explicit runSwing/packageSwingDesktop fallback. Stage native crypto libraries and shared icons for Compose distributions. Runtime/device/release validation and remaining feature gaps are still pending.
