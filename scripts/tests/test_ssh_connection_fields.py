@@ -108,42 +108,6 @@ class AndroidSshConnectionEditorTest(unittest.TestCase):
         self.assertIn("SshField.PASSWORD -> actual.getSshConnection()?.password.orEmpty()", adapter)
 
 
-class DesktopSshConnectionTest(unittest.TestCase):
-    def setUp(self):
-        self.dialog = read(DESKTOP / "ui/EntryDialog.kt")
-        self.editor = read(DESKTOP / "control/EntryEditor.kt")
-        self.window = read(DESKTOP / "ui/MainWindow.kt")
-        self.cards = read(DESKTOP / "ui/EntryCards.kt")
-
-    def test_the_edit_dialog_collects_all_four_fields(self):
-        self.assertIn("JPasswordField(", self.dialog)
-        for field in ("sshHost", "sshPort", "sshUsername", "sshPassword"):
-            self.assertIn(f"val {field} =", self.dialog)
-        self.assertIn("SshConnection.of(sshHost.text, SshConnection.port(sshPort.text)", self.dialog)
-        # The four fields reach the model through the shared draft builder, which owns the
-        # SSH assembly for both dialogs.
-        self.assertIn("sshConnection = sshConnection", self.dialog)
-        self.assertIn("publicKey = publicKeyText", self.dialog)
-        draft = read(CORE / "Database/EntryDraft.kt")
-        self.assertIn("Entry.sshKey(publicKey, secret", draft)
-        # The rows are hidden for every other type, and the password is wiped on close.
-        self.assertIn(".forEach { it.isVisible = ssh }", self.dialog)
-        self.assertIn('sshPassword.text = ""', self.dialog)
-
-    def test_the_password_is_copied_only_after_a_reveal(self):
-        self.assertIn("fun copySshPassword(entry: Entry): TokenCopyResult {", self.editor)
-        self.assertIn("if (!entry.areDetailsVisible() || !entry.isSshKey()) return TokenCopyResult.Unavailable",
-                      self.editor)
-        self.assertIn('if (!entry.getSshConnection()?.password.isNullOrEmpty()) choices.add("Password")',
-                      self.window)
-
-    def test_the_card_shows_the_target_but_never_the_password(self):
-        self.assertIn("entry.getSshConnection()?.summary()?.let { parts.add(it) }", self.cards)
-        # summary() is host/user/port only; the password is never formatted into it.
-        connection = read(CORE / "Utilities/SshConnection.kt")
-        summary = connection[connection.index("fun summary()"):]
-        summary = summary[:summary.index("}")]
-        self.assertNotIn("password", summary)
 
 
 if __name__ == "__main__":

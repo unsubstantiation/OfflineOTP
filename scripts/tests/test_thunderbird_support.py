@@ -52,19 +52,6 @@ class ThunderbirdSupportTest(unittest.TestCase):
                     "thunderbird_export_success", "thunderbird_export_warning"):
             self.assertIn(key, strings)
 
-    def test_desktop_has_thunderbird_import_export(self):
-        window = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
-        for label in ('"Import Thunderbird credentials…"', '"Export Thunderbird credentials…"'):
-            self.assertIn(label, window)
-        self.assertIn("ThunderbirdDialogs.importBackup", window)
-        self.assertIn("ThunderbirdDialogs.exportBackup", window)
-        dialogs = (DESKTOP / "ui/ThunderbirdDialogs.kt").read_text(encoding="utf-8")
-        self.assertIn("object ThunderbirdDialogs", dialogs)
-        self.assertIn("ThunderbirdImport", dialogs)
-        self.assertIn("BoundedInputReader.read", dialogs)
-        # Add menu also has the entries
-        self.assertIn("Import Thunderbird credentials…", window)
-        self.assertIn("Export Thunderbird credentials…", window)
 
     def test_documentation_mentions_thunderbird(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

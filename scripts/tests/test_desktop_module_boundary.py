@@ -1,11 +1,4 @@
-"""Guards for the desktop Swing client module ``:desktop``.
-
-The desktop client is a pure-JVM leaf application that reuses the Android-free ``:core``. It must
-never import ``android.*``/``androidx.*`` and it adds no third-party UI or domain library of its
-own: Swing/AWT are JDK ``java.desktop`` modules and every domain type is reached through ``:core``.
-These checks mirror the stub-free ``compile-desktop.sh`` gate so a regression is caught even
-without running the Kotlin compiler.
-"""
+"""Guards for the Compose-free shared desktop engine and its native adapters."""
 import unittest
 from pathlib import Path
 
@@ -194,24 +187,12 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         build = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
         self.assertIn('include ":desktop"', settings)
         self.assertIn("org.jetbrains.kotlin.jvm", build)
-        self.assertIn("apply plugin: 'application'", build)
+        self.assertNotIn("apply plugin: 'application'", build)
+        self.assertIn("apply plugin: 'java-library'", build)
         self.assertIn("project(':core')", build)
         # No dynamic versions: the stdlib is pinned with strictly, matching app/core.
         self.assertIn("strictly '2.4.21'", build)
 
-    def test_swing_shell_is_separated_from_headless_model(self):
-        """Heavyweight frame construction lives outside the headless-tested table model package."""
-        model = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt"
-        window = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt"
-        self.assertTrue(model.is_file())
-        self.assertTrue(window.is_file())
-        # The headless model must not instantiate a heavyweight peer.
-        model_text = model.read_text(encoding="utf-8")
-        self.assertNotIn("JFrame", model_text)
-        self.assertIn("AbstractTableModel", model_text)
-        # A real entry point exists for the application plugin's mainClass.
-        main = DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/Main.kt"
-        self.assertIn("fun main()", main.read_text(encoding="utf-8"))
 
     def test_compile_gate_exists_and_runs_headless(self):
         gate = SANDBOX / "compile-desktop.sh"
@@ -268,23 +249,8 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         # The PIN buffer handed in for one operation is wiped on every exit path.
         self.assertIn("pin?.fill(' ')", manager)
 
-        window = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/MainWindow.kt")\
-            .read_text(encoding="utf-8")
-        self.assertIn('JMenu("Hardware")', window)
-        self.assertIn("HardwareKeyDialog.show", window)
-        self.assertIn("HardwareKeyDialog.requestUnlock", window)
-        self.assertIn("controller.unlockWithKey", window)
 
-        dialog = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui/"
-                  "HardwareKeyDialog.kt").read_text(encoding="utf-8")
-        self.assertIn("SwingWorker", dialog)
-        self.assertIn("CancelToken", dialog)
         # The PC/SC discovery and envelope store are assembled in the entry point, not tests only.
-        main = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/Main.kt").read_text(
-            encoding="utf-8")
-        self.assertIn("PcscHardwareDiscovery()", main)
-        self.assertIn("DesktopHardwareUnlockStore(", main)
-        self.assertIn("HardwareKeyManager(", main)
 
     def test_token_copy_logic_is_headless_with_clipboard_only_in_the_swing_shell(self):
         editor = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/control"
@@ -304,15 +270,7 @@ class DesktopModuleBoundaryTest(unittest.TestCase):
         self.assertIn("fun hasCopyableToken()", entry)
         self.assertIn("MOTP_NO_PIN_CODE", entry)
 
-        window = (DESKTOP_MAIN / "com/fairuniversal/offlineotp/desktop/ui"
-                  / "MainWindow.kt").read_text(encoding="utf-8")
-        self.assertIn('JButton("Copy selected")', window)
-        self.assertIn("copySelectedToken()", window)
-        self.assertIn("Advance HOTP counter", window)
-        self.assertIn("StringSelection", window)
         # Double-click and the row context menu both reach the same action.
-        self.assertIn("mouseClicked", window)
-        self.assertIn("JPopupMenu", window)
 
     def test_golden_interop_fixtures_are_wired_into_the_gate(self):
         resources = ROOT / "desktop/src/test/resources/golden"

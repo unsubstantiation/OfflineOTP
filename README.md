@@ -14,8 +14,8 @@ Desktop release workflows now package Compose. This is an approved launcher cuto
 claim of completed runtime/device validation or feature parity**. See the
 [cutover status and rollback instructions](docs/compose-desktop-cutover.md).
 
-Swing remains an explicit fallback: `./gradlew :desktop:runSwing` or
-`:desktop:packageSwingDesktop`. Do not run both clients against the same vault simultaneously.
+Swing has been removed, including its fallback tasks, dialogs and table renderer.
+Do not run multiple clients against the same vault simultaneously.
 Keep an encrypted backup before testing either client. Android MainActivity uses the shared
 Compose cards while retaining Activity chrome and dialogs. Remaining feature gaps and validation
 work are tracked in the [Compose UI plan](docs/compose-unified-ui-plan.md).
@@ -94,7 +94,7 @@ implementation; verify on your devices before relying on it.
 
 ## Desktop client
 
-The default `:desktop-compose` client uses desktop JDKs (JDK 17+). The `:desktop` module retains the shared engine and Swing fallback. They reuse the shared
+The default `:desktop-compose` client uses desktop JDKs (JDK 17+). The `:desktop` module retains the shared engine and AWT artwork utilities. They reuse the shared
 `:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
 portable logic stays headless and unit-tested. Desktop builds are
 fully portable: the vault (`secrets.dat`), its `.bck` copy, the client settings and the
@@ -235,7 +235,7 @@ but not its token, tags, counter, note contents or SSH keys — and on desktop t
 
 This is visual concealment, not screenshot protection: revealed entries, dialogs, copied data,
 titles, searches and other app screens may still expose information. Android blocks screenshots
-and screen recording by default, which is the additional protection here; the Swing desktop has no
+and screen recording by default, which is the additional protection here; the desktop client has no
 equivalent portable screenshot-blocking guarantee.
 
 On Android the app switcher normally keeps a preview of the last screen, like any other app. Turn
@@ -308,9 +308,8 @@ implementation for all five distributions: desktop defaults to it, Android CI st
 no client verifies OpenPGP signatures on restore. Password backups are the simpler interchange path.
 
 Verification limits: the offline sandbox compiles every desktop source against narrow stubs and
-runs the headless suite under `java.awt.headless=true`, including lightweight Swing theme and
-privacy checks. Display tests are opt-in on a host with a real or virtual display:
-`./gradlew :desktop:test -Dofflineotp.uiTests=true --tests '*MainWindowDisplayTest'`.
+runs the headless shared-engine tests under `java.awt.headless=true`. Swing-only display,
+theme and table tests have been retired; Compose runtime and device validation remain pending.
 Gradle builds, real PC/SC keys, jpackage packaging and lint require a networked host with a full
 JDK. See [Desktop packaging and release](scripts/packaging/README.md).
 

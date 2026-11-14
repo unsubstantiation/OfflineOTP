@@ -78,10 +78,7 @@ class LoginBackupWiringTest(unittest.TestCase):
         self.assertNotIn("oldFormat", source("Tasks/EncryptedRestoreTask.kt"))
         self.assertNotIn("oldFormat", core_source("Utilities/EncryptedBackupCodec.kt"))
         desktop = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
-        dialog = (desktop / "ui/BackupDialogs.kt").read_text(encoding="utf-8")
         coordinator = (desktop / "control/BackupCoordinator.kt").read_text(encoding="utf-8")
-        self.assertNotIn("Legacy format (headerless", dialog)
-        self.assertNotIn("oldFormat", dialog)
         self.assertNotIn("oldFormat", coordinator)
 
     def test_broadcasts_cannot_create_a_snapshot_without_a_pending_change(self):

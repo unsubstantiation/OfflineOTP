@@ -1,17 +1,17 @@
 # Compose desktop cutover gates
 
 **Status: Compose selected as the default launcher and release target by explicit user approval.
-Validation remains incomplete; this is not a validated release. Swing is retained as a fallback.**
+Validation remains incomplete; this is not a validated release. Swing code and fallback tasks have been removed by explicit user request.**
 
 ## Cutover and rollback commands
 
 - Default: `./gradlew :desktop-compose:run` (also `:desktop:run`).
 - Release app image: `./gradlew :desktop-compose:packageDesktop`.
-- Fallback: `./gradlew :desktop:runSwing` or `:desktop:packageSwingDesktop`.
+- No in-tree Swing fallback remains. Rollback requires a previously validated release and a backup.
 - Back up first. Close one client before opening the other; never share an active vault between
   two processes. Use the same `OFFLINEOTP_HOME` deliberately for rollback, or a disposable copy
   for testing. No on-disk format migration is part of this switch.
-- The fallback still ships in the dependency jar; Swing source removal is a later increment.
+- The shared desktop dependency now contains engine and AWT artwork code, not Swing UI.
 - Desktop release workflows now target Compose, but no successful real build/runtime/package
   evidence is available yet. The pending ledger below remains authoritative.
 
@@ -77,8 +77,8 @@ Hardware and camera tests require appropriate physical devices; emulator success
    in Compose release packaging on all platforms. Existing Swing packaging is not evidence for it.
 4. Prepare a launcher switch with a documented fallback/rollback and vault compatibility checks.
 5. Obtain explicit approval for cutover. Ask separately before opening a PR.
-6. Switch the shipping entry point in a gated increment. Retire Swing only after the new release
-   path and agreed fallback have been validated; do not delete the shared desktop engine.
+6. Launcher cutover and Swing removal have been explicitly authorized and implemented before
+   completion of these checks. Complete the evidence ledger before declaring release readiness.
 
 ## Evidence ledger
 

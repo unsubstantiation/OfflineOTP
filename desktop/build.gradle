@@ -1,10 +1,6 @@
-// Desktop Swing client. Pure-JVM: it depends on the Android-free :core plus the toolkit-free
-// :ui-model (labels and frame model only), and never references android.*, androidx.* or Compose. The kotlin-sandbox desktop compile (no Android stubs on the classpath)
-// and a Python source guard enforce that boundary. Swing/AWT are JDK java.desktop modules, not
-// third-party dependencies, so this module declares no UI library of its own.
+// Shared desktop engine and AWT artwork utilities. Compose owns all desktop UI and packaging.
 apply plugin: 'org.jetbrains.kotlin.jvm'
 apply plugin: 'java-library'
-apply plugin: 'application'
 
 // 11, not the 1.8 used by the Android app and :core: the embedded OpenPGP engine
 // (org.pgpainless:pgpainless-core) publishes a JVM 11 runtime requirement, and Gradle refuses to
@@ -28,40 +24,6 @@ kotlin {
     }
 }
 
-application {
-    // Top-level main() in desktop/Main.kt compiles to the MainKt entry class.
-    mainClass = 'com.fairuniversal.offlineotp.desktop.MainKt'
-}
-
-// Unified OpenPGP native library. CI runs `cargo build --manifest-path rust/Cargo.toml`
-// before Gradle; installDist/jpackage bundle the host cdylib next to the app jars and
-// the packaged launcher points JNA at it. A checkout without the Rust build still runs:
-// RpgpOpenPgpPort falls back to PGPainless only when the native library is absent.
-def openPgpNativeReleaseDir = file("$rootDir/rust/target/release")
-def openPgpOsName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
-def openPgpNativeFileName = openPgpOsName.startsWith('windows') ? 'offlineotp_openpgp.dll' :
-    (openPgpOsName.contains('mac') ? 'libofflineotp_openpgp.dylib' : 'libofflineotp_openpgp.so')
-def openPgpNativeFile = new File(openPgpNativeReleaseDir, openPgpNativeFileName)
-
-tasks.register('stageOpenPgpNative', Copy) {
-    from(openPgpNativeReleaseDir) {
-        include openPgpNativeFileName
-    }
-    into layout.buildDirectory.dir('openpgp-native')
-    onlyIf { openPgpNativeFile.isFile() }
-}
-
-tasks.named('installDist') {
-    dependsOn 'stageOpenPgpNative'
-    from(layout.buildDirectory.dir('openpgp-native')) {
-        into 'lib/native'
-    }
-}
-
-tasks.named('run') {
-    systemProperty 'jna.library.path', openPgpNativeReleaseDir.absolutePath
-}
-
 // Brand artwork: both clients show the same issuer logos. The marks are the Android vector
 // drawables in :app, which a JVM module cannot resolve as Android resources, so copy the
 // thumb_*.xml files onto this module's classpath under /thumbnails/ (see ui/IssuerIcons.kt).
@@ -81,50 +43,6 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
-// Display tests are opt-in: ordinary CI/headless runs must never launch interactive windows.
-// Pass -Dofflineotp.uiTests=true to Gradle on a machine with a real or virtual display.
-tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
-    systemProperty 'offlineotp.uiTests', System.getProperty('offlineotp.uiTests', 'false')
-}
-
-// Native installer/app image through the JDK's jpackage (requires a full JDK 17+, not a JRE). The
-// task is skipped when the running JDK has no jpackage, which keeps older toolchains working; the
-// packaging README documents how release builds invoke it.
-tasks.register('packageSwingDesktop', Exec) {
-    dependsOn 'installDist'
-    group = 'distribution'
-    description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
-
-    def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows')
-    def jpackage = new File(System.getProperty('java.home'), isWindows ? 'bin/jpackage.exe' : 'bin/jpackage')
-    executable = jpackage.absolutePath
-    args = [
-        '--type', 'app-image',
-        '--name', 'OfflineOTP',
-        '--input', layout.buildDirectory.dir('install/desktop/lib').get().asFile.absolutePath,
-        '--main-jar', "${project.name}.jar",
-        '--main-class', 'com.fairuniversal.offlineotp.desktop.MainKt',
-        '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
-        // jpackage copies --input into $APPDIR; installDist staged the cdylib in lib/native.
-        '--java-options', '-Djna.library.path=$APPDIR/native',
-    ]
-    // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated
-    // from the shared PNG by the CI job (-PmacIconFile) because it is a binary container; a plain
-    // local build without the property keeps jpackage's default icon.
-    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
-    def macIcon = project.hasProperty('macIconFile') ?
-        file(project.property('macIconFile')) : file('packaging/offlineotp.icns')
-    def icon = isWindows ? file('packaging/offlineotp.ico') :
-        (osName.contains('linux') ? file('src/main/resources/offlineotp.png') :
-            (osName.contains('mac') && macIcon.isFile() ? macIcon : null))
-    if (icon != null) {
-        inputs.file(icon)
-        args '--icon', icon.absolutePath
-    }
-    onlyIf { jpackage.canExecute() }
-    doFirst { layout.buildDirectory.dir('release').get().asFile.mkdirs() }
-}
-
 dependencies {
     implementation('org.jetbrains.kotlin:kotlin-stdlib:2.4.21') {
         version { strictly '2.4.21' }
@@ -134,8 +52,7 @@ dependencies {
     // dependencies (org.json and the portable yubikit surface) arrive transitively.
     implementation project(':core')
 
-    // The toolkit-free frame layer, so the Swing client's tab, sort and tag wording comes from the
-    // same strings the Compose screen uses instead of a second table (see ui/…/VaultStrings.kt).
+    // Toolkit-free frame layer shared with the Compose host.
     // It is pure Kotlin: no Compose artifact reaches this module.
     implementation project(':ui-model')
 
@@ -161,18 +78,6 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
 }
 
-// Compatibility command now launches Compose; Swing is an explicit rollback/debug option.
-tasks.register('runSwing', JavaExec) {
-    group = 'application'
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.fairuniversal.offlineotp.desktop.MainKt'
-    systemProperty 'jna.library.path', openPgpNativeReleaseDir.absolutePath
-}
-tasks.named('run') {
-    enabled = false
-    dependsOn ':desktop-compose:run'
-}
-tasks.register('packageDesktop') {
-    group = 'distribution'
-    dependsOn ':desktop-compose:packageDesktop'
-}
+// Retain old command aliases without a second application or fallback distribution.
+tasks.register('run') { dependsOn ':desktop-compose:run' }
+tasks.register('packageDesktop') { dependsOn ':desktop-compose:packageDesktop' }

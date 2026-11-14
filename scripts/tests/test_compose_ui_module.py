@@ -412,14 +412,6 @@ class VaultWordingParityTest(unittest.TestCase):
         }
         self.assertEqual(expected, labels)
 
-    def test_desktop_client_takes_its_labels_from_the_shared_table(self):
-        screen = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/MainScreen.kt")
-        text = screen.read_text(encoding="utf-8")
-        self.assertIn("VaultStrings.English.categoryTitle(category)", text)
-        self.assertIn("VaultStrings.English.sortTitle(mode)", text)
-        # No second label table may reappear in the Swing client.
-        self.assertNotIn('"SSH Keys"', text)
-        self.assertNotIn('"Most used"', text)
 
 
 class ComposeUiWiringTest(unittest.TestCase):
@@ -469,7 +461,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertNotRegex(text, r"compose[^'\n]*:[\.\+]")
 
     def test_swing_client_stays_compose_free(self):
-        """`:desktop` keeps its Swing-only gate and tests while both clients share the engine."""
+        """`:desktop` stays toolkit-free while the Compose host uses its shared engine."""
         offenders = []
         for path in kotlin_files(ROOT / "desktop/src"):
             for number, imported in imports(path):

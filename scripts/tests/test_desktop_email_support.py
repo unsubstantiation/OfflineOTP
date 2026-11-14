@@ -23,13 +23,9 @@ def text(path):
 
 class DesktopEmailSupportTest(unittest.TestCase):
     def test_tab_strip_is_derived_from_the_projection(self):
-        screen = (DESKTOP / "ui/MainScreen.kt").read_text(encoding="utf-8")
-        self.assertIn("EntryListPresentation.Category.entries.forEach { addTab(", screen)
         # The old hard-coded four-label strip must not come back: it silently dropped a category.
-        self.assertNotIn('listOf("OTP", "Notes", "SSH Keys", "Passwords")', screen)
         # The labels are :ui-model's shared table now (the same one the Compose screen and the
         # Android resources use), so the desktop no longer keeps a second copy to fall behind.
-        self.assertIn("VaultStrings.English.categoryTitle(category)", screen)
         titles = re.search(
             r"fun categoryTitle\([^)]*\): String = when \(.*?\n    \}",
             MODEL_STRINGS.read_text(encoding="utf-8"), re.S)
@@ -53,23 +49,7 @@ class DesktopEmailSupportTest(unittest.TestCase):
              "R.string.tab_passwords", "R.string.tab_email"],
             [name.strip() for name in tabs.split(",")])
 
-        window = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
-        self.assertIn("EntryListPresentation.Category.entries[screen.categories.selectedIndex]", window)
 
-    def test_desktop_email_actions_are_wired(self):
-        window = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
-        for call in ("EmailDialogs.addAccount(", "EmailDialogs.importBackup(",
-                     "EmailDialogs.exportBackup(", "EmailDialogs.showDetails("):
-            self.assertIn(call, window, call)
-        for label in ('"Add email account…"', '"Import FairEmail backup…"',
-                      '"Export FairEmail backup…"', '"View email details…"'):
-            self.assertIn(label, window, label)
-        # The row action follows the entry kind, like the password actions beside it.
-        self.assertIn('"View email details…" -> { component.isVisible = entry.isEmail();',
-                      window)
-        # Adding or importing selects the Email tab so the new cards are visible.
-        self.assertGreaterEqual(
-            window.count("screen.categories.selectedIndex = EntryListPresentation.Category.EMAILS.ordinal"), 2)
 
     def test_desktop_email_control_is_headless_and_bounded(self):
         control = (DESKTOP / "control/EmailAccounts.kt").read_text(encoding="utf-8")
@@ -79,9 +59,6 @@ class DesktopEmailSupportTest(unittest.TestCase):
         # objects never appear as desktop types.
         self.assertNotIn("import org.json", control)
         self.assertIn("const val MAX_IMPORT_BYTES = 8 * 1024 * 1024", control)
-        dialogs = (DESKTOP / "ui/EmailDialogs.kt").read_text(encoding="utf-8")
-        self.assertIn("BoundedInputReader.read(it, EmailAccounts.MAX_IMPORT_BYTES)", dialogs)
-        self.assertIn("bytes?.fill(0)", dialogs)
         # Both clients show the same rows, built once in :core.
         self.assertIn("EmailMaterial.details(", control)
 
@@ -95,13 +72,11 @@ class DesktopEmailSupportTest(unittest.TestCase):
         self.assertIn("EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)", adapter)
         self.assertNotIn('append("Auth type: ")', adapter)
         # The desktop dialog starts masked and only reveals on request.
-        self.assertIn("val masked = EmailAccounts.details(entry, false)", dialogs_text())
-        self.assertIn("JCheckBox(\"Show passwords\")", dialogs_text())
+        owner = (DESKTOP / "control/DesktopEmailDetails.kt").read_text()
+        self.assertIn("var secretsVisible = false", owner)
+        self.assertIn("request.secretsVisible = !request.secretsVisible", owner)
 
     def test_email_entries_stay_out_of_the_otp_editors(self):
-        desktop_editor = (DESKTOP / "ui/EntryDialog.kt").read_text(encoding="utf-8")
-        self.assertIn("if (existing?.isEmail() == true) return null", desktop_editor)
-        self.assertIn("EntryDraft.offerableTypes()", desktop_editor)
         android_editor = (APP / "Dialogs/ManualEntryDialog.kt").read_text(encoding="utf-8")
         self.assertIn("EntryDraft.offerableTypes()", android_editor)
         # The one shared list keeps both forms from offering an imported kind again.
@@ -127,14 +102,8 @@ class DesktopEmailSupportTest(unittest.TestCase):
                       text("core/src/test/kotlin/com/fairuniversal/offlineotp/Utilities/EmailMaterialTest.kt"))
         self.assertIn("class EmailAccountsTest",
                       (DESKTOP_TEST / "control/EmailAccountsTest.kt").read_text(encoding="utf-8"))
-        self.assertIn("class EmailAccountFormTest",
-                      (DESKTOP_TEST / "ui/EmailAccountFormTest.kt").read_text(encoding="utf-8"))
-        self.assertIn("class MainScreenTabsTest",
-                      (DESKTOP_TEST / "ui/MainScreenTabsTest.kt").read_text(encoding="utf-8"))
 
 
-def dialogs_text():
-    return (DESKTOP / "ui/EmailDialogs.kt").read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

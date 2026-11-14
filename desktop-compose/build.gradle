@@ -1,4 +1,4 @@
-// Default desktop Compose client; :desktop remains the shared engine and explicit Swing fallback.
+// Default desktop Compose client; :desktop remains the shared engine and artwork library.
 apply plugin: 'org.jetbrains.kotlin.jvm'
 apply plugin: 'java-library'
 apply plugin: 'application'

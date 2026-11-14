@@ -53,13 +53,7 @@ class LinScpSupportTest(unittest.TestCase):
             self.assertIn(token, main)
 
     def test_desktop_and_ios_expose_bidirectional_linscp_interchange(self):
-        desktop_dialogs = (DESKTOP / "ui/LinScpDialogs.kt").read_text(encoding="utf-8")
-        self.assertIn("LinScpCredentials.importBytes(", desktop_dialogs)
-        self.assertIn("LinScpCredentials.exportVault(", desktop_dialogs)
 
-        main_window = (DESKTOP / "ui/MainWindow.kt").read_text(encoding="utf-8")
-        self.assertIn("Import LinSCP SSH & sessions…", main_window)
-        self.assertIn("Export to LinSCP vault…", main_window)
 
         ios_vault = (IOS / "Sources/OfflineOTPKit/LinScpVault.swift").read_text(encoding="utf-8")
         self.assertIn('magicText = "LSCPVLT2"', ios_vault)

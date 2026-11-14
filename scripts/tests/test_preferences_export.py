@@ -117,20 +117,6 @@ class PreferencesWiringTest(unittest.TestCase):
         settings = read(APP / "Utilities/Settings.kt")
         self.assertIn("open fun setBackupPassword(value: String): Boolean", settings)
 
-    def test_desktop_menu_and_dialogs(self):
-        window = read(DESKTOP / "ui/MainWindow.kt")
-        self.assertIn('"Export preferences…"', window)
-        self.assertIn('"Import preferences…"', window)
-        self.assertIn("PreferencesDialogs.export(frame, controller.preferences)", window)
-        self.assertIn("PreferencesDialogs.import(frame, controller.preferences)", window)
-        self.assertIn("selectSortChoice(mode)", window)
-        self.assertIn("armInactivityTimer()", window)
-        dialogs = read(DESKTOP / "ui/PreferencesDialogs.kt")
-        self.assertIn("PreferencesExport.PLATFORM_DESKTOP", dialogs)
-        self.assertIn("PreferencesExport.MAX_BYTES", dialogs)
-        self.assertIn("WrongPlatformException", dialogs)
-        # The desktop carries no secret, so it never asks about one.
-        self.assertNotIn("includeSecrets = true", dialogs)
 
     def test_ios_section_and_port(self):
         view = read(IOS_APP / "SettingsView.swift")

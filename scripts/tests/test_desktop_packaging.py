@@ -22,11 +22,11 @@ class DesktopPackagingTest(unittest.TestCase):
         self.script = (PACKAGING_DIR / "verify-desktop-build.sh").read_text(encoding="utf-8")
         self.ci = CI_SCRIPT.read_text(encoding="utf-8")
 
-    def test_compose_is_default_with_explicit_swing_fallback_and_native_staging(self):
+    def test_compose_is_the_only_launcher_with_native_staging(self):
         engine = (ROOT / "desktop/build.gradle").read_text()
         self.assertIn("dependsOn ':desktop-compose:run'", engine)
-        self.assertIn("tasks.register('runSwing', JavaExec)", engine)
-        self.assertIn("tasks.register('packageSwingDesktop', Exec)", engine)
+        self.assertNotIn("runSwing", engine)
+        self.assertNotIn("packageSwingDesktop", engine)
         self.assertIn("dependsOn ':desktop-compose:packageDesktop'", engine)
         self.assertIn("from(tasks.named('stageOpenPgpNative')) { into 'lib/native' }", self.build)
         self.assertIn("'-Djna.library.path=$APPDIR/native'", self.build)

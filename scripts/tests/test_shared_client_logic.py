@@ -62,9 +62,6 @@ class SharedClientLogicTest(unittest.TestCase):
                                  f"{path}: the HOTP ceiling belongs to EntryUsage")
 
     def test_swing_confirmation_keeps_entry_identity(self):
-        window = text(DESKTOP / "ui/MainWindow.kt")
-        self.assertIn("editor?.remove(selected)", window)
-        self.assertNotIn("editor?.removeAt(unlocked.presentation.sourceIndex(row))", window)
         editor = text(DESKTOP / "control/EntryEditor.kt")
         self.assertIn("state.snapshot().none { it === entry }", editor)
 
@@ -79,8 +76,6 @@ class SharedClientLogicTest(unittest.TestCase):
         self.assertIn("VaultFilterCombination.SEARCH_AND_TAGS",
                       text(DESKTOP / "control/DesktopVaultState.kt"))
         self.assertIn("EntryTagFilter.sortedNames(", text(APP / "View/TagsAdapter.kt"))
-        self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/MainWindow.kt"))
-        self.assertIn("EntryTagFilter.sortedNames(", text(DESKTOP / "ui/TagDialog.kt"))
         # A hand-written AND/OR predicate in a shell is exactly the copy that drifted before.
         for root in (APP, DESKTOP):
             self.assertNotIn("containsAll(", joined(root),
@@ -88,7 +83,6 @@ class SharedClientLogicTest(unittest.TestCase):
 
     def test_both_clients_use_the_shared_category_mapping(self):
         self.assertIn("EntryListPresentation.categoryOf(", text(APP / "Activities/MainActivity.kt"))
-        self.assertIn("EntryListPresentation.categoryOf(", text(DESKTOP / "ui/MainWindow.kt"))
         self.assertIn("categoryOf(entry) == selected", text(CORE / "View/EntryListPresentation.kt"))
 
     def test_both_clients_use_the_shared_qr_predicate(self):
@@ -104,28 +98,10 @@ class SharedClientLogicTest(unittest.TestCase):
 
     def test_both_manual_entry_forms_build_through_the_shared_draft(self):
         android = text(APP / "Dialogs/ManualEntryDialog.kt")
-        desktop = text(DESKTOP / "ui/EntryDialog.kt")
-        for body, name in ((android, "Android"), (desktop, "desktop")):
-            self.assertIn("EntryDraft.create(", body,
-                          f"{name} must assemble entries through EntryDraft")
-            self.assertIn("EntryDraft.sanitizeSecret(", body,
-                          f"{name} must read secrets through EntryDraft.sanitizeSecret")
-            # The offered kinds are one list, not a predicate written out per form.
-            self.assertIn("EntryDraft.offerableTypes()", body,
-                          f"{name} must take its type list from EntryDraft.offerableTypes")
-            # Assembling an entry per type in a shell is the copy that drifted before.
-            self.assertIsNone(re.search(r"\bEntry\.sshKey\(", body),
-                              f"{name} must not build SSH entries by hand")
-            self.assertIsNone(re.search(r"\bEntry\(type,", body),
-                              f"{name} must not build drafts from per-type constructors")
-            # A Save button may test its own fields, but the values that reach the model are
-            # parsed once, by the shared builder.
-            for stale in ("Integer.parseInt(digitsInput", "Long.parseLong(counterInput",
-                          "Integer.parseInt(periodInput"):
-                self.assertNotIn(stale, body, f"{name} must parse numbers through EntryDraft")
         # A new entry is stamped; an edit keeps the stamp the entry already carries.
         self.assertIn("newEntry = true", android)
-        self.assertIn("newEntry = existing == null", desktop)
+        compose_input = text(ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt")
+        self.assertIn("EntryDraft", compose_input)
 
     def test_the_sandbox_gate_compiles_the_shared_helpers(self):
         script = text(ROOT / "scripts/kotlin-sandbox/run.sh")

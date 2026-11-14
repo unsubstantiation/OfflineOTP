@@ -1,6 +1,6 @@
 # Desktop packaging and release
 
-The default desktop client is Compose Multiplatform; Swing is an explicit fallback. Real runtime and release validation remain outstanding (see `docs/compose-desktop-cutover.md`). Two Gradle outputs matter for releases:
+The default desktop client is Compose Multiplatform; Swing has been removed. Real runtime and release validation remain outstanding (see `docs/compose-desktop-cutover.md`). Two Gradle outputs matter for releases:
 
 - `./gradlew :desktop-compose:distZip` (and `installDist`) from the standard `application` plugin — a
   host-specific distribution (Compose/Skiko native artifacts follow the build OS) with launcher scripts and all dependency jars.
@@ -26,7 +26,7 @@ The default desktop client is Compose Multiplatform; Swing is an explicit fallba
 
 ## Application icons
 
-The Swing window loads its icon from `desktop/src/main/resources/offlineotp.png`, which is also
+Shared packaging artwork is stored at `desktop/src/main/resources/offlineotp.png`, which is also
 used by jpackage on Linux. Windows jpackage uses `desktop/packaging/offlineotp.ico`, containing
 multiple sizes for Explorer and the launcher. Both are generated from the same approved artwork
 as the Android icons; regenerate them with `python scripts/branding/generate_icons.py` (Pillow
@@ -76,4 +76,4 @@ Gradle cannot run in the offline sandbox, so release packaging is structurally g
 - `scripts/tests/test_desktop_packaging.py` pins the Gradle packaging configuration, the
   reproducibility script and the CI script so the release wiring cannot silently disappear.
 
-Fallback: `:desktop:runSwing` and `:desktop:packageSwingDesktop` retain the old client. Never run both clients on one vault at once. Back up before cutover; no vault format migration is introduced.
+No Swing fallback is built. Rollback requires a previously validated release and a backup; do not run two processes against one vault.

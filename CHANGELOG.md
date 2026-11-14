@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop: Remove Swing UI, launcher, fallback packaging, table model and Swing-only tests. Retain shared engine, native integration and AWT artwork for Compose. Runtime/device/release validation remains pending; no in-tree Swing fallback remains.
+
  * Desktop cutover: Select Compose for default run/release packaging; retain explicit runSwing/packageSwingDesktop fallback. Stage native crypto libraries and shared icons for Compose distributions. Runtime/device/release validation and remaining feature gaps are still pending.
 
  * Migration validation: Add a manual-only Linux/Windows/macOS Compose Gradle build/test/distribution workflow and an evidence-based desktop cutover checklist. No launcher switch or device-validation claim.

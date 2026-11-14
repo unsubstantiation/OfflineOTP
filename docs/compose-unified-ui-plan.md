@@ -1,5 +1,5 @@
 > **Current desktop status:** User-approved default launcher/release cutover to Compose.
-> Swing remains only as an explicit fallback. Historical stage notes below describe earlier
+> Swing UI and fallback tasks have now been removed at user request. Historical stage notes below describe earlier
 > states; device/runtime/packaging validation is still pending. See
 > [cutover ledger](compose-desktop-cutover.md). No feature-parity or validated-release claim.
 
@@ -1781,3 +1781,17 @@ installDist and runs real JVM tests on Linux, Windows and macOS. It does not rep
 hardware, crypto or installer validation. No branch validation runs were available when this
 workflow was prepared; workflow dispatch from Arena remains permission-blocked. Swing remains
 the shipping entry point and no PR or release cutover is implied.
+
+### Swing retirement
+
+Removed the legacy Main entry point, Swing windows/dialogs/forms/theme/timers/table adapter and
+their tests. The desktop module is now a library, keeping controllers, storage, hardware, crypto
+and AWT issuer artwork used by Compose. Old run/packageDesktop command aliases delegate to
+Compose; no runSwing/packageSwingDesktop or Swing distributions remain. Swing-dependent source
+assertions were retired while independent Android/iOS/core assertions and Compose wiring tests
+remain; iOS palette comparison now uses the Compose palette. Test counts therefore decrease.
+A new source guard forbids Swing imports and verifies the sole host/library boundary.
+
+This user-requested removal is not proof of feature parity or runtime validation. Existing
+release/runtime/device gaps remain in the cutover ledger. Rollback needs a prior release and
+backup, not an in-tree fallback. No vault-format migration is included.

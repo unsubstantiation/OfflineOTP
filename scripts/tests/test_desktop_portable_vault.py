@@ -12,7 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DESKTOP = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop"
 STORAGE = DESKTOP / "storage/DesktopStorage.kt"
-MAIN = DESKTOP / "Main.kt"
+MAIN = ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt"
 
 
 def read(path):

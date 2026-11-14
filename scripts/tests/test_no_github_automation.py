@@ -86,7 +86,7 @@ class NoGithubAutomationTest(unittest.TestCase):
     def test_the_macos_icon_is_generated_rather_than_committed(self):
         self.assertFalse((ROOT / "desktop/packaging/offlineotp.icns").exists(),
                          "the .icns is generated from offlineotp.png by the macOS job")
-        gradle = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
+        gradle = (ROOT / "desktop-compose/build.gradle").read_text(encoding="utf-8")
         self.assertIn("project.hasProperty('macIconFile')", gradle)
         # Only macOS may use the .icns; Windows keeps the .ico and Linux the PNG.
         self.assertIn("osName.contains('mac') && macIcon.isFile()", gradle)

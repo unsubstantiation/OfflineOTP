@@ -1,15 +1,7 @@
 #!/usr/bin/env bash
 #
-# Desktop Swing boundary gate.
-#
-# Mirrors the Gradle :desktop -> :core dependency with two kotlinc phases and no Android SDK:
-#   phase 1 compiles :core (main+test) and :ui-model (the shared, Compose-free frame layer the
-#   Swing client takes its labels from) with only core's pure-JVM third-party stubs, and
-#   phase 2 compiles the desktop Swing sources and tests against core's compiled output and the
-#   JDK's java.desktop module (Swing/AWT need no stub and no third-party UI library).
-# A desktop source that imports android.* or reaches for an undeclared library fails to compile.
-# Tests run headless (-Djava.awt.headless=true): lightweight Swing components and models execute,
-# while opt-in JFrame/dialog display tests are skipped because heavyweight peers need a display.
+# Shared desktop-engine boundary gate. Compiles core/model then desktop without Android
+# or Compose stubs; retained AWT image rendering uses java.desktop. Swing UI is retired.
 set -euo pipefail
 
 SANDBOX="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,9 +9,7 @@ ROOT="$(cd "$SANDBOX/../.." && pwd)"
 CORE_MAIN="$ROOT/core/src/main/kotlin"
 CORE_TEST="$ROOT/core/src/test/kotlin"
 DESKTOP_MAIN="$ROOT/desktop/src/main/kotlin"
-# The Swing client shares the frame layer's wording (:ui-model), which is pure Kotlin. Phase 1
-# compiles it beside :core, so this gate proves that no Compose or Android artifact is needed to
-# build the shipping desktop client.
+# Shared toolkit-free frame layer used by desktop controllers.
 UI_MODEL_MAIN="$ROOT/ui-model/src/commonMain/kotlin"
 DESKTOP_TEST="$ROOT/desktop/src/test/kotlin"
 # Gradle puts both main and test resources on the test classpath; mirror that here.

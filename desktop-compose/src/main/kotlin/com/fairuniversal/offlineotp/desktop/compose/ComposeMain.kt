@@ -112,10 +112,10 @@ import java.awt.event.AWTEventListener
 /**
  * Compose Desktop entry point: the shared `:ui` screen over the existing portable vault.
  *
- * This is the default desktop host; Swing remains an explicit fallback. It deliberately
+ * This is the default desktop host; the Swing UI has been removed. It deliberately
  * derives rows through [VaultProjection] and adds host capability flags; widgets come from `:ui`,
  * and unlocking/saving go through the same [VaultController] and
- * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
+ * [DesktopVaultState] shared engine, preserving the existing vault format.
  *
  * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): identity creation, OpenPGP hardware/agent integration, camera import, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action

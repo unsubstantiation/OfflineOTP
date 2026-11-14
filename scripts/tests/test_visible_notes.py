@@ -39,41 +39,9 @@ class AndroidVisibleNoteTest(unittest.TestCase):
         strings = (RES / "values/strings_main.xml").read_text(encoding="utf-8")
         self.assertNotIn("secure_note_hidden", strings)
         # The desktop client dropped its placeholder too.
-        model = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt")\
-            .read_text(encoding="utf-8")
-        self.assertIn("entry.isNote() -> entry.getNote()", model)
-        self.assertNotIn("[Note hidden]", model)
 
 
-class DesktopVisibleNoteTest(unittest.TestCase):
-    def setUp(self):
-        self.cards = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/ui/EntryCards.kt")\
-            .read_text(encoding="utf-8")
 
-    def test_notes_are_painted_wrapped_and_the_row_grows_to_fit(self):
-        self.assertIn("internal object NoteText", self.cards)
-        self.assertIn("fun wrap(text: String, width: Int, metrics: FontMetrics): List<String>", self.cards)
-        self.assertIn("internal object CardRowHeights", self.cards)
-        self.assertIn("table.setRowHeight(row, height)", self.cards)
-        # The note is drawn line by line, never as Swing HTML or a truncated label.
-        self.assertIn("class NoteView", self.cards)
-        self.assertIn("for ((index, line) in NoteText.lines(text, width, metrics).withIndex())", self.cards)
-        self.assertIn("(valueSlot.layout as CardLayout).show(valueSlot, if (noteShown) NOTE else VALUE)",
-                      self.cards)
-
-    def test_note_height_measurement_and_painting_share_one_wrapper(self):
-        # One line-breaking routine behind both the row measurement and the painter.
-        self.assertEqual(1, self.cards.count("fun wrap("),
-                         "line breaking must have a single definition")
-        self.assertIn("fun lines(text: String, width: Int, metrics: FontMetrics): List<String> "
-                      "= wrap(text, width, metrics)", self.cards)
-        self.assertIn("lines(text, width, metrics).size * metrics.height", self.cards)
-
-    def test_other_kinds_keep_their_redacted_placeholders(self):
-        for placeholder in ("[Password hidden]", "[Password file]", "[SSH keys hidden]", "[Email account]"):
-            self.assertIn(placeholder,
-                          (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/model/EntryTableModel.kt")
-                          .read_text(encoding="utf-8"))
 
 
 class DocumentationTest(unittest.TestCase):
