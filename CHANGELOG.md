@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Ignore unsaved field errors in SMTP identities marked for removal; Undo restores validation. Add disk round-trip coverage for identity removal, canceled drafts and expired authorization.
+
  * Compose desktop: Stage removal of additional non-primary SMTP identities, with Undo before Save and explicit credential-removal warnings. First/primary identities are protected by core validation.
 
  * Compose desktop: Edit incoming and SMTP authentication-type metadata with numeric validation and explicit warnings that credentials are preserved and no sign-in/token conversion occurs.

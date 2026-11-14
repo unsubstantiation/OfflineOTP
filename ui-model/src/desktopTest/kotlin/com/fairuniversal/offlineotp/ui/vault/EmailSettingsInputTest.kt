@@ -131,7 +131,10 @@ class EmailSettingsInputTest {
         try {
             val input = EmailSettingsInput.fromEntry(original)
             assertEquals(setOf(1), input.removableIdentities)
-            val edited = input.copy(removedIdentities = setOf(1)).build(original)
+            val draft = input.copy(
+                outgoing = input.outgoing.mapIndexed { index, old -> if (index == 1) old.copy(port = "bad", authentication = "bad") else old },
+                identities = input.identities!!.mapIndexed { index, old -> if (index == 1) old.copy(address = "bad") else old })
+            val edited = draft.copy(removedIdentities = setOf(1)).build(original)
             try {
                 val after = edited.getEmailAccount()
                 assertEquals(1, after.identities.size)
@@ -139,6 +142,10 @@ class EmailSettingsInputTest {
                 assertEquals(account.account.toString(), after.account.toString())
                 assertEquals(2, original.getEmailAccount().identities.size)
             } finally { edited.destroy() }
+            var undoRejected = false
+            try { draft.copy(removedIdentities = emptySet()).build(original).destroy() }
+            catch (_: IllegalArgumentException) { undoRejected = true }
+            assertTrue(undoRejected) // Undo restores both draft fields and their validation.
             for (removed in listOf(setOf(0), setOf(-1), setOf(2))) {
                 var rejected = false
                 try { input.copy(removedIdentities = removed, removableIdentities = removed).build(original).destroy() }

@@ -20,6 +20,41 @@ class DesktopEntryEditingTest {
     private fun email() = EmailEntryInput(address = "alice@example.com", incomingHost = "imap.example.com",
         outgoingHost = "smtp.example.com", incomingPassword = "incoming", outgoingPassword = "outgoing").build()
 
+    @Test fun secondaryIdentityRemovalPersistsAndCanceledDraftLeavesDiskUnchanged() {
+        val dir = Files.createTempDirectory("compose-identity-removal-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key); val editor = EntryEditor(controller, state)
+        val edits = DesktopEntryEditing(state, editor::replace)
+        try {
+            val seed = email()
+            val account = seed.getEmailAccount()
+            val extra = org.json.JSONObject(account.identity.toString()).put("primary", false)
+                .put("email", "alias@example.com").put("password", "alias-secret")
+            val original = Entry.email(account.account, account.identity, listOf(account.identity, extra), arrayListOf("work"))
+            seed.destroy(); assertTrue(editor.add(original))
+            edits.open(original.getListId(), emailSettings = true); val canceled = edits.pending!!
+            val draft = edits.initialEmailSettings(canceled)!!.copy(removedIdentities = setOf(1))
+            edits.dismiss(canceled)
+            assertFalse(edits.submitEmailSettings(canceled, draft, true))
+            val unchanged = controller.openVault("password") as VaultController.Session.Loaded
+            try { assertEquals(2, unchanged.entries.single().getEmailAccount().identities.size) }
+            finally { DesktopUnlockOperation.discard(unchanged) }
+            edits.open(original.getListId(), emailSettings = true); val request = edits.pending!!
+            val input = edits.initialEmailSettings(request)!!.copy(removedIdentities = setOf(1))
+            assertFalse(edits.submitEmailSettings(request, input, true) { false })
+            assertEquals(2, state.snapshot().single().getEmailAccount().identities.size)
+            assertTrue(edits.submitEmailSettings(request, input, true))
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try {
+                val result = reopened.entries.single().getEmailAccount()
+                assertEquals(1, result.identities.size)
+                assertEquals(account.identity.toString(), result.identity.toString())
+                assertEquals(account.account.toString(), result.account.toString())
+            } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { edits.close(); state.lock(); dir.deleteRecursively() }
+    }
+
     @Test fun emailSettingsPersistWithModeAndRevealGuards() {
         val dir = Files.createTempDirectory("compose-email-settings-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))

@@ -1736,3 +1736,13 @@ persists the result. Model tests cover exact retained records, original immutabi
 removal hints/primary/out-of-range rejection. Identity creation and primary reassignment remain
 out of scope, along with native UI/device validation and remaining migration work. Swing stays
 shipping.
+
+### Staged identity-removal validation and persistence
+
+Removed identity drafts no longer block Save with errors in hidden fields. Removal authority
+and full-list shape remain validated, but connection/metadata edits apply only to retained
+identities. Undo restores the draft and its validation. Tests exercise invalid draft fields
+followed by removal/undo and a real desktop save/reopen retaining the primary identity exactly.
+Canceled drafts and expired pre-save authorization leave both identities unchanged. Existing
+failure/rollback tests still apply to the shared replacement transaction. Native UI/device
+validation and remaining migration features remain pending; Swing stays shipping.

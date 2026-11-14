@@ -66,10 +66,14 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
             if (json.has("starttls")) json.put("starttls", input.encryption == 1)
         }
         apply(incoming, account.account)
-        outgoing.forEachIndexed { index, connection -> apply(connection, account.identities[index]) }
+        outgoing.forEachIndexed { index, connection ->
+            if (index !in removedIdentities) apply(connection, account.identities[index])
+        }
         identities?.let { values ->
             require(values.size == account.identities.size)
-            values.forEachIndexed { index, value -> value.applyTo(account.identities[index]) }
+            values.forEachIndexed { index, value ->
+                if (index !in removedIdentities) value.applyTo(account.identities[index])
+            }
         }
         val bytes = EmailMaterial.encode(account.account, account.identities.filterIndexed { index, _ -> index !in removedIdentities })
         try {
