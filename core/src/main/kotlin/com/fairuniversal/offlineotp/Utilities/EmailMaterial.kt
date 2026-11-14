@@ -47,7 +47,9 @@ object EmailMaterial {
         val rows = ArrayList<Detail>()
         rows.add(Detail("Account", account.account.optString("name").orEmpty()))
         rows.add(Detail("Address", account.address))
-        val protocol = if (account.account.optInt("protocol", 0) == 1) "POP" else "IMAP"
+        val protocolValue = if (account.account.has("protocol")) account.account.optInt("protocol", -1)
+            else if (account.account.optBoolean("pop")) 1 else 0
+        val protocol = when (protocolValue) { 0 -> "IMAP"; 1 -> "POP"; else -> "Unknown ($protocolValue)" }
         rows.addAll(connection("Incoming ($protocol)", account.account, revealSecrets))
         account.identities.forEachIndexed { index, identity ->
             val title = "Outgoing (SMTP)" + if (index == 0) "" else " #${index + 1}"
@@ -69,7 +71,8 @@ object EmailMaterial {
         return listOf(
             Detail("$title server", json.optString("host").orEmpty()),
             Detail("$title port", json.optInt("port", 0).toString()),
-            Detail("$title encryption", encryptionName(json.optInt("encryption", 0))),
+            Detail("$title encryption", encryptionName(if (json.has("encryption")) json.optInt("encryption", -1)
+                else if (json.optBoolean("starttls")) 1 else 0)),
             Detail("$title authentication", json.optInt("auth_type", 0).toString()),
             Detail("$title user name", json.optString("user").orEmpty()),
             Detail("$title password", shown, secret = true)

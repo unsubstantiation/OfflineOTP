@@ -1757,3 +1757,13 @@ consumers. Core tests check multiple identities, masking, reveal behavior and no
 desktop save/reopen checks edited sender values reach the masked details adapter. This is
 headless coverage, not actual Compose/Android visual validation. Remaining migration features
 and native/device release checks remain pending. Swing stays shipping.
+
+### Legacy email transport details
+
+Shared email details now honor legacy pop/starttls flags when protocol/encryption fields are
+absent, consistent with the settings editor. Explicit modern values take precedence even when
+legacy flags conflict. Unknown explicit protocol values are shown as unknown rather than IMAP.
+Regression tests cover incoming/SMTP fallback, modern precedence, unknown values, masking and
+nonmutation. This improves shared read-only descriptions without rewriting imported records.
+Actual Android/Compose rendering and device validation remain pending, as does remaining
+migration work. Swing remains shipping.

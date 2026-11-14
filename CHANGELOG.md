@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Shared email details: Honor legacy POP/STARTTLS flags when modern transport fields are absent, retain modern-field precedence, and label unknown protocol values instead of implying IMAP.
+
  * Shared email details: Show sender name, address and primary status for every SMTP identity, including secondary senders, while continuing to mask credentials by default.
 
  * Compose desktop: Ignore unsaved field errors in SMTP identities marked for removal; Undo restores validation. Add disk round-trip coverage for identity removal, canceled drafts and expired authorization.
