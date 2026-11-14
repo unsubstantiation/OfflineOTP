@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Migration validation: Add a manual-only Linux/Windows/macOS Compose Gradle build/test/distribution workflow and an evidence-based desktop cutover checklist. No launcher switch or device-validation claim.
+
  * Shared email details: Honor legacy POP/STARTTLS flags when modern transport fields are absent, retain modern-field precedence, and label unknown protocol values instead of implying IMAP.
 
  * Shared email details: Show sender name, address and primary status for every SMTP identity, including secondary senders, while continuing to mask credentials by default.

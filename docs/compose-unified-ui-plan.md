@@ -1767,3 +1767,12 @@ Regression tests cover incoming/SMTP fallback, modern precedence, unknown values
 nonmutation. This improves shared read-only descriptions without rewriting imported records.
 Actual Android/Compose rendering and device validation remain pending, as does remaining
 migration work. Swing remains shipping.
+
+### Desktop validation and cutover preparation
+
+See [Compose desktop cutover gates](compose-desktop-cutover.md) for the current evidence ledger
+and manual runtime/release checklist. A manual-only Compose desktop workflow now assembles
+installDist and runs real JVM tests on Linux, Windows and macOS. It does not replace native UI,
+hardware, crypto or installer validation. No branch validation runs were available when this
+workflow was prepared; workflow dispatch from Arena remains permission-blocked. Swing remains
+the shipping entry point and no PR or release cutover is implied.
