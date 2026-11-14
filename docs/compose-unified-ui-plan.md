@@ -1680,3 +1680,20 @@ and new submission during delivery, and recursive submission during the initial 
 They verify detached-result cleanup and that the new decode can still complete/confirm.
 These are orchestration tests, not native UI execution. Background final persistence, remaining
 migration features and real device/release validation remain pending. Swing stays shipping.
+
+### Existing SMTP identity metadata editing
+
+The Compose email settings form now exposes each existing SMTP identity's sender display name
+and email address. Credentials/authentication modes, ordering, account metadata and unknown
+identity fields are retained. Address edits do not update login usernames or establish server
+authorization; the form explicitly says so. Core validation bounds metadata, rejects control
+characters and malformed/whitespace-bearing addresses, and requires the same identity count.
+Inputs redact diagnostics. Existing transport-only callers may omit identity edits.
+
+Model tests verify exact non-edited identity/account preservation, modified identity fields,
+credential retention, original-entry immutability and invalid address/count rejection. Desktop
+save/reopen coverage verifies sender changes persist through the existing reveal/lifetime guards.
+The form uses per-request remembered state, not saved-instance state. This does not add/remove
+identities, edit authentication modes, contact servers or verify address ownership. Those broader
+email workflows, camera/OpenPGP hardware, asynchronous persistence and native/device validation
+remain pending. Swing remains shipping.

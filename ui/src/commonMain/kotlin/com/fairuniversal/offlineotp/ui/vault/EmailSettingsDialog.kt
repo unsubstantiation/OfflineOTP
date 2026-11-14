@@ -19,19 +19,29 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Boolean,
                         onSubmit: (EmailSettingsInput) -> Unit, onDismiss: () -> Unit) {
     var input by remember(inputKey) { mutableStateOf(initial) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email connection settings") },
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email settings") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens, authentication types and identities are preserved. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
+            Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens, authentication types and identity ordering are preserved. Changing an address does not change the login username or authorize sending from that address. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
             Text(text = "Incoming protocol: ${if (input.protocol == 0) "IMAP" else "POP"}")
             ForestTextAction(text = "Use IMAP", onClick = { input = input.copy(protocol = 0) })
             ForestTextAction(text = "Use POP", onClick = { input = input.copy(protocol = 1) })
             ConnectionFields("Incoming", input.incoming) { input = input.copy(incoming = it) }
             input.outgoing.forEachIndexed { index, connection ->
+                input.identities?.getOrNull(index)?.let { identity ->
+                    Text(text = "SMTP identity #${index + 1}")
+                    fun update(name: String = identity.name, address: String = identity.address) {
+                        input = input.copy(identities = input.identities?.mapIndexed { i, old ->
+                            if (i == index) old.copy(name = name, address = address) else old
+                        })
+                    }
+                    OutlinedTextField(value = identity.name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) update(name = it) }, label = { Text(text = "Sender display name") }, singleLine = true)
+                    OutlinedTextField(value = identity.address, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) update(address = it) }, label = { Text(text = "Sender email address") }, singleLine = true)
+                }
                 ConnectionFields("Outgoing SMTP #${index + 1}", connection) { next ->
                     input = input.copy(outgoing = input.outgoing.mapIndexed { i, old -> if (i == index) next else old })
                 }
             }
-            if (failed) Text(text = "Could not save settings. Check hosts, ports, encryption and storage. Original account retained.")
+            if (failed) Text(text = "Could not save settings. Check sender addresses, hosts, ports, encryption and storage. Original account retained.")
         } }, confirmButton = { ForestTextAction(text = "Save", onClick = { onSubmit(input) }) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })
 }

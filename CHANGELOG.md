@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit sender display names and email addresses for existing SMTP identities alongside connection settings, preserving credentials, authentication modes, identity ordering and unknown imported fields.
+
  * Compose desktop security: Revalidate file-import decode ownership after lifetime callbacks; destroy expired results and dismiss abandoned busy dialogs without overwriting newer work.
 
  * Compose desktop security: Recheck lifetime after shared file-import confirmation saves, suppress expired success/retry notices, and reject request replacement during authority checks.

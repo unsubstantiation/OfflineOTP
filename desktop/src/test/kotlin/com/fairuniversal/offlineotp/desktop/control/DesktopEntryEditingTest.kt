@@ -31,7 +31,8 @@ class DesktopEntryEditingTest {
             edits.open(original.getListId(), emailSettings = true); val request = edits.pending!!
             val initial = edits.initialEmailSettings(request)!!
             assertTrue(edits.initialEmailPasswords(request) == null)
-            val input = initial.copy(incoming = initial.incoming.copy(host = "changed.example.com"))
+            val input = initial.copy(incoming = initial.incoming.copy(host = "changed.example.com"),
+                identities = initial.identities!!.map { it.copy(name = "Sender", address = "sender@example.com") })
             assertFalse(edits.submitEmailSettings(request, input, false))
             assertFalse(edits.submitEmailSettings(request, input, true) { false })
             assertFalse(edits.submitEmailPasswords(request, EmailPasswordInput("bad", listOf("")), true))
@@ -41,6 +42,9 @@ class DesktopEntryEditingTest {
             try {
                 val account = reopened.entries.single().getEmailAccount()
                 assertEquals("changed.example.com", account.account.getString("host"))
+                assertEquals("Sender", account.identity.getString("name"))
+                assertEquals("sender@example.com", account.identity.getString("email"))
+                assertEquals("outgoing", account.identity.getString("password"))
                 assertEquals("incoming", account.account.getString("password"))
             } finally { DesktopUnlockOperation.discard(reopened) }
         } finally { edits.close(); state.lock(); dir.deleteRecursively() }

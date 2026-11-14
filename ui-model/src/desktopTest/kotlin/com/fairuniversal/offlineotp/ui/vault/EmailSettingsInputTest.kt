@@ -45,6 +45,35 @@ class EmailSettingsInputTest {
             } finally { edited.destroy() }
         } finally { original.destroy() }
     }
+    @Test fun editsExistingIdentityMetadataWithoutChangingCredentialsOrOtherIdentities() {
+        val original = entry()
+        try {
+            val input = EmailSettingsInput.fromEntry(original)
+            val identities = input.identities!!
+            val edited = input.copy(identities = identities.mapIndexed { i, old ->
+                if (i == 1) old.copy(name = "New sender", address = "new@example.com") else old
+            }).build(original)
+            try {
+                val before = original.getEmailAccount(); val after = edited.getEmailAccount()
+                assertEquals(before.identities[0].toString(), after.identities[0].toString())
+                val expected = JSONObject(before.identities[1].toString()).put("name", "New sender").put("email", "new@example.com")
+                assertEquals(expected.toString(), after.identities[1].toString())
+                assertEquals(before.account.toString(), after.account.toString())
+                assertEquals("alias@example.com", original.getEmailAccount().identities[1].getString("email"))
+                assertEquals("EmailIdentityInput(redacted)", identities[1].toString())
+            } finally { edited.destroy() }
+            for (address in listOf("missing", "@example.com", "a@", "a@@b", "a b@example.com", "a\n@example.com")) {
+                var rejected = false
+                try { input.copy(identities = identities.map { it.copy(address = address) }).build(original).destroy() }
+                catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+            var rejected = false
+            try { input.copy(identities = emptyList()).build(original).destroy() }
+            catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+        } finally { original.destroy() }
+    }
     @Test fun invalidInputIsRejectedAndDiagnosticsDoNotExposeMetadata() {
         val original = entry()
         try {

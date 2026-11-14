@@ -22,7 +22,23 @@ data class EmailConnectionInput(val host: String, val port: String, val encrypti
     }
 }
 
-data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionInput, val outgoing: List<EmailConnectionInput>) {
+/** Existing identity metadata only; credentials and authentication mode are never included. */
+data class EmailIdentityInput(val name: String, val address: String) {
+    internal fun applyTo(json: JSONObject) {
+        InputPolicy.text(name, InputPolicy.MAX_TEXT_CHARS)
+        InputPolicy.text(address, InputPolicy.MAX_TEXT_CHARS)
+        val email = address.trim()
+        require(email.count { it == '@' } == 1 && !email.startsWith('@') && !email.endsWith('@'))
+        require(email.none { it.isWhitespace() || it.isISOControl() })
+        require(name.none { it.isISOControl() })
+        if (name != json.optString("name").orEmpty()) json.put("name", name.trim())
+        if (address != json.optString("email").orEmpty()) json.put("email", email)
+    }
+    override fun toString() = "EmailIdentityInput(redacted)"
+}
+
+data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionInput, val outgoing: List<EmailConnectionInput>,
+                              val identities: List<EmailIdentityInput>? = null) {
     fun build(existing: Entry): Entry {
         require(existing.isEmail()); require(protocol in 0..1)
         val account = existing.getEmailAccount()
@@ -36,6 +52,10 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
         }
         apply(incoming, account.account)
         outgoing.forEachIndexed { index, connection -> apply(connection, account.identities[index]) }
+        identities?.let { values ->
+            require(values.size == account.identities.size)
+            values.forEachIndexed { index, value -> value.applyTo(account.identities[index]) }
+        }
         val bytes = EmailMaterial.encode(account.account, account.identities)
         try {
             val replacement = Entry(existing.toJSON())
@@ -49,7 +69,8 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
             require(entry.isEmail())
             val account = entry.getEmailAccount()
             val protocol = if (account.account.has("protocol")) account.account.optInt("protocol") else if (account.account.optBoolean("pop")) 1 else 0
-            return EmailSettingsInput(protocol, EmailConnectionInput.from(account.account), account.identities.map { EmailConnectionInput.from(it) })
+            return EmailSettingsInput(protocol, EmailConnectionInput.from(account.account), account.identities.map { EmailConnectionInput.from(it) },
+                account.identities.map { EmailIdentityInput(it.optString("name").orEmpty(), it.optString("email").orEmpty()) })
         }
     }
 }
