@@ -44,11 +44,15 @@ data class EmailIdentityInput(val name: String, val address: String) {
 }
 
 data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionInput, val outgoing: List<EmailConnectionInput>,
-                              val identities: List<EmailIdentityInput>? = null, val accountName: String? = null) {
+                              val identities: List<EmailIdentityInput>? = null, val accountName: String? = null,
+                              val removedIdentities: Set<Int> = emptySet(),
+                              val removableIdentities: Set<Int> = emptySet()) {
     fun build(existing: Entry): Entry {
         require(existing.isEmail()); require(protocol in 0..1)
         val account = existing.getEmailAccount()
         require(outgoing.size == account.identities.size)
+        // Derive authority from the stored record, never from UI-provided removable indices.
+        require(removedIdentities.all { it > 0 && it < account.identities.size && !account.identities[it].optBoolean("primary") })
         accountName?.let { name ->
             InputPolicy.text(name, InputPolicy.MAX_TEXT_CHARS)
             require(name.isNotBlank() && name.none { it.isISOControl() })
@@ -67,7 +71,7 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
             require(values.size == account.identities.size)
             values.forEachIndexed { index, value -> value.applyTo(account.identities[index]) }
         }
-        val bytes = EmailMaterial.encode(account.account, account.identities)
+        val bytes = EmailMaterial.encode(account.account, account.identities.filterIndexed { index, _ -> index !in removedIdentities })
         try {
             val replacement = Entry(existing.toJSON())
             try { replacement.setSecret(bytes); replacement.validate(); return replacement }
@@ -81,7 +85,8 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
             val account = entry.getEmailAccount()
             val protocol = if (account.account.has("protocol")) account.account.optInt("protocol") else if (account.account.optBoolean("pop")) 1 else 0
             return EmailSettingsInput(protocol, EmailConnectionInput.from(account.account), account.identities.map { EmailConnectionInput.from(it) },
-                account.identities.map { EmailIdentityInput(it.optString("name").orEmpty(), it.optString("email").orEmpty()) }, account.account.optString("name").orEmpty())
+                account.identities.map { EmailIdentityInput(it.optString("name").orEmpty(), it.optString("email").orEmpty()) }, account.account.optString("name").orEmpty(),
+                removableIdentities = account.identities.indices.filter { it > 0 && !account.identities[it].optBoolean("primary") }.toSet())
         }
     }
 }

@@ -1723,3 +1723,16 @@ legacy omission, malformed/negative/overflow rejection and desktop save/reopen w
 retained. This is offline metadata parity, not OAuth authorization management. Identity
 creation/removal, camera/OpenPGP hardware, asynchronous final persistence and real native/device
 release validation remain pending. Swing stays shipping.
+
+### Additional SMTP identity removal
+
+Email settings supports marking additional non-primary identities for removal and undoing
+that mark before Save. The form warns that the identity's credentials/settings are removed
+from this vault entry, not from the server, and recommends a backup. Core derives removal
+authority from stored identity position/primary flags rather than trusting UI hints; the first
+identity and all primary-marked identities are protected, and invalid indices are rejected.
+Remaining identities preserve their order/fields; the existing guarded replacement transaction
+persists the result. Model tests cover exact retained records, original immutability and forged
+removal hints/primary/out-of-range rejection. Identity creation and primary reassignment remain
+out of scope, along with native UI/device validation and remaining migration work. Swing stays
+shipping.

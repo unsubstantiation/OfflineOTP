@@ -122,6 +122,38 @@ class EmailSettingsInputTest {
             }
         } finally { original.destroy() }
     }
+    @Test fun removesOnlyAdditionalNonPrimaryIdentitiesAndPreservesRemainingRecords() {
+        val seed = entry()
+        val account = seed.getEmailAccount()
+        account.identities[1].put("primary", false)
+        val original = Entry.email(account.account, account.identity, account.identities, arrayListOf("work"))
+        seed.destroy()
+        try {
+            val input = EmailSettingsInput.fromEntry(original)
+            assertEquals(setOf(1), input.removableIdentities)
+            val edited = input.copy(removedIdentities = setOf(1)).build(original)
+            try {
+                val after = edited.getEmailAccount()
+                assertEquals(1, after.identities.size)
+                assertEquals(account.identity.toString(), after.identity.toString())
+                assertEquals(account.account.toString(), after.account.toString())
+                assertEquals(2, original.getEmailAccount().identities.size)
+            } finally { edited.destroy() }
+            for (removed in listOf(setOf(0), setOf(-1), setOf(2))) {
+                var rejected = false
+                try { input.copy(removedIdentities = removed, removableIdentities = removed).build(original).destroy() }
+                catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+            val primarySeed = entry()
+            try {
+                var rejected = false
+                try { EmailSettingsInput.fromEntry(primarySeed).copy(removedIdentities = setOf(1), removableIdentities = setOf(1)).build(primarySeed).destroy() }
+                catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            } finally { primarySeed.destroy() }
+        } finally { original.destroy() }
+    }
     @Test fun invalidInputIsRejectedAndDiagnosticsDoNotExposeMetadata() {
         val original = entry()
         try {

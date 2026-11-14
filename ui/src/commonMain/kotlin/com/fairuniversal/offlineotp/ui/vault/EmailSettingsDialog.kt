@@ -30,7 +30,18 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
             ForestTextAction(text = "Use IMAP", onClick = { input = input.copy(protocol = 0) })
             ForestTextAction(text = "Use POP", onClick = { input = input.copy(protocol = 1) })
             ConnectionFields("Incoming", input.incoming) { input = input.copy(incoming = it) }
+            Text(text = "Removing an additional identity deletes its stored credentials and settings from this vault entry when you Save. It does not delete the server account. Keep a backup; the first and primary identities cannot be removed.")
             input.outgoing.forEachIndexed { index, connection ->
+                if (index in input.removableIdentities) {
+                    val removed = index in input.removedIdentities
+                    ForestTextAction(text = if (removed) "Undo removal of SMTP #${index + 1}" else "Remove SMTP #${index + 1} on Save", onClick = {
+                        input = input.copy(removedIdentities = if (removed) input.removedIdentities - index else input.removedIdentities + index)
+                    })
+                    if (removed) {
+                        Text(text = "SMTP #${index + 1} marked for removal; Save commits this change.")
+                        return@forEachIndexed
+                    }
+                }
                 input.identities?.getOrNull(index)?.let { identity ->
                     Text(text = "SMTP identity #${index + 1}")
                     fun update(name: String = identity.name, address: String = identity.address) {

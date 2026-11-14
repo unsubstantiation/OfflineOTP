@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Stage removal of additional non-primary SMTP identities, with Undo before Save and explicit credential-removal warnings. First/primary identities are protected by core validation.
+
  * Compose desktop: Edit incoming and SMTP authentication-type metadata with numeric validation and explicit warnings that credentials are preserved and no sign-in/token conversion occurs.
 
  * Compose desktop: Edit the email account display name independently of the vault label and SMTP sender names, retaining credentials and imported metadata.
