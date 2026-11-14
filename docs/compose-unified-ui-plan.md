@@ -1697,3 +1697,14 @@ The form uses per-request remembered state, not saved-instance state. This does 
 identities, edit authentication modes, contact servers or verify address ownership. Those broader
 email workflows, camera/OpenPGP hardware, asynchronous persistence and native/device validation
 remain pending. Swing remains shipping.
+
+### Email account display-name editing
+
+Email settings now includes the account display name, explicitly distinguished from the vault
+entry label and SMTP sender names. Core validation rejects blank, oversized and control-bearing
+names, trims changed names, and preserves all other account/identity/envelope fields. Existing
+transport-only callers may omit the optional name. Inputs continue to redact diagnostics.
+Model tests cover validation, exact unrelated-field preservation and legacy omission, while
+desktop save/reopen verifies persistence through the existing guarded replacement transaction.
+This remains offline editing, not server verification. Identity creation/removal, authentication
+mode editing and broader migration/native-device validation remain pending. Swing stays shipping.

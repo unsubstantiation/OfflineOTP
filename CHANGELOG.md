@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Edit the email account display name independently of the vault label and SMTP sender names, retaining credentials and imported metadata.
+
  * Compose desktop: Edit sender display names and email addresses for existing SMTP identities alongside connection settings, preserving credentials, authentication modes, identity ordering and unknown imported fields.
 
  * Compose desktop security: Revalidate file-import decode ownership after lifetime callbacks; destroy expired results and dismiss abandoned busy dialogs without overwriting newer work.

@@ -74,6 +74,30 @@ class EmailSettingsInputTest {
             assertTrue(rejected)
         } finally { original.destroy() }
     }
+    @Test fun accountNameEditPreservesEnvelopeCredentialsAndIdentities() {
+        val original = entry()
+        try {
+            val input = EmailSettingsInput.fromEntry(original)
+            val before = original.getEmailAccount()
+            val edited = input.copy(accountName = "  Personal mailbox  ").build(original)
+            try {
+                val after = edited.getEmailAccount()
+                assertEquals(JSONObject(before.account.toString()).put("name", "Personal mailbox").toString(), after.account.toString())
+                assertEquals(before.identities.map { it.toString() }, after.identities.map { it.toString() })
+                assertEquals(original.toJSON().put("secret", "redacted").toString(), edited.toJSON().put("secret", "redacted").toString())
+                assertEquals(input.accountName, original.getEmailAccount().account.optString("name"))
+            } finally { edited.destroy() }
+            for (name in listOf("", "   ", "bad\nname", "bad\u0000name", "x".repeat(16385))) {
+                var rejected = false
+                try { input.copy(accountName = name).build(original).destroy() }
+                catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+            val legacy = input.copy(accountName = null).build(original)
+            try { assertEquals(before.account.toString(), legacy.getEmailAccount().account.toString()) }
+            finally { legacy.destroy() }
+        } finally { original.destroy() }
+    }
     @Test fun invalidInputIsRejectedAndDiagnosticsDoNotExposeMetadata() {
         val original = entry()
         try {

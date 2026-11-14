@@ -22,6 +22,10 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email settings") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens, authentication types and identity ordering are preserved. Changing an address does not change the login username or authorize sending from that address. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
+            Text(text = "Account display name is exported with the email account; it does not rename the vault entry or change SMTP sender names.")
+            input.accountName?.let { name ->
+                OutlinedTextField(value = name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) input = input.copy(accountName = it) }, label = { Text(text = "Account display name") }, singleLine = true)
+            }
             Text(text = "Incoming protocol: ${if (input.protocol == 0) "IMAP" else "POP"}")
             ForestTextAction(text = "Use IMAP", onClick = { input = input.copy(protocol = 0) })
             ForestTextAction(text = "Use POP", onClick = { input = input.copy(protocol = 1) })
@@ -41,7 +45,7 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
                     input = input.copy(outgoing = input.outgoing.mapIndexed { i, old -> if (i == index) next else old })
                 }
             }
-            if (failed) Text(text = "Could not save settings. Check sender addresses, hosts, ports, encryption and storage. Original account retained.")
+            if (failed) Text(text = "Could not save settings. Check account name, sender addresses, hosts, ports, encryption and storage. Original account retained.")
         } }, confirmButton = { ForestTextAction(text = "Save", onClick = { onSubmit(input) }) },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })
 }

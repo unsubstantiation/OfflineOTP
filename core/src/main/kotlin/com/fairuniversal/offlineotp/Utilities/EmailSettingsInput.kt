@@ -38,11 +38,16 @@ data class EmailIdentityInput(val name: String, val address: String) {
 }
 
 data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionInput, val outgoing: List<EmailConnectionInput>,
-                              val identities: List<EmailIdentityInput>? = null) {
+                              val identities: List<EmailIdentityInput>? = null, val accountName: String? = null) {
     fun build(existing: Entry): Entry {
         require(existing.isEmail()); require(protocol in 0..1)
         val account = existing.getEmailAccount()
         require(outgoing.size == account.identities.size)
+        accountName?.let { name ->
+            InputPolicy.text(name, InputPolicy.MAX_TEXT_CHARS)
+            require(name.isNotBlank() && name.none { it.isISOControl() })
+            if (name != account.account.optString("name").orEmpty()) account.account.put("name", name.trim())
+        }
         account.account.put("protocol", protocol)
         // Keep legacy compatibility flags consistent if they were present in the import.
         if (account.account.has("pop")) account.account.put("pop", protocol == 1)
@@ -70,7 +75,7 @@ data class EmailSettingsInput(val protocol: Int, val incoming: EmailConnectionIn
             val account = entry.getEmailAccount()
             val protocol = if (account.account.has("protocol")) account.account.optInt("protocol") else if (account.account.optBoolean("pop")) 1 else 0
             return EmailSettingsInput(protocol, EmailConnectionInput.from(account.account), account.identities.map { EmailConnectionInput.from(it) },
-                account.identities.map { EmailIdentityInput(it.optString("name").orEmpty(), it.optString("email").orEmpty()) })
+                account.identities.map { EmailIdentityInput(it.optString("name").orEmpty(), it.optString("email").orEmpty()) }, account.account.optString("name").orEmpty())
         }
     }
 }
