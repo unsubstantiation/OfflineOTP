@@ -20,7 +20,7 @@ jobs:
           # binutils: jpackage's jlink step strips native libraries with objcopy, which is missing
           # from debian:bookworm-slim and otherwise fails the app-image build.
           apt-get install -y --no-install-recommends ca-certificates curl git unzip zip binutils libstdc++6 \
-            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1 \
+            libfreetype6 libfontconfig1 libx11-6 libxext6 libxrender1 libxtst6 libxi6 libasound2 libpcsclite1 libgl1 libegl1 libxrandr2 \
             build-essential pkg-config
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - name: Install Rust toolchain (Debian container)
@@ -108,19 +108,23 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
+        with:
+          cmdline-tools-version: '12266719'
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
       - name: Build Debian app image
         shell: bash
         run: |
           set -euo pipefail
-          ./gradlew --no-daemon :desktop:packageDesktop
-          test -x desktop/build/release/OfflineOTP/bin/OfflineOTP
-          cmp desktop/src/main/resources/offlineotp.png desktop/build/release/OfflineOTP/lib/OfflineOTP.png
+          ./gradlew --no-daemon :desktop-compose:packageDesktop
+          test -x desktop-compose/build/release/OfflineOTP/bin/OfflineOTP
+          cmp desktop/src/main/resources/offlineotp.png desktop-compose/build/release/OfflineOTP/lib/OfflineOTP.png
       - name: Archive app image and checksum
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          tar -C desktop/build/release -czf artifacts/OfflineOTP-debian12-x64.tar.gz OfflineOTP
+          tar -C desktop-compose/build/release -czf artifacts/OfflineOTP-debian12-x64.tar.gz OfflineOTP
           (cd artifacts && sha256sum OfflineOTP-debian12-x64.tar.gz > SHA256SUMS.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:

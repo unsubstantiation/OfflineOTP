@@ -90,7 +90,7 @@ tasks.withType(org.gradle.api.tasks.testing.Test).configureEach {
 // Native installer/app image through the JDK's jpackage (requires a full JDK 17+, not a JRE). The
 // task is skipped when the running JDK has no jpackage, which keeps older toolchains working; the
 // packaging README documents how release builds invoke it.
-tasks.register('packageDesktop', Exec) {
+tasks.register('packageSwingDesktop', Exec) {
     dependsOn 'installDist'
     group = 'distribution'
     description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
@@ -159,4 +159,20 @@ dependencies {
     implementation 'com.google.zxing:core:3.5.4'
 
     testImplementation 'junit:junit:4.13.2'
+}
+
+// Compatibility command now launches Compose; Swing is an explicit rollback/debug option.
+tasks.register('runSwing', JavaExec) {
+    group = 'application'
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.fairuniversal.offlineotp.desktop.MainKt'
+    systemProperty 'jna.library.path', openPgpNativeReleaseDir.absolutePath
+}
+tasks.named('run') {
+    enabled = false
+    dependsOn ':desktop-compose:run'
+}
+tasks.register('packageDesktop') {
+    group = 'distribution'
+    dependsOn ':desktop-compose:packageDesktop'
 }

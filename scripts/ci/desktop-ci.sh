@@ -24,4 +24,4 @@ python3 -m unittest discover -s scripts/tests -p "test_*.py"
 python3 scripts/check_build_inputs.py
 
 # Real dependency resolution and the application-plugin distribution.
-./gradlew --no-daemon :desktop:distZip
+./gradlew --no-daemon :desktop-compose:distZip

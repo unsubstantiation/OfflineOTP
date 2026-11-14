@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Reproducibility check for the desktop distribution. Builds :desktop:distZip twice from
+# Reproducibility check for the desktop distribution. Builds :desktop-compose:distZip twice from
 # independent source copies and Gradle homes (no shared caches) and requires byte-identical
 # archives, mirroring scripts/verify_reproducible_build.sh for the Android APKs.
 #
@@ -30,10 +30,10 @@ for run in 1 2; do
         cd "$source_dir"
         export GRADLE_USER_HOME="$work/gradle-home-$run"
         ./gradlew --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks \
-            clean :desktop:distZip writeDependencyInventory
+            clean :desktop-compose:distZip writeDependencyInventory
     ) 2>&1 | tee "$report/run-$run/build.log"
 
-    archive=$(find "$source_dir/desktop/build/distributions" -maxdepth 1 -name '*.zip' -print -quit)
+    archive=$(find "$source_dir/desktop-compose/build/distributions" -maxdepth 1 -name '*.zip' -print -quit)
     test -f "$archive"
     cp "$archive" "$report/run-$run/desktop-dist.zip"
     cp "$source_dir/build/reports/dependency-inventory.txt" "$report/run-$run/" 2>/dev/null || true
@@ -57,14 +57,14 @@ app_image="$report/app-image"
 rm -rf "$app_image"
 (
     cd "$work/source-1"
-    ./gradlew --no-daemon packageDesktop
+    ./gradlew --no-daemon :desktop-compose:packageDesktop
 ) 2>&1 | tee "$report/packageDesktop.log"
-test -d "$work/source-1/desktop/build/release/OfflineOTP"
-test -x "$work/source-1/desktop/build/release/OfflineOTP/OfflineOTP" \
-    -o -f "$work/source-1/desktop/build/release/OfflineOTP/OfflineOTP.exe"
+test -d "$work/source-1/desktop-compose/build/release/OfflineOTP"
+test -x "$work/source-1/desktop-compose/build/release/OfflineOTP/bin/OfflineOTP" \
+    -o -f "$work/source-1/desktop-compose/build/release/OfflineOTP/OfflineOTP.exe"
 # The app image must bundle the application jar plus every declared runtime dependency.
-app_lib="$work/source-1/desktop/build/release/OfflineOTP/lib"
-for jar in desktop.jar pgpainless-core bcpg-jdk18on bcprov-jdk18on core.jar; do
+app_lib="$work/source-1/desktop-compose/build/release/OfflineOTP/lib/app"
+for jar in desktop-compose.jar desktop.jar pgpainless-core bcpg-jdk18on bcprov-jdk18on core.jar; do
     ls "$app_lib" | grep -q "$jar" || { echo "missing runtime jar: $jar" >&2; exit 1; }
 done
 printf 'jpackage app-image smoke test passed.\n' | tee -a "$report/result.txt"

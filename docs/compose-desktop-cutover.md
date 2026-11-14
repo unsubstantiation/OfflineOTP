@@ -1,6 +1,20 @@
 # Compose desktop cutover gates
 
-**Status: blocked; Swing remains the shipping client.**
+**Status: Compose selected as the default launcher and release target by explicit user approval.
+Validation remains incomplete; this is not a validated release. Swing is retained as a fallback.**
+
+## Cutover and rollback commands
+
+- Default: `./gradlew :desktop-compose:run` (also `:desktop:run`).
+- Release app image: `./gradlew :desktop-compose:packageDesktop`.
+- Fallback: `./gradlew :desktop:runSwing` or `:desktop:packageSwingDesktop`.
+- Back up first. Close one client before opening the other; never share an active vault between
+  two processes. Use the same `OFFLINEOTP_HOME` deliberately for rollback, or a disposable copy
+  for testing. No on-disk format migration is part of this switch.
+- The fallback still ships in the dependency jar; Swing source removal is a later increment.
+- Desktop release workflows now target Compose, but no successful real build/runtime/package
+  evidence is available yet. The pending ledger below remains authoritative.
+
 
 Sandbox compilation uses stubs and is not real Compose runtime validation. Android device
 validation does not validate the desktop client. No validation result may be carried forward

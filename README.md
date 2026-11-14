@@ -7,24 +7,18 @@ OfflineOTP is a source-available Android authenticator for time-based (TOTP), co
 is a Kotlin rewrite of the upstream andOTP project with hardened vault, backup, and IPC handling.
 The current build is `versionName 0.9.0.1` (versionCode 39).
 
-A pure-JVM **desktop client** (Swing) lives in the `:desktop` Gradle module and shares the
-Android-free `:core` engine and password-backup codec. Use exported backups to transfer accounts
-between distributions; copying an Android app-data vault is not a substitute for a backup. See
-[Desktop client](#desktop-client) for its scope and build instructions.
+The default desktop client is now **Compose Multiplatform** in `:desktop-compose`, sharing
+`:core`, `:ui-model` and the desktop engine in `:desktop`. Run it with
+`./gradlew :desktop-compose:run` (the old `:desktop:run` command delegates to it).
+Desktop release workflows now package Compose. This is an approved launcher cutover, **not a
+claim of completed runtime/device validation or feature parity**. See the
+[cutover status and rollback instructions](docs/compose-desktop-cutover.md).
 
-The user interface is moving to a shared **Compose Multiplatform** screen. The `:ui-model` module holds
-the toolkit-free frame layer — what a row shows, the shared filter transitions and the tab/sort
-wording the Swing client already renders from; `:ui` holds the Compose screen, its Dark Forest design
-tokens, the unlock screen and the `VaultComposeView` used by Android MainActivity, and
-`:desktop-compose` runs that screen over the existing desktop engine as a preview
-(`./gradlew :desktop-compose:run`). That host now honors the saved inactivity timeout and clears
-its session on window close/disposal, and supports manual entry creation/editing through the shared
-validated form; full desktop feature parity is still pending. The Swing client already paints each row from that frame model
-(`VaultCards.of`), so the desktop and the Compose screen group codes, warn about expiry and pick tags
-the same way. Android MainActivity now renders the shared Compose cards while retaining its
-existing toolbar, tabs, tag drawer and action dialogs. Manual ordering uses up/down controls.
-Legacy renderer cleanup, display-preference parity and real Android build/device validation remain
-open in the [Compose UI plan](docs/compose-unified-ui-plan.md); the shipping desktop UI is still Swing.
+Swing remains an explicit fallback: `./gradlew :desktop:runSwing` or
+`:desktop:packageSwingDesktop`. Do not run both clients against the same vault simultaneously.
+Keep an encrypted backup before testing either client. Android MainActivity uses the shared
+Compose cards while retaining Activity chrome and dialogs. Remaining feature gaps and validation
+work are tracked in the [Compose UI plan](docs/compose-unified-ui-plan.md).
 
 The Android application ID, namespace, and Kotlin/Java packages use `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app instead of being detected as its update. Updating an existing OfflineOTP installation still requires the same signing key, and it does not collide with andOTP.
 
@@ -100,9 +94,9 @@ implementation; verify on your devices before relying on it.
 
 ## Desktop client
 
-The `:desktop` module is a Swing application for desktop JDKs (JDK 17+). It reuses the shared
+The default `:desktop-compose` client uses desktop JDKs (JDK 17+). The `:desktop` module retains the shared engine and Swing fallback. They reuse the shared
 `:core` module for the vault, OTP calculation, parsers, backups and hardware-key protocols, and
-all portable logic stays headless and unit-tested; Swing is only a thin shell. Desktop builds are
+portable logic stays headless and unit-tested. Desktop builds are
 fully portable: the vault (`secrets.dat`), its `.bck` copy, the client settings and the
 security-key unlock record live in a `data` folder **inside the program folder**, never in the
 user's profile. Move or copy the OfflineOTP folder and the vault comes along, so a USB stick or a
@@ -433,7 +427,7 @@ Build the desktop distribution (platform-independent zip with launcher scripts a
 jars) or a native jpackage app image, on a full JDK 17+ with network access:
 
 ```sh
-./gradlew --no-daemon :desktop:distZip
+./gradlew --no-daemon :desktop-compose:distZip
 ./gradlew --no-daemon packageDesktop
 ```
 
@@ -491,7 +485,7 @@ bash scripts/kotlin-sandbox/compile-ui.sh
 ```
 
 With Gradle, `./gradlew --no-daemon :ui:desktopTest` runs the same projection tests against the real
-Compose artifacts, and `./gradlew --no-daemon :desktop-compose:run` opens the Compose preview client.
+Compose artifacts, and `./gradlew --no-daemon :desktop-compose:run` opens the default Compose client.
 
 The deterministic vault/backup fixtures can be checked with
 `bash scripts/packaging/generate-golden-fixtures.sh`; the desktop suite also pins a real desktop

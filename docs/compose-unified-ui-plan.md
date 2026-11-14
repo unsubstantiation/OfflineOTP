@@ -1,3 +1,8 @@
+> **Current desktop status:** User-approved default launcher/release cutover to Compose.
+> Swing remains only as an explicit fallback. Historical stage notes below describe earlier
+> states; device/runtime/packaging validation is still pending. See
+> [cutover ledger](compose-desktop-cutover.md). No feature-parity or validated-release claim.
+
 # Unified Compose Multiplatform UI
 
 > **Current status:** Android `MainActivity` now displays `VaultComposeView`/the shared Compose

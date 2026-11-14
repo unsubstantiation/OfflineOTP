@@ -59,20 +59,20 @@ class NoGithubAutomationTest(unittest.TestCase):
         self.assertEqual(setups, android.count(setup_pin))
         self.assertEqual(setups, android.count("cmdline-tools-version: '12266719'"))
         self.assertIn("runs-on: windows-2022", windows)
-        self.assertIn(":desktop:packageDesktop", windows)
+        self.assertIn(":desktop-compose:packageDesktop", windows)
         self.assertIn("OfflineOTP.exe", windows)
         self.assertIn("container: debian:bookworm-slim", debian)
-        self.assertIn(":desktop:packageDesktop", debian)
+        self.assertIn(":desktop-compose:packageDesktop", debian)
         self.assertIn("OfflineOTP/bin/OfflineOTP", debian)
 
     def test_the_macos_workflow_builds_and_packs_a_native_app_bundle(self):
         macos = (ROOT / ".github/workflows/macos.yml").read_text(encoding="utf-8")
         # Apple silicon runner, so the artifact name has to say arm64 rather than x64.
         self.assertIn("runs-on: macos-15", macos)
-        self.assertIn(":desktop:packageDesktop", macos)
+        self.assertIn(":desktop-compose:packageDesktop", macos)
         self.assertIn("OfflineOTP-macos-arm64", macos)
         # jpackage emits a .app bundle on macOS; its launcher is what proves the build worked.
-        self.assertIn("desktop/build/release/OfflineOTP.app", macos)
+        self.assertIn("desktop-compose/build/release/OfflineOTP.app", macos)
         self.assertIn("Contents/MacOS/OfflineOTP", macos)
         # The icon is generated, not committed, and handed to the task through a property.
         self.assertIn("iconutil -c icns", macos)

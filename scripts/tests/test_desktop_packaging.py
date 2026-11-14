@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DESKTOP_BUILD = ROOT / "desktop/build.gradle"
+DESKTOP_BUILD = ROOT / "desktop-compose/build.gradle"
 PACKAGING_DIR = ROOT / "scripts/packaging"
 CI_SCRIPT = ROOT / "scripts/ci/desktop-ci.sh"
 
@@ -22,6 +22,19 @@ class DesktopPackagingTest(unittest.TestCase):
         self.script = (PACKAGING_DIR / "verify-desktop-build.sh").read_text(encoding="utf-8")
         self.ci = CI_SCRIPT.read_text(encoding="utf-8")
 
+    def test_compose_is_default_with_explicit_swing_fallback_and_native_staging(self):
+        engine = (ROOT / "desktop/build.gradle").read_text()
+        self.assertIn("dependsOn ':desktop-compose:run'", engine)
+        self.assertIn("tasks.register('runSwing', JavaExec)", engine)
+        self.assertIn("tasks.register('packageSwingDesktop', Exec)", engine)
+        self.assertIn("dependsOn ':desktop-compose:packageDesktop'", engine)
+        self.assertIn("from(tasks.named('stageOpenPgpNative')) { into 'lib/native' }", self.build)
+        self.assertIn("'-Djna.library.path=$APPDIR/native'", self.build)
+        self.assertIn("implementation compose.desktop.currentOs", self.build)
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn('System.getProperty("jna.library.path") == null', host)
+        self.assertIn('java.io.File(location.parentFile, "native")', host)
+
     def test_distribution_archives_are_reproducible(self):
         self.assertIn("apply plugin: 'application'", self.build)
         self.assertIn("preserveFileTimestamps = false", self.build)
@@ -31,10 +44,10 @@ class DesktopPackagingTest(unittest.TestCase):
     def test_jpackage_task_is_guarded_and_targets_the_main_class(self):
         self.assertIn("tasks.register('packageDesktop', Exec)", self.build)
         self.assertIn("bin/jpackage", self.build)
-        self.assertIn("--main-class', 'com.fairuniversal.offlineotp.desktop.MainKt'", self.build)
+        self.assertIn("--main-class', 'com.fairuniversal.offlineotp.desktop.compose.ComposeMainKt'", self.build)
         self.assertIn("--type', 'app-image'", self.build)
-        # A JRE without jpackage must skip the task instead of breaking other builds.
-        self.assertIn("onlyIf { jpackage.canExecute() }", self.build)
+        # An explicitly requested release task must fail rather than silently omit the package.
+        self.assertIn("if (!jpackage.canExecute()) throw new GradleException", self.build)
 
     def test_desktop_icons_match_branding_and_package_configuration(self):
         png = (ROOT / 'desktop/src/main/resources/offlineotp.png').read_bytes()
@@ -50,12 +63,12 @@ class DesktopPackagingTest(unittest.TestCase):
         for data in images.values():
             self.assertTrue(data.startswith(b'\x89PNG\r\n\x1a\n'))
         self.assertEqual(png, images[(256, 256)])
-        self.assertIn("file('packaging/offlineotp.ico')", self.build)
-        self.assertIn("file('src/main/resources/offlineotp.png')", self.build)
+        self.assertIn("rootProject.file('desktop/packaging/offlineotp.ico')", self.build)
+        self.assertIn("rootProject.file('desktop/src/main/resources/offlineotp.png')", self.build)
         self.assertIn("args '--icon', icon.absolutePath", self.build)
 
     def test_reproducibility_script_builds_twice_independently_and_compares(self):
-        self.assertIn(":desktop:distZip", self.script)
+        self.assertIn(":desktop-compose:distZip", self.script)
         # Parameterized per-run Gradle homes, with both run indices exercised in the loop.
         self.assertIn('GRADLE_USER_HOME="$work/gradle-home-$run"', self.script)
         self.assertIn("for run in 1 2", self.script)
@@ -81,7 +94,7 @@ class DesktopPackagingTest(unittest.TestCase):
             "python3 -m unittest discover -s scripts/tests -p \"test_*.py\"",
         ):
             self.assertIn(gate, self.ci)
-        self.assertIn(":desktop:distZip", self.ci)
+        self.assertIn(":desktop-compose:distZip", self.ci)
         self.assertIn("bootstrap-toolchain.sh", self.ci)
         # The desktop CI must not pretend the Android SDK build runs there.
         self.assertNotIn("assembleFdroidRelease", self.ci)

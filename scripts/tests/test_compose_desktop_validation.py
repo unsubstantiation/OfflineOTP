@@ -27,7 +27,7 @@ class ComposeDesktopValidationTest(unittest.TestCase):
 
     def test_cutover_ledger_does_not_assert_unperformed_validation(self):
         text = (ROOT / 'docs/compose-desktop-cutover.md').read_text()
-        self.assertIn('Status: blocked; Swing remains the shipping client.', text)
+        self.assertIn('Validation remains incomplete; this is not a validated release.', text)
         self.assertIn('preparation, not a validation attestation', text)
         self.assertIn('Obtain explicit approval for cutover', text)
 

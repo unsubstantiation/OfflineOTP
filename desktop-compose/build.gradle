@@ -1,13 +1,4 @@
-// Compose Desktop host for the shared :ui module (migration stage 1).
-//
-// This module is the *preview* client: it reuses the tested headless desktop engine (:desktop's
-// VaultController/DesktopVaultState) and renders the shared Compose screen instead of the Swing
-// window. Keeping it separate is deliberate:
-//   * :desktop stays Compose-free, so its no-Gradle Swing gate and its Swing-only tests keep
-//     running unchanged while both clients share one engine;
-//   * the shipping desktop client is still `:desktop:run` until the Compose host reaches feature
-//     parity, which is tracked in docs/compose-unified-ui-plan.md;
-//   * nothing Android-specific is dragged into the desktop classpath.
+// Default desktop Compose client; :desktop remains the shared engine and explicit Swing fallback.
 apply plugin: 'org.jetbrains.kotlin.jvm'
 apply plugin: 'java-library'
 apply plugin: 'application'
@@ -39,10 +30,78 @@ dependencies {
     implementation project(':core')
     implementation project(':desktop')
 
-    // The shared Compose UI this host exists to demonstrate.
+    // The shared Compose UI used by the default desktop client.
     implementation project(':ui')
 
     // Skiko/AWT binding for the current operating system; the Gradle plugin picks the artifact.
     implementation compose.desktop.currentOs
     testImplementation 'junit:junit:4.13.2'
+}
+
+def openPgpNativeReleaseDir = file("$rootDir/rust/target/release")
+def openPgpOsName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+def openPgpNativeFileName = openPgpOsName.startsWith('windows') ? 'offlineotp_openpgp.dll' :
+    (openPgpOsName.contains('mac') ? 'libofflineotp_openpgp.dylib' : 'libofflineotp_openpgp.so')
+def openPgpNativeFile = new File(openPgpNativeReleaseDir, openPgpNativeFileName)
+
+tasks.register('stageOpenPgpNative', Copy) {
+    from(openPgpNativeReleaseDir) {
+        include openPgpNativeFileName
+    }
+    into layout.buildDirectory.dir('openpgp-native')
+    onlyIf { openPgpNativeFile.isFile() }
+}
+
+distributions {
+    main {
+        contents {
+            from(tasks.named('stageOpenPgpNative')) { into 'lib/native' }
+        }
+    }
+}
+tasks.named('run') {
+    systemProperty 'jna.library.path', openPgpNativeReleaseDir.absolutePath
+}
+
+
+tasks.withType(AbstractArchiveTask).configureEach {
+    preserveFileTimestamps = false
+    reproducibleFileOrder = true
+}
+
+tasks.register('packageDesktop', Exec) {
+    dependsOn 'installDist'
+    group = 'distribution'
+    description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
+
+    def isWindows = System.getProperty('os.name').toLowerCase(Locale.ROOT).startsWith('windows')
+    def jpackage = new File(System.getProperty('java.home'), isWindows ? 'bin/jpackage.exe' : 'bin/jpackage')
+    executable = jpackage.absolutePath
+    args = [
+        '--type', 'app-image',
+        '--name', 'OfflineOTP',
+        '--input', layout.buildDirectory.dir('install/desktop-compose/lib').get().asFile.absolutePath,
+        '--main-jar', "${project.name}.jar",
+        '--main-class', 'com.fairuniversal.offlineotp.desktop.compose.ComposeMainKt',
+        '--dest', layout.buildDirectory.dir('release').get().asFile.absolutePath,
+        // jpackage copies --input into $APPDIR; installDist staged the cdylib in lib/native.
+        '--java-options', '-Djna.library.path=$APPDIR/native',
+    ]
+    // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated
+    // from the shared PNG by the CI job (-PmacIconFile) because it is a binary container; a plain
+    // local build without the property keeps jpackage's default icon.
+    def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
+    def macIcon = project.hasProperty('macIconFile') ?
+        file(project.property('macIconFile')) : rootProject.file('desktop/packaging/offlineotp.icns')
+    def icon = isWindows ? rootProject.file('desktop/packaging/offlineotp.ico') :
+        (osName.contains('linux') ? rootProject.file('desktop/src/main/resources/offlineotp.png') :
+            (osName.contains('mac') && macIcon.isFile() ? macIcon : null))
+    if (icon != null) {
+        inputs.file(icon)
+        args '--icon', icon.absolutePath
+    }
+    doFirst {
+        if (!jpackage.canExecute()) throw new GradleException('A full JDK with jpackage is required')
+    }
+    doFirst { layout.buildDirectory.dir('release').get().asFile.mkdirs() }
 }

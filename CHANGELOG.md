@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop cutover: Select Compose for default run/release packaging; retain explicit runSwing/packageSwingDesktop fallback. Stage native crypto libraries and shared icons for Compose distributions. Runtime/device/release validation and remaining feature gaps are still pending.
+
  * Migration validation: Add a manual-only Linux/Windows/macOS Compose Gradle build/test/distribution workflow and an evidence-based desktop cutover checklist. No launcher switch or device-validation claim.
 
  * Shared email details: Honor legacy POP/STARTTLS flags when modern transport fields are absent, retain modern-field precedence, and label unknown protocol values instead of implying IMAP.

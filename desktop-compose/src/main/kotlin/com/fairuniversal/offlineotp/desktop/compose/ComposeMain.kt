@@ -112,16 +112,27 @@ import java.awt.event.AWTEventListener
 /**
  * Compose Desktop entry point: the shared `:ui` screen over the existing portable vault.
  *
- * This is the migration-stage host, not a replacement for the Swing client yet. It deliberately
+ * This is the default desktop host; Swing remains an explicit fallback. It deliberately
  * derives rows through [VaultProjection] and adds host capability flags; widgets come from `:ui`,
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] the Swing window uses, so both desktop clients read and write one vault.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): broader email settings editing, hardware integrations, camera import, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
+ * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): identity creation, OpenPGP hardware/agent integration, camera import, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
  * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
  * that silently does nothing.
  */
 fun main() {
+    // installDist/distZip relocate native libraries beside the application jar. jpackage
+    // supplies its own $APPDIR path; never override an explicitly configured search path.
+    if (System.getProperty("jna.library.path") == null) {
+        val location = runCatching {
+            java.io.File(DesktopStorage::class.java.protectionDomain.codeSource.location.toURI())
+        }.getOrNull()
+        if (location?.isFile == true) {
+            val native = java.io.File(location.parentFile, "native")
+            if (native.isDirectory) System.setProperty("jna.library.path", native.absolutePath)
+        }
+    }
     val directory = DesktopStorage.defaultDirectory()
     val controller = try {
         VaultController(DesktopStorage.open(directory))
