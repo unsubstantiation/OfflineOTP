@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background persistence groundwork: Add a shared write lease to detached saves. Hold it through worker completion and UI adoption; prevent abandoned in-flight saves from releasing it early. Production save/rekey/unlock wiring is still pending.
+
  * Background persistence groundwork: Add an owned, detached worker-save component with secret cleanup and stale-result suppression. Not yet connected to production saves; window-level write serialization and transaction adoption remain required.
 
  * Documentation: Record the user-reported successful build/device check without inferring its platform or scope; consolidate current post-Swing status and distinguish historical migration notes from remaining work.

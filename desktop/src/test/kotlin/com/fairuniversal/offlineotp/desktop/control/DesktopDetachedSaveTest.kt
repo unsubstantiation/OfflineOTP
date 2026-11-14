@@ -26,7 +26,7 @@ class DesktopDetachedSaveTest {
         val state = DesktopVaultState(loaded.key)
         state.add(ManualEntryInput(label = "saved snapshot", secret = "JBSWY3DPEHPK3PXP").build())
         val worker = Queue(); val ui = Queue(); var result: Boolean? = null
-        val owner = DesktopDetachedSave(worker, { ui.execute(it) }, controller::save)
+        val owner = DesktopDetachedSave(worker, { ui.execute(it) }, persist = controller::save)
         try {
             assertTrue(owner.submit(state, { true }) { result = it })
             state.snapshot().single().setLabel("not submitted")

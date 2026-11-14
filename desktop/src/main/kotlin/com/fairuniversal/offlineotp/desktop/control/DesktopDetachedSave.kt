@@ -11,6 +11,7 @@ import javax.crypto.SecretKey
  * Does not update live entries. A future transaction coordinator must handle adoption/rollback.
  */
 class DesktopDetachedSave(private val worker: Executor, private val dispatch: (Runnable) -> Unit,
+    private val writeGate: DesktopWriteGate = DesktopWriteGate(),
     private val persist: (SecretKey, ArrayList<Entry>) -> Boolean) : AutoCloseable {
     private class OwnedKey(private var bytes: ByteArray?) : SecretKey {
         override fun getAlgorithm() = "AES"
@@ -22,9 +23,12 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
     private class Snapshot(val key: OwnedKey, val entries: ArrayList<Entry>) {
         fun destroy() { entries.forEach { it.destroy() }; entries.clear(); key.destroy() }
     }
-    private class Work(private var snapshot: Snapshot?) {
-        @Synchronized fun take(): Snapshot? = snapshot.also { snapshot = null }
-        @Synchronized fun cancel() { snapshot?.destroy(); snapshot = null }
+    private class Work(private var snapshot: Snapshot?, val lease: DesktopWriteGate.Lease) {
+        @Synchronized fun take(): Snapshot? {
+            if (!lease.start()) return null
+            return snapshot.also { snapshot = null }
+        }
+        @Synchronized fun cancel() { snapshot?.destroy(); snapshot = null; lease.abandon() }
     }
     private var closed = false
     private var work: Work? = null
@@ -35,6 +39,7 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
         fun authorized() = try { active() } catch (_: Exception) { false }
         fun ready() = !closed && work == null && !state.isLocked
         if (!ready() || !authorized() || !ready()) return false
+        val lease = writeGate.acquire() ?: return false
         val entries = ArrayList<Entry>()
         var key: OwnedKey? = null
         val snapshot = try {
@@ -43,16 +48,16 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
             key = OwnedKey(state.key.encoded ?: error("Unexportable key"))
             Snapshot(key, entries)
         } catch (_: Exception) {
-            entries.forEach { it.destroy() }; entries.clear(); key?.destroy()
+            entries.forEach { it.destroy() }; entries.clear(); key?.destroy(); lease.abandon()
             return false
         }
-        if (!authorized() || !ready()) { snapshot.destroy(); return false }
-        val task = Work(snapshot); work = task
+        if (!authorized() || !ready()) { snapshot.destroy(); lease.abandon(); return false }
+        val task = Work(snapshot, lease); work = task
         try {
             worker.execute {
                 val input = task.take() ?: return@execute
                 val saved = try { persist(input.key, input.entries) } catch (_: Exception) { false }
-                finally { input.destroy() }
+                finally { try { input.destroy() } finally { lease.workerFinished() } }
                 try {
                     dispatch(Runnable {
                         if (closed || work !== task) return@Runnable
@@ -60,6 +65,7 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
                         if (closed || work !== task) return@Runnable
                         work = null
                         if (live && !state.isLocked) completed(saved)
+                        lease.acknowledged()
                     })
                 } catch (_: Exception) {
                     // No UI state access from worker. Inputs are already destroyed; fail closed.

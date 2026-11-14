@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached worker-save component implemented/tested, not yet wired. Add a window-level write interlock and transaction adoption/rollback before migrating synchronous saves. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Add window-level save/rekey/unlock admission and transaction adoption/rollback before migrating synchronous saves. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1832,3 +1832,19 @@ not connected to production mutation paths. A window-level coordinator must seri
 across sessions/rekeys and own result adoption/rollback before any existing save moves off-thread.
 Closing the component alone is NOT a write-completion signal or permission for another writer.
 No UI responsiveness improvement or new device test is claimed by this prerequisite.
+
+### Shared write lease for detached saves
+
+DesktopWriteGate provides one thread-safe lease across save owners. DesktopDetachedSave now
+acquires it before snapshotting, releases canceled/unstarted work immediately, and holds started
+work until worker completion plus UI acknowledgement. Closing a running owner does not release
+the lease until its worker returns. Old leases cannot release a newer owner's lease. Rejected
+UI dispatch or a throwing adoption callback retains the lease (fail closed); an adoption failure
+requires terminal coordinator recovery rather than blindly permitting another write.
+
+Tests cover multiple save owners, queued cancellation, closure inside persistence, normal UI
+adoption, stale lease calls, failed scheduling, expired snapshots and rejected delivery/adoption.
+The gate has no UI callbacks and is not a process-wide or cross-process filesystem lock. Production
+mutation/rekey/unlock paths do not yet consult it: the window must supply one shared instance to
+all participating paths before background saves are enabled. This is groundwork, not a claim
+that synchronous UI saves have been migrated or that device testing was performed.
