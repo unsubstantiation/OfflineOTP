@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Add window-level save/rekey/unlock admission and transaction adoption/rollback before migrating synchronous saves. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; add window busy-state handling and transaction adoption/rollback before migrating synchronous saves. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1848,3 +1848,19 @@ The gate has no UI callbacks and is not a process-wide or cross-process filesyst
 mutation/rekey/unlock paths do not yet consult it: the window must supply one shared instance to
 all participating paths before background saves are enabled. This is groundwork, not a claim
 that synchronous UI saves have been migrated or that device testing was performed.
+
+### Controller-owned vault access gate
+
+VaultController now owns a single DesktopWriteGate for synchronous save, create, password open,
+hardware-key unlock and rekey. Conflicting calls fail without entering storage (false for saves,
+existing IO_FAILURE session outcome otherwise). Creation performs its internal reopen under the
+same lease rather than recursively acquiring. Synchronous exceptions release the lease. A new
+controller factory creates detached-save owners with this same gate and an internal write callback
+that avoids recursive acquisition. Tests cover real snapshot save/reopen, rejection of every
+competing operation through UI acknowledgement, multiple detached owners, queued cancellation,
+creation's nested-open behavior and exception cleanup.
+
+This is per-controller coordination, not a cross-process lock. Preference writes and hardware
+enrollment records are outside this vault-data gate. Production saves still run synchronously;
+window-level busy/error presentation, normal-close blocking, candidate adoption and rollback are
+still required before any UI mutation uses the detached factory. No runtime/device test is claimed.

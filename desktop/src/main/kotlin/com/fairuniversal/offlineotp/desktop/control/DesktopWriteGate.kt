@@ -10,6 +10,13 @@ class DesktopWriteGate {
     private var owner: Lease? = null
     val busy: Boolean @Synchronized get() = owner != null
 
+    /** Synchronous storage operation; rejection never enters the supplied block. */
+    fun <T> exclusive(rejected: T, operation: () -> T): T {
+        val lease = acquire() ?: return rejected
+        check(lease.start())
+        return try { operation() } finally { lease.workerFinished(); lease.acknowledged() }
+    }
+
     @Synchronized fun acquire(): Lease? {
         if (owner != null) return null
         return Lease(this).also { owner = it }

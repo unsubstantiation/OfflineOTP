@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background persistence groundwork: Production VaultController now gates save/create/open/hardware-key unlock/rekey through one controller-owned write lease and creates detached-save workers using that same gate. UI save migration remains pending.
+
  * Background persistence groundwork: Add a shared write lease to detached saves. Hold it through worker completion and UI adoption; prevent abandoned in-flight saves from releasing it early. Production save/rekey/unlock wiring is still pending.
 
  * Background persistence groundwork: Add an owned, detached worker-save component with secret cleanup and stale-result suppression. Not yet connected to production saves; window-level write serialization and transaction adoption remain required.
