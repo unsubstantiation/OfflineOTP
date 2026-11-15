@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Desktop cleanup: Retire the obsolete synchronous delete/counter/PIN dialog handler and move idle-deadline regression coverage onto background transactions, including committed, failed and throwing writes.
+
  * Compose desktop: Save mOTP PIN changes in the background before live adoption, with owned PIN-buffer cleanup and the same fresh-unlock session barrier as deletion/counter changes.
 
  * Compose desktop: HOTP counter confirmation now uses the background save-before-adopt transaction, with duplicate/overflow guards and fresh-unlock progress/results. Failed saves do not advance the live counter.

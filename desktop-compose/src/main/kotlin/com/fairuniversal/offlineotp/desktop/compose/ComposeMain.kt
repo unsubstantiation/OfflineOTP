@@ -10,7 +10,6 @@ import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareEnrollment
 import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryTransaction
-import com.fairuniversal.offlineotp.desktop.control.DesktopEntryDialogActions
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
@@ -372,7 +371,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var transactionMode by remember(vault) { mutableStateOf(false) }
     var transactionResult by remember(vault) { mutableStateOf<DesktopEntryTransaction.Result?>(null) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
-    val entryDialogActions = remember(vault, dialogs) { DesktopEntryDialogActions(vault, dialogs) { entries -> controller.save(vault.key, entries) } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
@@ -1169,7 +1167,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                             revision++
                         }
                     }
-                } else entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
+                } // PIN is submitted only through onPinSubmit.
             },
             onPinSubmit = { pin ->
                 if (dialogs.isCurrent(request) && request.kind == VaultDialogKind.PIN && lifetime.checkActive() && !transactionMode) {

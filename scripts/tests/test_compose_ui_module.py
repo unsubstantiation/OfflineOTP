@@ -113,10 +113,11 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
         self.assertIn('deleteTitle: String = "Delete account?"', wording)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("state.deleteEntry(request.entryId, save)", owner)
-        self.assertIn("controller.save(vault.key, entries)", host)
-        self.assertIn("entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("Kind.DELETE -> candidate.removeAt(index).destroy()", owner)
+        self.assertIn("controller.detachedSave(exportWorker)", host)
+        self.assertIn("transaction.submit(target, kind, lifetime::checkActive)", host)
+        self.assertNotIn("entryDialogActions", host)
         self.assertIn("dialogs.close()", host)
 
     def test_pin_dialog_masks_and_does_not_save_input(self):
@@ -140,8 +141,8 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("VaultEntryDialog(", host)
         self.assertIn("VaultDialogs { revision++ }", host)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("state.advanceCounter(request.entryId)", owner)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("check(EntryUsage.advanceHotp(candidate[index]))", owner)
         self.assertIn("dialogs.close()", host)
 
     def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
@@ -151,9 +152,9 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("EntryPinDialog(", routed)
         self.assertNotIn("EntryConfirmationDialog(", routed)
         self.assertNotIn("could not be saved", routed)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("dialogs.isCurrent(request)", owner)
-        self.assertIn("if (!active() || !current(request)) return false", owner)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("dialogs.isCurrent(request)", host)
+        self.assertIn("if (!live || state.isLocked || !unchanged())", owner)
         renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
         for kind in ("PIN", "COUNTER", "DELETE"):
             self.assertIn("VaultDialogKind." + kind, renderer)

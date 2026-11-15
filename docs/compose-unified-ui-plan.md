@@ -1970,3 +1970,18 @@ screen; its title states the fresh-unlock requirement. Tests cover real save/reo
 mutation, failure/cancellation cleanup, duplicate attempts and invalid/wrong-type rejection.
 Other editing/import/copy-related saves remain synchronous. Real native UI/device validation of
 this path remains pending; no hardware-authenticator PIN flow is changed by this increment.
+
+### Entry-dialog synchronous handler retirement
+
+Removed DesktopEntryDialogActions and the unused host fallback now that delete, HOTP advance
+and mOTP PIN submission all use DesktopEntryTransaction. PIN cannot be submitted through the
+confirmation-only callback. Source guards now verify candidate-worker routing rather than the
+retired synchronous handler. Its tests are retired; existing transaction retry, ownership and
+stale-state tests remain, and new tests exercise a real DesktopSessionLifetime across all three
+operations with queued workers/UI callbacks. Actual save/reopen verifies completed disk changes
+remain committed after deadline lock, while false/throwing write outcomes cannot publish an
+expired failure. PIN buffers and shared gate release are checked after disposal.
+
+The reduced desktop test count reflects replacement of four obsolete synchronous tests with
+two matrix tests, not loss of the production deadline checks. No changes to other synchronous
+editing/import/copy save paths or new native-device validation are claimed.
