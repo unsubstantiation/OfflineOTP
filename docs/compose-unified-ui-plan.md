@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion and HOTP counter advance use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion, HOTP counter advance and mOTP PIN updates use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1956,3 +1956,17 @@ Tests verify actual counter save/reopen, unchanged live counter until delivery, 
 submission, failure preservation and invalid-target/overflow rejection. Existing deletion and
 late-result/cleanup tests remain. Other final UI saves, including PIN submission and copy-related
 usage persistence, remain synchronous. Native UI/device testing of this new path is pending.
+
+### Background mOTP PIN submission
+
+The shared entry transaction now supports mOTP PIN updates. Submit consumes a CharArray, rejects
+invalid/wrong-type input without scheduling, writes only a detached candidate first and changes
+the live PIN only after successful authorized delivery. The owned buffer is wiped on rejection,
+save failure/success and disposal. Entry/JSON immutable PIN strings remain subject to JVM
+zeroization limitations. Duplicate attempts wipe their own input without replacing the pending PIN.
+
+Compose routes the PIN dialog through this transaction and the existing quiesced progress/result
+screen; its title states the fresh-unlock requirement. Tests cover real save/reopen, no early live
+mutation, failure/cancellation cleanup, duplicate attempts and invalid/wrong-type rejection.
+Other editing/import/copy-related saves remain synchronous. Real native UI/device validation of
+this path remains pending; no hardware-authenticator PIN flow is changed by this increment.

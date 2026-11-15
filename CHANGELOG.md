@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Save mOTP PIN changes in the background before live adoption, with owned PIN-buffer cleanup and the same fresh-unlock session barrier as deletion/counter changes.
+
  * Compose desktop: HOTP counter confirmation now uses the background save-before-adopt transaction, with duplicate/overflow guards and fresh-unlock progress/results. Failed saves do not advance the live counter.
 
  * Background save recovery: Retain task ownership until UI completion returns so a throwing callback cannot strand the controller write gate after session lock/disposal. Add recovery and vault-reopen regression coverage.

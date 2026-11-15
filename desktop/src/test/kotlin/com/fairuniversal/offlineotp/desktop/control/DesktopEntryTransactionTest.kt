@@ -18,6 +18,59 @@ class DesktopEntryTransactionTest {
     }
     private fun entry(label: String) = ManualEntryInput(label = label, secret = "JBSWY3DPEHPK3PXP").build()
 
+    private fun motp() = ManualEntryInput(type = com.fairuniversal.offlineotp.Database.Entry.OTPType.MOTP,
+        label = "motp", secret = "0123456789abcdef", pin = "1234").build()
+
+    @Test fun pinPersistsBeforeAdoptionAndOwnedBufferIsWiped() {
+        val dir = Files.createTempDirectory("async-pin-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key); val target = motp(); state.add(target)
+        val worker = Queue(); val ui = Queue(); val pin = "9876".toCharArray()
+        val owner = DesktopEntryTransaction(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
+        try {
+            var result: DesktopEntryTransaction.Result? = null
+            assertTrue(owner.submitPin(target, pin, { true }) { result = it })
+            val duplicate = "1111".toCharArray()
+            assertFalse(owner.submitPin(target, duplicate, { true }) {}); assertTrue(duplicate.all { it == '\u0000' })
+            worker.run(); assertEquals("1234", target.getPin())
+            ui.run(); assertEquals("9876", target.getPin()); assertEquals(DesktopEntryTransaction.Result.PIN_SAVED, result)
+            assertTrue(pin.all { it == '\u0000' })
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try { assertEquals("9876", reopened.entries.single().getPin()) }
+            finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { owner.close(); state.lock(); dir.deleteRecursively() }
+    }
+    @Test fun pinFailureAndQueuedCancellationWipeInputWithoutChangingLivePin() {
+        for (cancel in listOf(false, true)) {
+            val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = motp(); state.add(target)
+            val worker = Queue(); val ui = Queue(); val pin = "9876".toCharArray()
+            val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, candidate ->
+                assertEquals("9876", candidate.single().getPin()); false
+            }, state::lock)
+            try {
+                var result: DesktopEntryTransaction.Result? = null
+                assertTrue(owner.submitPin(target, pin, { true }) { result = it })
+                if (cancel) owner.close()
+                worker.run(); while (ui.tasks.isNotEmpty()) ui.run()
+                assertTrue(pin.all { it == '\u0000' })
+                if (cancel) { assertTrue(state.isLocked); assertTrue(result == null) }
+                else { assertEquals("1234", target.getPin()); assertEquals(DesktopEntryTransaction.Result.SAVE_FAILED, result) }
+            } finally { owner.close(); state.lock() }
+        }
+    }
+    @Test fun invalidPinAndWrongEntryKindNeverQueueAndStillConsumeInput() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = motp(); val other = entry("totp")
+        state.add(target); state.add(other); val worker = Queue()
+        val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { it.run() }) { _, _ -> error("invalid") }, state::lock)
+        try {
+            for ((entry, pin) in listOf(target to charArrayOf(), target to CharArray(1025) { '1' }, other to "1234".toCharArray())) {
+                assertFalse(owner.submitPin(entry, pin, { true }) {}); assertTrue(pin.all { it == '\u0000' })
+            }
+            assertTrue(worker.tasks.isEmpty()); assertFalse(owner.busy)
+        } finally { owner.close(); state.lock() }
+    }
+
     @Test fun counterCandidatePersistsBeforeLiveCounterChangesAndCannotSubmitTwice() {
         val dir = Files.createTempDirectory("async-counter-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))

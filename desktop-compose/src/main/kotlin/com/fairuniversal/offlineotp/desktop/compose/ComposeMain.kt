@@ -467,6 +467,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             message = when (transactionResult) {
                 DesktopEntryTransaction.Result.DELETED -> "The account was deleted and the vault saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.COUNTER_ADVANCED -> "The counter was advanced and the vault saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.PIN_SAVED -> "The PIN was saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.SAVE_FAILED -> "The change did not report success. Unlock again and inspect the vault before retrying; preserve your backup."
                 null -> "Saving the confirmed change in the background. Other edits are paused. Locking now may cancel queued work, but cannot undo a write already started. Unlock again and inspect the vault afterwards."
             }, confirmLabel = "Lock vault", dismissLabel = "Lock vault",
@@ -1149,6 +1150,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         VaultEntryDialog(
             request = request,
             strings = com.fairuniversal.offlineotp.ui.vault.VaultDialogStrings(
+                pinTitle = "Enter PIN (unlock again after saving)",
                 counterMessage = "Advance the counter only when the service asks for the next code. Unnecessary advances can put the account out of sync. Confirming dismisses other forms and saves in the background; unlock again afterwards to continue.",
                 deleteMessage = "Remove this account from the vault? This cannot be undone. Make sure you have another way to sign in. Confirming dismisses other forms and saves in the background; unlock again afterwards to continue."),
             onDismiss = { dialogs.dismiss(request) },
@@ -1169,7 +1171,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     }
                 } else entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
             },
-            onPinSubmit = { pin -> entryDialogActions.submitPin(request, pin, lifetime::checkActive) }
+            onPinSubmit = { pin ->
+                if (dialogs.isCurrent(request) && request.kind == VaultDialogKind.PIN && lifetime.checkActive() && !transactionMode) {
+                    val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
+                    if (target != null) {
+                        transactionMode = true
+                        quiesceForTransaction()
+                        val accepted = transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive) { result ->
+                            transactionResult = result; revision++
+                        }
+                        if (!accepted && !vault.isLocked) transactionResult = DesktopEntryTransaction.Result.SAVE_FAILED
+                        revision++
+                    }
+                }
+            }
 
         )
     }

@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.desktop.control
 import com.fairuniversal.offlineotp.Database.Entry
 import java.security.MessageDigest
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
 
 /**
  * UI-thread save-before-adopt entry transaction used by Compose deletion/counter confirmation.
@@ -11,8 +12,8 @@ import com.fairuniversal.offlineotp.Utilities.EntryUsage
  */
 class DesktopEntryTransaction(private val state: DesktopVaultState, private val save: DesktopDetachedSave,
     private val lockSession: () -> Unit) : AutoCloseable {
-    enum class Kind { DELETE, ADVANCE_COUNTER }
-    enum class Result { DELETED, COUNTER_ADVANCED, SAVE_FAILED }
+    enum class Kind { DELETE, ADVANCE_COUNTER, SET_PIN }
+    enum class Result { DELETED, COUNTER_ADVANCED, PIN_SAVED, SAVE_FAILED }
     private class Baseline(val entries: ArrayList<Entry>) {
         private val digests = ArrayList<ByteArray>()
         init {
@@ -36,16 +37,33 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
         }
     }
     private var baseline: Baseline? = null
-    private fun clearBaseline() { baseline?.destroy(); baseline = null }
+    private var ownedPin: CharArray? = null
+    private fun clearBaseline() {
+        baseline?.destroy(); baseline = null
+        ownedPin?.fill('\u0000'); ownedPin = null
+    }
     private var closed = false
     private var pending = false
     val busy get() = pending
+
+    /** Consumes pin on every outcome; immutable Entry/JSON PIN strings cannot be zeroized. */
+    fun submitPin(target: Entry, pin: CharArray, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
+        if (closed || pending || state.isLocked || target.getType() != Entry.OTPType.MOTP || pin.isEmpty() ||
+            pin.size > InputPolicy.MAX_TAG_CHARS || runCatching { InputPolicy.text(String(pin), InputPolicy.MAX_TAG_CHARS) }.isFailure) {
+            pin.fill('\u0000'); return false
+        }
+        ownedPin = pin
+        val accepted = submit(target, Kind.SET_PIN, active, completed)
+        if (!accepted) { pin.fill('\u0000'); ownedPin = null }
+        return accepted
+    }
 
     fun submit(target: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean =
         submit(target, Kind.DELETE, active, completed)
 
     fun submit(target: Entry, kind: Kind, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
+        if (kind == Kind.SET_PIN && (ownedPin == null || target.getType() != Entry.OTPType.MOTP)) return false
         if (kind == Kind.ADVANCE_COUNTER && (!target.isCounterBased() || target.getCounter() < 0 || target.getCounter() >= EntryUsage.MAX_COUNTER)) return false
         val counter = target.getCounter()
         val before = state.snapshot()
@@ -69,6 +87,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
                 when (kind) {
                     Kind.DELETE -> candidate.removeAt(index).destroy()
                     Kind.ADVANCE_COUNTER -> check(EntryUsage.advanceHotp(candidate[index]))
+                    Kind.SET_PIN -> { candidate[index].setPin(String(checkNotNull(ownedPin))); candidate[index].updateOTP(true) }
                 }
             },
             completed = { saved ->
@@ -83,6 +102,11 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
                                     target.setCounter(counter + 1)
                                     target.updateOTP(true)
                                     Result.COUNTER_ADVANCED
+                                }
+                                Kind.SET_PIN -> {
+                                    target.setPin(String(checkNotNull(ownedPin)))
+                                    target.updateOTP(true)
+                                    Result.PIN_SAVED
                                 }
                             }
                             pending = false

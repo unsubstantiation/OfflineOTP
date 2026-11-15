@@ -127,7 +127,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
         self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("entryDialogActions.submitPin(request, pin, lifetime::checkActive)", host)
+        self.assertIn("transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive)", host)
         self.assertIn("dialogs.close()", host)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.pinRequired && enterPin != null", widgets)
