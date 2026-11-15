@@ -1888,11 +1888,26 @@ succeeds and UI authority remains valid. A failed save leaves the original list 
 retry, so no optimistic rollback is needed. Changed list identity/order or expired authority
 locks rather than applying the result to a different live list. Closing a pending transaction
 locks because an already-started disk write cannot be undone. The host must close the owner on
-session disposal and prevent every other mutation while busy (including in-place metadata changes,
-which list identity checks do not detect).
+session disposal and prevent every other mutation while busy. The later content-fingerprint hardening below
+also detects in-place changes before result adoption.
 
 Tests cover actual save/reopen, unchanged live state before delivery, failure/retry, duplicate
 submission, changed/expired sessions and queued cancellation. Candidate preparation is UI-thread
 work; encryption/storage run on the worker. This controller is NOT yet connected to the Compose
 delete dialog, so production deletion remains synchronous. Busy-state presentation, lifetime
 disposal wiring and terminal-failure recovery remain required before enabling it.
+
+### Deletion content-baseline hardening
+
+The deletion transaction now compares serialized-content SHA-256 fingerprints as well as
+entry identity and list order. In-place edits to either the removed target or a retained entry
+therefore reject late adoption and lock the session, rather than leaving disk and memory with
+different entry metadata. Current OTP refreshes do not alter persisted JSON and remain allowed.
+Digest buffers and temporary UTF-8 bytes are wiped; the baseline releases entry references on
+completion, rejection and close. Immutable JSON strings cannot be guaranteed zeroized. These
+fingerprints are private ephemeral comparison values, not logged/exported identifiers.
+
+Tests cover in-place edits to both target/retained entries and an ordinary OTP refresh. This
+adds UI-thread serialization work and is a correctness backstop, not a substitute for disabling
+mutations while busy. The Compose delete dialog is still synchronous; no new device test or
+responsiveness improvement is claimed in this increment.

@@ -66,6 +66,35 @@ class DesktopEntryDeletionTest {
             } finally { owner.close(); state.lock() }
         }
     }
+    @Test fun inPlaceEditsToTargetOrRetainedEntryInvalidateResult() {
+        for (editTarget in listOf(true, false)) {
+            val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+            val target = entry("target"); val kept = entry("kept")
+            state.add(target); state.add(kept)
+            val worker = Queue(); val ui = Queue()
+            val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
+            try {
+                assertTrue(owner.submit(target, { true }) { error("stale result") })
+                worker.run()
+                (if (editTarget) target else kept).setLabel("changed without replacement")
+                ui.run(); assertTrue(state.isLocked)
+            } finally { owner.close(); state.lock() }
+        }
+    }
+    @Test fun tokenRefreshDoesNotInvalidatePersistedContentBaseline() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+        val target = entry("target"); val kept = entry("kept")
+        state.add(target); state.add(kept)
+        val worker = Queue(); val ui = Queue()
+        val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
+        try {
+            var deleted = false
+            owner.submit(target, { true }) { deleted = it == DesktopEntryDeletion.Result.DELETED }
+            worker.run(); kept.updateOTPAt(120L, false); ui.run()
+            assertTrue(deleted); assertFalse(state.isLocked); assertTrue(state.snapshot().single() === kept)
+        } finally { owner.close(); state.lock() }
+    }
+
     @Test fun closingQueuedTransactionLocksAndCancelsWrite() {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry("target")
         state.add(target); val worker = Queue()

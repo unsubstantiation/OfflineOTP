@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background deletion groundwork: Detect in-place entry edits with ephemeral content fingerprints before adopting a saved candidate; clean up fingerprint buffers and retained references. Ordinary OTP refresh remains compatible.
+
  * Background persistence groundwork: Add a save-before-adopt deletion transaction with detached candidate preparation, failure retry, stale-list rejection and lock-on-abandonment. Compose dialog integration remains pending.
 
  * Desktop write coordination: Check pending persistence before window close, unlock submission/adoption, rekey and hardware enrollment; show a wait notice and discard blocked unlock results. Background UI save transactions are not yet enabled.
