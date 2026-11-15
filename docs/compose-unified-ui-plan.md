@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion, HOTP counter advance and mOTP PIN updates use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose creation, deletion, HOTP counter advance and mOTP PIN updates use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1999,3 +1999,19 @@ insertion, failure/retry, cancellation and duplicate/unowned rejection. Creation
 yet wired to this API; the transaction result wording is prepared for subsequent host integration.
 Existing delete/counter/PIN confirmations remain the production background-save paths. No new
 native UI or device-validation claim is made.
+
+### Production background creation wiring
+
+Manual and email creation now use identity-bound prepare/prepareEmail handoff methods. They
+validate input, recheck lifetime/request identity and reject duplicates before consuming the
+request. A callback receives a borrowed draft that is always destroyed afterwards, including
+when the callback throws; the background transaction makes its own copy. Reentrant/double
+submissions cannot reuse consumed authority. Invalid/duplicate input remains editable in the form.
+
+The host hands accepted drafts to submitNew after closing other session owners and displays the
+same progress/result and fresh-unlock flow as other background mutations. Both creation forms
+show the host-provided notice before submission. No synchronous EntryEditor.add callback remains
+in the production creation wiring. Tests cover real email credential save/reopen through this
+handoff, borrowed-draft cleanup, invalid/duplicate/expired/stale requests and throwing callbacks.
+Other editing/import/copy-related persistence remains synchronous; native modal/device testing
+of this new creation workflow is pending.

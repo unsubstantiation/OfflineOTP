@@ -362,7 +362,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
-    val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
+    val creation = remember(vault) { DesktopEntryCreation(vault) }
     val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
@@ -437,6 +437,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close()
         archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
         openPgpExporter.close(); linScpExporter.close(); exporter.close()
+    }
+    fun beginCreation(draft: com.fairuniversal.offlineotp.Database.Entry) {
+        transactionMode = true
+        quiesceForTransaction()
+        val accepted = transaction.submitNew(draft, lifetime::checkActive) { result ->
+            transactionResult = result; revision++
+        }
+        if (!accepted && !vault.isLocked) transactionResult = DesktopEntryTransaction.Result.SAVE_FAILED
+        revision++
     }
     DisposableEffect(presenter) {
         lifetime.start()
@@ -1073,8 +1082,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (addRequest != null) {
         ManualEntryDialog(
             inputKey = addRequest, artwork = artwork,
+            submitNotice = "Saving pauses other edits and runs in the background. Unlock again afterwards to continue.",
             onEmailSubmit = { input ->
-                if (lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++
             },
             error = when (addRequest.failure) {
@@ -1084,7 +1094,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onDismiss = { creation.dismiss(addRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && creation.submit(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++
             }
         )

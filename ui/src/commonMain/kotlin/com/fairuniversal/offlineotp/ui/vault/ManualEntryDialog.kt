@@ -23,12 +23,12 @@ import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 @Composable
 fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
                       initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null,
-                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null) {
+                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null, submitNotice: String? = null) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
     var email by remember(inputKey) { mutableStateOf(false) }
     if (email && !editing && onEmailSubmit != null) {
-        EmailEntryDialog(inputKey, error, onEmailSubmit, onDismiss)
+        EmailEntryDialog(inputKey, error, onEmailSubmit, onDismiss, submitNotice)
         return
     }
     fun dismiss() { input = ManualEntryInput(); onDismiss() }
@@ -42,6 +42,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     onSelect = { input = input.copy(thumbnailName = it); pickingThumbnail = false },
                     onCancel = { pickingThumbnail = false })
             } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                submitNotice?.let { Text(text = it) }
                 Text(text = "Type: ${input.type}")
                 if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values. Removal choices apply only when you Save.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {

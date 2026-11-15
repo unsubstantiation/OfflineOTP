@@ -18,6 +18,52 @@ class DesktopEntryCreationTest {
     private val email = EmailEntryInput(address = "alice@example.com", incomingHost = "imap.example.com",
         outgoingHost = "smtp.example.com", incomingPassword = "incoming", outgoingPassword = "outgoing")
 
+    @Test fun preparedEmailHandsOffOnceAndPersistsThroughBackgroundTransaction() {
+        val dir = Files.createTempDirectory("prepared-email-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key); val worker = ArrayList<Runnable>(); val ui = ArrayList<Runnable>()
+        val creation = DesktopEntryCreation(state)
+        val transaction = DesktopEntryTransaction(state, controller.detachedSave(java.util.concurrent.Executor { worker.add(it) }, { ui.add(it) }), state::lock)
+        var borrowed: Entry? = null
+        try {
+            creation.open(); val request = creation.pending!!
+            assertTrue(creation.prepareEmail(request, email, { true }) { draft ->
+                borrowed = draft
+                assertFalse(creation.prepareEmail(request, email, { true }) { error("duplicate") })
+                creation.close()
+                assertTrue(transaction.submitNew(draft, { true }) {})
+            })
+            assertEquals(0, borrowed!!.getSecretSize()); assertTrue(state.snapshot().isEmpty())
+            worker.removeAt(0).run(); ui.removeAt(0).run()
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try {
+                val account = reopened.entries.single().getEmailAccount()
+                assertEquals("incoming", account.account.getString("password"))
+                assertEquals("outgoing", account.identity.getString("password"))
+            } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { transaction.close(); creation.close(); state.lock(); dir.deleteRecursively() }
+    }
+    @Test fun prepareRejectsInvalidDuplicateExpiredAndStaleDraftsAndCleansThrowingHandoff() {
+        val state = state(); val creation = DesktopEntryCreation(state)
+        try {
+            creation.open(); val request = creation.pending!!
+            assertFalse(creation.prepare(request, input.copy(secret = "!"), { true }) { error("invalid") })
+            assertEquals(DesktopEntryCreation.Failure.INVALID_INPUT, request.failure)
+            assertFalse(creation.prepare(request, input, { false }) { error("expired") })
+            val existing = input.build(); state.add(existing)
+            assertFalse(creation.prepare(request, input, { true }) { error("duplicate") })
+            assertEquals(DesktopEntryCreation.Failure.SAVE_FAILED, request.failure)
+            creation.open(); val fresh = creation.pending!!
+            assertFalse(creation.prepare(request, input, { true }) { error("stale") })
+            var borrowed: Entry? = null
+            try { creation.prepare(fresh, input.copy(label = "new"), { true }) { borrowed = it; error("handoff") } }
+            catch (_: IllegalStateException) {}
+            assertEquals(0, borrowed!!.getSecretSize()); assertTrue(creation.pending == null)
+            assertTrue(state.snapshot().single() === existing)
+        } finally { creation.close(); state.lock() }
+    }
+
     @Test fun emailCreationPersistsBothCredentialsAndRejectsReusedRequest() {
         val dir = Files.createTempDirectory("compose-email-add-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))

@@ -192,7 +192,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
         self.assertIn("input = ManualEntryInput(); email = true", manual)
-        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)", host)
+        self.assertIn("creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)", host)
 
     def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
@@ -220,8 +220,8 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_all_compose_add_edit_paths_supply_live_save_guard(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        for call in ("creation.submit(addRequest, input, lifetime::checkActive)",
-                     "creation.submitEmail(addRequest, input, lifetime::checkActive)"):
+        for call in ("creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)",
+                     "creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)"):
             self.assertIn(call, host)
         for method in ("submit", "submitPassword", "submitEmailPasswords", "submitEmailSettings"):
             self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
@@ -902,7 +902,7 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_desktop_manual_creation_uses_shared_form_and_guarded_persistence(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("DesktopEntryCreation(vault, EntryEditor(controller, vault)::add)", host)
+        self.assertIn("DesktopEntryCreation(vault)", host)
         self.assertIn("creation.close()", host)
         self.assertIn("ManualEntryDialog(", host)
         form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()

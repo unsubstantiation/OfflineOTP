@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Manual and email creation now hand validated drafts to background persistence. Invalid/duplicate input stays in the form; accepted submissions pause other edits and require a fresh unlock after completion.
+
  * Background creation groundwork: Add owned-draft, save-before-adopt entry addition with duplicate rejection and save/reopen coverage. Creation forms remain synchronous pending host wiring.
 
  * Desktop cleanup: Retire the obsolete synchronous delete/counter/PIN dialog handler and move idle-deadline regression coverage onto background transactions, including committed, failed and throwing writes.
