@@ -1931,3 +1931,14 @@ checks old move callbacks cannot write after close. Existing deletion tests cove
 and failure/cancellation. This conservative UX does not yet support remaining unlocked after a
 background delete, and other final UI saves remain synchronous. Native modal/device testing of
 this new path remains pending.
+
+### Background completion recovery
+
+Detached saves now retain their task reference until the completion callback returns and the
+lease is acknowledged. A throwing UI callback still fails closed, but explicit session
+lock/disposal can find and abandon the finished task rather than leaving an unreachable lease
+that permanently rejects unlock. Rejected dispatch follows the same recoverable ownership rule.
+Tests assert the gate remains held before recovery and releases on close, then perform a real
+delete/save/reopen round trip after a throwing completion. This does not roll back a completed
+write or automatically retry it. Normal success and worker-in-flight close semantics remain
+unchanged. Native UI/device validation of this path is still pending.

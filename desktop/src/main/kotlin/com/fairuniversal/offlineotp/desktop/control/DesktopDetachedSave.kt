@@ -69,9 +69,11 @@ class DesktopDetachedSave(private val worker: Executor, private val dispatch: (R
                         if (closed || work !== task) return@Runnable
                         val live = authorized()
                         if (closed || work !== task) return@Runnable
-                        work = null
+                        // Keep ownership until adoption returns. If it throws, close() must
+                        // still find this finished task and release its lease during recovery.
                         if (live && !state.isLocked) completed(saved)
                         lease.acknowledged()
+                        if (work === task) work = null
                     })
                 } catch (_: Exception) {
                     // No UI state access from worker. Inputs are already destroyed; fail closed.

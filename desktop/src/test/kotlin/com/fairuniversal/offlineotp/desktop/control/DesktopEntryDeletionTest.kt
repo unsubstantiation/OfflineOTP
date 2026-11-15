@@ -95,6 +95,28 @@ class DesktopEntryDeletionTest {
         } finally { owner.close(); state.lock() }
     }
 
+    @Test fun failedCompletionCanBeRecoveredByLockAndDisposalWithoutStrandingController() {
+        val dir = Files.createTempDirectory("delete-completion-recovery-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key); val target = entry("target")
+        state.add(target); assertTrue(controller.save(state.key, state.snapshot()))
+        val worker = Queue(); val ui = Queue()
+        val owner = DesktopEntryDeletion(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
+        try {
+            assertTrue(owner.submit(target, { true }) { error("UI failed") })
+            worker.run()
+            var threw = false
+            try { ui.run() } catch (_: IllegalStateException) { threw = true }
+            assertTrue(threw); assertTrue(controller.persistenceBusy)
+            assertTrue(state.snapshot().isEmpty()) // The successful disk write was adopted first.
+            state.lock(); owner.close()
+            assertFalse(controller.persistenceBusy)
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try { assertTrue(reopened.entries.isEmpty()) } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { owner.close(); state.lock(); dir.deleteRecursively() }
+    }
+
     @Test fun closingQueuedTransactionLocksAndCancelsWrite() {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry("target")
         state.add(target); val worker = Queue()

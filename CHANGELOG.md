@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background save recovery: Retain task ownership until UI completion returns so a throwing callback cannot strand the controller write gate after session lock/disposal. Add recovery and vault-reopen regression coverage.
+
  * Compose desktop: Entry deletion now saves on the background worker after closing other session forms. A progress/result screen requires a fresh unlock afterwards; lock/disposal cancels queued work and suppresses late results. Other save paths remain synchronous.
 
  * Background deletion groundwork: Detect in-place entry edits with ephemeral content fingerprints before adopting a saved candidate; clean up fingerprint buffers and retained references. Ordinary OTP refresh remains compatible.

@@ -77,6 +77,11 @@ class DesktopWriteGateTest {
                 queue.removeAt(0).run()
                 if (!rejectDispatch) try { ui.removeAt(0).run() } catch (_: IllegalStateException) {}
                 assertTrue(gate.busy); assertTrue(gate.acquire() == null)
+                assertTrue(owner.busy)
+                owner.close()
+                assertFalse(gate.busy); assertFalse(owner.busy)
+                val next = gate.acquire()!!
+                next.abandon()
             } finally { owner.close(); state.lock() }
         }
     }
