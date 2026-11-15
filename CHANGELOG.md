@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background creation groundwork: Add owned-draft, save-before-adopt entry addition with duplicate rejection and save/reopen coverage. Creation forms remain synchronous pending host wiring.
+
  * Desktop cleanup: Retire the obsolete synchronous delete/counter/PIN dialog handler and move idle-deadline regression coverage onto background transactions, including committed, failed and throwing writes.
 
  * Compose desktop: Save mOTP PIN changes in the background before live adoption, with owned PIN-buffer cleanup and the same fresh-unlock session barrier as deletion/counter changes.

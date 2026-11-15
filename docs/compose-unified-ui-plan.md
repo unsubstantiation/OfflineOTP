@@ -1985,3 +1985,17 @@ expired failure. PIN buffers and shared gate release are checked after disposal.
 The reduced desktop test count reflects replacement of four obsolete synchronous tests with
 two matrix tests, not loss of the production deadline checks. No changes to other synchronous
 editing/import/copy save paths or new native-device validation are claimed.
+
+### Background entry addition prerequisite
+
+DesktopEntryTransaction now supports ADD via submitNew, which clones and validates a caller-owned
+draft, rejects an equal existing entry before scheduling, persists a detached candidate and
+transfers its owned draft into live state only after successful authorized completion. The
+caller retains its input on every outcome; failed/canceled copies are destroyed. Direct ADD
+submission without an owned draft is rejected. Existing list/content/lifetime checks apply.
+
+Tests cover actual save/reopen with caller destruction before worker execution, no early live
+insertion, failure/retry, cancellation and duplicate/unowned rejection. Creation forms are NOT
+yet wired to this API; the transaction result wording is prepared for subsequent host integration.
+Existing delete/counter/PIN confirmations remain the production background-save paths. No new
+native UI or device-validation claim is made.

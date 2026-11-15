@@ -24,7 +24,7 @@ class DesktopEntryTransactionDeadlineTest {
     else ManualEntryInput(type = Entry.OTPType.HOTP, label = "hotp", secret = "JBSWY3DPEHPK3PXP", timing = "0").build()
 
     @Test fun committedWritesCrossingIdleDeadlineLockWithoutDeliveringResult() {
-        for (kind in DesktopEntryTransaction.Kind.values()) {
+        for (kind in DesktopEntryTransaction.Kind.values().filter { it != DesktopEntryTransaction.Kind.ADD }) {
             val dir = Files.createTempDirectory("transaction-deadline-").toFile()
             val controller = VaultController(DesktopStorage.open(dir))
             val loaded = controller.createVault("password") as VaultController.Session.Loaded
@@ -44,6 +44,7 @@ class DesktopEntryTransactionDeadlineTest {
                 val reopened = controller.openVault("password") as VaultController.Session.Loaded
                 try {
                     when (kind) {
+                        DesktopEntryTransaction.Kind.ADD -> error("Creation has separate transaction coverage")
                         DesktopEntryTransaction.Kind.DELETE -> assertTrue(reopened.entries.isEmpty())
                         DesktopEntryTransaction.Kind.ADVANCE_COUNTER -> assertEquals(1L, reopened.entries.single().getCounter())
                         DesktopEntryTransaction.Kind.SET_PIN -> assertEquals("9876", reopened.entries.single().getPin())
@@ -53,7 +54,7 @@ class DesktopEntryTransactionDeadlineTest {
         }
     }
     @Test fun failedAndThrowingWritesStillCheckRealLifetimeBeforeDelivering() {
-        for (kind in DesktopEntryTransaction.Kind.values()) for (throws in listOf(false, true)) {
+        for (kind in DesktopEntryTransaction.Kind.values().filter { it != DesktopEntryTransaction.Kind.ADD }) for (throws in listOf(false, true)) {
             val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry(kind); state.add(target)
             val worker = ArrayList<Runnable>(); val ui = ArrayList<Runnable>(); val clock = Clock(); val gate = DesktopWriteGate()
             val save = DesktopDetachedSave(Executor { worker.add(it) }, { ui.add(it) }, gate) { _, _ ->
