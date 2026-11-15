@@ -12,8 +12,8 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
  */
 class DesktopEntryTransaction(private val state: DesktopVaultState, private val save: DesktopDetachedSave,
     private val lockSession: () -> Unit) : AutoCloseable {
-    enum class Kind { DELETE, ADVANCE_COUNTER, SET_PIN, ADD }
-    enum class Result { DELETED, COUNTER_ADVANCED, PIN_SAVED, ADDED, SAVE_FAILED }
+    enum class Kind { DELETE, ADVANCE_COUNTER, SET_PIN, ADD, REPLACE }
+    enum class Result { DELETED, COUNTER_ADVANCED, PIN_SAVED, ADDED, REPLACED, SAVE_FAILED }
     private class Baseline(val entries: ArrayList<Entry>) {
         private val digests = ArrayList<ByteArray>()
         init {
@@ -59,6 +59,17 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
         return accepted
     }
 
+    /** Copies the edited entry; target must still be the exact live instance. */
+    fun submitReplacement(target: Entry, replacement: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
+        if (closed || pending || state.isLocked) return false
+        val owned = try { Entry(replacement.toJSON()) } catch (_: Exception) { return false }
+        try { owned.validate() } catch (_: Exception) { owned.destroy(); return false }
+        ownedDraft = owned
+        val accepted = submit(target, Kind.REPLACE, active, completed)
+        if (!accepted) { ownedDraft?.destroy(); ownedDraft = null }
+        return accepted
+    }
+
     /** Consumes pin on every outcome; immutable Entry/JSON PIN strings cannot be zeroized. */
     fun submitPin(target: Entry, pin: CharArray, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked || target.getType() != Entry.OTPType.MOTP || pin.isEmpty() ||
@@ -77,6 +88,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
     fun submit(target: Entry, kind: Kind, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
         if (kind == Kind.ADD && (ownedDraft !== target || state.snapshot().contains(target))) return false
+        if (kind == Kind.REPLACE && (ownedDraft == null || state.snapshot().any { it !== target && it == ownedDraft })) return false
         if (kind == Kind.SET_PIN && (ownedPin == null || target.getType() != Entry.OTPType.MOTP)) return false
         if (kind == Kind.ADVANCE_COUNTER && (!target.isCounterBased() || target.getCounter() < 0 || target.getCounter() >= EntryUsage.MAX_COUNTER)) return false
         val counter = target.getCounter()
@@ -100,6 +112,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
             prepare = { candidate ->
                 when (kind) {
                     Kind.ADD -> candidate.add(Entry(target.toJSON()))
+                    Kind.REPLACE -> candidate.set(index, Entry(checkNotNull(ownedDraft).toJSON())).destroy()
                     Kind.DELETE -> candidate.removeAt(index).destroy()
                     Kind.ADVANCE_COUNTER -> check(EntryUsage.advanceHotp(candidate[index]))
                     Kind.SET_PIN -> { candidate[index].setPin(String(checkNotNull(ownedPin))); candidate[index].updateOTP(true) }
@@ -116,6 +129,11 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
                                     check(state.add(target)) { "Candidate adoption failed" }
                                     ownedDraft = null // Live state now owns the entry.
                                     Result.ADDED
+                                }
+                                Kind.REPLACE -> {
+                                    check(state.replace(target, checkNotNull(ownedDraft))) { "Replacement adoption failed" }
+                                    ownedDraft = null
+                                    Result.REPLACED
                                 }
                                 Kind.DELETE -> { state.removeAt(index)?.destroy(); Result.DELETED }
                                 Kind.ADVANCE_COUNTER -> {

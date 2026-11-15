@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Background editing groundwork: Add owned replacement candidates with save-before-adopt semantics, duplicate rejection, preserved list position/identity and stale-state protection. Editing forms remain synchronous pending integration.
+
  * Compose desktop: Manual and email creation now hand validated drafts to background persistence. Invalid/duplicate input stays in the form; accepted submissions pause other edits and require a fresh unlock after completion.
 
  * Background creation groundwork: Add owned-draft, save-before-adopt entry addition with duplicate rejection and save/reopen coverage. Creation forms remain synchronous pending host wiring.

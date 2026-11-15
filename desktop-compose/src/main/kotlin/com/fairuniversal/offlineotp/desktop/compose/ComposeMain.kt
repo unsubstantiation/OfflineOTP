@@ -474,6 +474,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             message = when (transactionResult) {
                 DesktopEntryTransaction.Result.DELETED -> "The account was deleted and the vault saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.COUNTER_ADVANCED -> "The counter was advanced and the vault saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.REPLACED -> "The changes were saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.ADDED -> "The account was added and the vault saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.PIN_SAVED -> "The PIN was saved. Unlock again to continue."
                 DesktopEntryTransaction.Result.SAVE_FAILED -> "The change did not report success. Unlock again and inspect the vault before retrying; preserve your backup."

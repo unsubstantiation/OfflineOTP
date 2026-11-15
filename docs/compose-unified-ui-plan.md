@@ -2015,3 +2015,17 @@ in the production creation wiring. Tests cover real email credential save/reopen
 handoff, borrowed-draft cleanup, invalid/duplicate/expired/stale requests and throwing callbacks.
 Other editing/import/copy-related persistence remains synchronous; native modal/device testing
 of this new creation workflow is pending.
+
+### Background replacement prerequisite
+
+DesktopEntryTransaction supports REPLACE through submitReplacement. It copies and validates the
+caller-owned replacement, requires exact live target identity, rejects duplicates against other
+entries and substitutes only an owned worker clone in the candidate list. Successful delivery
+replaces the original at its current position and preserves its list id, then destroys the old
+entry. Failed writes leave the original and caller draft untouched. Stale identity/content or
+expired authority follows the existing lock-and-reopen policy.
+
+Tests cover actual save/reopen, unchanged live entry before delivery, position/id preservation,
+old-secret destruction, duplicate/stale target rejection, caller ownership on failure and an
+intervening in-place edit. Editing forms are not yet connected; this is transaction groundwork,
+not a new production background edit flow or native/device validation result.
