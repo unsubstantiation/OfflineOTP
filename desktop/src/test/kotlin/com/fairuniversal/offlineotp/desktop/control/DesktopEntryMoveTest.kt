@@ -14,6 +14,19 @@ import org.junit.Test
 class DesktopEntryMoveTest {
     private fun entry(label: String) = ManualEntryInput(label = label, secret = "JBSWY3DPEHPK3PXP").build()
 
+    @Test fun closingPreventsPreviouslyBoundMoveCallbacks() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+        val a = entry("a"); val b = entry("b"); state.add(a); state.add(b)
+        val cards = listOf(a, b).map { VaultCards.of(it, 0L) }
+        val mover = DesktopEntryMove(state) { _, _ -> error("closed move") }
+        val frame = mover.bind(cards)
+        try {
+            mover.close()
+            assertFalse(mover.move(frame, cards[0], 1))
+            assertTrue(mover.bind(cards).targets.isEmpty())
+        } finally { state.lock() }
+    }
+
     @Test fun expiredOrReentrantGuardsCannotPersistMoves() {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
         val a = entry("a"); val b = entry("b"); state.add(a); state.add(b)

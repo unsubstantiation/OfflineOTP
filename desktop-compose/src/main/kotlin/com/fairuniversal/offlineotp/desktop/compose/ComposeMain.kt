@@ -9,6 +9,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
 import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareEnrollment
 import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryDeletion
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryDialogActions
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
@@ -367,6 +368,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
+    val deletionHolder = remember(vault) { arrayOfNulls<DesktopEntryDeletion>(1) }
+    var deletionMode by remember(vault) { mutableStateOf(false) }
+    var deletionResult by remember(vault) { mutableStateOf<DesktopEntryDeletion.Result?>(null) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
     val entryDialogActions = remember(vault, dialogs) { DesktopEntryDialogActions(vault, dialogs) { entries -> controller.save(vault.key, entries) } }
     val presenter = remember(vault) {
@@ -390,6 +394,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
                 showStorageLocation = false
+                deletionHolder[0]?.close()
                 emailDetails.close()
                 openPgpImporter.close()
                 linScpImporter.close()
@@ -420,6 +425,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
         }
     }
+    val deletion = remember(vault, lifetime) {
+        DesktopEntryDeletion(vault, controller.detachedSave(exportWorker) { task -> EventQueue.invokeLater(task) }, presenter::lock)
+            .also { deletionHolder[0] = it }
+    }
+    // Quiesce every other session owner before submitting a background deletion. A fresh
+    // unlock is required afterwards; none of these terminal owners is reused for editing.
+    fun quiesceForDeletion() {
+        layoutSettings.close(); autoLock.close(); copier.close(); mover.close()
+        creation.close(); editing.close(); emailDetails.close(); dialogs.close()
+        openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close()
+        imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close()
+        hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close()
+        archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+        openPgpExporter.close(); linScpExporter.close(); exporter.close()
+    }
     DisposableEffect(presenter) {
         lifetime.start()
         val listener = AWTEventListener { event ->
@@ -434,6 +454,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
+            deletion.close()
             layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
@@ -441,6 +462,16 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
     val now = rememberNowMillis(clock)
+    if (deletionMode) {
+        EntryConfirmationDialog(title = "Delete account",
+            message = when (deletionResult) {
+                DesktopEntryDeletion.Result.DELETED -> "The account was deleted and the vault saved. Unlock again to continue."
+                DesktopEntryDeletion.Result.SAVE_FAILED -> "Deletion did not report success. Unlock again and inspect the vault before retrying; preserve your backup."
+                null -> "Saving deletion in the background. Other edits are paused. Locking now may cancel queued work, but cannot undo a write already started. Unlock again and inspect the vault afterwards."
+            }, confirmLabel = "Lock vault", dismissLabel = "Lock vault",
+            onConfirm = { presenter.lock() }, onDismiss = { presenter.lock() })
+        return
+    }
     val artwork = remember(vault) {
         VaultArtwork { name -> IssuerIcons.artwork(name)?.toComposeImageBitmap() }
     }
@@ -1116,9 +1147,24 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (request != null) {
         VaultEntryDialog(
             request = request,
+            strings = com.fairuniversal.offlineotp.ui.vault.VaultDialogStrings(
+                deleteMessage = "Remove this account from the vault? This cannot be undone. Make sure you have another way to sign in. Confirming dismisses other forms and saves in the background; unlock again afterwards to continue."),
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
-                entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
+                if (request.kind == VaultDialogKind.DELETE) {
+                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !deletionMode) {
+                        val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
+                        if (target != null) {
+                            deletionMode = true
+                            quiesceForDeletion()
+                            val accepted = deletion.submit(target, lifetime::checkActive) { result ->
+                                deletionResult = result; revision++
+                            }
+                            if (!accepted && !vault.isLocked) deletionResult = DesktopEntryDeletion.Result.SAVE_FAILED
+                            revision++
+                        }
+                    }
+                } else entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
             },
             onPinSubmit = { pin -> entryDialogActions.submitPin(request, pin, lifetime::checkActive) }
 

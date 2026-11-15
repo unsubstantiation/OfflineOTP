@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; save-before-adopt deletion transaction is tested; asynchronous Compose dialog wiring remains. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion uses the background transaction with a fresh-unlock requirement; remaining save paths are synchronous. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1911,3 +1911,23 @@ Tests cover in-place edits to both target/retained entries and an ordinary OTP r
 adds UI-thread serialization work and is a correctness backstop, not a substitute for disabling
 mutations while busy. The Compose delete dialog is still synchronous; no new device test or
 responsiveness improvement is claimed in this increment.
+
+### First production background transaction: deletion
+
+Compose's delete confirmation now submits DesktopEntryDeletion using the controller-owned
+detached worker on the session export executor. Before submission it terminally closes other
+session form/import/export/clipboard/move owners, so pending callbacks cannot perform competing
+mutations. The normal vault screen and dialogs are replaced by a progress/result panel. The
+confirmation explains that a fresh unlock is required afterwards; successful/failed completion
+never silently restores the terminal session owners. The failure notice recommends inspecting
+the reopened vault rather than asserting that no disk change occurred.
+
+Lifetime/input tracking and the clock remain composed during progress. Locking or disposal
+closes the deletion owner, cancels queued work and suppresses adoption; started writes finish
+under the controller gate. Normal window close/unlock/rekey admission uses the existing gate.
+A retained reference closes the owner during presenter lock; close is idempotent. Move callbacks
+now have terminal close semantics as well. Source guards cover host wiring/order and a unit test
+checks old move callbacks cannot write after close. Existing deletion tests cover real save/reopen
+and failure/cancellation. This conservative UX does not yet support remaining unlocked after a
+background delete, and other final UI saves remain synchronous. Native modal/device testing of
+this new path remains pending.

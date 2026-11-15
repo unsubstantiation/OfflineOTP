@@ -650,6 +650,21 @@ class ComposeUiWiringTest(unittest.TestCase):
         # Do not conditionally dispose an in-progress unlock screen on its own controller lease.
         self.assertIn("if (vault == null && rekey.canUnlock && enrollment == null)", host)
 
+    def test_background_delete_quiesces_session_and_keeps_lifetime_during_progress(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("controller.detachedSave(exportWorker)", host)
+        self.assertIn("deletionHolder[0]?.close()", host)
+        self.assertIn("deletion.close()", host)
+        self.assertIn("deletion.submit(target, lifetime::checkActive)", host)
+        self.assertIn("quiesceForDeletion()", host)
+        self.assertIn("dialogs.close()", host)
+        self.assertIn("copier.close(); mover.close()", host)
+        self.assertIn("unlock again afterwards", host)
+        busy = host.index("    if (deletionMode) {")
+        self.assertLess(host.index("    DisposableEffect(presenter)"), busy)
+        self.assertLess(busy, host.index("    VaultScreen("))
+        self.assertIn("return", host[busy:host.index("    val artwork", busy)])
+
     def test_openpgp_export_confirms_scope_and_recipient(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)

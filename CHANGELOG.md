@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: Entry deletion now saves on the background worker after closing other session forms. A progress/result screen requires a fresh unlock afterwards; lock/disposal cancels queued work and suppresses late results. Other save paths remain synchronous.
+
  * Background deletion groundwork: Detect in-place entry edits with ephemeral content fingerprints before adopting a saved candidate; clean up fingerprint buffers and retained references. Ordinary OTP refresh remains compatible.
 
  * Background persistence groundwork: Add a save-before-adopt deletion transaction with detached candidate preparation, failure retry, stale-list rejection and lock-on-abandonment. Compose dialog integration remains pending.
