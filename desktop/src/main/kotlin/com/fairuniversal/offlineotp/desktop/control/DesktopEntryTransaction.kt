@@ -2,15 +2,17 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import java.security.MessageDigest
+import com.fairuniversal.offlineotp.Utilities.EntryUsage
 
 /**
- * UI-thread save-before-adopt deletion transaction. Not yet connected to the Compose dialog.
+ * UI-thread save-before-adopt entry transaction used by Compose deletion/counter confirmation.
  * The host must prevent other mutations while busy and close this owner on lock/disposal.
  * Lock is mandatory on abandonment/expiry: the disk may already contain the candidate.
  */
-class DesktopEntryDeletion(private val state: DesktopVaultState, private val save: DesktopDetachedSave,
+class DesktopEntryTransaction(private val state: DesktopVaultState, private val save: DesktopDetachedSave,
     private val lockSession: () -> Unit) : AutoCloseable {
-    enum class Result { DELETED, SAVE_FAILED }
+    enum class Kind { DELETE, ADVANCE_COUNTER }
+    enum class Result { DELETED, COUNTER_ADVANCED, SAVE_FAILED }
     private class Baseline(val entries: ArrayList<Entry>) {
         private val digests = ArrayList<ByteArray>()
         init {
@@ -39,8 +41,13 @@ class DesktopEntryDeletion(private val state: DesktopVaultState, private val sav
     private var pending = false
     val busy get() = pending
 
-    fun submit(target: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
+    fun submit(target: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean =
+        submit(target, Kind.DELETE, active, completed)
+
+    fun submit(target: Entry, kind: Kind, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
+        if (kind == Kind.ADVANCE_COUNTER && (!target.isCounterBased() || target.getCounter() < 0 || target.getCounter() >= EntryUsage.MAX_COUNTER)) return false
+        val counter = target.getCounter()
         val before = state.snapshot()
         val index = before.indexOfFirst { it === target }
         if (index < 0) return false
@@ -58,18 +65,29 @@ class DesktopEntryDeletion(private val state: DesktopVaultState, private val sav
         }
         pending = true
         val accepted = save.submitCandidate(state, ::authorized,
-            prepare = { candidate -> candidate.removeAt(index).destroy() },
+            prepare = { candidate ->
+                when (kind) {
+                    Kind.DELETE -> candidate.removeAt(index).destroy()
+                    Kind.ADVANCE_COUNTER -> check(EntryUsage.advanceHotp(candidate[index]))
+                }
+            },
             completed = { saved ->
                 if (!closed && pending) {
                     if (saved) {
                         if (!unchanged() || state.isLocked) {
                             try { lockSession() } finally { clearBaseline() }
                         } else {
-                            // Remove exactly the original target only after successful persistence.
-                            state.removeAt(index)?.destroy()
+                            val result = when (kind) {
+                                Kind.DELETE -> { state.removeAt(index)?.destroy(); Result.DELETED }
+                                Kind.ADVANCE_COUNTER -> {
+                                    target.setCounter(counter + 1)
+                                    target.updateOTP(true)
+                                    Result.COUNTER_ADVANCED
+                                }
+                            }
                             pending = false
                             clearBaseline()
-                            completed(Result.DELETED)
+                            completed(result)
                         }
                     } else {
                         pending = false

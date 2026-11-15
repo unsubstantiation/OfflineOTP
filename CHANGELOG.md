@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Compose desktop: HOTP counter confirmation now uses the background save-before-adopt transaction, with duplicate/overflow guards and fresh-unlock progress/results. Failed saves do not advance the live counter.
+
  * Background save recovery: Retain task ownership until UI completion returns so a throwing callback cannot strand the controller write gate after session lock/disposal. Add recovery and vault-reopen regression coverage.
 
  * Compose desktop: Entry deletion now saves on the background worker after closing other session forms. A progress/result screen requires a fresh unlock afterwards; lock/disposal cancels queued work and suppresses late results. Other save paths remain synchronous.

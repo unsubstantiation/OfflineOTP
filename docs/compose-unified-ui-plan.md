@@ -18,7 +18,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Work | Purpose / completion criterion |
 | --- | --- |
 | Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
-| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion uses the background transaction with a fresh-unlock requirement; remaining save paths are synchronous. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose deletion and HOTP counter advance use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
 | Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
@@ -1942,3 +1942,17 @@ Tests assert the gate remains held before recovery and releases on close, then p
 delete/save/reopen round trip after a throwing completion. This does not roll back a completed
 write or automatically retry it. Normal success and worker-in-flight close semantics remain
 unchanged. Native UI/device validation of this path is still pending.
+
+### Background HOTP counter confirmation
+
+The deletion owner is generalized as DesktopEntryTransaction with DELETE and ADVANCE_COUNTER
+operations. Counter advancement mutates only the detached candidate, persists first and adopts
+the increment only after successful delivery with the unchanged-content/lifetime checks. A
+failed save leaves the live counter intact. Non-HOTP entries, negative/exhausted counters and
+duplicate submissions are rejected. The UI uses the same quiesced progress/result screen and
+fresh-unlock requirement as deletion, with an explicit synchronization warning before confirmation.
+
+Tests verify actual counter save/reopen, unchanged live counter until delivery, exactly-once
+submission, failure preservation and invalid-target/overflow rejection. Existing deletion and
+late-result/cleanup tests remain. Other final UI saves, including PIN submission and copy-related
+usage persistence, remain synchronous. Native UI/device testing of this new path is pending.

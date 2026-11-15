@@ -10,13 +10,56 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class DesktopEntryDeletionTest {
+class DesktopEntryTransactionTest {
     private class Queue : Executor {
         val tasks = ArrayList<Runnable>()
         override fun execute(command: Runnable) { tasks.add(command) }
         fun run() { tasks.removeAt(0).run() }
     }
     private fun entry(label: String) = ManualEntryInput(label = label, secret = "JBSWY3DPEHPK3PXP").build()
+
+    @Test fun counterCandidatePersistsBeforeLiveCounterChangesAndCannotSubmitTwice() {
+        val dir = Files.createTempDirectory("async-counter-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        val target = ManualEntryInput(type = com.fairuniversal.offlineotp.Database.Entry.OTPType.HOTP,
+            label = "counter", secret = "JBSWY3DPEHPK3PXP", timing = "0").build()
+        state.add(target); assertTrue(controller.save(state.key, state.snapshot()))
+        val worker = Queue(); val ui = Queue()
+        val owner = DesktopEntryTransaction(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
+        try {
+            var result: DesktopEntryTransaction.Result? = null
+            assertTrue(owner.submit(target, DesktopEntryTransaction.Kind.ADVANCE_COUNTER, { true }) { result = it })
+            assertFalse(owner.submit(target, DesktopEntryTransaction.Kind.ADVANCE_COUNTER, { true }) {})
+            worker.run(); assertEquals(0L, target.getCounter())
+            ui.run(); assertEquals(1L, target.getCounter())
+            assertEquals(DesktopEntryTransaction.Result.COUNTER_ADVANCED, result)
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try { assertEquals(1L, reopened.entries.single().getCounter()) }
+            finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { owner.close(); state.lock(); dir.deleteRecursively() }
+    }
+    @Test fun counterFailureDoesNotAdvanceAndInvalidTargetsNeverQueue() {
+        val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES"))
+        val target = ManualEntryInput(type = com.fairuniversal.offlineotp.Database.Entry.OTPType.HOTP,
+            label = "counter", secret = "JBSWY3DPEHPK3PXP", timing = "0").build()
+        state.add(target); val worker = Queue(); val ui = Queue()
+        val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, candidate ->
+            assertEquals(1L, candidate.single().getCounter()); false
+        }, state::lock)
+        try {
+            var result: DesktopEntryTransaction.Result? = null
+            owner.submit(target, DesktopEntryTransaction.Kind.ADVANCE_COUNTER, { true }) { result = it }
+            worker.run(); ui.run()
+            assertEquals(DesktopEntryTransaction.Result.SAVE_FAILED, result); assertEquals(0L, target.getCounter())
+            target.setCounter(com.fairuniversal.offlineotp.Utilities.EntryUsage.MAX_COUNTER)
+            assertFalse(owner.submit(target, DesktopEntryTransaction.Kind.ADVANCE_COUNTER, { true }) {})
+            val totp = entry("time based"); state.add(totp)
+            assertFalse(owner.submit(totp, DesktopEntryTransaction.Kind.ADVANCE_COUNTER, { true }) {})
+            assertTrue(worker.tasks.isEmpty()); assertFalse(owner.busy)
+        } finally { owner.close(); state.lock() }
+    }
 
     @Test fun actualSavePrecedesLiveDeletionAndReopensWithoutTarget() {
         val dir = Files.createTempDirectory("async-delete-").toFile()
@@ -25,14 +68,14 @@ class DesktopEntryDeletionTest {
         val state = DesktopVaultState(loaded.key); val target = entry("remove"); val kept = entry("keep")
         state.add(target); state.add(kept); assertTrue(controller.save(state.key, state.snapshot()))
         val worker = Queue(); val ui = Queue()
-        val owner = DesktopEntryDeletion(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
-        var result: DesktopEntryDeletion.Result? = null
+        val owner = DesktopEntryTransaction(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
+        var result: DesktopEntryTransaction.Result? = null
         try {
             assertTrue(owner.submit(target, { true }) { result = it })
             assertEquals(2, state.snapshot().size); assertTrue(owner.busy)
             assertFalse(owner.submit(kept, { true }) {})
             worker.run(); assertEquals(2, state.snapshot().size)
-            ui.run(); assertEquals(DesktopEntryDeletion.Result.DELETED, result)
+            ui.run(); assertEquals(DesktopEntryTransaction.Result.DELETED, result)
             assertTrue(state.snapshot().single() === kept); assertFalse(owner.busy)
             val reopened = controller.openVault("password") as VaultController.Session.Loaded
             try { assertEquals("keep", reopened.entries.single().getLabel()) }
@@ -42,23 +85,23 @@ class DesktopEntryDeletionTest {
     @Test fun failedWriteKeepsOriginalAndCanRetry() {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry("keep")
         state.add(target); val worker = Queue(); val ui = Queue(); var succeeds = false
-        val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, entries ->
+        val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, entries ->
             assertTrue(entries.isEmpty()); succeeds
         }, state::lock)
         try {
-            var result: DesktopEntryDeletion.Result? = null
+            var result: DesktopEntryTransaction.Result? = null
             owner.submit(target, { true }) { result = it }; worker.run(); ui.run()
-            assertEquals(DesktopEntryDeletion.Result.SAVE_FAILED, result)
+            assertEquals(DesktopEntryTransaction.Result.SAVE_FAILED, result)
             assertTrue(state.snapshot().single() === target); assertFalse(state.isLocked)
             succeeds = true; owner.submit(target, { true }) { result = it }; worker.run(); ui.run()
-            assertEquals(DesktopEntryDeletion.Result.DELETED, result); assertTrue(state.snapshot().isEmpty())
+            assertEquals(DesktopEntryTransaction.Result.DELETED, result); assertTrue(state.snapshot().isEmpty())
         } finally { owner.close(); state.lock() }
     }
     @Test fun expiredOrChangedSessionLocksInsteadOfAdoptingCandidate() {
         for (change in listOf(false, true)) {
             val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry("target")
             state.add(target); val worker = Queue(); val ui = Queue(); var active = true
-            val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
+            val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
             try {
                 owner.submit(target, { active }) { error("stale adoption") }; worker.run()
                 if (change) state.add(entry("new")) else active = false
@@ -72,7 +115,7 @@ class DesktopEntryDeletionTest {
             val target = entry("target"); val kept = entry("kept")
             state.add(target); state.add(kept)
             val worker = Queue(); val ui = Queue()
-            val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
+            val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
             try {
                 assertTrue(owner.submit(target, { true }) { error("stale result") })
                 worker.run()
@@ -86,10 +129,10 @@ class DesktopEntryDeletionTest {
         val target = entry("target"); val kept = entry("kept")
         state.add(target); state.add(kept)
         val worker = Queue(); val ui = Queue()
-        val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
+        val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { ui.execute(it) }) { _, _ -> true }, state::lock)
         try {
             var deleted = false
-            owner.submit(target, { true }) { deleted = it == DesktopEntryDeletion.Result.DELETED }
+            owner.submit(target, { true }) { deleted = it == DesktopEntryTransaction.Result.DELETED }
             worker.run(); kept.updateOTPAt(120L, false); ui.run()
             assertTrue(deleted); assertFalse(state.isLocked); assertTrue(state.snapshot().single() === kept)
         } finally { owner.close(); state.lock() }
@@ -102,7 +145,7 @@ class DesktopEntryDeletionTest {
         val state = DesktopVaultState(loaded.key); val target = entry("target")
         state.add(target); assertTrue(controller.save(state.key, state.snapshot()))
         val worker = Queue(); val ui = Queue()
-        val owner = DesktopEntryDeletion(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
+        val owner = DesktopEntryTransaction(state, controller.detachedSave(worker, { ui.execute(it) }), state::lock)
         try {
             assertTrue(owner.submit(target, { true }) { error("UI failed") })
             worker.run()
@@ -120,7 +163,7 @@ class DesktopEntryDeletionTest {
     @Test fun closingQueuedTransactionLocksAndCancelsWrite() {
         val state = DesktopVaultState(SecretKeySpec(ByteArray(32), "AES")); val target = entry("target")
         state.add(target); val worker = Queue()
-        val owner = DesktopEntryDeletion(state, DesktopDetachedSave(worker, { it.run() }) { _, _ -> error("canceled write") }, state::lock)
+        val owner = DesktopEntryTransaction(state, DesktopDetachedSave(worker, { it.run() }) { _, _ -> error("canceled write") }, state::lock)
         owner.submit(target, { true }) { error("late") }; owner.close(); worker.run()
         assertTrue(state.isLocked); assertFalse(owner.busy)
     }
