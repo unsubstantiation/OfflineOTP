@@ -515,7 +515,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 it.isPassword() && PasswordEntryInput.supports(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
-                copyable = card.revealed && (card.copyable || card.kind in
+                copyable = (card.kind == VaultEntryKind.OTP || card.revealed) && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
         })
     }

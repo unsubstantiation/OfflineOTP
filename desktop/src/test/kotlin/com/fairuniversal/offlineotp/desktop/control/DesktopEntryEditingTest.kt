@@ -216,14 +216,14 @@ class DesktopEntryEditingTest {
             val failing = DesktopEntryEditing(state) { _, _ -> false }
             failing.open(original.getListId())
             val failed = failing.pending!!
-            assertFalse(failing.submit(failed, failing.initialInput(failed)!!.copy(clearPin = true, clearHiddenLabel = true), true))
+            assertFalse(failing.submit(failed, failing.initialInput(failed)!!.copy(pin = "", hiddenLabel = "", clearPin = true, clearHiddenLabel = true), true))
             assertEquals("1234", original.getPin())
             assertEquals("protected", original.getHiddenLabel())
             failing.close()
             val edits = DesktopEntryEditing(state, editor::replace)
             edits.open(original.getListId())
             val request = edits.pending!!
-            val clear = edits.initialInput(request)!!.copy(clearPin = true, clearHiddenLabel = true)
+            val clear = edits.initialInput(request)!!.copy(pin = "", hiddenLabel = "", clearPin = true, clearHiddenLabel = true)
             assertFalse(edits.submit(request, clear, false))
             assertTrue(edits.submit(request, clear, true))
             assertFalse(edits.submit(request, clear, true))

@@ -902,7 +902,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getShowPrevToken(): Boolean {
-        return getBoolean(R.string.settings_key_show_prev_token, false)
+        return getBoolean(R.string.settings_key_show_prev_token, true)
     }
 
     companion object {

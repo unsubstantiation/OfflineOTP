@@ -187,6 +187,16 @@ class AndroidVaultController(
                     // Normal Hide/Reveal never advances HOTP or writes the vault.
                     notifyEntryChanged(entry)
                 }
+                AndroidCardCommand.EDIT -> {
+                    if (!composeRevealed(entry) || entry.getType() !in com.fairuniversal.offlineotp.Database.EntryDraft.offerableTypes()) return false
+                    val hostActivity = context as? MainActivity ?: return false
+                    ManualEntryDialog.show(hostActivity, settings, this, entry,
+                        ManualEntryDialog.UpdateCallback {
+                            withTarget(target, Consumer { edited ->
+                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(), presentation.indexOf(edited))
+                            })
+                        })
+                }
                 AndroidCardCommand.COPY -> {
                     if (entry.isTimeBased()) entry.updateOTP(false)
                     if ((entry.isTimeBased() || entry.isCounterBased()) && !entry.hasCopyableToken() &&

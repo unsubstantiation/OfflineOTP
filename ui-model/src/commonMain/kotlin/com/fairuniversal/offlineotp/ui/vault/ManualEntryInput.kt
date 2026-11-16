@@ -39,7 +39,7 @@ data class ManualEntryInput(
                 else -> existing.getSecretEncoded()
             }
         }
-        val steam = type == Entry.OTPType.STEAM
+        val steam = type == Entry.OTPType.STEAM && existing == null
         return EntryDraft.create(
             type, issuer, label, resolvedSecret,
             if (steam) "5" else digits, if (steam) "30" else timing,
@@ -62,6 +62,13 @@ data class ManualEntryInput(
     }
 
     companion object {
+        /** Explicit edit-only disclosure of OTP credentials, never used to seed creation forms. */
+        fun forOtpEdit(entry: Entry): ManualEntryInput {
+            val metadata = fromEntry(entry)
+            if (!entry.isTimeBased() && !entry.isCounterBased()) return metadata
+            return metadata.copy(secret = entry.getSecretEncoded(), pin = entry.getPin(), hiddenLabel = entry.getHiddenLabel())
+        }
+
         /** Seeds editable metadata only. Never preload OTP seeds, notes, keys, PINs or passwords. */
         fun fromEntry(entry: Entry): ManualEntryInput {
             require(entry.getType() in EntryDraft.offerableTypes())

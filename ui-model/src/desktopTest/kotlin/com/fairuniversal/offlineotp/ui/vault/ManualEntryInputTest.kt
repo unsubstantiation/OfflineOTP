@@ -9,6 +9,36 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ManualEntryInputTest {
+    @Test fun steamEditKeepsAndAllowsChangesToSupportedParameters() {
+        val original = Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 45, 5, "Steam", "account",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf())
+        try {
+            val input = ManualEntryInput.forOtpEdit(original)
+            assertEquals("45", input.timing)
+            val edited = input.copy(timing = "60").build(original)
+            try { assertEquals(60, edited.getPeriod()); assertEquals(original.getSecretEncoded(), edited.getSecretEncoded()) }
+            finally { edited.destroy() }
+        } finally { original.destroy() }
+    }
+
+    @Test fun explicitOtpEditLoadsCredentialsAndPersistsChangesWithoutChangingOriginal() {
+        val original = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef", pin = "1234", hiddenLabel = "protected").build()
+        try {
+            val edit = ManualEntryInput.forOtpEdit(original)
+            assertEquals(original.getSecretEncoded(), edit.secret)
+            assertEquals("1234", edit.pin); assertEquals("protected", edit.hiddenLabel)
+            val replacement = edit.copy(secret = "fedcba9876543210", pin = "5678", hiddenLabel = "new").build(original)
+            try {
+                assertEquals("fedcba9876543210", replacement.getSecretEncoded())
+                assertEquals("5678", replacement.getPin())
+                assertEquals("1234", original.getPin())
+                assertEquals("protected", original.getHiddenLabel())
+            } finally { replacement.destroy() }
+            assertTrue(edit.withoutSecrets().secret.isEmpty())
+            assertFalse(edit.toString().contains("0123456789abcdef"))
+        } finally { original.destroy() }
+    }
+
     @Test
     fun explicitRemovalClearsOnlySelectedOptionalSecretsWithoutMutatingOriginal() {
         val motp = ManualEntryInput(type = Entry.OTPType.MOTP, secret = "0123456789abcdef",

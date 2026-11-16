@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * OTP desktop/Android parity: Standardize Copy Token; allow masked OTP copying without revealing the card, while retaining session/identity guards. Android shows previous tokens by default (explicit preferences remain respected) and exposes the guarded Edit action. Desktop OTP editing preloads and displays the secret, mOTP PIN and protected label, and supports editing stored Steam parameters without silently resetting them.
+
  * Android entries: Remove the duplicate Hide entry details action from Compose cards. Hide/Reveal now toggles session visibility independently of tap-to-reveal preferences, without advancing HOTP or persisting normal visibility toggles. Previously concealed entries retain a Reveal path through the legacy privacy save guard.
 
  * Entry ordering: Replace visible Move up/Move down actions with press-and-hold dragging in the shared Android/desktop list, with a lifted-row preview and edge scrolling. Moves retain manual-order/session guards and wait for host adoption before the next saved step. iOS retains native list dragging and removes the redundant move menu buttons.

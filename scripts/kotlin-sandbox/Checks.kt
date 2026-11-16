@@ -4583,7 +4583,7 @@ fun main() {
         expect(!settings.getBlockAutofill(), { "block autofill" })
         expect(!settings.getAutoUnlockAfterAutofill(), { "auto unlock after autofill" })
         expect(!settings.getScreenshotsEnabled(), { "screenshots" })
-        expect(!settings.getShowPrevToken(), { "show previous token" })
+        expect(settings.getShowPrevToken(), { "show previous token" })
         expect(settings.getBackupAsk(), { "backup ask" })
         expect(settings.getIsAppendingDateTimeToBackups(), { "append date/time to backups" })
         expect(settings.isHighlightTokenOptionEnabled(), { "highlight token" })
@@ -6247,6 +6247,43 @@ fun main() {
             publish.invoke(activity)
             VaultSession.lock()
         }
+    }
+
+    check("Android copies a hidden OTP without revealing either current or previous token") {
+        val clipboard = ClipboardManager()
+        val fixture = SettingsFixture(object : SettingsContext() {
+            override fun getSystemService(name: String): Any? =
+                if (name == Context.CLIPBOARD_SERVICE) clipboard else null
+        })
+        fixture.seed(R.string.settings_key_tap_single, "nothing")
+        fixture.seed(R.string.settings_key_tap_double, "nothing")
+        val controller = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val entry = Entry(Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "", "test",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf()).apply { setDetailsVisible(true); updateOTP(false) }
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key; source.addEntry(entry)
+        controller.setSearchQuery("")
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        try {
+            val initial = controller.composeFrame(System.currentTimeMillis(), strings)!!
+            expect(initial.state.cards.single().previousToken != null, { "previous token is not enabled by default" })
+            initial.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL)
+            val hidden = controller.composeFrame(System.currentTimeMillis(), strings)!!
+            expect(hidden.state.cards.single().copyable && !hidden.state.cards.single().tokenVisible, { "hidden OTP not copyable" })
+            val reference = Entry(entry.toJSON())
+            try {
+                expect(hidden.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY), { "copy rejected" })
+                reference.updateOTP(false)
+                expect(clipboard.clips.single().text.toString() in listOf(reference.getCurrentOTP(), reference.getPrevOTP()), { "wrong clipboard token" })
+                // This fixture has no disk vault: usage-save failure may lock it, never reveal it.
+                val after = controller.composeFrame(System.currentTimeMillis(), strings)
+                expect(after == null || after.state.cards.none { it.revealed }, { "copy revealed OTP on screen" })
+            } finally { reference.destroy() }
+        } finally { controller.lockEntries(); VaultSession.lock() }
     }
 
     check("Android explicit Hide and Reveal ignore tap preference without advancing HOTP") {

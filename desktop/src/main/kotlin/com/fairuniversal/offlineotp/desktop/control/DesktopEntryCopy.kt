@@ -32,7 +32,7 @@ class DesktopEntryCopy(
     fun open(frame: Frame, card: VaultCardState, revealed: Boolean): Request? {
         pending = null
         val target = frame.targets[card] ?: return null
-        if (!revealed || !live(target)) return null
+        if ((!revealed && !target.isTimeBased() && !target.isCounterBased()) || !live(target)) return null
         val fields = when {
             target.isSshKey() -> buildList {
                 val keys = target.getSshKeys()
@@ -55,7 +55,7 @@ class DesktopEntryCopy(
     fun copy(request: Request, field: EntryEditor.CopyField, revealed: Boolean, active: () -> Boolean = { true }): Result {
         if (pending !== request) return Result.UNAVAILABLE
         if (!active() || pending !== request) return Result.UNAVAILABLE
-        if (!revealed || !live(request.target)) {
+        if ((!revealed && !request.target.isTimeBased() && !request.target.isCounterBased()) || !live(request.target)) {
             pending = null
             return Result.UNAVAILABLE
         }

@@ -53,7 +53,7 @@ data class VaultStrings(
     val moveUp: String = "Move up",
     val moveDown: String = "Move down",
     val copyContent: String = "Copy",
-    val copyAction: String = "Copy code",
+    val copyAction: String = "Copy Token",
     val revealAction: String = "Reveal",
     val hideAction: String = "Hide",
     val entryActions: String = "Account actions",

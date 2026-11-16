@@ -44,7 +44,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
             } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 submitNotice?.let { Text(text = it) }
                 Text(text = "Type: ${input.type}")
-                if (editing) Text(text = "Type is fixed. Leave secret, note, key, PIN, protected-label and password fields blank to keep their current values. Removal choices apply only when you Save.")
+                if (editing) Text(text = "Type is fixed. OTP credentials are shown for editing. Leave fields blank to keep stored values. Removal choices apply only when you Save.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {
                     ForestTextAction(text = type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
@@ -62,15 +62,18 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                 val note = input.type == Entry.OTPType.NOTE
                 val ssh = input.type == Entry.OTPType.SSH_KEY
                 EntryInputField(if (note) "Note" else if (ssh) "Private key" else "Secret", input.secret,
-                    masked = !note, multiline = note || ssh,
+                    masked = !note && (!editing || ssh), multiline = note || ssh,
                     limit = if (note) InputPolicy.MAX_NOTE_CHARACTERS else InputPolicy.MAX_URI_CHARS) { input = input.copy(secret = it) }
-                if (input.type == Entry.OTPType.TOTP || input.type == Entry.OTPType.HOTP) {
+                if (input.type == Entry.OTPType.TOTP || input.type == Entry.OTPType.HOTP || (editing && input.type == Entry.OTPType.STEAM)) {
                     EntryInputField("Digits", input.digits, limit = 2) { input = input.copy(digits = it) }
                     EntryInputField(if (input.type == Entry.OTPType.HOTP) "Counter" else "Period (seconds)", input.timing, limit = 20) { input = input.copy(timing = it) }
                     Text(text = "Algorithm: ${input.algorithm}")
                     for (algorithm in TokenCalculator.HashAlgorithm.values()) {
                         ForestTextAction(text = algorithm.name, onClick = { input = input.copy(algorithm = algorithm) })
                     }
+                }
+                if (input.type == Entry.OTPType.MOTP) {
+                    Text(text = "mOTP uses six digits, ten-second steps and MD5; these are protocol-defined.")
                 }
                 if (!note && !ssh) {
                     if (editing) ForestTextAction(
@@ -82,7 +85,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     if (editing) ForestTextAction(
                         text = if (input.clearPin) "Will remove PIN — undo" else "Remove stored PIN",
                         onClick = { input = input.copy(pin = "", clearPin = !input.clearPin) })
-                    if (!input.clearPin) EntryInputField("PIN (optional)", input.pin, masked = true, limit = InputPolicy.MAX_TAG_CHARS) { input = input.copy(pin = it) }
+                    if (!input.clearPin) EntryInputField("PIN (optional)", input.pin, masked = !editing, limit = InputPolicy.MAX_TAG_CHARS) { input = input.copy(pin = it) }
                 }
                 if (ssh) {
                     EntryInputField("Public key", input.publicKey, multiline = true) { input = input.copy(publicKey = it) }
