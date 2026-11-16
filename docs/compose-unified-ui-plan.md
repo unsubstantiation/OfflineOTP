@@ -2029,3 +2029,19 @@ Tests cover actual save/reopen, unchanged live entry before delivery, position/i
 old-secret destruction, duplicate/stale target rejection, caller ownership on failure and an
 intervening in-place edit. Editing forms are not yet connected; this is transaction groundwork,
 not a new production background edit flow or native/device validation result.
+
+### Press-and-hold entry ordering
+
+The shared Android/desktop list replaces visible up/down actions with long-press dragging using
+mouse or touch. The held card follows the pointer and edges auto-scroll. Each adjacent crossing
+uses the latest frame's existing guarded host move callback; no entry/secret is stored in gesture
+state. The UI waits for the exact expected order before another move, stops on unrelated order or
+filter changes, and does not retry a failed save in a loop. Host capabilities still forbid movement
+in non-manual/filtered views. Cancellation ends the gesture, not already-persisted adjacent moves.
+Existing synchronous movement persistence remains unchanged by this UI increment.
+
+iOS removes its redundant move context-menu commands, retaining native List/onMove dragging and
+explicitly disabling it when canReorder is false. Geometry tests cover boundaries, unequal heights,
+missing/offscreen neighbours and adjacent-only movement; source guards and the Compose stub
+compile gate cover wiring. Actual touch/mouse gesture arbitration, edge scrolling and iOS native
+reordering still require device/desktop runtime testing.

@@ -81,6 +81,8 @@ fun OutlinedTextField(
     label: (@Composable () -> Unit)? = null,
     placeholder: (@Composable () -> Unit)? = null,
     visualTransformation: VisualTransformation = VisualTransformation.None,
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions = androidx.compose.foundation.text.KeyboardOptions(),
+    keyboardActions: androidx.compose.foundation.text.KeyboardActions = androidx.compose.foundation.text.KeyboardActions(),
     shape: Shape? = null
 ) {
 }
@@ -95,3 +97,17 @@ fun AlertDialog(
     text: (@Composable () -> Unit)? = null
 ) {
 }
+
+// Compile-only button signatures; interaction and rendering require the real Compose runtime.
+class ButtonColors
+object ButtonDefaults {
+    @Composable
+    fun buttonColors(containerColor: Color = Color.Unspecified, contentColor: Color = Color.Unspecified,
+        disabledContainerColor: Color = Color.Unspecified, disabledContentColor: Color = Color.Unspecified) = ButtonColors()
+}
+@Composable
+fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
+    colors: ButtonColors = ButtonColors(), content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {}
+@Composable
+fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
+    content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {}

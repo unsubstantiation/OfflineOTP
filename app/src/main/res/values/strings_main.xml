@@ -88,7 +88,7 @@
     <!-- Buttons -->
     <string name="button_card_options">More options</string>
     <string name="button_card_options_format">More options for %1$s</string>
-    <string name="button_card_copy">Copy token</string>
+    <string name="button_card_copy">Copy Token</string>
     <string name="button_card_copy_format">Copy %1$s token</string>
     <string name="button_add">Add entry</string>
     <string name="button_close_menu">Close menu</string>

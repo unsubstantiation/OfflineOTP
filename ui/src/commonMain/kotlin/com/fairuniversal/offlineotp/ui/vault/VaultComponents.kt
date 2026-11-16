@@ -358,17 +358,14 @@ internal fun VaultEntryCard(
                 ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) },
                     onLongClick = actions.onEditCounter?.let { action -> { action(card) } })
             }
-            if (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP)) {
+            if ((!card.detailsVisible && actions.onTogglePrivacy == null) ||
+                (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP))) {
                 ForestTextAction(
                     text = if (card.revealed) strings.hideAction else strings.revealAction,
                     onClick = { actions.onToggleReveal(card) }
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            val up = actions.onMoveUp
-            val down = actions.onMoveDown
-            if (card.canMoveUp && up != null) ForestTextAction(text = strings.moveUp, onClick = { up(card) })
-            if (card.canMoveDown && down != null) ForestTextAction(text = strings.moveDown, onClick = { down(card) })
             val deleteEntry = actions.onDelete
             if (card.detailsVisible && deleteEntry != null) {
                 ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })

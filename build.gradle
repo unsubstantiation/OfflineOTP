@@ -64,3 +64,6 @@ apply from: 'gradle/dependency-inventory.gradle'
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
+
+// One timestamp shared by every Gradle module in this invocation.
+apply from: 'gradle/build-version.gradle'

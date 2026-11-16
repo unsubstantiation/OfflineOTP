@@ -104,8 +104,7 @@ With the secrets configured, a push to `master` (or a manual `workflow_dispatch`
 produces:
 
 - `OfflineOTP-fdroid-release.apk` and `OfflineOTP-play-release.apk`, both signed with the release
-  key;
-- `SHA256SUMS.txt`.
+  key, each available as a direct download without an outer ZIP or checksum file.
 
 Before uploading, the job verifies each APK with `apksigner verify --print-certs` and
 `zipalign -c -v 4`. Pull requests never run the job, so fork PRs cannot trigger a signing attempt
@@ -136,7 +135,6 @@ every API level the `minSdk 28` allows.
 ```sh
 "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose --print-certs OfflineOTP-fdroid-release.apk
 "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump badging OfflineOTP-fdroid-release.apk | grep -E "package:|application:"
-sha256sum -c SHA256SUMS.txt
 ```
 
 The printed certificate DN (`CN=OfflineOTP` above) must match the key in the keystore. Installing a

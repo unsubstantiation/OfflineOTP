@@ -317,12 +317,11 @@ struct EntryListView: View {
                             onStep: { step(at: index) },
                             onDetails: { openDetails(at: index) }
                         )
+                        .moveDisabled(!store.canReorder)
                         .listRowBackground(ForestPalette.surface)
                         .contextMenu {
                             EntryMenu(
                                 entry: entry,
-                                canMoveUp: store.canReorder && displayedPos > 0,
-                                canMoveDown: store.canReorder && displayedPos < indices.count - 1,
                                 onCopy: { code in copy(code, from: index) },
                                 onCopyNamed: { secret, itemName in copySecret(secret, label: itemName, from: index) },
                                 onReveal: { reveal(index) },
@@ -336,8 +335,6 @@ struct EntryListView: View {
                                 onTags: { tagTarget = IndexedTarget(index: index) },
                                 onDetails: { openDetails(at: index) },
                                 onQr: { showQr(at: index) },
-                                onMoveUp: { _ = store.moveDisplayed(from: displayedPos, to: displayedPos - 1) },
-                                onMoveDown: { _ = store.moveDisplayed(from: displayedPos, to: displayedPos + 1) },
                                 onDelete: {
                                     deletion = DeletionTarget(index: index,
                                                               name: VaultStore.displayName(entry))
@@ -872,8 +869,6 @@ struct EntryRowView: View {
 /// The row menu: the same actions the other clients offer, gated by the same rules.
 struct EntryMenu: View {
     let entry: Entry
-    var canMoveUp: Bool = false
-    var canMoveDown: Bool = false
     let onCopy: (String) -> Void
     var onCopyNamed: (String, String) -> Void = { _, _ in }
     let onReveal: () -> Void
@@ -885,8 +880,6 @@ struct EntryMenu: View {
     var onTags: () -> Void = {}
     var onDetails: () -> Void = {}
     let onQr: () -> Void
-    var onMoveUp: () -> Void = {}
-    var onMoveDown: () -> Void = {}
     let onDelete: () -> Void
 
     private var editable: Bool {
@@ -952,11 +945,6 @@ struct EntryMenu: View {
             .disabled(!editable)
         Button("Tags…", action: onTags)
             .disabled(!entry.detailsVisible)
-        if canMoveUp || canMoveDown {
-            Divider()
-            Button("Move up", action: onMoveUp).disabled(!canMoveUp)
-            Button("Move down", action: onMoveDown).disabled(!canMoveDown)
-        }
         Button("Remove…", role: .destructive, action: onDelete)
             .disabled(!entry.detailsVisible)
     }

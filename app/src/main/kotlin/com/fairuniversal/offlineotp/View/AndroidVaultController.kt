@@ -69,6 +69,11 @@ class AndroidVaultController(
     private val taskHandler: Handler = Handler(Looper.getMainLooper())
     private var filter: EntryFilter? = null
     private val entries: EntryList = EntryList()
+    // Explicit Compose Hide/Reveal is session-only and independent of the legacy tap preference.
+    private val composeRevealOverrides = IdentityHashMap<Entry, Boolean>()
+    private fun composeRevealed(entry: Entry): Boolean = entry.areDetailsVisible() &&
+        (composeRevealOverrides[entry] ?: ((!entry.isTimeBased() && !entry.isCounterBased()) ||
+            !settings.getTapToReveal() || entry.isVisible()))
     private val presentation: EntryListPresentation = EntryListPresentation(entries)
     private val persistence: EntryPersistence = EntryPersistence(context)
     private val settings: Settings = Settings(context)
@@ -123,10 +128,7 @@ class AndroidVaultController(
                 combination = VaultFilterCombination.SEARCH_OVERRIDES_TAGS
             )
             val shown = (0 until presentation.size()).map { presentation.get(it) }
-            val revealed = shown.filter { entry ->
-                entry.areDetailsVisible() &&
-                    ((!entry.isTimeBased() && !entry.isCounterBased()) || !settings.getTapToReveal() || entry.isVisible())
-            }.map { it.getListId() }.toSet()
+            val revealed = shown.filter { composeRevealed(it) }.map { it.getListId() }.toSet()
             val appearance = composeAppearance()
             val projected = VaultProjection(entries, presentation).snapshot(filter, nowMillis, revealed, appearance, strings)
             val state = projected.copy(cards = projected.cards.mapIndexed { index, card ->
@@ -140,7 +142,7 @@ class AndroidVaultController(
                     detailsVisible = true,
                     detailLabel = entry.getHiddenLabel().ifEmpty {
                         if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
-                    }.takeIf { it.isNotEmpty() },
+                    }.takeIf { it.isNotEmpty() && composeRevealed(entry) },
                     copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey()),
                     canMoveUp = presentation.canDrag() && index > 0,
                     canMoveDown = presentation.canDrag() && index < shown.lastIndex
@@ -163,10 +165,38 @@ class AndroidVaultController(
             val entry = target.resolve(entries, generation) ?: return false
             val position = presentation.indexOf(entry)
             if (position < 0) return false
-            if (command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()) return false
+            if (command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL &&
+                !entry.areDetailsVisible()) return false
             // Obtain current token text from the live entry, never from a potentially stale frame.
             when (command) {
                 AndroidCardCommand.PRIVACY -> cardActions.onPrivacyClicked(position)
+                AndroidCardCommand.TOGGLE_REVEAL -> {
+                    if (!entry.areDetailsVisible()) {
+                        // Preserve a way to recover entries concealed by the retired privacy button.
+                        cardActions.onPrivacyClicked(position)
+                        if (!entry.areDetailsVisible()) return false
+                        composeRevealOverrides[entry] = true
+                    } else {
+                        composeRevealOverrides[entry] = !composeRevealed(entry)
+                    }
+                    // Retire any old tap-reveal timeout; this explicit toggle follows desktop's
+                    // session visibility and must not later trigger legacy usage/counter writes.
+                    entry.getHideTask()?.let { taskHandler.removeCallbacks(it) }
+                    entry.setHideTask(null)
+                    entry.setVisible(composeRevealed(entry))
+                    // Normal Hide/Reveal never advances HOTP or writes the vault.
+                    notifyEntryChanged(entry)
+                }
+                AndroidCardCommand.EDIT -> {
+                    if (!composeRevealed(entry) || entry.getType() !in com.fairuniversal.offlineotp.Database.EntryDraft.offerableTypes()) return false
+                    val hostActivity = context as? MainActivity ?: return false
+                    ManualEntryDialog.show(hostActivity, settings, this, entry,
+                        ManualEntryDialog.UpdateCallback {
+                            withTarget(target, Consumer { edited ->
+                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(), presentation.indexOf(edited))
+                            })
+                        })
+                }
                 AndroidCardCommand.COPY -> {
                     if (entry.isTimeBased()) entry.updateOTP(false)
                     if ((entry.isTimeBased() || entry.isCounterBased()) && !entry.hasCopyableToken() &&
@@ -442,6 +472,7 @@ class AndroidVaultController(
     /** Clears secrets held by adapters/views and invalidates outstanding filters/timers. */
     fun lockEntries() {
         encryptionKey = null
+        composeRevealOverrides.clear()
         dismissTransientUi()
         taskHandler.removeCallbacksAndMessages(null)
         for (entry in entries.getEntries()) entry.destroy()
@@ -463,6 +494,7 @@ class AndroidVaultController(
                 return false
             }
             dismissTransientUi()
+            composeRevealOverrides.clear()
             taskHandler.removeCallbacksAndMessages(null)
             for (entry in entries.getEntries()) entry.destroy()
             entries.updateEntries(ArrayList(), false)
@@ -763,6 +795,8 @@ class AndroidVaultController(
         val realIndex = entries.indexOf(entry)
         if (!EntryIndexGuard.isValid(realIndex, entries.getEntries().size)) return
         val realEntry = entries.getEntry(realIndex)
+        // A configured legacy tap deliberately resumes its own timed-reveal policy.
+        composeRevealOverrides.remove(entry)
 
         if (entry.isVisible()) {
             hideEntry(entry)

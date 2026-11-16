@@ -5,7 +5,7 @@ import com.fairuniversal.offlineotp.ui.vault.VaultUiState
 
 /** Existing Android card capabilities, independent of gestures and row positions. */
 enum class AndroidCardCommand {
-    PRIVACY, COPY, REVEAL_TOKEN, NEXT_COUNTER, EDIT_COUNTER, ENTER_PIN, DELETE, MENU,
+    PRIVACY, COPY, EDIT, TOGGLE_REVEAL, REVEAL_TOKEN, NEXT_COUNTER, EDIT_COUNTER, ENTER_PIN, DELETE, MENU,
     SINGLE_TAP, DOUBLE_TAP, MOVE_UP, MOVE_DOWN
 }
 

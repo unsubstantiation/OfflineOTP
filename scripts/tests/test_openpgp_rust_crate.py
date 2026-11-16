@@ -254,8 +254,8 @@ class OpenPgpRustCrateTest(unittest.TestCase):
                 f"{name} must install the Rust toolchain"
             )
             self.assertIn("contents: read", text)
-            # iOS publishes only the unsigned .ipa; the other platforms keep their checksum files.
-            if name != "ios.yml":
+            # Only Debian retains a checksum manifest.
+            if name == "debian.yml":
                 self.assertIn("SHA256SUMS.txt", text)
         android = (workflows / "android.yml").read_text(encoding="utf-8")
         self.assertIn("build-android-jnilibs.sh", android)

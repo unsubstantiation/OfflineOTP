@@ -2,6 +2,18 @@
 
 #### Unreleased
 
+ * OTP desktop/Android parity: Standardize Copy Token; allow masked OTP copying without revealing the card, while retaining session/identity guards. Android shows previous tokens by default (explicit preferences remain respected) and exposes the guarded Edit action. Desktop OTP editing preloads and displays the secret, mOTP PIN and protected label, and supports editing stored Steam parameters without silently resetting them.
+
+ * Android entries: Remove the duplicate Hide entry details action from Compose cards. Hide/Reveal now toggles session visibility independently of tap-to-reveal preferences, without advancing HOTP or persisting normal visibility toggles. Previously concealed entries retain a Reveal path through the legacy privacy save guard.
+
+ * Entry ordering: Replace visible Move up/Move down actions with press-and-hold dragging in the shared Android/desktop list, with a lifted-row preview and edge scrolling. Moves retain manual-order/session guards and wait for host adoption before the next saved step. iOS retains native list dragging and removes the redundant move menu buttons.
+
+ * All-platform versioning: Embed AKST build timestamps in desktop and iOS builds and show them in desktop Help/About and iOS Settings/About. Use numeric native package versions; share one Gradle timestamp and pin timestamps for reproducibility comparisons.
+
+ * Android: Replace the displayed app version with an AKST (fixed UTC−09:00) build timestamp shown in About (`VYYYY-MM-DD-HH-MM`) for every variant; derive the internal upgrade code from build-time minutes. Support SOURCE_DATE_EPOCH for repeatable builds.
+
+ * Unlock screen: Submit passwords with Enter or the keyboard Done action, remove the redundant subtitle, and show matching filled buttons with password unlock first. Desktop security-key unlock is hidden unless the vault folder has a valid enrollment record.
+
  * Background editing groundwork: Add owned replacement candidates with save-before-adopt semantics, duplicate rejection, preserved list position/identity and stale-state protection. Editing forms remain synchronous pending integration.
 
  * Compose desktop: Manual and email creation now hand validated drafts to background persistence. Invalid/duplicate input stays in the form; accepted submissions pause other edits and require a fresh unlock after completion.

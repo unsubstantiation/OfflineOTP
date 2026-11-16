@@ -8,3 +8,5 @@ interface VisualTransformation {
 }
 
 class PasswordVisualTransformation : VisualTransformation
+
+enum class ImeAction { Default, Done }

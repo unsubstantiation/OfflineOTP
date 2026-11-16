@@ -1,0 +1,29 @@
+// Capture once per Gradle invocation, never at app launch. Use fixed AKST (UTC-09:00), independent of runner time zone or daylight saving.
+// SOURCE_DATE_EPOCH (Unix seconds) lets reproducible builds use the same explicit timestamp.
+def epochText = providers.environmentVariable('SOURCE_DATE_EPOCH').orNull
+def buildInstant
+try {
+    buildInstant = epochText == null ? java.time.Instant.now() : java.time.Instant.ofEpochSecond(Long.parseLong(epochText))
+} catch (Exception error) {
+    throw new GradleException('SOURCE_DATE_EPOCH must be valid Unix epoch seconds', error)
+}
+def codeEpoch = java.time.Instant.parse('2020-01-01T00:00:00Z')
+def minuteCode = java.time.Duration.between(codeEpoch, buildInstant).toMinutes()
+// Preserve upgrade ordering relative to the old versionCode 39 and Android's numeric limit.
+if (minuteCode <= 39 || minuteCode > 2100000000L) {
+    throw new GradleException('Build timestamp is outside the supported Android version-code range')
+}
+ext.buildDateVersion = java.time.format.DateTimeFormatter.ofPattern("'V'uuuu-MM-dd-HH-mm")
+        .withZone(java.time.ZoneOffset.ofHours(-9)).format(buildInstant)
+ext.buildDateVersionCode = (int) minuteCode
+
+// Native package metadata is numeric; the full AKST label stays in the UI/resource.
+def localBuild = buildInstant.atOffset(java.time.ZoneOffset.ofHours(-9))
+def buildDay = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.of(2020, 1, 1), localBuild.toLocalDate()) + 1
+if (buildDay < 1 || buildDay > 9999) {
+    throw new GradleException('Build timestamp is outside the supported native package version range')
+}
+// Apple CFBundleVersion: at most four/two/two digits. Windows: major/minor <=255,
+// build <=65535. Debian accepts the same numeric dot-separated form as Apple.
+ext.appleBuildVersion = "${buildDay}.${localBuild.hour}.${localBuild.minute}"
+ext.windowsBuildVersion = "${localBuild.year - 2020}.${localBuild.monthValue}.${localBuild.dayOfMonth * 1440 + localBuild.hour * 60 + localBuild.minute}"

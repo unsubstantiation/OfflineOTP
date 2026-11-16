@@ -4,13 +4,21 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +32,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
-import com.fairuniversal.offlineotp.ui.vault.ForestTextAction
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 
 /**
@@ -51,6 +58,19 @@ fun UnlockScreen(
 ) {
     var password by remember { mutableStateOf("") }
     val canSubmit = !busy && password.isNotEmpty()
+    val submitPassword = {
+        if (!busy && password.isNotEmpty()) {
+            val submitted = password
+            password = ""
+            onSubmit(submitted)
+        }
+    }
+    val buttonColors = ButtonDefaults.buttonColors(
+        containerColor = ForestPalette.surfaceVariant,
+        contentColor = ForestPalette.textPrimary,
+        disabledContainerColor = ForestPalette.surfaceVariant,
+        disabledContentColor = ForestPalette.textPrimary
+    )
     Box(modifier = modifier.fillMaxSize().background(ForestPalette.backgroundDeep)) {
         Column(
             modifier = Modifier
@@ -61,12 +81,18 @@ fun UnlockScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(text = strings.appTitle, style = ForestType.title, color = ForestPalette.textPrimary)
-            Text(text = strings.unlockTitle, style = ForestType.body, color = ForestPalette.textSecondary)
             OutlinedTextField(
                 value = password,
                 enabled = !busy,
                 onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                    if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                        if (event.type == KeyEventType.KeyUp) submitPassword()
+                        true
+                    } else false
+                },
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { submitPassword() }),
                 singleLine = true,
                 label = { Text(text = strings.passwordLabel, style = ForestType.label) },
                 visualTransformation = PasswordVisualTransformation(),
@@ -78,18 +104,22 @@ fun UnlockScreen(
             if (hint != null) {
                 Text(text = hint, style = ForestType.label, color = ForestPalette.textHint)
             }
-            if (onHardwareUnlock != null) ForestTextAction(text = "Unlock with security key", enabled = !busy,
-                onClick = { password = ""; onHardwareUnlock() })
-            Spacer(modifier = Modifier.height(4.dp))
-            ForestTextAction(
-                text = if (busy) strings.unlocking else strings.unlockAction,
+            Button(
+                modifier = Modifier.fillMaxWidth(),
+                colors = buttonColors,
                 enabled = canSubmit,
-                onClick = {
-                    val submitted = password
-                    password = ""
-                    onSubmit(submitted)
-                }
-            )
+                onClick = submitPassword
+            ) {
+                Text(text = if (busy) strings.unlocking else strings.unlockAction)
+            }
+            if (onHardwareUnlock != null) Button(
+                modifier = Modifier.fillMaxWidth(),
+                colors = buttonColors,
+                enabled = !busy,
+                onClick = { password = ""; onHardwareUnlock() }
+            ) {
+                Text(text = "Unlock with security key")
+            }
         }
     }
 }

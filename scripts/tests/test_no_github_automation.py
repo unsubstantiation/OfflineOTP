@@ -1,6 +1,8 @@
 """Restrict repository automation to the reviewed per-platform build workflows."""
 import os
 import unittest
+
+import yaml
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -35,15 +37,35 @@ class NoGithubAutomationTest(unittest.TestCase):
                 uploads,
                 text.count("actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2"))
             self.assertIn("if-no-files-found: error", text)
-            # iOS ships exactly one file, the unsigned .ipa, so it carries no checksum manifest.
-            # The archive it uploads is unpacked and verified in the job instead.
-            if name != "ios.yml":
+            # Only Debian retains a checksum manifest.
+            if name == "debian.yml":
                 self.assertIn("SHA256SUMS.txt", text)
             self.assertNotIn("contents: write", text)
             self.assertNotIn("gh release", text)
             for line in text.splitlines():
                 if "uses:" in line:
                     self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40}(?:\s|$)")
+
+    def test_release_downloads_have_no_outer_archive_or_checksum(self):
+        expected = {
+            "android": ["OfflineOTP-fdroid-release.apk", "OfflineOTP-play-release.apk"],
+            "windows": ["OfflineOTP-windows-x64.zip"],
+            "macos": ["OfflineOTP-macos-arm64.zip"],
+            "ios": ["OfflineOTP-ios-unsigned.ipa"],
+        }
+        for platform, files in expected.items():
+            text = (ROOT / f".github/workflows/{platform}.yml").read_text()
+            self.assertNotIn("SHA256SUMS.txt", text)
+            workflow = yaml.safe_load(text)
+            uploads = [step["with"] for job in workflow["jobs"].values()
+                       for step in job.get("steps", [])
+                       if step.get("uses", "").startswith("actions/upload-artifact@")
+                       and step.get("with", {}).get("path", "").startswith("artifacts/")]
+            self.assertEqual([f"artifacts/{file}" for file in files], [u["path"] for u in uploads])
+            for upload in uploads:
+                self.assertIs(upload["archive"], False)
+                self.assertNotIn("name", upload)  # Direct uploads use the file's name.
+                self.assertEqual("error", upload["if-no-files-found"])
 
     def test_workflow_outputs_are_platform_specific(self):
         workflows = ROOT / ".github/workflows"
@@ -81,7 +103,7 @@ class NoGithubAutomationTest(unittest.TestCase):
         self.assertIn("ditto -c -k --sequesterRsrc --keepParent", macos)
         self.assertNotIn("zip -r", macos)
         self.assertIn("codesign --verify --strict", macos)
-        self.assertIn("SHA256SUMS.txt", macos)
+        self.assertNotIn("SHA256SUMS.txt", macos)
 
     def test_the_macos_icon_is_generated_rather_than_committed(self):
         self.assertFalse((ROOT / "desktop/packaging/offlineotp.icns").exists(),

@@ -247,6 +247,8 @@ struct SettingsView: View {
     private var aboutSection: some View {
         Section {
             LabeledContent("Application", value: "OfflineOTP")
+            LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion") as? String ?? "Build version unavailable")
+            LabeledContent("Build time zone", value: "AKST (UTC−09:00)")
             LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
             LabeledContent("Network access", value: "None (100% offline)")
             LabeledContent("Website", value: "fairuniversal.com")

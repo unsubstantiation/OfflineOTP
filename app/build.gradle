@@ -11,8 +11,8 @@ android {
         applicationId "com.fairuniversal.offlineotp"
         minSdkVersion 28
         targetSdkVersion 35
-        versionCode 39
-        versionName "0.9.0.1"
+        versionCode rootProject.ext.buildDateVersionCode
+        versionName rootProject.ext.buildDateVersion
         vectorDrawables.useSupportLibrary = true
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -56,7 +56,6 @@ android {
         }
         debug {
             applicationIdSuffix = ".dev"
-            versionNameSuffix = "-dev"
             tasks.withType(JavaCompile) {
                 options.compilerArgs << "-Xlint:unchecked" << "-Xlint:deprecation"
             }
@@ -89,7 +88,6 @@ android {
         }
         play {
             dimension = 'market'
-            versionNameSuffix = "-play"
         }
     }
     compileOptions {

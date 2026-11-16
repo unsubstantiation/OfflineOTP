@@ -18,6 +18,7 @@ import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
 import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
 import com.fairuniversal.offlineotp.desktop.storage.DesktopHardwareUnlockStore
 import com.fairuniversal.offlineotp.ui.vault.HardwareOathDialog
+import androidx.compose.ui.window.MenuBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -150,6 +151,11 @@ fun main() {
 
 @Composable
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
+    var showAbout by remember { mutableStateOf(false) }
+    val buildVersion = remember {
+        object {}.javaClass.getResourceAsStream("/offlineotp-build-version.txt")
+            ?.bufferedReader(Charsets.UTF_8)?.use { it.readText().trim() } ?: "Build version unavailable"
+    }
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
     var writePendingNotice by remember { mutableStateOf(false) }
@@ -181,7 +187,14 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
         title = "OfflineOTP",
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
+        MenuBar {
+            Menu("Help") {
+                Item("About OfflineOTP", onClick = { showAbout = true })
+            }
+        }
         ForestTheme {
+            if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
+                version = buildVersion, onDismiss = { showAbout = false })
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
             if (vault == null && rekey.canUnlock && enrollment == null) {
@@ -252,6 +265,14 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
 private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+    val hardwareEnrolled = remember(controller, location.dataDirectory) {
+        try {
+            DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()?.let {
+                it.fill(0)
+                true
+            } ?: false
+        } catch (_: Exception) { false }
+    }
     var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -283,7 +304,7 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
         onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
     UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
-        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
+        onHardwareUnlock = if (controller.isInitialized() && hardwareEnrolled) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
         onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
     if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
@@ -494,7 +515,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 it.isPassword() && PasswordEntryInput.supports(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
-                copyable = card.revealed && (card.copyable || card.kind in
+                copyable = (card.kind == VaultEntryKind.OTP || card.revealed) && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
         })
     }

@@ -69,6 +69,20 @@ tasks.withType(AbstractArchiveTask).configureEach {
     reproducibleFileOrder = true
 }
 
+// A generated resource works for Gradle run, installDist and every native app image.
+def versionResources = layout.buildDirectory.dir('generated/build-version')
+sourceSets.main.resources.srcDir(versionResources)
+tasks.register('generateBuildVersion') {
+    inputs.property('versionLabel', rootProject.ext.buildDateVersion)
+    outputs.dir(versionResources)
+    doLast {
+        def output = versionResources.get().file('offlineotp-build-version.txt').asFile
+        output.parentFile.mkdirs()
+        output.setText(rootProject.ext.buildDateVersion + '\n', 'UTF-8')
+    }
+}
+tasks.named('processResources') { dependsOn 'generateBuildVersion' }
+
 tasks.register('packageDesktop', Exec) {
     dependsOn 'installDist'
     group = 'distribution'
@@ -80,6 +94,7 @@ tasks.register('packageDesktop', Exec) {
     args = [
         '--type', 'app-image',
         '--name', 'OfflineOTP',
+        '--app-version', isWindows ? rootProject.ext.windowsBuildVersion : rootProject.ext.appleBuildVersion,
         '--input', layout.buildDirectory.dir('install/desktop-compose/lib').get().asFile.absolutePath,
         '--main-jar', "${project.name}.jar",
         '--main-class', 'com.fairuniversal.offlineotp.desktop.compose.ComposeMainKt',

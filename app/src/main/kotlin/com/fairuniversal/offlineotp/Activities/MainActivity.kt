@@ -1344,11 +1344,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val anchor = view
         view.render(published.state, VaultActions(
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
-            onTogglePrivacy = { published.perform(it.id, AndroidCardCommand.PRIVACY) },
-            onToggleReveal = {
-                published.perform(it.id, if (it.kind == VaultEntryKind.OTP)
-                    AndroidCardCommand.REVEAL_TOKEN else AndroidCardCommand.PRIVACY)
-            },
+            onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) },
+            onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) },
             onCardTap = { published.perform(it.id, AndroidCardCommand.SINGLE_TAP) },
             onCardDoubleTap = { published.perform(it.id, AndroidCardCommand.DOUBLE_TAP) },
             onNextCounter = { published.perform(it.id, AndroidCardCommand.NEXT_COUNTER) },

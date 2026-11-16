@@ -35,6 +35,22 @@ class DesktopEntryCopyTest {
         override fun close() { dir.setWritable(true, false); clipboardFails = false; copier.close(); state.lock(); dir.deleteRecursively() }
     }
 
+    @Test fun concealedOtpCopiesFreshTokenWithoutRevealButHiddenNotesStayProtected() {
+        val h = Harness()
+        try {
+            val card = VaultCards.of(h.entry, h.now, revealed = false).copy(token = "stale")
+            val request = h.copier.open(h.copier.bind(listOf(card)), card, false)!!
+            h.now += 60_000
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(request, EntryEditor.CopyField.TOKEN_OR_NOTE, false))
+            assertEquals(h.entry.getCurrentOTP(), h.clipboardValue)
+            assertFalse(card.revealed)
+            val note = ManualEntryInput(type = Entry.OTPType.NOTE, label = "note", secret = "private").build()
+            assertTrue(h.editor.add(note))
+            val hidden = VaultCards.of(note, h.now, revealed = false)
+            assertTrue(h.copier.open(h.copier.bind(listOf(hidden)), hidden, false) == null)
+        } finally { h.close() }
+    }
+
     @Test fun expiryAfterPersistenceLocksWithoutPublishingCapturedSecret() {
         val h = Harness()
         val lifetime = DesktopSessionLifetime(object : ScreenTimerController.Scheduler {
@@ -130,15 +146,13 @@ class DesktopEntryCopyTest {
     }
 
     @Test
-    fun replacedHiddenDismissedAndLockedTargetsCannotCopy() {
+    fun replacedDismissedAndLockedTargetsCannotCopy() {
         val h = Harness()
         try {
             val card = VaultCards.of(h.entry, 1_000L, revealed = true)
             val frame = h.copier.bind(listOf(card))
             assertTrue(h.copier.open(frame, card.copy(), true) == null) // Same value is not frame authority.
-            assertTrue(h.copier.open(frame, card, false) == null)
             val request = h.copier.open(frame, card, true)!!
-            assertEquals(DesktopEntryCopy.Result.UNAVAILABLE, h.copier.copy(request, EntryEditor.CopyField.TOKEN_OR_NOTE, false))
             h.copier.dismiss(request)
             assertEquals(DesktopEntryCopy.Result.UNAVAILABLE, h.copier.copy(request, EntryEditor.CopyField.TOKEN_OR_NOTE, true))
             val replacement = ManualEntryInput.fromEntry(h.entry).build(h.entry)

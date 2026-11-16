@@ -159,7 +159,7 @@
             android:key="@string/settings_key_show_prev_token"
             android:title="@string/settings_title_show_prev_token"
             android:summary="@string/settings_desc_show_prev_token"
-            android:defaultValue="false" />
+            android:defaultValue="true" />
 
         <com.fairuniversal.offlineotp.Preferences.NumberPickerPreference
             android:key="@string/settings_key_label_size"

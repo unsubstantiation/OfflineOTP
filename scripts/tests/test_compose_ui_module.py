@@ -325,10 +325,26 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertNotIn("rememberSaveable", dialog)
 
+    def test_drag_reordering_replaces_move_buttons_and_rechecks_current_frame(self):
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        self.assertNotIn("text = strings.moveUp", components)
+        self.assertNotIn("text = strings.moveDown", components)
+        for guard in ("detectDragGesturesAfterLongPress", "rememberUpdatedState(state.cards)",
+                      "rememberUpdatedState(actions)", "onDragCancel = { endDrag() }",
+                      "order == awaitingOrder", "order != expectedOrder", "order != dragOrder",
+                      "LaunchedEffect(state.filter)", "listState.scrollBy(scroll)", "action(card)"):
+            self.assertIn(guard, screen)
+        ios = (ROOT / "ios/App/Sources/EntryListView.swift").read_text()
+        self.assertNotIn('Button("Move up"', ios)
+        self.assertNotIn('Button("Move down"', ios)
+        self.assertIn(".moveDisabled(!store.canReorder)", ios)
+        self.assertIn(".onMove { offsets, destination in", ios)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
-            {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
+            {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
              "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
@@ -563,8 +579,33 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("target.resolve(entries, generation)", controller)
         self.assertIn("!VaultSession.isCurrent(generation)", controller)
         self.assertIn('cardActions.onCopyButtonClicked("", position)', controller)
-        self.assertIn("command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()", controller)
+        self.assertIn("command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
+
+    def test_otp_copy_edit_and_previous_token_parity(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) }", activity)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("copyable = (card.kind == VaultEntryKind.OTP || card.revealed)", host)
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Settings.kt").read_text()
+        self.assertIn("getBoolean(R.string.settings_key_show_prev_token, true)", settings)
+        self.assertIn('val copyAction: String = "Copy Token"', (MODEL_MAIN / "vault/VaultStrings.kt").read_text())
+        self.assertIn('<string name="button_card_copy">Copy Token</string>', (ROOT / "app/src/main/res/values/strings_main.xml").read_text())
+        editor = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
+        self.assertIn("ManualEntryInput.forOtpEdit(request.target)", editor)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn("masked = !note && (!editing || ssh)", form)
+        self.assertIn("input.pin, masked = !editing", form)
+
+    def test_android_has_one_explicit_session_reveal_action(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertNotIn("onTogglePrivacy =", activity)
+        self.assertIn("onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) }", activity)
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("composeRevealOverrides[entry] = !composeRevealed(entry)", controller)
+        self.assertEqual(2, controller.count("composeRevealOverrides.clear()"))
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("!card.detailsVisible && actions.onTogglePrivacy == null", widgets)
 
     def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
@@ -853,6 +894,22 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("shown.getOrNull(from + delta) !== neighbor", owner)
         self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
 
+    def test_unlock_keyboard_buttons_and_enrollment_visibility(self):
+        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertNotIn("strings.unlockTitle", screen)
+        self.assertNotIn("ForestTextAction", screen)
+        self.assertIn("Key.Enter || event.key == Key.NumPadEnter", screen)
+        self.assertIn("KeyEventType.KeyUp) submitPassword()", screen)
+        self.assertIn("KeyboardActions(onDone = { submitPassword() })", screen)
+        self.assertIn("if (!busy && password.isNotEmpty())", screen)
+        self.assertIn("onClick = submitPassword", screen)
+        self.assertEqual(2, screen.count("colors = buttonColors"))
+        self.assertLess(screen.index("strings.unlockAction"), screen.index('Text(text = "Unlock with security key")'))
+        self.assertIn("if (onHardwareUnlock != null) Button(", screen)
+        self.assertIn("controller.isInitialized() && hardwareEnrolled", host)
+        self.assertIn("DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()", host)
+
     def test_desktop_unlock_runs_off_ui_thread_and_releases_late_results(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopUnlockOperation(worker", host)
@@ -860,7 +917,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("operation.close(); worker.shutdown()", host)
         self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
         unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
-        self.assertIn('password = ""\n                    onSubmit(submitted)', unlock)
+        self.assertIn('password = ""\n            onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)
 
     def test_compose_copy_is_live_persisted_and_expires(self):
