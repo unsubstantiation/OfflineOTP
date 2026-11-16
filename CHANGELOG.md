@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * App icons: Explicitly set the Compose desktop window icon to the Android forest-and-padlock artwork. Generate macOS icons from the full-resolution shared Android/iOS source for both CI and local packaging; fail rather than silently use a default icon.
+
  * OTP desktop/Android parity: Standardize Copy Token; allow masked OTP copying without revealing the card, while retaining session/identity guards. Android shows previous tokens by default (explicit preferences remain respected) and exposes the guarded Edit action. Desktop OTP editing preloads and displays the secret, mOTP PIN and protected label, and supports editing stored Steam parameters without silently resetting them.
 
  * Android entries: Remove the duplicate Hide entry details action from Compose cards. Hide/Reveal now toggles session visibility independently of tap-to-reveal preferences, without advancing HOTP or persisting normal visibility toggles. Previously concealed entries retain a Reveal path through the legacy privacy save guard.

@@ -97,7 +97,7 @@ class NoGithubAutomationTest(unittest.TestCase):
         self.assertIn("desktop-compose/build/release/OfflineOTP.app", macos)
         self.assertIn("Contents/MacOS/OfflineOTP", macos)
         # The icon is generated, not committed, and handed to the task through a property.
-        self.assertIn("iconutil -c icns", macos)
+        self.assertIn("python3 scripts/branding/generate-macos-icon.py --output build/offlineotp.icns", macos)
         self.assertIn('-PmacIconFile="$PWD/build/offlineotp.icns"', macos)
         # ditto keeps the bundle intact; a plain zip flattens its symlinks and exec bits.
         self.assertIn("ditto -c -k --sequesterRsrc --keepParent", macos)
@@ -111,7 +111,7 @@ class NoGithubAutomationTest(unittest.TestCase):
         gradle = (ROOT / "desktop-compose/build.gradle").read_text(encoding="utf-8")
         self.assertIn("project.hasProperty('macIconFile')", gradle)
         # Only macOS may use the .icns; Windows keeps the .ico and Linux the PNG.
-        self.assertIn("osName.contains('mac') && macIcon.isFile()", gradle)
+        self.assertIn("osName.contains('mac') ? macIcon : null", gradle)
 
 
 if __name__ == "__main__":

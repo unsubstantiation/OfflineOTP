@@ -82,6 +82,7 @@ import com.fairuniversal.offlineotp.desktop.ui.IssuerIcons
 import com.fairuniversal.offlineotp.ui.vault.VaultArtwork
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
@@ -185,6 +186,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
             }
         },
         title = "OfflineOTP",
+        icon = painterResource("offlineotp.png"),
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
         MenuBar {

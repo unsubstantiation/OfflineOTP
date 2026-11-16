@@ -30,6 +30,7 @@ fun Window(
     state: WindowState = rememberWindowState(),
     visible: Boolean = true,
     title: String = "Untitled",
+    icon: androidx.compose.ui.graphics.painter.Painter? = null,
     content: @Composable FrameWindowScope.() -> Unit
 ) {
 }
