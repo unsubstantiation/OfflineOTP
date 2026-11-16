@@ -358,7 +358,8 @@ internal fun VaultEntryCard(
                 ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) },
                     onLongClick = actions.onEditCounter?.let { action -> { action(card) } })
             }
-            if (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP)) {
+            if ((!card.detailsVisible && actions.onTogglePrivacy == null) ||
+                (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP))) {
                 ForestTextAction(
                     text = if (card.revealed) strings.hideAction else strings.revealAction,
                     onClick = { actions.onToggleReveal(card) }

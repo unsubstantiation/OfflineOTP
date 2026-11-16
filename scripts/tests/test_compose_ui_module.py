@@ -579,8 +579,18 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("target.resolve(entries, generation)", controller)
         self.assertIn("!VaultSession.isCurrent(generation)", controller)
         self.assertIn('cardActions.onCopyButtonClicked("", position)', controller)
-        self.assertIn("command != AndroidCardCommand.PRIVACY && !entry.areDetailsVisible()", controller)
+        self.assertIn("command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
+
+    def test_android_has_one_explicit_session_reveal_action(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertNotIn("onTogglePrivacy =", activity)
+        self.assertIn("onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) }", activity)
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("composeRevealOverrides[entry] = !composeRevealed(entry)", controller)
+        self.assertEqual(2, controller.count("composeRevealOverrides.clear()"))
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("!card.detailsVisible && actions.onTogglePrivacy == null", widgets)
 
     def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()

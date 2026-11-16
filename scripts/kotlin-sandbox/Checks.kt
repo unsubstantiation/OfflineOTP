@@ -6249,6 +6249,48 @@ fun main() {
         }
     }
 
+    check("Android explicit Hide and Reveal ignore tap preference without advancing HOTP") {
+        for (tap in listOf("nothing", "reveal")) {
+            val fixture = SettingsFixture()
+            fixture.seed(R.string.settings_key_tap_single, tap)
+            fixture.seed(R.string.settings_key_tap_double, "nothing")
+            val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+            val controller = adapter.controller
+            val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+                .get(controller) as EntryList
+            val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 42L, 6, "", "counter",
+                TokenCalculator.HashAlgorithm.SHA1, arrayListOf()).apply { setDetailsVisible(true); setVisible(true) }
+            val note = Entry(Entry.OTPType.NOTE, "private body", "", "note", arrayListOf()).apply { setDetailsVisible(true) }
+            val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+            val unlock = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+            controller.encryptionKey = key
+            source.addEntry(hotp); source.addEntry(note)
+            val command = com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL
+            val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+            try {
+                for (entry in listOf(hotp, note)) {
+                    controller.setCategory(if (entry === note) com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES else com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+                    controller.setSearchQuery("")
+                    val initial = controller.composeFrame(60_000L, strings)!!
+                    expect(initial.state.cards.single().revealed, { "initial visibility" })
+                    expect(initial.perform(entry.getListId(), command), { "hide rejected" })
+                    val hidden = controller.composeFrame(60_000L, strings)!!
+                    expect(!hidden.state.cards.single().revealed && hidden.state.cards.single().revealedContent == null,
+                        { "explicit Hide was ignored for $tap" })
+                    expect(entry.areDetailsVisible(), { "Hide changed persistent privacy" })
+                    expect(hidden.perform(entry.getListId(), command), { "reveal rejected" })
+                    expect(controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed, { "Reveal failed" })
+                    expect(hotp.getCounter() == 42L, { "visibility advanced HOTP" })
+                }
+                val stale = controller.composeFrame(60_000L, strings)!!
+                val staleId = note.getListId()
+                controller.lockEntries()
+                expect(!stale.perform(staleId, command), { "locked frame changed reveal state" })
+            } finally { controller.lockEntries(); VaultSession.lock() }
+        }
+    }
+
     check("Android shared frames preserve projection and reject stale card commands") {
         val fixture = SettingsFixture()
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
