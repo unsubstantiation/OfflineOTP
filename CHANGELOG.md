@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Entry ordering: Replace visible Move up/Move down actions with press-and-hold dragging in the shared Android/desktop list, with a lifted-row preview and edge scrolling. Moves retain manual-order/session guards and wait for host adoption before the next saved step. iOS retains native list dragging and removes the redundant move menu buttons.
+
  * All-platform versioning: Embed AKST build timestamps in desktop and iOS builds and show them in desktop Help/About and iOS Settings/About. Use numeric native package versions; share one Gradle timestamp and pin timestamps for reproducibility comparisons.
 
  * Android: Replace the displayed app version with an AKST (fixed UTC−09:00) build timestamp shown in About (`VYYYY-MM-DD-HH-MM`) for every variant; derive the internal upgrade code from build-time minutes. Support SOURCE_DATE_EPOCH for repeatable builds.

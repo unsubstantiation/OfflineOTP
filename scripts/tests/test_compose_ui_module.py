@@ -325,10 +325,26 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertNotIn("rememberSaveable", dialog)
 
+    def test_drag_reordering_replaces_move_buttons_and_rechecks_current_frame(self):
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
+        self.assertNotIn("text = strings.moveUp", components)
+        self.assertNotIn("text = strings.moveDown", components)
+        for guard in ("detectDragGesturesAfterLongPress", "rememberUpdatedState(state.cards)",
+                      "rememberUpdatedState(actions)", "onDragCancel = { endDrag() }",
+                      "order == awaitingOrder", "order != expectedOrder", "order != dragOrder",
+                      "LaunchedEffect(state.filter)", "listState.scrollBy(scroll)", "action(card)"):
+            self.assertIn(guard, screen)
+        ios = (ROOT / "ios/App/Sources/EntryListView.swift").read_text()
+        self.assertNotIn('Button("Move up"', ios)
+        self.assertNotIn('Button("Move down"', ios)
+        self.assertIn(".moveDisabled(!store.canReorder)", ios)
+        self.assertIn(".onMove { offsets, destination in", ios)
+
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
-            {"TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
+            {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
              "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same

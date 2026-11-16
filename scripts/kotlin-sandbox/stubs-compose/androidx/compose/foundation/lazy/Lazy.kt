@@ -21,6 +21,7 @@ fun <T> LazyListScope.items(
 
 @Composable
 fun LazyColumn(
+    state: LazyListState = LazyListState(),
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = object : PaddingValues {},
     verticalArrangement: Arrangement.Vertical = Arrangement.Top,
@@ -29,3 +30,14 @@ fun LazyColumn(
     content: LazyListScope.() -> Unit
 ) {
 }
+
+class LazyListState {
+    val layoutInfo = LazyListLayoutInfo()
+}
+class LazyListLayoutInfo {
+    val visibleItemsInfo: List<LazyListItemInfo> = emptyList()
+    val viewportStartOffset: Int = 0
+    val viewportEndOffset: Int = 0
+}
+class LazyListItemInfo(val key: Any, val offset: Int, val size: Int)
+@Composable fun rememberLazyListState(): LazyListState = LazyListState()

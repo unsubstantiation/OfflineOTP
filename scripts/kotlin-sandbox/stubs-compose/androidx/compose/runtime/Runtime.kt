@@ -47,3 +47,5 @@ inline operator fun <T> State<T>.getValue(thisObj: Any?, property: KProperty<*>)
 inline operator fun <T> MutableState<T>.setValue(thisObj: Any?, property: KProperty<*>, value: T) {
     this.value = value
 }
+
+fun <T> rememberUpdatedState(newValue: T): State<T> = mutableStateOf(newValue)

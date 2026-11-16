@@ -365,10 +365,6 @@ internal fun VaultEntryCard(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            val up = actions.onMoveUp
-            val down = actions.onMoveDown
-            if (card.canMoveUp && up != null) ForestTextAction(text = strings.moveUp, onClick = { up(card) })
-            if (card.canMoveDown && down != null) ForestTextAction(text = strings.moveDown, onClick = { down(card) })
             val deleteEntry = actions.onDelete
             if (card.detailsVisible && deleteEntry != null) {
                 ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
