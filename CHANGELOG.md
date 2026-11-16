@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Android: Replace the displayed app version with a UTC build timestamp (`VYYYY-MM-DD-HH-MM`) for every variant; derive the internal upgrade code from build-time minutes. Support SOURCE_DATE_EPOCH for repeatable builds.
+
  * Unlock screen: Submit passwords with Enter or the keyboard Done action, remove the redundant subtitle, and show matching filled buttons with password unlock first. Desktop security-key unlock is hidden unless the vault folder has a valid enrollment record.
 
  * Background editing groundwork: Add owned replacement candidates with save-before-adopt semantics, duplicate rejection, preserved list position/identity and stale-state protection. Editing forms remain synchronous pending integration.

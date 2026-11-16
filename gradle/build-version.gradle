@@ -1,0 +1,18 @@
+// Capture once per Gradle invocation, never at app launch. UTC avoids runner-local time zones.
+// SOURCE_DATE_EPOCH (Unix seconds) lets reproducible builds use the same explicit timestamp.
+def epochText = providers.environmentVariable('SOURCE_DATE_EPOCH').orNull
+def buildInstant
+try {
+    buildInstant = epochText == null ? java.time.Instant.now() : java.time.Instant.ofEpochSecond(Long.parseLong(epochText))
+} catch (Exception error) {
+    throw new GradleException('SOURCE_DATE_EPOCH must be valid Unix epoch seconds', error)
+}
+def codeEpoch = java.time.Instant.parse('2020-01-01T00:00:00Z')
+def minuteCode = java.time.Duration.between(codeEpoch, buildInstant).toMinutes()
+// Preserve upgrade ordering relative to the old versionCode 39 and Android's numeric limit.
+if (minuteCode <= 39 || minuteCode > 2100000000L) {
+    throw new GradleException('Build timestamp is outside the supported Android version-code range')
+}
+ext.buildDateVersion = java.time.format.DateTimeFormatter.ofPattern("'V'uuuu-MM-dd-HH-mm")
+        .withZone(java.time.ZoneOffset.UTC).format(buildInstant)
+ext.buildDateVersionCode = (int) minuteCode

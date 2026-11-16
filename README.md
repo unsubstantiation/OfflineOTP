@@ -492,6 +492,20 @@ The deterministic vault/backup fixtures can be checked with
 export for the Android instrumentation test. The reproducible desktop packaging check is
 `bash scripts/packaging/verify-desktop-build.sh` on a networked full-JDK host.
 
+## App version
+
+The Android app's displayed version is its build timestamp in UTC: `VYYYY-MM-DD-HH-MM`
+(for example, `V2026-11-16-11-38`). It is embedded at build time, not calculated when the
+app opens. All APK variants use the same format, without `-dev` or `-play` suffixes;
+variant application IDs and signing remain unchanged.
+
+Android's required internal numeric version code is the number of whole minutes since
+2020-01-01 00:00 UTC. Builds within the same minute share a code; build later when a new
+store upload requires a strictly greater code. For repeatable builds, set `SOURCE_DATE_EPOCH`
+to the same Unix timestamp (seconds) for both builds. Normally the current build time is used.
+Do not pin an old timestamp when publishing an update: its version code must exceed the
+previously published one. This does not change vault, backup or import format versions.
+
 ## Build verification
 
 Five GitHub Actions workflows build on pushes to `master` or manual dispatch — one
