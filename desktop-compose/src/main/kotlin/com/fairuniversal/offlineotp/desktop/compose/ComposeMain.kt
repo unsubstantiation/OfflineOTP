@@ -252,6 +252,14 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
 private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+    val hardwareEnrolled = remember(controller, location.dataDirectory) {
+        try {
+            DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()?.let {
+                it.fill(0)
+                true
+            } ?: false
+        } catch (_: Exception) { false }
+    }
     var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -283,7 +291,7 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
         onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
     UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
-        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
+        onHardwareUnlock = if (controller.isInitialized() && hardwareEnrolled) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
         onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
     if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
