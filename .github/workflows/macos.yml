@@ -152,7 +152,7 @@ jobs:
           fi
           codesign --verify --strict --verbose=2 "$APP"
           echo "::notice::Ad-hoc signed: the download runs after a Gatekeeper confirmation (right-click → Open) until it is signed with an Apple Developer ID."
-      - name: Archive app bundle and checksum
+      - name: Archive app bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -165,9 +165,8 @@ jobs:
           mkdir -p build/unpacked
           ditto -x -k artifacts/OfflineOTP-macos-arm64.zip build/unpacked
           test -x build/unpacked/OfflineOTP.app/Contents/MacOS/OfflineOTP
-          (cd artifacts && shasum -a 256 OfflineOTP-macos-arm64.zip > SHA256SUMS.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: OfflineOTP-macos-arm64
-          path: artifacts/
+          archive: false
+          path: artifacts/OfflineOTP-macos-arm64.zip
           if-no-files-found: error

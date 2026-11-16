@@ -273,18 +273,22 @@ jobs:
             fi
             echo "::endgroup::"
           done
-      - name: Prepare signed APKs and checksums
+      - name: Prepare signed APKs
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
           cp app/build/outputs/apk/fdroid/release/app-fdroid-release.apk artifacts/OfflineOTP-fdroid-release.apk
           cp app/build/outputs/apk/play/release/app-play-release.apk artifacts/OfflineOTP-play-release.apk
-          (cd artifacts && sha256sum OfflineOTP-fdroid-release.apk OfflineOTP-play-release.apk > SHA256SUMS.txt)
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: OfflineOTP-android-release
-          path: artifacts/
+          archive: false
+          path: artifacts/OfflineOTP-fdroid-release.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          archive: false
+          path: artifacts/OfflineOTP-play-release.apk
           if-no-files-found: error
       - name: Remove the decoded keystore
         if: always()

@@ -110,15 +110,13 @@ jobs:
           if (-not (Test-Path 'desktop-compose/build/release/OfflineOTP/OfflineOTP.exe' -PathType Leaf)) {
             throw 'jpackage did not produce the Windows launcher'
           }
-      - name: Archive app image and checksum
+      - name: Archive app image
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force artifacts | Out-Null
           Compress-Archive -Path desktop-compose/build/release/OfflineOTP -DestinationPath artifacts/OfflineOTP-windows-x64.zip
-          $hash = (Get-FileHash artifacts/OfflineOTP-windows-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
-          [System.IO.File]::WriteAllText("$PWD/artifacts/SHA256SUMS.txt", "$hash  OfflineOTP-windows-x64.zip`n")
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: OfflineOTP-windows-x64
-          path: artifacts/
+          archive: false
+          path: artifacts/OfflineOTP-windows-x64.zip
           if-no-files-found: error

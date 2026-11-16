@@ -499,10 +499,12 @@ per platform, so a macOS regression cannot hide behind a green Linux job. Downlo
 from the workflow run: signed Android release APKs (F-Droid and Play, only on `master` when
 signing secrets are configured), a Windows x64 app-image zip, a Debian 12 x64 app-image
 tarball, a macOS arm64 app-bundle zip, and — for iOS — a single unsigned physical-device Release IPA
-(`OfflineOTP-ios-unsigned`, one file: `OfflineOTP-ios-unsigned.ipa`). Android, Windows, Debian and
-macOS include SHA-256 checksums; Android also includes the signing certificate details. iOS ships no
-extra files — the `.ipa` is unpacked and verified inside the job instead of carrying a checksum
-manifest. The workflows do **not** publish GitHub releases or run device tests.
+(`OfflineOTP-ios-unsigned.ipa`). Android provides two separate APK downloads. Android, Windows,
+macOS and iOS upload their files directly, without an outer artifact ZIP or checksum manifest.
+The Windows and macOS ZIPs still contain the complete app images/bundles. Debian retains its
+checksum manifest and artifact wrapper. Android signing certificate details remain in the build
+log; the iOS `.ipa` is unpacked and verified inside the job.
+The workflows do **not** publish GitHub releases or run device tests.
 
 The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch after download needs
 **right-click → Open** (or `xattr -d com.apple.quarantine`) until a signing identity is configured.

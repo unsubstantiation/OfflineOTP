@@ -310,7 +310,7 @@ class IosAppTest(unittest.TestCase):
         self.assertNotIn("platform=iOS Simulator,id=$UDID", WORKFLOW)
         self.assertIn("Payload/OfflineOTP.app", WORKFLOW)
         # The .ipa is the only thing this workflow publishes.
-        self.assertIn("name: OfflineOTP-ios-unsigned", WORKFLOW)
+        self.assertIn("archive: false", WORKFLOW)
         self.assertIn("path: artifacts/OfflineOTP-ios-unsigned.ipa", WORKFLOW)
         self.assertEqual(1, WORKFLOW.count("actions/upload-artifact@"))
         for dropped in ("OfflineOTP-ios-simulator", "OfflineOTP-ios-kit-source",

@@ -301,7 +301,7 @@ class ReleaseSigningTest(unittest.TestCase):
                      "Find the key alias and the passwords",
                      "Build signed release APKs",
                      "Verify APK signatures",
-                     "Prepare signed APKs and checksums"):
+                     "Prepare signed APKs"):
             self.assertNotIn("${{ secrets.", self.step_script(step),
                              f"{step} must read its secret from env, not inline")
 
