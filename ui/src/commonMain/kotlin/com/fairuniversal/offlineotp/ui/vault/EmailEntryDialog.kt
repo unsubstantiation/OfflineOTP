@@ -19,11 +19,12 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 
 /** Ephemeral local form only. No saveable state or network account verification. */
 @Composable
-fun EmailEntryDialog(inputKey: Any, error: String?, onSubmit: (EmailEntryInput) -> Unit, onDismiss: () -> Unit) {
+fun EmailEntryDialog(inputKey: Any, error: String?, onSubmit: (EmailEntryInput) -> Unit, onDismiss: () -> Unit, submitNotice: String? = null) {
     var input by remember(inputKey) { mutableStateOf(EmailEntryInput()) }
     fun dismiss() { input = EmailEntryInput(); onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Add email account") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            submitNotice?.let { Text(text = it) }
             Text(text = "Stores connection details offline; does not contact or verify servers. Ports do not change automatically when protocol or encryption changes.")
             EmailField("Account name (optional)", input.name) { input = input.copy(name = it) }
             EmailField("Email address", input.address) { input = input.copy(address = it) }

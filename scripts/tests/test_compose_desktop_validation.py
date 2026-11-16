@@ -29,7 +29,9 @@ class ComposeDesktopValidationTest(unittest.TestCase):
         text = (ROOT / 'docs/compose-desktop-cutover.md').read_text()
         self.assertIn('Validation remains incomplete; this is not a validated release.', text)
         self.assertIn('preparation, not a validation attestation', text)
-        self.assertIn('Obtain explicit approval for cutover', text)
+        self.assertIn('cutover approval has already been given', text)
+        self.assertIn('Reported successful; detailed scope unrecorded', text)
+        self.assertIn('not** the build that was tested', text)
 
 if __name__ == '__main__':
     unittest.main()

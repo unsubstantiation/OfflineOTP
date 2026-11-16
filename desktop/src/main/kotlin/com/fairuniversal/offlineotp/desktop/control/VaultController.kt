@@ -13,13 +13,18 @@ import java.util.ArrayList
 import javax.crypto.SecretKey
 
 /**
- * Headless application controller over the portable [PasswordVault]. The Swing shell only sees
+ * Headless application controller over the portable [PasswordVault]. The Compose host only sees
  * [Session] outcomes and never touches crypto or storage types directly, which keeps every branch
  * testable without a display.
  */
 class VaultController(private val vault: PasswordVault) {
+    private val writeGate = DesktopWriteGate()
+    val persistenceBusy: Boolean get() = writeGate.busy
+    private fun exclusiveSession(operation: () -> Session): Session =
+        writeGate.exclusive<Session>(Session.Error(Failure.IO_FAILURE), operation)
 
-    /** UI-facing failure reasons; the wording lives in the Swing layer. */
+
+    /** UI-facing failure reasons; the wording lives in the UI layer. */
     enum class Failure { MISSING, AUTHENTICATION_FAILED, CORRUPT, IO_FAILURE, ALREADY_EXISTS, INVALID_INPUT }
 
     sealed class Session {
@@ -36,13 +41,17 @@ class VaultController(private val vault: PasswordVault) {
     val preferences: KeyValueSettings get() = vault.preferences
 
     /** Provisions a new empty vault and immediately unlocks it so the window can render. */
-    fun createVault(password: String): Session = when (val result = vault.create(password)) {
-        is VaultWriteResult.Saved -> openVault(password)
-        is VaultWriteResult.Rejected -> Session.Error(mapWrite(result.error))
-        is VaultWriteResult.RecoveryRequired -> Session.Error(Failure.IO_FAILURE)
+    fun createVault(password: String): Session = exclusiveSession {
+        when (val result = vault.create(password)) {
+            is VaultWriteResult.Saved -> openUnchecked(password)
+            is VaultWriteResult.Rejected -> Session.Error(mapWrite(result.error))
+            is VaultWriteResult.RecoveryRequired -> Session.Error(Failure.IO_FAILURE)
+        }
     }
 
-    fun openVault(password: String): Session = when (val outcome = vault.open(password)) {
+    fun openVault(password: String): Session = exclusiveSession { openUnchecked(password) }
+
+    private fun openUnchecked(password: String): Session = when (val outcome = vault.open(password)) {
         is PasswordVault.Open.Unlocked -> Session.Loaded(outcome.entries, outcome.key)
         is PasswordVault.Open.Failed -> Session.Error(mapRead(outcome.error))
     }
@@ -51,24 +60,33 @@ class VaultController(private val vault: PasswordVault) {
      * Re-keys the vault from [currentPassword] to [newPassword] using fresh Argon2id parameters
      * and returns the preserved entries + new session key so an open session stays valid.
      */
-    fun changePassword(currentPassword: String, newPassword: String): Session =
+    fun changePassword(currentPassword: String, newPassword: String): Session = exclusiveSession {
         when (val outcome = vault.changePassword(currentPassword, newPassword)) {
             is PasswordVault.ReKey.Changed -> Session.Loaded(outcome.entries, outcome.key)
             is PasswordVault.ReKey.Failed -> Session.Error(mapWrite(outcome.error))
         }
+    }
 
     /**
      * Opens the vault from a hardware-derived key (FIDO2 PRF envelope). The key never touches the
      * settings verifier; GCM authentication is the access check, exactly as on Android's
      * hardware-unlock path.
      */
-    fun unlockWithKey(key: SecretKey): Session = when (val outcome = vault.openWithKey(key)) {
-        is PasswordVault.Open.Unlocked -> Session.Loaded(outcome.entries, outcome.key)
-        is PasswordVault.Open.Failed -> Session.Error(mapRead(outcome.error))
+    fun unlockWithKey(key: SecretKey): Session = exclusiveSession {
+        when (val outcome = vault.openWithKey(key)) {
+            is PasswordVault.Open.Unlocked -> Session.Loaded(outcome.entries, outcome.key)
+            is PasswordVault.Open.Failed -> Session.Error(mapRead(outcome.error))
+        }
     }
 
     fun save(key: SecretKey, entries: ArrayList<Entry>): Boolean =
-        vault.save(key, entries) is VaultWriteResult.Saved
+        writeGate.exclusive(false) { vault.save(key, entries) is VaultWriteResult.Saved }
+
+    /** The worker already owns this controller's lease; do not recursively call save(). */
+    fun detachedSave(worker: java.util.concurrent.Executor, dispatch: (Runnable) -> Unit): DesktopDetachedSave =
+        DesktopDetachedSave(worker, dispatch, writeGate) { key, entries ->
+            vault.save(key, entries) is VaultWriteResult.Saved
+        }
 
     /**
      * The list order chosen last time, mirroring Android's persisted sort setting. A missing or

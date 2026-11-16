@@ -2,6 +2,36 @@
 
 #### Unreleased
 
+ * Background editing groundwork: Add owned replacement candidates with save-before-adopt semantics, duplicate rejection, preserved list position/identity and stale-state protection. Editing forms remain synchronous pending integration.
+
+ * Compose desktop: Manual and email creation now hand validated drafts to background persistence. Invalid/duplicate input stays in the form; accepted submissions pause other edits and require a fresh unlock after completion.
+
+ * Background creation groundwork: Add owned-draft, save-before-adopt entry addition with duplicate rejection and save/reopen coverage. Creation forms remain synchronous pending host wiring.
+
+ * Desktop cleanup: Retire the obsolete synchronous delete/counter/PIN dialog handler and move idle-deadline regression coverage onto background transactions, including committed, failed and throwing writes.
+
+ * Compose desktop: Save mOTP PIN changes in the background before live adoption, with owned PIN-buffer cleanup and the same fresh-unlock session barrier as deletion/counter changes.
+
+ * Compose desktop: HOTP counter confirmation now uses the background save-before-adopt transaction, with duplicate/overflow guards and fresh-unlock progress/results. Failed saves do not advance the live counter.
+
+ * Background save recovery: Retain task ownership until UI completion returns so a throwing callback cannot strand the controller write gate after session lock/disposal. Add recovery and vault-reopen regression coverage.
+
+ * Compose desktop: Entry deletion now saves on the background worker after closing other session forms. A progress/result screen requires a fresh unlock afterwards; lock/disposal cancels queued work and suppresses late results. Other save paths remain synchronous.
+
+ * Background deletion groundwork: Detect in-place entry edits with ephemeral content fingerprints before adopting a saved candidate; clean up fingerprint buffers and retained references. Ordinary OTP refresh remains compatible.
+
+ * Background persistence groundwork: Add a save-before-adopt deletion transaction with detached candidate preparation, failure retry, stale-list rejection and lock-on-abandonment. Compose dialog integration remains pending.
+
+ * Desktop write coordination: Check pending persistence before window close, unlock submission/adoption, rekey and hardware enrollment; show a wait notice and discard blocked unlock results. Background UI save transactions are not yet enabled.
+
+ * Background persistence groundwork: Production VaultController now gates save/create/open/hardware-key unlock/rekey through one controller-owned write lease and creates detached-save workers using that same gate. UI save migration remains pending.
+
+ * Background persistence groundwork: Add a shared write lease to detached saves. Hold it through worker completion and UI adoption; prevent abandoned in-flight saves from releasing it early. Production save/rekey/unlock wiring is still pending.
+
+ * Background persistence groundwork: Add an owned, detached worker-save component with secret cleanup and stale-result suppression. Not yet connected to production saves; window-level write serialization and transaction adoption remain required.
+
+ * Documentation: Record the user-reported successful build/device check without inferring its platform or scope; consolidate current post-Swing status and distinguish historical migration notes from remaining work.
+
  * Desktop: Remove Swing UI, launcher, fallback packaging, table model and Swing-only tests. Retain shared engine, native integration and AWT artwork for Compose. Runtime/device/release validation remains pending; no in-tree Swing fallback remains.
 
  * Desktop cutover: Select Compose for default run/release packaging; retain explicit runSwing/packageSwingDesktop fallback. Stage native crypto libraries and shared icons for Compose distributions. Runtime/device/release validation and remaining feature gaps are still pending.

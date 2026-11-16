@@ -113,10 +113,11 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
         self.assertIn('deleteTitle: String = "Delete account?"', wording)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("state.deleteEntry(request.entryId, save)", owner)
-        self.assertIn("controller.save(vault.key, entries)", host)
-        self.assertIn("entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("Kind.DELETE -> candidate.removeAt(index).destroy()", owner)
+        self.assertIn("controller.detachedSave(exportWorker)", host)
+        self.assertIn("transaction.submit(target, kind, lifetime::checkActive)", host)
+        self.assertNotIn("entryDialogActions", host)
         self.assertIn("dialogs.close()", host)
 
     def test_pin_dialog_masks_and_does_not_save_input(self):
@@ -127,7 +128,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
         self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("entryDialogActions.submitPin(request, pin, lifetime::checkActive)", host)
+        self.assertIn("transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive)", host)
         self.assertIn("dialogs.close()", host)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.pinRequired && enterPin != null", widgets)
@@ -140,8 +141,8 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("VaultEntryDialog(", host)
         self.assertIn("VaultDialogs { revision++ }", host)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("state.advanceCounter(request.entryId)", owner)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("check(EntryUsage.advanceHotp(candidate[index]))", owner)
         self.assertIn("dialogs.close()", host)
 
     def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
@@ -151,9 +152,9 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("EntryPinDialog(", routed)
         self.assertNotIn("EntryConfirmationDialog(", routed)
         self.assertNotIn("could not be saved", routed)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryDialogActions.kt").read_text()
-        self.assertIn("dialogs.isCurrent(request)", owner)
-        self.assertIn("if (!active() || !current(request)) return false", owner)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("dialogs.isCurrent(request)", host)
+        self.assertIn("if (!live || state.isLocked || !unchanged())", owner)
         renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
         for kind in ("PIN", "COUNTER", "DELETE"):
             self.assertIn("VaultDialogKind." + kind, renderer)
@@ -191,7 +192,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
         self.assertIn("input = ManualEntryInput(); email = true", manual)
-        self.assertIn("lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)", host)
+        self.assertIn("creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)", host)
 
     def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
@@ -219,8 +220,8 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_all_compose_add_edit_paths_supply_live_save_guard(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        for call in ("creation.submit(addRequest, input, lifetime::checkActive)",
-                     "creation.submitEmail(addRequest, input, lifetime::checkActive)"):
+        for call in ("creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)",
+                     "creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)"):
             self.assertIn(call, host)
         for method in ("submit", "submitPassword", "submitEmailPasswords", "submitEmailSettings"):
             self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
@@ -249,7 +250,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
-        self.assertIn("if (rekey.canCloseWindow && enrollment?.busy != true)", host)
+        self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
         self.assertIn("vault == null && rekey.canUnlock", host)
         self.assertIn("rekey.sessionLocked()", host)
         self.assertIn("onChangePassword(lifetime::checkActive, presenter::lock)", host)
@@ -637,6 +638,34 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("preferencesExporter.close()", host)
         self.assertIn("No vault entries, passwords or authentication material", host)
 
+    def test_window_checks_live_write_gate_before_close_unlock_and_hardware_actions(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("if (!controller.persistenceBusy) return true", host)
+        self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
+        self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
+        self.assertIn("if (storageAvailable()) rekey.submit(owner, current, next, confirmation)", host)
+        self.assertIn("if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin)", host)
+        self.assertIn("!busy && !hardwareDialog && storageAvailable()", host)
+        self.assertIn("if (!busy && storageAvailable()) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ')", host)
+        self.assertIn('title = "Vault write pending"', host)
+        # Do not conditionally dispose an in-progress unlock screen on its own controller lease.
+        self.assertIn("if (vault == null && rekey.canUnlock && enrollment == null)", host)
+
+    def test_background_delete_quiesces_session_and_keeps_lifetime_during_progress(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("controller.detachedSave(exportWorker)", host)
+        self.assertIn("transactionHolder[0]?.close()", host)
+        self.assertIn("transaction.close()", host)
+        self.assertIn("transaction.submit(target, kind, lifetime::checkActive)", host)
+        self.assertIn("quiesceForTransaction()", host)
+        self.assertIn("dialogs.close()", host)
+        self.assertIn("copier.close(); mover.close()", host)
+        self.assertIn("unlock again afterwards", host)
+        busy = host.index("    if (transactionMode) {")
+        self.assertLess(host.index("    DisposableEffect(presenter)"), busy)
+        self.assertLess(busy, host.index("    VaultScreen("))
+        self.assertIn("return", host[busy:host.index("    val artwork", busy)])
+
     def test_openpgp_export_confirms_scope_and_recipient(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopOpenPgpExport(vault, exportWorker", host)
@@ -829,7 +858,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopUnlockOperation(worker", host)
         self.assertIn("EventQueue.invokeLater(task)", host)
         self.assertIn("operation.close(); worker.shutdown()", host)
-        self.assertIn("if (closing) DesktopUnlockOperation.discard(loaded)", host)
+        self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
         unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
         self.assertIn('password = ""\n                    onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)
@@ -873,7 +902,7 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_desktop_manual_creation_uses_shared_form_and_guarded_persistence(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("DesktopEntryCreation(vault, EntryEditor(controller, vault)::add)", host)
+        self.assertIn("DesktopEntryCreation(vault)", host)
         self.assertIn("creation.close()", host)
         self.assertIn("ManualEntryDialog(", host)
         form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()

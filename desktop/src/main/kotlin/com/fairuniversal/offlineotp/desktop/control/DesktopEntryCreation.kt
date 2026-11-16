@@ -5,7 +5,7 @@ import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 
 /** Identity-bound add dialog. Owns requests, never form secrets; called only on the UI thread. */
-class DesktopEntryCreation(private val state: DesktopVaultState, private val save: (Entry) -> Boolean) {
+class DesktopEntryCreation(private val state: DesktopVaultState, private val save: (Entry) -> Boolean = { false }) {
     enum class Failure { INVALID_INPUT, SAVE_FAILED }
     class Request internal constructor() {
         var failure: Failure? = null
@@ -25,6 +25,28 @@ class DesktopEntryCreation(private val state: DesktopVaultState, private val sav
         submitDraft(request, active) { input.build() }
     fun submitEmail(request: Request, input: EmailEntryInput, active: () -> Boolean = { true }): Boolean =
         submitDraft(request, active) { input.build() }
+
+    /** Validate a form and lend its draft to a synchronous handoff that MUST copy it.
+     * Returns true for a completed handoff, not for a persisted write. */
+    fun prepare(request: Request, input: ManualEntryInput, active: () -> Boolean, handoff: (Entry) -> Unit): Boolean =
+        prepareDraft(request, active, { input.build() }, handoff)
+    fun prepareEmail(request: Request, input: EmailEntryInput, active: () -> Boolean, handoff: (Entry) -> Unit): Boolean =
+        prepareDraft(request, active, { input.build() }, handoff)
+
+    private fun prepareDraft(request: Request, active: () -> Boolean, build: () -> Entry, handoff: (Entry) -> Unit): Boolean {
+        if (!current(request) || !active() || !current(request)) return false
+        val draft = try { build() } catch (_: IllegalArgumentException) {
+            request.failure = Failure.INVALID_INPUT; return false
+        }
+        try {
+            if (!active() || !current(request)) return false
+            if (state.snapshot().contains(draft)) { request.failure = Failure.SAVE_FAILED; return false }
+            // Consume authority before callback: reentrant or double submissions cannot hand off twice.
+            pending = null
+            handoff(draft)
+            return true
+        } finally { draft.destroy() }
+    }
 
     private fun current(request: Request) = !closed && !state.isLocked && pending === request
 

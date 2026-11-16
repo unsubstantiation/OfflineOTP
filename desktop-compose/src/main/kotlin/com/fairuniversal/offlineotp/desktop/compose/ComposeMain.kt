@@ -9,7 +9,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareUnlock
 import com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareEnrollment
 import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
-import com.fairuniversal.offlineotp.desktop.control.DesktopEntryDialogActions
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryTransaction
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareRemoval
 import com.fairuniversal.offlineotp.desktop.control.DesktopHardwareCopy
 import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
@@ -152,6 +152,12 @@ fun main() {
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
+    var writePendingNotice by remember { mutableStateOf(false) }
+    fun storageAvailable(): Boolean {
+        if (!controller.persistenceBusy) return true
+        writePendingNotice = true
+        return false
+    }
     var enrollment by remember { mutableStateOf<DesktopHardwareEnrollment?>(null) }
     var enrollmentActive by remember { mutableStateOf<(() -> Boolean)?>(null) }
     var rekeyRevision by remember { mutableStateOf(0) }
@@ -163,7 +169,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
     Window(
         onCloseRequest = {
-            if (rekey.canCloseWindow && enrollment?.busy != true) {
+            if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true) {
                 closing = true
                 enrollment?.close()
                 rekey.close()
@@ -179,8 +185,8 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
             if (vault == null && rekey.canUnlock && enrollment == null) {
-                DesktopUnlockContent(controller, location) { loaded ->
-                    if (closing) DesktopUnlockOperation.discard(loaded)
+                DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
+                    if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
                     else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
                 }
             } else if (vault != null) {
@@ -188,9 +194,9 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                     controller = controller,
                     vault = vault,
                     window = window, location = location,
-                    onChangePassword = { active, lock -> if (enrollment == null) rekey.open(vault, active, lock); Unit },
+                    onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
                     onEnrollHardware = { active, lock, hardwareWorker ->
-                        if (enrollment == null && rekey.operation == null && active()) {
+                        if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
                             enrollmentActive = active
                             enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
                                 enroll = { pin, key, token ->
@@ -216,12 +222,17 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                         DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
                         else -> null
                     }, onSubmit = { pin ->
-                        if (enrollment === owner && !closing) owner.submit(pin) { enrollmentActive?.invoke() == true }
+                        if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
                         else pin.fill(' ')
                     }, onDismiss = {
                         if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
                     })
             }
+            if (writePendingNotice) EntryConfirmationDialog(
+                title = "Vault write pending",
+                message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
+                confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
+                onDismiss = { writePendingNotice = false })
             rekey.operation?.let { owner ->
                 PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
                     invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
@@ -229,7 +240,9 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                         DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
                         DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
                         else -> null
-                    }, onSubmit = { current, next, confirmation -> rekey.submit(owner, current, next, confirmation) },
+                    }, onSubmit = { current, next, confirmation ->
+                        if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
+                    },
                     onDismiss = { rekey.dismiss(owner) })
             }
         }
@@ -238,7 +251,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
-private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
     var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -270,11 +283,11 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
         onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
     UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
-        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy) { failure = null; hardwareDialog = true } }) else null,
+        onHardwareUnlock = if (controller.isInitialized()) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
-        onSubmit = { password -> if (!busy && !hardwareDialog) { failure = null; operation.submit(password) }; Unit })
+        onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
     if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
-        onSubmit = { pin -> if (!busy) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
+        onSubmit = { pin -> if (!busy && storageAvailable()) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
         onDismiss = { if (!busy) { hardwareDialog = false; failure = null } })
 }
 
@@ -349,13 +362,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
-    val creation = remember(vault) { DesktopEntryCreation(vault, EntryEditor(controller, vault)::add) }
+    val creation = remember(vault) { DesktopEntryCreation(vault) }
     val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
+    val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
+    var transactionMode by remember(vault) { mutableStateOf(false) }
+    var transactionResult by remember(vault) { mutableStateOf<DesktopEntryTransaction.Result?>(null) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
-    val entryDialogActions = remember(vault, dialogs) { DesktopEntryDialogActions(vault, dialogs) { entries -> controller.save(vault.key, entries) } }
     val presenter = remember(vault) {
         VaultPresenter(
             projection = VaultProjection(vault.entryList, vault.presentation),
@@ -377,6 +392,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             sortSelected = { mode -> controller.saveSortMode(mode) },
             lockVault = {
                 showStorageLocation = false
+                transactionHolder[0]?.close()
                 emailDetails.close()
                 openPgpImporter.close()
                 linScpImporter.close()
@@ -407,6 +423,30 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
         }
     }
+    val transaction = remember(vault, lifetime) {
+        DesktopEntryTransaction(vault, controller.detachedSave(exportWorker) { task -> EventQueue.invokeLater(task) }, presenter::lock)
+            .also { transactionHolder[0] = it }
+    }
+    // Quiesce every other session owner before submitting a background entry transaction. A fresh
+    // unlock is required afterwards; none of these terminal owners is reused for editing.
+    fun quiesceForTransaction() {
+        layoutSettings.close(); autoLock.close(); copier.close(); mover.close()
+        creation.close(); editing.close(); emailDetails.close(); dialogs.close()
+        openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close()
+        imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close()
+        hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close()
+        archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+        openPgpExporter.close(); linScpExporter.close(); exporter.close()
+    }
+    fun beginCreation(draft: com.fairuniversal.offlineotp.Database.Entry) {
+        transactionMode = true
+        quiesceForTransaction()
+        val accepted = transaction.submitNew(draft, lifetime::checkActive) { result ->
+            transactionResult = result; revision++
+        }
+        if (!accepted && !vault.isLocked) transactionResult = DesktopEntryTransaction.Result.SAVE_FAILED
+        revision++
+    }
     DisposableEffect(presenter) {
         lifetime.start()
         val listener = AWTEventListener { event ->
@@ -421,6 +461,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
+            transaction.close()
             layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
@@ -428,6 +469,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val clock = remember(vault) { VaultClock(System::currentTimeMillis) }
     val now = rememberNowMillis(clock)
+    if (transactionMode) {
+        EntryConfirmationDialog(title = "Saving vault change",
+            message = when (transactionResult) {
+                DesktopEntryTransaction.Result.DELETED -> "The account was deleted and the vault saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.COUNTER_ADVANCED -> "The counter was advanced and the vault saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.REPLACED -> "The changes were saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.ADDED -> "The account was added and the vault saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.PIN_SAVED -> "The PIN was saved. Unlock again to continue."
+                DesktopEntryTransaction.Result.SAVE_FAILED -> "The change did not report success. Unlock again and inspect the vault before retrying; preserve your backup."
+                null -> "Saving the confirmed change in the background. Other edits are paused. Locking now may cancel queued work, but cannot undo a write already started. Unlock again and inspect the vault afterwards."
+            }, confirmLabel = "Lock vault", dismissLabel = "Lock vault",
+            onConfirm = { presenter.lock() }, onDismiss = { presenter.lock() })
+        return
+    }
     val artwork = remember(vault) {
         VaultArtwork { name -> IssuerIcons.artwork(name)?.toComposeImageBitmap() }
     }
@@ -1028,8 +1083,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (addRequest != null) {
         ManualEntryDialog(
             inputKey = addRequest, artwork = artwork,
+            submitNotice = "Saving pauses other edits and runs in the background. Unlock again afterwards to continue.",
             onEmailSubmit = { input ->
-                if (lifetime.checkActive() && creation.submitEmail(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++
             },
             error = when (addRequest.failure) {
@@ -1039,7 +1095,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onDismiss = { creation.dismiss(addRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && creation.submit(addRequest, input, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++
             }
         )
@@ -1103,11 +1159,42 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (request != null) {
         VaultEntryDialog(
             request = request,
+            strings = com.fairuniversal.offlineotp.ui.vault.VaultDialogStrings(
+                pinTitle = "Enter PIN (unlock again after saving)",
+                counterMessage = "Advance the counter only when the service asks for the next code. Unnecessary advances can put the account out of sync. Confirming dismisses other forms and saves in the background; unlock again afterwards to continue.",
+                deleteMessage = "Remove this account from the vault? This cannot be undone. Make sure you have another way to sign in. Confirming dismisses other forms and saves in the background; unlock again afterwards to continue."),
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
-                entryDialogActions.confirm(request, lifetime::checkActive, presenter::entryRemoved)
+                if (request.kind == VaultDialogKind.DELETE || request.kind == VaultDialogKind.COUNTER) {
+                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode) {
+                        val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
+                        if (target != null) {
+                            transactionMode = true
+                            quiesceForTransaction()
+                            val kind = if (request.kind == VaultDialogKind.DELETE) DesktopEntryTransaction.Kind.DELETE else DesktopEntryTransaction.Kind.ADVANCE_COUNTER
+                            val accepted = transaction.submit(target, kind, lifetime::checkActive) { result ->
+                                transactionResult = result; revision++
+                            }
+                            if (!accepted && !vault.isLocked) transactionResult = DesktopEntryTransaction.Result.SAVE_FAILED
+                            revision++
+                        }
+                    }
+                } // PIN is submitted only through onPinSubmit.
             },
-            onPinSubmit = { pin -> entryDialogActions.submitPin(request, pin, lifetime::checkActive) }
+            onPinSubmit = { pin ->
+                if (dialogs.isCurrent(request) && request.kind == VaultDialogKind.PIN && lifetime.checkActive() && !transactionMode) {
+                    val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
+                    if (target != null) {
+                        transactionMode = true
+                        quiesceForTransaction()
+                        val accepted = transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive) { result ->
+                            transactionResult = result; revision++
+                        }
+                        if (!accepted && !vault.isLocked) transactionResult = DesktopEntryTransaction.Result.SAVE_FAILED
+                        revision++
+                    }
+                }
+            }
 
         )
     }

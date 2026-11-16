@@ -1,7 +1,16 @@
 # Compose desktop cutover gates
 
-**Status: Compose selected as the default launcher and release target by explicit user approval.
-Validation remains incomplete; this is not a validated release. Swing code and fallback tasks have been removed by explicit user request.**
+**Status: Compose cutover and Swing retirement are complete (PR #125, merged at
+`3e8fb2700a5622f6c7e4062283190cf82ac7165d`).**
+
+On 2026-11-07 the user reported: “I confirmed build is good and working on device.”
+This records a successful user-reported build/device check. The platform, device/OS, tested
+commit or artifact, and exercised workflows were not supplied. The merge commit above identifies
+the code transition, **not** the build that was tested. Do not infer Android versus desktop,
+all-platform coverage, hardware coverage or release-package readiness from this report.
+
+Validation remains incomplete; this is not a validated release. This means the full release
+matrix is not recorded, not that the user's successful check is being discounted.
 
 ## Cutover and rollback commands
 
@@ -12,8 +21,8 @@ Validation remains incomplete; this is not a validated release. Swing code and f
   two processes. Use the same `OFFLINEOTP_HOME` deliberately for rollback, or a disposable copy
   for testing. No on-disk format migration is part of this switch.
 - The shared desktop dependency now contains engine and AWT artwork code, not Swing UI.
-- Desktop release workflows now target Compose, but no successful real build/runtime/package
-  evidence is available yet. The pending ledger below remains authoritative.
+- Desktop release workflows target Compose. A successful build/device check is user-reported;
+  detailed platform/package evidence remains unrecorded in the ledger below.
 
 
 Sandbox compilation uses stubs and is not real Compose runtime validation. Android device
@@ -22,11 +31,10 @@ from master or an earlier commit without identifying what changed and what was r
 
 ## Automated evidence
 
-Once the new workflow is available on the default branch, run Actions → **Compose desktop
-validation** → Run workflow → the migration branch. GitHub may not expose a newly added
-branch-only workflow in the Actions UI; publishing it to the default branch requires a separately
-approved PR. Until then, maintainers can run the same commands locally on each target OS with
-JDK 17 and Android SDK platform/build tools 36 installed:
+The validation workflow is now present on master following PR #125. Run Actions →
+**Compose desktop validation** → Run workflow → the candidate branch/ref. Maintainers can also
+run the same commands locally on each target OS with JDK 17 and Android SDK platform/build tools
+36 installed:
 
 ```sh
 python scripts/check_build_inputs.py
@@ -44,7 +52,8 @@ Also run **Android build** manually on the same branch and inspect both compose-
 matrix jobs (Fdroid API 28 and Play API 36). The result checker must pass; a successful master
 push build without these dispatch-only jobs is not device validation.
 
-Dispatch from Arena was denied by GitHub with HTTP 403. Until workflow permissions are fixed,
+A previous dispatch attempt from Arena was denied by GitHub with HTTP 403; permissions have
+not been rechecked for this documentation update. If that restriction persists,
 a repository maintainer must dispatch from GitHub. Do not open a PR just to trigger checks.
 
 ## Manual desktop matrix — use disposable vaults only
@@ -68,26 +77,35 @@ containing revealed secrets. Run on each supported desktop OS and architecture b
 Android also needs real visual/accessibility/lifecycle checks beyond the emulator assertions.
 Hardware and camera tests require appropriate physical devices; emulator success is insufficient.
 
-## Release/cutover decision
+## Remaining release checks (not another cutover)
 
-1. Complete or explicitly accept each remaining feature gap in `compose-unified-ui-plan.md`
-   (including camera, OpenPGP hardware/agent workflows and remaining email/persistence work).
-2. Pass automated checks and record the manual matrix for the candidate commit.
-3. Implement and validate native-library staging, runtime dependencies, icons and launch arguments
-   in Compose release packaging on all platforms. Existing Swing packaging is not evidence for it.
-4. Prepare a launcher switch with a documented fallback/rollback and vault compatibility checks.
-5. Obtain explicit approval for cutover. Ask separately before opening a PR.
-6. Launcher cutover and Swing removal have been explicitly authorized and implemented before
-   completion of these checks. Complete the evidence ledger before declaring release readiness.
+1. Complete or explicitly accept each feature gap listed in the current-status section of
+   `compose-unified-ui-plan.md`. Not every enhancement must block a scoped release.
+2. Record the tested artifact/commit and platform for the user's successful check, then run
+   any untested workflows in the manual matrix for the candidate release.
+3. Validate the implemented native-library staging, runtime dependencies, icons and launch
+   arguments on supported platforms. Prior Swing packaging does not validate Compose packages.
+4. Check backup/restore and rollback using a prior validated release and disposable vault copies.
+5. Ask separately before opening a new PR; cutover approval has already been given and acted on.
 
 ## Evidence ledger
 
 | Gate | Commit / run URL | Outcome |
 | --- | --- | --- |
-| Android emulator matrix | Not available | Pending |
-| Desktop real Gradle matrix | Not available | Pending |
-| Desktop manual/runtime matrix | Not available | Pending |
-| Physical hardware / native crypto | Not available | Pending |
-| Release packaging and rollback | Not available | Pending |
+| User-reported build/device check (2026-11-07) | Tested commit/artifact and platform not supplied | Reported successful; detailed scope unrecorded |
+| Android emulator matrix | Not recorded here | Awaiting scoped evidence |
+| Desktop real Gradle matrix | Not recorded here | Awaiting scoped evidence |
+| Desktop manual/runtime matrix | Not recorded here | Awaiting scoped evidence |
+| Physical hardware / native crypto | Not recorded here | Awaiting scoped evidence |
+| Release packaging and rollback | Not recorded here | Awaiting scoped evidence |
 
-This checklist is preparation, not a validation attestation.
+This checklist is preparation, not a validation attestation for the complete release matrix.
+
+### Information to attach to the successful check
+
+- Platform (Android or packaged desktop), OS/version and device/architecture
+- Tested commit, version/artifact identifier, or build/run URL
+- How the app was launched/installed and which workflows were exercised
+- Any failures, skipped hardware checks or known limitations
+
+Do not attach vaults, credentials, PINs, recovery material or screenshots with revealed secrets.

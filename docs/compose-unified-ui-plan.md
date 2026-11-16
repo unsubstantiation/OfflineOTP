@@ -1,20 +1,41 @@
-> **Current desktop status:** User-approved default launcher/release cutover to Compose.
-> Swing UI and fallback tasks have now been removed at user request. Historical stage notes below describe earlier
-> states; device/runtime/packaging validation is still pending. See
-> [cutover ledger](compose-desktop-cutover.md). No feature-parity or validated-release claim.
-
 # Unified Compose Multiplatform UI
 
-> **Current status:** Android `MainActivity` now displays `VaultComposeView`/the shared Compose
-> cards, backed by `AndroidVaultController`. The existing toolbar, tabs, tag drawer and Android
-> dialogs remain. Manual order is exposed through Move up/Move down controls, not drag gestures.
-> The legacy adapter/holder/layout files are retained for the old regression fixtures and still
-> need retirement. Sizing and label preferences are wired, and both Compose hosts now load bundled
-> issuer artwork; runtime visual/accessibility parity still needs validation. The desktop shipping UI remains Swing.
->
-> Sandbox gates type-check the actual Activity-to-Compose integration and exercise its publication
-> lifecycle with recording stubs. **No real Gradle Android build or device rendering validation has
-> been performed.** This is the display wiring cutover, not completion of all stage-2 exit criteria.
+## Current status — 2026-11-07
+
+**The desktop replacement is complete:** Compose is the default launcher/release target;
+Swing UI, its fallback tasks and Swing-specific tests were removed in PR #125 (merged at
+`3e8fb2700a5622f6c7e4062283190cf82ac7165d`). The `:desktop` module remains the shared engine
+and AWT artwork library, not a second UI. Android MainActivity uses the shared Compose cards
+with Activity chrome/dialogs still retained.
+
+The user reports a successful build and operation on a device. Platform, tested artifact/commit
+and workflow scope are not yet specified. This is recorded in the
+[validation ledger](compose-desktop-cutover.md); it does not establish all-platform or hardware
+coverage. Completing the migration does not require another Swing cutover.
+
+### Remaining work, separated by purpose
+
+| Work | Purpose / completion criterion |
+| --- | --- |
+| Validation record | Attach platform, tested artifact and exercised workflows to the successful user report; cover remaining release-matrix checks. |
+| Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose creation, deletion, HOTP counter advance and mOTP PIN updates use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
+| Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
+| OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
+| Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
+| Android legacy renderer cleanup | Retire remaining old renderer fixtures/XML only after preserving necessary regression coverage; complete visual/accessibility checks. |
+| Remaining preferences/shared-UI parity | Audit the supported settings and platform chrome against the intended release scope rather than assuming complete parity. |
+
+Feature additions may be deferred explicitly for a scoped release. Release checks (backup/restore,
+lock behavior, native integration, accessibility and packaging on supported platforms) need
+recorded evidence or explicit limitations; they are not interchangeable with sandbox typechecks.
+
+## Historical migration journal
+
+**Everything below records earlier implementation stages, not current release status.** In
+particular, past statements that Swing is shipping, authentication editing is absent, or no
+build/device test has occurred describe those stages only. The current-status section above and
+the linked ledger supersede those statements. The original design and incremental notes are
+retained for traceability rather than presented as a current task list.
 
 ## Why unify
 
@@ -1795,3 +1816,216 @@ A new source guard forbids Swing imports and verifies the sole host/library boun
 This user-requested removal is not proof of feature parity or runtime validation. Existing
 release/runtime/device gaps remain in the cutover ledger. Rollback needs a prior release and
 backup, not an in-tree fallback. No vault-format migration is included.
+
+### Detached worker-save prerequisite (not production integration)
+
+DesktopDetachedSave clones entries and owns an exportable AES key snapshot before scheduling
+a worker write. The worker never accesses live entries; snapshot entries and key bytes are
+destroyed before result delivery on success or failure. Closing cancels queued work and suppresses
+late delivery without interrupting a started write. A rejected UI dispatch leaves the owner busy
+(fail closed); a scheduling rejection frees the snapshot. Lifetime guards run on the UI thread,
+including a second check after snapshotting and before completion. Snapshotting remains synchronous.
+
+Tests cover detached mutation, actual save/reopen, duplicate submission, queued/in-flight closure,
+exceptions, expiry, throwing/reentrant guards and rejected scheduling/delivery. This component is
+not connected to production mutation paths. A window-level coordinator must serialize writes
+across sessions/rekeys and own result adoption/rollback before any existing save moves off-thread.
+Closing the component alone is NOT a write-completion signal or permission for another writer.
+No UI responsiveness improvement or new device test is claimed by this prerequisite.
+
+### Shared write lease for detached saves
+
+DesktopWriteGate provides one thread-safe lease across save owners. DesktopDetachedSave now
+acquires it before snapshotting, releases canceled/unstarted work immediately, and holds started
+work until worker completion plus UI acknowledgement. Closing a running owner does not release
+the lease until its worker returns. Old leases cannot release a newer owner's lease. Rejected
+UI dispatch or a throwing adoption callback retains the lease (fail closed); an adoption failure
+requires terminal coordinator recovery rather than blindly permitting another write.
+
+Tests cover multiple save owners, queued cancellation, closure inside persistence, normal UI
+adoption, stale lease calls, failed scheduling, expired snapshots and rejected delivery/adoption.
+The gate has no UI callbacks and is not a process-wide or cross-process filesystem lock. Production
+mutation/rekey/unlock paths do not yet consult it: the window must supply one shared instance to
+all participating paths before background saves are enabled. This is groundwork, not a claim
+that synchronous UI saves have been migrated or that device testing was performed.
+
+### Controller-owned vault access gate
+
+VaultController now owns a single DesktopWriteGate for synchronous save, create, password open,
+hardware-key unlock and rekey. Conflicting calls fail without entering storage (false for saves,
+existing IO_FAILURE session outcome otherwise). Creation performs its internal reopen under the
+same lease rather than recursively acquiring. Synchronous exceptions release the lease. A new
+controller factory creates detached-save owners with this same gate and an internal write callback
+that avoids recursive acquisition. Tests cover real snapshot save/reopen, rejection of every
+competing operation through UI acknowledgement, multiple detached owners, queued cancellation,
+creation's nested-open behavior and exception cleanup.
+
+This is per-controller coordination, not a cross-process lock. Preference writes and hardware
+enrollment records are outside this vault-data gate. Production saves still run synchronously;
+window-level busy/error presentation, normal-close blocking, candidate adoption and rollback are
+still required before any UI mutation uses the detached factory. No runtime/device test is claimed.
+
+### Window admission during pending vault writes
+
+The Compose window now checks live controller persistence status before normal close, password
+or hardware unlock submission/result adoption, rekey opening/submission and hardware enrollment
+opening/submission. A blocked action displays a wait notice, without claiming the write failed or
+retrying it automatically. Rejected hardware PIN submissions wipe the transferred array; loaded
+unlock results rejected at adoption are discarded through the existing owned-result cleanup.
+Manual/idle lock remains available. The unlock screen is not conditionally removed based on its
+own storage lease, which would cancel its in-flight operation during recomposition.
+
+Source guards verify these host boundaries and sandbox Compose compilation passes; real modal
+interaction/device validation is not asserted. The controller gate remains the storage backstop
+if busy status changes after a UI check. Final UI saves remain synchronous: safe candidate adoption,
+rollback and terminal-failure recovery are still prerequisites to background transaction wiring.
+
+### Save-before-adopt deletion transaction
+
+DesktopEntryDeletion prepares a detached candidate without the target, destroys the removed
+clone, and persists through DesktopDetachedSave. The live entry is not removed until the worker
+succeeds and UI authority remains valid. A failed save leaves the original list intact and allows
+retry, so no optimistic rollback is needed. Changed list identity/order or expired authority
+locks rather than applying the result to a different live list. Closing a pending transaction
+locks because an already-started disk write cannot be undone. The host must close the owner on
+session disposal and prevent every other mutation while busy. The later content-fingerprint hardening below
+also detects in-place changes before result adoption.
+
+Tests cover actual save/reopen, unchanged live state before delivery, failure/retry, duplicate
+submission, changed/expired sessions and queued cancellation. Candidate preparation is UI-thread
+work; encryption/storage run on the worker. This controller is NOT yet connected to the Compose
+delete dialog, so production deletion remains synchronous. Busy-state presentation, lifetime
+disposal wiring and terminal-failure recovery remain required before enabling it.
+
+### Deletion content-baseline hardening
+
+The deletion transaction now compares serialized-content SHA-256 fingerprints as well as
+entry identity and list order. In-place edits to either the removed target or a retained entry
+therefore reject late adoption and lock the session, rather than leaving disk and memory with
+different entry metadata. Current OTP refreshes do not alter persisted JSON and remain allowed.
+Digest buffers and temporary UTF-8 bytes are wiped; the baseline releases entry references on
+completion, rejection and close. Immutable JSON strings cannot be guaranteed zeroized. These
+fingerprints are private ephemeral comparison values, not logged/exported identifiers.
+
+Tests cover in-place edits to both target/retained entries and an ordinary OTP refresh. This
+adds UI-thread serialization work and is a correctness backstop, not a substitute for disabling
+mutations while busy. The Compose delete dialog is still synchronous; no new device test or
+responsiveness improvement is claimed in this increment.
+
+### First production background transaction: deletion
+
+Compose's delete confirmation now submits DesktopEntryDeletion using the controller-owned
+detached worker on the session export executor. Before submission it terminally closes other
+session form/import/export/clipboard/move owners, so pending callbacks cannot perform competing
+mutations. The normal vault screen and dialogs are replaced by a progress/result panel. The
+confirmation explains that a fresh unlock is required afterwards; successful/failed completion
+never silently restores the terminal session owners. The failure notice recommends inspecting
+the reopened vault rather than asserting that no disk change occurred.
+
+Lifetime/input tracking and the clock remain composed during progress. Locking or disposal
+closes the deletion owner, cancels queued work and suppresses adoption; started writes finish
+under the controller gate. Normal window close/unlock/rekey admission uses the existing gate.
+A retained reference closes the owner during presenter lock; close is idempotent. Move callbacks
+now have terminal close semantics as well. Source guards cover host wiring/order and a unit test
+checks old move callbacks cannot write after close. Existing deletion tests cover real save/reopen
+and failure/cancellation. This conservative UX does not yet support remaining unlocked after a
+background delete, and other final UI saves remain synchronous. Native modal/device testing of
+this new path remains pending.
+
+### Background completion recovery
+
+Detached saves now retain their task reference until the completion callback returns and the
+lease is acknowledged. A throwing UI callback still fails closed, but explicit session
+lock/disposal can find and abandon the finished task rather than leaving an unreachable lease
+that permanently rejects unlock. Rejected dispatch follows the same recoverable ownership rule.
+Tests assert the gate remains held before recovery and releases on close, then perform a real
+delete/save/reopen round trip after a throwing completion. This does not roll back a completed
+write or automatically retry it. Normal success and worker-in-flight close semantics remain
+unchanged. Native UI/device validation of this path is still pending.
+
+### Background HOTP counter confirmation
+
+The deletion owner is generalized as DesktopEntryTransaction with DELETE and ADVANCE_COUNTER
+operations. Counter advancement mutates only the detached candidate, persists first and adopts
+the increment only after successful delivery with the unchanged-content/lifetime checks. A
+failed save leaves the live counter intact. Non-HOTP entries, negative/exhausted counters and
+duplicate submissions are rejected. The UI uses the same quiesced progress/result screen and
+fresh-unlock requirement as deletion, with an explicit synchronization warning before confirmation.
+
+Tests verify actual counter save/reopen, unchanged live counter until delivery, exactly-once
+submission, failure preservation and invalid-target/overflow rejection. Existing deletion and
+late-result/cleanup tests remain. Other final UI saves, including PIN submission and copy-related
+usage persistence, remain synchronous. Native UI/device testing of this new path is pending.
+
+### Background mOTP PIN submission
+
+The shared entry transaction now supports mOTP PIN updates. Submit consumes a CharArray, rejects
+invalid/wrong-type input without scheduling, writes only a detached candidate first and changes
+the live PIN only after successful authorized delivery. The owned buffer is wiped on rejection,
+save failure/success and disposal. Entry/JSON immutable PIN strings remain subject to JVM
+zeroization limitations. Duplicate attempts wipe their own input without replacing the pending PIN.
+
+Compose routes the PIN dialog through this transaction and the existing quiesced progress/result
+screen; its title states the fresh-unlock requirement. Tests cover real save/reopen, no early live
+mutation, failure/cancellation cleanup, duplicate attempts and invalid/wrong-type rejection.
+Other editing/import/copy-related saves remain synchronous. Real native UI/device validation of
+this path remains pending; no hardware-authenticator PIN flow is changed by this increment.
+
+### Entry-dialog synchronous handler retirement
+
+Removed DesktopEntryDialogActions and the unused host fallback now that delete, HOTP advance
+and mOTP PIN submission all use DesktopEntryTransaction. PIN cannot be submitted through the
+confirmation-only callback. Source guards now verify candidate-worker routing rather than the
+retired synchronous handler. Its tests are retired; existing transaction retry, ownership and
+stale-state tests remain, and new tests exercise a real DesktopSessionLifetime across all three
+operations with queued workers/UI callbacks. Actual save/reopen verifies completed disk changes
+remain committed after deadline lock, while false/throwing write outcomes cannot publish an
+expired failure. PIN buffers and shared gate release are checked after disposal.
+
+The reduced desktop test count reflects replacement of four obsolete synchronous tests with
+two matrix tests, not loss of the production deadline checks. No changes to other synchronous
+editing/import/copy save paths or new native-device validation are claimed.
+
+### Background entry addition prerequisite
+
+DesktopEntryTransaction now supports ADD via submitNew, which clones and validates a caller-owned
+draft, rejects an equal existing entry before scheduling, persists a detached candidate and
+transfers its owned draft into live state only after successful authorized completion. The
+caller retains its input on every outcome; failed/canceled copies are destroyed. Direct ADD
+submission without an owned draft is rejected. Existing list/content/lifetime checks apply.
+
+Tests cover actual save/reopen with caller destruction before worker execution, no early live
+insertion, failure/retry, cancellation and duplicate/unowned rejection. Creation forms are NOT
+yet wired to this API; the transaction result wording is prepared for subsequent host integration.
+Existing delete/counter/PIN confirmations remain the production background-save paths. No new
+native UI or device-validation claim is made.
+
+### Production background creation wiring
+
+Manual and email creation now use identity-bound prepare/prepareEmail handoff methods. They
+validate input, recheck lifetime/request identity and reject duplicates before consuming the
+request. A callback receives a borrowed draft that is always destroyed afterwards, including
+when the callback throws; the background transaction makes its own copy. Reentrant/double
+submissions cannot reuse consumed authority. Invalid/duplicate input remains editable in the form.
+
+The host hands accepted drafts to submitNew after closing other session owners and displays the
+same progress/result and fresh-unlock flow as other background mutations. Both creation forms
+show the host-provided notice before submission. No synchronous EntryEditor.add callback remains
+in the production creation wiring. Tests cover real email credential save/reopen through this
+handoff, borrowed-draft cleanup, invalid/duplicate/expired/stale requests and throwing callbacks.
+Other editing/import/copy-related persistence remains synchronous; native modal/device testing
+of this new creation workflow is pending.
+
+### Background replacement prerequisite
+
+DesktopEntryTransaction supports REPLACE through submitReplacement. It copies and validates the
+caller-owned replacement, requires exact live target identity, rejects duplicates against other
+entries and substitutes only an owned worker clone in the candidate list. Successful delivery
+replaces the original at its current position and preserves its list id, then destroys the old
+entry. Failed writes leave the original and caller draft untouched. Stale identity/content or
+expired authority follows the existing lock-and-reopen policy.
+
+Tests cover actual save/reopen, unchanged live entry before delivery, position/id preservation,
+old-secret destruction, duplicate/stale target rejection, caller ownership on failure and an
+intervening in-place edit. Editing forms are not yet connected; this is transaction groundwork,
+not a new production background edit flow or native/device validation result.
