@@ -494,8 +494,9 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## App version
 
-The Android app's displayed version is its build timestamp in UTC: `VYYYY-MM-DD-HH-MM`
-(for example, `V2026-11-16-11-38`). It is embedded at build time, not calculated when the
+The Android app's displayed version in **About → Version** is its build timestamp in AKST (UTC−09:00): `VYYYY-MM-DD-HH-MM`
+(for example, `V2026-11-16-11-38`). AKST is used year-round, without switching to AKDT
+in summer. It is embedded at build time, not calculated when the
 app opens. All APK variants use the same format, without `-dev` or `-play` suffixes;
 variant application IDs and signing remain unchanged.
 

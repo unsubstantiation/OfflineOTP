@@ -1,4 +1,4 @@
-// Capture once per Gradle invocation, never at app launch. UTC avoids runner-local time zones.
+// Capture once per Gradle invocation, never at app launch. Use fixed AKST (UTC-09:00), independent of runner time zone or daylight saving.
 // SOURCE_DATE_EPOCH (Unix seconds) lets reproducible builds use the same explicit timestamp.
 def epochText = providers.environmentVariable('SOURCE_DATE_EPOCH').orNull
 def buildInstant
@@ -14,5 +14,5 @@ if (minuteCode <= 39 || minuteCode > 2100000000L) {
     throw new GradleException('Build timestamp is outside the supported Android version-code range')
 }
 ext.buildDateVersion = java.time.format.DateTimeFormatter.ofPattern("'V'uuuu-MM-dd-HH-mm")
-        .withZone(java.time.ZoneOffset.UTC).format(buildInstant)
+        .withZone(java.time.ZoneOffset.ofHours(-9)).format(buildInstant)
 ext.buildDateVersionCode = (int) minuteCode
