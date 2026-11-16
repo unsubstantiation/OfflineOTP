@@ -36,9 +36,12 @@ struct EntryEditorView: View {
     @State private var timing = "30"
     @State private var algorithm: OtpHashAlgorithm = .sha1
     @State private var pin = ""
+    @State private var clearPin = false
+    @State private var clearHiddenLabel = false
     @State private var tags = ""
     @State private var errorText: String?
     @State private var loaded = false
+    @State private var openingGeneration: Int?
     @State private var originalEntry: Entry?
     @State private var thumbnail = ""
 
@@ -54,7 +57,7 @@ struct EntryEditorView: View {
                     if existing == nil || existing?.kind?.isOtp == true {
                         Picker("Type", selection: Binding(get: { kind }, set: { newKind in
                             guard newKind != kind else { return }
-                            kind = newKind; secret = ""; pin = ""
+                            kind = newKind; secret = ""; pin = ""; clearPin = false
                             digits = newKind == .steam ? "5" : "6"
                             timing = newKind == .hotp ? "0" : "30"
                             algorithm = .sha1
@@ -69,7 +72,8 @@ struct EntryEditorView: View {
                     TextField("Issuer", text: $issuer)
                     TextField(kind == .note ? "Title" : "Label", text: $label)
                     if kind.isOtp {
-                        TextField("Hidden Label", text: $hiddenLabel)
+                        if existing != nil { Toggle("Remove stored Hidden Label", isOn: $clearHiddenLabel) }
+                        if !clearHiddenLabel { TextField("Hidden Label", text: $hiddenLabel) }
                     }
                 }
 
@@ -155,8 +159,10 @@ struct EntryEditorView: View {
 
                 if kind == .motp {
                     Section {
-                        TextField("PIN", text: $pin)
-                            .keyboardType(.numberPad)
+                        if existing != nil { Toggle("Remove stored PIN", isOn: $clearPin) }
+                        if !clearPin {
+                            TextField("PIN", text: $pin).keyboardType(.numberPad)
+                        }
                     } footer: {
                         Text("mOTP rolls over every 10 seconds, whatever period the entry stores. "
                              + "Without a PIN the entry shows PINREQ instead of a code.")
@@ -241,6 +247,7 @@ struct EntryEditorView: View {
     private func prefill() {
         guard !loaded else { return }
         loaded = true
+        openingGeneration = store.generation
         guard let existing, let existingKind = existing.kind,
               EntryDraft.offerableKinds.contains(existingKind) else {
             kind = EntryDraft.offerableKinds.contains(initialKind) ? initialKind : .totp
@@ -291,7 +298,11 @@ struct EntryEditorView: View {
     }
 
     private func save() {
-        if index != nil && existing != originalEntry {
+        guard store.isUnlocked, openingGeneration == store.generation else {
+            errorText = "The session changed. Close and reopen this form."
+            return
+        }
+        if index != nil && (existing?.fields != originalEntry?.fields || existing.map { !store.isRevealed($0) } != false) {
             errorText = "The entry changed while this editor was open. Close and reopen it."
             return
         }
@@ -317,12 +328,12 @@ struct EntryEditorView: View {
                 kind: kind,
                 issuer: issuer.trimmingCharacters(in: .whitespacesAndNewlines),
                 label: label,
-                hiddenLabel: kind.isOtp ? hiddenLabel : "",
+                hiddenLabel: kind.isOtp && !clearHiddenLabel ? (hiddenLabel.isEmpty ? existing?.hiddenLabel ?? "" : hiddenLabel) : "",
                 secret: typedSecret,
                 digits: digits,
                 timing: timing,
                 algorithm: algorithm,
-                pin: pin,
+                pin: clearPin ? "" : (pin.isEmpty && existing?.kind == kind ? existing?.pin ?? "" : pin),
                 tags: splitTags(tags),
                 publicKey: typedPublic,
                 privateKey: typedPrivate,

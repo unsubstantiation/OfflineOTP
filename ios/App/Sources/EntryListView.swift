@@ -53,6 +53,8 @@ struct EntryListView: View {
         let id = UUID()
         let index: Int
         let name: String
+        let entry: Entry
+        let epoch: Int
     }
 
     var body: some View {
@@ -272,7 +274,8 @@ struct EntryListView: View {
 
     @ViewBuilder
     private func deletionActions(_ target: DeletionTarget) -> some View {
-        Button("Remove", role: .destructive) {
+        Button("Delete", role: .destructive) {
+            guard current(target.entry, at: target.index, epoch: target.epoch), store.isRevealed(target.entry) else { return }
             if !store.remove(at: target.index) {
                 show(store.message ?? "The entry could not be removed.")
             }
@@ -307,37 +310,45 @@ struct EntryListView: View {
                 List {
                     ForEach(Array(indices.enumerated()), id: \.element) { displayedPos, index in
                         let entry = store.entries[index]
+                        let displayed = store.displayEntry(entry)
+                        let epoch = store.generation
                         EntryRowView(
-                            entry: entry,
-                            code: store.code(for: entry, at: context.date),
+                            entry: displayed,
+                            code: try? entry.code(unixTime: Int64(context.date.timeIntervalSince1970)),
                             now: context.date,
-                            onCopy: { code in copy(code, from: index) },
-                            onCopyNamed: { secret, itemName in copySecret(secret, label: itemName, from: index) },
-                            onReveal: { reveal(index) },
-                            onStep: { step(at: index) },
-                            onDetails: { openDetails(at: index) }
+                            onCopy: { code in if current(entry, at: index, epoch: epoch) { copy(code, from: index) } },
+                            onCopyNamed: { secret, itemName in if current(entry, at: index, epoch: epoch) { copySecret(secret, label: itemName, from: index) } },
+                            onReveal: { if current(entry, at: index, epoch: epoch) { reveal(index) } },
+                            onStep: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { step(at: index) } },
+                            onDetails: { openDetails(at: index) },
+                            onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { editor = EditorTarget(index: index) } },
+                            onDelete: {
+                                guard current(entry, at: index, epoch: epoch), store.isRevealed(entry) else { return }
+                                deletion = DeletionTarget(index: index, name: VaultStore.displayName(entry), entry: entry, epoch: epoch)
+                            }
                         )
                         .moveDisabled(!store.canReorder)
                         .listRowBackground(ForestPalette.surface)
                         .contextMenu {
                             EntryMenu(
-                                entry: entry,
-                                onCopy: { code in copy(code, from: index) },
-                                onCopyNamed: { secret, itemName in copySecret(secret, label: itemName, from: index) },
-                                onReveal: { reveal(index) },
-                                onStep: { step(at: index) },
-                                onEdit: { editor = EditorTarget(index: index) },
+                                entry: displayed,
+                                onCopy: { code in if current(entry, at: index, epoch: epoch) { copy(code, from: index) } },
+                                onCopyNamed: { secret, itemName in if current(entry, at: index, epoch: epoch) { copySecret(secret, label: itemName, from: index) } },
+                                onReveal: { if current(entry, at: index, epoch: epoch) { reveal(index) } },
+                                onStep: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { step(at: index) } },
+                                onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { editor = EditorTarget(index: index) } },
                                 onEditPassword: { passwordEditTarget = IndexedTarget(index: index) },
                                 onExportCsv: {
                                     guard store.entries.indices.contains(index) else { return }
                                     exportBrowserPasswords([store.entries[index]])
                                 },
-                                onTags: { tagTarget = IndexedTarget(index: index) },
+                                onTags: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { tagTarget = IndexedTarget(index: index) } },
                                 onDetails: { openDetails(at: index) },
-                                onQr: { showQr(at: index) },
+                                onQr: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { showQr(at: index) } },
                                 onDelete: {
+                                    guard current(entry, at: index, epoch: epoch), store.isRevealed(entry) else { return }
                                     deletion = DeletionTarget(index: index,
-                                                              name: VaultStore.displayName(entry))
+                                                              name: VaultStore.displayName(entry), entry: entry, epoch: epoch)
                                 })
                         }
                     }
@@ -410,27 +421,35 @@ struct EntryListView: View {
         }
     }
 
+    private func current(_ expected: Entry, at index: Int, epoch: Int) -> Bool {
+        store.isUnlocked && store.generation == epoch && store.entries.indices.contains(index)
+            && store.entries[index].fields == expected.fields
+    }
+
     private func copy(_ code: String, from index: Int) {
-        // A copy is a use: the stamp and the counter **Last used** and **Most used** read, exactly as
-        // on the other clients.
-        if !store.recordUse(at: index) {
-            show(store.message ?? "The code was copied, but its use could not be recorded.")
+        guard store.isUnlocked, store.entries.indices.contains(index),
+              let fresh = try? store.entries[index].code(unixTime: Int64(Date().timeIntervalSince1970)),
+              fresh != Entry.motpNoPinCode else { return }
+        guard store.recordUse(at: index), store.isUnlocked else {
+            show(store.message ?? "Token not copied: the vault could not be saved.")
+            return
         }
-        Clipboard.copy(code)
-        show("Code copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
+        Clipboard.copy(fresh)
+        show("Token copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
     }
 
     private func copySecret(_ secret: String, label: String, from index: Int) {
-        _ = store.recordUse(at: index)
+        guard store.isUnlocked, store.entries.indices.contains(index),
+              store.recordUse(at: index), store.isUnlocked else {
+            show(store.message ?? "Not copied: the vault could not be saved.")
+            return
+        }
         Clipboard.copy(secret)
         show("\(label) copied — the clipboard clears in \(Int(Clipboard.expirySeconds)) s")
     }
 
     private func reveal(_ index: Int) {
-        let visible = store.entries[index].detailsVisible
-        if !store.setDetailsVisible(at: index, !visible) {
-            show(store.message ?? "The change could not be saved, so the entry stays concealed.")
-        }
+        store.toggleReveal(at: index)
     }
 
     private func showQr(at index: Int) {
@@ -638,8 +657,8 @@ struct SortMenu: View {
 
 /// One entry: who it is for, its code in amber, and the countdown that says how long it lasts.
 ///
-/// A concealed entry shows no code and offers no copy — the rule both other clients apply by gating
-/// the copy button on `details_visible`. Its issuer and label stay visible, because they are what
+/// A concealed entry masks its content but still offers explicit token/note copying;
+/// edit and delete remain reveal-gated. Its issuer and label stay visible, because they are what
 /// identifies the row a person is trying to reveal.
 struct EntryAvatarView: View {
     let text: String
@@ -672,6 +691,8 @@ struct EntryRowView: View {
     let onReveal: () -> Void
     let onStep: () -> Void
     var onDetails: () -> Void = {}
+    var onEdit: () -> Void = {}
+    var onDelete: () -> Void = {}
 
     private var kindName: String { entry.kind?.rawValue ?? "ENTRY" }
 
@@ -736,6 +757,17 @@ struct EntryRowView: View {
                     .background(ForestPalette.surfaceVariant)
                     .cornerRadius(8)
             }
+            if entry.detailsVisible && (entry.kind?.isOtp == true || entry.kind == .note) {
+                HStack {
+                    if entry.kind?.isOtp == true, let code, code != Entry.motpNoPinCode {
+                        Button("Copy Token") { onCopy(code) }
+                    }
+                    Button("Hide", action: onReveal)
+                    Button("Edit", action: onEdit)
+                    Button("Delete", role: .destructive, action: onDelete)
+                    if entry.kind == .hotp { Button("Next code", action: onStep) }
+                }.buttonStyle(.bordered)
+            }
         }
         .padding(.vertical, 6)
     }
@@ -752,11 +784,16 @@ struct EntryRowView: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Reveal \(title)")
-            .accessibilityHint("Shows the code and lets it be copied")
+            .accessibilityHint("Shows entry details")
+            if entry.kind?.isOtp == true, let code, code != Entry.motpNoPinCode {
+                Button("Copy Token") { onCopy(code) }.buttonStyle(.bordered)
+            } else if entry.kind == .note, let note = entry.noteText {
+                Button("Copy") { onCopyNamed(note, "Note") }.buttonStyle(.bordered)
+            }
         } else if entry.kind?.isOtp == true, let code {
             HStack(spacing: 8) {
                 Button {
-                    if entry.kind == .hotp { onStep() } else { onCopy(code) }
+                    onCopy(code)
                 } label: {
                     Text(CodeFormat.grouped(code))
                         .font(.system(.title3, design: .monospaced).weight(.semibold))
@@ -767,12 +804,16 @@ struct EntryRowView: View {
                 .buttonStyle(.plain)
                 // The action, then how the code actually sounds, then how long it has left: read as
                 // one character at a time so it can be typed into another client.
-                .accessibilityLabel(entry.kind == .hotp ? "Next code" : "Copy code")
+                .accessibilityLabel("Copy Token")
                 .accessibilityValue(accessibilityCode(code))
-                .accessibilityHint(entry.kind == .hotp
-                                   ? "Steps the counter to the next code"
-                                   : "Copies the code; the clipboard clears after "
-                                     + "\(Int(Clipboard.expirySeconds)) seconds")
+                .accessibilityHint("Copies the token; the clipboard clears after \(Int(Clipboard.expirySeconds)) seconds")
+                if (entry.kind == .totp || entry.kind == .steam), entry.period > 0,
+                   let previous = try? entry.code(unixTime: Int64(now.timeIntervalSince1970) - Int64(entry.period)) {
+                    Text(CodeFormat.grouped(previous))
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(ForestPalette.otpAmberMuted)
+                        .accessibilityLabel("Previous token")
+                }
                 if entry.kind != .hotp {
                     CountdownRing(fraction: fraction, soon: soon)
                 }
@@ -891,19 +932,19 @@ struct EntryMenu: View {
     }
 
     var body: some View {
-        Button(entry.detailsVisible ? "Conceal" : "Reveal", action: onReveal)
-        if entry.detailsVisible, entry.kind?.isOtp == true {
-            Button("Copy code") {
+        Button(entry.detailsVisible ? "Hide" : "Reveal", action: onReveal)
+        if entry.kind?.isOtp == true {
+            Button("Copy Token") {
                 if let code = try? entry.code(unixTime: Int64(Date().timeIntervalSince1970)) {
                     onCopy(code)
                 }
             }
-            if entry.kind == .hotp {
+            if entry.kind == .hotp && entry.detailsVisible {
                 Button("Step counter", action: onStep)
             }
         }
-        if entry.detailsVisible, entry.kind == .note, let note = entry.noteText {
-            Button("Copy note") { onCopyNamed(note, "Note") }
+        if entry.kind == .note, let note = entry.noteText {
+            Button("Copy") { onCopyNamed(note, "Note") }
         }
         if entry.detailsVisible, entry.kind == .sshKey, let keys = try? entry.sshKeys() {
             if !keys.publicKey.isEmpty {
@@ -945,8 +986,9 @@ struct EntryMenu: View {
             .disabled(!editable)
         Button("Tags…", action: onTags)
             .disabled(!entry.detailsVisible)
-        Button("Remove…", role: .destructive, action: onDelete)
-            .disabled(!entry.detailsVisible)
+        if entry.detailsVisible {
+            Button("Delete", role: .destructive, action: onDelete)
+        }
     }
 }
 

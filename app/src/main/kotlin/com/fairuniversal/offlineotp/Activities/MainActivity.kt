@@ -460,11 +460,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             if (actionId == R.id.fabScanQR)
                 scanQRCode()
             else if (actionId == R.id.fabEnterDetails)
-                ManualEntryDialog.show(this, settings!!, adapter!!)
+                showSharedCreation()
             else if (actionId == R.id.fabAddSecureNote)
-                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.NOTE)
+                showSharedCreation(Entry.OTPType.NOTE)
             else if (actionId == R.id.fabAddSshKey)
-                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
+                showSharedCreation(Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabImportPasswords)
                 choosePasswordImport()
             else if (actionId == R.id.fabExportPasswords)
@@ -579,7 +579,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             when (intentAction) {
                 INTENT_SCAN_QR -> scanQRCode()
                 INTENT_IMPORT_QR -> showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
-                INTENT_ENTER_DETAILS -> ManualEntryDialog.show(this, settings!!, adapter!!)
+                INTENT_ENTER_DETAILS -> showSharedCreation()
                 Intent.ACTION_VIEW -> {
                     if (GoogleAuthenticatorMigration.isMigration(intentData)) {
                         addMigrationQRCode(intentData)
@@ -1298,6 +1298,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
         adapter?.updateTimeBasedTokens()
         publishComposeVault()
+    }
+
+    private fun showSharedCreation(type: Entry.OTPType = Entry.OTPType.TOTP) {
+        publishComposeVault()
+        adapter?.openSharedCreation(type)
     }
 
     /** Publish one shared frame. The existing Activity owns search/tabs/drawer and the tick. */

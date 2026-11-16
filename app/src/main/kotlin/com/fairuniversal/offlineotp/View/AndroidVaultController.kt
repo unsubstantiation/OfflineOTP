@@ -96,6 +96,32 @@ class AndroidVaultController(
         }
     }
 
+    fun openSharedCreation(type: Entry.OTPType = Entry.OTPType.TOTP): Boolean {
+        val view = composeEditorView ?: return false
+        if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return false
+        val generation = VaultSession.generation()
+        val initial = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput(type = type)
+        composeEditTarget = null
+        view.showEntryEditor(initial, editing = false) { input ->
+            synchronized(VaultSession.MutationLock) {
+                if (!view.ownsEntryEditor(initial) || !VaultSession.isCurrent(generation) ||
+                    encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
+                    view.clearEntryEditor(); "The session changed."
+                } else {
+                    val draft = try { input.build() } catch (_: IllegalArgumentException) { null }
+                    if (draft == null) "Invalid entry. Check the fields and re-enter cleared credentials."
+                    else {
+                        val category = EntryListPresentation.categoryOf(draft)
+                        val saved = importEntries(arrayListOf(draft))
+                        if (saved?.added == 1) { setCategory(category); null }
+                        else "Entry not added (duplicate or save failure). Re-enter cleared credentials to retry."
+                    }
+                }
+            }
+        }
+        return true
+    }
+
     private fun openSharedEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
         if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote())) return false
@@ -775,10 +801,38 @@ class AndroidVaultController(
             else if (selected.isNote()) selected.getNote()
             else text.ifEmpty { selected.getCurrentOTP() ?: "" }
         if (otp.isEmpty()) return
+        if (!recordCopyUse(selected)) {
+            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+            return
+        }
         Tools.copyToClipboard(context, otp)
-        updateLastUsedAndFrequency(position, getRealIndex(position))
         if (dropToBackground) {
             (context as? MainActivity)?.moveTaskToBack(true)
+        }
+    }
+
+    /** Persist usage before publishing secrets, matching the desktop copy transaction. */
+    private fun recordCopyUse(selected: Entry): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            val key = encryptionKey ?: return false
+            val generation = VaultSession.generation()
+            if (VaultSession.getKey() !== key || entries.getEntries().none { it === selected }) return false
+            val used = System.currentTimeMillis()
+            val candidate = ArrayList<Entry>()
+            try {
+                entries.getEntries().forEach { entry ->
+                    candidate.add(Entry(entry.toJSON()).also { if (entry === selected) EntryUsage.recordUse(it, used) })
+                }
+                val result = persistence.save(candidate, key, false,
+                    UiBasedBackgroundTask.OutcomeCallback { outcome -> handleBackupOutcome(outcome) })
+                if (result is VaultWriteResult.RecoveryRequired) { lockEntries(); return false }
+                if (result !is VaultWriteResult.Saved || !VaultSession.isCurrent(generation) ||
+                    VaultSession.getKey() !== key || entries.getEntries().none { it === selected }) return false
+                EntryUsage.recordUse(selected, used)
+                if (presentation.resortAfterUsage()) notifyDataSetChanged() else notifyEntryChanged(selected)
+                return true
+            } catch (_: Exception) { return false }
+            finally { candidate.forEach { it.destroy() } }
         }
     }
 

@@ -6270,8 +6270,20 @@ fun main() {
         try {
             val frame = controller.composeFrame(60_000L, strings)!!
             view.render(frame.state)
-            expect(frame.perform(note.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "shared edit rejected" })
             val getter = view.javaClass.getDeclaredMethod("getEditor").apply { isAccessible = true }
+            expect(controller.openSharedCreation(Entry.OTPType.NOTE), { "shared creation rejected" })
+            val creation = getter.invoke(view)!!
+            expect(creation.javaClass.getDeclaredField("editing").apply { isAccessible = true }.get(creation) == false,
+                { "creation opened edit-only form" })
+            @Suppress("UNCHECKED_CAST")
+            val add = creation.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(creation)
+                as (com.fairuniversal.offlineotp.ui.vault.ManualEntryInput) -> String?
+            val draft = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput(type = Entry.OTPType.NOTE, label = "new", secret = "new body")
+            expect(add(draft) != null, { "missing vault reported creation success" })
+            expect(source.getEntries().size == 1, { "failed creation adopted a draft" })
+            view.clearEntryEditor()
+            expect(add(draft) != null, { "dismissed creation retained authority" })
+            expect(frame.perform(note.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "shared edit rejected" })
             val editor = getter.invoke(view)!!
             val initial = editor.javaClass.getDeclaredField("initial").apply { isAccessible = true }.get(editor)
                 as com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
@@ -6315,15 +6327,11 @@ fun main() {
             initial.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL)
             val hidden = controller.composeFrame(System.currentTimeMillis(), strings)!!
             expect(hidden.state.cards.single().copyable && !hidden.state.cards.single().tokenVisible, { "hidden OTP not copyable" })
-            val reference = Entry(entry.toJSON())
-            try {
-                expect(hidden.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY), { "copy rejected" })
-                reference.updateOTP(false)
-                expect(clipboard.clips.single().text.toString() in listOf(reference.getCurrentOTP(), reference.getPrevOTP()), { "wrong clipboard token" })
-                // This fixture has no disk vault: usage-save failure may lock it, never reveal it.
-                val after = controller.composeFrame(System.currentTimeMillis(), strings)
-                expect(after == null || after.state.cards.none { it.revealed }, { "copy revealed OTP on screen" })
-            } finally { reference.destroy() }
+            expect(hidden.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY), { "copy dispatch rejected" })
+            // No disk vault exists in this fixture: failed usage persistence must not publish.
+            expect(clipboard.clips.isEmpty(), { "clipboard published despite failed usage save" })
+            expect(!controller.composeFrame(System.currentTimeMillis(), strings)!!.state.cards.single().revealed,
+                { "copy revealed OTP on screen" })
         } finally { controller.lockEntries(); VaultSession.lock() }
     }
 

@@ -582,9 +582,25 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
 
+    def test_creation_and_copy_use_shared_forms_and_save_before_clipboard(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertNotIn("ManualEntryDialog.show(this", activity)
+        self.assertIn("showSharedCreation(Entry.OTPType.NOTE)", activity)
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("view.showEntryEditor(initial, editing = false)", controller)
+        self.assertIn("importEntries(arrayListOf(draft))", controller)
+        self.assertIn("if (!recordCopyUse(selected))", controller)
+        self.assertIn("candidate.forEach { it.destroy() }", controller)
+        row = (ROOT / "ios/App/Sources/EntryListView.swift").read_text()
+        self.assertIn('Button("Copy Token")', row)
+        self.assertIn('accessibilityLabel("Previous token")', row)
+        self.assertIn("store.recordUse(at: index), store.isUnlocked", row)
+        self.assertIn("current(target.entry, at: target.index, epoch: target.epoch)", row)
+        self.assertNotIn('Button("Copy code")', row)
+
     def test_android_otp_notes_share_desktop_edit_form_and_validation(self):
         view = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt").read_text()
-        self.assertIn("ManualEntryDialog(inputKey = request, initial = request.initial, editing = true", view)
+        self.assertIn("ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing", view)
         self.assertIn("if (editor === request)", view)
         self.assertIn("clearEntryEditor()", view)
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
@@ -596,7 +612,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         ios = (ROOT / "ios/App/Sources/EntryEditorView.swift").read_text()
         self.assertIn('kind == .note ? "Hidden Note"', ios)
         self.assertIn('Picker("Artwork"', ios)
-        self.assertIn("existing != originalEntry", ios)
+        self.assertIn("existing?.fields != originalEntry?.fields", ios)
         self.assertIn('existing.tags.joined(separator: "\\n")', ios)
         self.assertIn('text.split(separator: "\\n")', ios)
 

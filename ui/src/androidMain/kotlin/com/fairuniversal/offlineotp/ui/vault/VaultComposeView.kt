@@ -52,15 +52,15 @@ class VaultComposeView(
     private var renderedActions by mutableStateOf(host.actions)
 
     private var ended = false
-    private class Editor(val initial: ManualEntryInput, val submit: (ManualEntryInput) -> String?)
+    private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
     private var editor by mutableStateOf<Editor?>(null)
     private var editError by mutableStateOf<String?>(null)
 
     /** Uses the same form and draft validation as desktop; the host owns save authority. */
-    fun showEntryEditor(initial: ManualEntryInput, submit: (ManualEntryInput) -> String?) {
+    fun showEntryEditor(initial: ManualEntryInput, editing: Boolean = true, submit: (ManualEntryInput) -> String?) {
         if (ended) return
         editError = null
-        editor = Editor(initial, submit)
+        editor = Editor(initial, editing, submit)
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
@@ -85,7 +85,7 @@ class VaultComposeView(
         )
         val request = editor
         if (request != null) ForestTheme {
-            ManualEntryDialog(inputKey = request, initial = request.initial, editing = true,
+            ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing,
                 artwork = artwork, error = editError, onDismiss = { clearEntryEditor() },
                 onSubmit = { input ->
                     if (!ended && editor === request) {

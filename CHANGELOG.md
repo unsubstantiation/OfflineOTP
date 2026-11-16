@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * OTP/note parity follow-up: Reuse the shared Compose form for Android creation and existing guarded import persistence for adoption. Align Android/iOS copy ordering with desktop (save usage before clipboard). iOS gains session-only visibility, hidden token/note copying, previous TOTP/Steam display, inline reveal-gated editing/deletion and stale-entry/session checks; HOTP copy no longer advances the counter.
+
  * OTP/note editor consolidation: Android now uses the desktop Compose edit form and shared draft validation, including editable credentials, parameters, PIN removal, Hidden Note/Hidden Label, type and artwork. Add editor/session identity guards and dismissal cleanup. iOS gains OTP type/artwork editing, lossless newline-separated tags, consistent labels and stale-target rejection. Record remaining list/clipboard differences in docs/otp-note-parity-audit.md.
 
  * Note/OTP parity: Allow copying concealed notes on desktop; add Android Delete and show it only on revealed cards on both clients. Name the body Hidden Note in both editors and preload it for desktop editing. Desktop OTP editing now labels Hidden Label consistently and permits validated OTP-only type changes, with explicit secret re-entry when switching types.

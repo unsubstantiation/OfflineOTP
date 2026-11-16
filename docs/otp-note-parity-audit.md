@@ -30,28 +30,36 @@ source/test audit, not evidence of native UI or device execution.
 
 Android and all desktop builds now share the actual OTP/note edit UI, input model,
 validation and core `EntryDraft` construction. Their session/lifecycle adapters and
-persistence remain platform-specific. Android creation still uses its native dialog
-with the shared core builder; migrating creation to the same Compose form is a
-remaining consolidation task. iOS uses SwiftUI and its Swift `EntryDraft` port;
-it cannot directly reuse the Kotlin widget without a larger architectural change.
-Its catalog is generated from Kotlin and its formats have shared golden fixtures.
+persistence remain platform-specific. Android creation now also uses the shared form and
+`ManualEntryInput.build`, handing validated owned drafts to the existing guarded import/save
+transaction. QR/URI import keeps its separate existing import path. iOS uses SwiftUI and its
+Swift `EntryDraft` port; it cannot directly reuse Kotlin widgets. Its catalog is generated from
+Kotlin and format behavior is checked against shared golden fixtures.
 
-## Remaining inconsistencies found (not fixed by this editor increment)
+## Follow-up corrections
 
-1. iOS list visibility still uses persisted `detailsVisible`, unlike the new
-   Android/desktop session-only Hide/Reveal. Its context-menu OTP/note copy actions
-   still require visibility, and its OTP copy wording is still "Copy code".
-2. iOS does not display the previous OTP beside the current token. Android respects
-   its saved previous-token preference (default on); desktop defaults on.
-3. iOS Remove remains visible-but-disabled while concealed; Android/desktop hide
-   the Delete button. iOS also uses a context menu rather than the shared inline
-   actions. These should be changed together with visibility/copy authority checks.
-4. Android copy/usage persistence and desktop copy/usage persistence have different
-   failure ordering. A broader clipboard/session audit is needed before claiming
-   identical behavior under write failures. iOS list commands also rely on indices;
-   this increment only adds stale-target protection to the editor.
-5. Android and desktop edit persistence is still synchronous. Moving it to guarded
-   background transactions is separate from form parity.
+- iOS Hide/Reveal is now session-only; projected display entries carry visibility without
+  changing vault bytes. Session visibility survives usage saves and is cleared on lock.
+- Hidden OTPs and notes offer Copy Token/Copy without revealing their contents. iOS uses fresh
+  token calculation at copy time, displays the previous TOTP/Steam token when revealed, and
+  offers inline Hide/Edit/Delete controls. HOTP copying no longer advances its counter;
+  advancement remains an explicit action. Delete is absent while concealed.
+- iOS OTP/note callbacks check the original entry contents and session generation; deletion
+  confirmation rechecks these as well. Editor saves also recheck opening generation and all
+  stored fields, not merely duplicate-equivalence. Optional PIN/Hidden Label removal is explicit.
+- Android and iOS now require successful usage persistence before publishing copied OTP/note
+  contents, matching desktop. Android saves cloned candidates and only then adopts usage
+  metadata, rejecting stale sessions and recovery-required writes without copying.
+
+## Validation boundary and intentional platform differences
+
+Android/desktop edit saves remain synchronous on both platforms; moving these to background
+transactions is an outstanding performance task, not completed by this parity work. iOS uses
+native SwiftUI controls instead of Compose. Android retains an explicit user preference for
+previous-token display; all clients show it by default where applicable. mOTP and HOTP have no
+previous time-step token. Device accessibility, gesture behavior, actual clipboard integrations,
+and Xcode compilation still require native validation. The added Swift XCTest is not executed
+by the sandbox; Python guards only check wiring.
 
 Usage timestamps/counts, list identity and concealment metadata are preserved on
 edit, not exposed as user-configurable credentials. No vault/backup format changes

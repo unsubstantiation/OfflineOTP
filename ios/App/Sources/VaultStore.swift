@@ -28,6 +28,24 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var isUnlocked = false
     @Published public private(set) var hasVault = false
     @Published public private(set) var entries: [Entry] = []
+    @Published private var sessionVisibility: [Entry: Bool] = [:]
+
+    public func isRevealed(_ entry: Entry) -> Bool {
+        isUnlocked && (sessionVisibility[entry] ?? entry.detailsVisible)
+    }
+
+    public func displayEntry(_ entry: Entry) -> Entry {
+        var displayed = entry
+        displayed.setDetailsVisible(isRevealed(entry))
+        return displayed
+    }
+
+    public func toggleReveal(at index: Int) {
+        guard isUnlocked, entries.indices.contains(index) else { return }
+        let entry = entries[index]
+        sessionVisibility[entry] = !isRevealed(entry)
+    }
+
     /// A sentence for the lock screen or the list: a wrong password, a missing vault, a failed write.
     @Published public private(set) var message: String?
 
@@ -223,6 +241,7 @@ public final class VaultStore: ObservableObject {
     /// left as they were, so unlocking again shows what was on screen (Android keeps its sort
     /// setting across a lock too).
     public func lock() {
+        sessionVisibility.removeAll()
         if isUnlocked, !key.isEmpty {
             save()
         }
@@ -522,11 +541,10 @@ public final class VaultStore: ObservableObject {
 
     // MARK: - Codes
 
-    /// The code to show for an entry right now, or nil when it has none (a note, an SSH key) or when
-    /// the entry is concealed. A concealed entry shows nothing — and cannot be copied — until it is
-    /// revealed, exactly as the other two clients gate the copy button on `details_visible`.
+    /// Display-only code lookup. Copy explicitly derives a fresh token without revealing it.
+    /// Session concealment never changes the persisted entry or prevents explicit token copying.
     public func code(for entry: Entry, at date: Date) -> String? {
-        guard entry.detailsVisible else { return nil }
+        guard isRevealed(entry) else { return nil }
         do {
             return try entry.code(unixTime: Int64(date.timeIntervalSince1970))
         } catch {
@@ -583,6 +601,14 @@ public final class VaultStore: ObservableObject {
             return false
         }
         message = nil
+        var visibility: [Entry: Bool] = [:]
+        for (index, entry) in proposed.enumerated() {
+            if entries.contains(entry) { visibility[entry] = isRevealed(entry) }
+            else if proposed.count == entries.count, entries.indices.contains(index), !proposed.contains(entries[index]) {
+                visibility[entry] = isRevealed(entries[index])
+            }
+        }
+        sessionVisibility = visibility
         entries = proposed
         return true
     }
@@ -678,10 +704,13 @@ public final class VaultStore: ObservableObject {
         if visible {
             var proposed = entries
             proposed[index].setDetailsVisible(true)
-            return commit(proposed)
+            guard commit(proposed) else { return false }
+            sessionVisibility[entries[index]] = true
+            return true
         }
         var proposed = entries
         proposed[index].setDetailsVisible(false)
+        sessionVisibility[entries[index]] = false
         if commit(proposed) { return true }
         entries[index].setDetailsVisible(false)
         return false
