@@ -32,7 +32,7 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
     private fun current(request: Request): Boolean = !closed && !state.isLocked && pending === request &&
         state.snapshot().any { it === request.target }
     fun initialInput(request: Request): ManualEntryInput? =
-        if (current(request) && !request.isPassword && !request.isEmail) ManualEntryInput.forOtpEdit(request.target) else null
+        if (current(request) && !request.isPassword && !request.isEmail) ManualEntryInput.forEntryEdit(request.target) else null
     fun initialPasswordInput(request: Request): PasswordEntryInput? =
         if (current(request) && request.isPassword) PasswordEntryInput.fromEntry(request.target) else null
 

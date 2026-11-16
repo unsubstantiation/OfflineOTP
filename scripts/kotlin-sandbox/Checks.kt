@@ -6249,6 +6249,59 @@ fun main() {
         }
     }
 
+    check("Android OTP and note Edit use the shared form and reject stale editor saves") {
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_tap_single, "nothing")
+        fixture.seed(R.string.settings_key_tap_double, "nothing")
+        val controller = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val note = Entry(Entry.OTPType.NOTE, "full note body", "", "note", arrayListOf()).apply { setDetailsVisible(true) }
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key; source.addEntry(note)
+        controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES)
+        controller.setSearchQuery("")
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val view = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context, strings,
+            com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        controller.attachComposeEditor(view)
+        try {
+            val frame = controller.composeFrame(60_000L, strings)!!
+            view.render(frame.state)
+            val getter = view.javaClass.getDeclaredMethod("getEditor").apply { isAccessible = true }
+            expect(controller.openSharedCreation(Entry.OTPType.NOTE), { "shared creation rejected" })
+            val creation = getter.invoke(view)!!
+            expect(creation.javaClass.getDeclaredField("editing").apply { isAccessible = true }.get(creation) == false,
+                { "creation opened edit-only form" })
+            @Suppress("UNCHECKED_CAST")
+            val add = creation.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(creation)
+                as (com.fairuniversal.offlineotp.ui.vault.ManualEntryInput) -> String?
+            val draft = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput(type = Entry.OTPType.NOTE, label = "new", secret = "new body")
+            expect(add(draft) != null, { "missing vault reported creation success" })
+            expect(source.getEntries().size == 1, { "failed creation adopted a draft" })
+            view.clearEntryEditor()
+            expect(add(draft) != null, { "dismissed creation retained authority" })
+            expect(frame.perform(note.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "shared edit rejected" })
+            val editor = getter.invoke(view)!!
+            val initial = editor.javaClass.getDeclaredField("initial").apply { isAccessible = true }.get(editor)
+                as com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+            expect(initial.secret == "full note body", { "shared note editor did not preload body" })
+            @Suppress("UNCHECKED_CAST")
+            val submit = editor.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(editor)
+                as (com.fairuniversal.offlineotp.ui.vault.ManualEntryInput) -> String?
+            expect(submit(initial.copy(type = Entry.OTPType.TOTP)) != null, { "cross-category conversion allowed" })
+            expect(note.getNote() == "full note body", { "invalid edit mutated original" })
+            view.clearEntryEditor()
+            expect(submit(initial.copy(secret = "dismissed write")) != null, { "dismissed editor retained authority" })
+            expect(frame.perform(note.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "reopen editor" })
+            controller.lockEntries()
+            expect(getter.invoke(view) == null, { "lock retained editor credentials" })
+            expect(submit(initial.copy(secret = "late write")) != null, { "stale editor retained write authority" })
+        } finally { view.clear(); controller.lockEntries(); VaultSession.lock() }
+    }
+
     check("Android copies a hidden OTP without revealing either current or previous token") {
         val clipboard = ClipboardManager()
         val fixture = SettingsFixture(object : SettingsContext() {
@@ -6274,15 +6327,11 @@ fun main() {
             initial.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL)
             val hidden = controller.composeFrame(System.currentTimeMillis(), strings)!!
             expect(hidden.state.cards.single().copyable && !hidden.state.cards.single().tokenVisible, { "hidden OTP not copyable" })
-            val reference = Entry(entry.toJSON())
-            try {
-                expect(hidden.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY), { "copy rejected" })
-                reference.updateOTP(false)
-                expect(clipboard.clips.single().text.toString() in listOf(reference.getCurrentOTP(), reference.getPrevOTP()), { "wrong clipboard token" })
-                // This fixture has no disk vault: usage-save failure may lock it, never reveal it.
-                val after = controller.composeFrame(System.currentTimeMillis(), strings)
-                expect(after == null || after.state.cards.none { it.revealed }, { "copy revealed OTP on screen" })
-            } finally { reference.destroy() }
+            expect(hidden.perform(entry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.COPY), { "copy dispatch rejected" })
+            // No disk vault exists in this fixture: failed usage persistence must not publish.
+            expect(clipboard.clips.isEmpty(), { "clipboard published despite failed usage save" })
+            expect(!controller.composeFrame(System.currentTimeMillis(), strings)!!.state.cards.single().revealed,
+                { "copy revealed OTP on screen" })
         } finally { controller.lockEntries(); VaultSession.lock() }
     }
 

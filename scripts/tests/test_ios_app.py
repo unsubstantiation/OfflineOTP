@@ -245,14 +245,14 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("EntryUsage.recordUse(&proposed[index]", store)
         self.assertIn("EntryUsage.advanceHotp(&proposed[index])", store)
 
-    def test_a_concealed_entry_cannot_show_or_copy_its_code(self):
+    def test_a_concealed_entry_can_copy_without_showing_its_code(self):
         """Both other clients redact the token until the entry is revealed."""
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
-        self.assertIn("guard entry.detailsVisible else { return nil }", store)
+        self.assertIn("guard isRevealed(entry) else { return nil }", store)
         self.assertIn("proposed[index].setDetailsVisible(true)", store)
         list_view = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
         self.assertIn("if !entry.detailsVisible", list_view)
-        self.assertIn("if entry.detailsVisible, entry.kind?.isOtp == true", list_view)
+        self.assertIn("if entry.kind?.isOtp == true", list_view)
 
     def test_the_manual_form_offers_only_what_it_can_build(self):
         draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
@@ -264,7 +264,7 @@ class IosAppTest(unittest.TestCase):
                       draft)
         self.assertIn("SshKeyMaterial", draft)
         editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
-        self.assertIn("ForEach(EntryDraft.offerableKinds", editor)
+        self.assertIn("existing == nil ? EntryDraft.offerableKinds : EntryDraft.offerableKinds.filter { $0.isOtp }", editor)
         # The shared wording for a refused number, verbatim.
         for wording in ('"Digits must be a number"', '"Period must be a number"',
                         '"HOTP counter must be a number"'):
@@ -669,7 +669,7 @@ class IosAppTest(unittest.TestCase):
 
         row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
         # The code button says what it does, then the code one character at a time, then the time.
-        self.assertIn('.accessibilityLabel(entry.kind == .hotp ? "Next code" : "Copy code")',
+        self.assertIn('.accessibilityLabel("Copy Token")',
                       row)
         self.assertIn(".accessibilityValue(accessibilityCode(code))", row)
         self.assertIn("CodeFormat.spoken(code)", row)
@@ -680,7 +680,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn(".accessibilityElement(children: .combine)", row)
         # The reveal control is a full 44-point target, the minimum either platform asks for.
         self.assertIn(".frame(width: 44, height: 44)", row)
-        for hint in (".accessibilityHint(\"Shows the code and lets it be copied\")",):
+        for hint in (".accessibilityHint(\"Shows entry details\")",):
             self.assertIn(hint, row)
 
         # Every icon-only button in the list has a label; the toolbar is where they all are.

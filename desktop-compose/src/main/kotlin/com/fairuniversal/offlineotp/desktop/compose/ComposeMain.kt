@@ -82,6 +82,7 @@ import com.fairuniversal.offlineotp.desktop.ui.IssuerIcons
 import com.fairuniversal.offlineotp.ui.vault.VaultArtwork
 import androidx.compose.ui.window.ApplicationScope
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 
@@ -185,6 +186,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
             }
         },
         title = "OfflineOTP",
+        icon = painterResource("offlineotp.png"),
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
         MenuBar {
@@ -515,7 +517,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 it.isPassword() && PasswordEntryInput.supports(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
-                copyable = (card.kind == VaultEntryKind.OTP || card.revealed) && (card.copyable || card.kind in
+                copyable = (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES) || card.revealed) && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
         })
     }
@@ -1187,7 +1189,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
                 if (request.kind == VaultDialogKind.DELETE || request.kind == VaultDialogKind.COUNTER) {
-                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode) {
+                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode &&
+                        (request.kind != VaultDialogKind.DELETE || presenter.isRevealed(request.entryId))) {
                         val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
                         if (target != null) {
                             transactionMode = true

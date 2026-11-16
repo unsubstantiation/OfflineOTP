@@ -460,11 +460,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             if (actionId == R.id.fabScanQR)
                 scanQRCode()
             else if (actionId == R.id.fabEnterDetails)
-                ManualEntryDialog.show(this, settings!!, adapter!!)
+                showSharedCreation()
             else if (actionId == R.id.fabAddSecureNote)
-                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.NOTE)
+                showSharedCreation(Entry.OTPType.NOTE)
             else if (actionId == R.id.fabAddSshKey)
-                ManualEntryDialog.showNew(this, settings!!, adapter!!, Entry.OTPType.SSH_KEY)
+                showSharedCreation(Entry.OTPType.SSH_KEY)
             else if (actionId == R.id.fabImportPasswords)
                 choosePasswordImport()
             else if (actionId == R.id.fabExportPasswords)
@@ -579,7 +579,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             when (intentAction) {
                 INTENT_SCAN_QR -> scanQRCode()
                 INTENT_IMPORT_QR -> showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
-                INTENT_ENTER_DETAILS -> ManualEntryDialog.show(this, settings!!, adapter!!)
+                INTENT_ENTER_DETAILS -> showSharedCreation()
                 Intent.ACTION_VIEW -> {
                     if (GoogleAuthenticatorMigration.isMigration(intentData)) {
                         addMigrationQRCode(intentData)
@@ -1300,6 +1300,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         publishComposeVault()
     }
 
+    private fun showSharedCreation(type: Entry.OTPType = Entry.OTPType.TOTP) {
+        publishComposeVault()
+        adapter?.openSharedCreation(type)
+    }
+
     /** Publish one shared frame. The existing Activity owns search/tabs/drawer and the tick. */
     private fun publishComposeVault() {
         val container = findViewById<FrameLayout>(R.id.cardList) ?: return
@@ -1341,10 +1346,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             composeVaultAppearance = appearance
             container.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        controller.attachComposeEditor(view)
         val anchor = view
         view.render(published.state, VaultActions(
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
             onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) },
+            onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) },
             onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) },
             onCardTap = { published.perform(it.id, AndroidCardCommand.SINGLE_TAP) },
             onCardDoubleTap = { published.perform(it.id, AndroidCardCommand.DOUBLE_TAP) },

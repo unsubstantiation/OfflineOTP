@@ -112,27 +112,13 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # jpackage needs an .icns on macOS. It is built here from the same artwork the other
-          # clients ship, so no binary icon has to be committed: an iconset is the layout iconutil
-          # expects, and sips resamples the PNG into each size.
-          ICONSET=build/offlineotp.iconset
-          rm -rf "$ICONSET"
-          mkdir -p "$ICONSET"
-          SOURCE=desktop/src/main/resources/offlineotp.png
-          test -s "$SOURCE"
-          for size in 16 32 64 128 256 512; do
-            sips -z "$size" "$size" "$SOURCE" --out "$ICONSET/icon_${size}x${size}.png" >/dev/null
-            sips -z "$((size * 2))" "$((size * 2))" "$SOURCE" \
-              --out "$ICONSET/icon_${size}x${size}@2x.png" >/dev/null
-          done
-          iconutil -c icns "$ICONSET" -o build/offlineotp.icns
+          python3 scripts/branding/generate-macos-icon.py --output build/offlineotp.icns
           test -s build/offlineotp.icns
       - name: Build macOS app image
         shell: bash
         run: |
           set -euo pipefail
-          # -PmacIconFile keeps the generated icon out of the source tree; the task falls back to
-          # the default icon when the property is absent (a plain local build).
+          # CI uses the explicit icon above; local builds generate the same artwork automatically.
           ./gradlew --no-daemon :desktop-compose:packageDesktop -PmacIconFile="$PWD/build/offlineotp.icns"
           APP=desktop-compose/build/release/OfflineOTP.app
           test -d "$APP"

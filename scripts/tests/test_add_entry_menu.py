@@ -51,8 +51,8 @@ class AddEntryMenuTest(unittest.TestCase):
         self.assertLess(actions.index("if (VaultSession.getKey() == null)"),
                         actions.index("val actionId"))
         for action_id, target in {
-            "fabAddSecureNote": r"ManualEntryDialog\.showNew\([^\n]*Entry\.OTPType\.NOTE\)",
-            "fabAddSshKey": r"ManualEntryDialog\.showNew\([^\n]*Entry\.OTPType\.SSH_KEY\)",
+            "fabAddSecureNote": r"showSharedCreation\(Entry\.OTPType\.NOTE\)",
+            "fabAddSshKey": r"showSharedCreation\(Entry\.OTPType\.SSH_KEY\)",
             "fabImportPasswords": r"choosePasswordImport\(\)",
             "fabExportPasswords": r"requestPasswordCsvExport\(null\)",
             "fabImportThunderbird": r"chooseThunderbirdImport\(\)",
@@ -62,7 +62,7 @@ class AddEntryMenuTest(unittest.TestCase):
             "fabAddEmail": r"EmailEntryDialog\.show\(",
             "fabImportEmail": r"chooseEmailImport\(\)",
             "fabExportEmail": r"chooseEmailExport\(\)",
-            "fabEnterDetails": r"ManualEntryDialog\.show\(this, settings!!, adapter!!\)",
+            "fabEnterDetails": r"showSharedCreation\(\)",
             "fabScanQR": r"scanQRCode\(\)",
             "fabScanQRFromImage": r"showOpenFileSelector\(Constants\.INTENT_MAIN_QR_OPEN_IMAGE\)",
         }.items():

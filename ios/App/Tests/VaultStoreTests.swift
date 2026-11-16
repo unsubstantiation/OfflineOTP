@@ -143,6 +143,25 @@ final class VaultStoreTests: XCTestCase {
                                 at: Date(timeIntervalSince1970: 1_700_000_000)))
     }
 
+    func testSessionHideDoesNotPersistAndUsageDoesNotRevealIt() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("alice")))
+        XCTAssertTrue(store.setDetailsVisible(at: 0, true))
+        let original = store.entries[0]
+        store.toggleReveal(at: 0)
+        XCTAssertFalse(store.isRevealed(store.entries[0]))
+        XCTAssertTrue(store.entries[0].detailsVisible)
+        XCTAssertNil(store.code(for: store.entries[0], at: Date(timeIntervalSince1970: 1_700_000_000)))
+        XCTAssertEqual(try store.entries[0].code(unixTime: 1_700_000_000), "324550")
+        XCTAssertTrue(store.recordUse(at: 0))
+        XCTAssertFalse(store.isRevealed(store.entries[0]))
+        let reopened = makeStore()
+        reopened.unlock(password: "correct horse")
+        XCTAssertTrue(reopened.isRevealed(reopened.entries[0]))
+        store.lock()
+        XCTAssertFalse(store.isRevealed(original))
+    }
+
     func testAConcealedEntryShowsNoCodeAndTheRevealIsStored() throws {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try rawEntry("alice")))

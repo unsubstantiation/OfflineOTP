@@ -77,3 +77,17 @@ Gradle cannot run in the offline sandbox, so release packaging is structurally g
   reproducibility script and the CI script so the release wiring cannot silently disappear.
 
 No Swing fallback is built. Rollback requires a previously validated release and a backup; do not run two processes against one vault.
+
+### Shared application icon
+
+Android's forest-and-padlock artwork is the app identity on every platform.
+`scripts/branding/generate_icons.py` generates Android launcher assets, the shared desktop PNG,
+and Windows ICO from `design/forest-lock-no-circle.png`. Compose explicitly uses the shared
+PNG for its window icon. iOS and macOS use the full-resolution PNG embedded in the generated
+`assets/logo_legacy.svg`; their generators adapt sizes/formats, not the artwork.
+
+Local macOS `:desktop-compose:packageDesktop` now runs
+`scripts/branding/generate-macos-icon.py` automatically (requires Python 3 and macOS
+`sips`/`iconutil`). CI uses that same generator. An explicit `-PmacIconFile` remains supported,
+but a missing file fails packaging instead of substituting the Java/default icon.
+OS masks, corners and taskbar/launcher caching can still affect presentation.

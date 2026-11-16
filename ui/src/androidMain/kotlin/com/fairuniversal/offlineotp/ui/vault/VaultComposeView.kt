@@ -51,6 +51,22 @@ class VaultComposeView(
     private var frame by mutableStateOf(host.frame)
     private var renderedActions by mutableStateOf(host.actions)
 
+    private var ended = false
+    private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
+    private var editor by mutableStateOf<Editor?>(null)
+    private var editError by mutableStateOf<String?>(null)
+
+    /** Uses the same form and draft validation as desktop; the host owns save authority. */
+    fun showEntryEditor(initial: ManualEntryInput, editing: Boolean = true, submit: (ManualEntryInput) -> String?) {
+        if (ended) return
+        editError = null
+        editor = Editor(initial, editing, submit)
+    }
+
+    fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
+
+    fun clearEntryEditor() { editor = null; editError = null }
+
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
         // must not keep collecting state.
@@ -67,6 +83,19 @@ class VaultComposeView(
             appearance = appearance,
             artwork = artwork
         )
+        val request = editor
+        if (request != null) ForestTheme {
+            ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing,
+                artwork = artwork, error = editError, onDismiss = { clearEntryEditor() },
+                onSubmit = { input ->
+                    if (!ended && editor === request) {
+                        val failure = request.submit(input)
+                        if (editor === request) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                })
+        }
     }
 
     /** Publishes the next frame. Called from the UI thread, like any View mutation. */
@@ -84,6 +113,8 @@ class VaultComposeView(
 
     /** End this view's session. Late frames/callbacks are ignored; create a new view on unlock. */
     fun clear() {
+        ended = true
+        clearEntryEditor()
         host.close()
         renderedActions = VaultActions()
         frame = host.frame

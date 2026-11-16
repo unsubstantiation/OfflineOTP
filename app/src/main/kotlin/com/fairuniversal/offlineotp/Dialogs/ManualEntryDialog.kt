@@ -145,6 +145,8 @@ object ManualEntryDialog {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val type = typeInput.getSelectedItem() as? Entry.OTPType
 
+                inputView.findViewById<TextView>(R.id.manual_secret_label)?.setText(
+                    if (type == Entry.OTPType.NOTE) R.string.label_hidden_note else R.string.label_secret)
                 val ssh = type == Entry.OTPType.SSH_KEY
                 val nonOtp = type == Entry.OTPType.NOTE || ssh
                 secretInput.setHint(when (type) {

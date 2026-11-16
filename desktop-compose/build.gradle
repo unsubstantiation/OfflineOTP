@@ -83,8 +83,18 @@ tasks.register('generateBuildVersion') {
 }
 tasks.named('processResources') { dependsOn 'generateBuildVersion' }
 
+def generatedMacIcon = layout.buildDirectory.file('branding/offlineotp.icns')
+tasks.register('generateMacIcon', Exec) {
+    onlyIf { openPgpOsName.contains('mac') && !project.hasProperty('macIconFile') }
+    inputs.file(rootProject.file('assets/logo_legacy.svg'))
+    inputs.file(rootProject.file('scripts/branding/generate-macos-icon.py'))
+    outputs.file(generatedMacIcon)
+    commandLine 'python3', rootProject.file('scripts/branding/generate-macos-icon.py').absolutePath,
+        '--output', generatedMacIcon.get().asFile.absolutePath
+}
+
 tasks.register('packageDesktop', Exec) {
-    dependsOn 'installDist'
+    dependsOn 'installDist', 'generateMacIcon'
     group = 'distribution'
     description = 'Builds a native OfflineOTP app image with jpackage (JDK 17+).'
 
@@ -102,20 +112,19 @@ tasks.register('packageDesktop', Exec) {
         // jpackage copies --input into $APPDIR; installDist staged the cdylib in lib/native.
         '--java-options', '-Djna.library.path=$APPDIR/native',
     ]
-    // jpackage requires a platform-specific icon format. macOS needs an .icns, which is generated
-    // from the shared PNG by the CI job (-PmacIconFile) because it is a binary container; a plain
-    // local build without the property keeps jpackage's default icon.
+    // Use Android's artwork for every native format; local Mac builds generate it too.
     def osName = System.getProperty('os.name').toLowerCase(Locale.ROOT)
     def macIcon = project.hasProperty('macIconFile') ?
-        file(project.property('macIconFile')) : rootProject.file('desktop/packaging/offlineotp.icns')
+        file(project.property('macIconFile')) : generatedMacIcon.get().asFile
     def icon = isWindows ? rootProject.file('desktop/packaging/offlineotp.ico') :
         (osName.contains('linux') ? rootProject.file('desktop/src/main/resources/offlineotp.png') :
-            (osName.contains('mac') && macIcon.isFile() ? macIcon : null))
+            (osName.contains('mac') ? macIcon : null))
     if (icon != null) {
         inputs.file(icon)
         args '--icon', icon.absolutePath
     }
     doFirst {
+        if (icon != null && !icon.isFile()) throw new GradleException('Application icon is missing: ' + icon)
         if (!jpackage.canExecute()) throw new GradleException('A full JDK with jpackage is required')
     }
     doFirst { layout.buildDirectory.dir('release').get().asFile.mkdirs() }

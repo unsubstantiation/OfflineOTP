@@ -257,4 +257,5 @@
     <string name="compose_hide_token">Hide</string>
     <string name="compose_account_actions">Account actions</string>
     <string name="compose_next_code">Next code</string>
+    <string name="label_hidden_note">Hidden Note</string>
 </resources>
