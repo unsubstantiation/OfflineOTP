@@ -1345,6 +1345,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         view.render(published.state, VaultActions(
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
             onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) },
+            onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) },
             onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) },
             onCardTap = { published.perform(it.id, AndroidCardCommand.SINGLE_TAP) },
             onCardDoubleTap = { published.perform(it.id, AndroidCardCommand.DOUBLE_TAP) },

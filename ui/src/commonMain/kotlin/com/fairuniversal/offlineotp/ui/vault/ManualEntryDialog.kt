@@ -44,13 +44,22 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
             } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 submitNotice?.let { Text(text = it) }
                 Text(text = "Type: ${input.type}")
-                if (editing) Text(text = "Type is fixed. OTP credentials are shown for editing. Leave fields blank to keep stored values. Removal choices apply only when you Save.")
+                if (editing) Text(text = "Stored note and OTP fields are shown for editing. Changing OTP type clears the secret and timing; re-enter them for the new type. Leave fields blank to keep stored values. Removal choices apply only when you Save.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {
                     ForestTextAction(text = type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
                         input = ManualEntryInput(type = type, issuer = input.issuer, label = input.label,
                             tags = input.tags, thumbnailName = input.thumbnailName, timing = if (type == Entry.OTPType.HOTP) "0" else "30")
                     })
+                }
+                if (editing && initial.type in ManualEntryInput.otpTypes) {
+                    for (type in ManualEntryInput.otpTypes) ForestTextAction(text = type.name,
+                        enabled = input.type != type, onClick = {
+                            input = input.copy(type = type, secret = "", pin = "", clearPin = false,
+                                digits = if (type == Entry.OTPType.STEAM) "5" else "6",
+                                timing = if (type == Entry.OTPType.HOTP) "0" else "30",
+                                algorithm = TokenCalculator.HashAlgorithm.SHA1)
+                        })
                 }
                 if (!editing && onEmailSubmit != null) ForestTextAction(text = "Email account", onClick = {
                     input = ManualEntryInput(); email = true
@@ -61,7 +70,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                 ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
                 val note = input.type == Entry.OTPType.NOTE
                 val ssh = input.type == Entry.OTPType.SSH_KEY
-                EntryInputField(if (note) "Note" else if (ssh) "Private key" else "Secret", input.secret,
+                EntryInputField(if (note) "Hidden Note" else if (ssh) "Private key" else "Secret", input.secret,
                     masked = !note && (!editing || ssh), multiline = note || ssh,
                     limit = if (note) InputPolicy.MAX_NOTE_CHARACTERS else InputPolicy.MAX_URI_CHARS) { input = input.copy(secret = it) }
                 if (input.type == Entry.OTPType.TOTP || input.type == Entry.OTPType.HOTP || (editing && input.type == Entry.OTPType.STEAM)) {
@@ -77,9 +86,9 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                 }
                 if (!note && !ssh) {
                     if (editing) ForestTextAction(
-                        text = if (input.clearHiddenLabel) "Will remove protected label — undo" else "Remove stored protected label",
+                        text = if (input.clearHiddenLabel) "Will remove Hidden Label — undo" else "Remove stored Hidden Label",
                         onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) })
-                    if (!input.clearHiddenLabel) EntryInputField("Protected label (optional)", input.hiddenLabel, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
+                    if (!input.clearHiddenLabel) EntryInputField("Hidden Label", input.hiddenLabel, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
                 }
                 if (input.type == Entry.OTPType.MOTP) {
                     if (editing) ForestTextAction(

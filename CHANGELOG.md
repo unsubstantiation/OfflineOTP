@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Note/OTP parity: Allow copying concealed notes on desktop; add Android Delete and show it only on revealed cards on both clients. Name the body Hidden Note in both editors and preload it for desktop editing. Desktop OTP editing now labels Hidden Label consistently and permits validated OTP-only type changes, with explicit secret re-entry when switching types.
+
  * App icons: Explicitly set the Compose desktop window icon to the Android forest-and-padlock artwork. Generate macOS icons from the full-resolution shared Android/iOS source for both CI and local packaging; fail rather than silently use a default icon.
 
  * OTP desktop/Android parity: Standardize Copy Token; allow masked OTP copying without revealing the card, while retaining session/identity guards. Android shows previous tokens by default (explicit preferences remain respected) and exposes the guarded Edit action. Desktop OTP editing preloads and displays the secret, mOTP PIN and protected label, and supports editing stored Steam parameters without silently resetting them.

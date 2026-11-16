@@ -35,7 +35,7 @@ class DesktopEntryCopyTest {
         override fun close() { dir.setWritable(true, false); clipboardFails = false; copier.close(); state.lock(); dir.deleteRecursively() }
     }
 
-    @Test fun concealedOtpCopiesFreshTokenWithoutRevealButHiddenNotesStayProtected() {
+    @Test fun concealedOtpAndNoteCopyWithoutReveal() {
         val h = Harness()
         try {
             val card = VaultCards.of(h.entry, h.now, revealed = false).copy(token = "stale")
@@ -47,7 +47,10 @@ class DesktopEntryCopyTest {
             val note = ManualEntryInput(type = Entry.OTPType.NOTE, label = "note", secret = "private").build()
             assertTrue(h.editor.add(note))
             val hidden = VaultCards.of(note, h.now, revealed = false)
-            assertTrue(h.copier.open(h.copier.bind(listOf(hidden)), hidden, false) == null)
+            val noteRequest = h.copier.open(h.copier.bind(listOf(hidden)), hidden, false)!!
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(noteRequest, EntryEditor.CopyField.TOKEN_OR_NOTE, false))
+            assertEquals("private", h.clipboardValue)
+            assertFalse(hidden.revealed)
         } finally { h.close() }
     }
 

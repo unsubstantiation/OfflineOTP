@@ -9,6 +9,34 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ManualEntryInputTest {
+    @Test fun noteEditPreloadsBodyAndOtpTypeChangeIsExplicitAndValidated() {
+        val note = ManualEntryInput(type = Entry.OTPType.NOTE, secret = "hidden body", label = "Note").build()
+        val otp = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", hiddenLabel = "hidden label").build()
+        try {
+            val noteEdit = ManualEntryInput.forEntryEdit(note)
+            assertEquals("hidden body", noteEdit.secret)
+            val changed = noteEdit.copy(secret = "edited body").build(note)
+            try { assertEquals("edited body", changed.getNote()); assertEquals("hidden body", note.getNote()) }
+            finally { changed.destroy() }
+            val otpEdit = ManualEntryInput.forEntryEdit(otp)
+            assertEquals("hidden label", otpEdit.hiddenLabel)
+            val counter = otpEdit.copy(type = Entry.OTPType.HOTP, timing = "7").build(otp)
+            try {
+                assertEquals(Entry.OTPType.HOTP, counter.getType())
+                assertEquals(7L, counter.getCounter())
+                assertEquals(Entry.OTPType.TOTP, otp.getType())
+                assertEquals("hidden label", counter.getHiddenLabel())
+            } finally { counter.destroy() }
+            for (invalid in listOf(otpEdit.copy(type = Entry.OTPType.HOTP, secret = ""),
+                otpEdit.copy(type = Entry.OTPType.HOTP, timing = "-1"),
+                otpEdit.copy(type = Entry.OTPType.NOTE))) {
+                var rejected = false
+                try { invalid.build(otp).destroy() } catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+        } finally { note.destroy(); otp.destroy() }
+    }
+
     @Test fun steamEditKeepsAndAllowsChangesToSupportedParameters() {
         val original = Entry(Entry.OTPType.STEAM, "JBSWY3DPEHPK3PXP", 45, 5, "Steam", "account",
             TokenCalculator.HashAlgorithm.SHA1, arrayListOf())

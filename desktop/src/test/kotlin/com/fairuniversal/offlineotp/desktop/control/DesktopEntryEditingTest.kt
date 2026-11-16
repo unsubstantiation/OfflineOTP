@@ -20,6 +20,33 @@ class DesktopEntryEditingTest {
     private fun email() = EmailEntryInput(address = "alice@example.com", incomingHost = "imap.example.com",
         outgoingHost = "smtp.example.com", incomingPassword = "incoming", outgoingPassword = "outgoing").build()
 
+    @Test fun noteBodyAndOtpTypeEditsPersistAfterReopen() {
+        val dir = Files.createTempDirectory("entry-edit-parity-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key); val editor = EntryEditor(controller, state)
+        val edits = DesktopEntryEditing(state, editor::replace)
+        try {
+            val note = ManualEntryInput(type = Entry.OTPType.NOTE, label = "Note", secret = "original body").build()
+            val otp = input.copy(hiddenLabel = "private label").build()
+            assertTrue(editor.add(note)); assertTrue(editor.add(otp))
+            edits.open(note.getListId()); val noteRequest = edits.pending!!
+            assertEquals("original body", edits.initialInput(noteRequest)!!.secret)
+            assertTrue(edits.submit(noteRequest, edits.initialInput(noteRequest)!!.copy(secret = "edited body"), true))
+            edits.open(otp.getListId()); val otpRequest = edits.pending!!
+            val changed = edits.initialInput(otpRequest)!!.copy(type = Entry.OTPType.HOTP, timing = "12", hiddenLabel = "edited label")
+            assertFalse(edits.submit(otpRequest, changed, false))
+            assertTrue(edits.submit(otpRequest, changed, true))
+            val reopened = controller.openVault("password") as VaultController.Session.Loaded
+            try {
+                assertEquals("edited body", reopened.entries.first { it.isNote() }.getNote())
+                val counter = reopened.entries.first { it.isCounterBased() }
+                assertEquals(12L, counter.getCounter()); assertEquals("edited label", counter.getHiddenLabel())
+                assertEquals(input.secret, counter.getSecretEncoded())
+            } finally { DesktopUnlockOperation.discard(reopened) }
+        } finally { edits.close(); state.lock(); dir.deleteRecursively() }
+    }
+
     @Test fun secondaryIdentityRemovalPersistsAndCanceledDraftLeavesDiskUnchanged() {
         val dir = Files.createTempDirectory("compose-identity-removal-").toFile()
         val controller = VaultController(DesktopStorage.open(dir))
@@ -325,7 +352,7 @@ class DesktopEntryEditingTest {
     }
 
     @Test
-    fun editedTypeCannotChangeAndDismissedDialogCannotWrite() {
+    fun editedOtpCannotBecomeNoteAndDismissedDialogCannotWrite() {
         val state = state()
         val original = input.build()
         state.add(original)
@@ -334,7 +361,7 @@ class DesktopEntryEditingTest {
         try {
             edits.open(original.getListId())
             val request = edits.pending!!
-            assertFalse(edits.submit(request, input.copy(type = Entry.OTPType.HOTP), true))
+            assertFalse(edits.submit(request, input.copy(type = Entry.OTPType.NOTE), true))
             assertEquals(DesktopEntryEditing.Failure.INVALID_INPUT, request.failure)
             edits.dismiss(request)
             assertFalse(edits.submit(request, input, true))

@@ -517,7 +517,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 it.isPassword() && PasswordEntryInput.supports(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
-                copyable = (card.kind == VaultEntryKind.OTP || card.revealed) && (card.copyable || card.kind in
+                copyable = (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES) || card.revealed) && (card.copyable || card.kind in
                 listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
         })
     }
@@ -1189,7 +1189,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
                 if (request.kind == VaultDialogKind.DELETE || request.kind == VaultDialogKind.COUNTER) {
-                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode) {
+                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode &&
+                        (request.kind != VaultDialogKind.DELETE || presenter.isRevealed(request.entryId))) {
                         val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
                         if (target != null) {
                             transactionMode = true

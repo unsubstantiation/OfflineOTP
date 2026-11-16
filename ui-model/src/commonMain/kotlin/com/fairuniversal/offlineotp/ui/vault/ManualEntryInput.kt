@@ -24,7 +24,9 @@ data class ManualEntryInput(
     fun build(existing: Entry? = null): Entry {
         require(type in EntryDraft.offerableTypes())
         require(thumbnailName == null || thumbnailName in ThumbnailCatalog.NAMES) { "Unknown thumbnail" }
-        require(existing == null || existing.getType() == type) { "Entry type cannot change" }
+        val changingType = existing != null && existing.getType() != type
+        require(!changingType || (existing!!.getType() in otpTypes && type in otpTypes)) { "Only OTP types can be changed" }
+        require(!changingType || secret.isNotBlank()) { "Re-enter the secret when changing OTP type" }
         require(existing != null || !(clearPin || clearSshPassword || clearHiddenLabel)) { "Removal requires an existing entry" }
         require(!clearPin || (type == Entry.OTPType.MOTP && pin.isEmpty())) { "Conflicting PIN removal" }
         require(!clearSshPassword || (type == Entry.OTPType.SSH_KEY && sshPassword.isEmpty())) { "Conflicting password removal" }
@@ -44,7 +46,7 @@ data class ManualEntryInput(
             type, issuer, label, resolvedSecret,
             if (steam) "5" else digits, if (steam) "30" else timing,
             if (steam) TokenCalculator.HashAlgorithm.SHA1 else algorithm,
-            pin = if (clearPin) "" else pin.ifEmpty { existing?.getPin().orEmpty() }, publicKey = publicKey.ifEmpty { priorKeys?.publicKey.orEmpty() },
+            pin = if (clearPin || type != Entry.OTPType.MOTP) "" else pin.ifEmpty { if (changingType) "" else existing?.getPin().orEmpty() }, publicKey = publicKey.ifEmpty { priorKeys?.publicKey.orEmpty() },
             sshConnection = if (type == Entry.OTPType.SSH_KEY)
                 SshConnection.of(sshHost, SshConnection.port(sshPort), sshUser,
                     if (clearSshPassword) "" else sshPassword.ifEmpty { existing?.getSshConnection()?.password.orEmpty() }) else null,
@@ -62,6 +64,12 @@ data class ManualEntryInput(
     }
 
     companion object {
+        val otpTypes = listOf(Entry.OTPType.TOTP, Entry.OTPType.HOTP, Entry.OTPType.STEAM, Entry.OTPType.MOTP)
+
+        /** Explicit edit form disclosure for notes as well as OTP entries. */
+        fun forEntryEdit(entry: Entry): ManualEntryInput =
+            if (entry.isNote()) fromEntry(entry).copy(secret = entry.getNote()) else forOtpEdit(entry)
+
         /** Explicit edit-only disclosure of OTP credentials, never used to seed creation forms. */
         fun forOtpEdit(entry: Entry): ManualEntryInput {
             val metadata = fromEntry(entry)

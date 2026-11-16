@@ -109,7 +109,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_delete_action_requires_host_support_and_confirmation(self):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("val deleteEntry = actions.onDelete", widgets)
-        self.assertIn("if (card.detailsVisible && deleteEntry != null)", widgets)
+        self.assertIn("if (card.detailsVisible && card.revealed && deleteEntry != null)", widgets)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         wording = (MODEL_MAIN / "vault/VaultDialogs.kt").read_text()
         self.assertIn('deleteTitle: String = "Delete account?"', wording)
@@ -582,17 +582,29 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
 
+    def test_note_and_otp_edit_controls_are_consistent(self):
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) }", activity)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.detailsVisible && card.revealed && deleteEntry != null", widgets)
+        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        self.assertIn('if (note) "Hidden Note"', form)
+        self.assertIn('EntryInputField("Hidden Label"', form)
+        self.assertIn("for (type in ManualEntryInput.otpTypes)", form)
+        android = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Dialogs/ManualEntryDialog.kt").read_text()
+        self.assertIn("if (type == Entry.OTPType.NOTE) R.string.label_hidden_note", android)
+
     def test_otp_copy_edit_and_previous_token_parity(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) }", activity)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("copyable = (card.kind == VaultEntryKind.OTP || card.revealed)", host)
+        self.assertIn("copyable = (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES) || card.revealed)", host)
         settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Settings.kt").read_text()
         self.assertIn("getBoolean(R.string.settings_key_show_prev_token, true)", settings)
         self.assertIn('val copyAction: String = "Copy Token"', (MODEL_MAIN / "vault/VaultStrings.kt").read_text())
         self.assertIn('<string name="button_card_copy">Copy Token</string>', (ROOT / "app/src/main/res/values/strings_main.xml").read_text())
         editor = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
-        self.assertIn("ManualEntryInput.forOtpEdit(request.target)", editor)
+        self.assertIn("ManualEntryInput.forEntryEdit(request.target)", editor)
         form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
         self.assertIn("masked = !note && (!editing || ssh)", form)
         self.assertIn("input.pin, masked = !editing", form)
@@ -843,7 +855,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             self.assertIn(f"{flag} = !input.{flag}", form)
         self.assertIn("Will remove PIN — undo", form)
         self.assertIn("Will remove SSH password — undo", form)
-        self.assertIn("Will remove protected label — undo", form)
+        self.assertIn("Will remove Hidden Label — undo", form)
 
     def test_encrypted_restore_requires_confirmation_and_lifetime_checks(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

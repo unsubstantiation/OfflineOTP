@@ -218,7 +218,10 @@ class AndroidVaultController(
                     if (entry.getType() != Entry.OTPType.MOTP) return false
                     establishPIN(position)
                 }
-                AndroidCardCommand.DELETE -> removeItem(position)
+                AndroidCardCommand.DELETE -> {
+                    if (!composeRevealed(entry)) return false
+                    removeItem(position, requireRevealed = true)
+                }
                 AndroidCardCommand.MENU -> {
                     if (anchor == null) return false
                     showPopupMenu(anchor, position)
@@ -949,12 +952,13 @@ class AndroidVaultController(
         })
     }
 
-    fun removeItem(position: Int) {
+    fun removeItem(position: Int, requireRevealed: Boolean = false) {
         showActionDialog(position, BiConsumer { target, entry ->
             // Name the entry the way the desktop and iOS prompts do: the label, or the issuer
             // when the label is blank, rather than an empty pair of quotes.
             dialogs.delete(entry.privacyTitle(), Runnable {
                 withTarget(target, Consumer { actual ->
+                    if (requireRevealed && !composeRevealed(actual)) return@Consumer
                     val index = entries.indexOf(actual)
                     val displayedIndex = presentation.indexOf(actual)
                     if (displayedIndex >= 0) {

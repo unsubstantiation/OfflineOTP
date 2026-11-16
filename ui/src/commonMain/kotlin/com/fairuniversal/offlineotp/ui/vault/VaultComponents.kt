@@ -367,7 +367,7 @@ internal fun VaultEntryCard(
             }
             Spacer(modifier = Modifier.width(4.dp))
             val deleteEntry = actions.onDelete
-            if (card.detailsVisible && deleteEntry != null) {
+            if (card.detailsVisible && card.revealed && deleteEntry != null) {
                 ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
             }
             val viewEmail = actions.onViewEmailDetails
