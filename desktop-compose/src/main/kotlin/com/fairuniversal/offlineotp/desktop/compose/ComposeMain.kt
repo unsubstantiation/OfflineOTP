@@ -18,6 +18,7 @@ import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
 import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
 import com.fairuniversal.offlineotp.desktop.storage.DesktopHardwareUnlockStore
 import com.fairuniversal.offlineotp.ui.vault.HardwareOathDialog
+import androidx.compose.ui.window.MenuBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -150,6 +151,11 @@ fun main() {
 
 @Composable
 private fun ApplicationScope.ComposeVaultApp(controller: VaultController, location: DesktopStorageLocation) {
+    var showAbout by remember { mutableStateOf(false) }
+    val buildVersion = remember {
+        object {}.javaClass.getResourceAsStream("/offlineotp-build-version.txt")
+            ?.bufferedReader(Charsets.UTF_8)?.use { it.readText().trim() } ?: "Build version unavailable"
+    }
     var session by remember { mutableStateOf<DesktopVaultState?>(null) }
     var closing by remember { mutableStateOf(false) }
     var writePendingNotice by remember { mutableStateOf(false) }
@@ -181,7 +187,14 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
         title = "OfflineOTP",
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
+        MenuBar {
+            Menu("Help") {
+                Item("About OfflineOTP", onClick = { showAbout = true })
+            }
+        }
         ForestTheme {
+            if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
+                version = buildVersion, onDismiss = { showAbout = false })
             @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
             val vault = session
             if (vault == null && rekey.canUnlock && enrollment == null) {

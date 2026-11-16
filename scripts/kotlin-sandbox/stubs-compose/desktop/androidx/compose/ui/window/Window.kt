@@ -33,3 +33,13 @@ fun Window(
     content: @Composable FrameWindowScope.() -> Unit
 ) {
 }
+
+// Native desktop menu signatures, compile-only.
+interface MenuBarScope {
+    @Composable fun Menu(text: String, content: @Composable MenuScope.() -> Unit)
+}
+interface MenuScope {
+    @Composable fun Item(text: String, onClick: () -> Unit)
+}
+@Composable
+fun FrameWindowScope.MenuBar(content: @Composable MenuBarScope.() -> Unit) {}

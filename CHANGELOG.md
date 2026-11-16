@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * All-platform versioning: Embed AKST build timestamps in desktop and iOS builds and show them in desktop Help/About and iOS Settings/About. Use numeric native package versions; share one Gradle timestamp and pin timestamps for reproducibility comparisons.
+
  * Android: Replace the displayed app version with an AKST (fixed UTC−09:00) build timestamp shown in About (`VYYYY-MM-DD-HH-MM`) for every variant; derive the internal upgrade code from build-time minutes. Support SOURCE_DATE_EPOCH for repeatable builds.
 
  * Unlock screen: Submit passwords with Enter or the keyboard Done action, remove the redundant subtitle, and show matching filled buttons with password unlock first. Desktop security-key unlock is hidden unless the vault folder has a valid enrollment record.

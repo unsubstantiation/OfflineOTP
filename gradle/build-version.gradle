@@ -16,3 +16,14 @@ if (minuteCode <= 39 || minuteCode > 2100000000L) {
 ext.buildDateVersion = java.time.format.DateTimeFormatter.ofPattern("'V'uuuu-MM-dd-HH-mm")
         .withZone(java.time.ZoneOffset.ofHours(-9)).format(buildInstant)
 ext.buildDateVersionCode = (int) minuteCode
+
+// Native package metadata is numeric; the full AKST label stays in the UI/resource.
+def localBuild = buildInstant.atOffset(java.time.ZoneOffset.ofHours(-9))
+def buildDay = java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.of(2020, 1, 1), localBuild.toLocalDate()) + 1
+if (buildDay < 1 || buildDay > 9999) {
+    throw new GradleException('Build timestamp is outside the supported native package version range')
+}
+// Apple CFBundleVersion: at most four/two/two digits. Windows: major/minor <=255,
+// build <=65535. Debian accepts the same numeric dot-separated form as Apple.
+ext.appleBuildVersion = "${buildDay}.${localBuild.hour}.${localBuild.minute}"
+ext.windowsBuildVersion = "${localBuild.year - 2020}.${localBuild.monthValue}.${localBuild.dayOfMonth * 1440 + localBuild.hour * 60 + localBuild.minute}"

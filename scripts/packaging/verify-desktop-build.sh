@@ -14,6 +14,8 @@ report="$root/reports/desktop-reproducibility"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export TZ=UTC LANG=C.UTF-8 LC_ALL=C.UTF-8
+# Both independent builds must embed the same build timestamp.
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(date +%s)}"
 
 command -v java >/dev/null
 java -version 2> "$work/java-version.txt"

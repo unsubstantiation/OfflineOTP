@@ -494,11 +494,20 @@ export for the Android instrumentation test. The reproducible desktop packaging 
 
 ## App version
 
-The Android app's displayed version in **About → Version** is its build timestamp in AKST (UTC−09:00): `VYYYY-MM-DD-HH-MM`
+The app's displayed version on Android, Windows, macOS, Debian and iOS is its build timestamp in AKST (UTC−09:00): `VYYYY-MM-DD-HH-MM`
 (for example, `V2026-11-16-11-38`). AKST is used year-round, without switching to AKDT
 in summer. It is embedded at build time, not calculated when the
 app opens. All APK variants use the same format, without `-dev` or `-play` suffixes;
-variant application IDs and signing remain unchanged.
+variant application IDs and signing remain unchanged. Find it in Android's **About → Version**,
+desktop's **Help → About OfflineOTP**, or iOS's **Settings → About**.
+
+Desktop builds embed the label in a generated resource for both development runs and packaged
+app images. iOS stamps the built Info.plist in an Xcode build phase before signing, including
+local simulator/device builds. Native package metadata is numeric, without `V` or hyphens:
+Windows uses `years-since-2020.month.(day*1440 + minute-of-day)`; macOS/Debian and iOS build
+numbers use `days-since-2020-plus-one.hour.minute`. iOS's short version is `year.month.day`.
+All date components use AKST. The native format is bounded to 9999 days from 2020 and fails
+explicitly outside that range rather than producing invalid Apple metadata.
 
 Android's required internal numeric version code is the number of whole minutes since
 2020-01-01 00:00 UTC. Builds within the same minute share a code; build later when a new

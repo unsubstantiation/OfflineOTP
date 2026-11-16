@@ -7,6 +7,8 @@ report="$root/reports/reproducibility"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export TZ=UTC LANG=C.UTF-8 LC_ALL=C.UTF-8
+# Both independent builds must embed the same build timestamp.
+export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(date +%s)}"
 : "${ANDROID_HOME:?Set ANDROID_HOME to the pinned Android SDK}"
 mkdir -p "$report"
 rm -f "$report/result.txt"

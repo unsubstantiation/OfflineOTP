@@ -28,8 +28,6 @@ settings:
     # separate migration, not something a first shell should absorb.
     SWIFT_VERSION: "5.0"
     IPHONEOS_DEPLOYMENT_TARGET: "17.0"
-    MARKETING_VERSION: "0.1"
-    CURRENT_PROJECT_VERSION: "1"
     # No signing identity is needed to build for a simulator, and nothing here signs for a device.
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: ""
@@ -48,12 +46,16 @@ targets:
     dependencies:
       - package: OfflineOTPKit
         product: OfflineOTPKit
+    postBuildScripts:
+      - name: Stamp AKST build version before signing
+        script: 'python3 "$SRCROOT/../scripts/versioning/stamp-ios-version.py"'
+        basedOnDependencyAnalysis: false
+        inputFiles:
+          - "$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)"
     info:
       path: App/Info.plist
       properties:
         CFBundleDisplayName: OfflineOTP
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
