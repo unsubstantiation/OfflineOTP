@@ -264,7 +264,7 @@ class IosAppTest(unittest.TestCase):
                       draft)
         self.assertIn("SshKeyMaterial", draft)
         editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
-        self.assertIn("ForEach(EntryDraft.offerableKinds", editor)
+        self.assertIn("existing == nil ? EntryDraft.offerableKinds : EntryDraft.offerableKinds.filter { $0.isOtp }", editor)
         # The shared wording for a refused number, verbatim.
         for wording in ('"Digits must be a number"', '"Period must be a number"',
                         '"HOTP counter must be a number"'):

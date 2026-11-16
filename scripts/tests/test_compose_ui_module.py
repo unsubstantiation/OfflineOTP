@@ -582,6 +582,24 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("command != AndroidCardCommand.PRIVACY && command != AndroidCardCommand.TOGGLE_REVEAL", controller)
         self.assertIn("project(':ui-model')", (ROOT / "app/build.gradle").read_text())
 
+    def test_android_otp_notes_share_desktop_edit_form_and_validation(self):
+        view = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt").read_text()
+        self.assertIn("ManualEntryDialog(inputKey = request, initial = request.initial, editing = true", view)
+        self.assertIn("if (editor === request)", view)
+        self.assertIn("clearEntryEditor()", view)
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("ManualEntryInput.forEntryEdit(entry)", controller)
+        self.assertIn("input.build(actual)", controller)
+        self.assertIn("replaceEntry(actual, replacement, preserveMissingPin = false)", controller)
+        self.assertIn("composeEditTarget !== target", controller)
+        self.assertIn("openSharedEditor(popupTarget, actual)", controller)
+        ios = (ROOT / "ios/App/Sources/EntryEditorView.swift").read_text()
+        self.assertIn('kind == .note ? "Hidden Note"', ios)
+        self.assertIn('Picker("Artwork"', ios)
+        self.assertIn("existing != originalEntry", ios)
+        self.assertIn('existing.tags.joined(separator: "\\n")', ios)
+        self.assertIn('text.split(separator: "\\n")', ios)
+
     def test_note_and_otp_edit_controls_are_consistent(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) }", activity)

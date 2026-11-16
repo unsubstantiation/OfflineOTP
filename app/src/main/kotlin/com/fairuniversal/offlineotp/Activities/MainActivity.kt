@@ -1341,6 +1341,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             composeVaultAppearance = appearance
             container.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        controller.attachComposeEditor(view)
         val anchor = view
         view.render(published.state, VaultActions(
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },

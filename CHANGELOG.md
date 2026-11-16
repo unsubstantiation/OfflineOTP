@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * OTP/note editor consolidation: Android now uses the desktop Compose edit form and shared draft validation, including editable credentials, parameters, PIN removal, Hidden Note/Hidden Label, type and artwork. Add editor/session identity guards and dismissal cleanup. iOS gains OTP type/artwork editing, lossless newline-separated tags, consistent labels and stale-target rejection. Record remaining list/clipboard differences in docs/otp-note-parity-audit.md.
+
  * Note/OTP parity: Allow copying concealed notes on desktop; add Android Delete and show it only on revealed cards on both clients. Name the body Hidden Note in both editors and preload it for desktop editing. Desktop OTP editing now labels Hidden Label consistently and permits validated OTP-only type changes, with explicit secret re-entry when switching types.
 
  * App icons: Explicitly set the Compose desktop window icon to the Android forest-and-padlock artwork. Generate macOS icons from the full-resolution shared Android/iOS source for both CI and local packaging; fail rather than silently use a default icon.

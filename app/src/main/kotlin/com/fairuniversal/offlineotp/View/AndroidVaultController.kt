@@ -85,6 +85,42 @@ class AndroidVaultController(
     private var activeEmailDialog: AlertDialog? = null
     private var activePopupMenu: PopupMenu? = null
 
+    private var composeEditorView: com.fairuniversal.offlineotp.ui.vault.VaultComposeView? = null
+    private var composeEditTarget: EntryActionTarget? = null
+
+    fun attachComposeEditor(view: com.fairuniversal.offlineotp.ui.vault.VaultComposeView) {
+        if (composeEditorView !== view) {
+            composeEditorView?.clearEntryEditor()
+            composeEditTarget = null
+            composeEditorView = view
+        }
+    }
+
+    private fun openSharedEditor(target: EntryActionTarget, entry: Entry): Boolean {
+        val view = composeEditorView ?: return false
+        if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote())) return false
+        composeEditTarget = target
+        val initial = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.forEntryEdit(entry)
+        view.showEntryEditor(initial) { input ->
+            synchronized(VaultSession.MutationLock) {
+                val actual = target.resolve(entries, VaultSession.generation())
+                if (!view.ownsEntryEditor(initial) || composeEditTarget !== target || encryptionKey == null || VaultSession.getKey() !== encryptionKey ||
+                    actual == null || !composeRevealed(actual)) {
+                    view.clearEntryEditor()
+                    "The entry or session changed."
+                } else {
+                    val replacement = try { input.build(actual) } catch (_: IllegalArgumentException) { null }
+                    if (replacement == null) "Invalid entry. Check the fields and re-enter cleared credentials."
+                    else if (replaceEntry(actual, replacement, preserveMissingPin = false)) {
+                        composeEditTarget = null
+                        null
+                    } else "Could not save the entry. Re-enter cleared credentials to retry."
+                }
+            }
+        }
+        return true
+    }
+
     /** The key the entries are encrypted with; null while the vault is locked. */
     var encryptionKey: SecretKey? = null
 
@@ -119,6 +155,12 @@ class AndroidVaultController(
         synchronized(VaultSession.MutationLock) {
             if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return null
             val generation = VaultSession.generation()
+            composeEditTarget?.let { target ->
+                val current = target.resolve(entries, generation)
+                if (current == null || !composeRevealed(current)) {
+                    composeEditorView?.clearEntryEditor(); composeEditTarget = null
+                }
+            }
             val selection = presentation.selection()
             val filter = VaultFilter(
                 query = selection.query, searchIncludes = selection.includes,
@@ -188,14 +230,7 @@ class AndroidVaultController(
                     notifyEntryChanged(entry)
                 }
                 AndroidCardCommand.EDIT -> {
-                    if (!composeRevealed(entry) || entry.getType() !in com.fairuniversal.offlineotp.Database.EntryDraft.offerableTypes()) return false
-                    val hostActivity = context as? MainActivity ?: return false
-                    ManualEntryDialog.show(hostActivity, settings, this, entry,
-                        ManualEntryDialog.UpdateCallback {
-                            withTarget(target, Consumer { edited ->
-                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(), presentation.indexOf(edited))
-                            })
-                        })
+                    if (!openSharedEditor(target, entry)) return false
                 }
                 AndroidCardCommand.COPY -> {
                     if (entry.isTimeBased()) entry.updateOTP(false)
@@ -282,7 +317,10 @@ class AndroidVaultController(
      * The replacement is validated and checked for duplicates (excluding the entry being replaced).
      * On any failure the replacement is destroyed and the vault is left unchanged.
      */
-    override fun replaceEntry(existing: Entry, replacement: Entry): Boolean {
+    override fun replaceEntry(existing: Entry, replacement: Entry): Boolean =
+        replaceEntry(existing, replacement, preserveMissingPin = true)
+
+    private fun replaceEntry(existing: Entry, replacement: Entry, preserveMissingPin: Boolean): Boolean {
         synchronized(VaultSession.MutationLock) {
             val key = encryptionKey
             if (key == null || VaultSession.getKey() !== key) {
@@ -313,7 +351,7 @@ class AndroidVaultController(
             replacement.setDetailsVisible(existing.areDetailsVisible())
             replacement.setLastUsed(existing.getLastUsed())
             replacement.setUsedFrequency(existing.getUsedFrequency())
-            if (replacement.getType() == Entry.OTPType.MOTP && replacement.getPin().isEmpty()
+            if (preserveMissingPin && replacement.getType() == Entry.OTPType.MOTP && replacement.getPin().isEmpty()
                 && existing.getPin().isNotEmpty()) {
                 replacement.setPin(existing.getPin())
             }
@@ -457,6 +495,8 @@ class AndroidVaultController(
     }
 
     private fun dismissTransientUi() {
+        composeEditorView?.clearEntryEditor()
+        composeEditTarget = null
         dialogs.dismissAll()
         ManualEntryDialog.dismissActive()
         PasswordEntryEditDialog.dismissActive()
@@ -1132,6 +1172,10 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
+                    if (actual.isNote() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
+                        openSharedEditor(popupTarget, actual)
+                        return@Consumer
+                    }
                     val hostActivity = context as? MainActivity ?: return@Consumer
                     ManualEntryDialog.show(hostActivity, settings, this, actual,
                         ManualEntryDialog.UpdateCallback {

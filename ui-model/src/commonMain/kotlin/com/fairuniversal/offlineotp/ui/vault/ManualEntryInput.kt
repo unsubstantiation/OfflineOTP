@@ -23,7 +23,7 @@ data class ManualEntryInput(
 ) {
     fun build(existing: Entry? = null): Entry {
         require(type in EntryDraft.offerableTypes())
-        require(thumbnailName == null || thumbnailName in ThumbnailCatalog.NAMES) { "Unknown thumbnail" }
+        require(thumbnailName == null || thumbnailName in ThumbnailCatalog.NAMES || thumbnailName == existing?.getThumbnailName()) { "Unknown thumbnail" }
         val changingType = existing != null && existing.getType() != type
         require(!changingType || (existing!!.getType() in otpTypes && type in otpTypes)) { "Only OTP types can be changed" }
         require(!changingType || secret.isNotBlank()) { "Re-enter the secret when changing OTP type" }

@@ -39,6 +39,8 @@ struct EntryEditorView: View {
     @State private var tags = ""
     @State private var errorText: String?
     @State private var loaded = false
+    @State private var originalEntry: Entry?
+    @State private var thumbnail = ""
 
     private var existing: Entry? {
         guard let index, store.entries.indices.contains(index) else { return nil }
@@ -49,9 +51,15 @@ struct EntryEditorView: View {
         NavigationStack {
             Form {
                 Section {
-                    if existing == nil {
-                        Picker("Type", selection: $kind) {
-                            ForEach(EntryDraft.offerableKinds, id: \.self) { kind in
+                    if existing == nil || existing?.kind?.isOtp == true {
+                        Picker("Type", selection: Binding(get: { kind }, set: { newKind in
+                            guard newKind != kind else { return }
+                            kind = newKind; secret = ""; pin = ""
+                            digits = newKind == .steam ? "5" : "6"
+                            timing = newKind == .hotp ? "0" : "30"
+                            algorithm = .sha1
+                        })) {
+                            ForEach(existing == nil ? EntryDraft.offerableKinds : EntryDraft.offerableKinds.filter { $0.isOtp }, id: \.self) { kind in
                                 Text(kindTitle(kind)).tag(kind)
                             }
                         }
@@ -61,7 +69,7 @@ struct EntryEditorView: View {
                     TextField("Issuer", text: $issuer)
                     TextField(kind == .note ? "Title" : "Label", text: $label)
                     if kind.isOtp {
-                        TextField("Hidden label (shown when revealed)", text: $hiddenLabel)
+                        TextField("Hidden Label", text: $hiddenLabel)
                     }
                 }
 
@@ -108,12 +116,12 @@ struct EntryEditorView: View {
                                 .frame(minHeight: 120)
                                 .textInputAutocapitalization(.sentences)
                         } else {
-                            TextField(kind == .motp ? "Hex seed" : "Secret (Base32)", text: $secret)
+                            TextField(kind == .motp ? "Secret (raw text)" : "Secret (Base32)", text: $secret)
                                 .textInputAutocapitalization(.never)
                                 .autocorrectionDisabled()
                         }
                     } header: {
-                        Text(kind == .note ? "Note" : "Secret")
+                        Text(kind == .note ? "Hidden Note" : "Secret")
                     } footer: {
                         Text(secretHint)
                     }
@@ -156,7 +164,14 @@ struct EntryEditorView: View {
                 }
 
                 Section {
-                    TextField("Tags, separated by commas", text: $tags)
+                    Picker("Artwork", selection: $thumbnail) {
+                        Text("Automatic from issuer").tag("")
+                        ForEach(Array(Set(ThumbnailCatalog.names + (thumbnail.isEmpty ? [] : [thumbnail]))).sorted(), id: \.self) { name in
+                            Text(name).tag(name)
+                        }
+                    }
+                    Text("Tags (one per line)")
+                    TextEditor(text: $tags).frame(minHeight: 72)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                 } footer: {
@@ -184,6 +199,7 @@ struct EntryEditorView: View {
                 }
             }
             .onAppear(perform: prefill)
+
         }
         .preferredColorScheme(.dark)
     }
@@ -230,6 +246,8 @@ struct EntryEditorView: View {
             kind = EntryDraft.offerableKinds.contains(initialKind) ? initialKind : .totp
             return
         }
+        originalEntry = existing
+        thumbnail = existing.fields["thumbnail"]?.stringValue ?? ThumbnailCatalog.defaultName
         kind = existingKind
         issuer = existing.issuer
         label = existing.label
@@ -259,7 +277,7 @@ struct EntryEditorView: View {
         }
         algorithm = existing.algorithm
         pin = existing.pin
-        tags = existing.tags.joined(separator: ", ")
+        tags = existing.tags.joined(separator: "\n")
     }
 
     /// The seed as this form takes it back in: Base32 for the OTP kinds, the raw text for mOTP and
@@ -273,6 +291,10 @@ struct EntryEditorView: View {
     }
 
     private func save() {
+        if index != nil && existing != originalEntry {
+            errorText = "The entry changed while this editor was open. Close and reopen it."
+            return
+        }
         do {
             // An empty secret field on an edit keeps the seed the entry already holds — the rule
             // `EntryDialog.enteredSecret` applies on the desktop, so clearing the field cannot lose
@@ -291,7 +313,7 @@ struct EntryEditorView: View {
                 typedPublic = keys.publicKey
                 typedPrivate = keys.privateKey
             }
-            let built = try EntryDraft.create(
+            let draft = try EntryDraft.create(
                 kind: kind,
                 issuer: issuer.trimmingCharacters(in: .whitespacesAndNewlines),
                 label: label,
@@ -309,6 +331,10 @@ struct EntryEditorView: View {
                 sshUsername: sshUsername,
                 sshPassword: sshPassword,
                 newEntry: existing == nil)
+
+            var fields = draft.fields
+            if !thumbnail.isEmpty { fields["thumbnail"] = .string(thumbnail) }
+            let built = Entry(fields: fields)
 
             if let index, let existing {
                 let replacement = EntryDraft.preservingMetadata(of: existing, in: built)
@@ -333,7 +359,7 @@ struct EntryEditorView: View {
     }
 
     private func splitTags(_ text: String) -> [String] {
-        text.split(separator: ",").map(String.init)
+        text.split(separator: "\n").map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
     /// The loader's verdict, in words a person can act on. Every branch names what is wrong with the
