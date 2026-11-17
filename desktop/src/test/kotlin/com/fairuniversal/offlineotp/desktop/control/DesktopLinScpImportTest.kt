@@ -27,6 +27,26 @@ class DesktopLinScpImportTest {
         val state = DesktopVaultState(loaded.key)
         try { test(dir, controller, state) } finally { state.lock(); dir.deleteRecursively() }
     }
+    @Test fun selectedPlainImportDoesNotAdoptUnselectedEntriesOrAcceptStaleChoice() = harness { dir, controller, state ->
+        val source = File(dir, "plain.json")
+        val incoming = LinScpCredentials.importBytes((ini("first") + "\n[Other]\nprotocol=sftp\nhost=other.example\nusername=second\npassword=second-secret\n").toByteArray())
+        source.writeBytes(LinScpCredentials.exportPlain(incoming)); incoming.forEach { it.destroy() }
+        val worker = Queue(); val ui = Queue()
+        val importer = DesktopLinScpImport(state, worker, ui::execute, {}, EntryEditor(controller, state)::importEntries)
+        try {
+            importer.open(source); val request = importer.pending!!
+            importer.submit(request, DesktopLinScpImport.Input("")) { true }; worker.run(); ui.run()
+            assertEquals(2, request.count)
+            assertFalse(importer.confirmSelected(request, emptySet()) { true })
+            assertFalse(importer.confirmSelected(request, setOf(99)) { true })
+            assertFalse(importer.confirmSelected(request, setOf(1)) { false })
+            assertTrue(state.snapshot().isEmpty())
+            assertTrue(importer.confirmSelected(request, setOf(1)) { true })
+            assertEquals("Other", state.snapshot().single().getLabel())
+            assertFalse(importer.confirmSelected(request, setOf(0)) { true })
+        } finally { importer.close() }
+    }
+
     @Test fun sessionKeyBundleAndEncryptedVaultImportOnlyAfterConfirmation() {
         for (format in 0..2) harness { dir, controller, state ->
             val master = ByteArray(32) { it.toByte() }

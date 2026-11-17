@@ -18,6 +18,7 @@ struct EntryListView: View {
     @State private var passwordTarget: IndexedTarget?
     @State private var passwordEditTarget: IndexedTarget?
     @State private var emailTarget: IndexedTarget?
+    @State private var emailEditTarget: IndexedTarget?
     @State private var addingEmailAccount = false
     @State private var archiveExport: BackupFile?
     /// True while the pending file is a browser CSV rather than an original archive.
@@ -110,6 +111,9 @@ struct EntryListView: View {
             .sheet(item: $passwordEditTarget) { target in
                 passwordEditSheet(target)
             }
+            .sheet(item: $emailEditTarget) { target in
+                EmailEditSheet(store: store, index: target.index)
+            }
             .sheet(item: $emailTarget) { target in
                 emailDetailSheet(target)
             }
@@ -171,7 +175,7 @@ struct EntryListView: View {
             Button("Add secure note…") {
                 editor = EditorTarget(index: nil, initialKind: .note)
             }
-            Button("Add SSH key…") {
+            Button("Add key…") {
                 editor = EditorTarget(index: nil, initialKind: .sshKey)
             }
             Button("Add email account…") {
@@ -321,7 +325,7 @@ struct EntryListView: View {
                             onReveal: { if current(entry, at: index, epoch: epoch) { reveal(index) } },
                             onStep: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { step(at: index) } },
                             onDetails: { openDetails(at: index) },
-                            onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { editor = EditorTarget(index: index) } },
+                            onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { if entry.kind == .email { emailEditTarget = IndexedTarget(index: index) } else { editor = EditorTarget(index: index) } } },
                             onDelete: {
                                 guard current(entry, at: index, epoch: epoch), store.isRevealed(entry) else { return }
                                 deletion = DeletionTarget(index: index, name: VaultStore.displayName(entry), entry: entry, epoch: epoch)
@@ -336,7 +340,7 @@ struct EntryListView: View {
                                 onCopyNamed: { secret, itemName in if current(entry, at: index, epoch: epoch) { copySecret(secret, label: itemName, from: index) } },
                                 onReveal: { if current(entry, at: index, epoch: epoch) { reveal(index) } },
                                 onStep: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { step(at: index) } },
-                                onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { editor = EditorTarget(index: index) } },
+                                onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { if entry.kind == .email { emailEditTarget = IndexedTarget(index: index) } else { editor = EditorTarget(index: index) } } },
                                 onEditPassword: { passwordEditTarget = IndexedTarget(index: index) },
                                 onExportCsv: {
                                     guard store.entries.indices.contains(index) else { return }
@@ -757,7 +761,7 @@ struct EntryRowView: View {
                     .background(ForestPalette.surfaceVariant)
                     .cornerRadius(8)
             }
-            if entry.detailsVisible && (entry.kind?.isOtp == true || entry.kind == .note) {
+            if entry.detailsVisible && (entry.kind?.isOtp == true || entry.kind == .note || entry.kind == .email) {
                 HStack {
                     if entry.kind?.isOtp == true, let code, code != Entry.motpNoPinCode {
                         Button("Copy Token") { onCopy(code) }
@@ -893,9 +897,9 @@ struct EntryRowView: View {
         case .note: return "Secure note" + concealed
         case .sshKey:
             if entry.detailsVisible, let dest = entry.sshConnection?.summary {
-                return "SSH key · \(dest)"
+                return "Key · \(dest)"
             }
-            return "SSH key" + concealed
+            return "Key" + concealed
         case .password: return "Saved password" + concealed
         case .passwordArchive: return "Password archive" + concealed
         case .email: return "Email account" + concealed
@@ -926,7 +930,7 @@ struct EntryMenu: View {
     private var editable: Bool {
         guard entry.detailsVisible else { return false }
         switch entry.kind {
-        case .password, .passwordArchive, .email, nil: return false
+        case .password, .passwordArchive, nil: return false
         default: return true
         }
     }
@@ -1066,7 +1070,7 @@ struct EmptyCategoryView: View {
         switch store.category {
         case .otp: return "Time-based and counter-based codes appear here."
         case .notes: return "Add a secure note to store encrypted text in your vault."
-        case .sshKeys: return "Add an SSH key or import a LinSCP credential vault."
+        case .sshKeys: return "Add a key or import LinSCP Key/Sessions."
         case .passwords: return "Import a browser password CSV or LinSCP session file."
         case .emails: return "Add an email account or import FairEmail / Thunderbird credentials."
         }

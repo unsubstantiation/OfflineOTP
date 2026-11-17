@@ -214,7 +214,7 @@ struct EntryEditorView: View {
         if existing != nil { return "Edit entry" }
         switch kind {
         case .note: return "Add secure note"
-        case .sshKey: return "Add SSH key"
+        case .sshKey: return "Add key"
         default: return "Add entry"
         }
     }
@@ -235,7 +235,7 @@ struct EntryEditorView: View {
         case .motp: return "mOTP"
         case .steam: return "Steam"
         case .note: return "Secure note"
-        case .sshKey: return "SSH key"
+        case .sshKey: return "Key"
         case .password, .passwordArchive: return "Password archive"
         case .email: return "Email account"
         }

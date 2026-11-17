@@ -21,6 +21,7 @@ open class DesktopFileImport<Input : Any>(
             internal set
         internal var entries: ArrayList<Entry>? = null
         val count: Int? get() = entries?.size
+        val choiceLabels: List<String> get() = entries?.map { "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" } ?: emptyList()
     }
     private class Work<Input : Any>(private var input: Input?) {
         private var cancelled = false
@@ -91,6 +92,16 @@ open class DesktopFileImport<Input : Any>(
     }
     /** Confirmation merges into the current vault, deduplicating through EntryEditor. */
     fun confirm(request: Request, active: () -> Boolean): Boolean = confirmUsing(request, active, install)
+
+    fun confirmSelected(request: Request, selected: Set<Int>, active: () -> Boolean): Boolean {
+        if (!valid(request) || request.busy || !active() || !valid(request)) return false
+        val entries = request.entries ?: return false
+        if (selected.isEmpty() || selected.any { it !in entries.indices }) return false
+        val chosen = ArrayList<Entry>()
+        entries.forEachIndexed { index, entry -> if (index in selected) chosen.add(entry) else entry.destroy() }
+        entries.clear(); request.entries = chosen
+        return confirm(request, active)
+    }
 
     /** Specialized backup hosts may supply a replace transaction; it must consume entries on every outcome. */
     protected fun confirmUsing(request: Request, active: () -> Boolean, commit: (List<Entry>) -> Int?): Boolean {

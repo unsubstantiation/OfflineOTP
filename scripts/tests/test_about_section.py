@@ -1,5 +1,8 @@
 """About section must display the required copyright and links on both clients."""
 import unittest
+import json
+import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,14 +42,40 @@ class AboutSectionTest(unittest.TestCase):
         kt = FRAGMENT.read_text(encoding="utf-8")
         self.assertIn("WEBSITE_URI", kt)
         self.assertIn("RELEASES_URI", kt)
-        self.assertIn(WEBSITE, kt)
-        self.assertIn(RELEASES, kt)
+        self.assertIn('WEBSITE_URI = AboutInfo.url("website")', kt)
+        self.assertIn('RELEASES_URI = AboutInfo.url("releases")', kt)
         self.assertIn("about_layout_website", kt)
         self.assertIn("about_layout_releases", kt)
         self.assertIn("aboutImgWebsite", kt)
         self.assertIn("aboutImgReleases", kt)
 
 
+
+    def test_generated_content_is_fresh_for_all_three_clients(self):
+        result = subprocess.run([sys.executable, str(ROOT / "scripts/generate-about.py"), "--check"], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        catalog = json.loads((ROOT / "shared/about/content.json").read_text())
+        ids = [link["id"] for link in catalog["links"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertEqual({"website", "releases", "changelog", "license", "source", "issues",
+                          "author1", "author2", "originalAuthor", "originalApp", "contributors", "support"}, set(ids))
+        for link in catalog["links"]:
+            self.assertTrue(link["url"].startswith(("https://", "http://fairuniversal.com")))
+        self.assertEqual(4, len([key for key in catalog["strings"] if key.startswith("about_thumbnails_disclaimer_no")]))
+
+    def test_desktop_and_ios_render_catalog_without_help_submenu(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertNotIn('Menu("Help")', host)
+        self.assertIn('AboutNavigation(onAbout = { showAbout = true })', host)
+        self.assertIn('desktop.browse(java.net.URI(url))', host)
+        dialog = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt").read_text()
+        self.assertIn('verticalScroll(rememberScrollState())', dialog)
+        self.assertIn('onOpenLink(link.url)', dialog)
+        swift = (ROOT / "ios/App/Sources/SettingsView.swift").read_text()
+        for field in ("description", "copyright", "attribution", "links", "thumbnailDisclaimer"):
+            self.assertIn("AboutInfo." + field, dialog)
+            self.assertIn("AboutInfo." + field, swift)
+        self.assertIn('Link(item.label, destination: url)', swift)
 
     def test_readme_and_docs_mention_about_copyright(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -109,6 +109,10 @@ class IosAppTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for forbidden in ("URLSession", "NSURLConnection", "CFNetwork", "NWConnection",
                               "http://", "https://", "Network.framework"):
+                # Fixed About URLs are handed to the system browser only after a tap.
+                # The generated catalog has no networking code; the fresh-output test pins it.
+                if path.name == "AboutInfo.swift" and forbidden in ("http://", "https://"):
+                    continue
                 self.assertNotIn(forbidden, text, f"{path.name} must not use {forbidden}")
 
     def test_the_palette_is_the_shared_dark_forest(self):
@@ -186,7 +190,7 @@ class IosAppTest(unittest.TestCase):
         strings = (ROOT / "app/src/main/res/values/strings_main.xml").read_text(encoding="utf-8")
         for resource in ("tab_otp", "tab_notes", "tab_ssh_keys", "tab_passwords", "tab_email"):
             self.assertIn(f'<string name="{resource}">', strings)
-        for title in ('"OTP"', '"Notes"', '"SSH Keys"', '"Passwords"', '"Email"'):
+        for title in ('"OTP"', '"Notes"', '"Keys"', '"Passwords"', '"Email"'):
             self.assertIn(f"return {title}", projection)
         # Every kind the format defines is mapped explicitly, so a new kind cannot fall into a tab
         # by accident and cannot be dropped from the strip either.
@@ -723,7 +727,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
 
         # The sheets stay distributed across the typed layers instead of returning to one chain.
-        for member, sheets in (("editorSheets", 2), ("credentialSheets", 3), ("presentedSheets", 4)):
+        for member, sheets in (("editorSheets", 2), ("credentialSheets", 4), ("presentedSheets", 4)):
             section = row.split(f"private var {member}: some View {{", 1)[1].split("\n    }", 1)[0]
             self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
         vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]

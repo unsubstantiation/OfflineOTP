@@ -18,7 +18,6 @@ import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
 import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
 import com.fairuniversal.offlineotp.desktop.storage.DesktopHardwareUnlockStore
 import com.fairuniversal.offlineotp.ui.vault.HardwareOathDialog
-import androidx.compose.ui.window.MenuBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -189,76 +188,81 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
         icon = painterResource("offlineotp.png"),
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
-        MenuBar {
-            Menu("Help") {
-                Item("About OfflineOTP", onClick = { showAbout = true })
-            }
-        }
         ForestTheme {
-            if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
-                version = buildVersion, onDismiss = { showAbout = false })
-            @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
-            val vault = session
-            if (vault == null && rekey.canUnlock && enrollment == null) {
-                DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
-                    if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
-                    else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
-                }
-            } else if (vault != null) {
-                VaultContent(
-                    controller = controller,
-                    vault = vault,
-                    window = window, location = location,
-                    onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
-                    onEnrollHardware = { active, lock, hardwareWorker ->
-                        if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
-                            enrollmentActive = active
-                            enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
-                                enroll = { pin, key, token ->
-                                    val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
-                                    try { manager.enroll(pin, key, token) } finally { manager.close() }
-                                }, changed = { rekeyRevision++ })
-                        }
-                    },
-                    onLock = {
-                        vault.lock()
-                        session = null
-                        rekey.sessionLocked()
-                        if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
-                            enrollment?.close(); enrollment = null; enrollmentActive = null
-                        }
-                    }
-                )
-            }
-            enrollment?.let { owner ->
-                HardwareEnrollmentDialog(inputKey = owner, busy = owner.busy,
-                    result = when (owner.status) {
-                        DesktopHardwareEnrollment.Status.ENROLLED -> "Enrollment saved. Try hardware unlock; keep password access as a fallback."
-                        DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
-                        else -> null
-                    }, onSubmit = { pin ->
-                        if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
-                        else pin.fill(' ')
-                    }, onDismiss = {
-                        if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
+            com.fairuniversal.offlineotp.ui.vault.AboutNavigation(onAbout = { showAbout = true }) {
+                if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
+                    version = buildVersion, onDismiss = { showAbout = false }, onOpenLink = { url ->
+                        // Only the catalog's fixed links are passed here. Nothing opens on load.
+                        runCatching {
+                            check(java.awt.Desktop.isDesktopSupported())
+                            val desktop = java.awt.Desktop.getDesktop()
+                            check(desktop.isSupported(java.awt.Desktop.Action.BROWSE))
+                            desktop.browse(java.net.URI(url))
+                        }.isSuccess
                     })
-            }
-            if (writePendingNotice) EntryConfirmationDialog(
-                title = "Vault write pending",
-                message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
-                confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
-                onDismiss = { writePendingNotice = false })
-            rekey.operation?.let { owner ->
-                PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
-                    invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
-                    result = when (owner.status) {
-                        DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
-                        DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
-                        else -> null
-                    }, onSubmit = { current, next, confirmation ->
-                        if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
-                    },
-                    onDismiss = { rekey.dismiss(owner) })
+                @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
+                val vault = session
+                if (vault == null && rekey.canUnlock && enrollment == null) {
+                    DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
+                        if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
+                        else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
+                    }
+                } else if (vault != null) {
+                    VaultContent(
+                        controller = controller,
+                        vault = vault,
+                        window = window, location = location,
+                        onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
+                        onEnrollHardware = { active, lock, hardwareWorker ->
+                            if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
+                                enrollmentActive = active
+                                enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
+                                    enroll = { pin, key, token ->
+                                        val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+                                        try { manager.enroll(pin, key, token) } finally { manager.close() }
+                                    }, changed = { rekeyRevision++ })
+                            }
+                        },
+                        onLock = {
+                            vault.lock()
+                            session = null
+                            rekey.sessionLocked()
+                            if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
+                                enrollment?.close(); enrollment = null; enrollmentActive = null
+                            }
+                        }
+                    )
+                }
+                enrollment?.let { owner ->
+                    HardwareEnrollmentDialog(inputKey = owner, busy = owner.busy,
+                        result = when (owner.status) {
+                            DesktopHardwareEnrollment.Status.ENROLLED -> "Enrollment saved. Try hardware unlock; keep password access as a fallback."
+                            DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
+                            else -> null
+                        }, onSubmit = { pin ->
+                            if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
+                            else pin.fill(' ')
+                        }, onDismiss = {
+                            if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
+                        })
+                }
+                if (writePendingNotice) EntryConfirmationDialog(
+                    title = "Vault write pending",
+                    message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
+                    confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
+                    onDismiss = { writePendingNotice = false })
+                rekey.operation?.let { owner ->
+                    PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
+                        invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
+                        result = when (owner.status) {
+                            DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
+                            DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
+                            else -> null
+                        }, onSubmit = { current, next, confirmation ->
+                            if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
+                        },
+                        onDismiss = { rekey.dismiss(owner) })
+                }
             }
         }
     }
@@ -332,9 +336,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val exporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    var linScpSelectedIds by remember(vault) { mutableStateOf<Set<Long>>(emptySet()) }
     val linScpExporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, seal = DesktopLinScpExport::seal,
-        snapshot = { DesktopLinScpExport.snapshot(vault) }) }
+        snapshot = { DesktopLinScpExport.snapshot(vault, linScpSelectedIds) }, plainSeal = DesktopLinScpExport::plain) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val hardwareRemoval = remember(vault) { DesktopHardwareRemoval(vault, exportWorker,
@@ -607,7 +612,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 try {
                     val target = DesktopSavePicker.linScpExport(window)
                     // Native modal pickers run a nested event loop: auto-lock may fire while open.
-                    if (target != null && lifetime.checkActive() && !vault.isLocked) linScpExporter.open(target)
+                    if (target != null && lifetime.checkActive() && !vault.isLocked) { linScpSelectedIds = emptySet(); linScpExporter.open(target) }
                 } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
                 revision++
             }
@@ -870,8 +875,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
             }, onClearKey = { keyFile = null },
             onRead = { password -> linScpImporter.submit(linScpRequest, DesktopLinScpImport.Input(password, keyFile), lifetime::checkActive) },
-            onConfirm = {
-                if (linScpImporter.confirm(linScpRequest, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+            choices = linScpRequest.choiceLabels,
+            onConfirm = { selected ->
+                if (linScpImporter.confirmSelected(linScpRequest, selected, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
             }, onDismiss = { keyFile = null; linScpImporter.dismiss(linScpRequest) })
     }
     linScpImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "LinSCP import",
@@ -1046,18 +1052,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (openPgpExporter.saved) EntryConfirmationDialog(title = "OpenPGP export", message = "OpenPGP backup saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { openPgpExporter.dismissNotice() }, onDismiss = { openPgpExporter.dismissNotice() })
     val linScpExportRequest = linScpExporter.pending
-    if (linScpExportRequest != null) EncryptedExportDialog(inputKey = linScpExportRequest, busy = linScpExportRequest.busy,
-        title = "Export encrypted LinSCP vault",
-        description = "Export all SSH keys and password credentials, including concealed entries, regardless of filters. OTPs, notes, email accounts and password archives are excluded. Protect the file with a new export password; existing files are never overwritten.",
-        error = when (linScpExportRequest.failure) {
-            DesktopEncryptedExport.Failure.PASSWORD -> "Enter matching, nonempty passwords."
-            DesktopEncryptedExport.Failure.EXISTS -> "That filename exists. Cancel and choose a new filename."
-            DesktopEncryptedExport.Failure.EXPORT -> "Could not export. Check that the vault has compatible entries and the destination is writable. A partial encrypted file may remain; choose a new filename to retry."
-            null -> null
-        }, onSubmit = { password, confirmation ->
-            if (lifetime.checkActive()) linScpExporter.submit(linScpExportRequest, password, confirmation)
-        }, onDismiss = { linScpExporter.dismiss(linScpExportRequest) })
-    if (linScpExporter.saved) EntryConfirmationDialog(title = "LinSCP export", message = "Encrypted LinSCP vault saved.",
+    if (linScpExportRequest != null) {
+        val candidates = remember(linScpExportRequest) { vault.snapshot().filter { it.isSshKey() || it.isPassword() }.map { it.getListId() to "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" } }
+        com.fairuniversal.offlineotp.ui.vault.LinScpExportDialog(
+            inputKey = linScpExportRequest, choices = candidates.map { it.second }, busy = linScpExportRequest.busy,
+            error = linScpExportRequest.failure?.let { "Export failed ($it). No entries were removed. Check the selection, password and destination; a partial file may remain." },
+            onSubmit = { selected, plainText, password, confirmation ->
+                if (lifetime.checkActive()) {
+                    linScpSelectedIds = selected.map { candidates[it].first }.toSet()
+                    linScpExporter.submit(linScpExportRequest, password, confirmation, plainText)
+                }
+            }, onDismiss = { linScpSelectedIds = emptySet(); linScpExporter.dismiss(linScpExportRequest) })
+    }
+    if (linScpExporter.saved) EntryConfirmationDialog(title = "LinSCP export", message = "LinSCP Key/Sessions saved in the selected format.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { linScpExporter.dismissNotice() }, onDismiss = { linScpExporter.dismissNotice() })
     val exportRequest = exporter.pending
     if (exportRequest != null) EncryptedExportDialog(inputKey = exportRequest, busy = exportRequest.busy,
@@ -1124,27 +1131,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
-    if (editRequest != null && editRequest.isEmail && editRequest.emailSettings) {
-        val initial = remember(editRequest) { editing.initialEmailSettings(editRequest) }
-        if (initial != null) EmailSettingsDialog(inputKey = editRequest, initial = initial,
-            failed = editRequest.failure != null,
+    if (editRequest != null && editRequest.isEmail) {
+        val initial = remember(editRequest) { editing.initialEmailEdit(editRequest) }
+        if (initial != null) com.fairuniversal.offlineotp.ui.vault.EmailEditDialog(
+            inputKey = editRequest, initial = initial,
+            error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
-                    presenter.entryRemoved(editRequest.entryId)
-                }
-                revision++
-            })
-    }
-    if (editRequest != null && editRequest.isEmail && !editRequest.emailSettings) {
-        val initial = remember(editRequest) { editing.initialEmailPasswords(editRequest) }
-        if (initial != null) EmailPasswordDialog(inputKey = editRequest, initial = initial,
-            failed = editRequest.failure != null,
-            onDismiss = { editing.dismiss(editRequest); revision++ },
-            onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
-                    presenter.entryRemoved(editRequest.entryId)
-                }
+                editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
                 revision++
             })
     }

@@ -42,7 +42,7 @@ class AddEntryMenuTest(unittest.TestCase):
             vector = ET.parse(RES / "drawable" / (icon + ".xml")).getroot()
             self.assertEqual("vector", vector.tag)
         self.assertEqual("Add secure note", strings["button_add_secure_note"])
-        self.assertEqual("Add SSH key", strings["button_add_ssh_key"])
+        self.assertEqual("Add key", strings["button_add_ssh_key"])
 
     def test_action_routes_keep_the_session_guard_and_qr_paths(self):
         main = MAIN.read_text(encoding="utf-8")
@@ -59,7 +59,7 @@ class AddEntryMenuTest(unittest.TestCase):
             "fabExportThunderbird": r"chooseThunderbirdExport\(\)",
             "fabImportLinScp": r"chooseLinScpImport\(\)",
             "fabExportLinScp": r"chooseLinScpExport\(\)",
-            "fabAddEmail": r"EmailEntryDialog\.show\(",
+            "fabAddEmail": r"adapter\?\.openEmailCreation\(\)",
             "fabImportEmail": r"chooseEmailImport\(\)",
             "fabExportEmail": r"chooseEmailExport\(\)",
             "fabEnterDetails": r"showSharedCreation\(\)",

@@ -95,6 +95,10 @@ public enum LinScpVault {
         guard let jsonText = String(data: plain, encoding: .utf8) else {
             throw LinScpVaultError.invalidUTF8
         }
+        return try importPlainDocument(jsonText)
+    }
+
+    private static func importPlainDocument(_ jsonText: String) throws -> [Entry] {
         try InputPolicy.validateJSONDepth(jsonText)
         guard let elements = (try JSONValue.decode(jsonText)).arrayValue,
               (1...InputPolicy.maxEntries).contains(elements.count) else {
@@ -122,6 +126,18 @@ public enum LinScpVault {
         let trimmed = stripBOM(rawText).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { throw LinScpVaultError.invalidFormat }
         let callerKey = try masterKeyData.map(parseMasterKey)
+        if trimmed.hasPrefix("[") {
+            if looksLikeSessionsIni(trimmed) && trimmed.components(separatedBy: "\n").contains(where: {
+                let line = $0.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !line.hasPrefix("[") && !line.hasPrefix("#") && !line.hasPrefix(";") && line.contains("=")
+            }) { return try importSessionsIni(trimmed, masterKey: callerKey) }
+            let next = String(trimmed.dropFirst()).trimmingCharacters(in: .whitespacesAndNewlines)
+            let jsonToken = next.first.map { "{]\"[0123456789-".contains($0) } ?? false
+            let literal = ["null", "true", "false"].contains { next.hasPrefix($0 + "]") || next.hasPrefix($0 + ",") }
+            if jsonToken || literal || !looksLikeSessionsIni(trimmed) {
+                return try importPlainDocument(trimmed)
+            }
+        }
         if trimmed.hasPrefix("{") {
             return try importBackupBundle(trimmed, callerKey: callerKey)
         }
@@ -152,6 +168,30 @@ public enum LinScpVault {
         guard salt.count == saltBytes, nonce.count == nonceBytes else {
             throw LinScpVaultError.invalidFormat
         }
+        let plainData = try exportPlain(entries: entries)
+        var key = try VaultCrypto.argon2id(
+            password: password,
+            salt: salt,
+            memoryKiB: argon2MemoryKiB,
+            iterations: argon2Iterations,
+            parallelism: argon2Parallelism
+        )
+        defer {
+            for i in 0..<key.count { key[i] = 0 }
+        }
+        let sealed = try VaultCrypto.seal(plainData, key: key, nonce: nonce,
+                                          authenticating: Data(magic))
+        var out = Data()
+        out.reserveCapacity(magic.count + salt.count + sealed.count)
+        out.append(contentsOf: magic)
+        out.append(contentsOf: salt)
+        out.append(sealed)
+        guard out.count <= maxFileBytes else { throw LinScpVaultError.invalidFormat }
+        return out
+    }
+
+    /// Explicit opt-in unencrypted document, identical to the encrypted payload.
+    public static func exportPlain(entries: [Entry]) throws -> Data {
         let credentials = entries.filter { $0.kind == .sshKey || $0.kind == .password }
         guard !credentials.isEmpty, credentials.count <= InputPolicy.maxEntries else {
             throw LinScpVaultError.emptyCredentials
@@ -211,29 +251,12 @@ public enum LinScpVault {
         let plainData = Data(jsonText.utf8)
         guard plainData.count <= maxFileBytes else { throw LinScpVaultError.invalidFormat }
 
-        var key = try VaultCrypto.argon2id(
-            password: password,
-            salt: salt,
-            memoryKiB: argon2MemoryKiB,
-            iterations: argon2Iterations,
-            parallelism: argon2Parallelism
-        )
-        defer {
-            for i in 0..<key.count { key[i] = 0 }
-        }
-        let sealed = try VaultCrypto.seal(plainData, key: key, nonce: nonce,
-                                          authenticating: Data(magic))
-        var out = Data()
-        out.reserveCapacity(magic.count + salt.count + sealed.count)
-        out.append(contentsOf: magic)
-        out.append(contentsOf: salt)
-        out.append(sealed)
-        return out
+        return plainData
     }
 
-    /// UTC dated filename matching `BackupFileNames.encrypted`.
-    public static func exportFilename(_ date: Date = Date()) -> String {
-        BackupFileNames.encrypted(date)
+    public static func exportFilename(_ date: Date = Date(), plainText: Bool = false) -> String {
+        let name = BackupFileNames.encrypted(date).replacingOccurrences(of: "otp_accounts_", with: "key_session_")
+        return plainText ? String(name.dropLast(4)) : name
     }
 
     /// Decrypts a LinSCP `lscp1$` saved-session password token using the 32-byte `sessions.key`.

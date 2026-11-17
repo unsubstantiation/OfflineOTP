@@ -36,6 +36,18 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
     fun initialPasswordInput(request: Request): PasswordEntryInput? =
         if (current(request) && request.isPassword) PasswordEntryInput.fromEntry(request.target) else null
 
+    fun initialEmailEdit(request: Request): com.fairuniversal.offlineotp.ui.vault.EmailEditInput? =
+        if (current(request) && request.isEmail) com.fairuniversal.offlineotp.ui.vault.EmailEditInput.fromEntry(request.target) else null
+
+    fun submitEmailEdit(request: Request, input: com.fairuniversal.offlineotp.ui.vault.EmailEditInput,
+                        revealed: Boolean, active: () -> Boolean): Boolean {
+        if (!revealed || !current(request) || !active() || !current(request) || !request.isEmail) return false
+        val replacement = try { input.build(request.target) } catch (_: Exception) {
+            request.failure = Failure.INVALID_INPUT; return false
+        }
+        return persist(request, replacement, active)
+    }
+
     fun initialEmailSettings(request: Request): EmailSettingsInput? =
         if (current(request) && request.isEmail && request.emailSettings) EmailSettingsInput.fromEntry(request.target) else null
 

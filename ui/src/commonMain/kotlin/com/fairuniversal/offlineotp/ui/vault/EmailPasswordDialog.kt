@@ -22,7 +22,7 @@ fun EmailPasswordDialog(inputKey: Any, initial: EmailPasswordInput, failed: Bool
     fun dismiss() { input = input.withoutSecrets(); onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Change email passwords / tokens") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = "Blank keeps the stored credential. SMTP numbers follow the connection details order. Server settings, authentication types and all identities are preserved. This does not change passwords at your provider or refresh OAuth tokens.")
+            Text(text = EMAIL_EDIT_WARNING)
             EmailPasswordField("Incoming password / token", input.incoming) { input = input.copy(incoming = it) }
             input.outgoing.forEachIndexed { index, password ->
                 EmailPasswordField("Outgoing SMTP #${index + 1} password / token", password) { next ->

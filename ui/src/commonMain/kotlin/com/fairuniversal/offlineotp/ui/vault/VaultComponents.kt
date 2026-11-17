@@ -376,7 +376,7 @@ internal fun VaultEntryCard(
             }
             val edit = actions.onEditEntry
             if (card.detailsVisible && card.revealed && edit != null &&
-                (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS) ||
+                (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.EMAILS) ||
                     (card.kind == VaultEntryKind.PASSWORDS && card.canEditPassword))) {
                 ForestTextAction(text = strings.editEntry, onClick = { edit(card) })
             }

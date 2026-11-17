@@ -104,7 +104,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
 
         # Manual email account creation + SSH key creation + visible note display on iOS
         self.assertIn("Add email account…", ios_list)
-        self.assertIn("Add SSH key…", ios_list)
+        self.assertIn("Add key…", ios_list)
         self.assertIn("entry.noteText", ios_list)
 
         # Direct password editing and bulk CSV export on iOS, and per-entry tag editing on Android
@@ -115,8 +115,9 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         adapter = (ANDROID / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("R.id.menu_popup_tags", adapter)
         ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
-        self.assertIn("Copyright (c) 2026 unsubstantiation", ios_settings)
-        self.assertIn("fairuniversal.com", ios_settings)
+        self.assertIn("AboutInfo.copyright", ios_settings)
+        self.assertIn("Copyright (c) 2026 unsubstantiation", (IOS_APP / "AboutInfo.swift").read_text())
+        self.assertIn("fairuniversal.com", (IOS_APP / "AboutInfo.swift").read_text())
 
 
 if __name__ == "__main__":

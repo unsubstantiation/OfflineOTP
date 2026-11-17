@@ -51,6 +51,23 @@ class VaultComposeView(
     private var frame by mutableStateOf(host.frame)
     private var renderedActions by mutableStateOf(host.actions)
 
+    private class EmailCreation(val key: Any, val submit: (EmailEntryInput) -> String?)
+    private var emailCreation by mutableStateOf<EmailCreation?>(null)
+    fun showEmailCreation(key: Any, submit: (EmailEntryInput) -> String?) {
+        if (ended) return
+        clearEntryEditor(); emailCreation = EmailCreation(key, submit)
+    }
+    fun ownsEmailCreation(key: Any) = !ended && emailCreation?.key === key
+
+    private class EmailEditor(val initial: EmailEditInput, val submit: (EmailEditInput) -> String?)
+    private var emailEditor by mutableStateOf<EmailEditor?>(null)
+    fun showEmailEditor(initial: EmailEditInput, submit: (EmailEditInput) -> String?) {
+        if (ended) return
+        clearEntryEditor()
+        emailEditor = EmailEditor(initial, submit)
+    }
+    fun ownsEmailEditor(initial: EmailEditInput) = !ended && emailEditor?.initial === initial
+
     private var ended = false
     private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
     private var editor by mutableStateOf<Editor?>(null)
@@ -59,13 +76,13 @@ class VaultComposeView(
     /** Uses the same form and draft validation as desktop; the host owns save authority. */
     fun showEntryEditor(initial: ManualEntryInput, editing: Boolean = true, submit: (ManualEntryInput) -> String?) {
         if (ended) return
-        editError = null
+        clearEntryEditor()
         editor = Editor(initial, editing, submit)
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
 
-    fun clearEntryEditor() { editor = null; editError = null }
+    fun clearEntryEditor() { editor = null; emailEditor = null; emailCreation = null; editError = null }
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -83,6 +100,28 @@ class VaultComposeView(
             appearance = appearance,
             artwork = artwork
         )
+        val creatingEmail = emailCreation
+        if (creatingEmail != null) ForestTheme {
+            EmailEntryDialog(creatingEmail.key, editError, onSubmit = { input ->
+                if (ownsEmailCreation(creatingEmail.key)) {
+                    val failure = creatingEmail.submit(input)
+                    if (emailCreation === creatingEmail) {
+                        if (failure == null) clearEntryEditor() else editError = failure
+                    }
+                }
+            }, onDismiss = { clearEntryEditor() })
+        }
+        val email = emailEditor
+        if (email != null) ForestTheme {
+            EmailEditDialog(email, email.initial, editError, onSubmit = { input ->
+                if (ownsEmailEditor(email.initial)) {
+                    val failure = email.submit(input)
+                    if (emailEditor === email) {
+                        if (failure == null) clearEntryEditor() else editError = failure
+                    }
+                }
+            }, onDismiss = { clearEntryEditor() })
+        }
         val request = editor
         if (request != null) ForestTheme {
             ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing,

@@ -122,6 +122,7 @@ object LinScpCredentials {
     /**
      * Imports SSH keys and saved connections from any supported LinSCP export:
      * - `LSCPVLT2` encrypted credential vault (requires [password]);
+     * - plain UTF-8 key/session JSON array (explicit unencrypted export);
      * - `BackupBundle` JSON (`version = 1`, `sessions_ini`, optional `sessions_key_b64`);
      * - `sessions.ini` (with optional 32-byte raw/Base64 [masterKeyBytes] for `lscp1$` secrets).
      */
@@ -147,6 +148,21 @@ object LinScpCredentials {
             parseMasterKey(masterKeyBytes)
         } else null
         try {
+            if (trimmed.startsWith("[")) {
+                // Android's org.json accepts bare INI section names as JSON strings, so do
+                // not use a lenient parser to distinguish the two formats. Credential arrays
+                // start with an object (or an empty-array terminator, rejected by validation).
+                // A real INI can use a numeric/quoted section name as well.
+                if (looksLikeSessionsIni(trimmed) && trimmed.lineSequence().any {
+                        val line = it.trim(); !line.startsWith("[") && !line.startsWith("#") && !line.startsWith(";") && '=' in line
+                    }) return importSessionsIni(trimmed, callerKey)
+                val next = trimmed.drop(1).trimStart()
+                val jsonToken = next.firstOrNull()?.let { it in "{]\"[0123456789-" } == true ||
+                    listOf("null", "true", "false").any { next.startsWith(it + "]") || next.startsWith(it + ",") }
+                if (jsonToken || !looksLikeSessionsIni(trimmed)) {
+                    return importPlainDocument(trimmed)
+                }
+            }
             if (trimmed.startsWith("{")) {
                 return importBackupBundleJson(trimmed, callerKey)
             }
@@ -207,19 +223,7 @@ object LinScpCredentials {
             val secretKey = SecretKeySpec(keyBytes, "AES")
             plaintext = CryptoPrimitives.decryptWithAad(secretKey, nonce, ciphertext, FILE_MAGIC)
             val jsonText = decodeUtf8Strict(plaintext, "Invalid LinSCP credential-vault UTF-8")
-            InputPolicy.jsonDepth(jsonText)
-            val array = try {
-                if (!jsonText.trimStart().startsWith("[")) {
-                    throw IllegalArgumentException("Credential vault must contain a JSON array")
-                }
-                JSONArray(jsonText)
-            } catch (error: JSONException) {
-                throw IllegalArgumentException("Invalid credential-vault JSON", error)
-            }
-            require(array.length() in 1..InputPolicy.MAX_ENTRIES) {
-                "Credential vault must contain 1 to ${InputPolicy.MAX_ENTRIES} entries"
-            }
-            return parseVaultEntries(array)
+            return importPlainDocument(jsonText)
         } finally {
             keyBytes.fill(0)
             plaintext?.fill(0)
@@ -246,6 +250,36 @@ object LinScpCredentials {
         require(salt.size == SALT_BYTES) { "LinSCP salt must be $SALT_BYTES bytes" }
         require(nonce.size == NONCE_BYTES) { "LinSCP nonce must be $NONCE_BYTES bytes" }
 
+        val plainBytes = exportPlain(entries)
+        val keyBytes = Argon2id.deriveFromPassword(
+            password = password,
+            salt = salt,
+            memoryKiB = ARGON2_MEMORY_KIB,
+            iterations = ARGON2_ITERATIONS,
+            parallelism = ARGON2_PARALLELISM,
+            tagLength = Constants.ARGON2_HASH_LENGTH
+        )
+        try {
+            require(plainBytes.size <= MAX_FILE_BYTES) { "The credential vault exceeds 16 MiB" }
+            val secretKey = SecretKeySpec(keyBytes, "AES")
+            val ciphertext = CryptoPrimitives.encryptWithAad(secretKey, nonce, plainBytes, FILE_MAGIC)
+            val total = FILE_MAGIC.size.toLong() + SALT_BYTES + NONCE_BYTES + ciphertext.size
+            require(total <= MAX_FILE_BYTES) { "The encrypted vault exceeds 16 MiB" }
+            return ByteBuffer.allocate(total.toInt())
+                .put(FILE_MAGIC)
+                .put(salt)
+                .put(nonce)
+                .put(ciphertext)
+                .array()
+        } finally {
+            plainBytes.fill(0)
+            keyBytes.fill(0)
+        }
+    }
+
+    /** Explicit unencrypted export. Callers must obtain informed opt-in; never infer from a blank password. */
+    @JvmStatic
+    fun exportPlain(entries: List<Entry>): ByteArray {
         val credentials = entries.filter { it.isSshKey() || it.isPassword() }
         require(credentials.isNotEmpty()) { "There are no SSH keys or login credentials to export" }
         require(credentials.size <= InputPolicy.MAX_ENTRIES) {
@@ -274,36 +308,22 @@ object LinScpCredentials {
         }
 
         val plainBytes = encodedArray.toString().toByteArray(StandardCharsets.UTF_8)
-        val keyBytes = Argon2id.deriveFromPassword(
-            password = password,
-            salt = salt,
-            memoryKiB = ARGON2_MEMORY_KIB,
-            iterations = ARGON2_ITERATIONS,
-            parallelism = ARGON2_PARALLELISM,
-            tagLength = Constants.ARGON2_HASH_LENGTH
-        )
-        try {
-            require(plainBytes.size <= MAX_FILE_BYTES) { "The credential vault exceeds 16 MiB" }
-            val secretKey = SecretKeySpec(keyBytes, "AES")
-            val ciphertext = CryptoPrimitives.encryptWithAad(secretKey, nonce, plainBytes, FILE_MAGIC)
-            val total = FILE_MAGIC.size.toLong() + SALT_BYTES + NONCE_BYTES + ciphertext.size
-            require(total <= MAX_FILE_BYTES) { "The encrypted vault exceeds 16 MiB" }
-            return ByteBuffer.allocate(total.toInt())
-                .put(FILE_MAGIC)
-                .put(salt)
-                .put(nonce)
-                .put(ciphertext)
-                .array()
-        } finally {
-            plainBytes.fill(0)
-            keyBytes.fill(0)
-        }
+        if (plainBytes.size > MAX_FILE_BYTES) { plainBytes.fill(0); throw IllegalArgumentException("LinSCP document exceeds 16 MiB") }
+        return plainBytes
+    }
+
+    private fun importPlainDocument(text: String): ArrayList<Entry> {
+        InputPolicy.jsonDepth(text)
+        require(text.trimStart().startsWith("[")) { "Credential document must be a JSON array" }
+        val array = JSONArray(text)
+        require(array.length() in 1..InputPolicy.MAX_ENTRIES)
+        return parseVaultEntries(array)
     }
 
     /** UTC timestamped filename matching LinSCP's `offlineotp_vault::timestamped_filename`. */
     @JvmStatic
     @JvmOverloads
-    fun exportFilename(epochMillis: Long = System.currentTimeMillis()): String {
+    fun exportFilename(epochMillis: Long = System.currentTimeMillis(), plainText: Boolean = false): String {
         val unixSeconds = Math.floorDiv(epochMillis, 1000L).coerceAtLeast(0L)
         val days = Math.floorDiv(unixSeconds, 86_400L)
         val secondsOfDay = Math.floorMod(unixSeconds, 86_400L)
@@ -313,7 +333,7 @@ object LinScpCredentials {
         val second = secondsOfDay % 60L
         return String.format(
             Locale.ROOT,
-            "otp_accounts_%04d-%02d-%02d_%02d-%02d-%02d.json.aes",
+            "key_session_%04d-%02d-%02d_%02d-%02d-%02d" + if (plainText) ".json" else ".json.aes",
             year, month, day, hour, minute, second
         )
     }

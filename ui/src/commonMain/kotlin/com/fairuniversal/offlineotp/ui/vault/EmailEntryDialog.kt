@@ -25,12 +25,10 @@ fun EmailEntryDialog(inputKey: Any, error: String?, onSubmit: (EmailEntryInput) 
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Add email account") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             submitNotice?.let { Text(text = it) }
-            Text(text = "Stores connection details offline; does not contact or verify servers. Ports do not change automatically when protocol or encryption changes.")
+            Text(text = EMAIL_EDIT_WARNING)
             EmailField("Account name (optional)", input.name) { input = input.copy(name = it) }
             EmailField("Email address", input.address) { input = input.copy(address = it) }
-            Text(text = "Incoming protocol: ${if (input.protocol == 0) "IMAP" else "POP"}")
-            ForestTextAction(text = "Use IMAP", onClick = { input = input.copy(protocol = 0) })
-            ForestTextAction(text = "Use POP", onClick = { input = input.copy(protocol = 1) })
+            EmailChoiceField("Incoming protocol", input.protocol.toString(), EMAIL_PROTOCOL_OPTIONS) { input = input.copy(protocol = it.toInt()) }
             EmailField("Incoming host", input.incomingHost) { input = input.copy(incomingHost = it) }
             EmailField("Incoming port (1–65535)", input.incomingPort, limit = 5) { input = input.copy(incomingPort = it) }
             EmailEncryption("Incoming", input.incomingEncryption) { input = input.copy(incomingEncryption = it) }
@@ -52,9 +50,7 @@ fun EmailEntryDialog(inputKey: Any, error: String?, onSubmit: (EmailEntryInput) 
 
 @Composable
 private fun EmailEncryption(label: String, selected: Int, change: (Int) -> Unit) {
-    val names = listOf("SSL", "STARTTLS", "None (unencrypted)")
-    Text(text = "$label encryption: ${names[selected]}")
-    names.forEachIndexed { index, name -> ForestTextAction(text = "$label: $name", onClick = { change(index) }) }
+    EmailChoiceField("$label encryption", selected.toString(), EMAIL_ENCRYPTION_OPTIONS) { change(it.toInt()) }
 }
 
 @Composable

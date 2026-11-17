@@ -15,7 +15,7 @@ fun EmailDetailsDialog(rows: List<EmailMaterial.Detail>?, secretsVisible: Boolea
                        onToggleSecrets: () -> Unit, onDismiss: () -> Unit, onEditPasswords: (() -> Unit)? = null, onEditSettings: (() -> Unit)? = null) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Email connection details") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = "Read-only account and SMTP identity settings. Passwords are hidden until explicitly shown.")
+            Text(text = EMAIL_EDIT_WARNING)
             if (rows == null) Text(text = "Could not read the email account details.")
             else for (row in rows) {
                 Text(text = row.label)

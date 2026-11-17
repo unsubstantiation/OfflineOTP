@@ -215,7 +215,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("rememberSaveable", dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
-        self.assertIn("lifetime.checkActive() && editing.submitEmailPasswords", host)
+        self.assertIn("editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
         self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null", host)
 
     def test_all_compose_add_edit_paths_supply_live_save_guard(self):
@@ -223,7 +223,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         for call in ("creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)",
                      "creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)"):
             self.assertIn(call, host)
-        for method in ("submit", "submitPassword", "submitEmailPasswords", "submitEmailSettings"):
+        for method in ("submit", "submitPassword", "submitEmailEdit"):
             self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
 
     def test_password_export_is_explicit_plaintext_and_lifetime_guarded(self):
@@ -345,7 +345,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -781,10 +781,10 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_linscp_export_uses_detached_worker_path_and_explains_scope(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("seal = DesktopLinScpExport::seal", host)
-        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault) }", host)
-        self.assertIn("including concealed entries, regardless of filters", host)
+        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault, linScpSelectedIds) }", host)
+        self.assertIn("plainSeal = DesktopLinScpExport::plain", host)
         self.assertIn("linScpExporter.close()", host)
-        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation)", host)
+        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation, plainText)", host)
 
     def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
         screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
@@ -801,7 +801,7 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_linscp_import_guards_native_key_selection_and_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopLinScpImport(vault, exportWorker", host)
-        self.assertIn("linScpImporter.confirm(linScpRequest, lifetime::checkActive)", host)
+        self.assertIn("linScpImporter.confirmSelected(linScpRequest, selected, lifetime::checkActive)", host)
         self.assertIn("lifetime.checkActive() && linScpImporter.pending === linScpRequest && selected != null", host)
         self.assertIn("linScpImporter.close()", host)
         form = (UI_MAIN / "vault/LinScpImportDialog.kt").read_text()

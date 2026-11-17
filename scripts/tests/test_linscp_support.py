@@ -62,8 +62,30 @@ class LinScpSupportTest(unittest.TestCase):
         self.assertIn("decryptLscp1Password", ios_vault)
 
         ios_backup_view = (IOS / "App/Sources/BackupView.swift").read_text(encoding="utf-8")
-        self.assertIn("Import LinSCP SSH & sessions…", ios_backup_view)
-        self.assertIn("Export to LinSCP encrypted vault", ios_backup_view)
+        self.assertIn("Import LinSCP Key/Sessions", ios_backup_view)
+        self.assertIn("Export LinSCP Key/Sessions", ios_backup_view)
+
+    def test_plain_export_is_explicit_and_both_imports_show_a_selection(self):
+        form = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt").read_text()
+        self.assertIn("mutableStateOf(false)", form)
+        self.assertIn("Exported secrets will be accessible by software on your device", form)
+        self.assertIn("selected.isNotEmpty()", form)
+        self.assertNotIn("rememberSaveable", form)
+        ios = (IOS / "App/Sources/LinScpTransferViews.swift").read_text()
+        self.assertIn("private var plainText = false", ios)
+        self.assertIn("store.generation == epoch", ios)
+        self.assertIn("$0.fields == candidate.fields", ios)
+        self.assertIn("importLinScpSelection(chosen)", ios)
+        self.assertIn("Exported secrets will be accessible by software on your device", ios)
+        main = (APP / "kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("linScpImportSelectionDialog?.dismiss()", main)
+        self.assertIn("incoming.forEach { it.destroy() }; incoming.clear()", main)
+        self.assertIn("plainText.isChecked", main)
+        self.assertIn("LinScpCredentials.exportPlain(chosen)", main)
+        codec = (CORE / "Utilities/LinScpCredentials.kt").read_text()
+        self.assertIn("fun exportPlain", codec)
+        self.assertIn("importPlainDocument(trimmed)", codec)
+        self.assertIn('if (plainText) ".json" else ".json.aes"', codec)
 
 
 if __name__ == "__main__":
