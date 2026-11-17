@@ -22,6 +22,44 @@ class LinScpCredentialsTest {
     private val sampleTunnelPrivate =
         "-----BEGIN OPENSSH PRIVATE KEY-----\nYmFzdGlvbi1rZXktdjEAAAA=\n-----END OPENSSH PRIVATE KEY-----\n"
 
+    @Test fun newPlainDocumentKeepsAllSessionSettingsAndUsesDistinctFilename() {
+        val session = JSONObject().put("name", "WebDAV").put("protocol", "webdavs")
+            .put("host", "dav.example").put("port", 443).put("username", "alice")
+            .put("password", "server-password").put("key_password", "key-passphrase")
+            .put("remote_directory", "/files").put("host_key", "fingerprint")
+            .put("proxy_method", "http").put("proxy_password", "proxy-secret")
+            .put("tls_verify", true).put("future_setting", JSONObject().put("keep", 42))
+            .put("tunnel", JSONObject().put("host", "jump.example").put("port", 22)
+                .put("username", "jump-user").put("password", "jump-password")).toString()
+        val entry = Entry.passwordFields("WebDAV", "dav.example", listOf("url" to "webdavs://dav.example:443",
+            "username" to "alice", "password" to "server-password", "linscp_session_json" to session,
+            "linscp_future" to "opaque"))
+        try {
+            val bytes = LinScpCredentials.exportPlain(listOf(entry))
+            assertFalse(LinScpCredentials.isEncryptedVault(bytes))
+            assertEquals('[', bytes[0].toInt().toChar())
+            val imported = LinScpCredentials.importBytes(bytes)
+            try {
+                assertEquals(session, imported.single().getPasswordFields().value("linscp_session_json"))
+                assertEquals("opaque", imported.single().getPasswordFields().value("linscp_future"))
+                val encrypted = LinScpCredentials.exportVault(imported, "password")
+                val reopened = LinScpCredentials.importBytes(encrypted, "password")
+                try { assertEquals(session, reopened.single().getPasswordFields().value("linscp_session_json")) }
+                finally { reopened.forEach { it.destroy() }; encrypted.fill(0) }
+            } finally { imported.forEach { it.destroy() }; bytes.fill(0) }
+            assertEquals("key_session_1970-01-01_00-00-00.json", LinScpCredentials.exportFilename(0L, true))
+            assertEquals("key_session_1970-01-01_00-00-00.json.aes", LinScpCredentials.exportFilename(0L))
+            var rejected = false
+            try { LinScpCredentials.exportVault(listOf(entry), "") } catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+            for (invalid in listOf("[]", "[1]", "[{\"type\":\"PASSWORD\",\"label\":\"bad\",\"secret\":\"???\"}]")) {
+                var failed = false
+                try { LinScpCredentials.importBytes(invalid.toByteArray()).forEach { it.destroy() } } catch (_: Exception) { failed = true }
+                assertTrue(failed)
+            }
+        } finally { entry.destroy() }
+    }
+
     @Test
     fun lscp1MatchesLinScpRustReferenceVectorByteForByte() {
         val masterKey = ByteArray(32) { it.toByte() }
