@@ -251,16 +251,16 @@ struct SettingsView: View {
             LabeledContent("Build time zone", value: "AKST (UTC−09:00)")
             LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
             LabeledContent("Network access", value: "None (100% offline)")
-            LabeledContent("Website", value: "fairuniversal.com")
-            LabeledContent("Releases", value: "github.com/unsubstantiation/OfflineOTP/releases")
-            LabeledContent("Source", value: "github.com/unsubstantiation/OfflineOTP")
-            Text("Copyright (c) 2026 unsubstantiation — fairuniversal.com and github.com/unsubstantiation/OfflineOTP/releases")
-                .font(.footnote)
-                .foregroundColor(ForestPalette.textSecondary)
-            Text("Compatible with OfflineOTP on Android and Desktop, FairEmail, Thunderbird, and LinSCP. "
-                 + "Originally derived from andOTP under the MIT License.")
-                .font(.footnote)
-                .foregroundColor(ForestPalette.textSecondary)
+            Text(AboutInfo.description)
+            Text(AboutInfo.copyright).font(.footnote)
+            Text(AboutInfo.attribution).font(.footnote)
+            ForEach(AboutInfo.links) { item in
+                if item.id == "author1" { Text("Credits").font(.headline) }
+                if let url = URL(string: item.url) { Link(item.label, destination: url) }
+            }
+            Text("Thumbnail disclaimer").font(.headline)
+            ForEach(AboutInfo.thumbnailDisclaimer, id: \.self) { text in Text(text).font(.footnote) }
+
         } header: {
             Text("About")
         }

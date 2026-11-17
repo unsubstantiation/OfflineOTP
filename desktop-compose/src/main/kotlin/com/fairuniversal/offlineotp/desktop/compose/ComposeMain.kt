@@ -18,7 +18,6 @@ import com.fairuniversal.offlineotp.desktop.control.HardwareKeyManager
 import com.fairuniversal.offlineotp.desktop.hardware.PcscHardwareDiscovery
 import com.fairuniversal.offlineotp.desktop.storage.DesktopHardwareUnlockStore
 import com.fairuniversal.offlineotp.ui.vault.HardwareOathDialog
-import androidx.compose.ui.window.MenuBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import com.fairuniversal.offlineotp.desktop.control.DesktopQrImageRead
@@ -189,76 +188,81 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
         icon = painterResource("offlineotp.png"),
         state = rememberWindowState(width = 520.dp, height = 820.dp)
     ) {
-        MenuBar {
-            Menu("Help") {
-                Item("About OfflineOTP", onClick = { showAbout = true })
-            }
-        }
         ForestTheme {
-            if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
-                version = buildVersion, onDismiss = { showAbout = false })
-            @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
-            val vault = session
-            if (vault == null && rekey.canUnlock && enrollment == null) {
-                DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
-                    if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
-                    else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
-                }
-            } else if (vault != null) {
-                VaultContent(
-                    controller = controller,
-                    vault = vault,
-                    window = window, location = location,
-                    onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
-                    onEnrollHardware = { active, lock, hardwareWorker ->
-                        if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
-                            enrollmentActive = active
-                            enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
-                                enroll = { pin, key, token ->
-                                    val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
-                                    try { manager.enroll(pin, key, token) } finally { manager.close() }
-                                }, changed = { rekeyRevision++ })
-                        }
-                    },
-                    onLock = {
-                        vault.lock()
-                        session = null
-                        rekey.sessionLocked()
-                        if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
-                            enrollment?.close(); enrollment = null; enrollmentActive = null
-                        }
-                    }
-                )
-            }
-            enrollment?.let { owner ->
-                HardwareEnrollmentDialog(inputKey = owner, busy = owner.busy,
-                    result = when (owner.status) {
-                        DesktopHardwareEnrollment.Status.ENROLLED -> "Enrollment saved. Try hardware unlock; keep password access as a fallback."
-                        DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
-                        else -> null
-                    }, onSubmit = { pin ->
-                        if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
-                        else pin.fill(' ')
-                    }, onDismiss = {
-                        if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
+            com.fairuniversal.offlineotp.ui.vault.AboutNavigation(onAbout = { showAbout = true }) {
+                if (showAbout) com.fairuniversal.offlineotp.ui.vault.AboutDialog(
+                    version = buildVersion, onDismiss = { showAbout = false }, onOpenLink = { url ->
+                        // Only the catalog's fixed links are passed here. Nothing opens on load.
+                        runCatching {
+                            check(java.awt.Desktop.isDesktopSupported())
+                            val desktop = java.awt.Desktop.getDesktop()
+                            check(desktop.isSupported(java.awt.Desktop.Action.BROWSE))
+                            desktop.browse(java.net.URI(url))
+                        }.isSuccess
                     })
-            }
-            if (writePendingNotice) EntryConfirmationDialog(
-                title = "Vault write pending",
-                message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
-                confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
-                onDismiss = { writePendingNotice = false })
-            rekey.operation?.let { owner ->
-                PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
-                    invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
-                    result = when (owner.status) {
-                        DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
-                        DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
-                        else -> null
-                    }, onSubmit = { current, next, confirmation ->
-                        if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
-                    },
-                    onDismiss = { rekey.dismiss(owner) })
+                @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
+                val vault = session
+                if (vault == null && rekey.canUnlock && enrollment == null) {
+                    DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
+                        if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
+                        else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
+                    }
+                } else if (vault != null) {
+                    VaultContent(
+                        controller = controller,
+                        vault = vault,
+                        window = window, location = location,
+                        onChangePassword = { active, lock -> if (storageAvailable() && enrollment == null) rekey.open(vault, active, lock); Unit },
+                        onEnrollHardware = { active, lock, hardwareWorker ->
+                            if (storageAvailable() && enrollment == null && rekey.operation == null && active()) {
+                                enrollmentActive = active
+                                enrollment = DesktopHardwareEnrollment(vault, hardwareWorker, { task -> EventQueue.invokeLater(task) }, lock,
+                                    enroll = { pin, key, token ->
+                                        val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+                                        try { manager.enroll(pin, key, token) } finally { manager.close() }
+                                    }, changed = { rekeyRevision++ })
+                            }
+                        },
+                        onLock = {
+                            vault.lock()
+                            session = null
+                            rekey.sessionLocked()
+                            if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
+                                enrollment?.close(); enrollment = null; enrollmentActive = null
+                            }
+                        }
+                    )
+                }
+                enrollment?.let { owner ->
+                    HardwareEnrollmentDialog(inputKey = owner, busy = owner.busy,
+                        result = when (owner.status) {
+                            DesktopHardwareEnrollment.Status.ENROLLED -> "Enrollment saved. Try hardware unlock; keep password access as a fallback."
+                            DesktopHardwareEnrollment.Status.FAILED -> "Enrollment did not report success. Use password unlock and inspect hardware unlock before retrying. An authenticator credential or local record may already have been created."
+                            else -> null
+                        }, onSubmit = { pin ->
+                            if (enrollment === owner && !closing && storageAvailable()) owner.submit(pin) { enrollmentActive?.invoke() == true }
+                            else pin.fill(' ')
+                        }, onDismiss = {
+                            if (enrollment === owner && !owner.busy) { owner.close(); enrollment = null; enrollmentActive = null }
+                        })
+                }
+                if (writePendingNotice) EntryConfirmationDialog(
+                    title = "Vault write pending",
+                    message = "Wait for the current vault write and its result to finish, then try again. Closing or unlocking now could conflict with that write. If a write cannot finish, do not force quit unless you accept possible recovery work; keep your backup.",
+                    confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
+                    onDismiss = { writePendingNotice = false })
+                rekey.operation?.let { owner ->
+                    PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
+                        invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
+                        result = when (owner.status) {
+                            DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."
+                            DesktopPasswordChange.Status.FAILED -> "Password change did not report success. The vault remains locked. Try your current password, then the new password if necessary. Preserve the vault files if neither works; do not create a replacement vault."
+                            else -> null
+                        }, onSubmit = { current, next, confirmation ->
+                            if (storageAvailable()) rekey.submit(owner, current, next, confirmation)
+                        },
+                        onDismiss = { rekey.dismiss(owner) })
+                }
             }
         }
     }

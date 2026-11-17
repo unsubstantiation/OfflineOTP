@@ -1,0 +1,103 @@
+{
+  "strings": {
+    "about_activity_title": "About",
+    "about_description": "Offline authenticator and encrypted credential vault",
+    "about_copyright": "Copyright (c) 2026 unsubstantiation — http://fairuniversal.com and https://github.com/unsubstantiation/OfflineOTP/releases",
+    "about_label_website": "Website",
+    "about_label_releases": "Releases",
+    "about_tab_about": "About",
+    "about_tab_libraries": "Libraries",
+    "about_label_changelog": "Changelog",
+    "about_label_license": "License",
+    "about_label_license_name": "Custom noncommercial license 1.0",
+    "about_label_source": "Source code",
+    "about_label_version": "Version",
+    "about_label_faq": "Issues",
+    "about_label_faq_long": "Report a bug or request a feature",
+    "about_title_authors": "Credits",
+    "about_label_main_developer": "andOTP main developer",
+    "about_label_developer": "andOTP developer",
+    "about_label_original_author": "otp-authenticator author",
+    "about_label_original_app": "otp-authenticator",
+    "about_label_donate": "Donate",
+    "about_name_author1": "Jakob Nixdorf",
+    "about_name_author_original": "Bruno Bierbaumer",
+    "about_name_author2": "Richy HBM",
+    "about_label_contributors": "Contributors",
+    "about_title_thumbnail_disclaimer": "Thumbnail disclaimer",
+    "about_thumbnails_disclaimer_no1": "All thumbnails are trademarks of their respective owners.",
+    "about_thumbnails_disclaimer_no2": "The use of these trademarks does not indicate endorsement of the trademark holder by OfflineOTP, nor vice versa.",
+    "about_thumbnails_disclaimer_no3": "Thumbnails should only be used to represent the company or product to which they refer.",
+    "about_thumbnails_disclaimer_no4": "Please do not use thumbnails for any purpose except to represent that particular brand or service.",
+    "about_title_support": "Support development",
+    "about_desc_support": "Learn how to contribute to OfflineOTP",
+    "about_title_special_features": "Special features",
+    "about_dialog_special_features": "Enable the special features? They add screenshot support and a KeyStore reset option.",
+    "about_toast_special_features": "Special features enabled",
+    "about_toast_special_features_enabled": "Special features already enabled",
+    "about_toast_copied_to_clipboard": "Link copied to clipboard"
+  },
+  "links": [
+    {
+      "id": "website",
+      "label": "Website",
+      "url": "http://fairuniversal.com"
+    },
+    {
+      "id": "releases",
+      "label": "Releases",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/releases"
+    },
+    {
+      "id": "changelog",
+      "label": "Changelog",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/blob/master/CHANGELOG.md"
+    },
+    {
+      "id": "license",
+      "label": "Custom noncommercial license 1.0",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/blob/master/LICENSE.txt"
+    },
+    {
+      "id": "source",
+      "label": "Source code",
+      "url": "https://github.com/unsubstantiation/OfflineOTP"
+    },
+    {
+      "id": "issues",
+      "label": "Report a bug or request a feature",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/issues"
+    },
+    {
+      "id": "author1",
+      "label": "Jakob Nixdorf — andOTP main developer",
+      "url": "https://github.com/flocke"
+    },
+    {
+      "id": "author2",
+      "label": "Richy HBM — andOTP developer",
+      "url": "https://github.com/richyhbm"
+    },
+    {
+      "id": "originalAuthor",
+      "label": "Bruno Bierbaumer — otp-authenticator author",
+      "url": "https://github.com/0xbb"
+    },
+    {
+      "id": "originalApp",
+      "label": "otp-authenticator",
+      "url": "https://github.com/0xbb/otp-authenticator"
+    },
+    {
+      "id": "contributors",
+      "label": "Contributors",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/graphs/contributors"
+    },
+    {
+      "id": "support",
+      "label": "Support development / Contributing",
+      "url": "https://github.com/unsubstantiation/OfflineOTP/blob/master/README.md#contributing"
+    }
+  ],
+  "attribution": "Originally derived from andOTP under the MIT License. OfflineOTP is distributed under its custom noncommercial license; third-party components retain their own licenses."
+}

@@ -48,7 +48,8 @@ class BuildVersionTest(unittest.TestCase):
         self.assertIn("'--app-version', isWindows ? rootProject.ext.windowsBuildVersion : rootProject.ext.appleBuildVersion", build)
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn('getResourceAsStream("/offlineotp-build-version.txt")', host)
-        self.assertIn('Item("About OfflineOTP"', host)
+        self.assertIn('AboutNavigation(onAbout = { showAbout = true })', host)
+        self.assertNotIn('Menu("Help")', host)
         self.assertIn('version = buildVersion', host)
         self.assertIn('Version: $version', (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').read_text())
         for platform in ("windows", "macos", "debian"):

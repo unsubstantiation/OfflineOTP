@@ -109,6 +109,10 @@ class IosAppTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for forbidden in ("URLSession", "NSURLConnection", "CFNetwork", "NWConnection",
                               "http://", "https://", "Network.framework"):
+                # Fixed About URLs are handed to the system browser only after a tap.
+                # The generated catalog has no networking code; the fresh-output test pins it.
+                if path.name == "AboutInfo.swift" and forbidden in ("http://", "https://"):
+                    continue
                 self.assertNotIn(forbidden, text, f"{path.name} must not use {forbidden}")
 
     def test_the_palette_is_the_shared_dark_forest(self):

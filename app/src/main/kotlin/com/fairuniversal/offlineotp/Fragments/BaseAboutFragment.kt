@@ -19,6 +19,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 
+import com.fairuniversal.offlineotp.ui.vault.AboutInfo
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
@@ -163,22 +164,22 @@ open class BaseAboutFragment : Fragment() {
     }
 
     companion object {
-        private const val GITHUB_URI = "https://github.com/unsubstantiation/OfflineOTP"
-        const val WEBSITE_URI = "http://fairuniversal.com"
-        const val RELEASES_URI = "https://github.com/unsubstantiation/OfflineOTP/releases"
-        private const val CHANGELOG_URI = "$GITHUB_URI/blob/master/CHANGELOG.md"
-        private const val LICENSE_URI = "$GITHUB_URI/blob/master/LICENSE.txt"
-        private const val ISSUES_URI = "$GITHUB_URI/issues"
+        private val GITHUB_URI = AboutInfo.url("source")
+        val WEBSITE_URI = AboutInfo.url("website")
+        val RELEASES_URI = AboutInfo.url("releases")
+        private val CHANGELOG_URI = AboutInfo.url("changelog")
+        private val LICENSE_URI = AboutInfo.url("license")
+        private val ISSUES_URI = AboutInfo.url("issues")
 
-        private const val AUTHOR1_GITHUB = "https://github.com/flocke"
-        private const val AUTHOR2_GITHUB = "https://github.com/richyhbm"
+        private val AUTHOR1_GITHUB = AboutInfo.url("author1")
+        private val AUTHOR2_GITHUB = AboutInfo.url("author2")
 
-        private const val AUTHOR_ORIGINAL_GITHUB = "https://github.com/0xbb"
-        private const val AUTHOR_ORIGINAL_EXTRA = "$AUTHOR_ORIGINAL_GITHUB/otp-authenticator"
+        private val AUTHOR_ORIGINAL_GITHUB = AboutInfo.url("originalAuthor")
+        private val AUTHOR_ORIGINAL_EXTRA = AboutInfo.url("originalApp")
 
-        private const val CONTRIBUTORS_URI = "$GITHUB_URI/graphs/contributors"
+        private val CONTRIBUTORS_URI = AboutInfo.url("contributors")
 
-        private const val SUPPORT_URI = "$GITHUB_URI/blob/master/README.md#contributing"
+        private val SUPPORT_URI = AboutInfo.url("support")
 
         /** About-tab icons tinted with the secondary text color. */
         @JvmField
