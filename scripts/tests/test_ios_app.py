@@ -190,7 +190,7 @@ class IosAppTest(unittest.TestCase):
         strings = (ROOT / "app/src/main/res/values/strings_main.xml").read_text(encoding="utf-8")
         for resource in ("tab_otp", "tab_notes", "tab_ssh_keys", "tab_passwords", "tab_email"):
             self.assertIn(f'<string name="{resource}">', strings)
-        for title in ('"OTP"', '"Notes"', '"SSH Keys"', '"Passwords"', '"Email"'):
+        for title in ('"OTP"', '"Notes"', '"Keys"', '"Passwords"', '"Email"'):
             self.assertIn(f"return {title}", projection)
         # Every kind the format defines is mapped explicitly, so a new kind cannot fall into a tab
         # by accident and cannot be dropped from the strip either.

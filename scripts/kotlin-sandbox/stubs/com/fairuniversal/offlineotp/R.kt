@@ -930,9 +930,9 @@ object R {
         const val linscp_export = 0x7f0c00bd
         const val linscp_export_empty = 0x7f0c00be
         const val linscp_export_failed = 0x7f0c00bf
-        const val linscp_export_info = 0x7f0c00c0
-        const val linscp_export_select = 0x7f0c00c1
-        const val linscp_export_success = 0x7f0c00c2
+        const val linscp_export_select = 0x7f0c00c0
+        const val linscp_export_success = 0x7f0c00c1
+        const val linscp_import = 0x7f0c00c2
         const val linscp_import_failed = 0x7f0c00c3
         const val linscp_import_success = 0x7f0c00c4
         const val linscp_master_key_prompt = 0x7f0c00c5

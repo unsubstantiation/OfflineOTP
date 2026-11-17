@@ -43,10 +43,10 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     onCancel = { pickingThumbnail = false })
             } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 submitNotice?.let { Text(text = it) }
-                Text(text = "Type: ${input.type}")
+                Text(text = "Type: ${if (input.type == Entry.OTPType.SSH_KEY) "Keys" else input.type.name}")
                 if (editing) Text(text = "Stored note and OTP fields are shown for editing. Changing OTP type clears the secret and timing; re-enter them for the new type. Leave fields blank to keep stored values. Removal choices apply only when you Save.")
                 if (!editing) for (type in EntryDraft.offerableTypes()) {
-                    ForestTextAction(text = type.name, onClick = {
+                    ForestTextAction(text = if (type == Entry.OTPType.SSH_KEY) "Keys" else type.name, onClick = {
                         // Switching types must not reinterpret or retain another type's secret.
                         input = ManualEntryInput(type = type, issuer = input.issuer, label = input.label,
                             tags = input.tags, thumbnailName = input.thumbnailName, timing = if (type == Entry.OTPType.HOTP) "0" else "30")

@@ -16,7 +16,8 @@ class DesktopEncryptedExport(
     private val changed: () -> Unit,
     private val seal: (String, String) -> ByteArray = EncryptedBackupCodec::seal,
     private val write: (File, ByteArray) -> Unit = EncryptedBackupFile::writeNew,
-    private val snapshot: () -> String = { VaultJson.entriesToString(state.snapshot()) }
+    private val snapshot: () -> String = { VaultJson.entriesToString(state.snapshot()) },
+    private val plainSeal: ((String) -> ByteArray)? = null
 ) {
     enum class Failure { PASSWORD, EXPORT, EXISTS }
     class Request internal constructor(internal val target: File) {
@@ -25,7 +26,7 @@ class DesktopEncryptedExport(
         var failure: Failure? = null
             internal set
     }
-    private class Input(val password: String, val document: String) {
+    private class Input(val password: String, val document: String, val plainText: Boolean) {
         override fun toString() = "BackupInput(redacted)"
     }
     private class Work(private var input: Input?) {
@@ -56,16 +57,16 @@ class DesktopEncryptedExport(
     fun dismissNotice() { saved = false; changed() }
     fun close() { closed = true; work?.cancel(); work = null; pending = null; saved = false }
 
-    fun submit(request: Request, password: String, confirmation: String): Boolean {
+    fun submit(request: Request, password: String, confirmation: String, plainText: Boolean = false): Boolean {
         if (closed || state.isLocked || pending !== request || request.busy) return false
-        if (password.isEmpty() || password.length > InputPolicy.MAX_TEXT_CHARS || password != confirmation) {
+        if ((plainText && plainSeal == null) || (!plainText && (password.isEmpty() || password.length > InputPolicy.MAX_TEXT_CHARS || password != confirmation))) {
             request.failure = Failure.PASSWORD; changed(); return false
         }
         // Serialization is on the UI thread so the worker never borrows mutable live entries/keys.
         val document = try { snapshot() } catch (_: Exception) {
             request.failure = Failure.EXPORT; changed(); return false
         }
-        val task = Work(Input(password, document))
+        val task = Work(Input(if (plainText) "" else password, document, plainText))
         work = task; request.busy = true; request.failure = null; changed()
         try {
             worker.execute {
@@ -73,9 +74,11 @@ class DesktopEncryptedExport(
                 val input = task.take() ?: return@execute
                 var encrypted: ByteArray? = null
                 val failure = try {
-                    encrypted = seal(input.password, input.document)
+                    encrypted = if (input.plainText) requireNotNull(plainSeal).invoke(input.document) else seal(input.password, input.document)
                     if (state.isLocked || !task.claimWrite()) return@execute
-                    write(request.target, encrypted)
+                    val target = if (input.plainText) File(request.target.parentFile,
+                        request.target.name.removeSuffix(".aes").removeSuffix(".json") + ".json") else request.target
+                    write(target, encrypted)
                     null
                 } catch (_: FileAlreadyExistsException) { Failure.EXISTS }
                 catch (_: Exception) { Failure.EXPORT }

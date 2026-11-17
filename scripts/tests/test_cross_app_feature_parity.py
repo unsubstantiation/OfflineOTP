@@ -104,7 +104,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
 
         # Manual email account creation + SSH key creation + visible note display on iOS
         self.assertIn("Add email account…", ios_list)
-        self.assertIn("Add SSH key…", ios_list)
+        self.assertIn("Add key…", ios_list)
         self.assertIn("entry.noteText", ios_list)
 
         # Direct password editing and bulk CSV export on iOS, and per-entry tag editing on Android

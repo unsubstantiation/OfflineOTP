@@ -22,7 +22,7 @@ class DesktopLinScpImport(
             var key: ByteArray? = null
             try {
                 // Encrypted vaults carry their own KDF; never read an unrelated selected session key.
-                if (!LinScpCredentials.isEncryptedVault(bytes)) {
+                if (LinScpCredentials.needsSessionMasterKey(bytes)) {
                     key = input.masterKeyFile?.inputStream()?.use { BoundedInputReader.read(it, 4096) }
                 }
                 return LinScpCredentials.importBytes(bytes, input.password.ifEmpty { null }, key)

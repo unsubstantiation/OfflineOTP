@@ -336,9 +336,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val exporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    var linScpSelectedIds by remember(vault) { mutableStateOf<Set<Long>>(emptySet()) }
     val linScpExporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, seal = DesktopLinScpExport::seal,
-        snapshot = { DesktopLinScpExport.snapshot(vault) }) }
+        snapshot = { DesktopLinScpExport.snapshot(vault, linScpSelectedIds) }, plainSeal = DesktopLinScpExport::plain) }
     val openPgpExporter = remember(vault) { DesktopOpenPgpExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val hardwareRemoval = remember(vault) { DesktopHardwareRemoval(vault, exportWorker,
@@ -611,7 +612,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 try {
                     val target = DesktopSavePicker.linScpExport(window)
                     // Native modal pickers run a nested event loop: auto-lock may fire while open.
-                    if (target != null && lifetime.checkActive() && !vault.isLocked) linScpExporter.open(target)
+                    if (target != null && lifetime.checkActive() && !vault.isLocked) { linScpSelectedIds = emptySet(); linScpExporter.open(target) }
                 } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
                 revision++
             }
@@ -874,8 +875,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
             }, onClearKey = { keyFile = null },
             onRead = { password -> linScpImporter.submit(linScpRequest, DesktopLinScpImport.Input(password, keyFile), lifetime::checkActive) },
-            onConfirm = {
-                if (linScpImporter.confirm(linScpRequest, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+            choices = linScpRequest.choiceLabels,
+            onConfirm = { selected ->
+                if (linScpImporter.confirmSelected(linScpRequest, selected, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
             }, onDismiss = { keyFile = null; linScpImporter.dismiss(linScpRequest) })
     }
     linScpImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "LinSCP import",
@@ -1050,18 +1052,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     if (openPgpExporter.saved) EntryConfirmationDialog(title = "OpenPGP export", message = "OpenPGP backup saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { openPgpExporter.dismissNotice() }, onDismiss = { openPgpExporter.dismissNotice() })
     val linScpExportRequest = linScpExporter.pending
-    if (linScpExportRequest != null) EncryptedExportDialog(inputKey = linScpExportRequest, busy = linScpExportRequest.busy,
-        title = "Export encrypted LinSCP vault",
-        description = "Export all SSH keys and password credentials, including concealed entries, regardless of filters. OTPs, notes, email accounts and password archives are excluded. Protect the file with a new export password; existing files are never overwritten.",
-        error = when (linScpExportRequest.failure) {
-            DesktopEncryptedExport.Failure.PASSWORD -> "Enter matching, nonempty passwords."
-            DesktopEncryptedExport.Failure.EXISTS -> "That filename exists. Cancel and choose a new filename."
-            DesktopEncryptedExport.Failure.EXPORT -> "Could not export. Check that the vault has compatible entries and the destination is writable. A partial encrypted file may remain; choose a new filename to retry."
-            null -> null
-        }, onSubmit = { password, confirmation ->
-            if (lifetime.checkActive()) linScpExporter.submit(linScpExportRequest, password, confirmation)
-        }, onDismiss = { linScpExporter.dismiss(linScpExportRequest) })
-    if (linScpExporter.saved) EntryConfirmationDialog(title = "LinSCP export", message = "Encrypted LinSCP vault saved.",
+    if (linScpExportRequest != null) {
+        val candidates = remember(linScpExportRequest) { vault.snapshot().filter { it.isSshKey() || it.isPassword() }.map { it.getListId() to "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" } }
+        com.fairuniversal.offlineotp.ui.vault.LinScpExportDialog(
+            inputKey = linScpExportRequest, choices = candidates.map { it.second }, busy = linScpExportRequest.busy,
+            error = linScpExportRequest.failure?.let { "Export failed ($it). No entries were removed. Check the selection, password and destination; a partial file may remain." },
+            onSubmit = { selected, plainText, password, confirmation ->
+                if (lifetime.checkActive()) {
+                    linScpSelectedIds = selected.map { candidates[it].first }.toSet()
+                    linScpExporter.submit(linScpExportRequest, password, confirmation, plainText)
+                }
+            }, onDismiss = { linScpSelectedIds = emptySet(); linScpExporter.dismiss(linScpExportRequest) })
+    }
+    if (linScpExporter.saved) EntryConfirmationDialog(title = "LinSCP export", message = "LinSCP Key/Sessions saved in the selected format.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { linScpExporter.dismissNotice() }, onDismiss = { linScpExporter.dismissNotice() })
     val exportRequest = exporter.pending
     if (exportRequest != null) EncryptedExportDialog(inputKey = exportRequest, busy = exportRequest.busy,

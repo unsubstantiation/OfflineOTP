@@ -122,6 +122,7 @@ object LinScpCredentials {
     /**
      * Imports SSH keys and saved connections from any supported LinSCP export:
      * - `LSCPVLT2` encrypted credential vault (requires [password]);
+     * - plain UTF-8 key/session JSON array (explicit unencrypted export);
      * - `BackupBundle` JSON (`version = 1`, `sessions_ini`, optional `sessions_key_b64`);
      * - `sessions.ini` (with optional 32-byte raw/Base64 [masterKeyBytes] for `lscp1$` secrets).
      */
@@ -148,14 +149,19 @@ object LinScpCredentials {
         } else null
         try {
             if (trimmed.startsWith("[")) {
-                // INI section headers also start with '['. Only JSON syntax is detected here;
-                // a parsed but invalid credential array must never fall back to the INI reader.
-                try { InputPolicy.jsonDepth(trimmed) } catch (error: IllegalArgumentException) {
-                    if (looksLikeSessionsIni(trimmed)) return importSessionsIni(trimmed, callerKey)
-                    throw error
+                // Android's org.json accepts bare INI section names as JSON strings, so do
+                // not use a lenient parser to distinguish the two formats. Credential arrays
+                // start with an object (or an empty-array terminator, rejected by validation).
+                // A real INI can use a numeric/quoted section name as well.
+                if (looksLikeSessionsIni(trimmed) && trimmed.lineSequence().any {
+                        val line = it.trim(); !line.startsWith("[") && !line.startsWith("#") && !line.startsWith(";") && '=' in line
+                    }) return importSessionsIni(trimmed, callerKey)
+                val next = trimmed.drop(1).trimStart()
+                val jsonToken = next.firstOrNull()?.let { it in "{]\"[0123456789-" } == true ||
+                    listOf("null", "true", "false").any { next.startsWith(it + "]") || next.startsWith(it + ",") }
+                if (jsonToken || !looksLikeSessionsIni(trimmed)) {
+                    return importPlainDocument(trimmed)
                 }
-                val array = try { JSONArray(trimmed) } catch (_: JSONException) { null }
-                if (array != null) return importPlainDocument(trimmed)
             }
             if (trimmed.startsWith("{")) {
                 return importBackupBundleJson(trimmed, callerKey)

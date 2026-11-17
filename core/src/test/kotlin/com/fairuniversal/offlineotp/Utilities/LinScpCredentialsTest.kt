@@ -23,6 +23,8 @@ class LinScpCredentialsTest {
         "-----BEGIN OPENSSH PRIVATE KEY-----\nYmFzdGlvbi1rZXktdjEAAAA=\n-----END OPENSSH PRIVATE KEY-----\n"
 
     @Test fun newPlainDocumentKeepsAllSessionSettingsAndUsesDistinctFilename() {
+        val numericIni = LinScpCredentials.importBytes("[123 server]\n# comment\nhost=server.example\nusername=alice\npassword=secret\n".toByteArray())
+        try { assertEquals("123 server", numericIni.single().getLabel()) } finally { numericIni.forEach { it.destroy() } }
         val session = JSONObject().put("name", "WebDAV").put("protocol", "webdavs")
             .put("host", "dav.example").put("port", 443).put("username", "alice")
             .put("password", "server-password").put("key_password", "key-passphrase")

@@ -781,10 +781,10 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_linscp_export_uses_detached_worker_path_and_explains_scope(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("seal = DesktopLinScpExport::seal", host)
-        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault) }", host)
-        self.assertIn("including concealed entries, regardless of filters", host)
+        self.assertIn("snapshot = { DesktopLinScpExport.snapshot(vault, linScpSelectedIds) }", host)
+        self.assertIn("plainSeal = DesktopLinScpExport::plain", host)
         self.assertIn("linScpExporter.close()", host)
-        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation)", host)
+        self.assertIn("linScpExporter.submit(linScpExportRequest, password, confirmation, plainText)", host)
 
     def test_secondary_tools_are_grouped_scrolled_and_closed_before_dispatch(self):
         screen = (UI_MAIN / "vault/VaultScreen.kt").read_text()
@@ -801,7 +801,7 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_linscp_import_guards_native_key_selection_and_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("DesktopLinScpImport(vault, exportWorker", host)
-        self.assertIn("linScpImporter.confirm(linScpRequest, lifetime::checkActive)", host)
+        self.assertIn("linScpImporter.confirmSelected(linScpRequest, selected, lifetime::checkActive)", host)
         self.assertIn("lifetime.checkActive() && linScpImporter.pending === linScpRequest && selected != null", host)
         self.assertIn("linScpImporter.close()", host)
         form = (UI_MAIN / "vault/LinScpImportDialog.kt").read_text()

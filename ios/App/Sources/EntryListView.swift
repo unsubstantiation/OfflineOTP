@@ -175,7 +175,7 @@ struct EntryListView: View {
             Button("Add secure note…") {
                 editor = EditorTarget(index: nil, initialKind: .note)
             }
-            Button("Add SSH key…") {
+            Button("Add key…") {
                 editor = EditorTarget(index: nil, initialKind: .sshKey)
             }
             Button("Add email account…") {
@@ -897,9 +897,9 @@ struct EntryRowView: View {
         case .note: return "Secure note" + concealed
         case .sshKey:
             if entry.detailsVisible, let dest = entry.sshConnection?.summary {
-                return "SSH key · \(dest)"
+                return "Key · \(dest)"
             }
-            return "SSH key" + concealed
+            return "Key" + concealed
         case .password: return "Saved password" + concealed
         case .passwordArchive: return "Password archive" + concealed
         case .email: return "Email account" + concealed
@@ -1070,7 +1070,7 @@ struct EmptyCategoryView: View {
         switch store.category {
         case .otp: return "Time-based and counter-based codes appear here."
         case .notes: return "Add a secure note to store encrypted text in your vault."
-        case .sshKeys: return "Add an SSH key or import a LinSCP credential vault."
+        case .sshKeys: return "Add a key or import LinSCP Key/Sessions."
         case .passwords: return "Import a browser password CSV or LinSCP session file."
         case .emails: return "Add an email account or import FairEmail / Thunderbird credentials."
         }

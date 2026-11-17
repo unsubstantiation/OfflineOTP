@@ -22,6 +22,36 @@ class DesktopLinScpExportTest {
     }
     private fun state() = DesktopVaultState(SecretKeySpec(ByteArray(32) { 1 }, "AES"))
     private fun password() = Entry.passwordFields("alice", "site", listOf("url" to "https://site", "username" to "alice", "password" to "private"))
+    @Test fun plaintextRequiresDedicatedEncoderAndExplicitOptInAndExportsOnlySelectedIds() {
+        val dir = Files.createTempDirectory("linscp-selected-").toFile()
+        val state = state(); val first = password(); val second = Entry.passwordFields("other", "site", listOf("url" to "sftp://other", "username" to "b", "password" to "second"))
+        state.add(first); state.add(second)
+        val worker = Queue(); val ui = Queue()
+        val exporter = DesktopEncryptedExport(state, worker, ui::execute, {}, seal = DesktopLinScpExport::seal,
+            snapshot = { DesktopLinScpExport.snapshot(state, setOf(second.getListId())) }, plainSeal = DesktopLinScpExport::plain)
+        try {
+            exporter.open(File(dir, "selected.json.aes")); val request = exporter.pending!!
+            assertFalse(exporter.submit(request, "", ""))
+            assertTrue(exporter.submit(request, "", "", plainText = true)); worker.run(); ui.run()
+            assertFalse(File(dir, "selected.json.aes").exists())
+            val imported = LinScpCredentials.importBytes(File(dir, "selected.json").readBytes())
+            try { assertEquals("other", imported.single().getLabel()) } finally { imported.forEach { it.destroy() } }
+            val generic = DesktopEncryptedExport(state, worker, ui::execute, {})
+            generic.open(File(dir, "forbidden.json"))
+            assertFalse(generic.submit(generic.pending!!, "", "", plainText = true))
+            assertTrue(worker.tasks.isEmpty()); generic.close()
+            exporter.open(File(dir, "selected.json.aes"))
+            assertTrue(exporter.submit(exporter.pending!!, "", "", plainText = true)); worker.run(); ui.run()
+            assertEquals(DesktopEncryptedExport.Failure.EXISTS, exporter.pending!!.failure)
+            exporter.dismiss(exporter.pending!!)
+            exporter.open(File(dir, "cancelled.json.aes"))
+            val cancelled = exporter.pending!!
+            assertTrue(exporter.submit(cancelled, "", "", plainText = true))
+            exporter.dismiss(cancelled); worker.run()
+            assertFalse(File(dir, "cancelled.json").exists())
+        } finally { exporter.close(); state.lock(); dir.deleteRecursively() }
+    }
+
     @Test fun exportContainsOnlyDetachedCompatibleEntriesAndRoundTripsOnDisk() {
         val dir = Files.createTempDirectory("compose-linscp-export-").toFile()
         val state = state(); val worker = Queue(); val ui = Queue()

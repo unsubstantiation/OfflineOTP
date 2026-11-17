@@ -144,7 +144,7 @@ internal object DesktopSavePicker {
 
     fun linScpExport(owner: Window): File? {
         val parent = Dialog(owner)
-        val picker = FileDialog(parent, "Export encrypted LinSCP vault (choose a new filename)", FileDialog.SAVE)
+        val picker = FileDialog(parent, "Export LinSCP Key/Sessions (choose a new filename)", FileDialog.SAVE)
         return try {
             picker.file = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.exportFilename()
             picker.isVisible = true

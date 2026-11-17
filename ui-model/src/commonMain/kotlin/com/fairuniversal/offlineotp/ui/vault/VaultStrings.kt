@@ -35,8 +35,8 @@ data class VaultStrings(
     val exportPreferences: String = "Export preferences",
     val exportOpenPgp: String = "Export OpenPGP backup",
     val importOpenPgp: String = "Import OpenPGP backup",
-    val exportLinScp: String = "Export encrypted LinSCP vault",
-    val importLinScp: String = "Import LinSCP credentials",
+    val exportLinScp: String = "Export LinSCP Key/Sessions",
+    val importLinScp: String = "Import LinSCP Key/Sessions",
     val importEmail: String = "Import FairEmail backup",
     val importPasswords: String = "Import password file",
     val importUri: String = "Import OTP URI",
@@ -90,7 +90,7 @@ data class VaultStrings(
     fun categoryTitle(category: EntryListPresentation.Category): String = when (category) {
         EntryListPresentation.Category.OTP -> "OTP"
         EntryListPresentation.Category.NOTES -> "Notes"
-        EntryListPresentation.Category.SSH_KEYS -> "SSH Keys"
+        EntryListPresentation.Category.SSH_KEYS -> "Keys"
         EntryListPresentation.Category.PASSWORDS -> "Passwords"
         EntryListPresentation.Category.EMAILS -> "Email"
     }

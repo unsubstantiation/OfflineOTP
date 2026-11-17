@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * LinSCP Key/Sessions: Support the updated plain JSON interchange alongside LSCPVLT2 and legacy session backups, preserving complete session metadata and opaque LinSCP fields. Add explicit key/session selection on import and export across Android, desktop and iOS. Encryption remains the default; plain-text export requires opt-in and warns that software on the device can access the secrets. Rename the SSH Keys category to Keys without changing stored type identifiers.
+
  * About parity: Replace desktop’s single-item Help menu with a direct About action available while locked or unlocked. Restore project links, license information, credits, contributing and trademark disclaimers. Generate Kotlin, Swift and Android default text from one checked-in catalog; retain Android translations, Libraries tab, special-feature tap behavior and flavor extras. iOS gains the same project information and explicit external-browser links.
 
  * Email editing: Share Android/desktop creation and comprehensive editing forms, expose stored account and every SMTP identity field without dropping imported extensions, add compact protocol/encryption/boolean selectors and password reveal controls, and reuse the existing validated save paths. Add a matching guarded SwiftUI editor and the requested local-edit warning. Native platform validation remains required; see docs/email-parity-audit.md.

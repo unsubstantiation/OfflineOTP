@@ -774,22 +774,33 @@ public final class VaultStore: ObservableObject {
     }
 
     /// Exports SSH keys and login sessions in LinSCP's `LSCPVLT2` encrypted credential-vault format.
-    public func exportLinScpVault(password: String, now: Date = Date()) -> ExportedBackup? {
+    public func exportLinScpVault(password: String, now: Date = Date(), selected: [Entry]? = nil, plainText: Bool = false) -> ExportedBackup? {
         guard isUnlocked else { return nil }
-        guard !password.isEmpty, password.count <= InputPolicy.maxVaultPasswordChars else {
+        guard plainText || (!password.isEmpty && password.count <= InputPolicy.maxVaultPasswordChars) else {
             message = "The backup password is empty or too long."
             return nil
         }
         do {
-            let data = try LinScpVault.sealWithFreshParameters(entries: entries, password: password)
-            return ExportedBackup(name: LinScpVault.exportFilename(now), data: data)
+            let chosen = selected ?? entries
+            guard selected == nil || chosen.allSatisfy({ candidate in entries.contains { $0.fields == candidate.fields } }) else { return nil }
+            let data: Data
+            if plainText { data = try LinScpVault.exportPlain(entries: chosen) }
+            else { data = try LinScpVault.sealWithFreshParameters(entries: chosen, password: password) }
+            return ExportedBackup(name: LinScpVault.exportFilename(now, plainText: plainText), data: data)
         } catch LinScpVaultError.emptyCredentials {
-            message = "There are no SSH keys or login sessions to export."
+            message = "There are no keys or login sessions to export."
             return nil
         } catch {
             message = "The LinSCP vault could not be written."
             return nil
         }
+    }
+
+    /// Selection is staged read-only in the sheet; merge persists before adoption.
+    public func importLinScpSelection(_ selected: [Entry]) -> RestorePlan? {
+        guard isUnlocked, !selected.isEmpty, selected.allSatisfy({ $0.kind == .sshKey || $0.kind == .password }) else { return nil }
+        do { return install(document: try VaultDocument.encode(selected), replace: false) }
+        catch { message = "Invalid LinSCP selection."; return nil }
     }
 
     /// Imports SSH keys and saved sessions from a LinSCP `LSCPVLT2` vault, `BackupBundle`, or `sessions.ini`.

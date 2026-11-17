@@ -18,8 +18,9 @@ struct BackupView: View {
     @State private var status: String?
     @State private var exportPassword = ""
     @State private var exportConfirmation = ""
-    @State private var linScpExportPassword = ""
-    @State private var linScpExportConfirmation = ""
+    @State private var showingLinScpExport = false
+    @State private var preparedLinScpExport: VaultStore.ExportedBackup?
+    @State private var preparedLinScpEpoch: Int?
     @State private var exportFile: BackupFile?
     @State private var exportName = ""
     @State private var showingExporter = false
@@ -136,12 +137,27 @@ struct BackupView: View {
                           allowsMultipleSelection: true) { result in
                 handlePickedImage(result)
             }
+            .sheet(isPresented: $showingLinScpExport, onDismiss: {
+                defer { preparedLinScpExport = nil; preparedLinScpEpoch = nil }
+                guard store.isUnlocked, store.generation == preparedLinScpEpoch,
+                      let exported = preparedLinScpExport else { return }
+                exportName = exported.name; exportFile = BackupFile(data: exported.data); showingExporter = true
+            }) {
+                LinScpExportSheet(store: store, onExport: { exported in
+                    preparedLinScpExport = exported; preparedLinScpEpoch = store.generation
+                    showingLinScpExport = false
+                }, onCancel: { showingLinScpExport = false })
+            }
             .sheet(item: $pending) { target in
+                if target.kind == .linScp {
+                    LinScpImportSheet(store: store, data: target.data, onFinished: { summary in status = summary; pending = nil }, onCancel: { pending = nil })
+                } else {
                 RestorePromptView(store: store, kind: target.kind, data: target.data) { summary in
                     status = summary
                     pending = nil
                 } onCancel: {
                     pending = nil
+                }
                 }
             }
             .sheet(item: $migration) { prompt in
@@ -267,22 +283,9 @@ struct BackupView: View {
 
     private var linScpSection: some View {
         Section {
-            Button("Import LinSCP SSH & sessions…") { pickingLinScp = true }
-            SecureField("LinSCP vault password", text: $linScpExportPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("Confirm LinSCP password", text: $linScpExportConfirmation)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Export to LinSCP encrypted vault") { createLinScpExport() }
-                .disabled(linScpExportPassword.isEmpty)
-        } header: {
-            Text("LinSCP SSH & Sessions")
-        } footer: {
-            Text("Imports LinSCP encrypted credential vaults (.json.aes), BackupBundle JSON, or "
-                 + "sessions.ini, and exports SSH keys and login sessions in LinSCP's Argon2id + "
-                 + "AES-256-GCM vault format.")
-        }
+            Button("Import LinSCP Key/Sessions") { pickingLinScp = true }
+            Button("Export LinSCP Key/Sessions") { showingLinScpExport = true }
+        } header: { Text("LinSCP Key/Sessions") }
     }
 
     private var linkSection: some View {
@@ -329,22 +332,6 @@ struct BackupView: View {
         // The typed password is not kept in this view once the file exists.
         exportPassword = ""
         exportConfirmation = ""
-        exportName = exported.name
-        exportFile = BackupFile(data: exported.data)
-        showingExporter = true
-    }
-
-    private func createLinScpExport() {
-        guard linScpExportPassword == linScpExportConfirmation else {
-            status = "The two passwords do not match."
-            return
-        }
-        guard let exported = store.exportLinScpVault(password: linScpExportPassword) else {
-            status = store.message ?? "The LinSCP vault could not be written."
-            return
-        }
-        linScpExportPassword = ""
-        linScpExportConfirmation = ""
         exportName = exported.name
         exportFile = BackupFile(data: exported.data)
         showingExporter = true
@@ -525,16 +512,19 @@ struct BackupView: View {
             // A picked file may live outside the app's sandbox; the scope has to be opened to read it.
             let scoped = url.startAccessingSecurityScopedResource()
             defer { if scoped { url.stopAccessingSecurityScopedResource() } }
-            let data = try Data(contentsOf: url)
-            if kind == .linScp, !store.isLinScpEncryptedVault(data),
-               !store.needsLinScpMasterKey(data) {
-                if let plan = store.importLinScp(data: data, replace: false) {
-                    status = BackupWording.restoreSummary(plan, replace: false)
-                } else {
-                    status = store.message ?? BackupWording.unreadableBackup
+            let data: Data
+            if kind == .linScp {
+                let handle = try FileHandle(forReadingFrom: url)
+                defer { try? handle.close() }
+                var bytes = Data()
+                while bytes.count <= LinScpVault.maxFileBytes {
+                    let chunk = try handle.read(upToCount: min(65536, LinScpVault.maxFileBytes + 1 - bytes.count)) ?? Data()
+                    if chunk.isEmpty { break }
+                    bytes.append(chunk)
                 }
-                return
-            }
+                guard bytes.count <= LinScpVault.maxFileBytes else { status = "LinSCP file exceeds 16 MiB."; return }
+                data = bytes
+            } else { data = try Data(contentsOf: url) }
             if kind == .fairEmail, !store.needsFairEmailPassword(data) {
                 if let plan = store.importFairEmailBackup(data: data, replace: false) {
                     status = BackupWording.restoreSummary(plan, replace: false)
@@ -635,7 +625,7 @@ struct RestorePromptView: View {
     private var promptTitle: String {
         switch kind {
         case .encrypted: return "Restore Full Encrypted Backup"
-        case .linScp: return "Import LinSCP Credentials"
+        case .linScp: return "Import LinSCP Key/Sessions"
         case .fairEmail: return "Import FairEmail Backup"
         case .thunderbird: return "Import Thunderbird CSV"
         case .openPgp: return "Restore OpenPGP Backup"
