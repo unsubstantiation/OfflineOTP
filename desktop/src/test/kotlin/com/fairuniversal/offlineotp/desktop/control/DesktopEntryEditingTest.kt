@@ -180,6 +180,27 @@ class DesktopEntryEditingTest {
         } finally { edits.close(); state.lock() }
     }
 
+    @Test fun failedComprehensiveEmailEditDestroysCandidateAndStaleOrRemovedTargetsCannotSave() {
+        val state = state(); val original = email(); state.add(original)
+        var candidate: Entry? = null
+        val edits = DesktopEntryEditing(state) { _, next -> candidate = next; false }
+        try {
+            edits.open(original.getListId()); val first = edits.pending!!
+            val input = edits.initialEmailEdit(first)!!.copy(label = "Changed")
+            assertFalse(edits.submitEmailEdit(first, input, true) { true })
+            assertEquals(0, candidate!!.getSecretSize())
+            assertEquals("incoming", original.getEmailAccount().account.getString("password"))
+            candidate = null
+            edits.open(original.getListId()); val second = edits.pending!!
+            assertFalse(edits.submitEmailEdit(first, input, true) { true })
+            edits.dismiss(second); assertFalse(edits.submitEmailEdit(second, input, true) { true })
+            edits.open(original.getListId()); val third = edits.pending!!
+            state.replace(original, email())
+            assertFalse(edits.submitEmailEdit(third, input, true) { true })
+            assertTrue(candidate == null)
+        } finally { edits.close(); state.lock() }
+    }
+
     @Test
     fun passwordEditsAreGuardedPersistedAndPreserveUneditedColumns() {
         val dir = Files.createTempDirectory("compose-password-edit-").toFile()

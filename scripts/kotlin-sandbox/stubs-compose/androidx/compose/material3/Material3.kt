@@ -111,3 +111,7 @@ fun Button(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean 
 @Composable
 fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {}
+
+@Composable fun OutlinedButton(onClick: () -> Unit, content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit) {}
+@Composable fun DropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {}
+@Composable fun DropdownMenuItem(text: @Composable () -> Unit, onClick: () -> Unit) {}

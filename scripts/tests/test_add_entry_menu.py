@@ -59,7 +59,7 @@ class AddEntryMenuTest(unittest.TestCase):
             "fabExportThunderbird": r"chooseThunderbirdExport\(\)",
             "fabImportLinScp": r"chooseLinScpImport\(\)",
             "fabExportLinScp": r"chooseLinScpExport\(\)",
-            "fabAddEmail": r"EmailEntryDialog\.show\(",
+            "fabAddEmail": r"adapter\?\.openEmailCreation\(\)",
             "fabImportEmail": r"chooseEmailImport\(\)",
             "fabExportEmail": r"chooseEmailExport\(\)",
             "fabEnterDetails": r"showSharedCreation\(\)",

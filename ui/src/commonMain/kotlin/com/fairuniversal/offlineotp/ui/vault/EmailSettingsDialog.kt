@@ -21,16 +21,12 @@ fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Bool
     var input by remember(inputKey) { mutableStateOf(initial) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email settings") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = "Changes are stored offline; servers are not contacted. Passwords/tokens and identity ordering are preserved. Authentication type is offline metadata only: 1 means password. Changing it does not sign in, refresh tokens or convert credentials; an incorrect type may make the exported account unusable. Changing an address does not change the login username or authorize sending from that address. Verify ports after changing protocol/encryption; they do not change automatically. None disables transport encryption.")
-            Text(text = "Account display name is exported with the email account; it does not rename the vault entry or change SMTP sender names.")
+            Text(text = EMAIL_EDIT_WARNING)
             input.accountName?.let { name ->
                 OutlinedTextField(value = name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) input = input.copy(accountName = it) }, label = { Text(text = "Account display name") }, singleLine = true)
             }
-            Text(text = "Incoming protocol: ${if (input.protocol == 0) "IMAP" else "POP"}")
-            ForestTextAction(text = "Use IMAP", onClick = { input = input.copy(protocol = 0) })
-            ForestTextAction(text = "Use POP", onClick = { input = input.copy(protocol = 1) })
+            EmailChoiceField("Incoming protocol", input.protocol.toString(), EMAIL_PROTOCOL_OPTIONS) { input = input.copy(protocol = it.toInt()) }
             ConnectionFields("Incoming", input.incoming) { input = input.copy(incoming = it) }
-            Text(text = "Removing an additional identity deletes its stored credentials and settings from this vault entry when you Save. It does not delete the server account. Keep a backup; the first and primary identities cannot be removed.")
             input.outgoing.forEachIndexed { index, connection ->
                 if (index in input.removableIdentities) {
                     val removed = index in input.removedIdentities
@@ -70,7 +66,5 @@ private fun ConnectionFields(label: String, input: EmailConnectionInput, change:
     input.authentication?.let { authentication ->
         OutlinedTextField(value = authentication, onValueChange = { if (it.length <= 10) change(input.copy(authentication = it)) }, label = { Text(text = "$label authentication type (1 = password)") }, singleLine = true)
     }
-    val modes = listOf("SSL", "STARTTLS", "None (unencrypted)")
-    Text(text = "$label encryption: ${modes.getOrNull(input.encryption) ?: "Unknown"}")
-    modes.forEachIndexed { index, name -> ForestTextAction(text = "$label: $name", onClick = { change(input.copy(encryption = index)) }) }
+    EmailChoiceField("$label encryption", input.encryption.toString(), EMAIL_ENCRYPTION_OPTIONS) { change(input.copy(encryption = it.toInt())) }
 }

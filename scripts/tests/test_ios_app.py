@@ -723,7 +723,7 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
 
         # The sheets stay distributed across the typed layers instead of returning to one chain.
-        for member, sheets in (("editorSheets", 2), ("credentialSheets", 3), ("presentedSheets", 4)):
+        for member, sheets in (("editorSheets", 2), ("credentialSheets", 4), ("presentedSheets", 4)):
             section = row.split(f"private var {member}: some View {{", 1)[1].split("\n    }", 1)[0]
             self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
         vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]

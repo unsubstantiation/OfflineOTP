@@ -1124,27 +1124,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
-    if (editRequest != null && editRequest.isEmail && editRequest.emailSettings) {
-        val initial = remember(editRequest) { editing.initialEmailSettings(editRequest) }
-        if (initial != null) EmailSettingsDialog(inputKey = editRequest, initial = initial,
-            failed = editRequest.failure != null,
+    if (editRequest != null && editRequest.isEmail) {
+        val initial = remember(editRequest) { editing.initialEmailEdit(editRequest) }
+        if (initial != null) com.fairuniversal.offlineotp.ui.vault.EmailEditDialog(
+            inputKey = editRequest, initial = initial,
+            error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
-                    presenter.entryRemoved(editRequest.entryId)
-                }
-                revision++
-            })
-    }
-    if (editRequest != null && editRequest.isEmail && !editRequest.emailSettings) {
-        val initial = remember(editRequest) { editing.initialEmailPasswords(editRequest) }
-        if (initial != null) EmailPasswordDialog(inputKey = editRequest, initial = initial,
-            failed = editRequest.failure != null,
-            onDismiss = { editing.dismiss(editRequest); revision++ },
-            onSubmit = { input ->
-                if (lifetime.checkActive() && editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
-                    presenter.entryRemoved(editRequest.entryId)
-                }
+                editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
                 revision++
             })
     }

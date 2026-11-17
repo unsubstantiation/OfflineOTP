@@ -53,7 +53,6 @@ import com.leinardi.android.speeddial.SpeedDialView
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Dialogs.HideableDialog
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
-import com.fairuniversal.offlineotp.Dialogs.EmailEntryDialog
 import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Constants
@@ -478,7 +477,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             else if (actionId == R.id.fabExportLinScp)
                 chooseLinScpExport()
             else if (actionId == R.id.fabAddEmail)
-                EmailEntryDialog.show(this) { entry -> adapter?.addEntry(entry) }
+                adapter?.openEmailCreation()
             else if (actionId == R.id.fabImportEmail)
                 chooseEmailImport()
             else if (actionId == R.id.fabExportEmail)

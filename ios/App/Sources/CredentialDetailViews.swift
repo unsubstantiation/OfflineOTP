@@ -247,6 +247,7 @@ struct EmailDetailSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Text(emailEditWarning)
                 Section {
                     Toggle("Show passwords", isOn: $revealSecrets)
                         .tint(ForestPalette.primary)
@@ -326,6 +327,7 @@ struct EmailAccountEditorSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Text(emailEditWarning)
                 Section {
                     TextField("Account name", text: $accountName)
                     TextField("Email address (user@example.com)", text: $emailAddress)
@@ -340,7 +342,7 @@ struct EmailAccountEditorSheet: View {
                     Picker("Protocol", selection: $incomingProtocol) {
                         Text("IMAP").tag(0)
                         Text("POP3").tag(1)
-                    }
+                    }.pickerStyle(.menu)
                     TextField("Incoming server (imap.example.com)", text: $incomingHost)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -350,7 +352,7 @@ struct EmailAccountEditorSheet: View {
                         Text("SSL/TLS").tag(0)
                         Text("STARTTLS").tag(1)
                         Text("None").tag(2)
-                    }
+                    }.pickerStyle(.menu)
                     TextField("Incoming user name", text: $incomingUser)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -371,7 +373,7 @@ struct EmailAccountEditorSheet: View {
                         Text("SSL/TLS").tag(0)
                         Text("STARTTLS").tag(1)
                         Text("None").tag(2)
-                    }
+                    }.pickerStyle(.menu)
                     TextField("Outgoing user name", text: $outgoingUser)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()

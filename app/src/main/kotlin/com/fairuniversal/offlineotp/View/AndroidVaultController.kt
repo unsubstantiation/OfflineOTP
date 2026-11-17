@@ -122,6 +122,54 @@ class AndroidVaultController(
         return true
     }
 
+    fun openEmailCreation(): Boolean {
+        val view = composeEditorView ?: return false
+        if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return false
+        val generation = VaultSession.generation()
+        val key = Any()
+        composeEditTarget = null
+        view.showEmailCreation(key) { input ->
+            synchronized(VaultSession.MutationLock) {
+                if (!view.ownsEmailCreation(key) || !VaultSession.isCurrent(generation) ||
+                    encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
+                    view.clearEntryEditor(); "The session changed."
+                } else {
+                    val draft = try { input.build() } catch (_: Exception) { null }
+                    if (draft == null) "Invalid email entry. Check fields and re-enter credentials."
+                    else {
+                        val category = EntryListPresentation.categoryOf(draft)
+                        val saved = importEntries(arrayListOf(draft))
+                        if (saved?.added == 1) { setCategory(category); null }
+                        else "Not added (duplicate or save failure). Re-enter credentials to retry."
+                    }
+                }
+            }
+        }
+        return true
+    }
+
+    private fun openEmailEditor(target: EntryActionTarget, entry: Entry): Boolean {
+        val view = composeEditorView ?: return false
+        if (!entry.isEmail() || !composeRevealed(entry)) return false
+        val initial = com.fairuniversal.offlineotp.ui.vault.EmailEditInput.fromEntry(entry)
+        composeEditTarget = target
+        view.showEmailEditor(initial) { input ->
+            synchronized(VaultSession.MutationLock) {
+                val actual = target.resolve(entries, VaultSession.generation())
+                if (!view.ownsEmailEditor(initial) || composeEditTarget !== target || encryptionKey == null ||
+                    VaultSession.getKey() !== encryptionKey || actual == null || !composeRevealed(actual)) {
+                    view.clearEntryEditor(); "The entry or session changed."
+                } else {
+                    val replacement = try { input.build(actual) } catch (_: Exception) { null }
+                    if (replacement == null) "Invalid email entry. Check field values and JSON structure."
+                    else if (replaceEntry(actual, replacement, preserveMissingPin = false)) null
+                    else "Could not save email entry. Original retained."
+                }
+            }
+        }
+        return true
+    }
+
     private fun openSharedEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
         if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote())) return false
@@ -256,7 +304,7 @@ class AndroidVaultController(
                     notifyEntryChanged(entry)
                 }
                 AndroidCardCommand.EDIT -> {
-                    if (!openSharedEditor(target, entry)) return false
+                    if (!(if (entry.isEmail()) openEmailEditor(target, entry) else openSharedEditor(target, entry))) return false
                 }
                 AndroidCardCommand.COPY -> {
                     if (entry.isTimeBased()) entry.updateOTP(false)
@@ -1150,7 +1198,7 @@ class AndroidVaultController(
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_send_keystrokes)?.setVisible(false)
         }
-        if (popupEntry.isPassword() || popupEntry.isPasswordArchive() || popupEntry.isEmail())
+        if (popupEntry.isPassword() || popupEntry.isPasswordArchive())
             popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
         if (popupEntry.isPasswordArchive())
             popup.getMenu().findItem(R.id.menu_popup_export_password_file)?.setVisible(true)
@@ -1187,7 +1235,7 @@ class AndroidVaultController(
                         .joinToString("\n") { "${it.label}: ${it.value}" }
                     activeEmailDialog?.dismiss()
                     val dialog = AlertDialog.Builder(context).setTitle(R.string.email_show_details)
-                        .setMessage(details).setPositiveButton(android.R.string.ok, null).create()
+                        .setMessage(com.fairuniversal.offlineotp.ui.vault.EMAIL_EDIT_WARNING + "\n\n" + details).setPositiveButton(android.R.string.ok, null).create()
                     activeEmailDialog = dialog
                     dialog.setOnDismissListener { if (activeEmailDialog === dialog) activeEmailDialog = null }
                     dialog.show()
@@ -1226,6 +1274,7 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
+                    if (actual.isEmail()) { openEmailEditor(popupTarget, actual); return@Consumer }
                     if (actual.isNote() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
                         openSharedEditor(popupTarget, actual)
                         return@Consumer

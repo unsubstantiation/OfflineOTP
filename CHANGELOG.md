@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Email editing: Share Android/desktop creation and comprehensive editing forms, expose stored account and every SMTP identity field without dropping imported extensions, add compact protocol/encryption/boolean selectors and password reveal controls, and reuse the existing validated save paths. Add a matching guarded SwiftUI editor and the requested local-edit warning. Native platform validation remains required; see docs/email-parity-audit.md.
+
  * OTP/note parity follow-up: Reuse the shared Compose form for Android creation and existing guarded import persistence for adoption. Align Android/iOS copy ordering with desktop (save usage before clipboard). iOS gains session-only visibility, hidden token/note copying, previous TOTP/Steam display, inline reveal-gated editing/deletion and stale-entry/session checks; HOTP copy no longer advances the counter.
 
  * OTP/note editor consolidation: Android now uses the desktop Compose edit form and shared draft validation, including editable credentials, parameters, PIN removal, Hidden Note/Hidden Label, type and artwork. Add editor/session identity guards and dismissal cleanup. iOS gains OTP type/artwork editing, lossless newline-separated tags, consistent labels and stale-target rejection. Record remaining list/clipboard differences in docs/otp-note-parity-audit.md.

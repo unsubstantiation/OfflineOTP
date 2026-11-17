@@ -148,7 +148,7 @@ echo "phase 6: android host seam (${#ANDROID_UI_SOURCES[@]} files, Android + Com
 [[ ${#ANDROID_UI_SOURCES[@]} -gt 0 ]] || { echo "no sources under ui/src/androidMain/kotlin" >&2; exit 2; }
 [[ ${#ANDROID_STUBS[@]} -gt 0 ]] || { echo "no Android stubs under $SANDBOX/stubs/android" >&2; exit 2; }
 [[ ${#COMPOSE_ANDROID_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose Android stubs under $COMPOSE_STUBS/android" >&2; exit 2; }
-"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/ui:$OUT/model:$STDLIB" \
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/ui:$OUT/model:$OUT/core:$STDLIB" \
     "${ANDROID_UI_SOURCES[@]}" "${COMPOSE_ANDROID_STUB_SOURCES[@]}" "${ANDROID_STUBS[@]}" \
     -d "$OUT/android"
 echo "android seam type-checked (no View is ever attached: the stubs have no framework)"

@@ -215,7 +215,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("rememberSaveable", dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
-        self.assertIn("lifetime.checkActive() && editing.submitEmailPasswords", host)
+        self.assertIn("editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
         self.assertIn("emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null", host)
 
     def test_all_compose_add_edit_paths_supply_live_save_guard(self):
@@ -223,7 +223,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         for call in ("creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)",
                      "creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)"):
             self.assertIn(call, host)
-        for method in ("submit", "submitPassword", "submitEmailPasswords", "submitEmailSettings"):
+        for method in ("submit", "submitPassword", "submitEmailEdit"):
             self.assertIn(f"editing.{method}(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
 
     def test_password_export_is_explicit_plaintext_and_lifetime_guarded(self):
@@ -345,7 +345,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
