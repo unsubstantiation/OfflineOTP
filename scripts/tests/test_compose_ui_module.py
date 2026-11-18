@@ -948,11 +948,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("Key.Enter || event.key == Key.NumPadEnter", screen)
         self.assertIn("KeyEventType.KeyUp) submitPassword()", screen)
         self.assertIn("KeyboardActions(onDone = { submitPassword() })", screen)
-        self.assertIn("if (!busy && password.isNotEmpty())", screen)
+        self.assertIn("if (!busy && password.isNotEmpty() && (!creating || confirmation == password))", screen)
         self.assertIn("onClick = submitPassword", screen)
         self.assertEqual(2, screen.count("colors = buttonColors"))
-        self.assertLess(screen.index("strings.unlockAction"), screen.index('Text(text = "Unlock with security key")'))
-        self.assertIn("if (onHardwareUnlock != null) Button(", screen)
+        self.assertLess(screen.index("strings.unlockAction"), screen.index('Text(text = quickUnlockLabel)'))
+        self.assertIn("if (!creating && onHardwareUnlock != null) Button(", screen)
         self.assertIn("controller.isInitialized() && hardwareEnrolled", host)
         self.assertIn("DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()", host)
 
@@ -963,7 +963,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("operation.close(); worker.shutdown()", host)
         self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
         unlock = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
-        self.assertIn('password = ""\n            onSubmit(submitted)', unlock)
+        self.assertIn('confirmation = ""\n            if (creating) onCreate(submitted, confirmed) else onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)
 
     def test_compose_copy_is_live_persisted_and_expires(self):

@@ -63,12 +63,14 @@ Its main-thread adapter accepts busy/error updates and revokes submissions on cl
 implement authentication, biometrics, vault creation, foreground/background privacy covering or
 native file access. Those remain host responsibilities.
 
-This is **not the iOS release cutover**: `ios/project.yml` does not yet link the framework, and the
-SwiftUI launcher remains active. Do not remove it until the replacement host preserves those
-responsibilities. Next gate on a Mac: build `:ui-foundation:linkDebugFrameworkIosSimulatorArm64`
-and `:ui-foundation:linkReleaseFrameworkIosArm64`, then connect the native host and test password
-unlock, first-run creation, biometric access, lock/close during authentication and privacy snapshots.
-No native framework/Xcode build was run in the Linux sandbox.
+The authentication integration now requires that framework in `ios/project.yml`. Build it on a
+Mac with `scripts/ios/build-compose-framework.sh` before XcodeGen. `UnlockView.swift` hosts
+Compose through a lifecycle adapter, including create/confirmation and biometric actions; its
+SwiftUI field/button layout was removed. RootView's inactive-scene cover and VaultStore's key/
+biometric logic remain in place. The **rest of the release UI is still SwiftUI** and must be
+migrated separately. No native framework/Xcode build was run in the Linux sandbox, so this wiring
+is not yet native-validated. Gate it on password unlock, first-run creation, biometric access,
+lock/close during authentication, rotation, keyboard, VoiceOver and privacy snapshots.
 
 The sandbox independently compiles foundation common sources **without core/model classes** before
 compiling the JVM UI hosts, and source tests reject engine/Java imports in this module. That checks

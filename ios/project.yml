@@ -44,6 +44,10 @@ targets:
       # Contents.json beside it is, so the catalog is reviewable and XcodeGen can wire it up.
       - path: App/Resources
     dependencies:
+      # Required: scripts/ios/build-compose-framework.sh must run before XcodeGen/build.
+      # No SwiftUI authentication fallback when the framework is absent.
+      - framework: Frameworks/OfflineOTPPresentation.xcframework
+        embed: false
       - package: OfflineOTPKit
         product: OfflineOTPKit
     postBuildScripts:

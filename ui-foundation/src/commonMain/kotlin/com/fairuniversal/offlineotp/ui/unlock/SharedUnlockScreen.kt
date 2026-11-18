@@ -1,5 +1,7 @@
 package com.fairuniversal.offlineotp.ui.unlock
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -52,15 +54,21 @@ fun SharedUnlockScreen(
     error: String? = null,
     busy: Boolean = false,
     hint: String? = null,
-    onHardwareUnlock: (() -> Unit)? = null
+    onHardwareUnlock: (() -> Unit)? = null,
+    quickUnlockLabel: String = "Unlock with security key",
+    creating: Boolean = false,
+    onCreate: (String, String) -> Unit = { _, _ -> }
 ) {
-    var password by remember { mutableStateOf("") }
-    val canSubmit = !busy && password.isNotEmpty()
+    var password by remember(creating) { mutableStateOf("") }
+    var confirmation by remember(creating) { mutableStateOf("") }
+    val canSubmit = !busy && password.isNotEmpty() && (!creating || confirmation == password)
     val submitPassword = {
-        if (!busy && password.isNotEmpty()) {
+        if (!busy && password.isNotEmpty() && (!creating || confirmation == password)) {
             val submitted = password
+            val confirmed = confirmation
             password = ""
-            onSubmit(submitted)
+            confirmation = ""
+            if (creating) onCreate(submitted, confirmed) else onSubmit(submitted)
         }
     }
     val buttonColors = ButtonDefaults.buttonColors(
@@ -74,6 +82,7 @@ fun SharedUnlockScreen(
             modifier = Modifier
                 .align(Alignment.Center)
                 .widthIn(max = 380.dp)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -96,6 +105,16 @@ fun SharedUnlockScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 shape = RoundedCornerShape(12.dp)
             )
+            if (creating) {
+                Text(text = "Choose a password for a new vault. It cannot be recovered if you forget it.",
+                    style = ForestType.body, color = ForestPalette.textSecondary)
+                OutlinedTextField(value = confirmation, onValueChange = { confirmation = it },
+                    enabled = !busy, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text(text = "Confirm password") },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submitPassword() }))
+            }
             if (error != null) {
                 Text(text = error, style = ForestType.label, color = ForestPalette.warning)
             }
@@ -108,15 +127,15 @@ fun SharedUnlockScreen(
                 enabled = canSubmit,
                 onClick = submitPassword
             ) {
-                Text(text = if (busy) strings.unlocking else strings.unlockAction)
+                Text(text = if (busy) strings.unlocking else if (creating) "Create vault" else strings.unlockAction)
             }
-            if (onHardwareUnlock != null) Button(
+            if (!creating && onHardwareUnlock != null) Button(
                 modifier = Modifier.fillMaxWidth(),
                 colors = buttonColors,
                 enabled = !busy,
-                onClick = { password = ""; onHardwareUnlock() }
+                onClick = { password = ""; confirmation = ""; onHardwareUnlock() }
             ) {
-                Text(text = "Unlock with security key")
+                Text(text = quickUnlockLabel)
             }
         }
     }

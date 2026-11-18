@@ -41,7 +41,8 @@ class IosAppTest(unittest.TestCase):
         self.assertEqual("iOS", target["platform"])
         # The app is a client of the shared format layer, not a copy of it.
         self.assertEqual(
-            [{"package": "OfflineOTPKit", "product": "OfflineOTPKit"}], target["dependencies"])
+            [{"framework": "Frameworks/OfflineOTPPresentation.xcframework", "embed": False},
+             {"package": "OfflineOTPKit", "product": "OfflineOTPKit"}], target["dependencies"])
         self.assertIn("OfflineOTPKit", project["packages"])
         self.assertEqual(".", project["packages"]["OfflineOTPKit"]["path"])
         # One shared scheme drives both the build and the app's unit tests.
@@ -700,7 +701,7 @@ class IosAppTest(unittest.TestCase):
 
         # The Face ID sentence is a label too, not just text next to a button.
         unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
-        self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
+        self.assertIn('quickUnlockLabel: store.canUnlockWithBiometrics', unlock)
 
     def test_the_entry_list_body_is_split_for_the_type_checker(self):
         """Xcode 16.4 timed out on the old single-expression `EntryListView.body`.

@@ -9,30 +9,45 @@ import androidx.compose.ui.window.ComposeUIViewController
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import platform.UIKit.UIViewController
 
-/**
- * UIKit bridge for the shared screen. Invoke on the main thread. The host supplies authentication
- * and owns lifecycle/privacy covering. This bridge is not yet installed in the release iOS shell.
- */
+/** Native methods export as void-returning Swift protocol methods, not Kotlin lambda wrappers. */
+interface UnlockActions {
+    fun unlock(password: String)
+    fun create(password: String, confirmation: String)
+    fun quickUnlock()
+}
+
+/** Main-thread UIKit bridge; the native host owns authentication and app-switcher privacy. */
 class UnlockPresentation {
     private var busy by mutableStateOf(false)
     private var error by mutableStateOf<String?>(null)
+    private var creating by mutableStateOf(false)
+    private var quickUnlockLabel by mutableStateOf<String?>(null)
+    private var hint by mutableStateOf<String?>(null)
     private var active by mutableStateOf(true)
 
-    fun update(busy: Boolean, error: String?) {
+    fun update(busy: Boolean, error: String?, creating: Boolean, quickUnlockLabel: String?, hint: String?) {
         if (!active) return
         this.busy = busy
         this.error = error
+        this.creating = creating
+        this.quickUnlockLabel = quickUnlockLabel
+        this.hint = hint
     }
 
-    /** Dispose the form state and revoke submissions before releasing its native host. */
-    fun close() { active = false; error = null; busy = false }
+    fun close() { active = false; error = null; busy = false; hint = null; quickUnlockLabel = null }
 
-    fun viewController(strings: UnlockStrings, submit: (String) -> Unit): UIViewController =
+    fun viewController(strings: UnlockStrings, actions: UnlockActions): UIViewController =
         ComposeUIViewController {
             ForestTheme {
                 if (active) SharedUnlockScreen(strings, onSubmit = { password ->
-                    if (active && !busy) submit(password)
-                }, busy = busy, error = error)
+                    if (active && !busy && !creating) actions.unlock(password)
+                }, busy = busy, error = error, hint = hint, creating = creating,
+                    onCreate = { password, confirmation ->
+                        if (active && !busy && creating) actions.create(password, confirmation)
+                    }, quickUnlockLabel = quickUnlockLabel ?: "",
+                    onHardwareUnlock = if (quickUnlockLabel == null) null else ({
+                        if (active && !busy && !creating) actions.quickUnlock()
+                    }))
             }
         }
 }

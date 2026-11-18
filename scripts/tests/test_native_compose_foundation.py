@@ -35,6 +35,22 @@ class NativeComposeFoundationTest(unittest.TestCase):
         bridge = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockViewController.kt').read_text()
         self.assertIn('ComposeUIViewController', bridge)
         self.assertIn('SharedUnlockScreen(', bridge)
-        self.assertIn('if (active && !busy) submit(password)', bridge)
+        self.assertIn('if (active && !busy && !creating) actions.unlock(password)', bridge)
         self.assertIn('fun close() { active = false;', bridge)
         self.assertNotIn('SwiftUI', bridge)
+
+    def test_ios_release_uses_compose_unlock_without_swiftui_form_fallback(self):
+        swift = (ROOT / 'ios/App/Sources/UnlockView.swift').read_text()
+        self.assertIn('import OfflineOTPPresentation', swift)
+        self.assertIn('UIViewControllerRepresentable', swift)
+        self.assertIn('presentation.viewController(', swift)
+        self.assertIn('store.unlock(password: password, confirmation: confirmation, creating: true)', swift)
+        self.assertIn('store.unlockWithBiometrics()', swift)
+        self.assertIn('coordinator.close()', swift)
+        for widget in ('SecureField(', 'TextField(', 'Button(', 'canImport('):
+            self.assertNotIn(widget, swift)
+        project = (ROOT / 'ios/project.yml').read_text()
+        self.assertIn('framework: Frameworks/OfflineOTPPresentation.xcframework', project)
+        script = (ROOT / 'scripts/ios/build-compose-framework.sh').read_text()
+        self.assertIn('set -euo pipefail', script)
+        self.assertIn(':ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework', script)

@@ -43,6 +43,7 @@ from a full checkout of the repository — not from this directory alone.
 ```sh
 brew install xcodegen          # once
 python3 scripts/ios/generate-app-icon.py   # from the repository root; writes the 1024px app icon
+scripts/ios/build-compose-framework.sh     # requires JDK, Android SDK for Gradle configuration, and Xcode
 cd ios
 xcodegen generate
 xcodebuild -project OfflineOTP.xcodeproj -scheme OfflineOTP \
@@ -164,3 +165,14 @@ written back unchanged — the form simply cannot make a new one. Password archi
 are excluded for the shared reason: only an import produces them.
 An OpenPGP backup format is out of scope as well: the two existing clients use incompatible OpenPGP
 implementations, so a `.json.gpg` backup cannot be read portably.
+
+### Compose authentication migration
+
+The unlock/create form is now provided by the required `OfflineOTPPresentation` Compose
+XCFramework. Build it with the script above **before** XcodeGen or xcodebuild. Missing framework
+artifacts are a build error; there is no SwiftUI password-form fallback. The framework is generated
+and ignored, not committed. `UnlockView.swift` is only a lifecycle/store adapter.
+
+The app shell and unlocked vault screens still use SwiftUI during migration. They must not be
+reported as migrated yet. Password creation, password failures/retry, Face ID/Touch ID, foreground
+privacy covering, keyboard/VoiceOver and rotation require native simulator/device validation.
