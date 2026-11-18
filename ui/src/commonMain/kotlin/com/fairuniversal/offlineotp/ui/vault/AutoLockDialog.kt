@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,10 +14,10 @@ fun AutoLockDialog(inputKey: Any, currentSeconds: Int, options: List<Int>, faile
                    onSave: (Int) -> Unit, onDismiss: () -> Unit) {
     var selected by remember(inputKey) { mutableStateOf(currentSeconds) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Auto-lock timeout") },
-        text = { Column {
+        text = { ScrollableDialogBody {
             Text(text = "Lock after inactivity. Disabled keeps the vault open until you lock or close it.")
             for (seconds in (options + currentSeconds).distinct()) {
-                val label = if (seconds == 0) "Disabled" else if (seconds % 60 == 0) "${seconds / 60} min" else "$seconds seconds"
+                val label = AutoLockOptions.label(seconds)
                 ForestTextAction(text = if (seconds == selected) "Selected: $label" else label,
                     onClick = { selected = seconds })
             }

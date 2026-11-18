@@ -42,14 +42,7 @@ struct SettingsView: View {
 
     private var switchTitle: String { "Unlock with \(store.biometryTitle)" }
 
-    private static let autoLockChoices: [(seconds: Int, label: String)] = [
-        (0, "Disabled"),
-        (30, "30 seconds"),
-        (60, "1 minute"),
-        (120, "2 minutes"),
-        (300, "5 minutes"),
-        (900, "15 minutes"),
-    ]
+
 
     var body: some View {
         NavigationStack {
@@ -134,8 +127,8 @@ struct SettingsView: View {
                 get: { store.inactivityLockSeconds },
                 set: { store.setInactivityLockSeconds($0) }
             )) {
-                ForEach(SettingsView.autoLockChoices, id: \.seconds) { option in
-                    Text(option.label).tag(option.seconds)
+                ForEach(AutoLockOptions.including(store.inactivityLockSeconds), id: \.self) { seconds in
+                    Text(AutoLockOptions.label(seconds)).tag(seconds)
                 }
             }
         } header: {
@@ -192,7 +185,7 @@ struct SettingsView: View {
         } header: {
             Text("Preferences")
         } footer: {
-            Text("Moves the app settings this client can carry — the inactivity delay — between iOS "
+            Text("Moves the app settings this client can carry — sort order and inactivity delay — between iOS "
                  + "installs. The vault, its password and its accounts are never included, and a file "
                  + "written by another client is refused rather than half-applied.")
         }

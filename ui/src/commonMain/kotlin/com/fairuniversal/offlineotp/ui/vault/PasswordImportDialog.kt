@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -15,7 +14,7 @@ fun PasswordImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Bool
                          onRead: (PasswordImport.Mode) -> Unit, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     var mode by remember(inputKey) { mutableStateOf(PasswordImport.Mode.INDIVIDUAL) }
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Import password file") },
-        text = { Column {
+        text = { ScrollableDialogBody {
             Text(text = "Browser export files contain plaintext passwords. Importing does not delete or protect the source file. Maximum file size: 4 MiB.")
             if (count == null && !busy) {
                 ForestTextAction(text = if (mode == PasswordImport.Mode.INDIVIDUAL) "Selected: Individual credentials" else "Individual credentials",

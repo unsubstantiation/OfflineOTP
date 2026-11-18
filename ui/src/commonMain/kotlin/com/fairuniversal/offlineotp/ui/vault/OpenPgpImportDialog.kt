@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -20,7 +19,8 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
     var replace by remember(inputKey, count) { mutableStateOf(false) }
     fun dismiss() { password = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OpenPGP backup") },
-        text = { Column {
+        text = { ScrollableDialogBody {
+            Text(text = OPENPGP_IN_APP_NOTICE)
             Text(text = "Read an OpenPGP-encrypted OfflineOTP backup with a secret-key file. Message and key files are limited to 16 MiB each and remain unchanged.")
             if (count == null) {
                 OutlinedTextField(value = password,
@@ -34,8 +34,8 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
             if (busy) Text(text = "Decrypting OpenPGP backup…")
             if (count != null) {
                 Text(text = "$count entries ready. Merge preserves current accounts and skips identical entries.")
-                ForestTextAction(text = if (!replace) "Selected: Merge" else "Merge", onClick = { replace = false })
-                ForestTextAction(text = if (replace) "Selected: Replace all current entries" else "Replace all current entries", onClick = { replace = true })
+                ForestTextAction(text = if (!replace) "Selected: Merge" else "Merge", enabled = !busy, onClick = { replace = false })
+                ForestTextAction(text = if (replace) "Selected: Replace all current entries" else "Replace all current entries", enabled = !busy, onClick = { replace = true })
                 if (replace) Text(text = "Warning: Restore will delete all current entries and replace them with this backup.")
             }
             if (failed) Text(text = "Could not import the file. Check the passphrase, key file, format, size, vault capacity and storage. Re-enter the passphrase to retry.")

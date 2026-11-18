@@ -24,7 +24,7 @@ import com.fairuniversal.offlineotp.ui.theme.ForestTheme
  * so no code outlives the session that produced it.
  *
  * This class holds no session, key, storage or settings reference — deliberately. The Activity keeps
- * session authority and re-checks it when an action arrives, exactly as the Swing client does.
+ * session authority and re-checks it when an action arrives, exactly as the desktop client does.
  *
  * Stage 2 usage (see docs/compose-unified-ui-plan.md):
  *
@@ -68,6 +68,43 @@ class VaultComposeView(
     }
     fun ownsEmailEditor(initial: EmailEditInput) = !ended && emailEditor?.initial === initial
 
+    private class PasswordEditor(val initial: PasswordEntryInput, val submit: (PasswordEntryInput) -> String?)
+    private var passwordEditor by mutableStateOf<PasswordEditor?>(null)
+    fun showPasswordEditor(initial: PasswordEntryInput, submit: (PasswordEntryInput) -> String?) {
+        if (ended) return
+        clearEntryEditor()
+        passwordEditor = PasswordEditor(initial, submit)
+    }
+    fun ownsPasswordEditor(initial: PasswordEntryInput) = !ended && passwordEditor?.initial === initial
+
+    private class LinScpExport(val key: Any, val choices: List<String>,
+        val submit: (Set<Int>, Boolean, String, String) -> String?)
+    private var linScpExport by mutableStateOf<LinScpExport?>(null)
+
+    fun showLinScpExport(key: Any, choices: List<String>, submit: (Set<Int>, Boolean, String, String) -> String?) {
+        if (ended) return
+        clearEntryEditor()
+        linScpExport = LinScpExport(key, choices.toList(), submit)
+    }
+    fun ownsLinScpExport(key: Any) = !ended && linScpExport?.key === key
+
+    private class LinScpImport(val key: Any, val choices: List<String>,
+        val submit: (Set<Int>) -> String?, val dispose: () -> Unit)
+    private var linScpImport by mutableStateOf<LinScpImport?>(null)
+
+    /** Takes ownership of the staged import until confirmation, replacement, cancellation or lock. */
+    fun showLinScpImport(key: Any, choices: List<String>, dispose: () -> Unit, submit: (Set<Int>) -> String?) {
+        if (ended) { dispose(); return }
+        clearEntryEditor()
+        linScpImport = LinScpImport(key, choices.toList(), submit, dispose)
+    }
+    fun ownsLinScpImport(key: Any) = !ended && linScpImport?.key === key
+    fun clearLinScpImport() {
+        val previous = linScpImport
+        linScpImport = null // Revoke callbacks before releasing secret material.
+        previous?.dispose?.invoke()
+    }
+
     private var ended = false
     private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
     private var editor by mutableStateOf<Editor?>(null)
@@ -82,7 +119,7 @@ class VaultComposeView(
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
 
-    fun clearEntryEditor() { editor = null; emailEditor = null; emailCreation = null; editError = null }
+    fun clearEntryEditor() { clearLinScpImport(); editor = null; emailEditor = null; emailCreation = null; passwordEditor = null; linScpExport = null; editError = null }
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -100,6 +137,31 @@ class VaultComposeView(
             appearance = appearance,
             artwork = artwork
         )
+        val importing = linScpImport
+        if (importing != null) ForestTheme {
+            LinScpImportDialog(importing.key, busy = false, count = importing.choices.size, failed = editError != null,
+                keySelected = false, onChooseKey = {}, onClearKey = {}, onRead = {}, choices = importing.choices,
+                onConfirm = { selected ->
+                    if (ownsLinScpImport(importing.key)) {
+                        val failure = importing.submit(selected)
+                        if (linScpImport === importing) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                }, onDismiss = { if (linScpImport === importing) clearEntryEditor() })
+        }
+        val export = linScpExport
+        if (export != null) ForestTheme {
+            LinScpExportDialog(export.key, export.choices, busy = false, error = editError,
+                onSubmit = { selected, plainText, password, confirmation ->
+                    if (ownsLinScpExport(export.key)) {
+                        val failure = export.submit(selected, plainText, password, confirmation)
+                        if (linScpExport === export) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                }, onDismiss = { if (linScpExport === export) clearEntryEditor() })
+        }
         val creatingEmail = emailCreation
         if (creatingEmail != null) ForestTheme {
             EmailEntryDialog(creatingEmail.key, editError, onSubmit = { input ->
@@ -117,6 +179,17 @@ class VaultComposeView(
                 if (ownsEmailEditor(email.initial)) {
                     val failure = email.submit(input)
                     if (emailEditor === email) {
+                        if (failure == null) clearEntryEditor() else editError = failure
+                    }
+                }
+            }, onDismiss = { clearEntryEditor() })
+        }
+        val password = passwordEditor
+        if (password != null) ForestTheme {
+            PasswordEntryDialog(password, password.initial, editError != null, onSubmit = { input ->
+                if (ownsPasswordEditor(password.initial)) {
+                    val failure = password.submit(input)
+                    if (passwordEditor === password) {
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }

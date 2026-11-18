@@ -323,8 +323,7 @@
             android:title="@string/settings_title_openpgp_mode"
             android:summary="@string/settings_desc_openpgp_mode"
             android:entries="@array/settings_entries_openpgp_mode"
-            android:entryValues="@array/settings_values_openpgp_mode"
-            android:defaultValue="provider" />
+            android:entryValues="@array/settings_values_openpgp_mode" />
 
         <Preference
             android:key="@string/settings_key_openpgp_recipient_files"

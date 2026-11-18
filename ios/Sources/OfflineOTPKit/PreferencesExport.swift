@@ -8,7 +8,7 @@ import Foundation
 /// - A value is written with an explicit type, never as a bare string, so an importer can never
 ///   flip a checkbox because `"1"` happened to look true.
 /// - A document is addressed to *one* client (`platform`). iOS keeps only app settings beside its
-///   vault — the inactivity delay and whether quick unlock is enrolled — so a file is small, and an
+///   vault — sort order and inactivity delay are portable, quick unlock is device-bound — so an
 ///   import from Android or the desktop is refused with a reason rather than half-applied from the
 ///   handful of keys that happen to collide.
 /// - The vault's own material (`auth_salt`, `auth_credentials`, the KDF parameters) lives in the

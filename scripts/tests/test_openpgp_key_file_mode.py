@@ -111,16 +111,18 @@ class OpenPgpKeyFileModeTest(unittest.TestCase):
         self.assertIn("OpenPgpKeyFilePolicy.isUsableKeyUri(secretKeyUri)", restore)
         self.assertIn("backup_toast_import_decryption_failed", restore)
 
-    def test_the_mode_defaults_to_the_provider_for_existing_installs(self):
+    def test_new_setups_default_in_app_and_existing_provider_choices_are_retained(self):
         policy = POLICY.read_text(encoding="utf-8")
         self.assertIn("fun parse(value: String?): OpenPgpMode = if (value == KEY_FILE_VALUE) KEY_FILE else PROVIDER",
                       policy)
         settings = SETTINGS.read_text(encoding="utf-8")
-        self.assertIn("OpenPgpMode.parse(getString(R.string.settings_key_openpgp_mode, OpenPgpMode.PROVIDER_VALUE))",
+        self.assertIn("OpenPgpMode.parse(getString(R.string.settings_key_openpgp_mode, defaultMode))",
                       settings)
         preferences = (ROOT / "app/src/main/res/xml/preferences.xml").read_text(encoding="utf-8")
         self.assertIn('android:key="@string/settings_key_openpgp_mode"', preferences)
-        self.assertIn('android:defaultValue="provider"', preferences)
+        self.assertNotIn('android:defaultValue="provider"', preferences)
+        self.assertIn("if (getOpenPGPProvider().isBlank()) OpenPgpMode.KEY_FILE_VALUE", settings)
+        self.assertIn('android:key="@string/settings_key_openpgp_provider"', preferences)
         self.assertIn('android:key="@string/settings_key_openpgp_recipient_files"', preferences)
         self.assertIn('android:key="@string/settings_key_openpgp_secret_file"', preferences)
 

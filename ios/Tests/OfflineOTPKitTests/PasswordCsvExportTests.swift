@@ -4,6 +4,30 @@ import XCTest
 
 /// Mirrors `PasswordCsvExportTest.kt`: the same dialect rules, the same refusals, the same edit.
 final class PasswordCsvExportTests: XCTestCase {
+    func testCommonEditContractAndMetadataPreservation() throws {
+        let contract = try XCTUnwrap(try JSONValue.decode(GoldenCorpus.goldenText("password-edit-contract.json")).objectValue)
+        XCTAssertEqual(contract["maxFieldChars"]?.intValue, Int64(PasswordCsvExport.commonEditFieldLimit))
+        let cases = try XCTUnwrap(contract["cases"]?.arrayValue)
+        for item in cases {
+            let test = try XCTUnwrap(item.objectValue)
+            let columns = try XCTUnwrap(test["columns"]?.arrayValue)
+            var entry = try Entry.passwordFields(label: "Test", issuer: "site", fields: columns.map {
+                .init(name: try XCTUnwrap($0.stringValue), value: "fixture-value")
+            })
+            entry.set("hidden_label", .string("preserve"))
+            entry.set("used_frequency", .int(4))
+            entry.set("last_used", .int(123))
+            XCTAssertEqual(PasswordCsvExport.supportsCommonEdit(entry), test["supported"]?.boolValue)
+            if PasswordCsvExport.supportsCommonEdit(entry) {
+                let edited = try PasswordCsvExport.withEditedFields(entry, url: "new", username: "user", password: nil)
+                for (key, value) in entry.fields where !["secret", "issuer", "label"].contains(key) {
+                    XCTAssertEqual(edited.fields[key], value)
+                }
+                XCTAssertEqual(try edited.passwordFields().value("password"), "fixture-value")
+            }
+        }
+    }
+
     private let chrome = Data(("name,url,username,password,note\r\n"
         + "Site,https://site.test,alice,s3cret,first note\r\n").utf8)
     private let safari = Data(("Title,URL,Username,Password,Notes,OTPAuth\r\n"

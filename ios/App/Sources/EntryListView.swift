@@ -341,7 +341,7 @@ struct EntryListView: View {
                                 onReveal: { if current(entry, at: index, epoch: epoch) { reveal(index) } },
                                 onStep: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { step(at: index) } },
                                 onEdit: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) { if entry.kind == .email { emailEditTarget = IndexedTarget(index: index) } else { editor = EditorTarget(index: index) } } },
-                                onEditPassword: { passwordEditTarget = IndexedTarget(index: index) },
+                                onEditPassword: { if current(entry, at: index, epoch: epoch) && store.isRevealed(entry) && PasswordCsvExport.supportsCommonEdit(entry) { passwordEditTarget = IndexedTarget(index: index) } },
                                 onExportCsv: {
                                     guard store.entries.indices.contains(index) else { return }
                                     exportBrowserPasswords([store.entries[index]])
@@ -965,7 +965,7 @@ struct EntryMenu: View {
             Button("View password details…", action: onDetails)
                 .disabled(!entry.detailsVisible)
             Button("Edit password…", action: onEditPassword)
-                .disabled(!entry.detailsVisible)
+                .disabled(!entry.detailsVisible || !PasswordCsvExport.supportsCommonEdit(entry))
             if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
                 Button("Export as \(dialect.browserName) CSV…", action: onExportCsv)
                     .disabled(!entry.detailsVisible)

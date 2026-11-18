@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -561,3 +562,9 @@ internal fun VaultEmptyState(title: String, description: String) {
 @OptIn(ExperimentalFoundationApi::class)
 private fun labelModifier(appearance: VaultAppearance): Modifier =
     if (appearance.scrollLabels) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier
+
+/** Shared bounded-dialog body: long warnings and fields remain reachable on small windows. */
+@Composable
+internal fun ScrollableDialogBody(content: @Composable () -> Unit) {
+    Column(Modifier.verticalScroll(rememberScrollState())) { content() }
+}

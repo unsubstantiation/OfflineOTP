@@ -116,13 +116,17 @@ class BrowserPasswordExportTest(unittest.TestCase):
         self.assertIn('android:id="@+id/menu_popup_edit_password"', menu)
         self.assertIn('android:id="@+id/menu_popup_export_password_csv"', menu)
         adapter = read(APP / "View/AndroidVaultController.kt")
-        self.assertIn("PasswordEntryEditDialog.show(hostActivity, actual)", adapter)
+        self.assertIn("openPasswordEditor(popupTarget, actual)", adapter)
         self.assertIn("requestPasswordCsvExport(actual)", adapter)
         self.assertIn("PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable", adapter)
-        dialog = read(APP / "Dialogs/PasswordEntryEditDialog.kt")
-        # The password box starts empty: opening the form must not reveal a stored secret.
-        self.assertIn('field(context.getString(R.string.password_edit_password), "", secret = true)', dialog)
-        self.assertIn("password = typedPassword.ifEmpty { null }", dialog)
+        dialog = read(ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt")
+        model = read(ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryInput.kt")
+        self.assertIn('val password: String = ""', model)
+        self.assertIn("password = password.ifEmpty { null }", model)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn("Show password", dialog)
+        self.assertIn("view.ownsPasswordEditor(initial)", adapter)
+        self.assertFalse((APP / "Dialogs/PasswordEntryEditDialog.kt").exists())
 
     def test_android_exports_after_the_picker_returns_and_wipes_the_buffer(self):
         main = read(APP / "Activities/MainActivity.kt")

@@ -35,7 +35,8 @@ fun LinScpExportDialog(inputKey: Any, choices: List<String>, busy: Boolean, erro
     var plainText by remember(inputKey) { mutableStateOf(false) }
     var password by remember(inputKey) { mutableStateOf("") }
     var confirmation by remember(inputKey) { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("Export LinSCP Key/Sessions") }, text = {
+    fun dismiss() { password = ""; confirmation = ""; onDismiss() }
+    AlertDialog(onDismissRequest = { dismiss() }, title = { Text("Export LinSCP Key/Sessions") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             LinScpChoices(choices, selected, !busy) { selected = it }
             Row {
@@ -56,5 +57,5 @@ fun LinScpExportDialog(inputKey: Any, choices: List<String>, busy: Boolean, erro
     }, confirmButton = { ForestTextAction("Export", enabled = !busy && selected.isNotEmpty() && (plainText || (password.isNotEmpty() && password == confirmation)), onClick = {
         val first = password; val second = confirmation; password = ""; confirmation = ""
         onSubmit(selected, plainText, first, second)
-    }) }, dismissButton = { ForestTextAction("Cancel", onClick = onDismiss) })
+    }) }, dismissButton = { ForestTextAction("Cancel", onClick = { dismiss() }) })
 }

@@ -21,9 +21,9 @@ object OpenPgpOutputPolicy {
  * Which engine produces an OpenPGP backup: an external provider app (OpenKeychain) reached over
  * intents, or the bundled rpgp backend working on key files the user selected.
  *
- * [PROVIDER] stays the default so an existing installation keeps its configured provider and can
- * still read the files it wrote. Both modes emit and accept standard OpenPGP messages, so a backup
- * written in one mode restores in the other.
+ * Android settings default new setups to [KEY_FILE], preserving configured legacy providers and
+ * explicit engine choices. The parser below retains its conservative legacy fallback. Both modes
+ * use standard OpenPGP messages; interoperability depends on supported algorithms and key material.
  */
 enum class OpenPgpMode {
     PROVIDER,

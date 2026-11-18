@@ -1,0 +1,48 @@
+{
+  "options": [
+    0,
+    30,
+    60,
+    120,
+    300,
+    900
+  ],
+  "cases": [
+    {
+      "seconds": 0,
+      "label": "Disabled"
+    },
+    {
+      "seconds": 1,
+      "label": "1 second"
+    },
+    {
+      "seconds": 30,
+      "label": "30 seconds"
+    },
+    {
+      "seconds": 60,
+      "label": "1 minute"
+    },
+    {
+      "seconds": 120,
+      "label": "2 minutes"
+    },
+    {
+      "seconds": 300,
+      "label": "5 minutes"
+    },
+    {
+      "seconds": 900,
+      "label": "15 minutes"
+    },
+    {
+      "seconds": 45,
+      "label": "45 seconds"
+    },
+    {
+      "seconds": 3600,
+      "label": "60 minutes"
+    }
+  ]
+}

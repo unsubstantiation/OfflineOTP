@@ -232,6 +232,7 @@ struct BackupView: View {
             // Android disables both buttons and explains why rather than offering an action that
             // cannot succeed; this is the same rule on iOS.
             if availability.canEncrypt || availability.canRestore {
+                Text("OpenPGP runs in this app using key files. No external OpenPGP app is required.")
                 Text("Encrypts the vault to one or more OpenPGP recipient public keys, or restores an "
                      + "encrypted .json.gpg message with your OpenPGP secret key.")
             } else {

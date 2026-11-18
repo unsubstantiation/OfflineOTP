@@ -251,7 +251,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         btnBackup?.isEnabled = availability.canEncrypt
         btnRestore?.isEnabled = availability.canRestore
         val warning = when {
-            !availability.canEncrypt && !availability.canRestore ->
+            !keyFileBackendAvailable ->
                 R.string.backup_desc_openpgp_backend_unavailable
             !availability.canEncrypt -> R.string.backup_desc_openpgp_keyfiles_recipients
             !availability.canRestore -> R.string.backup_desc_openpgp_keyfiles_secret
