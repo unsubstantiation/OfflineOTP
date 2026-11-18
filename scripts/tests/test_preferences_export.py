@@ -123,11 +123,14 @@ class PreferencesWiringTest(unittest.TestCase):
         self.assertIn('"Export preferences…"', view)
         self.assertIn('"Import preferences…"', view)
         self.assertIn("PreferencesExport.export(store.preferencesPort)", view)
+        # The picked file is confirmed in the shared Compose dialog; the native adapter applies it.
+        self.assertIn("ComposePreferencesImportHost(store: store, data: item.data)", view)
+        host = read(IOS_APP / "ComposePreferencesImportHost.swift")
         # `apply`, not `import`: the latter is a declaration keyword in Swift.
-        self.assertIn("PreferencesExport.apply(data, into: store.preferencesPort)", view)
+        self.assertIn("PreferencesExport.apply(data, into: store.preferencesPort)", host)
+        self.assertIn("store.reloadInactivityLock()", host)
         self.assertIn("struct PreferencesDocument: FileDocument", view)
         self.assertIn("public static func apply(_ bytes: Data", read(IOS_KIT / "PreferencesExport.swift"))
-        self.assertIn("store.reloadInactivityLock()", view)
         store = read(IOS_APP / "VaultStore.swift")
         self.assertIn("public var preferencesPort: PreferencesExport.SettingsPort", store)
         self.assertIn("SortMode.stored(settings.string(SortMode.settingsKey))", store)

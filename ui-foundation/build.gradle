@@ -1,0 +1,45 @@
+// Native-compatible production Compose UI. No dependency on :core, :ui-model or :ui.
+apply plugin: 'org.jetbrains.kotlin.multiplatform'
+apply plugin: 'com.android.library'
+apply plugin: 'org.jetbrains.compose'
+apply plugin: 'org.jetbrains.kotlin.plugin.compose'
+
+def presentationFramework = new org.jetbrains.kotlin.gradle.plugin.mpp.apple.XCFrameworkConfig(project, 'OfflineOTPPresentation')
+
+kotlin {
+    androidTarget {
+        compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) }
+    }
+    jvm('desktop') {
+        compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11) }
+    }
+    iosArm64()
+    iosSimulatorArm64()
+    iosX64()
+    targets.withType(org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget).configureEach {
+        binaries.framework {
+            baseName = 'OfflineOTPPresentation'
+            isStatic = true
+            presentationFramework.add(delegate)
+        }
+    }
+    sourceSets {
+        commonMain.dependencies {
+            api project(':ui-contract')
+            implementation compose.runtime
+            implementation compose.foundation
+            implementation compose.material3
+            api compose.ui
+        }
+    }
+}
+
+android {
+    namespace = 'com.fairuniversal.offlineotp.ui.foundation'
+    compileSdk 36
+    defaultConfig { minSdkVersion 28 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

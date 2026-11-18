@@ -521,27 +521,6 @@ private fun VaultLetterTile(seed: String, title: String, sizeDp: Float) {
     }
 }
 
-/** A clickable label, the only button style the shared UI uses. */
-@Composable
-internal fun ForestTextAction(
-    text: String,
-    onClick: () -> Unit,
-    enabled: Boolean = true,
-    onLongClick: (() -> Unit)? = null,
-    color: Color = ForestPalette.accent
-) {
-    Text(
-        text = text,
-        style = ForestType.label,
-        color = if (enabled) color else ForestPalette.textHint,
-        maxLines = 1,
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    )
-}
-
 /** Centred message for an empty vault, a filtered miss or an empty tab. */
 @Composable
 internal fun VaultEmptyState(title: String, description: String) {
@@ -562,9 +541,3 @@ internal fun VaultEmptyState(title: String, description: String) {
 @OptIn(ExperimentalFoundationApi::class)
 private fun labelModifier(appearance: VaultAppearance): Modifier =
     if (appearance.scrollLabels) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier
-
-/** Shared bounded-dialog body: long warnings and fields remain reachable on small windows. */
-@Composable
-internal fun ScrollableDialogBody(content: @Composable () -> Unit) {
-    Column(Modifier.verticalScroll(rememberScrollState())) { content() }
-}

@@ -115,9 +115,9 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         adapter = (ANDROID / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("R.id.menu_popup_tags", adapter)
         ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
-        self.assertIn("AboutInfo.copyright", ios_settings)
-        self.assertIn("Copyright (c) 2026 unsubstantiation", (IOS_APP / "AboutInfo.swift").read_text())
-        self.assertIn("fairuniversal.com", (IOS_APP / "AboutInfo.swift").read_text())
+        self.assertIn("ComposeAboutHost", ios_settings)
+        self.assertIn("Copyright (c) 2026 unsubstantiation", (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt").read_text())
+        self.assertIn("fairuniversal.com", (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt").read_text())
 
 
 if __name__ == "__main__":

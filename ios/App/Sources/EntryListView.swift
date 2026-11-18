@@ -141,10 +141,11 @@ struct EntryListView: View {
                           contentType: .data, defaultFilename: archiveExportName) { result in
                 handleArchiveExport(result)
             }
-            .alert("Remove entry?", isPresented: deletionPresented, presenting: deletion) { target in
-                deletionActions(target)
-            } message: { target in
-                deletionMessage(target)
+            .sheet(item: $deletion) { target in
+                ComposeEntryConfirmationHost(store: store, index: target.index, name: target.name,
+                                             entry: target.entry, epoch: target.epoch) {
+                    deletion = nil
+                }
             }
     }
 
@@ -267,28 +268,6 @@ struct EntryListView: View {
                 copySecret(secret, label: fieldName, from: target.index)
             }
         }
-    }
-
-    private var deletionPresented: Binding<Bool> {
-        Binding(
-            get: { deletion != nil },
-            set: { presented in if !presented { deletion = nil } }
-        )
-    }
-
-    @ViewBuilder
-    private func deletionActions(_ target: DeletionTarget) -> some View {
-        Button("Delete", role: .destructive) {
-            guard current(target.entry, at: target.index, epoch: target.epoch), store.isRevealed(target.entry) else { return }
-            if !store.remove(at: target.index) {
-                show(store.message ?? "The entry could not be removed.")
-            }
-        }
-        Button("Cancel", role: .cancel) {}
-    }
-
-    private func deletionMessage(_ target: DeletionTarget) -> some View {
-        Text("Are you sure you want to remove the account \"\(target.name)\"? This cannot be undone.")
     }
 
     private func handleArchiveExport(_ result: Result<URL, Error>) {

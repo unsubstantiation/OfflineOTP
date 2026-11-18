@@ -252,7 +252,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                     confirmLabel = "OK", dismissLabel = "Dismiss", onConfirm = { writePendingNotice = false },
                     onDismiss = { writePendingNotice = false })
                 rekey.operation?.let { owner ->
-                    PasswordChangeDialog(inputKey = owner, busy = owner.status == DesktopPasswordChange.Status.WORKING,
+                    PasswordChangeDialog(inputKey = owner, maxFieldChars = com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS, busy = owner.status == DesktopPasswordChange.Status.WORKING,
                         invalid = owner.status == DesktopPasswordChange.Status.INVALID_INPUT,
                         result = when (owner.status) {
                             DesktopPasswordChange.Status.CHANGED -> "Password changed. Unlock with your new password."

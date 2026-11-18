@@ -134,7 +134,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("card.pinRequired && enterPin != null", widgets)
 
     def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
-        dialog = (UI_MAIN / "vault/EntryConfirmationDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt").read_text()
         self.assertIn("AlertDialog(", dialog)
         self.assertIn("onDismissRequest = onDismiss", dialog)
         self.assertNotIn("rememberSaveable", dialog)
@@ -249,7 +249,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordChangeDialog.kt").read_text()
         self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
         self.assertIn("vault == null && rekey.canUnlock", host)
         self.assertIn("rekey.sessionLocked()", host)
@@ -295,7 +295,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_hardware_unlock_is_optional_serialized_and_ephemeral(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        screen = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
         dialog = (UI_MAIN / "unlock/HardwareUnlockDialog.kt").read_text()
         self.assertIn("onHardwareUnlock: (() -> Unit)? = null", screen)
         self.assertIn("DesktopHardwareUnlock(worker", host)
@@ -595,7 +595,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn('Button("Copy Token")', row)
         self.assertIn('accessibilityLabel("Previous token")', row)
         self.assertIn("store.recordUse(at: index), store.isUnlocked", row)
-        self.assertIn("current(target.entry, at: target.index, epoch: target.epoch)", row)
+        # The pending delete is revalidated in the native adapter before it removes anything.
+        host = (ROOT / "ios/App/Sources/ComposeEntryConfirmationHost.swift").read_text()
+        self.assertIn("store.generation == epoch", host)
+        self.assertIn("store.entries[index].fields == entry.fields", host)
+        self.assertIn("store.isRevealed(entry)", host)
         self.assertNotIn('Button("Copy code")', row)
 
     def test_android_otp_notes_share_desktop_edit_form_and_validation(self):
@@ -714,9 +718,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         for key in ("UI_INACTIVITY_LOCK_SECONDS", "UI_CARD_LAYOUT", "UI_SORT_MODE"):
             self.assertIn(f"plan.contains(PreferencesExport.{key})", host)
         self.assertIn("preferencesImporter.close()", host)
-        form = (UI_MAIN / "vault/PreferencesImportDialog.kt").read_text()
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt").read_text()
         self.assertIn("A file may disable auto-lock", form)
-        self.assertIn("enabled = !busy && count != null", form)
+        self.assertIn("enabled = !busy && count != null && !failed", form)
+        self.assertIn('platformName: String = "desktop"', form)
 
     def test_preferences_export_uses_worker_and_rechecks_lifetime(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -925,7 +930,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("autoLock.submit(timeoutRequest, seconds, lifetime)", host)
         self.assertIn("autoLock.close()", host)
         self.assertIn("val lifetime = remember(presenter)", host)
-        form = (UI_MAIN / "vault/AutoLockDialog.kt").read_text()
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt").read_text()
         self.assertIn("remember(inputKey)", form)
         self.assertIn("onSave(selected)", form)
         self.assertNotIn("VaultController", form)
@@ -941,18 +946,18 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
 
     def test_unlock_keyboard_buttons_and_enrollment_visibility(self):
-        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        screen = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertNotIn("strings.unlockTitle", screen)
         self.assertNotIn("ForestTextAction", screen)
         self.assertIn("Key.Enter || event.key == Key.NumPadEnter", screen)
         self.assertIn("KeyEventType.KeyUp) submitPassword()", screen)
         self.assertIn("KeyboardActions(onDone = { submitPassword() })", screen)
-        self.assertIn("if (!busy && password.isNotEmpty())", screen)
+        self.assertIn("if (!busy && password.isNotEmpty() && (!creating || confirmation == password))", screen)
         self.assertIn("onClick = submitPassword", screen)
         self.assertEqual(2, screen.count("colors = buttonColors"))
-        self.assertLess(screen.index("strings.unlockAction"), screen.index('Text(text = "Unlock with security key")'))
-        self.assertIn("if (onHardwareUnlock != null) Button(", screen)
+        self.assertLess(screen.index("strings.unlockAction"), screen.index('Text(text = quickUnlockLabel)'))
+        self.assertIn("if (!creating && onHardwareUnlock != null) Button(", screen)
         self.assertIn("controller.isInitialized() && hardwareEnrolled", host)
         self.assertIn("DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()", host)
 
@@ -962,8 +967,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("EventQueue.invokeLater(task)", host)
         self.assertIn("operation.close(); worker.shutdown()", host)
         self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
-        unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
-        self.assertIn('password = ""\n            onSubmit(submitted)', unlock)
+        unlock = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
+        self.assertIn('confirmation = ""\n            if (creating) onCreate(submitted, confirmed) else onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)
 
     def test_compose_copy_is_live_persisted_and_expires(self):
@@ -1068,8 +1073,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("deliberately NO Compose stubs", text)
         self.assertIn("JvmTestRunnerKt", text)
         # Discovery is by find, so a new source file cannot silently sit outside the gate.
-        self.assertIn('find "$MODEL_MAIN" -name', text)
-        self.assertIn('find "$UI_MAIN" -name', text)
+        self.assertIn('find "$MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name', text)
+        self.assertIn('find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" "$ROOT/ui-contract/src/commonMain/kotlin" -name', text)
         # The host is part of the same gate: it is compiled against the compiled :desktop engine
         # and the Compose Desktop stubs, not left to the first real Gradle build.
         self.assertIn("desktop-compose/src/main/kotlin", text)

@@ -648,6 +648,106 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.entries.count, 1)
     }
 
+    @MainActor
+    func testComposePasswordChangeAdapterRejectsClosedAndStaleSessions() {
+        let store = unlockedStore()
+        let closed = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        closed.close()
+        XCTAssertNotNil(closed.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        let stale = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertNotNil(stale.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        stale.close()
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertTrue(store.isUnlocked)
+    }
+
+    @MainActor
+    func testComposePasswordChangeAdapterAllowsRetryAndPreservesEntries() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("preserved")))
+        let adapter = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        defer { adapter.close() }
+        XCTAssertNotNil(adapter.change(current: "correct horse", next: "new password", confirmation: "mismatch"))
+        XCTAssertNotNil(adapter.change(current: "wrong password", next: "new password", confirmation: "new password"))
+        XCTAssertNil(adapter.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        store.lock()
+        store.unlock(password: "new password")
+        XCTAssertTrue(store.isUnlocked)
+        XCTAssertEqual(store.entries.map(\.label), ["preserved"])
+    }
+
+    @MainActor
+    func testComposePreferencesImportPlansWithoutApplyingUntilConfirmed() throws {
+        let store = unlockedStore()
+        store.setInactivityLockSeconds(60)
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        store.setInactivityLockSeconds(30)
+        var applied: String?
+        let adapter = ComposePreferencesImportHost.Coordinator(
+            store: store, data: exported.bytes, onDismiss: {}, onApplied: { applied = $0 })
+        // Planning validates the document without touching any setting.
+        XCTAssertEqual(store.inactivityLockSeconds, 30)
+        XCTAssertTrue(adapter.confirm())
+        XCTAssertEqual(store.inactivityLockSeconds, 60)
+        XCTAssertEqual(applied, "1 settings imported.")
+        adapter.close()
+    }
+
+    @MainActor
+    func testComposePreferencesImportRefusesForeignFileAndStaleSession() throws {
+        let store = unlockedStore()
+        let foreign = try PreferencesExport.export(store.preferencesPort, platform: "desktop")
+        let refused = ComposePreferencesImportHost.Coordinator(
+            store: store, data: foreign.bytes, onDismiss: {}, onApplied: { _ in })
+        XCTAssertFalse(refused.confirm())
+        refused.close()
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        let stale = ComposePreferencesImportHost.Coordinator(
+            store: store, data: exported.bytes, onDismiss: {}, onApplied: { _ in })
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertFalse(stale.confirm())
+        stale.close()
+    }
+
+    @MainActor
+    func testComposeDeleteConfirmationRemovesOnlyTheCurrentEntry() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice")))
+        XCTAssertTrue(store.add(try draft("bob")))
+        store.toggleReveal(at: 0)
+        let adapter = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        XCTAssertNil(adapter.confirm())
+        XCTAssertEqual(store.entries.map(\.label), ["bob"])
+        adapter.close()
+    }
+
+    @MainActor
+    func testComposeDeleteConfirmationRejectsStaleAndClosedSessions() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice")))
+        store.toggleReveal(at: 0)
+        let stale = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertNotNil(stale.confirm())
+        XCTAssertEqual(store.entries.count, 1)
+        stale.close()
+        let closed = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        closed.close()
+        XCTAssertNotNil(closed.confirm())
+        XCTAssertEqual(store.entries.count, 1)
+    }
+
     func testManualReorderTagsAndCredentialInterchange() throws {
         struct EchoOpenPgpPort: OpenPgpPort {
             func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {

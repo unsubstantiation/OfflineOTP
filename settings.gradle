@@ -5,3 +5,6 @@ include ":desktop"
 include ":desktop-compose"
 include ":ui"
 include ":ui-model"
+
+include ":ui-foundation"
+include ":ui-contract"

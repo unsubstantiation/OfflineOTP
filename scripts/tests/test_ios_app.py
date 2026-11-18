@@ -41,7 +41,8 @@ class IosAppTest(unittest.TestCase):
         self.assertEqual("iOS", target["platform"])
         # The app is a client of the shared format layer, not a copy of it.
         self.assertEqual(
-            [{"package": "OfflineOTPKit", "product": "OfflineOTPKit"}], target["dependencies"])
+            [{"framework": "Frameworks/OfflineOTPPresentation.xcframework", "embed": False},
+             {"package": "OfflineOTPKit", "product": "OfflineOTPKit"}], target["dependencies"])
         self.assertIn("OfflineOTPKit", project["packages"])
         self.assertEqual(".", project["packages"]["OfflineOTPKit"]["path"])
         # One shared scheme drives both the build and the app's unit tests.
@@ -117,7 +118,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_palette_is_the_shared_dark_forest(self):
         """Every token the app draws with comes from the same numbers as the desktop theme."""
-        forest = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt").read_text()
+        forest = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt").read_text()
         tokens = {
             "BACKGROUND": "background",
             "BACKGROUND_DEEP": "backgroundDeep",
@@ -700,7 +701,7 @@ class IosAppTest(unittest.TestCase):
 
         # The Face ID sentence is a label too, not just text next to a button.
         unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
-        self.assertIn('.accessibilityLabel("Unlock with \\(store.biometryTitle)")', unlock)
+        self.assertIn('quickUnlockLabel: store.canUnlockWithBiometrics', unlock)
 
     def test_the_entry_list_body_is_split_for_the_type_checker(self):
         """Xcode 16.4 timed out on the old single-expression `EntryListView.body`.
@@ -723,7 +724,8 @@ class IosAppTest(unittest.TestCase):
             self.assertIn(f"private var {member}: some View", row)
         self.assertIn("@ToolbarContentBuilder", row)
         self.assertIn("private var toolbarItems: some ToolbarContent", row)
-        self.assertIn("private var deletionPresented: Binding<Bool>", row)
+        self.assertNotIn("deletionPresented", row)
+        self.assertIn("ComposeEntryConfirmationHost(store: store, index: target.index", row)
         self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
 
         # The sheets stay distributed across the typed layers instead of returning to one chain.
@@ -732,8 +734,9 @@ class IosAppTest(unittest.TestCase):
             self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
         vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]
         self.assertIn(".fileExporter(", vault)
-        self.assertIn(".alert(", vault)
-        self.assertNotIn(".sheet(", vault)
+        self.assertNotIn(".alert(", vault)
+        # The delete confirmation is the shared Compose dialog, presented from the vault layer.
+        self.assertEqual(1, vault.count(".sheet("))
 
     def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
         """The simulator XCTest step consumed the old job after the app had already compiled.

@@ -46,7 +46,7 @@ class LinScpSupportTest(unittest.TestCase):
             "Constants.INTENT_MAIN_LINSCP_EXPORT",
             "LinScpCredentials.importBytes(",
             "LinScpCredentials.exportVault(",
-            "linScpImportBytes?.fill(0)",
+            "dispose = { bytes.fill(0) }",
             "linScpExportPending?.fill(0)",
             "isSaveEnabled = false",
         ):

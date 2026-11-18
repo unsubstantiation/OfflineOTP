@@ -27,18 +27,24 @@ struct SettingsView: View {
     @ObservedObject var store: VaultStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingPasswordChange = false
+    @State private var showingAutoLock = false
+    @State private var showingAbout = false
     @State private var askingPassword = false
     @State private var password = ""
     @FocusState private var passwordFocused: Bool
 
-    @State private var currentVaultPassword = ""
-    @State private var newVaultPassword = ""
-    @State private var confirmVaultPassword = ""
-
     @State private var preferencesExport: PreferencesDocument?
     @State private var exportingPreferences = false
     @State private var importingPreferences = false
+    @State private var preferencesImport: PreferencesImportItem?
     @State private var preferencesMessage: String?
+
+    /// The picked preferences file awaiting confirmation in the shared Compose dialog.
+    private struct PreferencesImportItem: Identifiable {
+        let id = UUID()
+        let data: Data
+    }
 
     private var switchTitle: String { "Unlock with \(store.biometryTitle)" }
 
@@ -70,6 +76,22 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingPasswordChange) {
+            ComposePasswordChangeHost(store: store) { showingPasswordChange = false }
+        }
+        .sheet(isPresented: $showingAutoLock) {
+            ComposeAutoLockHost(store: store) { showingAutoLock = false }
+        }
+        .sheet(isPresented: $showingAbout) {
+            ComposeAboutHost { showingAbout = false }
+        }
+        .sheet(item: $preferencesImport) { item in
+            ComposePreferencesImportHost(store: store, data: item.data) {
+                preferencesImport = nil
+            } onApplied: { message in
+                preferencesMessage = message
+            }
+        }
     }
 
     private var unlockSection: some View {
@@ -123,14 +145,7 @@ struct SettingsView: View {
 
     private var autoLockSection: some View {
         Section {
-            Picker("Auto-lock after inactivity", selection: Binding(
-                get: { store.inactivityLockSeconds },
-                set: { store.setInactivityLockSeconds($0) }
-            )) {
-                ForEach(AutoLockOptions.including(store.inactivityLockSeconds), id: \.self) { seconds in
-                    Text(AutoLockOptions.label(seconds)).tag(seconds)
-                }
-            }
+            Button("Auto-lock after inactivity") { showingAutoLock = true }
         } header: {
             Text("Security")
         } footer: {
@@ -140,17 +155,7 @@ struct SettingsView: View {
 
     private var passwordSection: some View {
         Section {
-            SecureField("Current vault password", text: $currentVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("New vault password", text: $newVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("Confirm new password", text: $confirmVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Change vault password") { changeVaultPassword() }
-                .disabled(currentVaultPassword.isEmpty || newVaultPassword.isEmpty || confirmVaultPassword.isEmpty)
+            Button("Change vault password") { showingPasswordChange = true }
         } header: {
             Text("Vault Password")
         } footer: {
@@ -201,7 +206,7 @@ struct SettingsView: View {
         .fileImporter(isPresented: $importingPreferences, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
-                importPreferences(from: url)
+                readPreferences(from: url)
             case .failure:
                 preferencesMessage = "The preferences could not be imported."
             }
@@ -218,42 +223,22 @@ struct SettingsView: View {
         }
     }
 
-    private func importPreferences(from url: URL) {
+    private func readPreferences(from url: URL) {
         // A file picked outside the app's container needs an explicit security scope.
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
-            let data = try Data(contentsOf: url)
-            let result = try PreferencesExport.apply(data, into: store.preferencesPort)
-            let skipped = result.unknownKeys.isEmpty ? ""
-                : " \(result.unknownKeys.count) settings are not known to this version and were skipped."
-            preferencesMessage = "\(result.applied) settings imported.\(skipped)"
-            // The auto-lock picker must reflect a value that just changed underneath it.
-            store.reloadInactivityLock()
-        } catch PreferencesExport.PreferencesError.wrongPlatform(let source, _) {
-            preferencesMessage = "That file holds \(source) preferences; this client can only import iOS ones."
+            // Validation and the confirmation dialog happen in the shared Compose host; nothing
+            // is applied until the person confirms there.
+            preferencesImport = PreferencesImportItem(data: try Data(contentsOf: url))
         } catch {
-            preferencesMessage = "That file is not an OfflineOTP preferences file this version can read."
+            preferencesMessage = "The preferences could not be imported."
         }
     }
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Application", value: "OfflineOTP")
-            LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion") as? String ?? "Build version unavailable")
-            LabeledContent("Build time zone", value: "AKST (UTC−09:00)")
-            LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
-            LabeledContent("Network access", value: "None (100% offline)")
-            Text(AboutInfo.description)
-            Text(AboutInfo.copyright).font(.footnote)
-            Text(AboutInfo.attribution).font(.footnote)
-            ForEach(AboutInfo.links) { item in
-                if item.id == "author1" { Text("Credits").font(.headline) }
-                if let url = URL(string: item.url) { Link(item.label, destination: url) }
-            }
-            Text("Thumbnail disclaimer").font(.headline)
-            ForEach(AboutInfo.thumbnailDisclaimer, id: \.self) { text in Text(text).font(.footnote) }
-
+            Button("About OfflineOTP") { showingAbout = true }
         } header: {
             Text("About")
         }
@@ -266,15 +251,4 @@ struct SettingsView: View {
         }
     }
 
-    private func changeVaultPassword() {
-        if store.changePassword(
-            currentPassword: currentVaultPassword,
-            newPassword: newVaultPassword,
-            confirmation: confirmVaultPassword
-        ) {
-            currentVaultPassword = ""
-            newVaultPassword = ""
-            confirmVaultPassword = ""
-        }
-    }
 }

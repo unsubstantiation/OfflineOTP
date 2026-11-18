@@ -51,7 +51,7 @@ class BuildVersionTest(unittest.TestCase):
         self.assertIn('AboutNavigation(onAbout = { showAbout = true })', host)
         self.assertNotIn('Menu("Help")', host)
         self.assertIn('version = buildVersion', host)
-        self.assertIn('Version: $version', (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').read_text())
+        self.assertIn('Version: $version', (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').read_text())
         for platform in ("windows", "macos", "debian"):
             workflow = (ROOT / f".github/workflows/{platform}.yml").read_text()
             self.assertIn(":desktop-compose:packageDesktop", workflow)
@@ -62,8 +62,9 @@ class BuildVersionTest(unittest.TestCase):
         self.assertIn("stamp-ios-version.py", phase["script"])
         self.assertFalse(phase["basedOnDependencyAnalysis"])
         self.assertIn("$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)", phase["inputFiles"])
-        about = (ROOT / "ios/App/Sources/SettingsView.swift").read_text()
-        self.assertIn('LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion")', about)
+        about = (ROOT / "ios/App/Sources/ComposeAboutHost.swift").read_text()
+        self.assertIn('Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion")', about)
+        self.assertIn("presentation.viewController(version: version", about)
 
     def test_actual_ios_timestamp_and_plist_round_trip(self):
         spec = importlib.util.spec_from_file_location("stamp_version", ROOT / "scripts/versioning/stamp-ios-version.py")

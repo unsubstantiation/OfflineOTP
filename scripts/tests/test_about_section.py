@@ -68,14 +68,17 @@ class AboutSectionTest(unittest.TestCase):
         self.assertNotIn('Menu("Help")', host)
         self.assertIn('AboutNavigation(onAbout = { showAbout = true })', host)
         self.assertIn('desktop.browse(java.net.URI(url))', host)
-        dialog = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt").read_text()
         self.assertIn('verticalScroll(rememberScrollState())', dialog)
         self.assertIn('onOpenLink(link.url)', dialog)
         swift = (ROOT / "ios/App/Sources/SettingsView.swift").read_text()
         for field in ("description", "copyright", "attribution", "links", "thumbnailDisclaimer"):
             self.assertIn("AboutInfo." + field, dialog)
-            self.assertIn("AboutInfo." + field, swift)
-        self.assertIn('Link(item.label, destination: url)', swift)
+        self.assertIn('ComposeAboutHost { showingAbout = false }', swift)
+        self.assertNotIn('AboutInfo.', swift)
+        bridge = (ROOT / "ios/App/Sources/ComposeAboutHost.swift").read_text()
+        self.assertIn('presentation.viewController(', bridge)
+        self.assertIn('UIApplication.shared.open(url)', bridge)
 
     def test_readme_and_docs_mention_about_copyright(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

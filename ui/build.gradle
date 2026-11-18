@@ -1,4 +1,4 @@
-// Shared Compose Multiplatform UI: the single implementation of the vault screen for every client.
+// Shared Compose UI for Android and desktop. iOS currently uses SwiftUI, not this module.
 //
 // Layering: :core (Android-free engine) <- :ui-model (toolkit-free frame layer) <- :ui (this
 // module) <- :app (Android) / :desktop-compose (desktop host). This module holds only Compose code:
@@ -33,6 +33,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api project(':ui-foundation')
             implementation project(':core')
             // api so hosts can build frames and filters without depending on :ui-model themselves.
             api project(':ui-model')

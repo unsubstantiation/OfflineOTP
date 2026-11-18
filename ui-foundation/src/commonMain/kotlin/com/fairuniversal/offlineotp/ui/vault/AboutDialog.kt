@@ -21,6 +21,8 @@ fun AboutContent(version: String, onOpenLink: (String) -> Boolean) {
     var failedLink by remember { mutableStateOf<String?>(null) }
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(AboutInfo.description)
+        Text("Cryptography: Argon2id + AES-256-GCM")
+        Text("Network access: None (100% offline)")
         Text("Version: $version")
         Text("Build time: AKST (UTC−09:00)")
         Text(AboutInfo.copyright)

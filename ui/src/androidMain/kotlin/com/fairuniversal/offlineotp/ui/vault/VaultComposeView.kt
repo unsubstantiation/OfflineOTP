@@ -88,6 +88,18 @@ class VaultComposeView(
     }
     fun ownsLinScpExport(key: Any) = !ended && linScpExport?.key === key
 
+    private class LinScpRead(val key: Any, val secretLabel: String,
+        val submit: (String) -> String?, val dispose: () -> Unit)
+    private var linScpRead by mutableStateOf<LinScpRead?>(null)
+
+    /** The read/decrypt stage uses the desktop form; file IO and decoding remain host-owned. */
+    fun showLinScpRead(key: Any, secretLabel: String, dispose: () -> Unit, submit: (String) -> String?) {
+        if (ended) { dispose(); return }
+        clearEntryEditor()
+        linScpRead = LinScpRead(key, secretLabel, submit, dispose)
+    }
+    fun ownsLinScpRead(key: Any) = !ended && linScpRead?.key === key
+
     private class LinScpImport(val key: Any, val choices: List<String>,
         val submit: (Set<Int>) -> String?, val dispose: () -> Unit)
     private var linScpImport by mutableStateOf<LinScpImport?>(null)
@@ -100,6 +112,9 @@ class VaultComposeView(
     }
     fun ownsLinScpImport(key: Any) = !ended && linScpImport?.key === key
     fun clearLinScpImport() {
+        val reading = linScpRead
+        linScpRead = null
+        reading?.dispose?.invoke()
         val previous = linScpImport
         linScpImport = null // Revoke callbacks before releasing secret material.
         previous?.dispose?.invoke()
@@ -137,6 +152,20 @@ class VaultComposeView(
             appearance = appearance,
             artwork = artwork
         )
+        val reading = linScpRead
+        if (reading != null) ForestTheme {
+            LinScpImportDialog(reading.key, busy = false, count = null, failed = editError != null,
+                keySelected = false, onChooseKey = {}, onClearKey = {}, onConfirm = {}, choices = emptyList(),
+                secretLabel = reading.secretLabel, allowKeyFileSelection = false,
+                onRead = { secret ->
+                    if (ownsLinScpRead(reading.key)) {
+                        val failure = reading.submit(secret)
+                        if (linScpRead === reading) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                }, onDismiss = { if (linScpRead === reading) clearEntryEditor() })
+        }
         val importing = linScpImport
         if (importing != null) ForestTheme {
             LinScpImportDialog(importing.key, busy = false, count = importing.choices.size, failed = editError != null,
