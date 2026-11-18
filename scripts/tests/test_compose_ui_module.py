@@ -925,7 +925,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("autoLock.submit(timeoutRequest, seconds, lifetime)", host)
         self.assertIn("autoLock.close()", host)
         self.assertIn("val lifetime = remember(presenter)", host)
-        form = (UI_MAIN / "vault/AutoLockDialog.kt").read_text()
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt").read_text()
         self.assertIn("remember(inputKey)", form)
         self.assertIn("onSave(selected)", form)
         self.assertNotIn("VaultController", form)
@@ -1068,8 +1068,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("deliberately NO Compose stubs", text)
         self.assertIn("JvmTestRunnerKt", text)
         # Discovery is by find, so a new source file cannot silently sit outside the gate.
-        self.assertIn('find "$MODEL_MAIN" -name', text)
-        self.assertIn('find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" -name', text)
+        self.assertIn('find "$MODEL_MAIN" "$ROOT/ui-contract/src/commonMain/kotlin" -name', text)
+        self.assertIn('find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" "$ROOT/ui-contract/src/commonMain/kotlin" -name', text)
         # The host is part of the same gate: it is compiled against the compiled :desktop engine
         # and the Compose Desktop stubs, not left to the first real Gradle build.
         self.assertIn("desktop-compose/src/main/kotlin", text)

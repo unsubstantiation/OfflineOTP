@@ -27,6 +27,7 @@ struct SettingsView: View {
     @ObservedObject var store: VaultStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingAutoLock = false
     @State private var showingAbout = false
     @State private var askingPassword = false
     @State private var password = ""
@@ -71,6 +72,9 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingAutoLock) {
+            ComposeAutoLockHost(store: store) { showingAutoLock = false }
+        }
         .sheet(isPresented: $showingAbout) {
             ComposeAboutHost { showingAbout = false }
         }
@@ -127,14 +131,7 @@ struct SettingsView: View {
 
     private var autoLockSection: some View {
         Section {
-            Picker("Auto-lock after inactivity", selection: Binding(
-                get: { store.inactivityLockSeconds },
-                set: { store.setInactivityLockSeconds($0) }
-            )) {
-                ForEach(AutoLockOptions.including(store.inactivityLockSeconds), id: \.self) { seconds in
-                    Text(AutoLockOptions.label(seconds)).tag(seconds)
-                }
-            }
+            Button("Auto-lock after inactivity") { showingAutoLock = true }
         } header: {
             Text("Security")
         } footer: {

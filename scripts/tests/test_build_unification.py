@@ -41,8 +41,8 @@ class BuildUnificationTest(unittest.TestCase):
             self.assertIn('password-edit-contract.json', (ROOT / source).read_text())
 
     def test_import_forms_share_scrollable_body(self):
-        components = (UI / 'vault/VaultComponents.kt').read_text()
-        body = components[components.index('internal fun ScrollableDialogBody'):]
+        components = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/DialogComponents.kt').read_text()
+        body = components[components.index('fun ScrollableDialogBody'):]
         self.assertIn('Column(Modifier.verticalScroll(rememberScrollState()))', body)
         for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
                      'PreferencesImportDialog', 'UriImportDialog'):
@@ -56,15 +56,14 @@ class BuildUnificationTest(unittest.TestCase):
 
     def test_auto_lock_custom_values_remain_visible_on_ios_and_desktop(self):
         swift = (ROOT / 'ios/App/Sources/SettingsView.swift').read_text()
-        self.assertIn('AutoLockOptions.including(store.inactivityLockSeconds)', swift)
-        self.assertIn('AutoLockOptions.label(seconds)', swift)
+        self.assertIn('ComposeAutoLockHost(store: store)', swift)
+        self.assertNotIn('AutoLockOptions.', swift)
         self.assertIn('sort order and inactivity delay', swift)
-        form = (UI / 'vault/AutoLockDialog.kt').read_text()
+        form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt').read_text()
         self.assertIn('(options + currentSeconds).distinct()', form)
         self.assertIn('AutoLockOptions.label(seconds)', form)
         self.assertIn('text = { ScrollableDialogBody {', form)
-        for path in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/AutoLockOptionsContractTest.kt',
-                     'ios/Tests/OfflineOTPKitTests/AutoLockOptionsTests.swift'):
+        for path in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/AutoLockOptionsContractTest.kt',):
             self.assertIn('auto-lock-options.json', (ROOT / path).read_text())
 
     def test_android_linscp_read_does_not_reimplement_desktop_dialog(self):

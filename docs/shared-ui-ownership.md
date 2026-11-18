@@ -89,3 +89,24 @@ information previously shown only in iOS is retained in the common layout.
 This requires rebuilding the Compose XCFramework before XcodeGen/Xcode. Native linking, VoiceOver,
 sheet dismissal and external-link behavior still need Mac/simulator/device validation. The
 remaining settings sections and vault screens are still SwiftUI; this is not the full cutover.
+
+## Auto-lock settings migration
+
+The iOS timeout picker now opens the exact `AutoLockDialog` used by desktop, moved into
+`:ui-foundation`. Its common action/scroll components moved with it and remain used by existing
+JVM forms. The Swift preset/label implementation was removed. `:ui-contract` is the new pure
+Kotlin multiplatform dependency for presentation rules: it has neither Compose nor engine
+project dependencies and holds the single `AutoLockOptions` definition. Both `:ui-model` and
+`:ui-foundation` consume it, avoiding an inverted dependency on JVM code or Compose in the model.
+
+The iOS adapter accepts saves only while its originating session is unlocked/current and its
+expected setting value remains unchanged. Cancel/close revokes callbacks. iOS now stages selection
+until Save, matching desktop; opening or cancelling does not mutate the timeout. Custom values
+remain visible. Persistence uses the existing VaultStore setter and its existing storage semantics;
+this migration does not claim new disk-failure detection in that setter.
+
+The Swift duplicate-rule tests are retired with the duplicate implementation; the existing golden
+JVM contract still tests the single shared Kotlin rule, and native wiring is pinned by source gates.
+The independent contract compilation deliberately has no Compose or engine classpath. Native
+framework linking, simulator behavior, settings dismissal on lock and accessibility still need
+Xcode/device validation. Android's native numeric setting is not migrated in this increment.

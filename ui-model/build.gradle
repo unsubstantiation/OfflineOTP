@@ -27,6 +27,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api project(':ui-contract')
             // api, not implementation: VaultCardState is built from core's Entry, and hosts pass
             // VaultFilter through core's Constants/EntryListPresentation enums.
             api project(':core')

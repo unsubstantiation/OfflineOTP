@@ -11,7 +11,9 @@ class NativeComposeFoundationTest(unittest.TestCase):
         build = (MODULE / 'build.gradle').read_text()
         for target in ('iosArm64()', 'iosSimulatorArm64()', 'iosX64()', 'androidTarget', "jvm('desktop')"):
             self.assertIn(target, build)
-        self.assertNotIn('project(', build)
+        self.assertEqual(1, build.count('project('))
+        self.assertIn("api project(':ui-contract')", build)
+        self.assertNotIn('project(', (ROOT / 'ui-contract/build.gradle').read_text())
         self.assertIn("baseName = 'OfflineOTPPresentation'", build)
         for path in COMMON.rglob('*.kt'):
             for line in path.read_text().splitlines():
@@ -69,3 +71,25 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('if (active) AboutDialog(', native)
         self.assertIn('active && actions.openLink(url)', native)
         self.assertIn('close(); actions.dismiss()', native)
+
+    def test_auto_lock_uses_one_dialog_and_contract_with_guarded_native_save(self):
+        self.assertFalse((ROOT / 'ios/Sources/OfflineOTPKit/AutoLockOptions.swift').exists())
+        self.assertFalse((ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt').exists())
+        contract = ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt'
+        self.assertTrue(contract.is_file())
+        self.assertNotIn('import ', contract.read_text())
+        self.assertIn("api project(':ui-contract')", (ROOT / 'ui-model/build.gradle').read_text())
+        form = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt').read_text()
+        self.assertIn('(options + currentSeconds).distinct()', form)
+        native = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockViewController.kt').read_text()
+        self.assertIn('if (active) AutoLockDialog(', native)
+        self.assertIn('seconds in AutoLockOptions.including(currentSeconds)', native)
+        self.assertIn('val saved = actions.save(seconds)', native)
+        swift = (ROOT / 'ios/App/Sources/ComposeAutoLockHost.swift').read_text()
+        for guard in ('active && store.isUnlocked', 'store.generation == generation',
+                      'store.inactivityLockSeconds == expectedSeconds', 'guard current, seconds >= 0',
+                      'coordinator.close()'):
+            self.assertIn(guard, swift)
+        settings = (ROOT / 'ios/App/Sources/SettingsView.swift').read_text()
+        self.assertIn('ComposeAutoLockHost(store: store)', settings)
+        self.assertNotIn('Picker("Auto-lock', settings)
