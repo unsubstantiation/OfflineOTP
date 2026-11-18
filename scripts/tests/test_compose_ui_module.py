@@ -134,7 +134,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("card.pinRequired && enterPin != null", widgets)
 
     def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
-        dialog = (UI_MAIN / "vault/EntryConfirmationDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt").read_text()
         self.assertIn("AlertDialog(", dialog)
         self.assertIn("onDismissRequest = onDismiss", dialog)
         self.assertNotIn("rememberSaveable", dialog)
@@ -595,7 +595,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn('Button("Copy Token")', row)
         self.assertIn('accessibilityLabel("Previous token")', row)
         self.assertIn("store.recordUse(at: index), store.isUnlocked", row)
-        self.assertIn("current(target.entry, at: target.index, epoch: target.epoch)", row)
+        # The pending delete is revalidated in the native adapter before it removes anything.
+        host = (ROOT / "ios/App/Sources/ComposeEntryConfirmationHost.swift").read_text()
+        self.assertIn("store.generation == epoch", host)
+        self.assertIn("store.entries[index].fields == entry.fields", host)
+        self.assertIn("store.isRevealed(entry)", host)
         self.assertNotIn('Button("Copy code")', row)
 
     def test_android_otp_notes_share_desktop_edit_form_and_validation(self):

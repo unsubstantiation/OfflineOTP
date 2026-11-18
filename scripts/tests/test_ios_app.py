@@ -724,7 +724,8 @@ class IosAppTest(unittest.TestCase):
             self.assertIn(f"private var {member}: some View", row)
         self.assertIn("@ToolbarContentBuilder", row)
         self.assertIn("private var toolbarItems: some ToolbarContent", row)
-        self.assertIn("private var deletionPresented: Binding<Bool>", row)
+        self.assertNotIn("deletionPresented", row)
+        self.assertIn("ComposeEntryConfirmationHost(store: store, index: target.index", row)
         self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
 
         # The sheets stay distributed across the typed layers instead of returning to one chain.
@@ -733,8 +734,9 @@ class IosAppTest(unittest.TestCase):
             self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
         vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]
         self.assertIn(".fileExporter(", vault)
-        self.assertIn(".alert(", vault)
-        self.assertNotIn(".sheet(", vault)
+        self.assertNotIn(".alert(", vault)
+        # The delete confirmation is the shared Compose dialog, presented from the vault layer.
+        self.assertEqual(1, vault.count(".sheet("))
 
     def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
         """The simulator XCTest step consumed the old job after the app had already compiled.

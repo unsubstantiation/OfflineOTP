@@ -149,3 +149,17 @@ Swift adapter tests cover plan-without-apply, confirm-applies, foreign-file refu
 session rejection; they are added but not executed in this environment. Shared Compose/stub
 compilation, Python wiring guards and Android sandbox checks do not replace Xcode validation.
 Rebuild the required Compose XCFramework before native testing.
+
+## Delete confirmation migration
+
+The iOS SwiftUI "Remove entry?" alert was replaced with the desktop `EntryConfirmationDialog`,
+now in `:ui-foundation`. The title follows the desktop ("Delete account?"); the message keeps the
+entry name, matching Android and iOS's previous prompt. A failed removal now keeps the dialog open
+with the error appended — the desktop failed-request behavior — instead of dismissing into a toast.
+
+The native adapter revalidates the pending removal on confirm: same session generation, same index,
+unchanged entry fields and still revealed. A stale or dismissed request reports an error and
+removes nothing. Swift adapter tests cover successful removal, stale-session and closed-request
+rejection; they are added but not executed in this environment. Shared Compose/stub compilation,
+Python wiring guards and Android sandbox checks do not replace Xcode validation. Rebuild the
+required Compose XCFramework before native testing.

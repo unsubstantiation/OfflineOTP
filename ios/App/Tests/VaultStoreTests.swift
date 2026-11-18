@@ -713,6 +713,41 @@ final class VaultStoreTests: XCTestCase {
         stale.close()
     }
 
+    @MainActor
+    func testComposeDeleteConfirmationRemovesOnlyTheCurrentEntry() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice")))
+        XCTAssertTrue(store.add(try draft("bob")))
+        store.toggleReveal(at: 0)
+        let adapter = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        XCTAssertNil(adapter.confirm())
+        XCTAssertEqual(store.entries.map(\.label), ["bob"])
+        adapter.close()
+    }
+
+    @MainActor
+    func testComposeDeleteConfirmationRejectsStaleAndClosedSessions() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice")))
+        store.toggleReveal(at: 0)
+        let stale = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertNotNil(stale.confirm())
+        XCTAssertEqual(store.entries.count, 1)
+        stale.close()
+        let closed = ComposeEntryConfirmationHost.Coordinator(
+            store: store, index: 0, name: "alice", entry: store.entries[0],
+            epoch: store.generation, onDismiss: {})
+        closed.close()
+        XCTAssertNotNil(closed.confirm())
+        XCTAssertEqual(store.entries.count, 1)
+    }
+
     func testManualReorderTagsAndCredentialInterchange() throws {
         struct EchoOpenPgpPort: OpenPgpPort {
             func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {
