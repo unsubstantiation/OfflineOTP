@@ -8,6 +8,16 @@ import Foundation
 /// precisely so an entry can be written back out in the file's own dialect; anything whose columns
 /// no browser writes (a LinSCP session, a legacy Thunderbird row) is refused rather than flattened.
 public enum PasswordCsvExport {
+    public static let commonEditFieldLimit = 64 * 1024
+
+    /// Same common-form contract as the JVM core; unusual aliases must not be overwritten.
+    public static func supportsCommonEdit(_ entry: Entry) -> Bool {
+        guard entry.kind == .password, let fields = try? entry.passwordFields() else { return false }
+        let names = fields.items.map { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+        let aliases: Set<String> = ["origin", "login_uri", "hostname", "host", "user", "login_username", "pass", "login_password"]
+        return ["url", "username", "password"].allSatisfy { name in names.filter { $0 == name }.count == 1 }
+            && !names.contains { aliases.contains($0) }
+    }
 
     /// The browser whose header a stored column set belongs to.
     public enum Dialect: String, CaseIterable {
@@ -182,13 +192,11 @@ public enum PasswordCsvExport {
         let title = firstValue(["title"])
         let issuer = !name.isEmpty ? name : (!title.isEmpty ? title : editedURL)
         let user = firstValue([fieldUsername])
-        let replacement = try Entry.passwordFields(
-            label: user.isEmpty ? "Password" : user,
-            issuer: issuer,
-            fields: pairs,
-            tags: entry.tags
-        )
-        return replacement
+        var updated = entry.fields
+        updated["secret"] = .string(Base32.encode(try PasswordMaterial.encodeFields(pairs)))
+        updated["issuer"] = .string(issuer)
+        updated["label"] = .string(user.isEmpty ? "Password" : user)
+        return try Entry.parse(.object(updated))
     }
 }
 

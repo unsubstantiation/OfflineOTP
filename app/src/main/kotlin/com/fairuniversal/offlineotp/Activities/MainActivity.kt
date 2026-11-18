@@ -125,8 +125,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var linScpImportPrompt: AlertDialog? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
-    private var linScpExportSelectionDialog: AlertDialog? = null
-    private var linScpExportPasswordDialog: PasswordEntryDialog? = null
     private var sortMenu: MenuItem? = null
     private var searchMenu: MenuItem? = null
     private var composeVaultView: VaultComposeView? = null
@@ -244,10 +242,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         linScpExportPending?.fill(0)
         linScpExportPending = null
         linScpExportGeneration = -1L
-        linScpExportSelectionDialog?.dismiss()
-        linScpExportSelectionDialog = null
-        linScpExportPasswordDialog?.dismiss()
-        linScpExportPasswordDialog = null
         emailExportPending?.fill(0)
         emailExportPending = null
         emailExportGeneration = -1L
@@ -1759,61 +1753,39 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             Toast.makeText(this, R.string.linscp_export_empty, Toast.LENGTH_LONG).show()
             return
         }
+        val view = composeVaultView ?: return
+        if (VaultSession.getKey() == null) return
         val selectionGeneration = VaultSession.generation()
-        val selected = BooleanArray(entries.size)
+        val request = Any()
         val labels = entries.map { entry ->
             val kind = if (entry.isSshKey()) "Key" else "Session"
             val host = entry.getIssuer()
             if (host.isNotBlank()) "[$kind] ${entry.getLabel()} ($host)" else "[$kind] ${entry.getLabel()}"
-        }.toTypedArray()
-        val plainText = android.widget.CheckBox(this).apply {
-            setText("Export without a password (plain text). Warning: Exported secrets will be accessible by software on your device.")
-            isChecked = false
         }
-        val dialog = AlertDialog.Builder(this).setTitle(R.string.linscp_export_select)
-            .setView(plainText)
-            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
-            .setPositiveButton(R.string.linscp_export) { _, _ ->
-                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
-                val chosen = entries.filterIndexed { index, _ -> selected[index] }
-                if (chosen.isEmpty()) return@setPositiveButton
-                if (plainText.isChecked) prepareLinScpExport(chosen, selectionGeneration, null)
-                else promptLinScpExportPassword(chosen, selectionGeneration)
+        view.showLinScpExport(request, labels) { selected, plainText, password, confirmation ->
+            if (!view.ownsLinScpExport(request) || composeVaultView !== view ||
+                !VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) {
+                "The session changed. Close and reopen export."
+            } else if (selected.isEmpty() || selected.any { it !in entries.indices } ||
+                (!plainText && (password.isEmpty() || password != confirmation))) {
+                "Select entries and enter matching passwords, or explicitly choose plain text."
+            } else {
+                val chosen = entries.filterIndexed { index, _ -> index in selected }
+                if (prepareLinScpExport(chosen, selectionGeneration, if (plainText) null else password)) null
+                else "Could not prepare the export. Check the entries and try again."
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        linScpExportSelectionDialog = dialog
-        dialog.setOnDismissListener { if (linScpExportSelectionDialog === dialog) linScpExportSelectionDialog = null }
-        dialog.show()
+        }
     }
 
-    private fun promptLinScpExportPassword(chosen: List<Entry>, selectionGeneration: Long) {
-        var pwdDialog: PasswordEntryDialog? = null
-        pwdDialog = PasswordEntryDialog(
-            this,
-            PasswordEntryDialog.Mode.UPDATE,
-            settings?.getBlockAccessibility() ?: false,
-            settings?.getBlockAutofill() ?: true,
-            { exportPassword ->
-                if (linScpExportPasswordDialog === pwdDialog) linScpExportPasswordDialog = null
-                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@PasswordEntryDialog
-                prepareLinScpExport(chosen, selectionGeneration, exportPassword)
-            },
-            { if (linScpExportPasswordDialog === pwdDialog) linScpExportPasswordDialog = null }
-        )
-        linScpExportPasswordDialog = pwdDialog
-        pwdDialog.show()
-    }
-
-    private fun prepareLinScpExport(chosen: List<Entry>, generation: Long, password: String?) {
-        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
-        val current = adapter?.getEntries() ?: return
-        if (chosen.isEmpty() || chosen.any { selected -> current.none { it === selected } }) return
-        val plainText = password == null // Only the explicit checkbox passes null; blank is not opt-in.
+    private fun prepareLinScpExport(chosen: List<Entry>, generation: Long, password: String?): Boolean {
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return false
+        val current = adapter?.getEntries() ?: return false
+        if (chosen.isEmpty() || chosen.any { selected -> current.none { it === selected } }) return false
+        val plainText = password == null // Only explicit plain-text selection passes null; blank is not opt-in.
         val bytes = try {
             if (plainText) LinScpCredentials.exportPlain(chosen) else LinScpCredentials.exportVault(chosen, password!!)
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show(); return
+            Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show(); return false
         }
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType(if (plainText) "application/json" else "application/octet-stream")
@@ -1822,9 +1794,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             linScpExportPending?.fill(0); linScpExportPending = bytes
             linScpExportGeneration = generation
             startActivityForResult(intent, Constants.INTENT_MAIN_LINSCP_EXPORT)
+            return true
         } catch (_: Exception) {
             bytes.fill(0); linScpExportPending = null; linScpExportGeneration = -1L
             Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
+            return false
         }
     }
 
@@ -1933,20 +1907,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
         Toast.makeText(this, if (saved) R.string.password_export_csv_success else R.string.password_export_csv_failed,
             Toast.LENGTH_LONG).show()
-    }
-
-    /**
-     * Replaces [existing] after the edit dialog built a validated replacement. The adapter owns
-     * [replacement] from here on and destroys it itself when the write fails, so this only reports
-     * the outcome.
-     */
-    fun replacePasswordEntry(existing: Entry, replacement: Entry) {
-        val current = adapter
-        if (current != null && current.replaceEntry(existing, replacement)) {
-            Toast.makeText(this, R.string.password_edit_saved, Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(this, R.string.password_edit_failed, Toast.LENGTH_LONG).show()
-        }
     }
 
     @Suppress("SameParameterValue")

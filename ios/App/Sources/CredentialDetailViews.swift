@@ -213,6 +213,7 @@ struct PasswordDetailSheet: View {
                 ToolbarItem(placement: .cancellationAction) {
                     if decodedFields != nil {
                         Button("Edit") { editing = true }
+                            .disabled(!store.isRevealed(entry) || !PasswordCsvExport.supportsCommonEdit(entry))
                     }
                 }
                 ToolbarItem(placement: .confirmationAction) {
@@ -475,10 +476,12 @@ struct PasswordEditSheet: View {
     @State private var url: String
     @State private var username: String
     @State private var password = ""
+    @State private var openedFields: [String: JSONValue]?
+    @State private var openedGeneration: Int?
     @State private var revealPassword = false
     @State private var errorText: String?
 
-    private let maxFieldChars = 64 * 1024
+    private let maxFieldChars = PasswordCsvExport.commonEditFieldLimit
 
     init(entry: Entry, index: Int, store: VaultStore, onSaved: @escaping () -> Void) {
         self.entry = entry
@@ -488,6 +491,8 @@ struct PasswordEditSheet: View {
         let fields = (try? entry.passwordFields()) ?? PasswordMaterial.Fields(items: [])
         _url = State(initialValue: fields.value(PasswordCsvExport.fieldURL))
         _username = State(initialValue: fields.value(PasswordCsvExport.fieldUsername))
+        _openedFields = State(initialValue: entry.fields)
+        _openedGeneration = State(initialValue: store.generation)
     }
 
     var body: some View {
@@ -532,11 +537,17 @@ struct PasswordEditSheet: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onChange(of: store.generation) { _, _ in password = ""; dismiss() }
         .onDisappear { password = "" }
     }
 
     private func save() {
-        guard url.count <= maxFieldChars, username.count <= maxFieldChars, password.count <= maxFieldChars else {
+        guard store.isUnlocked, store.generation == openedGeneration, store.entries.indices.contains(index),
+              store.entries[index].fields == openedFields, store.isRevealed(store.entries[index]),
+              PasswordCsvExport.supportsCommonEdit(store.entries[index]) else {
+            password = ""; errorText = "The entry or session changed. Close and reopen the editor."; return
+        }
+        guard url.utf16.count <= maxFieldChars, username.utf16.count <= maxFieldChars, password.utf16.count <= maxFieldChars else {
             errorText = "Every value must fit the entry limits."
             return
         }

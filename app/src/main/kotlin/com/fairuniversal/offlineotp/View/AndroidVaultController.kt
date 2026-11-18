@@ -25,7 +25,6 @@ import com.fairuniversal.offlineotp.Activities.MainActivity
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
-import com.fairuniversal.offlineotp.Dialogs.PasswordEntryEditDialog
 import com.fairuniversal.offlineotp.Dialogs.TagsDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
@@ -170,9 +169,32 @@ class AndroidVaultController(
         return true
     }
 
+    private fun openPasswordEditor(target: EntryActionTarget, entry: Entry): Boolean {
+        val view = composeEditorView ?: return false
+        if (!composeRevealed(entry) || !com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(entry)) return false
+        val initial = com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.fromEntry(entry)
+        composeEditTarget = target
+        view.showPasswordEditor(initial) { input ->
+            synchronized(VaultSession.MutationLock) {
+                val actual = target.resolve(entries, VaultSession.generation())
+                if (!view.ownsPasswordEditor(initial) || composeEditTarget !== target || encryptionKey == null ||
+                    VaultSession.getKey() !== encryptionKey || actual == null || !composeRevealed(actual)) {
+                    view.clearEntryEditor(); "The entry or session changed."
+                } else {
+                    val replacement = try { input.build(actual) } catch (_: Exception) { null }
+                    if (replacement == null) "Invalid password entry. Check the fields."
+                    else if (replaceEntry(actual, replacement, preserveMissingPin = false)) {
+                        composeEditTarget = null; null
+                    } else "Could not save the password entry. Original retained."
+                }
+            }
+        }
+        return true
+    }
+
     private fun openSharedEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
-        if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote())) return false
+        if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote() && !entry.isSshKey())) return false
         composeEditTarget = target
         val initial = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.forEntryEdit(entry)
         view.showEntryEditor(initial) { input ->
@@ -304,7 +326,12 @@ class AndroidVaultController(
                     notifyEntryChanged(entry)
                 }
                 AndroidCardCommand.EDIT -> {
-                    if (!(if (entry.isEmail()) openEmailEditor(target, entry) else openSharedEditor(target, entry))) return false
+                    val opened = when {
+                        entry.isEmail() -> openEmailEditor(target, entry)
+                        entry.isPassword() -> openPasswordEditor(target, entry)
+                        else -> openSharedEditor(target, entry)
+                    }
+                    if (!opened) return false
                 }
                 AndroidCardCommand.COPY -> {
                     if (entry.isTimeBased()) entry.updateOTP(false)
@@ -573,7 +600,6 @@ class AndroidVaultController(
         composeEditTarget = null
         dialogs.dismissAll()
         ManualEntryDialog.dismissActive()
-        PasswordEntryEditDialog.dismissActive()
         activeQrDialog?.dismiss()
         activeQrDialog = null
         activeSshCopyDialog?.dismiss()
@@ -1207,7 +1233,7 @@ class AndroidVaultController(
         // A browser-imported password is editable and re-exportable; a LinSCP or Thunderbird row
         // shares the type but has no browser CSV form, so it gets the edit dialog only.
         if (popupEntry.isPassword()) {
-            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(true)
+            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(popupEntry))
             if (PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable)
                 popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(true)
         }
@@ -1256,10 +1282,7 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_edit_password) {
                 withTarget(popupTarget, Consumer { actual ->
-                    val hostActivity = context as? MainActivity ?: return@Consumer
-                    PasswordEntryEditDialog.show(hostActivity, actual) { replacement ->
-                        hostActivity.replacePasswordEntry(actual, replacement)
-                    }
+                    openPasswordEditor(popupTarget, actual)
                 })
                 true
             } else if (id == R.id.menu_popup_export_password_csv) {
@@ -1275,7 +1298,7 @@ class AndroidVaultController(
             } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (actual.isEmail()) { openEmailEditor(popupTarget, actual); return@Consumer }
-                    if (actual.isNote() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
+                    if (actual.isNote() || actual.isSshKey() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
                         openSharedEditor(popupTarget, actual)
                         return@Consumer
                     }

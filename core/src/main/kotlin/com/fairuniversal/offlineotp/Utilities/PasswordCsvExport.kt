@@ -47,6 +47,15 @@ object PasswordCsvExport {
     /** The required column set of each dialect, plus what makes a header unambiguous. */
     private val REQUIRED = listOf(FIELD_URL, FIELD_USERNAME, FIELD_PASSWORD)
 
+    /** Contract for the common URL/username/password form, shared by all JVM hosts. */
+    @JvmStatic
+    fun supportsCommonEdit(entry: Entry): Boolean {
+        if (!entry.isPassword()) return false
+        val columns = entry.getPasswordFields().columns().map { it.trim().lowercase(Locale.ROOT) }
+        return REQUIRED.all { name -> columns.count { it == name } == 1 } &&
+            columns.none { it in setOf("origin", "login_uri", "hostname", "host", "user", "login_username", "pass", "login_password") }
+    }
+
     /** Human-readable name of a dialect, used for the export warning and the file extension. */
     @JvmStatic
     fun browserName(dialect: Dialect): String = when (dialect) {
@@ -208,9 +217,18 @@ object PasswordCsvExport {
             ?.ifBlank { editedUrl }
             ?: editedUrl
         val label = user.ifBlank { "Password" }
-        val replacement = Entry.passwordFields(label, issuer, pairs, ArrayList(entry.getTags()))
-        replacement.setThumbnailName(entry.getThumbnailName())
-        replacement.setColor(entry.getColor())
-        return replacement
+        val material = PasswordMaterial.encodeFields(pairs)
+        try {
+            val replacement = Entry(entry.toJSON())
+            try {
+                replacement.setSecret(material)
+                // Runtime tint is not serialized in Entry JSON.
+                replacement.setColor(entry.getColor())
+                replacement.setIssuer(issuer, false)
+                replacement.setLabel(label)
+                replacement.validate()
+                return replacement
+            } catch (error: Exception) { replacement.destroy(); throw error }
+        } finally { material.fill(0) }
     }
 }

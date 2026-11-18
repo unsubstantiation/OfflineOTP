@@ -6209,6 +6209,60 @@ fun main() {
         }
     }
 
+    check("Android LinSCP export uses the shared form and rejects stale or invalid submissions") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val controller = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        source.addEntry(Entry.passwordFields("alice", "site", listOf("url" to "site", "username" to "alice", "password" to "secret")))
+        val view = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context,
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English, com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, controller)
+        MainActivity::class.java.getDeclaredField("composeVaultView").apply { isAccessible = true }.set(activity, view)
+        val open = MainActivity::class.java.getDeclaredMethod("chooseLinScpExport").apply { isAccessible = true }
+        val getter = view.javaClass.getDeclaredMethod("getLinScpExport").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 8 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        try {
+            open.invoke(activity)
+            val request = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val submit = request.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(request)
+                as (Set<Int>, Boolean, String, String) -> String?
+            expect(submit(emptySet(), true, "", "") != null, { "empty selection accepted" })
+            expect(submit(setOf(2), true, "", "") != null, { "invalid index accepted" })
+            expect(submit(setOf(0), false, "", "") != null, { "blank implicitly enabled plain text" })
+            expect(submit(setOf(0), false, "a", "b") != null, { "mismatched confirmation accepted" })
+            open.invoke(activity)
+            expect(submit(setOf(0), true, "", "") != null, { "replaced request kept export authority" })
+            view.clearEntryEditor()
+            expect(submit(setOf(0), true, "", "") != null, { "dismissed request exported" })
+            open.invoke(activity)
+            val current = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val currentSubmit = current.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(current)
+                as (Set<Int>, Boolean, String, String) -> String?
+            expect(currentSubmit(setOf(0), true, "", "") == null, { "explicit plain export failed" })
+            val pending = MainActivity::class.java.getDeclaredField("linScpExportPending").apply { isAccessible = true }
+            val bytes = pending.get(activity) as ByteArray
+            expect(!com.fairuniversal.offlineotp.Utilities.LinScpCredentials.isEncryptedVault(bytes), { "plain selection emitted encrypted bytes" })
+            val imported = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.importBytes(bytes)
+            expect(imported.size == 1, { "wrong selection exported" })
+            imported.forEach { it.destroy() }; bytes.fill(0); pending.set(activity, null)
+            val removed = source.getEntries().single()
+            source.removeEntry(0)
+            expect(currentSubmit(setOf(0), true, "", "") != null, { "removed entry still exported" })
+            removed.destroy()
+            VaultSession.lock()
+            expect(currentSubmit(setOf(0), true, "", "") != null, { "locked request exported" })
+            view.clear()
+            expect(getter.invoke(view) == null, { "closed host retained export state" })
+        } finally { view.clear(); controller.lockEntries(); VaultSession.lock() }
+    }
+
     check("MainActivity publishes Compose views and replaces them across session generations") {
         val fixture = SettingsFixture()
         val container = FrameLayout(fixture.context)
@@ -6299,6 +6353,52 @@ fun main() {
             controller.lockEntries()
             expect(getter.invoke(view) == null, { "lock retained editor credentials" })
             expect(submit(initial.copy(secret = "late write")) != null, { "stale editor retained write authority" })
+        } finally { view.clear(); controller.lockEntries(); VaultSession.lock() }
+    }
+
+    check("Android Keys and Password Edit share desktop forms and stale callbacks cannot save") {
+        val fixture = SettingsFixture()
+        val controller = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val password = Entry.passwordFields("alice", "site", listOf("url" to "site", "username" to "alice", "password" to "keep", "notes" to "preserve"))
+        val keyEntry = Entry.sshKey("public", "private", "host", "Key", arrayListOf(), SshConnection.of("host", 22, "alice", "keep"))
+        password.setDetailsVisible(true); keyEntry.setDetailsVisible(true)
+        val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key; source.addEntry(password); source.addEntry(keyEntry)
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val view = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context, strings,
+            com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        controller.attachComposeEditor(view)
+        try {
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.SSH_KEYS)
+            controller.setSearchQuery("")
+            val keys = controller.composeFrame(60_000L, strings)!!
+            expect(keys.perform(keyEntry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "Keys Edit did not open shared form" })
+            val manual = view.javaClass.getDeclaredMethod("getEditor").apply { isAccessible = true }.invoke(view)
+            expect(manual != null, { "no key editor" })
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS)
+            val frame = controller.composeFrame(60_000L, strings)!!
+            expect(frame.perform(password.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "Password Edit did not open shared form" })
+            val getter = view.javaClass.getDeclaredMethod("getPasswordEditor").apply { isAccessible = true }
+            val editor = getter.invoke(view)!!
+            val initial = editor.javaClass.getDeclaredField("initial").apply { isAccessible = true }.get(editor)
+                as com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
+            expect(initial.password.isEmpty(), { "stored password preloaded" })
+            expect(initial.username == "alice", { "wrong entry seeded" })
+            @Suppress("UNCHECKED_CAST")
+            val submit = editor.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(editor)
+                as (com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput) -> String?
+            expect(submit(initial.copy(password = "changed")) != null, { "missing disk vault reported success" })
+            expect(password.getPasswordFields().value("password") == "keep", { "failed write changed original" })
+            view.clearEntryEditor()
+            expect(submit(initial.copy(password = "late")) != null, { "dismissed form still has authority" })
+            expect(frame.perform(password.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "cannot reopen" })
+            controller.lockEntries()
+            expect(getter.invoke(view) == null, { "lock retained password editor" })
+            expect(submit(initial) != null, { "locked callback saved" })
         } finally { view.clear(); controller.lockEntries(); VaultSession.lock() }
     }
 

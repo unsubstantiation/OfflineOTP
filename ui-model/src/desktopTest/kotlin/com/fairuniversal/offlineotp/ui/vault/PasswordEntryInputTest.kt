@@ -14,12 +14,12 @@ class PasswordEntryInputTest {
     @Test fun editsPreserveExtraColumnsMetadataAndBlankPasswords() {
         val original = Entry.passwordFields("alice", "site", listOf("url" to "https://old", "username" to "alice",
             "password" to "private", "notes" to "keep notes", "guid" to "keep guid"), arrayListOf("work"))
-        original.setUsedFrequency(4); original.setLastUsed(123); original.setDetailsVisible(true)
+        original.setHiddenLabel("preserved hidden label"); original.setColor(123); original.setUsedFrequency(4); original.setLastUsed(123); original.setDetailsVisible(true)
         try {
             val initial = PasswordEntryInput.fromEntry(original)
             assertEquals("", initial.password)
             assertEquals("alice", initial.username)
-            for (password in listOf("", "new secret")) {
+            for (password in listOf("", "new secret", "x".repeat(16385))) {
                 val input = initial.copy(url = "https://new", username = "bob", password = password)
                 val edited = input.build(original)
                 try {
@@ -30,6 +30,8 @@ class PasswordEntryInputTest {
                     assertEquals("keep notes", fields.value("notes"))
                     assertEquals("keep guid", fields.value("guid"))
                     assertEquals(listOf("work"), edited.getTags())
+                    assertEquals("preserved hidden label", edited.getHiddenLabel())
+                    assertEquals(123, edited.getColor())
                     assertEquals(4L, edited.getUsedFrequency()); assertEquals(123L, edited.getLastUsed())
                     assertTrue(edited.areDetailsVisible())
                     assertEquals("private", original.getPasswordFields().value("password"))

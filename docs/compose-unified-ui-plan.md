@@ -2,6 +2,9 @@
 
 ## Current status — 2026-11-07
 
+See the [cross-build consolidation audit](build-unification-audit.md) for current shared-form
+and generated-theme work, remaining differences, and validation boundaries.
+
 **The desktop replacement is complete:** Compose is the default launcher/release target;
 Swing UI, its fallback tasks and Swing-specific tests were removed in PR #125 (merged at
 `3e8fb2700a5622f6c7e4062283190cf82ac7165d`). The `:desktop` module remains the shared engine
