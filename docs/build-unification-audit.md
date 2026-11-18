@@ -87,3 +87,20 @@ and the distinction between an embedded desktop fallback library and an external
 
 See the [cross-build feature/UI audit](cross-build-feature-audit.md) for the broader prioritized
 feature matrix and acceptance criteria. Full functional or visual parity has not been established.
+
+## Follow-up: LinSCP import selection
+
+Android now uses the same `LinScpImportDialog` selection/merge-confirmation stage as desktop.
+Selection starts empty; warnings and action labels are shared. Native Android file selection,
+encrypted-vault password prompt and session master-key input are retained for the read stage.
+This is not yet a complete unification of the read/decrypt UI or iOS presentation.
+
+The Compose host owns staged-entry cleanup. Replacing a form, dismissing, locking or terminating
+the host releases staged entries and revokes callbacks. Submission validates request identity,
+Activity host/controller identity, session generation/key and selection bounds. The installer
+receives owned copies, so failed persistence leaves the staged originals available for retry;
+successful UI confirmation disposes the originals. Shared errors now distinguish reading a file
+from saving its selected entries, rather than asking users to re-enter an already-used password.
+
+Sandbox coverage exercises invalid selection, persistence failure/retry staging, replaced/dismissed
+requests, lock and late imports. Native Gradle/device lifecycle and Xcode tests remain outstanding.

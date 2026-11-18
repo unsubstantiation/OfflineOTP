@@ -88,6 +88,23 @@ class VaultComposeView(
     }
     fun ownsLinScpExport(key: Any) = !ended && linScpExport?.key === key
 
+    private class LinScpImport(val key: Any, val choices: List<String>,
+        val submit: (Set<Int>) -> String?, val dispose: () -> Unit)
+    private var linScpImport by mutableStateOf<LinScpImport?>(null)
+
+    /** Takes ownership of the staged import until confirmation, replacement, cancellation or lock. */
+    fun showLinScpImport(key: Any, choices: List<String>, dispose: () -> Unit, submit: (Set<Int>) -> String?) {
+        if (ended) { dispose(); return }
+        clearEntryEditor()
+        linScpImport = LinScpImport(key, choices.toList(), submit, dispose)
+    }
+    fun ownsLinScpImport(key: Any) = !ended && linScpImport?.key === key
+    fun clearLinScpImport() {
+        val previous = linScpImport
+        linScpImport = null // Revoke callbacks before releasing secret material.
+        previous?.dispose?.invoke()
+    }
+
     private var ended = false
     private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
     private var editor by mutableStateOf<Editor?>(null)
@@ -102,7 +119,7 @@ class VaultComposeView(
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
 
-    fun clearEntryEditor() { editor = null; emailEditor = null; emailCreation = null; passwordEditor = null; linScpExport = null; editError = null }
+    fun clearEntryEditor() { clearLinScpImport(); editor = null; emailEditor = null; emailCreation = null; passwordEditor = null; linScpExport = null; editError = null }
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -120,6 +137,19 @@ class VaultComposeView(
             appearance = appearance,
             artwork = artwork
         )
+        val importing = linScpImport
+        if (importing != null) ForestTheme {
+            LinScpImportDialog(importing.key, busy = false, count = importing.choices.size, failed = editError != null,
+                keySelected = false, onChooseKey = {}, onClearKey = {}, onRead = {}, choices = importing.choices,
+                onConfirm = { selected ->
+                    if (ownsLinScpImport(importing.key)) {
+                        val failure = importing.submit(selected)
+                        if (linScpImport === importing) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                }, onDismiss = { if (linScpImport === importing) clearEntryEditor() })
+        }
         val export = linScpExport
         if (export != null) ForestTheme {
             LinScpExportDialog(export.key, export.choices, busy = false, error = editError,

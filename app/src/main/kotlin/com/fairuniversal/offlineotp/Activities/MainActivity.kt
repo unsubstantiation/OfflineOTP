@@ -121,7 +121,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var thunderbirdExportSelectionDialog: AlertDialog? = null
     private var linScpPendingUri: Uri? = null
     private var linScpImportBytes: ByteArray? = null
-    private var linScpImportSelectionDialog: AlertDialog? = null
     private var linScpImportPrompt: AlertDialog? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
@@ -234,8 +233,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         passwordCsvExportGeneration = -1L
         linScpImportBytes?.fill(0)
         linScpImportBytes = null
-        linScpImportSelectionDialog?.dismiss()
-        linScpImportSelectionDialog = null
+        composeVaultView?.clearLinScpImport()
         linScpImportPrompt?.dismiss()
         linScpImportPrompt = null
         linScpPendingUri = null
@@ -1719,32 +1717,42 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun finishLinScpImport(incoming: ArrayList<Entry>) {
+        val view = composeVaultView
+        val current = adapter
         val generation = VaultSession.generation()
-        val selected = BooleanArray(incoming.size)
-        val labels = incoming.map { "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" }.toTypedArray()
-        val dialog = AlertDialog.Builder(this).setTitle(R.string.linscp_import)
-            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
-            .setPositiveButton(R.string.linscp_import) { _, _ ->
-                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null || adapter == null) return@setPositiveButton
-                val chosen = ArrayList(incoming.filterIndexed { i, _ -> selected[i] })
-                if (chosen.isEmpty()) return@setPositiveButton
-                incoming.filterIndexed { i, _ -> !selected[i] }.forEach { it.destroy() }
-                incoming.clear() // Ownership of chosen entries transfers to the guarded installer.
-                val hasKeys = chosen.any { it.isSshKey() }
-                val result = adapter!!.importEntries(chosen)
-                if (result != null) {
-                    Toast.makeText(this, R.string.linscp_import_success, Toast.LENGTH_LONG).show()
-                    val category = if (hasKeys) EntryListPresentation.Category.SSH_KEYS else EntryListPresentation.Category.PASSWORDS
-                    findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
-                } else Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
-            }.setNegativeButton(android.R.string.cancel, null).create()
-        linScpImportSelectionDialog?.dismiss()
-        linScpImportSelectionDialog = dialog
-        dialog.setOnDismissListener {
-            incoming.forEach { it.destroy() }; incoming.clear()
-            if (linScpImportSelectionDialog === dialog) linScpImportSelectionDialog = null
+        val dispose = { incoming.forEach { it.destroy() }; incoming.clear() }
+        if (view == null || current == null || VaultSession.getKey() == null ||
+            current.encryptionKey !== VaultSession.getKey()) { dispose(); return }
+        val request = Any()
+        val labels = incoming.map { "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" }
+        view.showLinScpImport(request, labels, dispose) { selected ->
+            if (!view.ownsLinScpImport(request) || composeVaultView !== view || adapter !== current ||
+                !VaultSession.isCurrent(generation) || VaultSession.getKey() == null ||
+                current.encryptionKey !== VaultSession.getKey()) {
+                "The session changed. Close and reopen import."
+            } else if (selected.isEmpty() || selected.any { it !in incoming.indices }) {
+                "Select at least one key or session."
+            } else {
+                // The installer consumes its input, even on failure. Keep staged originals for retry.
+                val chosen = ArrayList<Entry>()
+                try {
+                    incoming.forEachIndexed { index, entry -> if (index in selected) chosen.add(Entry(entry.toJSON())) }
+                } catch (_: Exception) {
+                    chosen.forEach { it.destroy() }; chosen.clear()
+                }
+                if (chosen.isEmpty()) "Could not prepare the selected entries. Reopen import."
+                else {
+                    val hasKeys = chosen.any { it.isSshKey() }
+                    val result = try { current.importEntries(chosen) } catch (_: Exception) { null }
+                    if (result != null) {
+                        Toast.makeText(this, R.string.linscp_import_success, Toast.LENGTH_LONG).show()
+                        val category = if (hasKeys) EntryListPresentation.Category.SSH_KEYS else EntryListPresentation.Category.PASSWORDS
+                        findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
+                        null
+                    } else "Could not save the selected entries. Check storage and try again."
+                }
+            }
         }
-        dialog.show()
     }
 
     private fun chooseLinScpExport() {

@@ -6211,6 +6211,53 @@ fun main() {
         }
     }
 
+    check("Android LinSCP import shares selection and releases staged secrets on dismissal and lock") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val controller = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+        val view = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context,
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English, com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, controller)
+        MainActivity::class.java.getDeclaredField("composeVaultView").apply { isAccessible = true }.set(activity, view)
+        val open = MainActivity::class.java.getDeclaredMethod("finishLinScpImport", ArrayList::class.java).apply { isAccessible = true }
+        val getter = view.javaClass.getDeclaredMethod("getLinScpImport").apply { isAccessible = true }
+        fun incoming() = arrayListOf(Entry.passwordFields("alice", "site", listOf("url" to "site", "username" to "alice", "password" to "secret")))
+        val key = SecretKeySpec(ByteArray(32) { 5 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        try {
+            val staged = incoming()
+            open.invoke(activity, staged)
+            val request = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val submit = request.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(request)
+                as (Set<Int>) -> String?
+            expect(submit(emptySet()) != null && submit(setOf(2)) != null, { "invalid selection accepted" })
+            expect(submit(setOf(0)) != null, { "missing disk vault reported success" })
+            expect(staged.single().getPasswordFields().value("password") == "secret", { "failed persistence consumed staged secrets" })
+            val second = incoming()
+            open.invoke(activity, second)
+            expect(staged.isEmpty(), { "replacing dialog retained secrets" })
+            expect(submit(setOf(0)) != null, { "replaced callback retained authority" })
+            view.clearEntryEditor()
+            expect(second.isEmpty(), { "dismiss retained staged entries" })
+            val third = incoming()
+            open.invoke(activity, third)
+            val current = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val currentSubmit = current.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(current)
+                as (Set<Int>) -> String?
+            VaultSession.lock()
+            expect(currentSubmit(setOf(0)) != null, { "locked callback imported" })
+            view.clear()
+            expect(third.isEmpty() && getter.invoke(view) == null, { "closed host retained secrets" })
+            val late = incoming()
+            open.invoke(activity, late)
+            expect(late.isEmpty(), { "late import retained secrets" })
+        } finally { view.clear(); controller.lockEntries(); VaultSession.lock() }
+    }
+
     check("Android LinSCP export uses the shared form and rejects stale or invalid submissions") {
         val fixture = SettingsFixture()
         val activity = MainActivity()
