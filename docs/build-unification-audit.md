@@ -120,3 +120,10 @@ seconds setting and enable switch in this increment; unified settings presentati
 
 JVM contract and source gates run in the sandbox. Swift contract/roundtrip tests are added but require
 Xcode/Swift execution outside this sandbox; native picker accessibility/visual validation is pending.
+
+## Shared UI ownership follow-up
+
+Android's LinSCP read/decrypt prompt now uses the same shared form as desktop, including the
+existing Android text master-key input. The native AlertDialog/EditText copy was removed. See
+[shared UI ownership](shared-ui-ownership.md) for the actual production boundaries and the
+JVM dependency work needed before iOS can consume the same Compose screens.

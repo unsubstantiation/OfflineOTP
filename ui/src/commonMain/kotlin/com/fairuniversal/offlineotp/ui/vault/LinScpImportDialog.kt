@@ -18,7 +18,9 @@ import com.fairuniversal.offlineotp.Utilities.InputPolicy
 @Composable
 fun LinScpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean, keySelected: Boolean,
                        onChooseKey: () -> Unit, onClearKey: () -> Unit,
-                       onRead: (String) -> Unit, onConfirm: (Set<Int>) -> Unit, onDismiss: () -> Unit, choices: List<String>) {
+                       onRead: (String) -> Unit, onConfirm: (Set<Int>) -> Unit, onDismiss: () -> Unit, choices: List<String>,
+                       secretLabel: String = "Vault password (blank for unencrypted backups)",
+                       allowKeyFileSelection: Boolean = true) {
     var selected by remember(inputKey, count) { mutableStateOf<Set<Int>>(emptySet()) }
     var password by remember(inputKey) { mutableStateOf("") }
     fun dismiss() { password = ""; onDismiss() }
@@ -28,11 +30,13 @@ fun LinScpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolea
             if (count == null) {
                 OutlinedTextField(value = password,
                     onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
-                    singleLine = true, label = { Text(text = "Vault password (blank for unencrypted backups)") },
+                    singleLine = true, label = { Text(text = secretLabel) },
                     visualTransformation = PasswordVisualTransformation())
-                Text(text = if (keySelected) "Session master-key file selected." else "Select sessions.key if this session file needs an external master key.")
-                ForestTextAction(text = "Choose sessions.key", enabled = !busy, onClick = onChooseKey)
-                if (keySelected) ForestTextAction(text = "Clear key selection", enabled = !busy, onClick = onClearKey)
+                if (allowKeyFileSelection) {
+                    Text(text = if (keySelected) "Session master-key file selected." else "Select sessions.key if this session file needs an external master key.")
+                    ForestTextAction(text = "Choose sessions.key", enabled = !busy, onClick = onChooseKey)
+                    if (keySelected) ForestTextAction(text = "Clear key selection", enabled = !busy, onClick = onClearKey)
+                }
             }
             if (busy) Text(text = "Reading LinSCP credentials…")
             if (count != null) LinScpChoices(choices, selected, !busy) { selected = it }

@@ -120,8 +120,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var thunderbirdExportGeneration: Long = -1L
     private var thunderbirdExportSelectionDialog: AlertDialog? = null
     private var linScpPendingUri: Uri? = null
-    private var linScpImportBytes: ByteArray? = null
-    private var linScpImportPrompt: AlertDialog? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
     private var sortMenu: MenuItem? = null
@@ -231,11 +229,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         passwordCsvExportPending?.fill(0)
         passwordCsvExportPending = null
         passwordCsvExportGeneration = -1L
-        linScpImportBytes?.fill(0)
-        linScpImportBytes = null
         composeVaultView?.clearLinScpImport()
-        linScpImportPrompt?.dismiss()
-        linScpImportPrompt = null
         linScpPendingUri = null
         linScpExportPending?.fill(0)
         linScpExportPending = null
@@ -1691,29 +1685,22 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun promptLinScpSecret(bytes: ByteArray, titleRes: Int, onSubmitted: (String) -> Unit) {
-        val secretInput = android.widget.EditText(this).apply {
-            isSaveEnabled = false
-            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-            transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
-        }
-        linScpImportBytes?.fill(0)
-        linScpImportBytes = bytes
-        val dialog = AlertDialog.Builder(this).setTitle(titleRes)
-            .setView(secretInput)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                try { onSubmitted(secretInput.text.toString()) }
-                catch (_: Exception) { Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show() }
+        val view = composeVaultView
+        val generation = VaultSession.generation()
+        if (view == null || VaultSession.getKey() == null) { bytes.fill(0); return }
+        val request = Any()
+        view.showLinScpRead(request, getString(titleRes), dispose = { bytes.fill(0) }) { secret ->
+            if (!view.ownsLinScpRead(request) || composeVaultView !== view ||
+                !VaultSession.isCurrent(generation) || VaultSession.getKey() == null) {
+                "The session changed. Close and reopen import."
+            } else try {
+                onSubmitted(secret)
+                null
+            } catch (_: Exception) {
+                // The shared form clears the submitted secret. Keep bytes for an explicit retry.
+                "Could not read the file. Check the password or master key and try again."
             }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        linScpImportPrompt = dialog
-        dialog.setOnDismissListener {
-            secretInput.setText("")
-            bytes.fill(0)
-            if (linScpImportBytes === bytes) linScpImportBytes = null
-            if (linScpImportPrompt === dialog) linScpImportPrompt = null
         }
-        dialog.show()
     }
 
     private fun finishLinScpImport(incoming: ArrayList<Entry>) {
@@ -2302,7 +2289,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 StorageAccessHelper.deleteContentFile(this, passwordPendingUri)
             if (thunderbirdExportPending != null && thunderbirdPendingUri != null)
                 StorageAccessHelper.deleteContentFile(this, thunderbirdPendingUri)
-            linScpImportBytes?.fill(0)
+            composeVaultView?.clearLinScpImport()
             linScpExportPending?.fill(0)
             VaultSession.lock()
         }

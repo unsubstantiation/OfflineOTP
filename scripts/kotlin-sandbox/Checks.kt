@@ -6211,6 +6211,57 @@ fun main() {
         }
     }
 
+    check("Android LinSCP read uses the shared form with retry and secret cleanup") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val view = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context,
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English, com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        MainActivity::class.java.getDeclaredField("composeVaultView").apply { isAccessible = true }.set(activity, view)
+        val prompt = MainActivity::class.java.getDeclaredMethod("promptLinScpSecret", ByteArray::class.java,
+            Int::class.javaPrimitiveType, Function1::class.java).apply { isAccessible = true }
+        val getter = view.javaClass.getDeclaredMethod("getLinScpRead").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 4 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        try {
+            val bytes = byteArrayOf(1, 2, 3)
+            var calls = 0
+            val selection = Any()
+            val callback: (String) -> Unit = { value ->
+                calls++
+                if (value != "right") throw IllegalArgumentException("invalid secret")
+                view.showLinScpImport(selection, listOf("Session"), {}) { null }
+            }
+            prompt.invoke(activity, bytes, R.string.linscp_backup_password, callback)
+            val request = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val submit = request.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(request)
+                as (String) -> String?
+            expect(submit("wrong") != null && bytes.contentEquals(byteArrayOf(1, 2, 3)), { "failed read lost retry data" })
+            expect(submit("right") == null, { "correct secret failed" })
+            expect(bytes.all { it == 0.toByte() } && view.ownsLinScpImport(selection), { "transition did not release bytes or preserve next stage" })
+            expect(submit("late") != null && calls == 2, { "old reader retained authority" })
+            val master = byteArrayOf(4, 5)
+            prompt.invoke(activity, master, R.string.linscp_master_key_prompt, callback)
+            expect(getter.invoke(view) != null, { "master-key prompt not shared" })
+            view.clearEntryEditor()
+            expect(master.all { it == 0.toByte() }, { "cancel retained master-key source" })
+            val locked = byteArrayOf(6, 7)
+            prompt.invoke(activity, locked, R.string.linscp_backup_password, callback)
+            val pending = requireNotNull(getter.invoke(view))
+            @Suppress("UNCHECKED_CAST")
+            val stale = pending.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(pending)
+                as (String) -> String?
+            VaultSession.lock()
+            expect(stale("right") != null && calls == 2, { "locked reader decoded" })
+            view.clear()
+            expect(locked.all { it == 0.toByte() }, { "host close retained bytes" })
+            val late = byteArrayOf(8)
+            prompt.invoke(activity, late, R.string.linscp_backup_password, callback)
+            expect(late[0] == 0.toByte(), { "late prompt retained bytes" })
+        } finally { view.clear(); VaultSession.lock() }
+    }
+
     check("Android LinSCP import shares selection and releases staged secrets on dismissal and lock") {
         val fixture = SettingsFixture()
         val activity = MainActivity()

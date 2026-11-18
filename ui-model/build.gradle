@@ -6,7 +6,7 @@
 // rather than by a source guard:
 //
 //   :core  <-  :ui-model  <-  :ui (Compose)  <-  :app / :desktop-compose
-//                        <-  :desktop (Swing, shares the wording and the frame model)
+//                        <-  :desktop (engine/controllers, shares the wording and the frame model)
 //
 // It is a Kotlin Multiplatform module only so that `:ui`'s commonMain can depend on it: a plain JVM
 // library cannot be a `commonMain` dependency. Both targets carry the same commonMain sources.
