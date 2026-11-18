@@ -202,7 +202,7 @@ APP_SOURCES=(
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailPasswordInput.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEntryInput.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEditInput.kt"
-    "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryInput.kt"

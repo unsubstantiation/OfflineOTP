@@ -75,3 +75,17 @@ lock/close during authentication, rotation, keyboard, VoiceOver and privacy snap
 The sandbox independently compiles foundation common sources **without core/model classes** before
 compiling the JVM UI hosts, and source tests reject engine/Java imports in this module. That checks
 the new dependency boundary, not Kotlin/Native ABI correctness or actual Compose rendering.
+
+## About migration
+
+The existing desktop `AboutDialog`, `AboutContent` and `AboutNavigation` now live in
+`:ui-foundation`, with their generated `AboutInfo` catalogue. Desktop uses the same declarations
+through `:ui`'s transitive API; Android's native About/library integration still reads the common
+catalogue. iOS Settings opens `AboutPresentation` through a UIKit adapter. The SwiftUI content list
+and generated Swift catalogue were removed, rather than left as a fallback. Version lookup,
+explicit external-link opening and sheet dismissal are native adapters. Cryptography/network
+information previously shown only in iOS is retained in the common layout.
+
+This requires rebuilding the Compose XCFramework before XcodeGen/Xcode. Native linking, VoiceOver,
+sheet dismissal and external-link behavior still need Mac/simulator/device validation. The
+remaining settings sections and vault screens are still SwiftUI; this is not the full cutover.

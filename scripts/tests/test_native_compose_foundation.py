@@ -54,3 +54,18 @@ class NativeComposeFoundationTest(unittest.TestCase):
         script = (ROOT / 'scripts/ios/build-compose-framework.sh').read_text()
         self.assertIn('set -euo pipefail', script)
         self.assertIn(':ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework', script)
+
+    def test_about_is_shared_production_content_not_a_swift_copy(self):
+        self.assertFalse((ROOT / 'ios/App/Sources/AboutInfo.swift').exists())
+        self.assertFalse((ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').exists())
+        self.assertTrue((COMMON / 'com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').is_file())
+        ios = (ROOT / 'ios/App/Sources/ComposeAboutHost.swift').read_text()
+        self.assertIn('import OfflineOTPPresentation', ios)
+        self.assertIn('coordinator.close()', ios)
+        self.assertIn('guard active, let url = URL(string: url)', ios)
+        self.assertIn('["https", "http"].contains', ios)
+        self.assertNotIn('AboutInfo', ios)
+        native = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutViewController.kt').read_text()
+        self.assertIn('if (active) AboutDialog(', native)
+        self.assertIn('active && actions.openLink(url)', native)
+        self.assertIn('close(); actions.dismiss()', native)

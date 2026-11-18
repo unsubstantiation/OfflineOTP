@@ -173,6 +173,9 @@ XCFramework. Build it with the script above **before** XcodeGen or xcodebuild. M
 artifacts are a build error; there is no SwiftUI password-form fallback. The framework is generated
 and ignored, not committed. `UnlockView.swift` is only a lifecycle/store adapter.
 
+About now also uses the shared Compose dialog, hosted by `ComposeAboutHost.swift`; it no longer
+has a Swift content catalogue/layout. Rebuild the framework after updating this code.
+
 The app shell and unlocked vault screens still use SwiftUI during migration. They must not be
 reported as migrated yet. Password creation, password failures/retry, Face ID/Touch ID, foreground
 privacy covering, keyboard/VoiceOver and rotation require native simulator/device validation.

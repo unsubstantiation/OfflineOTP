@@ -27,6 +27,7 @@ struct SettingsView: View {
     @ObservedObject var store: VaultStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingAbout = false
     @State private var askingPassword = false
     @State private var password = ""
     @FocusState private var passwordFocused: Bool
@@ -70,6 +71,9 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingAbout) {
+            ComposeAboutHost { showingAbout = false }
+        }
     }
 
     private var unlockSection: some View {
@@ -239,21 +243,7 @@ struct SettingsView: View {
 
     private var aboutSection: some View {
         Section {
-            LabeledContent("Application", value: "OfflineOTP")
-            LabeledContent("Version", value: Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion") as? String ?? "Build version unavailable")
-            LabeledContent("Build time zone", value: "AKST (UTC−09:00)")
-            LabeledContent("Cryptography", value: "Argon2id + AES-256-GCM")
-            LabeledContent("Network access", value: "None (100% offline)")
-            Text(AboutInfo.description)
-            Text(AboutInfo.copyright).font(.footnote)
-            Text(AboutInfo.attribution).font(.footnote)
-            ForEach(AboutInfo.links) { item in
-                if item.id == "author1" { Text("Credits").font(.headline) }
-                if let url = URL(string: item.url) { Link(item.label, destination: url) }
-            }
-            Text("Thumbnail disclaimer").font(.headline)
-            ForEach(AboutInfo.thumbnailDisclaimer, id: \.self) { text in Text(text).font(.footnote) }
-
+            Button("About OfflineOTP") { showingAbout = true }
         } header: {
             Text("About")
         }
