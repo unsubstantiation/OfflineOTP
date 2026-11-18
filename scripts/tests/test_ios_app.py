@@ -117,7 +117,7 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_palette_is_the_shared_dark_forest(self):
         """Every token the app draws with comes from the same numbers as the desktop theme."""
-        forest = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt").read_text()
+        forest = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt").read_text()
         tokens = {
             "BACKGROUND": "background",
             "BACKGROUND_DEEP": "backgroundDeep",

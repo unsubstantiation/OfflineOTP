@@ -79,7 +79,7 @@ CORE_STUBS=("$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
 mapfile -d '' JUNIT_SHIM < <(find "$ROOT/scripts/jvm-tests" -name '*.kt' -print0 | sort -z)
 mapfile -d '' CORE_SOURCES < <(find "$CORE_MAIN" -name '*.kt' -print0 | sort -z)
 mapfile -d '' MODEL_SOURCES < <(find "$MODEL_MAIN" -name '*.kt' -print0 | sort -z)
-mapfile -d '' UI_SOURCES < <(find "$UI_MAIN" -name '*.kt' -print0 | sort -z)
+mapfile -d '' UI_SOURCES < <(find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
 mapfile -d '' MODEL_TEST_SOURCES < <(find "$MODEL_TEST" -name '*.kt' -print0 | sort -z)
 # Only the multiplatform stubs: the desktop window and Android platform stubs are compiled with the
 # host phases that need them (and the Android ones need the app's Android stubs on the classpath).
@@ -102,6 +102,11 @@ rm -rf "$OUT"
 mkdir -p "$OUT/core" "$OUT/model" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android"
 
 echo "kotlinc: $KOTLINC"
+# Foundation must compile WITHOUT core/model on the classpath, not just avoid suspicious imports.
+mapfile -d '' FOUNDATION_SOURCES < <(find "$ROOT/ui-foundation/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
+echo "phase 0: native-compatible presentation (no core/model classpath; JVM stubs only)"
+"$KOTLINC" -jvm-target 1.8 -nowarn "${FOUNDATION_SOURCES[@]}" "${COMPOSE_STUB_SOURCES[@]}" -d "$OUT/foundation"
+
 echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
 "$KOTLINC" -jvm-target 1.8 -nowarn \
     "${CORE_SOURCES[@]}" "${CORE_STUBS[@]}" \

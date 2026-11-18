@@ -44,7 +44,7 @@ def outputs():
         value = token if token.startswith('@') else '#' + (tokens[token][2:] if tokens[token].startswith('FF') else tokens[token])
         xml += f'    <color name="{name}">{value}</color>\n'
     xml += '</resources>\n'
-    return {'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt': kotlin,
+    return {'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt': kotlin,
             'ios/App/Sources/ForestPalette.swift': swift,
             'app/src/main/res/values/colors.xml': xml}
 

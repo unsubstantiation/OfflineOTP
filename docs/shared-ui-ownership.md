@@ -49,3 +49,27 @@ Tests prevent reintroducing the native Android prompt and exercise callback/clea
 Each migrated screen must have host wiring, failure/cancellation/session tests, and deletion or
 explicit retirement of its old implementation. Do not claim all-build UI sharing until native
 iOS compilation and device behavior have passed; Android/JVM stubs cannot prove that boundary.
+
+## First native-compatible extraction
+
+`:ui-foundation` now owns the existing Compose theme and unlock screen, moved rather than copied.
+It has Android/JVM and iOS device/simulator targets and **no engine or model project dependency**.
+`:ui` exports it transitively; the existing JVM unlock API is now a small wording adapter. Desktop
+continues rendering the same screen. Android's shared Compose theme now also comes from this
+module; its native authentication Activity has not yet been replaced.
+
+The iOS source set exports `UnlockPresentation.viewController` using `ComposeUIViewController`.
+Its main-thread adapter accepts busy/error updates and revokes submissions on close. It does not
+implement authentication, biometrics, vault creation, foreground/background privacy covering or
+native file access. Those remain host responsibilities.
+
+This is **not the iOS release cutover**: `ios/project.yml` does not yet link the framework, and the
+SwiftUI launcher remains active. Do not remove it until the replacement host preserves those
+responsibilities. Next gate on a Mac: build `:ui-foundation:linkDebugFrameworkIosSimulatorArm64`
+and `:ui-foundation:linkReleaseFrameworkIosArm64`, then connect the native host and test password
+unlock, first-run creation, biometric access, lock/close during authentication and privacy snapshots.
+No native framework/Xcode build was run in the Linux sandbox.
+
+The sandbox independently compiles foundation common sources **without core/model classes** before
+compiling the JVM UI hosts, and source tests reject engine/Java imports in this module. That checks
+the new dependency boundary, not Kotlin/Native ABI correctness or actual Compose rendering.

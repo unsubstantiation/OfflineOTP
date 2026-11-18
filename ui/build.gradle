@@ -33,6 +33,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            api project(':ui-foundation')
             implementation project(':core')
             // api so hosts can build frames and filters without depending on :ui-model themselves.
             api project(':ui-model')

@@ -295,7 +295,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_hardware_unlock_is_optional_serialized_and_ephemeral(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        screen = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
         dialog = (UI_MAIN / "unlock/HardwareUnlockDialog.kt").read_text()
         self.assertIn("onHardwareUnlock: (() -> Unit)? = null", screen)
         self.assertIn("DesktopHardwareUnlock(worker", host)
@@ -941,7 +941,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("state.isLocked || !state.presentation.canDrag()", owner)
 
     def test_unlock_keyboard_buttons_and_enrollment_visibility(self):
-        screen = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        screen = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertNotIn("strings.unlockTitle", screen)
         self.assertNotIn("ForestTextAction", screen)
@@ -962,7 +962,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("EventQueue.invokeLater(task)", host)
         self.assertIn("operation.close(); worker.shutdown()", host)
         self.assertIn("if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)", host)
-        unlock = (UI_MAIN / "unlock/UnlockScreen.kt").read_text()
+        unlock = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
         self.assertIn('password = ""\n            onSubmit(submitted)', unlock)
         self.assertIn("enabled = !busy", unlock)
 
@@ -1069,7 +1069,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("JvmTestRunnerKt", text)
         # Discovery is by find, so a new source file cannot silently sit outside the gate.
         self.assertIn('find "$MODEL_MAIN" -name', text)
-        self.assertIn('find "$UI_MAIN" -name', text)
+        self.assertIn('find "$UI_MAIN" "$ROOT/ui-foundation/src/commonMain/kotlin" -name', text)
         # The host is part of the same gate: it is compiled against the compiled :desktop engine
         # and the Compose Desktop stubs, not left to the first real Gradle build.
         self.assertIn("desktop-compose/src/main/kotlin", text)
