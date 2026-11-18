@@ -84,3 +84,6 @@ The native backend and real provider interoperability still require device testi
 The [OpenPGP client parity matrix](openpgp-client-parity.md) records the in-app baseline across
 Android, Windows, macOS, Debian/Linux and iOS, optional platform integrations, packaging caveats,
 and the distinction between an embedded desktop fallback library and an external program.
+
+See the [cross-build feature/UI audit](cross-build-feature-audit.md) for the broader prioritized
+feature matrix and acceptance criteria. Full functional or visual parity has not been established.

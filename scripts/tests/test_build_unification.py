@@ -39,3 +39,17 @@ class BuildUnificationTest(unittest.TestCase):
         for source in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/PasswordEditContractTest.kt',
                        'ios/Tests/OfflineOTPKitTests/PasswordCsvExportTests.swift'):
             self.assertIn('password-edit-contract.json', (ROOT / source).read_text())
+
+    def test_import_forms_share_scrollable_body(self):
+        components = (UI / 'vault/VaultComponents.kt').read_text()
+        body = components[components.index('internal fun ScrollableDialogBody'):]
+        self.assertIn('Column(Modifier.verticalScroll(rememberScrollState()))', body)
+        for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
+                     'PreferencesImportDialog', 'UriImportDialog'):
+            form = (UI / 'vault' / (name + '.kt')).read_text()
+            self.assertIn('text = { ScrollableDialogBody {', form)
+            self.assertIn('confirmButton =', form)
+            self.assertIn('dismissButton =', form)
+        pgp = (UI / 'vault/OpenPgpImportDialog.kt').read_text()
+        self.assertIn('else "Merge", enabled = !busy', pgp)
+        self.assertIn('else "Replace all current entries", enabled = !busy', pgp)

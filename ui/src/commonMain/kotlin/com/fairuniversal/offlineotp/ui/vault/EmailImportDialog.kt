@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -18,7 +17,7 @@ fun EmailImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean
     var password by remember(inputKey) { mutableStateOf("") }
     fun dismiss() { password = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import FairEmail backup") },
-        text = { Column {
+        text = { ScrollableDialogBody {
             Text(text = "Import accounts and their SMTP identities from a FairEmail JSON, gzip or encrypted backup. The source file is not changed or deleted. Maximum file size: 8 MiB.")
             if (count == null) OutlinedTextField(value = password,
                 onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,

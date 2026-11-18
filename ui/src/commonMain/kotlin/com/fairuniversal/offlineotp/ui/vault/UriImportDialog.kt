@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -23,7 +22,7 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
     var allowAdditional by remember(inputKey) { mutableStateOf(false) }
     fun dismiss() { uri = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OTP URI") },
-        text = { Column {
+        text = { ScrollableDialogBody {
             Text(text = "Paste an otpauth:// URI or each part of an otpauth-migration:// export. Import saves accounts to this vault.")
             onChooseImage?.let { choose -> ForestTextAction(text = "Choose QR image", enabled = !imageBusy,
                 onClick = { uri = ""; choose() }) }
