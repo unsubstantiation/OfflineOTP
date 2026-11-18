@@ -80,3 +80,7 @@ External signing/verification controls and callbacks are restored. The provider 
 explains the in-app alternative. Missing key files no longer incorrectly report a missing native
 backend. There is no automatic fallback between engines: users select their engine and keys.
 The native backend and real provider interoperability still require device testing.
+
+The [OpenPGP client parity matrix](openpgp-client-parity.md) records the in-app baseline across
+Android, Windows, macOS, Debian/Linux and iOS, optional platform integrations, packaging caveats,
+and the distinction between an embedded desktop fallback library and an external program.

@@ -8,11 +8,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 
+const val OPENPGP_IN_APP_NOTICE = "OpenPGP runs in this app using key files. No external OpenPGP app is required."
+
 @Composable
 fun OpenPgpExportDialog(busy: Boolean, recipientNames: List<String>, error: String?,
                         onChooseKey: () -> Unit, onClearKeys: () -> Unit, onExport: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Export OpenPGP backup") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Text(text = OPENPGP_IN_APP_NOTICE)
             Text(text = "Export the full vault, including concealed entries and regardless of filters, encrypted to ALL selected recipient files. Verify every file belongs to an intended recipient. Anyone with ANY matching secret key can decrypt the entire backup; this is not shared-key or threshold protection.")
             Text(text = "Existing files will not be overwritten. A write already started may finish after cancel or lock; a failed write may leave a partial encrypted file.")
             Text(text = "Select 1–8 public-key files (16 MiB combined maximum). Filenames are not verified fingerprints.")

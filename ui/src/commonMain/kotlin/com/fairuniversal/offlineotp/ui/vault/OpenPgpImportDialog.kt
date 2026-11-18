@@ -21,6 +21,7 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
     fun dismiss() { password = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OpenPGP backup") },
         text = { Column {
+            Text(text = OPENPGP_IN_APP_NOTICE)
             Text(text = "Read an OpenPGP-encrypted OfflineOTP backup with a secret-key file. Message and key files are limited to 16 MiB each and remain unchanged.")
             if (count == null) {
                 OutlinedTextField(value = password,
