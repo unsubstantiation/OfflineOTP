@@ -9,8 +9,8 @@
     <string name="backup_desc_replace">Replace current entries with the backup contents. When off, the
         backup is merged with the current entries.</string>
 
-    <string name="backup_desc_openpgp_provider">Install an OpenPGP provider and select it in <b>Settings</b>
-        to use this feature.</string>
+    <string name="backup_desc_openpgp_provider">The separate OpenPGP app mode is selected. Select a provider in <b>Settings</b>,
+        or choose OpenPGP engine → In this app (key files) to use the built-in engine without another app.</string>
     <string name="backup_desc_openpgp_keyid">Select an OpenPGP key in <b>Settings</b> before creating encrypted
         backups.</string>
 
@@ -59,7 +59,7 @@
     <string name="backup_label_crypt">The Full Encrypted Backup is encrypted with a custom password using AES-256. Set a
         default password in Settings to avoid entering it every time.</string>
     <string name="backup_label_pgp_keyfiles">The backup is encrypted in this app to the recipient key files selected in <b>Settings</b>. Restoring needs your secret key file and its passphrase.</string>
-    <string name="backup_desc_openpgp_backend_unavailable">The in-app OpenPGP engine is not available in this build. Install a build that includes the in-app engine. No external OpenPGP app is used.</string>
+    <string name="backup_desc_openpgp_backend_unavailable">The in-app OpenPGP engine is not available in this build. Use the separate OpenPGP app mode in <b>Settings</b>, or install a build that includes it.</string>
     <string name="backup_desc_openpgp_keyfiles_recipients">Select at least one recipient key file in <b>Settings</b> before creating a backup.</string>
     <string name="backup_desc_openpgp_keyfiles_secret">Select a secret key file in <b>Settings</b> before restoring a backup.</string>
     <string name="backup_toast_openpgp_no_secret_key">Select a secret key file in Settings before restoring.</string>
