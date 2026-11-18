@@ -130,3 +130,22 @@ Swift app tests cover adapter rejection after close/session replacement, wrong-p
 entry preservation. They are added but not executed in this environment. Shared Compose/stub
 compilation, Python wiring guards and Android sandbox checks do not replace Xcode validation.
 Rebuild the required Compose XCFramework before native testing.
+
+## Preferences import confirmation migration
+
+The desktop `PreferencesImportDialog` moved into `:ui-foundation` and iOS now presents it after a
+file pick instead of applying immediately. Platform wording is a host parameter (desktop default,
+iOS override); the confirm button is disabled while a plan failed, which desktop never produced
+but the shared form now guards for every host.
+
+iOS computes the plan by applying the picked document into a throwaway in-memory settings port.
+`PreferencesExport.apply` validates the whole document before writing, so the scratch run yields
+identical applied/unknown/refused counts without touching real settings. Only the shared dialog's
+Apply writes through `VaultStore.preferencesPort`, then reloads the inactivity delay so the
+auto-lock sheet reflects the imported value. Foreign-platform and unreadable files surface their
+existing specific messages in the dialog's failure state rather than a settings footnote.
+
+Swift adapter tests cover plan-without-apply, confirm-applies, foreign-file refusal and stale
+session rejection; they are added but not executed in this environment. Shared Compose/stub
+compilation, Python wiring guards and Android sandbox checks do not replace Xcode validation.
+Rebuild the required Compose XCFramework before native testing.

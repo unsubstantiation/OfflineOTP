@@ -37,7 +37,14 @@ struct SettingsView: View {
     @State private var preferencesExport: PreferencesDocument?
     @State private var exportingPreferences = false
     @State private var importingPreferences = false
+    @State private var preferencesImport: PreferencesImportItem?
     @State private var preferencesMessage: String?
+
+    /// The picked preferences file awaiting confirmation in the shared Compose dialog.
+    private struct PreferencesImportItem: Identifiable {
+        let id = UUID()
+        let data: Data
+    }
 
     private var switchTitle: String { "Unlock with \(store.biometryTitle)" }
 
@@ -77,6 +84,13 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showingAbout) {
             ComposeAboutHost { showingAbout = false }
+        }
+        .sheet(item: $preferencesImport) { item in
+            ComposePreferencesImportHost(store: store, data: item.data) {
+                preferencesImport = nil
+            } onApplied: { message in
+                preferencesMessage = message
+            }
         }
     }
 
@@ -192,7 +206,7 @@ struct SettingsView: View {
         .fileImporter(isPresented: $importingPreferences, allowedContentTypes: [.json]) { result in
             switch result {
             case .success(let url):
-                importPreferences(from: url)
+                readPreferences(from: url)
             case .failure:
                 preferencesMessage = "The preferences could not be imported."
             }
@@ -209,22 +223,16 @@ struct SettingsView: View {
         }
     }
 
-    private func importPreferences(from url: URL) {
+    private func readPreferences(from url: URL) {
         // A file picked outside the app's container needs an explicit security scope.
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
-            let data = try Data(contentsOf: url)
-            let result = try PreferencesExport.apply(data, into: store.preferencesPort)
-            let skipped = result.unknownKeys.isEmpty ? ""
-                : " \(result.unknownKeys.count) settings are not known to this version and were skipped."
-            preferencesMessage = "\(result.applied) settings imported.\(skipped)"
-            // The auto-lock picker must reflect a value that just changed underneath it.
-            store.reloadInactivityLock()
-        } catch PreferencesExport.PreferencesError.wrongPlatform(let source, _) {
-            preferencesMessage = "That file holds \(source) preferences; this client can only import iOS ones."
+            // Validation and the confirmation dialog happen in the shared Compose host; nothing
+            // is applied until the person confirms there.
+            preferencesImport = PreferencesImportItem(data: try Data(contentsOf: url))
         } catch {
-            preferencesMessage = "That file is not an OfflineOTP preferences file this version can read."
+            preferencesMessage = "The preferences could not be imported."
         }
     }
 

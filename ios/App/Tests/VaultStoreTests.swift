@@ -679,6 +679,40 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.entries.map(\.label), ["preserved"])
     }
 
+    @MainActor
+    func testComposePreferencesImportPlansWithoutApplyingUntilConfirmed() throws {
+        let store = unlockedStore()
+        store.setInactivityLockSeconds(60)
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        store.setInactivityLockSeconds(30)
+        var applied: String?
+        let adapter = ComposePreferencesImportHost.Coordinator(
+            store: store, data: exported.bytes, onDismiss: {}, onApplied: { applied = $0 })
+        // Planning validates the document without touching any setting.
+        XCTAssertEqual(store.inactivityLockSeconds, 30)
+        XCTAssertTrue(adapter.confirm())
+        XCTAssertEqual(store.inactivityLockSeconds, 60)
+        XCTAssertEqual(applied, "1 settings imported.")
+        adapter.close()
+    }
+
+    @MainActor
+    func testComposePreferencesImportRefusesForeignFileAndStaleSession() throws {
+        let store = unlockedStore()
+        let foreign = try PreferencesExport.export(store.preferencesPort, platform: "desktop")
+        let refused = ComposePreferencesImportHost.Coordinator(
+            store: store, data: foreign.bytes, onDismiss: {}, onApplied: { _ in })
+        XCTAssertFalse(refused.confirm())
+        refused.close()
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        let stale = ComposePreferencesImportHost.Coordinator(
+            store: store, data: exported.bytes, onDismiss: {}, onApplied: { _ in })
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertFalse(stale.confirm())
+        stale.close()
+    }
+
     func testManualReorderTagsAndCredentialInterchange() throws {
         struct EchoOpenPgpPort: OpenPgpPort {
             func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {

@@ -45,8 +45,14 @@ class BuildUnificationTest(unittest.TestCase):
         body = components[components.index('fun ScrollableDialogBody'):]
         self.assertIn('Column(Modifier.verticalScroll(rememberScrollState()))', body)
         for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
-                     'PreferencesImportDialog', 'UriImportDialog'):
+                     'UriImportDialog'):
             form = (UI / 'vault' / (name + '.kt')).read_text()
+        form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt').read_text()
+        self.assertIn('text = { ScrollableDialogBody {', form)
+        self.assertIn('confirmButton =', form)
+        self.assertIn('dismissButton =', form)
+        for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
+                     'UriImportDialog'):
             self.assertIn('text = { ScrollableDialogBody {', form)
             self.assertIn('confirmButton =', form)
             self.assertIn('dismissButton =', form)

@@ -714,9 +714,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         for key in ("UI_INACTIVITY_LOCK_SECONDS", "UI_CARD_LAYOUT", "UI_SORT_MODE"):
             self.assertIn(f"plan.contains(PreferencesExport.{key})", host)
         self.assertIn("preferencesImporter.close()", host)
-        form = (UI_MAIN / "vault/PreferencesImportDialog.kt").read_text()
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt").read_text()
         self.assertIn("A file may disable auto-lock", form)
-        self.assertIn("enabled = !busy && count != null", form)
+        self.assertIn("enabled = !busy && count != null && !failed", form)
+        self.assertIn('platformName: String = "desktop"', form)
 
     def test_preferences_export_uses_worker_and_rechecks_lifetime(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()

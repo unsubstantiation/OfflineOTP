@@ -114,3 +114,18 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('if (active && !busy && result == null)', bridge)
         self.assertIn('requiresUnlock = false', bridge)
         self.assertIn('actions.successMessage()', bridge)
+
+    def test_preferences_import_confirmation_is_shared_and_guarded_on_ios(self):
+        form = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt').read_text()
+        self.assertIn('platformName: String = "desktop"', form)
+        self.assertIn('enabled = !busy && count != null && !failed', form)
+        settings = (ROOT / 'ios/App/Sources/SettingsView.swift').read_text()
+        self.assertIn('ComposePreferencesImportHost(store: store, data: item.data)', settings)
+        self.assertNotIn('PreferencesExport.apply(data, into: store.preferencesPort)', settings)
+        swift = (ROOT / 'ios/App/Sources/ComposePreferencesImportHost.swift').read_text()
+        self.assertIn('ScratchPort', swift)
+        self.assertIn('active && store.isUnlocked && store.generation == generation', swift)
+        self.assertIn('store.reloadInactivityLock()', swift)
+        bridge = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportViewController.kt').read_text()
+        self.assertIn('platformName = "iOS"', bridge)
+        self.assertIn('if (active && !busy && count != null && !failed)', bridge)
