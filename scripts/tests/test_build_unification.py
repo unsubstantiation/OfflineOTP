@@ -53,3 +53,16 @@ class BuildUnificationTest(unittest.TestCase):
         pgp = (UI / 'vault/OpenPgpImportDialog.kt').read_text()
         self.assertIn('else "Merge", enabled = !busy', pgp)
         self.assertIn('else "Replace all current entries", enabled = !busy', pgp)
+
+    def test_auto_lock_custom_values_remain_visible_on_ios_and_desktop(self):
+        swift = (ROOT / 'ios/App/Sources/SettingsView.swift').read_text()
+        self.assertIn('AutoLockOptions.including(store.inactivityLockSeconds)', swift)
+        self.assertIn('AutoLockOptions.label(seconds)', swift)
+        self.assertIn('sort order and inactivity delay', swift)
+        form = (UI / 'vault/AutoLockDialog.kt').read_text()
+        self.assertIn('(options + currentSeconds).distinct()', form)
+        self.assertIn('AutoLockOptions.label(seconds)', form)
+        self.assertIn('text = { ScrollableDialogBody {', form)
+        for path in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/AutoLockOptionsContractTest.kt',
+                     'ios/Tests/OfflineOTPKitTests/AutoLockOptionsTests.swift'):
+            self.assertIn('auto-lock-options.json', (ROOT / path).read_text())

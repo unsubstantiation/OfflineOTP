@@ -77,8 +77,8 @@ public final class VaultStore: ObservableObject {
     /// The portable-preferences port over this vault's plist, the peer of Android's
     /// `AndroidPreferencesPort` and the desktop's `DesktopPreferencesPort`.
     ///
-    /// This client stores no backup password and no OpenPGP key grants, so the only setting that
-    /// moves is the inactivity delay; `auth_*` entries live in the same file but belong to the
+    /// This client moves sort order and inactivity delay, not backup passwords or OpenPGP key grants.
+    /// The `auth_*` entries live in the same file but belong to the
     /// vault and are never readable through this port.
     public var preferencesPort: PreferencesExport.SettingsPort { PreferencesPort(settings: settings) }
 

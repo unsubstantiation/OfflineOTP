@@ -104,3 +104,19 @@ from saving its selected entries, rather than asking users to re-enter an alread
 
 Sandbox coverage exercises invalid selection, persistence failure/retry staging, replaced/dismissed
 requests, lock and late imports. Native Gradle/device lifecycle and Xcode tests remain outstanding.
+
+## Follow-up: auto-lock settings and accurate preference coverage
+
+The prior audit understated iOS preference support: its existing catalog already includes sort
+order as well as inactivity delay. Corrected the audit, help text and store/codec comments; no
+preference format or cross-platform import policy was changed.
+
+The iOS timeout picker now includes the current stored value even when it is not a preset (for
+example a 45-second imported timeout). Desktop already retained such values. Both use equivalent
+labels and preset lists, pinned by one JVM/Swift golden contract. Kotlin presentation and desktop
+controller now share the preset definition; the desktop dialog is scrollable. No timeout is rounded,
+no default changes, and opening the picker does not write preferences. Android retains its numeric
+seconds setting and enable switch in this increment; unified settings presentation remains open.
+
+JVM contract and source gates run in the sandbox. Swift contract/roundtrip tests are added but require
+Xcode/Swift execution outside this sandbox; native picker accessibility/visual validation is pending.

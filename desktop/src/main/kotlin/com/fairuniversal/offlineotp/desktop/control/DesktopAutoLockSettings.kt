@@ -32,5 +32,5 @@ class DesktopAutoLockSettings(
 
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 
-    companion object { val OPTIONS = listOf(0, 30, 60, 120, 300, 900) }
+    companion object { val OPTIONS = com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.seconds }
 }

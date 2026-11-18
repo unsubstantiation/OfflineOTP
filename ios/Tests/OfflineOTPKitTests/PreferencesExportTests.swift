@@ -35,6 +35,19 @@ final class PreferencesExportTests: XCTestCase {
         ], target.writes)
     }
 
+    func testCustomTimeoutIsPreservedAndOfferedWithoutRounding() throws {
+        let source = FakePort([
+            PreferencesExport.sortModeKey: .text("ISSUER"),
+            PreferencesExport.inactivityLockKey: .integer(45),
+        ])
+        let exported = try PreferencesExport.export(source)
+        let target = FakePort()
+        _ = try PreferencesExport.apply(exported.bytes, into: target)
+        XCTAssertEqual(target.writes[PreferencesExport.inactivityLockKey], .integer(45))
+        XCTAssertEqual(target.writes[PreferencesExport.sortModeKey], .text("ISSUER"))
+        XCTAssertTrue(AutoLockOptions.including(45).contains(45))
+    }
+
     func testAbsentSettingIsNotWrittenAsItsDefault() throws {
         let export = try PreferencesExport.export(FakePort())
         XCTAssertEqual(0, export.keysWritten)
