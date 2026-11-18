@@ -153,7 +153,7 @@ class OpenPgpRustCrateTest(unittest.TestCase):
 
         a_text = android.read_text(encoding="utf-8")
         self.assertIn("Unified OpenPGP backend", a_text)
-        self.assertIn("OpenKeychain", a_text)
+        self.assertIn("no external-app fallback", a_text)
 
         coordinator = ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/BackupCoordinator.kt"
         c_text = coordinator.read_text(encoding="utf-8")

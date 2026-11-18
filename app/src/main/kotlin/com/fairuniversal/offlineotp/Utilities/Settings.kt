@@ -650,10 +650,8 @@ open class Settings(private val context: Context) {
         return getBackupBroadcasts().contains("encrypted")
     }
 
-    /** Which engine handles OpenPGP backups; defaults to the external provider for existing installs. */
-    open fun getOpenPGPMode(): OpenPgpMode {
-        return OpenPgpMode.parse(getString(R.string.settings_key_openpgp_mode, OpenPgpMode.PROVIDER_VALUE))
-    }
+    /** In-app only, including old installations and imported provider preferences. */
+    open fun getOpenPGPMode(): OpenPgpMode = OpenPgpMode.KEY_FILE
 
     open fun setOpenPGPMode(mode: OpenPgpMode) {
         setString(R.string.settings_key_openpgp_mode, OpenPgpMode.preferenceValue(mode))

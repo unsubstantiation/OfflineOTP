@@ -4607,14 +4607,14 @@ fun main() {
         expect(settings.getOpenPGPProvider() == "" && settings.getOpenPGPEncryptionUserIDs() == "",
                 { "the OpenPGP selectors must default to empty" })
         // An existing install keeps its provider; the in-app engine is opt-in.
-        expect(settings.getOpenPGPMode() == OpenPgpMode.PROVIDER,
-                { "the OpenPGP engine must default to the external provider" })
+        expect(settings.getOpenPGPMode() == OpenPgpMode.KEY_FILE,
+                { "OpenPGP must use the in-app engine" })
         expect(settings.getOpenPGPRecipientFiles().isEmpty() && settings.getOpenPGPSecretFile() == "",
                 { "no OpenPGP key document is selected by default" })
         settings.setOpenPGPMode(OpenPgpMode.KEY_FILE)
         expect(settings.getOpenPGPMode() == OpenPgpMode.KEY_FILE, { "the key-file mode must round-trip" })
         settings.setOpenPGPMode(OpenPgpMode.PROVIDER)
-        expect(settings.getOpenPGPMode() == OpenPgpMode.PROVIDER, { "the provider mode must round-trip" })
+        expect(settings.getOpenPGPMode() == OpenPgpMode.KEY_FILE, { "legacy provider preference must not reactivate external programs" })
         // Only bounded content grants are kept; a raw path must never become a key document.
         settings.setOpenPGPRecipientFiles(setOf(
             "content://keys/document/2", "content://keys/document/1",

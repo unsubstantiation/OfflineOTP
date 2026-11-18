@@ -24,8 +24,6 @@ import androidx.appcompat.widget.Toolbar
 import com.google.android.material.snackbar.BaseTransientBottomBar
 import com.google.android.material.snackbar.Snackbar
 
-import org.openintents.openpgp.util.OpenPgpAppPreference
-import org.openintents.openpgp.util.OpenPgpKeyPreference
 import com.fairuniversal.offlineotp.Preferences.CredentialsPreference
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
@@ -47,7 +45,6 @@ import com.fairuniversal.offlineotp.Utilities.NotificationHelper
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
 import com.fairuniversal.offlineotp.Utilities.OpenPgpKeyFilePolicy
-import com.fairuniversal.offlineotp.Utilities.OpenPgpMode
 import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
@@ -595,9 +592,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         } else if (requestCode == Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES ||
                 requestCode == Constants.INTENT_SETTINGS_OPENPGP_SECRET_FILE) {
             if (resultCode == RESULT_OK && !isFinishing()) handleOpenPgpKeyFileResult(requestCode, data)
-        } else {
-            // Handled in OpenPgpKeyPreference
-            fragment?.pgpSigningKey?.handleOnActivityResult(requestCode, resultCode, data)
         }
     }
 
@@ -627,15 +621,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         var useAndroidSync: CheckBoxPreference? = null
 
-        private var pgpEncryptionKey: EditTextPreference? = null
-        private var pgpMode: ListPreference? = null
-        private var pgpProviderPreference: OpenPgpAppPreference? = null
-        private var pgpSigningKeyPreference: OpenPgpKeyPreference? = null
-        private var pgpVerifyPreference: CheckBoxPreference? = null
         private var pgpRecipientFiles: android.preference.Preference? = null
         private var pgpSecretFile: android.preference.Preference? = null
 
-        var pgpSigningKey: OpenPgpKeyPreference? = null
         var themeMode: ListPreference? = null
         var themeBlack: CheckBoxPreference? = null
         var theme: ListPreference? = null
@@ -674,17 +662,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             this.encryptionKey = encryptionKey
 
             credentialsPreference?.setOldEncryptionKey(encryptionKey)
-        }
-
-        /** Shows only the preferences belonging to the selected OpenPGP engine. */
-        private fun applyOpenPgpMode(mode: OpenPgpMode) {
-            val provider = mode == OpenPgpMode.PROVIDER
-            pgpProviderPreference?.isEnabled = provider
-            pgpSigningKeyPreference?.isEnabled = provider
-            pgpVerifyPreference?.isEnabled = provider
-            pgpEncryptionKey?.isEnabled = provider && !pgpProviderPreference?.value.isNullOrEmpty()
-            pgpRecipientFiles?.isEnabled = !provider
-            pgpSecretFile?.isEnabled = !provider
         }
 
         /** Reports how many recipient files and whether a secret key are selected. */
@@ -791,39 +768,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 true
             }
 
-            // OpenPGP
-            val pgpProvider = findPreference(getString(R.string.settings_key_openpgp_provider)) as? OpenPgpAppPreference
-            pgpProviderPreference = pgpProvider
-            pgpEncryptionKey = findPreference(getString(R.string.settings_key_openpgp_key_encrypt)) as? EditTextPreference
-            val signingKey = findPreference(getString(R.string.settings_key_openpgp_key_sign)) as? OpenPgpKeyPreference
-            pgpSigningKey = signingKey
-            pgpSigningKeyPreference = signingKey
-            pgpVerifyPreference = findPreference(getString(R.string.settings_key_openpgp_verify)) as? CheckBoxPreference
-            pgpMode = findPreference(getString(R.string.settings_key_openpgp_mode)) as? ListPreference
+            // OpenPGP is handled in-app; no external provider preference is inflated or bound.
             pgpRecipientFiles = findPreference(getString(R.string.settings_key_openpgp_recipient_files))
             pgpSecretFile = findPreference(getString(R.string.settings_key_openpgp_secret_file))
-
-            signingKey?.setOpenPgpProvider(pgpProvider?.value)
-
-            pgpEncryptionKey?.isEnabled = !pgpProvider?.value.isNullOrEmpty()
-
-            pgpProvider?.setOnPreferenceChangeListener { _, newValue ->
-                pgpEncryptionKey?.isEnabled = !(newValue as? String).isNullOrEmpty()
-                signingKey?.setOpenPgpProvider(newValue as? String)
-
-                true
-            }
-
-            // The two engines have disjoint settings; showing the inactive ones would suggest they
-            // still apply. The stored values are kept so switching back restores the configuration.
-            pgpMode?.value = OpenPgpMode.preferenceValue(currentSettings.getOpenPGPMode())
-            applyOpenPgpMode(currentSettings.getOpenPGPMode())
-            pgpMode?.setOnPreferenceChangeListener { _, newValue ->
-                val mode = OpenPgpMode.parse(newValue as? String)
-                currentSettings.setOpenPGPMode(mode)
-                applyOpenPgpMode(mode)
-                true
-            }
 
             pgpRecipientFiles?.setOnPreferenceClickListener {
                 (getActivity()!! as SettingsActivity).requestOpenPgpKeyFiles(true)

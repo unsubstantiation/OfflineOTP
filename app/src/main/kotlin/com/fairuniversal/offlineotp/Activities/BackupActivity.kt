@@ -229,10 +229,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (encryptionKey != null) tryResumePendingPickerAction()
     }
 
-    /** Which OpenPGP engine the user selected; read fresh so a Settings change takes effect. */
-    private fun openPgpMode(): OpenPgpMode = settings!!.getOpenPGPMode()
-
-    private fun usesKeyFileMode(): Boolean = openPgpMode() == OpenPgpMode.KEY_FILE
+    // Do not let legacy/imported preferences or provider callbacks select an external engine.
+    private fun usesKeyFileMode(): Boolean = true
 
     /**
      * Offers the in-app engine's actions only when the native backend and the needed key documents
@@ -251,7 +249,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         btnBackup?.isEnabled = availability.canEncrypt
         btnRestore?.isEnabled = availability.canRestore
         val warning = when {
-            !availability.canEncrypt && !availability.canRestore ->
+            !keyFileBackendAvailable ->
                 R.string.backup_desc_openpgp_backend_unavailable
             !availability.canEncrypt -> R.string.backup_desc_openpgp_keyfiles_recipients
             !availability.canRestore -> R.string.backup_desc_openpgp_keyfiles_secret
@@ -305,56 +303,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         }
     }
 
-    /** Keeps one provider binding per activity; action buttons stay disabled until it is ready. */
+    /** Legacy call seam: external services are no longer bound, even for restored state. */
     private fun bindOpenPgpService(provider: String) {
-        val current = pgpServiceConnection
-        if (current != null && pgpServiceProvider == provider) {
-            if (current.isBound()) {
-                pgpServiceReady = true
-                pgpServiceBinding = false
-                pgpServiceFailed = false
-            } else if (!pgpServiceBinding && !pgpServiceFailed) {
-                pgpServiceBinding = true
-                pgpConnectionRegistered = true
-                current.bindToService()
-            }
-            return
-        }
-
         releaseOpenPgpService()
-        val token = ++pgpConnectionToken
-        pgpServiceProvider = provider
-        pgpServiceBinding = true
-        pgpConnectionRegistered = true
-        val connection = OpenPgpServiceConnection(getApplicationContext(), provider,
-            object : OpenPgpServiceConnection.OnBound {
-                override fun onBound(service: IOpenPgpService2) {
-                    if (token != pgpConnectionToken || isFinishing()) return
-                    pgpServiceReady = service != null
-                    pgpServiceBinding = false
-                    pgpServiceFailed = !pgpServiceReady
-                    updateOpenPgpAvailability()
-                    btnBackup?.post { tryResumePendingPickerAction() }
-                }
-
-                override fun onError(error: Exception) {
-                    if (token != pgpConnectionToken || isFinishing()) return
-                    pgpConnectionRegistered = false
-                    pgpServiceReady = false
-                    pgpServiceBinding = false
-                    pgpServiceFailed = true
-                    updateOpenPgpAvailability()
-                    val pendingRequest = pendingResumeRequestCode
-                    if (pendingRequest != null &&
-                        backupTypeForPickerRequest(pendingRequest) == Constants.BackupType.OPEN_PGP) {
-                        if (activeActionRequestCode == pendingRequest) discardActiveBackupDocument()
-                        clearPendingResumeAction(discardCreatedDocument = true)
-                        notifyBackupState(R.string.backup_toast_openpgp_unavailable)
-                    }
-                }
-            })
-        pgpServiceConnection = connection
-        connection.bindToService()
     }
 
     private fun releaseOpenPgpService() {
@@ -1191,81 +1142,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         return String(os.toByteArray(), StandardCharsets.UTF_8)
     }
 
-    /** Handles the OpenPGP API result; a pending user interaction is passed to the OpenPGP app. */
+    /** Reject callbacks left over from the retired external-provider flow. */
     fun handleOpenPGPResult(result: Intent?, os: ByteArrayOutputStream?, file: Uri?, requestCode: Int) {
         if (!canOperate()) return
-        if (result == null || (os is BoundedOutput && os.overflowed())) {
-            notifyOpenPgpFailure(requestCode)
-            return
-        }
-
-        when (result.getIntExtra(OpenPgpApi.RESULT_CODE, OpenPgpApi.RESULT_CODE_ERROR)) {
-            OpenPgpApi.RESULT_CODE_SUCCESS -> {
-                if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP) {
-                    val rawEncrypted = os?.toByteArray()
-                    val encryptedBackup = os?.let { outputStreamToString(it) } ?: ""
-                    if (rawEncrypted == null || rawEncrypted.isEmpty() ||
-                            !OpenPgpOutputPolicy.hasContent(encryptedBackup)) {
-                        discardActiveBackupDocument()
-                        notifyBackupState(R.string.backup_toast_openpgp_empty)
-                        return
-                    }
-                    doBackupEncrypted(file, encryptedBackup, rawEncrypted)
-                } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
-                    val restoredJSON = os?.let { outputStreamToString(it) } ?: ""
-                    if (!OpenPgpOutputPolicy.hasContent(restoredJSON)) {
-                        clearActiveAction()
-                        notifyBackupState(R.string.backup_toast_import_failed)
-                        return
-                    }
-                    if (settings!!.getOpenPGPVerify()) {
-                        val sigResult = result.getParcelableExtra<OpenPgpSignatureResult>(OpenPgpApi.RESULT_SIGNATURE)
-                        if (sigResult != null && sigResult.getResult() == OpenPgpSignatureResult.RESULT_VALID_KEY_CONFIRMED) {
-                            if (!restoreEntries(restoredJSON, true)) clearActiveAction()
-                        } else {
-                            clearActiveAction()
-                            Toast.makeText(this, R.string.backup_toast_openpgp_not_verified, Toast.LENGTH_LONG).show()
-                        }
-                    } else {
-                        if (!restoreEntries(restoredJSON, true)) clearActiveAction()
-                    }
-                } else {
-                    notifyOpenPgpFailure(requestCode)
-                }
-            }
-            OpenPgpApi.RESULT_CODE_USER_INTERACTION_REQUIRED -> {
-                val pi = result.getParcelableExtra<PendingIntent>(OpenPgpApi.RESULT_INTENT)
-                if (pi == null) {
-                    notifyOpenPgpFailure(requestCode)
-                    return
-                }
-
-                // Preserve the target URI across the OpenPGP user-interaction round trip.
-                if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP) {
-                    encryptTargetFile = file
-                } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
-                    decryptSourceFile = file
-                }
-
-                try {
-                    startIntentSenderForResult(pi.intentSender, requestCode, null, 0, 0, 0)
-                } catch (error: IntentSender.SendIntentException) {
-                    notifyOpenPgpFailure(requestCode)
-                }
-            }
-            OpenPgpApi.RESULT_CODE_ERROR -> {
-                val error = result.getParcelableExtra<OpenPgpError>(OpenPgpApi.RESULT_ERROR)
-                if (error != null) {
-                    discardActiveBackupDocument()
-                    Toast.makeText(this,
-                        String.format(getString(R.string.backup_toast_openpgp_error), error.getMessage()),
-                        Toast.LENGTH_LONG).show()
-                } else {
-                    notifyOpenPgpFailure(requestCode)
-                }
-            }
-            else -> notifyOpenPgpFailure(requestCode)
-        }
+        notifyOpenPgpFailure(requestCode)
     }
 
     /** Shows the generic export or import failure for an OpenPGP request that could not proceed. */

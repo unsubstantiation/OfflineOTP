@@ -14,11 +14,8 @@ import java.security.GeneralSecurityException
  * Kotlin bindings (`uniffi.offlineotp_openpgp`) plus the byte-array facade
  * `NativeApi` are compiled into the app and load the library through JNA.
  *
- * The external OpenKeychain provider flow in `BackupActivity` remains complete
- * and supported for users who already configured it and for restoring files it
- * created. This adapter is the in-app rpgp path; when the native library is not
- * packaged it fails explicitly instead of pretending to encrypt or silently
- * falling back to a different engine.
+ * Android backups use this in-app path exclusively. A missing native library fails explicitly;
+ * there is no external-app fallback. Recipient certificates and secret keys are user-selected files.
  */
 class RpgpOpenPgpPort : OpenPgpPort {
 
@@ -33,7 +30,7 @@ class RpgpOpenPgpPort : OpenPgpPort {
     override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray {
         val native = tryLoadNative() ?: throw GeneralSecurityException(
             "Unified OpenPGP backend not available: Rust library not loaded. " +
-                "Use the OpenKeychain provider path or rebuild with the Rust toolchain."
+                "Install a build containing the native engine or rebuild with the Rust toolchain."
         )
         return try {
             native.encrypt(plaintext, recipientKeyBlocks)

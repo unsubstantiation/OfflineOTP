@@ -27,7 +27,7 @@ class OpenPgpKeyFileModeTest(unittest.TestCase):
         """The adapter must have a production caller, not just packaging."""
         activity = ACTIVITY.read_text(encoding="utf-8")
         self.assertIn("import com.fairuniversal.offlineotp.openpgp.RpgpOpenPgpPort", activity)
-        self.assertIn("private fun usesKeyFileMode(): Boolean = openPgpMode() == OpenPgpMode.KEY_FILE",
+        self.assertIn("private fun usesKeyFileMode(): Boolean = true",
                       activity)
         # Both actions branch on the mode before touching the provider service.
         for action in ("backupEncryptedWithPGP", "restoreEncryptedWithPGP"):
@@ -111,18 +111,19 @@ class OpenPgpKeyFileModeTest(unittest.TestCase):
         self.assertIn("OpenPgpKeyFilePolicy.isUsableKeyUri(secretKeyUri)", restore)
         self.assertIn("backup_toast_import_decryption_failed", restore)
 
-    def test_the_mode_defaults_to_the_provider_for_existing_installs(self):
-        policy = POLICY.read_text(encoding="utf-8")
-        self.assertIn("fun parse(value: String?): OpenPgpMode = if (value == KEY_FILE_VALUE) KEY_FILE else PROVIDER",
-                      policy)
+    def test_in_app_mode_ignores_legacy_provider_preferences(self):
         settings = SETTINGS.read_text(encoding="utf-8")
-        self.assertIn("OpenPgpMode.parse(getString(R.string.settings_key_openpgp_mode, OpenPgpMode.PROVIDER_VALUE))",
-                      settings)
+        self.assertIn("fun getOpenPGPMode(): OpenPgpMode = OpenPgpMode.KEY_FILE", settings)
         preferences = (ROOT / "app/src/main/res/xml/preferences.xml").read_text(encoding="utf-8")
-        self.assertIn('android:key="@string/settings_key_openpgp_mode"', preferences)
-        self.assertIn('android:defaultValue="provider"', preferences)
+        for key in ("mode", "provider", "key_encrypt", "key_sign", "verify"):
+            self.assertNotIn('android:key="@string/settings_key_openpgp_' + key + '"', preferences)
         self.assertIn('android:key="@string/settings_key_openpgp_recipient_files"', preferences)
         self.assertIn('android:key="@string/settings_key_openpgp_secret_file"', preferences)
+        activity = ACTIVITY.read_text(encoding="utf-8")
+        self.assertIn("private fun usesKeyFileMode(): Boolean = true", activity)
+        self.assertIn("!keyFileBackendAvailable ->", activity)
+        self.assertNotIn(".bindToService()", activity)
+        self.assertNotIn("startIntentSenderForResult", activity)
 
     def test_only_persisted_content_grants_are_used_as_key_documents(self):
         policy = POLICY.read_text(encoding="utf-8")

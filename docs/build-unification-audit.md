@@ -66,3 +66,21 @@ Follow-up sandbox coverage exercises invalid/empty selections, mismatched/blank 
 replaced and dismissed forms, explicit plain export roundtrip, removed entries and locked sessions.
 Shared UI-model (141) and headless AWT (3) tests pass; Python tooling/source tests (560) pass.
 Native Gradle/device/Xcode gates remain outstanding.
+
+## OpenPGP: in-app only
+
+Android now always selects the bundled key-file engine, regardless of old or imported
+`pref_openpgp_mode` values. External-provider, signing-key and provider-verification settings are
+no longer exposed. Provider binding has been retired and old provider-result callbacks fail closed;
+no external OpenPGP app is launched. Some legacy task/API compatibility code remains for a later
+cleanup, but it is not an available backup engine.
+
+Select recipient public-key files for backup and a secret-key file for restore in Settings.
+Users with keys managed by another app must export the appropriate key files themselves; provider
+key IDs cannot be converted into private keys automatically. Existing OpenPGP backups remain
+subject to the bundled engine's supported algorithms/formats and available private keys. This is
+not a promise of provider-specific signing/verification feature equivalence.
+
+Missing key files no longer incorrectly report that the native engine is absent. A genuinely
+missing engine requires a correctly packaged build, not installation of an external provider.
+Native ABI packaging and actual encrypted backup/restore still need device validation.

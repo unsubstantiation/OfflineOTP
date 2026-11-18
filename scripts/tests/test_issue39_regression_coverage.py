@@ -136,8 +136,10 @@ class Issue39RegressionCoverageTest(unittest.TestCase):
         backup = read(APP / "Activities/BackupActivity.kt")
         self.assertIn("providerMustBeConfiguredAndBoundBeforeEitherActionCanRun", tests)
         self.assertIn("emptyProviderOutputIsNotAValidEncryptedBackup", tests)
-        self.assertIn("OpenPgpOutputPolicy.hasContent(encryptedBackup)", backup)
-        self.assertIn("backup_toast_openpgp_empty", backup)
+        codec = read(CORE / "Utilities/OpenPgpPort.kt")
+        self.assertIn("message.isEmpty() || message.size > BoundedInputReader.MAX_DOCUMENT_BYTES", codec)
+        self.assertIn("private fun usesKeyFileMode(): Boolean = true", backup)
+        self.assertNotIn("startIntentSenderForResult", backup)
         self.assertIn("isNullOrBlank", policy)
 
     def test_back_key_and_inactivity_relock_have_device_regressions(self):
