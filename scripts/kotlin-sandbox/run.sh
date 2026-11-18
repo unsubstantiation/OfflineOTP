@@ -234,7 +234,7 @@ APP_SOURCES=(
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/HardwareCopyDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/StorageLocationDialog.kt"
-    "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordChangeDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordChangeDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordExportDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordImportDialog.kt"

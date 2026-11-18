@@ -27,15 +27,12 @@ struct SettingsView: View {
     @ObservedObject var store: VaultStore
     @Environment(\.dismiss) private var dismiss
 
+    @State private var showingPasswordChange = false
     @State private var showingAutoLock = false
     @State private var showingAbout = false
     @State private var askingPassword = false
     @State private var password = ""
     @FocusState private var passwordFocused: Bool
-
-    @State private var currentVaultPassword = ""
-    @State private var newVaultPassword = ""
-    @State private var confirmVaultPassword = ""
 
     @State private var preferencesExport: PreferencesDocument?
     @State private var exportingPreferences = false
@@ -72,6 +69,9 @@ struct SettingsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingPasswordChange) {
+            ComposePasswordChangeHost(store: store) { showingPasswordChange = false }
+        }
         .sheet(isPresented: $showingAutoLock) {
             ComposeAutoLockHost(store: store) { showingAutoLock = false }
         }
@@ -141,17 +141,7 @@ struct SettingsView: View {
 
     private var passwordSection: some View {
         Section {
-            SecureField("Current vault password", text: $currentVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("New vault password", text: $newVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            SecureField("Confirm new password", text: $confirmVaultPassword)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            Button("Change vault password") { changeVaultPassword() }
-                .disabled(currentVaultPassword.isEmpty || newVaultPassword.isEmpty || confirmVaultPassword.isEmpty)
+            Button("Change vault password") { showingPasswordChange = true }
         } header: {
             Text("Vault Password")
         } footer: {
@@ -253,15 +243,4 @@ struct SettingsView: View {
         }
     }
 
-    private func changeVaultPassword() {
-        if store.changePassword(
-            currentPassword: currentVaultPassword,
-            newPassword: newVaultPassword,
-            confirmation: confirmVaultPassword
-        ) {
-            currentVaultPassword = ""
-            newVaultPassword = ""
-            confirmVaultPassword = ""
-        }
-    }
 }

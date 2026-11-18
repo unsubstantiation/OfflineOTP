@@ -249,7 +249,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_rekey_host_blocks_unlock_and_exit_and_uses_ephemeral_masked_form(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/PasswordChangeDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordChangeDialog.kt").read_text()
         self.assertIn("if (storageAvailable() && rekey.canCloseWindow && enrollment?.busy != true)", host)
         self.assertIn("vault == null && rekey.canUnlock", host)
         self.assertIn("rekey.sessionLocked()", host)

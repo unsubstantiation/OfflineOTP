@@ -648,6 +648,37 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.entries.count, 1)
     }
 
+    @MainActor
+    func testComposePasswordChangeAdapterRejectsClosedAndStaleSessions() {
+        let store = unlockedStore()
+        let closed = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        closed.close()
+        XCTAssertNotNil(closed.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        let stale = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertNotNil(stale.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        stale.close()
+        store.lock()
+        store.unlock(password: "correct horse")
+        XCTAssertTrue(store.isUnlocked)
+    }
+
+    @MainActor
+    func testComposePasswordChangeAdapterAllowsRetryAndPreservesEntries() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("preserved")))
+        let adapter = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        defer { adapter.close() }
+        XCTAssertNotNil(adapter.change(current: "correct horse", next: "new password", confirmation: "mismatch"))
+        XCTAssertNotNil(adapter.change(current: "wrong password", next: "new password", confirmation: "new password"))
+        XCTAssertNil(adapter.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        store.lock()
+        store.unlock(password: "new password")
+        XCTAssertTrue(store.isUnlocked)
+        XCTAssertEqual(store.entries.map(\.label), ["preserved"])
+    }
+
     func testManualReorderTagsAndCredentialInterchange() throws {
         struct EchoOpenPgpPort: OpenPgpPort {
             func encrypt(plaintext: Data, recipientKeyBlocks: [Data]) throws -> Data {

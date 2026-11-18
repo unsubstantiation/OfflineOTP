@@ -110,3 +110,23 @@ JVM contract still tests the single shared Kotlin rule, and native wiring is pin
 The independent contract compilation deliberately has no Compose or engine classpath. Native
 framework linking, simulator behavior, settings dismissal on lock and accessibility still need
 Xcode/device validation. Android's native numeric setting is not migrated in this increment.
+
+## Vault password change migration
+
+The iOS three-password SwiftUI form was removed in favor of the existing desktop Compose
+`PasswordChangeDialog`, now in `:ui-foundation`. Field bounds are supplied by each engine's
+InputPolicy rather than importing a JVM utility into the native-compatible module. The shared
+form scrolls, masks all fields and clears drafts before submission/dismissal; new and current
+passwords must differ. The native adapter rechecks field bounds, confirmation and session identity.
+
+Rekey semantics have **not** been silently unified: desktop locks before starting its asynchronous
+transaction and blocks normal close; iOS's existing synchronous `VaultStore.changePassword` keeps
+the session open and updates biometric key material. The common form has explicit host behavior
+wording rather than falsely promising desktop's lock/close guarantees on iOS. Native error and
+success messages (including biometric recovery instructions) are preserved. This engine/lifecycle
+difference remains separate parity work; UI sharing does not prove cryptographic transaction parity.
+
+Swift app tests cover adapter rejection after close/session replacement, wrong-password retry and
+entry preservation. They are added but not executed in this environment. Shared Compose/stub
+compilation, Python wiring guards and Android sandbox checks do not replace Xcode validation.
+Rebuild the required Compose XCFramework before native testing.
