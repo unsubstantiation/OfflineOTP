@@ -49,6 +49,8 @@ allprojects {
     configurations.configureEach {
         resolutionStrategy.failOnDynamicVersions()
         resolutionStrategy.failOnChangingVersions()
+        // Exclude legacy Android Support libraries now that AGP 9.x removed Jetifier
+        exclude group: 'com.android.support'
     }
     tasks.withType(AbstractArchiveTask).configureEach {
         preserveFileTimestamps = false

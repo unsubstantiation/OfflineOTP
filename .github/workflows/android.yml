@@ -65,6 +65,36 @@ jobs:
 
       - name: Cache Gradle packages and build cache
         uses: gradle/actions/setup-gradle@v4
+        
+      - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.gradle/init.d
+          H1="repo.maven"
+          H2="apache.org/maven2"
+          M1="maven-central.storage-download"
+          M2="://googleapis.com"
+          cat << EOF > ~/.gradle/init.d/maven-mirror.gradle
+          allprojects {
+            buildscript {
+              repositories {
+                all { ArtifactRepository repo ->
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${H1}.${H2}")) {
+                    repo.url = uri("https://${M1}.${M2}")
+                  }
+                }
+              }
+            }
+            repositories {
+              all { ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${H1}.${H2}")) {
+                  repo.url = uri("https://${M1}.${M2}")
+                }
+              }
+            }
+          }
+          EOF
 
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
