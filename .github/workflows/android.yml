@@ -258,7 +258,7 @@ jobs:
           : "${RELEASE_KEY_PASSWORD:?missing}"
           export ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS"
           export ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD"
-          export ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD="$KEY_PASSWORD"
+          export ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD"
           ./gradlew --no-daemon :app:assembleFdroidRelease :app:assemblePlayRelease \
             -PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks"
 
