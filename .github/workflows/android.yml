@@ -74,7 +74,7 @@ jobs:
           H1="repo.maven"
           H2="apache.org/maven2"
           M1="maven-central.storage-download"
-          M2="://googleapis.com"
+          M2="googleapis.com/maven2/"
           cat << EOF > ~/.gradle/init.d/maven-mirror.gradle
           allprojects {
             buildscript {
