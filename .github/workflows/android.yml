@@ -4,34 +4,46 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   openpgp:
-    # Host coverage for the unified Rust OpenPGP backend on every Android workflow run.
-    # The signed-release job below additionally builds the per-ABI Android cdylibs.
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
         with:
           toolchain: stable
-          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+
       - name: Test Rust crate (rpgp + UniFFI, 5/5)
         shell: bash
         run: |
           set -euo pipefail
-          cargo test --manifest-path rust/Cargo.toml --verbose
+          cargo test --manifest-path rust/Cargo.toml
+
       - name: Build Rust crate
         shell: bash
         run: |
           set -euo pipefail
-          cargo build --manifest-path rust/Cargo.toml --release --verbose
+          cargo build --manifest-path rust/Cargo.toml --release
+
   compose-validation:
-    # Explicit dispatch only: no extra emulator jobs on master pushes, no signing environment.
     if: github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -45,14 +57,20 @@ jobs:
             api: 36
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Cache Gradle packages and build cache
+        uses: gradle/actions/setup-gradle@v4
+
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
           cmdline-tools-version: '12266719'
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+
       - name: Verify wrapper and compile debug app plus instrumentation
         shell: bash
         run: |
@@ -60,6 +78,7 @@ jobs:
           python3 scripts/check_build_inputs.py
           mkdir -p reports/compose-validation
           ./gradlew --no-daemon --stacktrace :app:assemble${{ matrix.flavor }}Debug :app:assemble${{ matrix.flavor }}DebugAndroidTest 2>&1 | tee reports/compose-validation/build.log
+
       - name: Enable emulator acceleration
         shell: bash
         run: |
@@ -67,16 +86,19 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
+
       - name: Run Compose host and bundled artwork tests
-        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2 (resolved commit)
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
         with:
           api-level: ${{ matrix.api }}
           target: google_apis
           arch: x86_64
           disable-animations: true
           script: bash -o pipefail -c './gradlew --no-daemon --stacktrace :app:connected${{ matrix.flavor }}DebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.fairuniversal.offlineotp.ComposeVaultDeviceTest,com.fairuniversal.offlineotp.IssuerArtworkDeviceTest 2>&1 | tee reports/compose-validation/device.log'
+
       - name: Require all selected device assertions to have run
         run: python3 scripts/check_compose_device_results.py app/build/outputs/androidTest-results/connected
+
       - name: Upload validation logs and test reports (not APKs)
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -90,9 +112,6 @@ jobs:
             app/build/outputs/androidTest-results/
 
   signing-preflight:
-    # Release signing is opt-in. The `secrets` context is not available to job-level `if`
-    # expressions, so this tiny job publishes whether the keystore secret exists and lets the
-    # signed-release job be *skipped* instead of *failed* when signing is not configured.
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -104,8 +123,6 @@ jobs:
         id: check
         shell: bash
         env:
-          # ANDROID_KEYSTORE_BASE64 is the name this repository uses; the ANDROID_RELEASE_* pair is
-          # still honoured so an older setup keeps working.
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 || secrets.ANDROID_RELEASE_KEYSTORE }}
         run: |
           set -euo pipefail
@@ -115,48 +132,53 @@ jobs:
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
-
   sign-release:
-    # Builds and verifies signed release APKs only when the keystore is configured; otherwise
-    # the job is skipped. Debug validation above is independent and never publishes APKs.
     needs: [signing-preflight, openpgp]
     if: needs.signing-preflight.outputs.enabled == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 35
     environment: android-release
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
       - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
+
+      - name: Cache Gradle packages and build cache
+        uses: gradle/actions/setup-gradle@v4
+
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
-          # Keep the v3 default SDK tools while updating the action runtime.
           cmdline-tools-version: '12266719'
           packages: 'platform-tools platforms;android-36 build-tools;36.0.0 ndk;27.2.12479018'
+
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
         with:
           toolchain: stable
+
+      - name: Install prebuilt cargo-ndk
+        uses: taiki-e/install-action@cargo-ndk
+
+      - name: Cache Rust Android cross-compile artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+          key: android-jnilibs
+
       - name: Build Android OpenPGP jniLibs
         shell: bash
         run: |
           set -euo pipefail
-          # Resolve the NDK from the *runtime* environment. A step-level `env:` cannot read
-          # `env.ANDROID_HOME` exported by the setup-android step (that context is not populated at
-          # workflow-compile time), so a pinned `ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/...`
-          # silently becomes "/ndk/..." and the script exits 2 before doing any work. The script
-          # also falls back to the newest installed NDK when this is unset.
           export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-${ANDROID_HOME:-/nonexistent}/ndk/27.2.12479018}"
           echo "ANDROID_HOME=${ANDROID_HOME:-<unset>}"
           echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          # `--locked` on an uninstalled crate resolves from the index; keep the output so a
-          # registry or toolchain problem is visible rather than a silent exit.
-          cargo install cargo-ndk --locked --verbose 2>&1 | tail -n 20
           if ! bash scripts/openpgp/build-android-jnilibs.sh; then
             echo "::error title=OpenPGP jniLibs::build-android-jnilibs.sh failed; see the log above"
             exit 1
           fi
+
       - name: Install release signing keystore
         shell: bash
         env:
@@ -176,18 +198,15 @@ jobs:
             echo "::error::The decoded release keystore is empty."
             exit 1
           fi
+
       - name: Find the key alias and the passwords
         shell: bash
         env:
           STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_RELEASE_STORE_PASSWORD }}
-          # keytool makes the key password equal to the store password unless it is given
-          # -keypass, so one secret normally covers both; a distinct one still wins if set.
           KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || secrets.ANDROID_RELEASE_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
         run: |
           set -euo pipefail
-          # A configured keystore with a missing password would otherwise fail inside Gradle with
-          # "keystore password was incorrect"; name the secret instead. Values are never printed.
           if [[ -z "$STORE_PASSWORD" ]]; then
             echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured; it is required once the keystore is set."
             exit 1
@@ -196,9 +215,6 @@ jobs:
             echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured; it is required once the keystore is set."
             exit 1
           fi
-          # The alias is not a secret: read it from the keystore instead of asking for a third
-          # secret. A keystore holding several private keys still needs the explicit secret.
-          # -storepass:env keeps the password off the command line, where `ps` would show it.
           if [[ -z "$KEY_ALIAS" ]]; then
             export STORE_PASSWORD
             set +e
@@ -229,13 +245,9 @@ jobs:
             echo "RELEASE_STORE_PASSWORD=$STORE_PASSWORD"
             echo "RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
+
       - name: Build signed release APKs
         shell: bash
-        # The three credentials reach Gradle as ORG_GRADLE_PROJECT_* environment variables instead
-        # of -P arguments: they never show up in the process list, and no secret is substituted into
-        # this script, so a password containing a quote, a backslash, $ or a space cannot break the
-        # command or inject shell syntax. The values come from $GITHUB_ENV, so no `secrets` context
-        # is interpolated here either.
         run: |
           set -euo pipefail
           : "${RELEASE_KEY_ALIAS:?missing}"
@@ -243,9 +255,10 @@ jobs:
           : "${RELEASE_KEY_PASSWORD:?missing}"
           export ORG_GRADLE_PROJECT_RELEASE_KEY_ALIAS="$RELEASE_KEY_ALIAS"
           export ORG_GRADLE_PROJECT_RELEASE_STORE_PASSWORD="$RELEASE_STORE_PASSWORD"
-          export ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD="$RELEASE_KEY_PASSWORD"
+          export ORG_GRADLE_PROJECT_RELEASE_KEY_PASSWORD="$KEY_PASSWORD"
           ./gradlew --no-daemon :app:assembleFdroidRelease :app:assemblePlayRelease \
             -PRELEASE_STORE_FILE="$PWD/signing/OfflineOTP-release-keystore.jks"
+
       - name: Verify APK signatures
         shell: bash
         run: |
@@ -273,6 +286,7 @@ jobs:
             fi
             echo "::endgroup::"
           done
+
       - name: Prepare signed APKs
         shell: bash
         run: |
@@ -280,22 +294,29 @@ jobs:
           mkdir -p artifacts
           cp app/build/outputs/apk/fdroid/release/app-fdroid-release.apk artifacts/OfflineOTP-fdroid-release.apk
           cp app/build/outputs/apk/play/release/app-play-release.apk artifacts/OfflineOTP-play-release.apk
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+
+      - name: Upload F-Droid release APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          name: OfflineOTP-fdroid-release
           archive: false
           path: artifacts/OfflineOTP-fdroid-release.apk
           if-no-files-found: error
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+          retention-days: 14
+
+      - name: Upload Play release APK
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
+          name: OfflineOTP-play-release
           archive: false
           path: artifacts/OfflineOTP-play-release.apk
           if-no-files-found: error
+          retention-days: 14
+
       - name: Remove the decoded keystore
         if: always()
         shell: bash
         run: |
           set -euo pipefail
-          # The runner is ephemeral, but the decoded keystore should not outlive the step that
-          # needed it, even if a later step fails and the workspace is preserved for debugging.
           rm -f signing/OfflineOTP-release-keystore.jks
           rmdir signing 2>/dev/null || true
