@@ -96,8 +96,33 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Cache Gradle packages and build cache
-        uses: gradle/actions/setup-gradle@v4
+      - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.gradle/init.d
+          SRC_HOST="repo.maven.apache.org/maven2"
+          DST_HOST="://googleapis.com"
+          cat << EOF > ~/.gradle/init.d/maven-mirror.gradle
+          allprojects {
+            buildscript {
+              repositories {
+                all { ArtifactRepository repo ->
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${SRC_HOST}")) {
+                    repo.url = uri("https://${DST_HOST}")
+                  }
+                }
+              }
+            }
+            repositories {
+              all { ArtifactRepository repo ->
+                if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${SRC_HOST}")) {
+                  repo.url = uri("https://${DST_HOST}")
+                }
+              }
+            }
+          }
+          EOF
 
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4.0.4
         with:
