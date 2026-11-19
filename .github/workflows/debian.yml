@@ -22,6 +22,7 @@ jobs:
     timeout-minutes: 35
     steps:
       - name: Install build prerequisites
+        shell: bash
         run: |
           set -euo pipefail
           apt-get update -qq
