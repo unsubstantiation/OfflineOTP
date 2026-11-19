@@ -24,7 +24,7 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OTP URI") },
         text = { ScrollableDialogBody {
             Text(text = "Paste an otpauth:// URI or each part of an otpauth-migration:// export. Import saves accounts to this vault.")
-            onChooseImage?.let { choose -> ForestTextAction(text = "Choose QR image", enabled = !imageBusy,
+            onChooseImage?.let { choose -> ForestTextAction(text = "Import QR code image…", enabled = !imageBusy,
                 onClick = { uri = ""; choose() }) }
             if (imageBusy) Text(text = "Reading QR image…")
             if (imageReady) {

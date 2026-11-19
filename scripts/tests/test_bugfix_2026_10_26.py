@@ -43,7 +43,8 @@ class IntroRotationTest(unittest.TestCase):
         self.assertIn("val encryption = EncryptionFragment()", created)
         self.assertIn("adoptDisplayedFragment(f)", created)
         self.assertIn("adoptDisplayedFragments()", created)
-        self.assertIn("authentication.clearCredentialInputs()", created)
+        setup = text.split("internal fun createInitialVaultFromSetup", 1)[1].split("internal fun chooseFirstRunBackup", 1)[0]
+        self.assertIn("authentication.clearCredentialInputs()", setup)
 
 
 class ScreenshotAndCardRefreshTest(unittest.TestCase):

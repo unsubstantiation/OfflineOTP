@@ -380,6 +380,39 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(reopened.entries.count, 2)
     }
 
+    func testFirstRunRestoreCreatesNewVaultWithAllEntriesAndNewPassword() throws {
+        let source = unlockedStore()
+        XCTAssertTrue(source.add(try rawEntry("alice")))
+        XCTAssertTrue(source.add(try draft("bob")))
+        let exported = try XCTUnwrap(source.exportBackup(password: "backup password"))
+
+        let elsewhere = directory.appendingPathComponent("first-run-restore", isDirectory: true)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let destination = VaultStore(directory: elsewhere)
+        XCTAssertTrue(destination.restoreNewVault(encrypted: exported.data,
+            backupPassword: "backup password", newPassword: "new vault password",
+            confirmation: "new vault password"))
+        XCTAssertEqual(destination.entries.map(\\.label).sorted(), ["alice", "bob"])
+        XCTAssertTrue(destination.isUnlocked)
+        let reopened = VaultStore(directory: elsewhere)
+        reopened.unlock(password: "new vault password")
+        XCTAssertTrue(reopened.isUnlocked)
+        XCTAssertEqual(reopened.entries.count, 2)
+    }
+
+    func testFirstRunRestoreRejectsWrongBackupPasswordWithoutCreatingVault() throws {
+        let source = unlockedStore()
+        XCTAssertTrue(source.add(try rawEntry("alice")))
+        let exported = try XCTUnwrap(source.exportBackup(password: "backup password"))
+        let elsewhere = directory.appendingPathComponent("bad-first-run-restore", isDirectory: true)
+        try FileManager.default.createDirectory(at: elsewhere, withIntermediateDirectories: true)
+        let destination = VaultStore(directory: elsewhere)
+        XCTAssertFalse(destination.restoreNewVault(encrypted: exported.data,
+            backupPassword: "wrong", newPassword: "new vault password",
+            confirmation: "new vault password"))
+        XCTAssertFalse(destination.hasVault)
+    }
+
     func testARestoreMergesByDefaultAndKeepsTheExistingEntries() throws {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try rawEntry("kept")))

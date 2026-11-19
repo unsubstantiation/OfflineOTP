@@ -30,9 +30,7 @@ struct SettingsView: View {
     @State private var showingPasswordChange = false
     @State private var showingAutoLock = false
     @State private var showingAbout = false
-    @State private var askingPassword = false
-    @State private var password = ""
-    @FocusState private var passwordFocused: Bool
+    @State private var showingBiometricEnable = false
 
     @State private var preferencesExport: PreferencesDocument?
     @State private var exportingPreferences = false
@@ -79,6 +77,9 @@ struct SettingsView: View {
         .sheet(isPresented: $showingPasswordChange) {
             ComposePasswordChangeHost(store: store) { showingPasswordChange = false }
         }
+        .sheet(isPresented: $showingBiometricEnable) {
+            ComposeBiometricEnableHost(store: store) { showingBiometricEnable = false }
+        }
         .sheet(isPresented: $showingAutoLock) {
             ComposeAutoLockHost(store: store) { showingAutoLock = false }
         }
@@ -102,32 +103,14 @@ struct SettingsView: View {
                     set: { on in
                         store.clearMessage()
                         if on {
-                            askingPassword = true
-                            passwordFocused = true
+                            showingBiometricEnable = true
                         } else {
-                            askingPassword = false
-                            password = ""
                             store.disableBiometricUnlock()
                         }
                     }
                 ))
                 .tint(ForestPalette.primary)
-                .disabled(askingPassword)
 
-                if askingPassword {
-                    SecureField("Vault password", text: $password)
-                        .textContentType(.password)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .focused($passwordFocused)
-                    Button("Turn on \(store.biometryTitle)") { confirm() }
-                        .disabled(password.isEmpty)
-                    Button("Cancel", role: .cancel) {
-                        askingPassword = false
-                        password = ""
-                        store.clearMessage()
-                    }
-                }
             } else {
                 Text(store.biometry.refusal)
                     .font(.footnote)
@@ -137,8 +120,7 @@ struct SettingsView: View {
             Text("Quick unlock")
         } footer: {
             if store.biometry.isAvailable {
-                Text(askingPassword ? BiometricWording.enableQuestion
-                                    : BiometricWording.switchDetail)
+                Text(BiometricWording.switchDetail)
             }
         }
     }
@@ -241,13 +223,6 @@ struct SettingsView: View {
             Button("About OfflineOTP") { showingAbout = true }
         } header: {
             Text("About")
-        }
-    }
-
-    private func confirm() {
-        if store.enableBiometricUnlock(password: password) {
-            askingPassword = false
-            password = ""
         }
     }
 

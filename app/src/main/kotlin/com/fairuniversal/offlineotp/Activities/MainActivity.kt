@@ -160,6 +160,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private fun scanQRCode() {
         IntentIntegrator(this)
+            // Restrict the decoder to the provisioning format we actually import. The embedded
+            // scanner otherwise tries every barcode family, which can make small QR codes on
+            // another phone's display take many frames (or never reach a useful decode).
+            .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
+            .setPrompt(getString(R.string.button_scan_qr))
             .setOrientationLocked(false)
             .setBeepEnabled(false)
             .setCaptureActivity(SecureCaptureActivity::class.java)

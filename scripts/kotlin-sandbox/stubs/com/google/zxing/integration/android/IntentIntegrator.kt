@@ -14,6 +14,16 @@ class IntentIntegrator(private val activity: Activity) {
     var initiations = 0
         private set
 
+    var desiredBarcodeFormats: List<String> = emptyList()
+        private set
+
+    fun setDesiredBarcodeFormats(formats: List<String>): IntentIntegrator {
+        desiredBarcodeFormats = formats
+        return this
+    }
+
+    fun setPrompt(prompt: String): IntentIntegrator = this
+
     fun setOrientationLocked(locked: Boolean): IntentIntegrator = this
 
     fun setBeepEnabled(enabled: Boolean): IntentIntegrator = this
@@ -29,6 +39,10 @@ class IntentIntegrator(private val activity: Activity) {
     }
 
     companion object {
+        /** QR symbols only: the app imports OTP provisioning payloads, not arbitrary barcodes. */
+        @JvmField
+        val QR_CODE_TYPES: List<String> = listOf("QR_CODE")
+
         /** The result the checks configure; the platform parses the scan intent here. */
         @JvmStatic
         var lastResult: IntentResult? = null

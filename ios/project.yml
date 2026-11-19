@@ -74,12 +74,14 @@ targets:
         # The app declares no networking at all, so there is no export-controlled cryptography to
         # report beyond the standard library imports.
         ITSAppUsesNonExemptEncryption: false
-        # Face ID is optional and off until the person turns it on, but iOS refuses the prompt
-        # outright without this sentence, so it has to ship. It is the only permission the app
-        # declares: no camera, no photo library beyond the system picker, no network.
+        # Face ID and live QR scanning are optional. iOS requires explicit purpose strings before
+        # either protected API is first used; photo-library access remains limited to the system picker.
         NSFaceIDUsageDescription: >-
           Unlock your OfflineOTP vault with Face ID instead of typing its password. The vault stays
           encrypted with the password; this only releases a key kept on this device.
+        NSCameraUsageDescription: >-
+          Scan an OTP QR code to add its account to your encrypted vault. The image is processed on
+          this device and is not uploaded.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.fairuniversal.offlineotp

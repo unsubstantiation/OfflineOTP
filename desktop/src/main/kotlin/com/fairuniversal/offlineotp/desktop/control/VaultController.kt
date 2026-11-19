@@ -41,8 +41,11 @@ class VaultController(private val vault: PasswordVault) {
     val preferences: KeyValueSettings get() = vault.preferences
 
     /** Provisions a new empty vault and immediately unlocks it so the window can render. */
-    fun createVault(password: String): Session = exclusiveSession {
-        when (val result = vault.create(password)) {
+    fun createVault(password: String): Session = createVault(password, ArrayList())
+
+    /** Creates the first vault with already-decoded encrypted-backup entries in one vault write. */
+    fun createVault(password: String, initialEntries: ArrayList<Entry>): Session = exclusiveSession {
+        when (val result = vault.create(password, initialEntries)) {
             is VaultWriteResult.Saved -> openUnchecked(password)
             is VaultWriteResult.Rejected -> Session.Error(mapWrite(result.error))
             is VaultWriteResult.RecoveryRequired -> Session.Error(Failure.IO_FAILURE)

@@ -146,6 +146,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/Tasks/EncryptedBackupWorker.kt"
     "$KOTLIN_APP/Tasks/EncryptedRestoreTask.kt"
     "$KOTLIN_APP/Tasks/FinishIntroTask.kt"
+    "$KOTLIN_APP/Tasks/FirstRunBackupRestoreTask.kt"
     "$KOTLIN_APP/Tasks/GenericBackupTask.kt"
     "$KOTLIN_APP/Tasks/GenericRestoreTask.kt"
     "$KOTLIN_APP/Tasks/LoginEncryptedBackupTask.kt"

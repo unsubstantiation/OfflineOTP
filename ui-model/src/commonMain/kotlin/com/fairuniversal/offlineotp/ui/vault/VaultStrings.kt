@@ -39,7 +39,7 @@ data class VaultStrings(
     val importLinScp: String = "Import LinSCP Key/Sessions",
     val importEmail: String = "Import FairEmail backup",
     val importPasswords: String = "Import password file",
-    val importUri: String = "Import OTP URI",
+    val importUri: String = "Import OTP URI / QR image",
     val restoreEncrypted: String = "Restore encrypted backup",
     val exportEncrypted: String = "Export encrypted backup",
     val editEntry: String = "Edit",

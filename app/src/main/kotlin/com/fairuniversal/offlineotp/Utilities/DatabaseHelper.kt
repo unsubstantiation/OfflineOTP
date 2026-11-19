@@ -247,7 +247,14 @@ object DatabaseHelper {
     /** Ciphertext -> explicit metadata decision/UUID -> promotion; ambiguous commits quarantine writes. */
     @JvmStatic
     fun changeVaultEncryption(context: Context, oldKey: SecretKey?, newKey: SecretKey?, initialize: Boolean,
-                              commit: VaultSettingsCommit): VaultWriteResult {
+                              commit: VaultSettingsCommit): VaultWriteResult =
+        changeVaultEncryptionWithEntries(context, oldKey, newKey, initialize, null, commit)
+
+    /** Creates or rekeys a vault, optionally using decoded entries for first-run restore. */
+    @JvmStatic
+    fun changeVaultEncryptionWithEntries(context: Context, oldKey: SecretKey?, newKey: SecretKey?,
+                                         initialize: Boolean, initialEntries: ArrayList<Entry>?,
+                                         commit: VaultSettingsCommit): VaultWriteResult {
         synchronized(DatabaseFileLock) {
             if (!recoverPendingDatabase(context)) return recoveryRequired(VaultCommitState.UNKNOWN)
             if (newKey == null) return rejected(VaultWriteError.MISSING_KEY)
@@ -256,7 +263,8 @@ object DatabaseHelper {
                 if (FileHelper.exists(file(context, Constants.FILENAME_DATABASE))
                     || FileHelper.exists(file(context, Constants.FILENAME_DATABASE_BACKUP)))
                     return rejected(VaultWriteError.ALREADY_EXISTS)
-                entries = ArrayList()
+                entries = initialEntries?.let { source -> ArrayList(source.map { Entry(it.toJSON()) }) }
+                    ?: ArrayList()
             } else {
                 val read = readVault(context, oldKey)
                 if (read is VaultReadResult.Unavailable) return readFailure(read)

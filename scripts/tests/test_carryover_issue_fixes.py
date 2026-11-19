@@ -72,8 +72,10 @@ class IntroScreenOrientationTest(unittest.TestCase):
 
     def test_completed_setup_does_not_run_again_after_recreation(self):
         text = read(KOTLIN_APP / "Activities/IntroScreenActivity.kt")
-        self.assertIn("if (!setupFinished && position == getCount() - 1", text,
-                      "a restored, completed wizard must not save the settings a second time")
+        self.assertNotIn("if (!setupFinished && position == getCount() - 1", text,
+                         "swiping to the final slide must not provision an empty vault")
+        self.assertIn("Do not provision an empty vault merely by swiping onto it", text)
+        self.assertIn("finished.restoreCompletedSetup()", text)
         finished = text.split("open class IntroFinishedFragment", 1)[1]
         self.assertIn("fun restoreCompletedSetup()", finished)
         self.assertIn("completedSetupRestored", finished,

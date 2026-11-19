@@ -209,6 +209,39 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// First-run restore: decrypts an encrypted backup and provisions a new local vault in one write.
+    /// The backup password is intentionally independent of the new vault password; entries replace
+    /// nothing because this path is only available before a vault exists.
+    public func restoreNewVault(encrypted data: Data, backupPassword: String,
+                                newPassword: String, confirmation: String) -> Bool {
+        message = nil
+        guard !hasVault, !isUnlocked else { message = "A vault already exists here."; return false }
+        guard newPassword.count >= InputPolicy.minVaultPasswordChars,
+              newPassword.count <= InputPolicy.maxVaultPasswordChars else {
+            message = "Use a new vault password between 6 and 1024 characters."; return false
+        }
+        guard newPassword == confirmation else { message = "The new vault passwords do not match."; return false }
+        do {
+            let document = try EncryptedBackup.open(password: backupPassword, data: data)
+            let restored = try VaultDocument.decode(document)
+            try vault.create(password: newPassword, entries: restored)
+            let unlocked = try vault.open(password: newPassword)
+            key = unlocked.key
+            entries = unlocked.entries
+            hasVault = true
+            isUnlocked = true
+            beginSession()
+            return true
+        } catch VaultCryptoError.authenticationFailed {
+            message = BackupWording.wrongPassword
+        } catch EncryptedBackupError.invalidPassword {
+            message = "The backup password is empty or too long."
+        } catch {
+            message = BackupWording.unreadableBackup
+        }
+        return false
+    }
+
     private func create(password: String, confirmation: String) {
         // The same rules the other two clients apply when a vault is created: a minimum length and a
         // matching confirmation. Enforcing them here means the failure is explained, not a silent
@@ -269,6 +302,12 @@ public final class VaultStore: ObservableObject {
     /// Clears the sentence the last action left behind, when the person moves on from it.
     public func clearMessage() {
         message = nil
+    }
+
+    /// Safe first-run file-picker feedback; does not expose or retain the selected document.
+    public func reportRestoreSelectionFailure(_ text: String) {
+        guard !hasVault, !isUnlocked else { return }
+        message = text
     }
 
     /// The sensor named in the interface, e.g. "Face ID".

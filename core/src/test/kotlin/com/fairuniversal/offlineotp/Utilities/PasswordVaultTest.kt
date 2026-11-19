@@ -48,6 +48,18 @@ class PasswordVaultTest {
     }
 
     @Test
+    fun createCanProvisionACompleteVaultFromRestoredEntriesInOneWrite() {
+        val (_, _, vault) = newHarness()
+        val imported = arrayListOf(entry("Test issuer", "restored"))
+        assertEquals(VaultWriteResult.Saved, vault.create(password, imported))
+        val opened = vault.open(password) as PasswordVault.Open.Unlocked
+        assertEquals(listOf("restored"), opened.entries.map { it.getLabel() })
+        assertEquals(listOf("restored"), imported.map { it.getLabel() })
+        opened.entries.forEach { it.destroy() }
+        imported.forEach { it.destroy() }
+    }
+
+    @Test
     fun createRejectsEmptyPasswordAndAnExistingVault() {
         val (_, _, vault) = newHarness()
         assertTrue(vault.create("") is VaultWriteResult.Rejected)

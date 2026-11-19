@@ -455,7 +455,7 @@ class IosAppTest(unittest.TestCase):
         self.assertNotIn("duplicateIssuer", (SOURCES / "EntryEditorView.swift").read_text(
             encoding="utf-8"))
 
-    def test_a_qr_code_is_drawn_and_read_without_a_camera_claim(self):
+    def test_qr_camera_scan_and_image_import_are_available_on_ios(self):
         view = (SOURCES / "QrCodeView.swift").read_text(encoding="utf-8")
         self.assertIn("CIFilter.qrCodeGenerator()", view)
         # The payload is the shared link, never a string this view builds itself.
@@ -464,11 +464,17 @@ class IosAppTest(unittest.TestCase):
         reader = (SOURCES / "QrImageReader.swift").read_text(encoding="utf-8")
         self.assertIn("import Vision", reader)
         self.assertIn("VNDetectBarcodesRequest", reader)
-        # An image picked by the person; no camera permission is requested or needed.
+        # Image import remains permission-free; live scan is a separate QR-only VisionKit adapter.
         self.assertNotIn("AVCaptureDevice", reader)
-        self.assertNotIn("requestAccess", reader)
-        self.assertNotIn("NSCameraUsageDescription", (IOS / "project.yml").read_text(
-            encoding="utf-8"))
+        scanner = (SOURCES / "QrCameraScanner.swift").read_text(encoding="utf-8")
+        self.assertIn("DataScannerViewController", scanner)
+        self.assertIn("symbologies: [.qr]", scanner)
+        backup = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
+        self.assertIn("Scan a QR code with the camera", backup)
+        self.assertIn("run(ImportRequest(text: payload, fromImage: false))", backup)
+        project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
+        camera = project["targets"]["OfflineOTP"]["info"]["properties"]["NSCameraUsageDescription"]
+        self.assertIn("on this device", camera)
         # A Google Authenticator export is recognised as its own kind of payload, so it is handed to
         # the export import rather than to the single-account parser.
         uri = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
@@ -598,9 +604,9 @@ class IosAppTest(unittest.TestCase):
             "NSFaceIDUsageDescription"]
         self.assertIn("Face ID", description)
         self.assertGreater(len(description), 40, "the reason must be a real sentence")
-        # The only permission the app declares: no camera, no tracking, no network.
-        for absent in ("NSCameraUsageDescription", "NSMicrophoneUsageDescription",
-                       "NSLocationWhenInUseUsageDescription"):
+        # Camera is separately explained for optional QR scanning; no unrelated sensor permissions.
+        self.assertIn("NSCameraUsageDescription", project["targets"]["OfflineOTP"]["info"]["properties"])
+        for absent in ("NSMicrophoneUsageDescription", "NSLocationWhenInUseUsageDescription"):
             self.assertNotIn(absent, project["targets"]["OfflineOTP"]["info"]["properties"])
 
         sources = app_sources()
@@ -654,7 +660,10 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("Unlock with \\(store.biometryTitle)", unlock)
         settings = sources["SettingsView.swift"]
         self.assertIn("BiometricWording.switchDetail", settings)
-        self.assertIn("store.enableBiometricUnlock(password: password)", settings)
+        self.assertIn("ComposeBiometricEnableHost(store: store)", settings)
+        self.assertNotIn("SecureField(\"Vault password\"", settings)
+        biometric_host = sources["ComposeBiometricEnableHost.swift"]
+        self.assertIn("store.enableBiometricUnlock(password: password)", biometric_host)
         self.assertIn("store.disableBiometricUnlock()", settings)
 
         # The wording has no Android counterpart, so it is pinned here instead of compared.
@@ -738,15 +747,19 @@ class IosAppTest(unittest.TestCase):
         # The delete confirmation is the shared Compose dialog, presented from the vault layer.
         self.assertEqual(1, vault.count(".sheet("))
 
-    def test_the_ios_job_fits_ten_minutes_without_simulator_xctest(self):
+    def test_the_ios_job_builds_required_compose_framework_without_simulator_xctest(self):
         """The simulator XCTest step consumed the old job after the app had already compiled.
 
-        CI no longer builds for the simulator at all: the device build is what proves the app and
-        its package compile for iOS. The remaining macOS work is bounded at ten minutes: arm64-only
-        Apple slices and optimized host format tests. Rust host coverage moves to a parallel Linux
-        job instead of spending the macOS budget.
+        CI builds the required Compose presentation XCFramework and the iOS device app; it does not
+        publish a SwiftUI fallback. Host format tests and Rust host coverage remain separately
+        bounded across the macOS and parallel Linux jobs.
         """
-        self.assertIn("timeout-minutes: 10", WORKFLOW)
+        self.assertIn("timeout-minutes: 20", WORKFLOW)
+        compose = WORKFLOW.split("- name: Build required Compose presentation XCFramework", 1)[1].split(
+            "- name: Generate the Xcode project", 1)[0]
+        self.assertIn("assembleOfflineOTPPresentationReleaseXCFramework", compose)
+        self.assertIn("ditto ui-foundation/build/XCFrameworks/release/OfflineOTPPresentation.xcframework", compose)
+        self.assertIn(": \"${ANDROID_HOME:?", compose)
         self.assertNotIn("simctl", WORKFLOW)
         self.assertNotIn("generic/platform=iOS Simulator", WORKFLOW)
         self.assertNotIn("Build the app for the simulator", WORKFLOW)
@@ -815,6 +828,14 @@ class IosAppTest(unittest.TestCase):
                                  "the plan still claims there is no app target")
             else:
                 self.assertIn(honest_limit, plan)
+
+    def test_android_camera_scanner_targets_qr_and_forwards_scan_result(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        scanner = main.split("private fun scanQRCode()", 1)[1].split("\n    }", 1)[0]
+        self.assertIn("setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)", scanner)
+        self.assertIn("SecureCaptureActivity::class.java", scanner)
+        self.assertIn("IntentIntegrator.parseActivityResult", main)
+        self.assertIn("addQRCode(result.getContents())", main)
 
 
 if __name__ == "__main__":

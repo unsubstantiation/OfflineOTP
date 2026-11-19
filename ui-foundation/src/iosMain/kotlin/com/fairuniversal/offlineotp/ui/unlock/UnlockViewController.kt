@@ -14,6 +14,7 @@ interface UnlockActions {
     fun unlock(password: String)
     fun create(password: String, confirmation: String)
     fun quickUnlock()
+    fun restore()
 }
 
 /** Main-thread UIKit bridge; the native host owns authentication and app-switcher privacy. */
@@ -45,6 +46,7 @@ class UnlockPresentation {
                     onCreate = { password, confirmation ->
                         if (active && !busy && creating) actions.create(password, confirmation)
                     }, quickUnlockLabel = quickUnlockLabel ?: "",
+                    onRestore = if (creating) ({ if (active && !busy) actions.restore() }) else null,
                     onHardwareUnlock = if (quickUnlockLabel == null) null else ({
                         if (active && !busy && !creating) actions.quickUnlock()
                     }))

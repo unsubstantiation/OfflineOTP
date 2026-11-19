@@ -92,7 +92,10 @@ public final class PasswordVault {
     }
 
     /// Provisions fresh credentials and writes an empty encrypted vault.
-    public func create(password: String) throws {
+    public func create(password: String) throws { try create(password: password, entries: []) }
+
+    /// Creates a new vault containing a complete, already-decoded restore in one encrypted write.
+    public func create(password: String, entries: [Entry]) throws {
         guard !vaultFile.exists(), !backupFile.exists() else {
             throw VaultWriteError.alreadyExists
         }
@@ -100,7 +103,7 @@ public final class PasswordVault {
             throw VaultWriteError.invalidInput
         }
         let key = try provisionCredentials(password: password)
-        try writeEncrypted(key: key, entries: [])
+        try writeEncrypted(key: key, entries: entries)
     }
 
     /// Verifies the password against the stored verifier, then decrypts the vault.

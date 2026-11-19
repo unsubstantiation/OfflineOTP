@@ -57,7 +57,8 @@ fun SharedUnlockScreen(
     onHardwareUnlock: (() -> Unit)? = null,
     quickUnlockLabel: String = "Unlock with security key",
     creating: Boolean = false,
-    onCreate: (String, String) -> Unit = { _, _ -> }
+    onCreate: (String, String) -> Unit = { _, _ -> },
+    onRestore: (() -> Unit)? = null
 ) {
     var password by remember(creating) { mutableStateOf("") }
     var confirmation by remember(creating) { mutableStateOf("") }
@@ -129,6 +130,12 @@ fun SharedUnlockScreen(
             ) {
                 Text(text = if (busy) strings.unlocking else if (creating) "Create vault" else strings.unlockAction)
             }
+            if (onRestore != null) Button(
+                modifier = Modifier.fillMaxWidth(),
+                colors = buttonColors,
+                enabled = !busy,
+                onClick = { password = ""; confirmation = ""; onRestore() }
+            ) { Text(text = "Restore from encrypted backup…") }
             if (!creating && onHardwareUnlock != null) Button(
                 modifier = Modifier.fillMaxWidth(),
                 colors = buttonColors,

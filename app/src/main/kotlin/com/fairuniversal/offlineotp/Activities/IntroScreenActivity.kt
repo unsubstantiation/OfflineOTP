@@ -3,6 +3,8 @@ package com.fairuniversal.offlineotp.Activities
 import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.app.KeyguardManager
+import android.app.AlertDialog
+import android.net.Uri
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
@@ -17,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.animation.AccelerateDecelerateInterpolator
 import android.widget.AdapterView
+import android.widget.Button
 import android.widget.ArrayAdapter
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -38,6 +41,7 @@ import com.heinrichreimersoftware.materialintro.slide.SimpleSlide
 
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.FinishIntroTask
+import com.fairuniversal.offlineotp.Tasks.FirstRunBackupRestoreTask
 import com.fairuniversal.offlineotp.Tasks.TaskOutcome
 import com.fairuniversal.offlineotp.Utilities.ConfirmedPasswordTransformationHelper
 import com.fairuniversal.offlineotp.Utilities.Constants
@@ -61,6 +65,7 @@ open class IntroScreenActivity : IntroActivity() {
     private var encryptionKey: ByteArray? = null
     private var setupGeneration: Long = VaultSession.generation()
     private var authSlideIndex = 2
+    private var firstRunRestoreTask: FirstRunBackupRestoreTask? = null
 
     private val saveSettingsCallback = IntroFinishedFragment.SaveSettingsCallback { success, key ->
         setupFinished = success
@@ -69,6 +74,7 @@ open class IntroScreenActivity : IntroActivity() {
     }
 
     private companion object {
+        const val REQUEST_FIRST_RUN_BACKUP = 6419
         /** Saved-state key for the setup outcome; never carries key material. */
         const val STATE_SETUP_FINISHED = "intro_setup_finished"
         const val STATE_SETUP_GENERATION = "intro_setup_generation"
@@ -76,6 +82,82 @@ open class IntroScreenActivity : IntroActivity() {
         const val STATE_AUTH_ENCRYPTION_TYPE = "intro_auth_encryption_type"
         const val STATE_AUTH_METHOD_SELECTION = "intro_auth_method_selection"
         const val STATE_AUTH_SLIDE_POS = "intro_auth_slide_pos"
+    }
+
+    internal fun createInitialVaultFromSetup(entries: ArrayList<com.fairuniversal.offlineotp.Database.Entry>? = null) {
+        adoptDisplayedFragments()
+        val finished = introFinishedFragment ?: return
+        val encryption = encryptionFragment ?: return
+        val authentication = authenticationFragment ?: return
+        val sync = androidSyncFragment ?: return
+        finished.saveSettings(encryption.getEncryptionType(), authentication.getAuthMethod(),
+            authentication.getPassword(), sync.getSyncEnabled(), entries)
+        authentication.clearCredentialInputs()
+    }
+
+    internal fun chooseFirstRunBackup() {
+        if (firstRunRestoreTask != null) return
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            setType("application/octet-stream")
+        }
+        try { startActivityForResult(intent, REQUEST_FIRST_RUN_BACKUP) }
+        catch (_: Exception) { introFinishedFragment?.showRestoreError("The backup picker could not be opened.") }
+    }
+
+    @Deprecated("The setup wizard still uses the Android document picker contract")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_FIRST_RUN_BACKUP) return
+        if (resultCode != RESULT_OK || data?.data == null) return
+        promptFirstRunBackupPassword(data.data!!)
+    }
+
+    private fun promptFirstRunBackupPassword(uri: Uri) {
+        val field = EditText(this).apply {
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "Backup password"
+        }
+        AlertDialog.Builder(this)
+            .setTitle("Restore encrypted backup")
+            .setMessage("Enter the password used to encrypt this backup. Your selected Android vault authentication remains unchanged.")
+            .setView(field)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton("Continue", null)
+            .create().also { dialog ->
+                dialog.setOnShowListener {
+                    dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
+                        val password = field.text?.toString().orEmpty()
+                        if (password.isEmpty()) { field.setError("Enter the backup password"); return@setOnClickListener }
+                        dialog.dismiss()
+                        readFirstRunBackup(uri, password)
+                    }
+                }
+            }.show()
+    }
+
+    private fun readFirstRunBackup(uri: Uri, backupPassword: String) {
+        val task = FirstRunBackupRestoreTask(this, uri, backupPassword)
+        firstRunRestoreTask = task
+        introFinishedFragment?.showRestoreProgress()
+        task.setOutcomeCallback { outcome ->
+            if (firstRunRestoreTask !== task) {
+                task.disposeOutcome(outcome)
+                return@setOutcomeCallback
+            }
+            firstRunRestoreTask = null
+            if (outcome is TaskOutcome.Value) {
+                val entries = outcome.value.entries
+                outcome.value.entries = null // Transfer ownership to setup; disposal must not wipe it.
+                if (entries == null) introFinishedFragment?.showRestoreError("The backup password was incorrect or the backup could not be read.")
+                else createInitialVaultFromSetup(entries)
+                task.disposeOutcome(outcome)
+            } else {
+                task.disposeOutcome(outcome)
+                introFinishedFragment?.showRestoreError("The backup could not be restored. No vault was created.")
+            }
+        }
+        task.execute()
     }
 
     public override fun onResume() {
@@ -186,20 +268,8 @@ open class IntroScreenActivity : IntroActivity() {
                 // The pager may have swapped in the restored fragments by now. Read those, not the
                 // fresh instances this method created.
                 adoptDisplayedFragments()
-                val finished = introFinishedFragment ?: return
-                val encryption = encryptionFragment ?: return
-                val authentication = authenticationFragment ?: return
-                val sync = androidSyncFragment ?: return
-                // Guard against saving a second time when the finish button is pressed on the final
-                // slide, and against re-running setup after a configuration change.
-                if (!setupFinished && position == getCount() - 1 && currentSlidePosition < getCount()) {
-                    try {
-                        finished.saveSettings(encryption.getEncryptionType(), authentication.getAuthMethod(),
-                            authentication.getPassword(), sync.getSyncEnabled())
-                    } finally {
-                        authentication.clearCredentialInputs()
-                    }
-                }
+                // The final slide now presents an explicit choice: create an empty vault or restore
+                // an encrypted backup. Do not provision an empty vault merely by swiping onto it.
             }
 
             override fun onPageScrolled(position: Int, positionOffset: Float, positionOffsetPixels: Int) {}
@@ -372,6 +442,8 @@ open class IntroScreenActivity : IntroActivity() {
         private var title: TextView? = null
         private var message: TextView? = null
         private var progress: ProgressBar? = null
+        private var createVaultButton: Button? = null
+        private var restoreBackupButton: Button? = null
 
         private var canGoForward = false
         private var activeTask: FinishIntroTask? = null
@@ -411,6 +483,24 @@ open class IntroScreenActivity : IntroActivity() {
             title?.setText(R.string.intro_slide4_title)
             message?.setText(R.string.intro_slide4_desc)
             progress?.visibility = View.INVISIBLE
+            createVaultButton?.visibility = View.GONE
+            restoreBackupButton?.visibility = View.GONE
+        }
+
+        fun showRestoreProgress() {
+            title?.setText(R.string.intro_slide4_title_progress)
+            message?.setText("Checking encrypted backup…")
+            progress?.visibility = View.VISIBLE
+            createVaultButton?.isEnabled = false
+            restoreBackupButton?.isEnabled = false
+        }
+
+        fun showRestoreError(text: String) {
+            title?.setText(R.string.intro_slide4_title_failed)
+            message?.setText(text)
+            progress?.visibility = View.INVISIBLE
+            createVaultButton?.isEnabled = true
+            restoreBackupButton?.isEnabled = true
         }
 
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -420,6 +510,10 @@ open class IntroScreenActivity : IntroActivity() {
             title = requireNotNull(root.findViewById<TextView>(R.id.introFinishedTitle))
             message = requireNotNull(root.findViewById<TextView>(R.id.introFinishedMessage))
             progress = requireNotNull(root.findViewById<ProgressBar>(R.id.introFinishedProgress))
+            createVaultButton = requireNotNull(root.findViewById<Button>(R.id.introFinishedCreateVault))
+            restoreBackupButton = requireNotNull(root.findViewById<Button>(R.id.introFinishedRestoreBackup))
+            createVaultButton?.setOnClickListener { (getActivity() as? IntroScreenActivity)?.createInitialVaultFromSetup() }
+            restoreBackupButton?.setOnClickListener { (getActivity() as? IntroScreenActivity)?.chooseFirstRunBackup() }
 
             if (completedSetupRestored)
                 applyCompletedSetup()
@@ -428,11 +522,13 @@ open class IntroScreenActivity : IntroActivity() {
         }
 
         internal fun saveSettings(encryptionType: Constants.EncryptionType, authMethod: Constants.AuthMethod,
-                                 password: String?, androidSyncEnabled: Boolean) {
+                                 password: String?, androidSyncEnabled: Boolean,
+                                 initialEntries: ArrayList<com.fairuniversal.offlineotp.Database.Entry>? = null) {
             val resolvedContext = hostContext ?: getContext()
             if (resolvedContext == null ||
                     (authMethod == Constants.AuthMethod.PASSWORD &&
                             (password == null || password.isEmpty()))) {
+                initialEntries?.forEach { it.destroy() }; initialEntries?.clear()
                 title?.setText(R.string.intro_slide4_title_failed)
                 message?.setText(R.string.intro_slide4_desc_failed)
 
@@ -442,7 +538,7 @@ open class IntroScreenActivity : IntroActivity() {
                 return
             }
 
-            val task = FinishIntroTask(resolvedContext, encryptionType, authMethod, password, androidSyncEnabled)
+            val task = FinishIntroTask(resolvedContext, encryptionType, authMethod, password, androidSyncEnabled, initialEntries)
             activeTask?.let {
                 it.setOutcomeCallback(null)
                 it.cancel()
@@ -465,12 +561,16 @@ open class IntroScreenActivity : IntroActivity() {
                     title?.setText(R.string.intro_slide4_title_failed)
                     message?.setText(R.string.intro_slide4_desc_failed)
                     progress?.visibility = View.INVISIBLE
+                    createVaultButton?.isEnabled = true
+                    restoreBackupButton?.isEnabled = true
                     canGoForward = false
                     callback?.onAfterSaveSettings(false, null)
                 }
             }
 
             progress?.visibility = View.VISIBLE
+            createVaultButton?.isEnabled = false
+            restoreBackupButton?.isEnabled = false
             task.execute()
         }
 
@@ -502,6 +602,8 @@ open class IntroScreenActivity : IntroActivity() {
                 message?.setText(R.string.intro_slide4_desc_failed)
 
                 canGoForward = false
+                createVaultButton?.isEnabled = true
+                restoreBackupButton?.isEnabled = true
             }
 
             progress?.visibility = View.INVISIBLE

@@ -163,3 +163,45 @@ removes nothing. Swift adapter tests cover successful removal, stale-session and
 rejection; they are added but not executed in this environment. Shared Compose/stub compilation,
 Python wiring guards and Android sandbox checks do not replace Xcode validation. Rebuild the
 required Compose XCFramework before native testing.
+
+## Biometric enrollment confirmation
+
+iOS biometric-enable confirmation now uses the shared Compose password dialog; SwiftUI retains the
+native settings toggle and availability/refusal copy. The host checks that the vault is still
+unlocked and biometrics remain available before asking `VaultStore` to verify the password and
+store the device key. Password entry is ephemeral in Compose and masked. This moves the interactive
+confirmation form off SwiftUI while preserving iOS's native biometric/keychain adapter.
+
+## CI packaging requirement
+
+The iOS build now runs `:ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework` before
+XcodeGen and copies the XCFramework into `ios/Frameworks`. Xcode's binary dependency is required;
+there is no missing-framework branch that substitutes SwiftUI. The macOS workflow explicitly checks
+for `ANDROID_HOME` because root Gradle configuration also needs Android SDK configuration, and the
+job budget was increased to account for the Kotlin/Native framework build. Local builds use
+`scripts/ios/build-compose-framework.sh` for the same required artifact.
+
+## OTP QR scanning and image import
+
+Android's ZXing intent now explicitly requests QR formats (not every barcode family), disables
+beeps, and routes the returned payload through the existing shared OTP/migration import decision.
+iOS adds an on-device VisionKit QR-only camera reader alongside its existing Vision image import;
+both send the payload into the same vault import/parser path, including duplicate and Google
+Authenticator migration handling. iOS now declares a camera purpose string, and the image picker
+continues to work without camera access. Desktop Compose already has a file-image picker backed by
+ZXing, shared across Windows, Linux (including Debian), and macOS; it decodes locally and applies
+the same URI/migration confirmation flow.
+
+## First-run desktop full restore
+
+When the desktop client has no vault in the selected folder, the shared Compose unlock screen offers
+**Restore from encrypted backup** beside **Create vault**. The restore dialog asks for the backup
+file/password and a new password for the destination vault. It decodes the complete backup before
+creating anything, then provisions the new vault in one encrypted write with all decoded entries;
+there is no merge/replace prompt and no empty vault is created on decode failure. The backup
+password is not reused as the destination password. This first-run path is available on desktop, iOS and Android. Desktop and iOS use the shared Compose
+restore dialog directly. Android keeps its existing multi-slide auth setup: its final slide now asks
+Create or Restore, decrypts the backup asynchronously, then initializes the new vault with all
+entries in the same journaled write while preserving the selected Android auth/encryption mode. The
+backup password is separate from the selected local authentication credentials. Native file-picker
+adapters remain platform-specific.

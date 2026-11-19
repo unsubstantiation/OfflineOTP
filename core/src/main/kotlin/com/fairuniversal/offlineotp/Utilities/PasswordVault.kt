@@ -58,10 +58,13 @@ class PasswordVault(
     val preferences: KeyValueSettings get() = settings
 
     /**
-     * Provisions fresh PBKDF2 credentials and writes an empty encrypted vault. Fails with
-     * [VaultWriteError.ALREADY_EXISTS] if a vault or backup is already present.
+     * Provisions fresh credentials and writes an encrypted vault (empty unless restore entries are
+     * supplied). Fails with [VaultWriteError.ALREADY_EXISTS] if a vault or backup is already present.
      */
-    fun create(password: String): VaultWriteResult {
+    fun create(password: String): VaultWriteResult = create(password, ArrayList())
+
+    /** Provisions a new vault directly from a fully decoded restore; never creates a partial empty vault. */
+    fun create(password: String, initialEntries: ArrayList<Entry>): VaultWriteResult {
         if (vaultFile.exists() || backupFile.exists())
             return VaultWriteResult.Rejected(VaultWriteError.ALREADY_EXISTS)
         return try {
@@ -69,7 +72,7 @@ class PasswordVault(
                 "Invalid vault password"
             }
             val key = provisionCredentials(password)
-            writeEncrypted(key, ArrayList())
+            writeEncrypted(key, initialEntries)
             VaultWriteResult.Saved
         } catch (error: IllegalArgumentException) {
             VaultWriteResult.Rejected(VaultWriteError.INVALID_INPUT)

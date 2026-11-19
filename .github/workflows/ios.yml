@@ -66,7 +66,9 @@ jobs:
           exit 0
 
   build:
-    # Apple-silicon iOS build, with a hard 10-minute budget. The only published output is the
+    # Apple-silicon iOS build, with a hard 20-minute budget. Compose Multiplatform must build its
+    # required presentation XCFramework before XcodeGen; this is deliberately not a SwiftUI fallback.
+    # The only published output is the
     # unsigned device .ipa: no simulator bundle, no source archive, no checksum or log artifacts.
     # The simulator XCTest step is deliberately absent too — it consumed the previous job's
     # remaining 17 minutes after the app had already compiled. The format suite still runs on the
@@ -76,7 +78,7 @@ jobs:
     # The shipped device artifact is arm64, so CI builds only the arm64 Apple slices of the
     # OpenPGP XCFramework; the local script still defaults to the universal framework.
     runs-on: macos-15
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
       - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # 1.91.0
@@ -148,6 +150,20 @@ jobs:
           # assets/logo_legacy.svg embeds into the 1024x1024 slot the asset catalog declares.
           python3 scripts/ios/generate-app-icon.py
           python3 scripts/ios/generate-app-icon.py --check
+      - name: Build required Compose presentation XCFramework
+        timeout-minutes: 8
+        shell: bash
+        run: |
+          set -euo pipefail
+          # The generated Xcode project links OfflineOTPPresentation as a required binary target.
+          # Build and install it before XcodeGen; never let the iOS app silently omit shared Compose UI.
+          : "${ANDROID_HOME:?GitHub macOS runner must provide Android SDK for root Gradle configuration}"
+          java -version
+          ./gradlew --no-daemon :ui-foundation:assembleOfflineOTPPresentationReleaseXCFramework
+          mkdir -p ios/Frameworks
+          rm -rf ios/Frameworks/OfflineOTPPresentation.xcframework
+          ditto ui-foundation/build/XCFrameworks/release/OfflineOTPPresentation.xcframework \\
+            ios/Frameworks/OfflineOTPPresentation.xcframework
       - name: Generate the Xcode project
         shell: bash
         run: |

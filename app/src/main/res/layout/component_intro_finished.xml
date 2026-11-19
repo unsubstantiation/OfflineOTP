@@ -29,6 +29,20 @@
         android:textAppearance="@style/TextAppearance.AppCompat.Subhead"
         android:text="@string/intro_slide4_desc_progress" />
 
+    <Button
+        android:id="@+id/introFinishedCreateVault"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/activity_margin"
+        android:text="Create new vault" />
+
+    <Button
+        android:id="@+id/introFinishedRestoreBackup"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="Restore encrypted backup" />
+
     <ProgressBar
         android:id="@+id/introFinishedProgress"
         android:layout_width="wrap_content"

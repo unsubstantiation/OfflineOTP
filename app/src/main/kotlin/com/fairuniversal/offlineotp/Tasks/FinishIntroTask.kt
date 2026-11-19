@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.Tasks
 
 import android.content.Context
 
+import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
 import com.fairuniversal.offlineotp.Utilities.EncryptionHelper
@@ -18,7 +19,8 @@ import javax.crypto.SecretKey
 /** Persists the choices made in the intro screen and derives the initial encryption key. */
 open class FinishIntroTask(context: Context, private val encryptionType: Constants.EncryptionType,
                            private val authMethod: Constants.AuthMethod, private val password: String?,
-                           private val androidSyncEnabled: Boolean) :
+                           private val androidSyncEnabled: Boolean,
+                           private val initialEntries: ArrayList<Entry>? = null) :
         UiBasedBackgroundTask<FinishIntroTask.Result>(Result(false, null)) {
 
     private val settings: Settings
@@ -41,7 +43,7 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
             else KeyStoreHelper.createEncryptionKey(settingsContext)
             if (key == null) return Result(false, null, taskGeneration())
             val credentials = prepared
-            val write = DatabaseHelper.changeVaultEncryption(settingsContext, null, key, true) { id ->
+            val write = DatabaseHelper.changeVaultEncryptionWithEntries(settingsContext, null, key, true, initialEntries) { id ->
                 if (isCanceled()) VaultCommitDecision.CANCELED
                 else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, encryptionType, authMethod, credentials, true))
             }
@@ -61,6 +63,8 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
             return Result(false, null, taskGeneration())
         } finally {
             prepared?.destroy()
+            initialEntries?.forEach { it.destroy() }
+            initialEntries?.clear()
         }
     }
 

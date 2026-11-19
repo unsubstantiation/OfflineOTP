@@ -35,6 +35,7 @@ struct BackupView: View {
     @State private var pickingFairEmail = false
     @State private var pickingThunderbird = false
     @State private var pickingImage = false
+    @State private var scanningQr = false
     @State private var stagedOpenPgpMessage: Data?
     @State private var pending: PendingRestore?
     @State private var link = ""
@@ -136,6 +137,24 @@ struct BackupView: View {
             .fileImporter(isPresented: $pickingImage, allowedContentTypes: [.image],
                           allowsMultipleSelection: true) { result in
                 handlePickedImage(result)
+            }
+            .sheet(isPresented: $scanningQr) {
+                NavigationStack {
+                    QrCameraScanner(onPayload: { payload in
+                        scanningQr = false
+                        run(ImportRequest(text: payload, fromImage: false))
+                    }, onUnavailable: {
+                        scanningQr = false
+                        status = "Camera QR scanning is unavailable. Use QR image import instead."
+                    })
+                    .ignoresSafeArea(edges: .bottom)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { scanningQr = false }
+                        }
+                    }
+                }
+                .preferredColorScheme(.dark)
             }
             .sheet(isPresented: $showingLinScpExport, onDismiss: {
                 defer { preparedLinScpExport = nil; preparedLinScpEpoch = nil }
@@ -307,6 +326,7 @@ struct BackupView: View {
 
     private var imageSection: some View {
         Section {
+            Button("Scan a QR code with the camera…") { scanningQr = true }
             Button("Add an entry from a QR image…") { pickingImage = true }
         } header: {
             Text("Add from a picture")

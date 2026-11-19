@@ -56,6 +56,10 @@ import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.desktop.control.DesktopAutoLockSettings
 import com.fairuniversal.offlineotp.ui.vault.AutoLockDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopSessionLifetime
+import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
+import com.fairuniversal.offlineotp.Utilities.EncryptedBackupCodec
+import com.fairuniversal.offlineotp.Database.VaultJson
+import com.fairuniversal.offlineotp.ui.unlock.NewVaultRestoreDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCreation
 import com.fairuniversal.offlineotp.desktop.control.DesktopEntryEditing
 import com.fairuniversal.offlineotp.desktop.control.EntryEditor
@@ -203,7 +207,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                 @Suppress("UNUSED_VARIABLE") val observedRekeyRevision = rekeyRevision
                 val vault = session
                 if (vault == null && rekey.canUnlock && enrollment == null) {
-                    DesktopUnlockContent(controller, location, ::storageAvailable) { loaded ->
+                    DesktopUnlockContent(controller, location, window, ::storageAvailable) { loaded ->
                         if (closing || !storageAvailable()) DesktopUnlockOperation.discard(loaded)
                         else session = DesktopVaultState(loaded.key).apply { load(loaded.entries) }
                     }
@@ -270,7 +274,7 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
 
 /** Each locked screen gets a fresh operation; disposed-screen callbacks are terminal. */
 @Composable
-private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
+private fun DesktopUnlockContent(controller: VaultController, location: DesktopStorageLocation, window: java.awt.Window, storageAvailable: () -> Boolean, onLoaded: (VaultController.Session.Loaded) -> Unit) {
     val hardwareEnrolled = remember(controller, location.dataDirectory) {
         try {
             DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)).readEnvelope()?.let {
@@ -282,6 +286,11 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
     var hardwareDialog by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    var restoreOpen by remember { mutableStateOf(false) }
+    var restoreBusy by remember { mutableStateOf(false) }
+    var restoreError by remember { mutableStateOf<String?>(null) }
+    var restoreFile by remember { mutableStateOf<java.io.File?>(null) }
+    val restoreActive = remember { java.util.concurrent.atomic.AtomicBoolean(true) }
     val worker = remember(controller) {
         Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP unlock").apply { isDaemon = true } }
     }
@@ -307,12 +316,68 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
             }
         }) }
     DisposableEffect(operation) {
-        onDispose { hardwareUnlock.close(); operation.close(); worker.shutdown() }
+        onDispose { restoreActive.set(false); hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
     UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
+        onRestore = if (!controller.isInitialized()) ({ if (!busy && !restoreBusy && storageAvailable()) {
+            restoreError = null; restoreFile = null; restoreOpen = true
+        } }) else null,
         onHardwareUnlock = if (controller.isInitialized() && hardwareEnrolled) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
         onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
+    if (restoreOpen) NewVaultRestoreDialog(
+        backupName = restoreFile?.name,
+        busy = restoreBusy,
+        error = restoreError,
+        onChooseBackup = {
+            try { restoreFile = DesktopSavePicker.openEncryptedBackup(window) }
+            catch (_: Exception) { restoreError = "The backup file could not be selected." }
+        },
+        onRestore = { backupPassword, newPassword, confirmation ->
+            val source = restoreFile
+            if (source == null || !storageAvailable() || controller.isInitialized()) {
+                restoreError = "Select a backup in an empty vault folder and try again."
+            } else if (newPassword != confirmation) {
+                restoreError = "The new vault passwords do not match."
+            } else {
+                restoreBusy = true; restoreError = null
+                try {
+                    worker.execute {
+                        var imported: ArrayList<com.fairuniversal.offlineotp.Database.Entry>? = null
+                        val result = try {
+                            val bytes = source.inputStream().use {
+                                BoundedInputReader.read(it, BoundedInputReader.MAX_DOCUMENT_BYTES)
+                            }
+                            val document = try { EncryptedBackupCodec.open(backupPassword, bytes) }
+                                finally { bytes.fill(0) }
+                            imported = VaultJson.stringToEntries(document)
+                            require(imported!!.toHashSet().size == imported!!.size) { "Duplicate entries" }
+                            check(restoreActive.get()) { "Restore request expired" }
+                            controller.createVault(newPassword, imported!!)
+                        } catch (_: Exception) { null }
+                        finally { imported?.forEach { it.destroy() }; imported?.clear() }
+                        EventQueue.invokeLater {
+                            if (!restoreActive.get()) {
+                                if (result is VaultController.Session.Loaded) DesktopUnlockOperation.discard(result)
+                            } else {
+                                restoreBusy = false
+                                when (result) {
+                                    is VaultController.Session.Loaded -> {
+                                        restoreOpen = false; restoreFile = null
+                                        onLoaded(result)
+                                    }
+                                    else -> restoreError = "The backup password was incorrect, the backup was unreadable, or the new vault could not be created. Nothing was restored."
+                                }
+                            }
+                        }
+                    }
+                } catch (_: Exception) {
+                    restoreBusy = false; restoreError = "The restore could not be started."
+                }
+            }
+        },
+        onDismiss = { if (!restoreBusy) { restoreOpen = false; restoreFile = null; restoreError = null } }
+    )
     if (hardwareDialog) HardwareUnlockDialog(busy = busy, error = failure,
         onSubmit = { pin -> if (!busy && storageAvailable()) { failure = null; hardwareUnlock.submit(pin) } else pin.fill(' ') },
         onDismiss = { if (!busy) { hardwareDialog = false; failure = null } })
