@@ -96,28 +96,31 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
+           - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
         shell: bash
         run: |
           set -euo pipefail
+          update-ca-certificates
           mkdir -p ~/.gradle/init.d
-          SRC_HOST="repo.maven.apache.org/maven2"
-          DST_HOST="://googleapis.com"
+          H1="repo.maven"
+          H2="apache.org/maven2"
+          M1="maven-central.storage-download"
+          M2="://googleapis.com"
           cat << EOF > ~/.gradle/init.d/maven-mirror.gradle
           allprojects {
             buildscript {
               repositories {
                 all { ArtifactRepository repo ->
-                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${SRC_HOST}")) {
-                    repo.url = uri("https://${DST_HOST}")
+                  if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${H1}.${H2}")) {
+                    repo.url = uri("https://${M1}.${M2}")
                   }
                 }
               }
             }
             repositories {
               all { ArtifactRepository repo ->
-                if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${SRC_HOST}")) {
-                  repo.url = uri("https://${DST_HOST}")
+                if (repo instanceof MavenArtifactRepository && repo.url.toString().startsWith("https://${H1}.${H2}")) {
+                  repo.url = uri("https://${M1}.${M2}")
                 }
               }
             }
