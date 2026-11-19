@@ -2,6 +2,16 @@ name: iOS build
 
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: 'macOS runner image (switch if macos-15 is congested)'
+        required: true
+        default: 'macos-15'
+        type: choice
+        options:
+          - macos-15
+          - macos-latest
+          - macos-26
 
 permissions:
   contents: read
@@ -68,7 +78,7 @@ jobs:
           exit 0
 
   build:
-    runs-on: macos-15
+    runs-on: ${{ inputs.runner || 'macos-15' }}
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
