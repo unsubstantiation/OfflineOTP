@@ -41,7 +41,8 @@ jobs:
         run: |
           set -euo pipefail
           if ! command -v cargo >/dev/null 2>&1; then
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | bash -s -- -y --default-toolchain stable --profile minimal
+            RUSTUP_HOST="sh.rustup.rs"
+            curl --proto '=https' --tlsv1.2 -sSf "https://${RUSTUP_HOST}" | bash -s -- -y --default-toolchain stable --profile minimal
             echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
             export PATH="$HOME/.cargo/bin:$PATH"
           fi
@@ -96,7 +97,7 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-           - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
+      - name: Configure Maven Central mirror to avoid HTTP 429 rate limits
         shell: bash
         run: |
           set -euo pipefail
