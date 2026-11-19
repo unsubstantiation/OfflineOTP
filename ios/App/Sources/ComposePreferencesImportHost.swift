@@ -56,12 +56,12 @@ struct ComposePreferencesImportHost: UIViewControllerRepresentable {
                 DispatchQueue.main.async { self.onDismiss() }
                 return
             }
-            presentation.update(busy: false, count: plan?.applied.map(Int32.init) ?? -1,
+            presentation.update(busy: false, count: plan.map { Int32($0.applied) } ?? -1,
                                 skipped: Int32((plan?.unknownKeys.count ?? 0) + (plan?.refusedKeys.count ?? 0)),
                                 failed: failure != nil, errorText: failure)
         }
 
-        func confirm() -> Bool {
+        func confirm_() -> Bool {
             guard currentSession, plan != nil else { return false }
             do {
                 let result = try PreferencesExport.apply(data, into: store.preferencesPort)
