@@ -159,7 +159,10 @@ jobs:
           toolchain: stable
 
       - name: Install prebuilt cargo-ndk
-        uses: taiki-e/install-action@cargo-ndk
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-ndk
+
 
       - name: Cache Rust Android cross-compile artifacts
         uses: Swatinem/rust-cache@v2
