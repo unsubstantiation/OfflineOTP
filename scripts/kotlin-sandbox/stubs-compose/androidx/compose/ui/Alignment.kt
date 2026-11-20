@@ -13,5 +13,7 @@ interface Alignment {
         val CenterHorizontally: Horizontal = object : Horizontal {}
         val End: Horizontal = object : Horizontal {}
         val Center: Alignment = object : Alignment {}
+        val TopCenter: Alignment = object : Alignment {}
+        val BottomCenter: Alignment = object : Alignment {}
     }
 }

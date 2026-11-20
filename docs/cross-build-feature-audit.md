@@ -4,8 +4,10 @@
 
 **The builds are not yet fully feature-equivalent or visually identical.** Windows, macOS and
 Debian/Linux use the same Compose desktop host; Android shares cards and several forms but retains
-Activity chrome and native workflows. iOS uses separate SwiftUI forms. Matching palette values
-and file formats alone does not establish UI or functional parity.
+Activity chrome and native workflows. iOS now renders the vault and its dialogs with shared Compose
+through `ComposeVaultHost`, with native file/keychain adapters and SwiftUI screen sources excluded
+from the Xcode target. Matching renderers and file formats alone does not establish UI or
+functional parity; native accessibility and visual checks remain outstanding.
 
 This is a source audit, not a visual/device test. Locations below identify the implementation
 reviewed. Absence from a settings screen is not proof that no supporting engine code exists.

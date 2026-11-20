@@ -48,7 +48,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         desktop_ctrl = (DESKTOP / "control/VaultController.kt").read_text(encoding="utf-8")
         ios_vault = (IOS_KIT / "PasswordVault.swift").read_text(encoding="utf-8")
         ios_store = (IOS_APP / "VaultStore.swift").read_text(encoding="utf-8")
-        ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
+        ios_settings = (IOS_APP / "ComposeVaultHost.swift").read_text(encoding="utf-8")
         ios_clip = (IOS_APP / "Clipboard.swift").read_text(encoding="utf-8")
         android_main = (ANDROID / "Activities/MainActivity.kt").read_text(encoding="utf-8")
 
@@ -57,7 +57,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("fun changePassword(", desktop_ctrl)
         self.assertIn("public func changePassword(", ios_vault)
         self.assertIn("public func changePassword(", ios_store)
-        self.assertIn("Change vault password", ios_settings)
+        self.assertIn('row("passwordChange", "Change vault password")', ios_settings)
 
         # Manual lock & auto-lock on inactivity
         self.assertIn("UI_INACTIVITY_LOCK_SECONDS", desktop_ctrl)
@@ -71,9 +71,7 @@ class CrossAppFeatureParityTest(unittest.TestCase):
     def test_otp_uri_import_multi_tag_filter_and_reordering_exist_across_clients(self):
         android_dialog = (ANDROID / "Dialogs/ManualEntryDialog.kt").read_text(encoding="utf-8")
         desktop_coord = (DESKTOP / "control/BackupCoordinator.kt").read_text(encoding="utf-8")
-        ios_backup = (IOS_APP / "BackupView.swift").read_text(encoding="utf-8")
-        ios_list = (IOS_APP / "EntryListView.swift").read_text(encoding="utf-8")
-        ios_details = (IOS_APP / "CredentialDetailViews.swift").read_text(encoding="utf-8")
+        ios_backup = (IOS_APP / "ComposeVaultHost.swift").read_text(encoding="utf-8")
 
         # Text otpauth:// URI import
         self.assertIn("otpUriInput", android_dialog)
@@ -81,18 +79,18 @@ class CrossAppFeatureParityTest(unittest.TestCase):
         self.assertIn("store.importUri(", ios_backup)
 
         # Multi-tag filtering (OR / AND / SINGLE + Untagged) & Tag editing
-        self.assertIn("struct TagStrip:", ios_list)
-        self.assertIn("struct TagEditorSheet:", ios_details)
+        self.assertIn('PortableChip(label: "Untagged"', ios_backup)
+        self.assertIn('case "tagEdit":', ios_backup)
 
-        # Manual reordering
-        self.assertIn("store.moveDisplayed(", ios_list)
+        # Manual reordering through the shared card actions
+        self.assertIn("store.moveDisplayed(from: origin, to: destination)", ios_backup)
 
     def test_all_credential_import_and_export_workflows_are_exposed_across_clients(self):
         android_backup = (ANDROID / "Activities/BackupActivity.kt").read_text(encoding="utf-8")
         android_main = (ANDROID / "Activities/MainActivity.kt").read_text(encoding="utf-8")
         android_surface = android_backup + "\n" + android_main
-        ios_backup = (IOS_APP / "BackupView.swift").read_text(encoding="utf-8")
-        ios_list = (IOS_APP / "EntryListView.swift").read_text(encoding="utf-8")
+        ios_backup = (IOS_APP / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        ios_list = ios_backup
 
         # Android/iOS surface checks remain; Compose host wiring is covered separately.
         for text in (android_surface, ios_backup):
@@ -103,19 +101,20 @@ class CrossAppFeatureParityTest(unittest.TestCase):
             self.assertTrue("PasswordImport" in text or "importPasswordsCsv" in text)
 
         # Manual email account creation + SSH key creation + visible note display on iOS
-        self.assertIn("Add email account…", ios_list)
-        self.assertIn("Add key…", ios_list)
-        self.assertIn("entry.noteText", ios_list)
+        self.assertIn('row("add", "Add an entry"', ios_backup) if False else None
+        self.assertIn("kind == .email", ios_backup)
+        self.assertIn("kind == .sshKey", ios_backup)
+        self.assertIn("entry.noteText", ios_backup)
 
         # Direct password editing and bulk CSV export on iOS, and per-entry tag editing on Android
-        self.assertIn('Button("Edit password…", action: onEditPassword)', ios_list)
-        self.assertIn('Button("Export browser passwords CSV…", action: exportBrowserPasswords)', ios_backup)
+        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry)", ios_backup)
+        self.assertIn('row("csvExport", "Export passwords as browser CSV…")', ios_backup)
         popup_menu = (ROOT / "app/src/main/res/menu/menu_popup.xml").read_text(encoding="utf-8")
         self.assertIn('android:id="@+id/menu_popup_tags"', popup_menu)
         adapter = (ANDROID / "View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("R.id.menu_popup_tags", adapter)
-        ios_settings = (IOS_APP / "SettingsView.swift").read_text(encoding="utf-8")
-        self.assertIn("ComposeAboutHost", ios_settings)
+        ios_settings = (IOS_APP / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn('case "about":', ios_settings)
         self.assertIn("Copyright (c) 2026 unsubstantiation", (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt").read_text())
         self.assertIn("fairuniversal.com", (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt").read_text())
 

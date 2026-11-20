@@ -9,8 +9,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.then
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
@@ -22,7 +25,8 @@ fun ForestTextAction(
     onClick: () -> Unit,
     enabled: Boolean = true,
     onLongClick: (() -> Unit)? = null,
-    color: Color = ForestPalette.accent
+    color: Color = ForestPalette.accent,
+    contentDescription: String? = null
 ) {
     Text(
         text = text,
@@ -33,6 +37,9 @@ fun ForestTextAction(
             .clip(RoundedCornerShape(8.dp))
             .combinedClickable(enabled = enabled, onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 10.dp, vertical = 6.dp)
+            .then(if (contentDescription == null) Modifier else Modifier.semantics {
+                this.contentDescription = contentDescription
+            })
     )
 }
 

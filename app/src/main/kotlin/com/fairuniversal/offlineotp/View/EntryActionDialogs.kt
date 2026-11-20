@@ -1,43 +1,110 @@
 package com.fairuniversal.offlineotp.View
 
+import android.app.Activity
 import android.app.AlertDialog
+import android.app.Dialog
 import android.content.Context
+import android.graphics.Rect
 import android.text.Editable
-import android.text.InputFilter
-import android.text.InputType
 import android.text.TextWatcher
-import android.text.method.PasswordTransformationMethod
+import android.view.Gravity
+import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
 import android.widget.EditText
 import android.widget.FrameLayout
-import android.widget.GridView
-import android.widget.LinearLayout
-
-import com.fairuniversal.offlineotp.R
-import com.fairuniversal.offlineotp.Utilities.EntryThumbnail
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
-import com.fairuniversal.offlineotp.Utilities.Settings
-import com.fairuniversal.offlineotp.Utilities.Tools
+import android.widget.TextView
 import com.fairuniversal.offlineotp.Utilities.UIHelper
-
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import java.util.ArrayList
 import java.util.HashMap
-import java.util.Locale
 import java.util.function.Consumer
-import java.util.function.LongConsumer
 
 /**
- * Screen-owned dialog rendering/input only. No direct Entry, position, key or vault access.
- * The caller validates each delayed command. Dismissal wipes editable text and drops tracked windows.
+ * Entry action dialogs for Android. The native PIN prompt was removed; only the shared delete
+ * confirmation form remains. The controller still re-resolves the entry before deleting it, so
+ * late confirmations cannot hit a new row.
  */
-class EntryActionDialogs(private val context: Context, private val settings: Settings) {
-    private val open: HashMap<AlertDialog, EditText?> = HashMap()
+class EntryActionDialogs(private val context: Context) {
+
+    private val open: HashMap<Dialog, EditText?> = HashMap()
+    private val composeDialogs: ArrayList<ComposeDialogHost> = ArrayList()
+
+    fun counter(current: String, save: Consumer<String>, isValid: (String) -> Boolean) {
+        val input = input()
+        input.setText(current)
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(text: Editable?) {
+                val btn = dialog?.getButton(AlertDialog.BUTTON_POSITIVE)
+                if (btn != null) btn.isEnabled = isValid(text.toString())
+            }
+        })
+        val dialog = AlertDialog.Builder(context).setTitle(R.string.dialog_title_counter)
+                .setCancelable(false).setView(container(input))
+                .setPositiveButton(R.string.button_accept) { _, _ ->
+                    save.accept(input.text.toString())
+                    UIHelper.hideKeyboard(context, input)
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> UIHelper.hideKeyboard(context, input) }
+                .create()
+        show(dialog, input)
+        val btn = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        if (btn != null) btn.isEnabled = isValid(input.text.toString())
+    }
+
+    fun delete(label: String, confirm: Runnable) {
+        // The same confirmation form the desktop host and the iOS Compose host use. The host view
+        // only attaches/detaches the composition; the controller re-resolves the pending entry
+        // before it removes anything, so a late confirmation cannot hit a new row.
+        val activity = context as? Activity ?: return
+        // The callbacks run only after show(), so the holder is populated by then. It avoids
+        // capturing a local in its own initializer.
+        val pending = object { var host: ComposeDialogHost? = null }
+        val view = DeleteConfirmationComposeView(
+            activity = activity,
+            title = context.getString(R.string.dialog_title_remove),
+            message = context.getString(R.string.dialog_msg_confirm_delete, label),
+            confirmLabel = context.getString(R.string.yes),
+            dismissLabel = context.getString(R.string.no),
+            onConfirm = {
+                confirm.run()
+                pending.host?.dismiss()
+            },
+            onDismiss = { pending.host?.dismiss() }
+        )
+        pending.host = view
+        composeDialogs.add(view)
+        view.show()
+    }
+
+    fun thumbnail(issuer: String, label: String, select: Consumer<EntryThumbnail.EntryThumbnails>) {
+        val thumbnails = ThumbnailSelectionAdapter(context, issuer, label)
+        val input = input()
+        input.addTextChangedListener(object : TextWatcher {
+            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(text: Editable?) { thumbnails.filter(text.toString()) }
+        })
+        val dialog = AlertDialog.Builder(context).setTitle(R.string.dialog_title_thumbnail)
+                .setCancelable(false).setView(container(input))
+                .setPositiveButton(R.string.button_accept) { _, _ ->
+                    select.accept(thumbnails.current())
+                    UIHelper.hideKeyboard(context, input)
+                }
+                .setNegativeButton(android.R.string.cancel) { _, _ -> UIHelper.hideKeyboard(context, input) }
+                .create()
+        show(dialog, input)
+    }
 
     private fun input(): EditText {
         val input = EditText(context)
-        input.layoutParams = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        input.isSingleLine = true
-        input.isSaveEnabled = false
+        input.gravity = Gravity.CENTER_VERTICAL
+        input.maxLines = 1
         return input
     }
 
@@ -50,7 +117,7 @@ class EntryActionDialogs(private val context: Context, private val settings: Set
         return container
     }
 
-    private fun show(dialog: AlertDialog, input: EditText?) {
+    private fun show(dialog: Dialog, input: EditText?) {
         open[dialog] = input
         dialog.setOnDismissListener {
             if (input != null) { UIHelper.hideKeyboard(context, input); input.setText("") }
@@ -66,111 +133,12 @@ class EntryActionDialogs(private val context: Context, private val settings: Set
             dialog.dismiss()
         }
         open.clear()
-    }
-
-    fun counter(counter: Long, save: LongConsumer) {
-        val input = input()
-        input.setText(String.format(Locale.ENGLISH, "%d", counter))
-        input.inputType = InputType.TYPE_CLASS_NUMBER
-        val dialog = AlertDialog.Builder(context).setTitle(R.string.dialog_title_counter)
-                .setView(container(input))
-                .setPositiveButton(R.string.button_save) { _, _ -> save.accept(input.text.toString().toLong()) }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> }
-                .create()
-        input.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(text: Editable?) {
-                val btn = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                if (btn != null) btn.isEnabled = validCounter(text.toString())
-            }
-        })
-        show(dialog, input)
-        val btn = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-        if (btn != null) btn.isEnabled = validCounter(input.text.toString())
-    }
-
-    private fun validCounter(text: String): Boolean = isValidCounter(text)
-
-    fun pin(current: String, save: Consumer<String>) {
-        val input = input()
-        input.setRawInputType(InputType.TYPE_NUMBER_VARIATION_PASSWORD or InputType.TYPE_CLASS_NUMBER)
-        // Cap the text at the bound the entry model applies, so a PIN that would make the next
-        // vault write reject the entry can never be typed in the first place.
-        input.filters = arrayOf<InputFilter>(InputFilter.LengthFilter(InputPolicy.MAX_TAG_CHARS))
-        input.setText(current)
-        input.transformationMethod = PasswordTransformationMethod.getInstance()
-        input.requestFocus()
-        UIHelper.showKeyboard(context, input, true)
-        val dialog = AlertDialog.Builder(context).setTitle(R.string.dialog_title_pin)
-                .setCancelable(false).setView(container(input))
-                .setPositiveButton(R.string.button_accept) { _, _ ->
-                    save.accept(input.text.toString())
-                    UIHelper.hideKeyboard(context, input)
-                }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> UIHelper.hideKeyboard(context, input) }
-                .create()
-        show(dialog, input)
-    }
-
-    fun delete(label: String, confirm: Runnable) {
-        val dialog = AlertDialog.Builder(context).setTitle(R.string.dialog_title_remove)
-                .setMessage(context.getString(R.string.dialog_msg_confirm_delete, label))
-                .setPositiveButton(R.string.yes) { _, _ -> confirm.run() }
-                .setNegativeButton(R.string.no) { _, _ -> }
-                .create()
-        show(dialog, null)
-    }
-
-    fun thumbnail(issuer: String, label: String, select: Consumer<EntryThumbnail.EntryThumbnails>) {
-        val thumbnails = ThumbnailSelectionAdapter(context, issuer, label)
-        val input = input()
-        input.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {}
-            override fun afterTextChanged(text: Editable?) { thumbnails.filter(text.toString()) }
-        })
-        val grid = GridView(context)
-        grid.adapter = thumbnails
-        grid.setBackgroundColor(Tools.getThemeColor(context, R.attr.thumbnailBackground))
-        val small = context.resources.getDimensionPixelSize(R.dimen.activity_margin_small)
-        val medium = context.resources.getDimensionPixelSize(R.dimen.activity_margin_medium)
-        grid.setPadding(small, small, small, small)
-        grid.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        grid.columnWidth = settings.getThumbnailSize()
-        grid.numColumns = GridView.AUTO_FIT
-        grid.verticalSpacing = medium
-        grid.horizontalSpacing = medium
-        grid.stretchMode = GridView.STRETCH_COLUMN_WIDTH
-        val layout = LinearLayout(context)
-        layout.orientation = LinearLayout.VERTICAL
-        layout.layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
-        layout.addView(input)
-        layout.addView(grid)
-        val dialog = AlertDialog.Builder(context).setTitle(R.string.menu_popup_change_image)
-                .setView(container(layout)).setNegativeButton(android.R.string.cancel) { _, _ -> }
-                .create()
-        grid.onItemClickListener = android.widget.AdapterView.OnItemClickListener { _, _, position, _ ->
-            var value = EntryThumbnail.EntryThumbnails.Default
-            try { value = EntryThumbnail.EntryThumbnails.values()[thumbnails.getRealIndex(position)] }
-            catch (ignored: IndexOutOfBoundsException) { /* Retain the existing default-icon fallback. */ }
-            select.accept(value)
-            dialog.cancel()
+        for (host in composeDialogs) {
+            host.dismiss()
         }
-        show(dialog, input)
+        composeDialogs.clear()
     }
 
-    companion object {
-        /** Whether [text] may be saved as an HOTP counter; mirrors `InputPolicy.tokenParameters`. */
-        @JvmStatic
-        fun isValidCounter(text: String): Boolean {
-            // Long.MAX_VALUE is rejected by the entry model, so offering it here only produced a
-            // confusing "could not save" after the dialog closed.
-            return try {
-                text.isNotEmpty() && text.toLong() in 0 until Long.MAX_VALUE
-            } catch (e: NumberFormatException) {
-                false
-            }
-        }
-    }
+    private fun Rect.contains(x: Int, y: Int): Boolean =
+        left <= x && x <= right && top <= y && y <= bottom
 }

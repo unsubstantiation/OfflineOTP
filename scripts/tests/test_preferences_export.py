@@ -106,7 +106,10 @@ class PreferencesWiringTest(unittest.TestCase):
         self.assertIn("preferences_import_skipped", activity)
         # Dismissing the confirm dialog (Back, or a tap outside) must still wipe the read bytes.
         self.assertIn("dialog.setOnDismissListener { bytes.fill(0) }", activity)
-        self.assertIn("dialog.setOnDismissListener { passwordInput.setText(\"\") }", activity)
+        # The biometric password prompt now uses the shared Compose form. Its ephemeral state dies
+        # with the composition, and the form clears the field before handing a password to the host.
+        self.assertIn("BiometricEnableComposeView(", activity)
+        self.assertNotIn("passwordInput.setText", activity)
 
     def test_the_android_port_keeps_the_backup_password_wrapped(self):
         port = read(APP / "Utilities/AndroidPreferencesPort.kt")
@@ -119,17 +122,17 @@ class PreferencesWiringTest(unittest.TestCase):
 
 
     def test_ios_section_and_port(self):
-        view = read(IOS_APP / "SettingsView.swift")
-        self.assertIn('"Export preferences…"', view)
-        self.assertIn('"Import preferences…"', view)
+        view = read(IOS_APP / "ComposeVaultHost.swift")
+        self.assertIn('row("prefsExport", "Export preferences…")', view)
+        self.assertIn('row("prefsImport", "Import preferences…")', view)
         self.assertIn("PreferencesExport.export(store.preferencesPort)", view)
-        # The picked file is confirmed in the shared Compose dialog; the native adapter applies it.
-        self.assertIn("ComposePreferencesImportHost(store: store, data: item.data)", view)
-        host = read(IOS_APP / "ComposePreferencesImportHost.swift")
+        # The picked file is confirmed in a shared Compose surface; this adapter applies it.
+        self.assertIn('case "prefsImport": kind = "preferences"', view)
         # `apply`, not `import`: the latter is a declaration keyword in Swift.
-        self.assertIn("PreferencesExport.apply(data, into: store.preferencesPort)", host)
-        self.assertIn("store.reloadInactivityLock()", host)
-        self.assertIn("struct PreferencesDocument: FileDocument", view)
+        self.assertIn("PreferencesExport.apply(pendingImport, into: store.preferencesPort)", view)
+        self.assertIn("store.reloadInactivityLock()", view)
+        picker = read(IOS_APP / "NativeFilePicker.swift")
+        self.assertIn("UIDocumentPickerViewController(forExporting:", picker)
         self.assertIn("public static func apply(_ bytes: Data", read(IOS_KIT / "PreferencesExport.swift"))
         store = read(IOS_APP / "VaultStore.swift")
         self.assertIn("public var preferencesPort: PreferencesExport.SettingsPort", store)

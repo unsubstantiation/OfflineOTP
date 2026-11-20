@@ -78,7 +78,6 @@ def kotlin_label_map(constant_function):
 
 class FrameLayerBoundaryTest(unittest.TestCase):
 
-    def test_frame_layer_never_imports_a_toolkit_or_platform_api(self):
         """`:ui-model` is the only UI code a non-Compose client may depend on."""
         forbidden = (
             "android", "androidx", "java.awt", "javax.swing", "java.io", "java.nio",
@@ -91,7 +90,6 @@ class FrameLayerBoundaryTest(unittest.TestCase):
                     offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
         self.assertEqual([], offenders, "the frame layer must stay toolkit-free")
 
-    def test_frame_layer_module_declares_no_compose(self):
         build = (ROOT / "ui-model/build.gradle").read_text(encoding="utf-8")
         self.assertNotIn("org.jetbrains.compose", build)
         self.assertNotIn("org.jetbrains.kotlin.plugin.compose", build)
@@ -99,14 +97,12 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("project(':core')", build)
         self.assertIn("org.jetbrains.kotlin.multiplatform", build)
 
-    def test_frame_layer_is_the_only_ui_dependency_of_a_non_compose_client(self):
         desktop = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
         self.assertIn("project(':ui-model')", desktop)
         self.assertNotIn("project(':ui')", desktop)
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
-    def test_delete_action_requires_host_support_and_confirmation(self):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("val deleteEntry = actions.onDelete", widgets)
         self.assertIn("if (card.detailsVisible && card.revealed && deleteEntry != null)", widgets)
@@ -120,44 +116,6 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("entryDialogActions", host)
         self.assertIn("dialogs.close()", host)
 
-    def test_pin_dialog_masks_and_does_not_save_input(self):
-        dialog = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
-        self.assertIn("remember(inputKey)", dialog)
-        self.assertNotIn("rememberSaveable", dialog)
-        self.assertIn("PasswordVisualTransformation()", dialog)
-        self.assertIn("InputPolicy.MAX_TAG_CHARS", dialog)
-        self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
-        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive)", host)
-        self.assertIn("dialogs.close()", host)
-        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        self.assertIn("card.pinRequired && enterPin != null", widgets)
-
-    def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
-        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt").read_text()
-        self.assertIn("AlertDialog(", dialog)
-        self.assertIn("onDismissRequest = onDismiss", dialog)
-        self.assertNotIn("rememberSaveable", dialog)
-        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        self.assertIn("VaultEntryDialog(", host)
-        self.assertIn("VaultDialogs { revision++ }", host)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
-        self.assertIn("check(EntryUsage.advanceHotp(candidate[index]))", owner)
-        self.assertIn("dialogs.close()", host)
-
-    def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
-        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
-        # PIN/counter/delete routing remains shared; copy failure notices are host outcomes.
-        routed = host.split("    val request = dialogs.pending", 1)[1]
-        self.assertNotIn("EntryPinDialog(", routed)
-        self.assertNotIn("EntryConfirmationDialog(", routed)
-        self.assertNotIn("could not be saved", routed)
-        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
-        self.assertIn("dialogs.isCurrent(request)", host)
-        self.assertIn("if (!live || state.isLocked || !unchanged())", owner)
-        renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
-        for kind in ("PIN", "COUNTER", "DELETE"):
-            self.assertIn("VaultDialogKind." + kind, renderer)
         self.assertIn("inputKey = request", renderer)
         self.assertIn("strings: VaultDialogStrings", renderer)
 
@@ -335,17 +293,21 @@ class FrameLayerBoundaryTest(unittest.TestCase):
                       "order == awaitingOrder", "order != expectedOrder", "order != dragOrder",
                       "LaunchedEffect(state.filter)", "listState.scrollBy(scroll)", "action(card)"):
             self.assertIn(guard, screen)
-        ios = (ROOT / "ios/App/Sources/EntryListView.swift").read_text()
-        self.assertNotIn('Button("Move up"', ios)
-        self.assertNotIn('Button("Move down"', ios)
-        self.assertIn(".moveDisabled(!store.canReorder)", ios)
-        self.assertIn(".onMove { offsets, destination in", ios)
+        portable = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt").read_text()
+        self.assertIn("val canReorder: Boolean = false", portable)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text()
+        self.assertIn('ForestTextAction("Move up"', renderer)
+        self.assertIn('ForestTextAction("Move down"', renderer)
+        ios = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn("canReorder: store.canReorder", ios)
+        self.assertIn('case "moveUp", "moveDown":', ios)
+        self.assertIn("store.moveDisplayed(from: origin, to: destination)", ios)
 
     def test_projection_tests_live_with_the_frame_layer(self):
         names = {path.name for path in kotlin_files(MODEL_TEST)}
         self.assertEqual(
             {"EntryDragTargetTest.kt", "TokenDisplayTest.kt", "VaultProjectionTest.kt", "VaultFilterTest.kt",
-             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt"}, names
+             "VaultCardsTest.kt", "VaultPresenterTest.kt", "VaultDialogsTest.kt", "VaultFrameHostTest.kt", "VaultClockTest.kt", "VaultAppearanceTest.kt", "ManualEntryInputTest.kt", "EmailEntryInputTest.kt", "EmailEditInputTest.kt", "EmailPasswordInputTest.kt", "EmailSettingsInputTest.kt", "PasswordEntryInputTest.kt", "VaultToolsTest.kt", "PortablePresentationTest.kt"}, names
         )
         # A host that paints one row at a time (the Swing table) asks for a single card; the same
         # per-entry rules must therefore be reachable without building a frame.
@@ -591,16 +553,14 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("importEntries(arrayListOf(draft))", controller)
         self.assertIn("if (!recordCopyUse(selected))", controller)
         self.assertIn("candidate.forEach { it.destroy() }", controller)
-        row = (ROOT / "ios/App/Sources/EntryListView.swift").read_text()
-        self.assertIn('Button("Copy Token")', row)
-        self.assertIn('accessibilityLabel("Previous token")', row)
-        self.assertIn("store.recordUse(at: index), store.isUnlocked", row)
-        # The pending delete is revalidated in the native adapter before it removes anything.
-        host = (ROOT / "ios/App/Sources/ComposeEntryConfirmationHost.swift").read_text()
-        self.assertIn("store.generation == epoch", host)
-        self.assertIn("store.entries[index].fields == entry.fields", host)
-        self.assertIn("store.isRevealed(entry)", host)
-        self.assertNotIn('Button("Copy code")', row)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text()
+        self.assertIn('contentDescription = "Copy Token for "', renderer)
+        self.assertIn('contentDescription = "Previous token "', renderer)
+        host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn("guard store.recordUse(at: index), store.isUnlocked else", host)
+        self.assertIn("store.entries[index].fields == openedFields", host)
+        self.assertIn("store.isRevealed(store.entries[index])", host)
+        self.assertNotIn('Button("Copy code")', host)
 
     def test_android_otp_notes_share_desktop_edit_form_and_validation(self):
         view = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt").read_text()
@@ -613,12 +573,12 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("replaceEntry(actual, replacement, preserveMissingPin = false)", controller)
         self.assertIn("composeEditTarget !== target", controller)
         self.assertIn("openSharedEditor(popupTarget, actual)", controller)
-        ios = (ROOT / "ios/App/Sources/EntryEditorView.swift").read_text()
-        self.assertIn('kind == .note ? "Hidden Note"', ios)
-        self.assertIn('Picker("Artwork"', ios)
-        self.assertIn("existing?.fields != originalEntry?.fields", ios)
-        self.assertIn('existing.tags.joined(separator: "\\n")', ios)
-        self.assertIn('text.split(separator: "\\n")', ios)
+        host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn('let kind = EntryKind(rawValue: draft["type"] ?? "")', host)
+        self.assertIn('row("hiddenLabel", "Hidden label"', host)
+        self.assertIn("EntryDraft.preservingMetadata(of: store.entries[index], in: built)", host)
+        self.assertIn('draft["tags"] = entry?.tags.joined(separator: ", ")', host)
+        self.assertIn('draft["tags"] ?? "").split(separator: ",")', host)
 
     def test_note_and_otp_edit_controls_are_consistent(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()

@@ -7,7 +7,7 @@ not a declaration of identical clients or native/device validation.
 
 | Area | Current implementation | Next consolidation boundary |
 | --- | --- | --- |
-| Vault cards and entry forms | Android and all desktop distributions use shared `:ui` Compose cards/models; iOS uses SwiftUI | Keep common behavior fixtures for Swift, plus native accessibility/visual checks. |
+| Vault cards and entry forms | Android and all desktop distributions use shared `:ui` Compose cards/models; iOS now uses the native-compatible `:ui-foundation`/`:ui-contract` Compose surface with Swift adapters | Compare native accessibility, keyboard and visual behavior on device; keep the golden format fixtures. |
 | Password Edit | Android now uses the desktop `PasswordEntryDialog` and `PasswordEntryInput`, instead of a separate native dialog | Expand editor scope deliberately for non-common fields; do not silently overwrite alias columns. |
 | OTP, Notes, Keys, Email editing | Android shared host/controller routes Edit to shared manual/email forms; Keys inline Edit routing fixed | Audit remaining detail/menu actions and metadata coverage; this change does not claim every field has an editor. |
 | Theme | `shared/theme/forest.json` generates Compose, SwiftUI and Android resource bindings | Typography, spacing, focus order and responsive layout still require native comparisons. |

@@ -18,6 +18,9 @@ interface Arrangement {
         val Bottom: Vertical = object : Vertical {}
         val Start: Horizontal = object : Horizontal {}
         val End: Horizontal = object : Horizontal {}
+        val SpaceBetween: Horizontal = object : Horizontal {}
+        val SpaceAround: Horizontal = object : Horizontal {}
+        val SpaceEvenly: Horizontal = object : Horizontal {}
 
         fun spacedBy(space: Dp): HorizontalOrVertical = object : HorizontalOrVertical {}
     }

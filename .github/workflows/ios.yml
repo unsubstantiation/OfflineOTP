@@ -138,6 +138,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          uname -m
           rustc --version
           cargo --version
           xcode-select -p

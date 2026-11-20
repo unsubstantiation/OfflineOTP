@@ -139,18 +139,16 @@ class BrowserPasswordExportTest(unittest.TestCase):
 
 
     def test_ios_edits_in_place_and_exports_one_entry(self):
-        details = read(IOS_APP / "CredentialDetailViews.swift")
-        self.assertIn("struct PasswordEditSheet: View", details)
+        details = read(IOS_APP / "ComposeVaultHost.swift")
+        self.assertIn("private func savePasswordEdit() -> String?", details)
         self.assertIn("store.update(at: index, with: replacement)", details)
         self.assertIn("password.isEmpty ? nil : password", details)
-        view = read(IOS_APP / "EntryListView.swift")
-        self.assertIn("private func exportBrowserPasswords(", view)
-        self.assertIn("onExportCsv", view)
-        self.assertIn("onEditPassword", view)
-        self.assertIn('Button("Edit password…", action: onEditPassword)', view)
-        self.assertIn("archiveExportIsBrowserCsv", view)
-        backup_view = read(IOS_APP / "BackupView.swift")
-        self.assertIn('Button("Export browser passwords CSV…", action: exportBrowserPasswords)', backup_view)
+        view = details
+        self.assertIn("case\"csvExport\":", view.replace(" ", ""))
+        self.assertIn("onExport(csv.data, \"passwords.csv\")", view)
+        self.assertIn("PasswordCsvExport.supportsCommonEdit(entry)", view)
+        self.assertIn('row("csvExport", "Export passwords as browser CSV…")', view)
+        self.assertIn("public func exportBrowserPasswordsCsv()", read(IOS_APP / "VaultStore.swift"))
         store = read(IOS_APP / "VaultStore.swift")
         self.assertIn("public func exportBrowserPasswordsCsv() -> ExportedBackup?", store)
 

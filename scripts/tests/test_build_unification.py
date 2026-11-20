@@ -32,8 +32,9 @@ class BuildUnificationTest(unittest.TestCase):
         self.assertNotIn('rememberSaveable', form)
 
     def test_native_password_policy_and_shared_contract_are_wired(self):
-        sheet = (ROOT / 'ios/App/Sources/CredentialDetailViews.swift').read_text()
-        for guard in ('store.generation == openedGeneration', 'store.entries[index].fields == openedFields',
+        sheet = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
+        for guard in ('openedGeneration.map { store.generation == $0 } == true',
+                      'store.entries[index].fields == openedFields',
                       'store.isRevealed(store.entries[index])', 'PasswordCsvExport.supportsCommonEdit'):
             self.assertIn(guard, sheet)
         for source in ('desktop/src/test/kotlin/com/fairuniversal/offlineotp/desktop/control/PasswordEditContractTest.kt',
@@ -61,10 +62,10 @@ class BuildUnificationTest(unittest.TestCase):
         self.assertIn('else "Replace all current entries", enabled = !busy', pgp)
 
     def test_auto_lock_custom_values_remain_visible_on_ios_and_desktop(self):
-        swift = (ROOT / 'ios/App/Sources/SettingsView.swift').read_text()
-        self.assertIn('ComposeAutoLockHost(store: store)', swift)
+        swift = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
+        self.assertIn('row("autoLock", "Auto-lock after inactivity"', swift)
         self.assertNotIn('AutoLockOptions.', swift)
-        self.assertIn('sort order and inactivity delay', swift)
+        self.assertIn('store.setInactivityLockSeconds(seconds)', swift)
         form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt').read_text()
         self.assertIn('(options + currentSeconds).distinct()', form)
         self.assertIn('AutoLockOptions.label(seconds)', form)

@@ -1,4 +1,5 @@
-// Shared Compose UI for Android and desktop. iOS currently uses SwiftUI, not this module.
+// Shared Compose UI for Android and desktop; iOS uses the native-compatible :ui-foundation
+// module instead of this JVM/core-dependent module.
 //
 // Layering: :core (Android-free engine) <- :ui-model (toolkit-free frame layer) <- :ui (this
 // module) <- :app (Android) / :desktop-compose (desktop host). This module holds only Compose code:

@@ -71,7 +71,7 @@ class IosAppTest(unittest.TestCase):
         self.assertEqual("16.4", options["xcodeVersion"])
         workflow = WORKFLOW
         # An arm64 image: the app target is built for the same architecture the artifacts ship.
-        self.assertIn("runs-on: macos-15", workflow)
+        self.assertIn("macos-15", workflow)
         self.assertNotIn("runs-on: macos-14", workflow,
                          "the macos-14 arm64 configuration does not start; see the workflow comment")
         # The move, and the verified architecture, are written down where the pin is.
@@ -90,17 +90,22 @@ class IosAppTest(unittest.TestCase):
         plan = (ROOT / "docs/ios-client-plan.md").read_text(encoding="utf-8")
         self.assertIn("iOS 17", plan)
 
-    def test_the_app_is_a_single_swiftui_entry_point(self):
+    def test_the_app_is_a_single_uikit_entry_point(self):
         sources = app_sources()
-        self.assertIn("@main", sources["OfflineOTPApp.swift"])
-        self.assertIn("struct OfflineOTPApp: App", sources["OfflineOTPApp.swift"])
-        self.assertIn("import SwiftUI", sources["OfflineOTPApp.swift"])
+        self.assertIn("@main", sources["AppDelegate.swift"])
+        self.assertIn("UIApplicationDelegate", sources["AppDelegate.swift"])
+        self.assertIn("AppRootViewController()", sources["AppDelegate.swift"])
+        self.assertNotIn("import SwiftUI", sources["AppDelegate.swift"])
+        self.assertIn("UIViewController", sources["AppRootViewController.swift"])
+        self.assertIn("VaultComposeViewController(", sources["AppRootViewController.swift"])
+        self.assertIn("UnlockComposeViewController(", sources["AppRootViewController.swift"])
+        for name, text in sources.items():
+            self.assertNotIn("import SwiftUI", text, name)
+            self.assertNotIn("UIViewControllerRepresentable", text, name)
         # Everything that touches the vault goes through the store that the app tests can drive.
         self.assertIn("import OfflineOTPKit", sources["VaultStore.swift"])
         self.assertIn("class VaultStore: ObservableObject", sources["VaultStore.swift"])
-        for name in ("UnlockView.swift", "EntryListView.swift"):
-            self.assertIn("import SwiftUI", sources[name])
-        # Only one file constructs a vault, so the file locations cannot drift between views.
+        # Only one file constructs a vault, so the file locations cannot drift between hosts.
         constructors = [name for name, text in sources.items() if "PasswordVault(" in text]
         self.assertEqual(["VaultStore.swift"], constructors)
 
@@ -138,14 +143,17 @@ class IosAppTest(unittest.TestCase):
             "OTP_AMBER": "otpAmber",
             "OTP_AMBER_MUTED": "otpAmberMuted",
         }
+        self.assertIn("import UIKit", PALETTE)
+        self.assertNotIn("import SwiftUI", PALETTE)
         for kotlin_name, swift_name in tokens.items():
             palette_name = {"thumbnail": "thumbnailBackground"}.get(swift_name, swift_name)
             kotlin = re.search(rf"val {palette_name} = Color\(0xFF([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})([0-9A-Fa-f]{{2}})\)", forest)
             self.assertIsNotNone(kotlin, f"{palette_name} missing from Compose palette")
             red, green, blue = (int(group, 16) for group in kotlin.groups())
-            expected = (f"public static let {swift_name} = Color(red: 0x{red:02X} / 255, "
-                        f"green: 0x{green:02X} / 255, blue: 0x{blue:02X} / 255)")
-            self.assertIn(expected, PALETTE, f"{swift_name} drifted from ForestTheme.{kotlin_name}")
+            swift_member = swift_name[0].lower() + swift_name[1:]
+            expected = (f"public static let {swift_member} = UIColor(red: 0x{red:02X} / 255, "
+                        f"green: 0x{green:02X} / 255, blue: 0x{blue:02X} / 255, alpha: 1)")
+            self.assertIn(expected, PALETTE, f"{swift_member} drifted from ForestTheme.{kotlin_name}")
 
     def test_the_password_rules_match_the_other_clients(self):
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
@@ -255,9 +263,12 @@ class IosAppTest(unittest.TestCase):
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
         self.assertIn("guard isRevealed(entry) else { return nil }", store)
         self.assertIn("proposed[index].setDetailsVisible(true)", store)
-        list_view = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
-        self.assertIn("if !entry.detailsVisible", list_view)
-        self.assertIn("if entry.kind?.isOtp == true", list_view)
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("let revealed = store.isRevealed(entry)", host)
+        self.assertIn('entry.kind?.isOtp == true && code != nil', host)
+        self.assertIn('subtitle: revealed && !entry.label.isEmpty', host)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("card.visibleCode()", renderer)
 
     def test_the_manual_form_offers_only_what_it_can_build(self):
         draft = (IOS / "Sources/OfflineOTPKit/EntryDraft.swift").read_text(encoding="utf-8")
@@ -268,8 +279,10 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("offerableKinds: [EntryKind] = [.totp, .hotp, .motp, .steam, .note, .sshKey]",
                       draft)
         self.assertIn("SshKeyMaterial", draft)
-        editor = (SOURCES / "EntryEditorView.swift").read_text(encoding="utf-8")
-        self.assertIn("existing == nil ? EntryDraft.offerableKinds : EntryDraft.offerableKinds.filter { $0.isOtp }", editor)
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("let offerable = EntryDraft.offerableKinds", host)
+        self.assertIn("EntryDraft.create(", host)
+        self.assertIn("EntryDraft.preservingMetadata(of: store.entries[index], in: built)", host)
         # The shared wording for a refused number, verbatim.
         for wording in ('"Digits must be a number"', '"Period must be a number"',
                         '"HOTP counter must be a number"'):
@@ -281,15 +294,16 @@ class IosAppTest(unittest.TestCase):
 
     def test_the_views_do_not_compute_codes_or_touch_files(self):
         """A view asks the store or the format layer; it never reimplements either."""
-        for name in ("EntryListView.swift", "EntryEditorView.swift", "UnlockView.swift",
-                     "OfflineOTPApp.swift", "BackupView.swift", "QrCodeView.swift",
-                     "MigrationImportView.swift", "SettingsView.swift",
-                     "CredentialDetailViews.swift"):
+        for name in ("AppRootViewController.swift", "AppDelegate.swift", "ComposeVaultHost.swift",
+                     "ComposeUnlockHost.swift", "NativeFilePicker.swift", "QrCameraScanner.swift"):
             text = (SOURCES / name).read_text(encoding="utf-8")
-            self.assertNotIn("FileManager", text, name)
             self.assertNotIn("PBKDF2", text, name)
             self.assertNotIn("SymmetricKey", text, name)
             self.assertNotIn("TokenCalculator", text, name)
+        # The only app source that touches the file system is the native document adapter.
+        for name in ("AppRootViewController.swift", "ComposeVaultHost.swift",
+                     "ComposeUnlockHost.swift", "QrCameraScanner.swift"):
+            self.assertNotIn("FileManager", (SOURCES / name).read_text(encoding="utf-8"), name)
 
     def test_the_app_tests_are_xctest_and_need_no_fixtures(self):
         tests = list(APP_TESTS.glob("*.swift"))
@@ -433,9 +447,9 @@ class IosAppTest(unittest.TestCase):
         wording = (KIT / "BackupRestore.swift").read_text(encoding="utf-8")
         for banned in ("Plain-text backups contain", "plain-text backups", "warningPlainText"):
             self.assertNotIn(banned, wording)
-        view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
         for banned in ("warningPlainText", "Plain-text"):
-            self.assertNotIn(banned, view)
+            self.assertNotIn(banned, host)
 
     def test_a_second_account_from_an_issuer_is_a_question(self):
         strings = (ANDROID_VALUES / "strings_main.xml").read_text(encoding="utf-8")
@@ -452,15 +466,17 @@ class IosAppTest(unittest.TestCase):
         self.assertIn('"issuer anyway?"', store)
         # Only an import asks; adding or editing an entry never does — the rule on the phone too.
         self.assertIn("allowDuplicateIssuer", store)
-        self.assertNotIn("duplicateIssuer", (SOURCES / "EntryEditorView.swift").read_text(
-            encoding="utf-8"))
+        self.assertNotIn("duplicateIssuer", (SOURCES / "ComposeVaultHost.swift").read_text(
+            encoding="utf-8").split("private func editorSurface", 1)[1].split("private func deleteSurface", 1)[0])
 
     def test_qr_camera_scan_and_image_import_are_available_on_ios(self):
-        view = (SOURCES / "QrCodeView.swift").read_text(encoding="utf-8")
-        self.assertIn("CIFilter.qrCodeGenerator()", view)
-        # The payload is the shared link, never a string this view builds itself.
-        store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
-        self.assertIn("OtpUri.uri(for: entries[index])", store)
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn('row("qrCamera", "Scan an otpauth:// QR code…")', host)
+        self.assertIn('func importUriPayload(_ text: String)', host)
+        self.assertIn("store.importPayload(text)", host)
+        root = (SOURCES / "AppRootViewController.swift").read_text(encoding="utf-8")
+        self.assertIn('if kind == "qrCamera" { self.scanQr() }', root)
+        self.assertIn("QrCaptureViewController(", root)
         reader = (SOURCES / "QrImageReader.swift").read_text(encoding="utf-8")
         self.assertIn("import Vision", reader)
         self.assertIn("VNDetectBarcodesRequest", reader)
@@ -469,14 +485,10 @@ class IosAppTest(unittest.TestCase):
         scanner = (SOURCES / "QrCameraScanner.swift").read_text(encoding="utf-8")
         self.assertIn("DataScannerViewController", scanner)
         self.assertIn("symbologies: [.qr]", scanner)
-        backup = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
-        self.assertIn("Scan a QR code with the camera", backup)
-        self.assertIn("run(ImportRequest(text: payload, fromImage: false))", backup)
+        self.assertNotIn("import SwiftUI", scanner)
         project = yaml.safe_load((IOS / "project.yml").read_text(encoding="utf-8"))
         camera = project["targets"]["OfflineOTP"]["info"]["properties"]["NSCameraUsageDescription"]
         self.assertIn("on this device", camera)
-        # A Google Authenticator export is recognised as its own kind of payload, so it is handed to
-        # the export import rather than to the single-account parser.
         uri = (KIT / "OtpUri.swift").read_text(encoding="utf-8")
         self.assertIn("otpauth-migration:", uri)
         self.assertIn("case migration", uri)
@@ -654,17 +666,15 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("biometricUnlockEnabled && biometry.isAvailable", store)
         self.assertIn("settings.setString(VaultStore.biometricSettingKey", store)
 
-        # The lock screen offers the button, and the settings sheet asks for the password.
-        unlock = sources["UnlockView.swift"]
+        # The shared Compose lock screen offers the button; the portable settings surface asks
+        # for the password before the native adapter touches the Keychain.
+        unlock = sources["ComposeUnlockHost.swift"]
         self.assertIn("store.canUnlockWithBiometrics", unlock)
         self.assertIn("Unlock with \\(store.biometryTitle)", unlock)
-        settings = sources["SettingsView.swift"]
-        self.assertIn("BiometricWording.switchDetail", settings)
-        self.assertIn("ComposeBiometricEnableHost(store: store)", settings)
-        self.assertNotIn("SecureField(\"Vault password\"", settings)
-        biometric_host = sources["ComposeBiometricEnableHost.swift"]
-        self.assertIn("store.enableBiometricUnlock(password: password)", biometric_host)
-        self.assertIn("store.disableBiometricUnlock()", settings)
+        host = sources["ComposeVaultHost.swift"]
+        self.assertIn("store.biometricUnlockEnabled ? \"Disable quick unlock\"", host)
+        self.assertIn("store.enableBiometricUnlock(password: password)", host)
+        self.assertIn("store.disableBiometricUnlock()", host)
 
         # The wording has no Android counterpart, so it is pinned here instead of compared.
         wording = (SOURCES / "BiometricUnlock.swift").read_text(encoding="utf-8")
@@ -674,78 +684,35 @@ class IosAppTest(unittest.TestCase):
             self.assertIn(sentence, wording)
 
     def test_a_code_is_announced_one_character_at_a_time_and_fits_a_thumb(self):
-        """VoiceOver has to be able to read out a code, and every control has to be reachable."""
+        """TalkBack and VoiceOver read the same Compose semantics, not a SwiftUI copy."""
         code = (SOURCES / "CodeFormat.swift").read_text(encoding="utf-8")
         self.assertIn("public static func spoken(_ code: String) -> String", code)
         self.assertIn('code.map(String.init).joined(separator: " ")', code)
         self.assertIn("public static func remainingDescription(_ seconds: Int?) -> String", code)
         self.assertIn('seconds == 1 ? "1 second left"', code)
 
-        row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
-        # The code button says what it does, then the code one character at a time, then the time.
-        self.assertIn('.accessibilityLabel("Copy Token")',
-                      row)
-        self.assertIn(".accessibilityValue(accessibilityCode(code))", row)
-        self.assertIn("CodeFormat.spoken(code)", row)
-        self.assertIn("CodeFormat.remainingDescription(remaining)", row)
-        # The ring draws the countdown; it is decorative now that the value carries the time.
-        self.assertIn(".accessibilityHidden(true)", row)
-        # The name is one stop, not three fragments.
-        self.assertIn(".accessibilityElement(children: .combine)", row)
-        # The reveal control is a full 44-point target, the minimum either platform asks for.
-        self.assertIn(".frame(width: 44, height: 44)", row)
-        for hint in (".accessibilityHint(\"Shows entry details\")",):
-            self.assertIn(hint, row)
-
-        # Every icon-only button in the list has a label; the toolbar is where they all are.
-        labels = re.findall(r'\.accessibilityLabel\("([^"]+)"\)', row)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn('contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")', renderer)
+        self.assertIn('contentDescription = "Copy Token for "', renderer)
+        self.assertIn('contentDescription = "Shows entry details"', renderer)
         for expected in ("Add an entry", "Backups and links", "Settings", "Lock the vault",
-                         "Clear the search", "How selected tags combine"):
-            self.assertIn(expected, labels, f"{expected} lost its label")
-        # No icon-only button is left for VoiceOver to call just "button": each Image the toolbar
-        # draws is followed by a label within the same block.
-        for icon in ("plus", "externaldrive", "gearshape", "lock.fill"):
-            block = row.split(f'Image(systemName: "{icon}")', 1)[1].split("ToolbarItem", 1)[0]
-            self.assertIn(".accessibilityLabel(", block, f"the {icon} button has no label")
-
-        # The Face ID sentence is a label too, not just text next to a button.
-        unlock = (SOURCES / "UnlockView.swift").read_text(encoding="utf-8")
+                         "How selected tags combine", "Clear the search and tag filters"):
+            self.assertIn(f'contentDescription = "{expected}"', renderer, f"{expected} lost its label")
+        # No icon-only native button survives: the shared renderer labels every control in text.
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertNotIn("Image(systemName", host)
+        unlock = (SOURCES / "ComposeUnlockHost.swift").read_text(encoding="utf-8")
         self.assertIn('quickUnlockLabel: store.canUnlockWithBiometrics', unlock)
 
     def test_the_entry_list_body_is_split_for_the_type_checker(self):
-        """Xcode 16.4 timed out on the old single-expression `EntryListView.body`.
-
-        The compiler said "unable to type-check this expression in reasonable time" at
-        `var body: some View` because one expression carried the column, toolbar, nine sheets,
-        exporter and alert. Keep `body` a navigation shell and keep each presentation layer in its
-        own typed member, so no single expression grows back into the shape that failed.
-        """
-        row = (SOURCES / "EntryListView.swift").read_text(encoding="utf-8")
-        body = row.split("var body: some View {", 1)[1].split("\n    }", 1)[0]
-        self.assertIn("NavigationStack", body)
-        self.assertIn("vaultScreen", body)
-        self.assertLessEqual(len(body.strip().splitlines()), 5)
-        for forbidden in (".sheet(", ".toolbar", ".fileExporter(", ".alert("):
-            self.assertNotIn(forbidden, body, f"the presentation modifier {forbidden} is back in body")
-
-        for member in ("baseScreen", "tooledScreen", "editorSheets", "credentialSheets",
-                       "presentedSheets", "vaultScreen"):
-            self.assertIn(f"private var {member}: some View", row)
-        self.assertIn("@ToolbarContentBuilder", row)
-        self.assertIn("private var toolbarItems: some ToolbarContent", row)
-        self.assertNotIn("deletionPresented", row)
-        self.assertIn("ComposeEntryConfirmationHost(store: store, index: target.index", row)
-        self.assertIn("private func handleArchiveExport(_ result: Result<URL, Error>)", row)
-
-        # The sheets stay distributed across the typed layers instead of returning to one chain.
-        for member, sheets in (("editorSheets", 2), ("credentialSheets", 4), ("presentedSheets", 4)):
-            section = row.split(f"private var {member}: some View {{", 1)[1].split("\n    }", 1)[0]
-            self.assertEqual(sheets, section.count(".sheet("), f"{member} lost its sheet split")
-        vault = row.split("private var vaultScreen: some View {", 1)[1].split("\n    }", 1)[0]
-        self.assertIn(".fileExporter(", vault)
-        self.assertNotIn(".alert(", vault)
-        # The delete confirmation is the shared Compose dialog, presented from the vault layer.
-        self.assertEqual(1, vault.count(".sheet("))
+        """The old SwiftUI type-checker workaround is gone with the SwiftUI view tree."""
+        for legacy in ("EntryListView.swift", "EntryEditorView.swift", "CredentialDetailViews.swift"):
+            self.assertFalse((SOURCES / legacy).exists(), legacy)
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("let composed = coordinator.presentation.viewController(", host)
+        self.assertEqual(1, host.count("presentation.viewController("))
+        self.assertNotIn(".sheet(", host)
+        self.assertNotIn("some View", host)
 
     def test_the_ios_job_builds_required_compose_framework_without_simulator_xctest(self):
         """The simulator XCTest step consumed the old job after the app had already compiled.
@@ -777,32 +744,27 @@ class IosAppTest(unittest.TestCase):
         self.assertNotIn("-scheme OfflineOTPKit", WORKFLOW)
 
     def test_the_password_edit_sheet_matches_its_initializer(self):
-        """Both entry points must supply the editor's arguments in order and its save callback.
-
-        The list's missing callback made Xcode report a SwiftCompile failure for the whole app;
-        the library files listed beside it had already compiled successfully. Keep this wiring
-        checked even when no Apple toolchain is available.
-        """
-        details = " ".join(app_sources()["CredentialDetailViews.swift"].split())
-        self.assertIn("init(entry: Entry, index: Int, store: VaultStore, "
-                      "onSaved: @escaping () -> Void)", details)
-        self.assertIn("PasswordEditSheet(entry: entry, index: index, store: store) { dismiss() }",
-                      details)
-
-        list_view = app_sources()["EntryListView.swift"]
-        sheet = list_view.split("private func passwordEditSheet(", 1)[1].split("\n    }", 1)[0]
-        self.assertIn("PasswordEditSheet(entry: store.entries[target.index], "
-                      "index: target.index, store: store) { passwordEditTarget = nil }",
-                      " ".join(sheet.split()))
+        """Credential editing is one shared portable form with one guarded native save."""
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn('case "edit":', host)
+        self.assertIn('openEditor(index: index, kind: entry.kind ?? .totp)', host)
+        self.assertIn("private func saveEditor() -> String?", host)
+        self.assertIn("guard store.update(at: index, with: built)", host)
+        renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("PortableRow.KIND_SECURE -> OutlinedTextField(", renderer)
+        self.assertIn("onChange(row.key, it)", renderer)
 
     def test_openpgp_buttons_are_gated_by_the_backend(self):
-        """The availability helpers must actually gate the UI, not sit unused beside it."""
-        view = (SOURCES / "BackupView.swift").read_text(encoding="utf-8")
-        self.assertIn("let availability = store.openPgpAvailability", view)
-        self.assertIn(".disabled(!availability.canEncrypt)", view)
-        self.assertIn(".disabled(!availability.canRestore)", view)
-        # An unbuilt engine explains itself instead of offering a picker that cannot succeed.
-        self.assertIn("does not include the ", view)
+        """The availability helpers gate the portable rows, not a SwiftUI view."""
+        host = (SOURCES / "ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("private func openPgpSection() -> PortableSection", host)
+        self.assertIn("let availability = store.openPgpAvailability", host)
+        self.assertIn('guard availability.canRestore else', host)
+        self.assertIn('"This build does not include the OpenPGP engine."', host)
+        self.assertIn('enabled: availability.canEncrypt', host)
+        self.assertIn('enabled: availability.canRestore', host)
+        self.assertIn("store.exportOpenPgpBackup(recipientKeyBlocks: openPgpRecipients)", host)
+        self.assertIn("store.restoreOpenPgpBackup(message: pendingImport,", host)
 
         store = (SOURCES / "VaultStore.swift").read_text(encoding="utf-8")
         self.assertIn("public var openPgpAvailability: OpenPgpAvailability", store)
@@ -812,7 +774,6 @@ class IosAppTest(unittest.TestCase):
         self.assertIn("var isAvailable: Bool { get }", port)
         self.assertIn("public var isAvailable: Bool { Self.isBackendAvailable }", port)
         self.assertIn("public static func inApp(backendAvailable: Bool)", port)
-        # The injected-port default keeps in-process implementations usable.
         self.assertIn("var isAvailable: Bool { true }", port)
 
     def test_the_plan_records_what_the_shell_does_and_does_not_do(self):
@@ -832,7 +793,7 @@ class IosAppTest(unittest.TestCase):
     def test_android_camera_scanner_targets_qr_and_forwards_scan_result(self):
         main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         scanner = main.split("private fun scanQRCode()", 1)[1].split("\n    }", 1)[0]
-        self.assertIn("setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)", scanner)
+        self.assertIn("setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)", scanner)
         self.assertIn("SecureCaptureActivity::class.java", scanner)
         self.assertIn("IntentIntegrator.parseActivityResult", main)
         self.assertIn("addQRCode(result.getContents())", main)

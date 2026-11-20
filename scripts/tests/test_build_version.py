@@ -62,9 +62,9 @@ class BuildVersionTest(unittest.TestCase):
         self.assertIn("stamp-ios-version.py", phase["script"])
         self.assertFalse(phase["basedOnDependencyAnalysis"])
         self.assertIn("$(TARGET_BUILD_DIR)/$(INFOPLIST_PATH)", phase["inputFiles"])
-        about = (ROOT / "ios/App/Sources/ComposeAboutHost.swift").read_text()
+        about = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
         self.assertIn('Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion")', about)
-        self.assertIn("presentation.viewController(version: version", about)
+        self.assertIn('row("build", "Build"', about)
 
     def test_actual_ios_timestamp_and_plist_round_trip(self):
         spec = importlib.util.spec_from_file_location("stamp_version", ROOT / "scripts/versioning/stamp-ios-version.py")
