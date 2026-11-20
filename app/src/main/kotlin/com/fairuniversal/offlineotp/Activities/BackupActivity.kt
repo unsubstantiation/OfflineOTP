@@ -28,7 +28,7 @@ import org.openintents.openpgp.util.OpenPgpApi
 import org.openintents.openpgp.util.OpenPgpServiceConnection
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.openpgp.RpgpOpenPgpPort
-import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
+import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialogHost
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.EncryptedBackupTask
@@ -93,7 +93,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var swReplace: SwitchMaterial? = null
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
-    private var activePasswordDialog: PasswordEntryDialog? = null
+    private var activePasswordDialog: PasswordEntryDialogHost? = null
     private var activeKeyFileDialog: AlertDialog? = null
     private val openPgpPort by lazy { RpgpOpenPgpPort() }
     private val keyFileBackendAvailable by lazy { openPgpPort.isBackendAvailable() }
@@ -907,13 +907,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         // Every file may have a different historical password, including after a password change.
         waitingForPassword = true
         activePasswordDialog?.dismiss()
-        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
+        val pwDialog = PasswordEntryDialogHost(this, PasswordEntryDialog.Mode.ENTER,
             settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-            PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
+            { newPassword ->
                 waitingForPassword = false
                 activePasswordDialog = null
                 doRestoreCryptWithPassword(uri, newPassword)
-            }, PasswordEntryDialog.PasswordCanceledCallback {
+            }, {
                 waitingForPassword = false
                 activePasswordDialog = null
                 discardActiveBackupDocument()
@@ -946,13 +946,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (password.isEmpty()) {
             waitingForPassword = true
             activePasswordDialog?.dismiss()
-            val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.UPDATE,
+            val pwDialog = PasswordEntryDialogHost(this, PasswordEntryDialog.Mode.UPDATE,
                 settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-                PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
+                { newPassword ->
                     waitingForPassword = false
                     activePasswordDialog = null
                     doBackupCryptWithPassword(uri, newPassword)
-                }, PasswordEntryDialog.PasswordCanceledCallback {
+                }, {
                     waitingForPassword = false
                     activePasswordDialog = null
                     discardActiveBackupDocument()
@@ -1073,13 +1073,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             waitingForPassword = false
             return
         }
-        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
+        val pwDialog = PasswordEntryDialogHost(this, PasswordEntryDialog.Mode.ENTER,
             settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-            PasswordEntryDialog.PasswordEnteredCallback { passphrase ->
+            { passphrase ->
                 waitingForPassword = false
                 activePasswordDialog = null
                 startKeyFileRestore(uri, secretFile, passphrase.toCharArray())
-            }, PasswordEntryDialog.PasswordCanceledCallback {
+            }, {
                 waitingForPassword = false
                 activePasswordDialog = null
                 clearActiveAction()
