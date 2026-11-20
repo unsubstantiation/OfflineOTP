@@ -41,7 +41,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
 
     def test_biometric_enrollment_keeps_native_verification_and_keychain(self):
         settings = SETTINGS.read_text(encoding="utf-8")
-        body = function_body(settings, "private fun promptBiometricEnrollment(", "\n        }\n")
+        body = function_body(settings, "private fun promptBiometricEnrollment(", "\n        }")
         self.assertIn("BiometricEnableComposeView(", body)
         self.assertIn("verifyVaultPassword(typed)", body)
         self.assertIn("BiometricKeyStore.save(fragmentActivity, vaultKey)", body)
