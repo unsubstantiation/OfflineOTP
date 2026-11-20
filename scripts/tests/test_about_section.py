@@ -71,14 +71,13 @@ class AboutSectionTest(unittest.TestCase):
         dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt").read_text()
         self.assertIn('verticalScroll(rememberScrollState())', dialog)
         self.assertIn('onOpenLink(link.url)', dialog)
-        swift = (ROOT / "ios/App/Sources/SettingsView.swift").read_text()
         for field in ("description", "copyright", "attribution", "links", "thumbnailDisclaimer"):
             self.assertIn("AboutInfo." + field, dialog)
-        self.assertIn('ComposeAboutHost { showingAbout = false }', swift)
-        self.assertNotIn('AboutInfo.', swift)
-        bridge = (ROOT / "ios/App/Sources/ComposeAboutHost.swift").read_text()
-        self.assertIn('presentation.viewController(', bridge)
-        self.assertIn('UIApplication.shared.open(url)', bridge)
+        swift = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text()
+        self.assertIn('case "about":', swift)
+        self.assertIn('row("aboutLink:website"', swift)
+        self.assertNotIn('AboutInfo.description', swift)
+        self.assertIn('UIApplication.shared.open(url', (ROOT / "ios/App/Sources/AppRootViewController.swift").read_text())
 
     def test_readme_and_docs_mention_about_copyright(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

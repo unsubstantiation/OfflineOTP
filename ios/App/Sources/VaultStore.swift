@@ -6,7 +6,7 @@ import OfflineOTPKit
 /// can perform — all fail-closed and all persisted before they are published.
 ///
 /// This is the only place in the app that touches the vault files. It is a plain `ObservableObject`
-/// driven from the main actor by SwiftUI actions, and it is used from the app's unit tests the same
+/// driven from the main actor by the UIKit/Compose adapter actions, and it is used from unit tests the same
 /// way, so the wiring — where the files live, what a wrong password says, what a save does, what a
 /// reveal or a counter step writes — is covered without a UI. Every rule the other clients apply
 /// (tabs, search, tag filter, the five orders, usage stamps, the counter ceiling) comes from

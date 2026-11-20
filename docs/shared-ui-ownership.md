@@ -15,9 +15,37 @@ colors help, but do not solve that duplication.
   MainActivity/controller still own session checks and native IO. No decoded entries or file bytes
   are added to reusable Compose forms.
 - Desktop Compose host: uses the same form components with desktop IO/controller adapters.
-- iOS: SwiftUI screens and Swift engine. Shared generated assets/contracts are present; Compose
-  screen sharing is **not implemented**. `ui/build.gradle` has only Android/JVM targets and depends
-  on `core`, so adding an `iosArm64()` declaration alone would not make this graph native-compatible.
+- iOS: the release vault screen, its cards and its dialogs are now rendered by Compose in
+  `:ui-foundation` and hosted from `ios/App/Sources/ComposeVaultHost.swift`. The Swift store remains
+  the session, storage and capability authority. The old SwiftUI screens were deleted from
+  `ios/App/Sources`; there is no selectable fallback. `:ui` still has only Android/JVM
+  targets and depends on JVM `core`; portable values live in `:ui-contract` and `:ui-foundation`,
+  which are native-compatible.
+
+## Full iOS cutover
+
+The last SwiftUI production screen was replaced by one shared Compose composition:
+
+- `:ui-contract` owns `PortableCard`, `PortableChip`, `PortableVaultState`, `PortableRow` and
+  `PortableSurfaceState`: strings, numbers and booleans only, with no engine, toolkit or host type.
+- `:ui-foundation` owns `PortableVaultScreen` and `PortableSurfaceDialog`. The first draws tabs,
+  search, tag chips, cards, empty state and toast; the second draws the editor, detail, sort,
+  settings, backup/transfer, restore, tags and QR dialogs from host-supplied sections.
+- `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
+  and `PortableSurfaceActions` to Swift. One main-thread composition survives frame replacement;
+  closing the host revokes every callback.
+- `AppDelegate.swift` installs `AppRootViewController`, which switches between
+  `UnlockComposeViewController` and `VaultComposeViewController`, supplies native document
+  pickers/camera/lifecycle adapters and owns the scene-privacy cover. Every action is re-checked
+  against the live `VaultStore` session, entry index/fields and generation before touching data.
+- The previous SwiftUI list, editor, credential/email sheets, backup, migration, LinSCP, QR,
+  settings, unlock and every `UIViewControllerRepresentable` wrapper were deleted. No SwiftUI
+  source is compiled into the app and no `excludes:` list is needed in `project.yml`.
+
+Validation here is source-level: the contract is compiled with no toolkit classpath, the shared
+Compose declarations compile against the sandbox stubs, and the frame/privacy rules have host-JVM
+tests. Kotlin/Native framework linking, Xcode compilation, simulator/device interaction,
+accessibility and visual comparison still need a Mac and are **not** established by this change.
 
 ## This increment
 
@@ -32,19 +60,31 @@ failed read keeps only source bytes for explicit retry, not the entered password
 transition to selection revokes and disposes the read request without dismissing the new request.
 Tests prevent reintroducing the native Android prompt and exercise callback/cleanup behavior.
 
+## Android shared dialog hosts
+
+`ui/src/androidMain/.../host/ComposeDialogViews.kt` now provides two Android hosts for forms that
+already render in the desktop and iOS clients: `BiometricEnableComposeView` and
+`DeleteConfirmationComposeView`. Each extends `AbstractComposeView`, wraps the shared form in
+`ForestTheme`, and uses `DisposeOnDetachedFromWindow`. They attach an invisible composition to the
+Activity decor rather than nesting another Android `Dialog`: the shared Material 3 `AlertDialog`
+already owns its platform window. `show()`/`dismiss()` are the only native lifecycle commands. The
+app keeps only capability adapters: `SettingsActivity` still verifies the password and calls
+`BiometricKeyStore.save`; `EntryActionDialogs` tracks the hosts for lock dismissal and calls back
+into the controller, which re-resolves the entry before deleting it. No password, key or entry is
+retained in the Compose views.
+
+The native password `EditText` builders and the native delete `AlertDialog.Builder` are gone from
+those paths, so there is one production form for each on Android and desktop. The main unlock
+Activity still uses its native autofill/biometric/hardware-key adapter; it was not changed here.
+
 ## Next work in dependency order
 
-1. Move remaining Android ordinary import/backup/settings dialogs onto existing shared forms,
-   with request-ownership/disposal adapters. Keep platform authentication prompts native.
-2. Extract presentation DTOs, UI capabilities, validation results, labels and bounded numeric
-   rules from JVM `Entry`/utility dependencies into a truly platform-neutral module. Keep crypto,
-   filesystem, Java APIs and session authority outside its exported API. Migrate one screen and
-   compile Android/JVM/iOS targets before expanding the boundary.
-3. Pilot a shared Compose screen hosted by iOS, bridged to the existing Swift store through that
-   neutral API. Validate native navigation, keyboard, accessibility, privacy and lifecycle before
-   deleting the SwiftUI counterpart. Do not retain two selectable production versions indefinitely.
-4. Expand shared navigation/settings once the pilot works. Shared screens must be the release
-   path, not an unused alternative. Keep capability-driven adapters for OS-specific features.
+1. Move the remaining Android ordinary import/backup/settings dialogs (including the main unlock
+   Activity's autofill-aware prompt) onto shared forms, keeping each native capability adapter.
+2. Extend the portable DTO boundary so the richer `:ui` vault renderer can replace the simplified
+   `:ui-foundation` renderer used by iOS without importing JVM `Entry` types into native targets.
+3. Expand shared navigation/settings once each migrated surface is the release path, not an unused
+   alternative. Keep capability-driven adapters for OS-specific features.
 
 Each migrated screen must have host wiring, failure/cancellation/session tests, and deletion or
 explicit retirement of its old implementation. Do not claim all-build UI sharing until native
@@ -64,12 +104,11 @@ implement authentication, biometrics, vault creation, foreground/background priv
 native file access. Those remain host responsibilities.
 
 The authentication integration now requires that framework in `ios/project.yml`. Build it on a
-Mac with `scripts/ios/build-compose-framework.sh` before XcodeGen. `UnlockView.swift` hosts
-Compose through a lifecycle adapter, including create/confirmation and biometric actions; its
-SwiftUI field/button layout was removed. RootView's inactive-scene cover and VaultStore's key/
-biometric logic remain in place. The **rest of the release UI is still SwiftUI** and must be
-migrated separately. No native framework/Xcode build was run in the Linux sandbox, so this wiring
-is not yet native-validated. Gate it on password unlock, first-run creation, biometric access,
+Mac with `scripts/ios/build-compose-framework.sh` before XcodeGen. `ComposeUnlockHost.swift` hosts
+the shared `UnlockScreen` through a UIKit adapter, including create/confirmation and biometric
+actions. `AppRootViewController`'s inactive-scene cover and VaultStore's key/biometric logic remain
+in place. The whole release UI now uses shared Compose; no SwiftUI screen remains. No native
+framework/Xcode build was run in the Linux sandbox, so this wiring is not yet native-validated. Gate it on password unlock, first-run creation, biometric access,
 lock/close during authentication, rotation, keyboard, VoiceOver and privacy snapshots.
 
 The sandbox independently compiles foundation common sources **without core/model classes** before
@@ -81,14 +120,14 @@ the new dependency boundary, not Kotlin/Native ABI correctness or actual Compose
 The existing desktop `AboutDialog`, `AboutContent` and `AboutNavigation` now live in
 `:ui-foundation`, with their generated `AboutInfo` catalogue. Desktop uses the same declarations
 through `:ui`'s transitive API; Android's native About/library integration still reads the common
-catalogue. iOS Settings opens `AboutPresentation` through a UIKit adapter. The SwiftUI content list
-and generated Swift catalogue were removed, rather than left as a fallback. Version lookup,
+catalogue. iOS Settings opens the shared About surface through `VaultCoordinator`. The SwiftUI content list
+was removed; only the generated Swift link-ID catalogue remains, rather than a fallback view. Version lookup,
 explicit external-link opening and sheet dismissal are native adapters. Cryptography/network
 information previously shown only in iOS is retained in the common layout.
 
 This requires rebuilding the Compose XCFramework before XcodeGen/Xcode. Native linking, VoiceOver,
 sheet dismissal and external-link behavior still need Mac/simulator/device validation. The
-remaining settings sections and vault screens are still SwiftUI; this is not the full cutover.
+settings and vault screens are now shared Compose surfaces, with no SwiftUI fallback.
 
 ## Auto-lock settings migration
 

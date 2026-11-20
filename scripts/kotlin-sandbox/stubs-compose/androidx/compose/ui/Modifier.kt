@@ -4,3 +4,5 @@ package androidx.compose.ui
 interface Modifier {
     companion object : Modifier
 }
+
+fun Modifier.then(other: Modifier): Modifier = this

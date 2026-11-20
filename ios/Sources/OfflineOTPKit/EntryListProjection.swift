@@ -31,7 +31,7 @@ public enum EntryCategory: String, CaseIterable, Equatable {
         switch self {
         case .otp: return "OTP"
         case .notes: return "Notes"
-        case .sshKeys: return "SSH Keys"
+        case .sshKeys: return "Keys"
         case .passwords: return "Passwords"
         case .emails: return "Email"
         }

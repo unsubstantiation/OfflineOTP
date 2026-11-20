@@ -1,47 +1,30 @@
-import SwiftUI
+import UIKit
 import VisionKit
 import Vision
 
-/// Live QR-only camera reader. VisionKit provides the camera lifecycle/permission UI; the scanned
-/// bytes are passed unchanged to the same offline OTP/migration parser as image imports.
-struct QrCameraScanner: UIViewControllerRepresentable {
-    let onPayload: (String) -> Void
-    let onUnavailable: () -> Void
+/// Live QR-only camera reader. VisionKit supplies the camera lifecycle and permission UI; the
+/// scanned payload goes unchanged to the same offline OTP/migration parser as image imports.
+/// This is a native capability adapter, not a UI surface the shared Compose renderer draws.
+final class QrCaptureViewController: UIViewController {
+    private let onPayload: (String) -> Void
+    private let onUnavailable: () -> Void
+    private var scanner: DataScannerViewController?
+    private var delivered = false
 
-    final class Coordinator: NSObject, DataScannerViewControllerDelegate {
-        private let onPayload: (String) -> Void
-        private let onUnavailable: () -> Void
-        private var delivered = false
-
-        func reportUnavailable() { onUnavailable() }
-
-        init(onPayload: @escaping (String) -> Void, onUnavailable: @escaping () -> Void) {
-            self.onPayload = onPayload
-            self.onUnavailable = onUnavailable
-        }
-
-        func dataScanner(_ dataScanner: DataScannerViewController,
-                         didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
-            guard !delivered else { return }
-            for item in addedItems {
-                if case .barcode(let barcode) = item, let payload = barcode.payloadStringValue,
-                   !payload.isEmpty {
-                    delivered = true
-                    dataScanner.stopScanning()
-                    onPayload(payload)
-                    return
-                }
-            }
-        }
+    init(onPayload: @escaping (String) -> Void, onUnavailable: @escaping () -> Void) {
+        self.onPayload = onPayload
+        self.onUnavailable = onUnavailable
+        super.init(nibName: nil, bundle: nil)
     }
 
-    func makeCoordinator() -> Coordinator { Coordinator(onPayload: onPayload, onUnavailable: onUnavailable) }
+    required init?(coder: NSCoder) { fatalError("use init(onPayload:onUnavailable:)") }
 
-    func makeUIViewController(context: Context) -> UIViewController {
+    override func loadView() {
         guard DataScannerViewController.isSupported, DataScannerViewController.isAvailable else {
-            let controller = UIViewController()
-DispatchQueue.main.async { context.coordinator.reportUnavailable() }
-            return controller
+            view = UIView(frame: UIScreen.main.bounds)
+            view.backgroundColor = ForestPalette.background
+            DispatchQueue.main.async { self.onUnavailable() }
+            return
         }
         let scanner = DataScannerViewController(
             recognizedDataTypes: [.barcode(symbologies: [.qr])],
@@ -51,14 +34,37 @@ DispatchQueue.main.async { context.coordinator.reportUnavailable() }
             isPinchToZoomEnabled: true,
             isGuidanceEnabled: true,
             isHighlightingEnabled: true)
-        scanner.delegate = context.coordinator
-        do { try scanner.startScanning() }
-        catch { DispatchQueue.main.async { context.coordinator.reportUnavailable() } }
-        return scanner
+        scanner.delegate = self
+        self.scanner = scanner
+        view = scanner.view
+        addChild(scanner)
+        scanner.didMove(toParent: self)
+        do {
+            try scanner.startScanning()
+        } catch {
+            DispatchQueue.main.async { self.onUnavailable() }
+        }
     }
 
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
-    static func dismantleUIViewController(_ controller: UIViewController, coordinator: Coordinator) {
-        (controller as? DataScannerViewController)?.stopScanning()
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        scanner?.stopScanning()
+    }
+}
+
+extension QrCaptureViewController: DataScannerViewControllerDelegate {
+    func dataScanner(_ dataScanner: DataScannerViewController,
+                     didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
+        guard !delivered else { return }
+        for item in addedItems {
+            if case .barcode(let barcode) = item, let payload = barcode.payloadStringValue,
+               !payload.isEmpty {
+                delivered = true
+                dataScanner.stopScanning()
+                dismiss(animated: true)
+                onPayload(payload)
+                return
+            }
+        }
     }
 }

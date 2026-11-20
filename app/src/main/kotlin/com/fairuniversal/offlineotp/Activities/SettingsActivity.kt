@@ -55,6 +55,8 @@ import com.fairuniversal.offlineotp.Utilities.UIHelper
 import com.fairuniversal.offlineotp.Utilities.VaultCommitDecision
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
+import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 
 import java.util.Arrays
 import java.util.function.BooleanSupplier
@@ -78,7 +80,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     private var clearingKeyStore = false
 
     private var inProgress: AlertDialog? = null
+    private var biometricPrompt: ComposeDialogHost? = null
     private var canGoBack = true
+
+    private fun dismissBiometricPrompt() {
+        biometricPrompt?.dismiss()
+        biometricPrompt = null
+    }
 
     private companion object {
         const val STATE_AUTH_GENERATION = "settings_auth_generation"
@@ -211,6 +219,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     override fun onVaultLocked() {
         if (clearingKeyStore) return
+        dismissBiometricPrompt()
         encryptionKey = null
         fragment?.setEncryptionKey(null)
         cancelBackgroundTask()
@@ -604,6 +613,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     override fun onDestroy() {
         inProgress?.dismiss()
         inProgress = null
+        dismissBiometricPrompt()
         prefs?.unregisterOnSharedPreferenceChangeListener(this)
         encryptionKey = null
         fragment?.setEncryptionKey(null)
@@ -959,67 +969,81 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         private fun promptBiometricEnrollment(pref: CheckBoxPreference, host: SettingsActivity) {
             val ctx = getActivity() ?: return
-            val passwordInput = android.widget.EditText(ctx).apply {
-                isSaveEnabled = false
-                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
-                hint = getString(R.string.settings_hint_password)
-            }
-            val dialog = AlertDialog.Builder(ctx)
-                .setTitle(R.string.settings_title_biometric)
-                .setMessage(R.string.settings_dialog_biometric_enable)
-                .setView(passwordInput)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    val typed = passwordInput.text?.toString() ?: ""
-                    passwordInput.setText("")
+            val wrongPassword = getString(R.string.settings_toast_biometric_wrong_password)
+            val saveFailed = getString(R.string.settings_toast_biometric_save_failed)
+
+            // One shared Compose form for this password prompt on every client. Android keeps the
+            // Dialog window, the PBKDF2 verifier and the biometric/keychain write; the form keeps
+            // no password after confirmation and renders the same error handling as iOS/desktop.
+            val view = BiometricEnableComposeView(
+                activity = ctx,
+                title = getString(R.string.settings_title_biometric),
+                detail = getString(R.string.settings_dialog_biometric_enable),
+                passwordLabel = getString(R.string.settings_hint_password),
+                confirmLabel = getString(android.R.string.ok),
+                cancelLabel = getString(android.R.string.cancel),
+                onConfirm = { typed ->
                     if (typed.isEmpty()) {
-                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
-                        return@setPositiveButton
-                    }
-                    // Verify the typed password against the stored verifier (PBKDF2 split).
-                    val verified = try {
-                        verifyVaultPassword(typed)
-                    } catch (_: Exception) { false }
-                    if (!verified) {
-                        Toast.makeText(ctx, R.string.settings_toast_biometric_wrong_password, Toast.LENGTH_LONG).show()
-                        return@setPositiveButton
-                    }
-                    // Use the live vault key — the password matched, and the GCM tag is the real gate.
-                    val vaultKey = com.fairuniversal.offlineotp.Utilities.VaultSession.getKey()?.encoded?.clone()
-                    if (vaultKey == null || vaultKey.isEmpty()) {
-                        Toast.makeText(ctx, R.string.settings_toast_biometric_save_failed, Toast.LENGTH_LONG).show()
-                        return@setPositiveButton
-                    }
-                    try {
-                        // FragmentActivity required for BiometricPrompt.
-                        val fragmentActivity = host as androidx.fragment.app.FragmentActivity
-                        BiometricKeyStore.save(fragmentActivity, vaultKey) { success, error ->
-                            // Wipe copy of vault key after the store copies it.
-                            try { vaultKey.fill(0) } catch (_: Exception) { }
-                            if (success) {
-                                pref.isChecked = true
-                                Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on, Toast.LENGTH_SHORT).show()
+                        wrongPassword
+                    } else {
+                        val verified = try {
+                            verifyVaultPassword(typed)
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (!verified) {
+                            wrongPassword
+                        } else {
+                            // Use the live vault key — the password matched, and the GCM tag is
+                            // the real gate. Keep the Android keychain adapter in the host.
+                            val vaultKey = VaultSession.getKey()?.encoded?.clone()
+                            if (vaultKey == null || vaultKey.isEmpty()) {
+                                saveFailed
                             } else {
-                                pref.isChecked = false
-                                val msg = when (error) {
-                                    BiometricKeyStore.BiometricError.NOT_ENROLLED -> getString(R.string.settings_toast_biometric_not_enrolled)
-                                    BiometricKeyStore.BiometricError.UNAVAILABLE -> getString(R.string.settings_toast_biometric_unavailable)
-                                    BiometricKeyStore.BiometricError.LOCKED_OUT -> getString(R.string.settings_toast_biometric_locked_out)
-                                    BiometricKeyStore.BiometricError.CANCELLED -> getString(R.string.settings_toast_biometric_cancelled)
-                                    else -> getString(R.string.settings_toast_biometric_save_failed)
+                                val fragmentActivity = host as? androidx.fragment.app.FragmentActivity
+                                if (fragmentActivity == null) {
+                                    try { vaultKey.fill(0) } catch (_: Exception) { }
+                                    saveFailed
+                                } else {
+                                    try {
+                                        BiometricKeyStore.save(fragmentActivity, vaultKey) { success, error ->
+                                            // Wipe the copy after the store has copied it.
+                                            try { vaultKey.fill(0) } catch (_: Exception) { }
+                                            if (success) {
+                                                pref.isChecked = true
+                                                Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on,
+                                                    Toast.LENGTH_SHORT).show()
+                                                dismissBiometricPrompt()
+                                            } else {
+                                                pref.isChecked = false
+                                                val msg = when (error) {
+                                                    BiometricKeyStore.BiometricError.NOT_ENROLLED ->
+                                                        getString(R.string.settings_toast_biometric_not_enrolled)
+                                                    BiometricKeyStore.BiometricError.UNAVAILABLE ->
+                                                        getString(R.string.settings_toast_biometric_unavailable)
+                                                    BiometricKeyStore.BiometricError.LOCKED_OUT ->
+                                                        getString(R.string.settings_toast_biometric_locked_out)
+                                                    BiometricKeyStore.BiometricError.CANCELLED ->
+                                                        getString(R.string.settings_toast_biometric_cancelled)
+                                                    else -> saveFailed
+                                                }
+                                                Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                        null
+                                    } catch (_: Exception) {
+                                        try { vaultKey.fill(0) } catch (_: Exception) { }
+                                        saveFailed
+                                    }
                                 }
-                                Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
                             }
                         }
-                    } catch (_: Exception) {
-                        try { vaultKey.fill(0) } catch (_: Exception) { }
-                        Toast.makeText(ctx, R.string.settings_toast_biometric_save_failed, Toast.LENGTH_LONG).show()
                     }
-                }
-                .setNegativeButton(android.R.string.cancel) { _, _ -> passwordInput.setText("") }
-                .create()
-            dialog.setOnDismissListener { passwordInput.setText("") }
-            dialog.show()
+                },
+                onDismiss = { dismissBiometricPrompt() }
+            )
+            biometricPrompt = view
+            view.show()
         }
 
         private fun verifyVaultPassword(plainPassword: String): Boolean {

@@ -5,12 +5,14 @@ Two things live here:
 1. **`OfflineOTPKit`** — a Swift package with the parts of an iOS client that must agree with the
    Android app and the desktop client byte for byte: the encrypted vault, the encrypted backup, the
    entry document and the one-time password maths.
-2. **`App/`** — a SwiftUI app that uses the package: unlock or create a vault, five tabs, a live
-   search, the tag filter and the five orders, reveal an entry, generate its code, copy it with an
-   expiry, step an HOTP counter, add, edit and delete entries, write and restore backups, import an
-   `otpauth://` link or a QR image, show an entry as a QR code, unlock with Face ID, lock. The remaining
-   milestones are in
-   [the plan](../docs/ios-client-plan.md).
+2. **`App/`** — a native host for the shared Compose UI in `:ui-foundation`. It unlocks or creates a
+   vault, shows the same five tabs, live search, tag filter and five orders as the other clients,
+   reveals entries, copies expiring tokens, steps an HOTP counter, edits and deletes entries, writes
+   and restores backups, imports an `otpauth://` link or QR image, shows an entry as a QR code,
+   unlocks with Face ID and locks. `AppDelegate` and `AppRootViewController` own lifecycle and the
+   scene-privacy cover; `NativeFilePicker`, `QrCaptureViewController`, `VaultStore`, Keychain and
+   clipboard are native adapters. There is no SwiftUI production source left in `App/Sources`. See
+   [the shared UI boundary](../docs/shared-ui-ownership.md).
 
 Nothing in this directory is shared code; `:core` is JVM-only. What is shared is the *format*, and it
 is verified against the fixed vectors in `desktop/src/test/resources/golden/`, which the Android and
@@ -71,15 +73,16 @@ checksum file or log artifact. Diagnostics appear as run annotations only when t
 ## What is inside the .ipa, and why it is small
 
 The unsigned `.ipa` is about **2.5 MB**, which is easy to misread as a partial build. It is one
-arm64 Release slice of a SwiftUI app with no bundled media:
+arm64 Release slice of a Compose-hosted app with no bundled media:
 
 - **No JVM and no runtime to carry.** The desktop zip embeds a Java runtime; iOS already ships the
   Swift runtime, so the app embeds no frameworks at all.
-- **No images, fonts or storyboards.** The UI is SwiftUI with SF Symbols. The issuer logo *names*
-  are stored for the other clients (`ThumbnailCatalog`), but this client draws no logos.
+- **No images, fonts or storyboards.** The UI is Compose (with the generated Dark Forest theme).
+  The issuer logo *names* are stored for the other clients (`ThumbnailCatalog`), but this client
+  draws letter tiles.
 - **One architecture, optimized.** `ARCHS=arm64`, Release, dead-stripped — not the fat Debug build
   the old simulator artifact was (4.4 MB zipped, which is where the size comparison came from).
-- **What is there:** the app executable (SwiftUI screens + OfflineOTPKit + the statically linked
+- **What is there:** the app executable (Compose screens + OfflineOTPKit + the statically linked
   Rust OpenPGP backend), `Info.plist`, `PkgInfo`, and `Assets.car` with the app icon.
 
 Because a size on its own proves nothing, the packaging step runs
@@ -170,12 +173,16 @@ implementations, so a `.json.gpg` backup cannot be read portably.
 
 The unlock/create form is now provided by the required `OfflineOTPPresentation` Compose
 XCFramework. Build it with the script above **before** XcodeGen or xcodebuild. Missing framework
-artifacts are a build error; there is no SwiftUI password-form fallback. The framework is generated
-and ignored, not committed. `UnlockView.swift` is only a lifecycle/store adapter.
+artifacts are a build error; there is no SwiftUI form fallback. The framework is generated
+and ignored, not committed. `ComposeUnlockHost.swift` is only an authentication/store adapter.
 
-About now also uses the shared Compose dialog, hosted by `ComposeAboutHost.swift`; it no longer
-has a Swift content catalogue/layout. Rebuild the framework after updating this code.
+About, settings, backup/transfer, the editor, credential detail and QR surfaces are rows and
+sections rendered by the one shared `PortableSurfaceDialog`; only the fixed link IDs stay in Swift
+(`AboutInfo.swift`, generated from `shared/about/content.json`). Rebuild the framework after
+updating shared Compose code.
 
-The app shell and unlocked vault screens still use SwiftUI during migration. They must not be
-reported as migrated yet. Password creation, password failures/retry, Face ID/Touch ID, foreground
-privacy covering, keyboard/VoiceOver and rotation require native simulator/device validation.
+The unlocked vault is rendered by one shared Compose composition hosted from
+`ComposeVaultHost.swift`; the lock screen is the shared `UnlockScreen` hosted from
+`ComposeUnlockHost.swift`. Native simulator/device validation of keyboard, VoiceOver, rotation,
+privacy covering and the Kotlin/Native framework is still required; source gates cannot establish
+those results.

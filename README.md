@@ -18,8 +18,14 @@ complete release-matrix validation or feature parity**. See the
 Swing has been removed, including its fallback tasks, dialogs and table renderer.
 Do not run multiple clients against the same vault simultaneously.
 Keep an encrypted backup before testing a new build. Android MainActivity uses the shared
-Compose cards while retaining Activity chrome and dialogs. Remaining feature gaps and validation
-work are tracked in the [Compose UI plan](docs/compose-unified-ui-plan.md).
+Compose cards while retaining Activity chrome and dialogs. On iOS the whole unlocked vault and its
+dialogs are now rendered by the shared Compose `OfflineOTPPresentation` framework, hosted through
+`AppDelegate` → `AppRootViewController` → `VaultComposeViewController` / `UnlockComposeViewController`.
+The SwiftUI production views were deleted, not merely excluded from the target. Native file pickers,
+keychain/biometrics, camera, clipboard, lifecycle and privacy covering remain platform adapters.
+Remaining feature gaps and validation work are tracked in the
+[Compose UI plan](docs/compose-unified-ui-plan.md) and the
+[shared UI boundary](docs/shared-ui-ownership.md).
 
 The Android application ID, namespace, and Kotlin/Java packages use `com.fairuniversal.offlineotp` (debug `com.fairuniversal.offlineotp.dev`), so OfflineOTP installs **alongside** the upstream andOTP app instead of being detected as its update. Updating an existing OfflineOTP installation still requires the same signing key, and it does not collide with andOTP.
 
@@ -535,7 +541,7 @@ The macOS bundle is ad-hoc signed, not Developer ID signed, so the first launch 
 The iOS client is a working daily-use app short of Face ID: `ios/` holds a Swift package that matches
 the other two clients byte for byte — the encrypted vault, the encrypted backup, the entry document and
 the token maths, verified against the same fixed vectors in
-`desktop/src/test/resources/golden/` — plus a SwiftUI app with the same five tabs, a live search over
+`desktop/src/test/resources/golden/` — plus a UIKit app shell hosting shared Compose screens with the same five tabs, a live search over
 labels, issuers and tags, the same tag rules and the same per-tag entry counts (`tag (n)`) on the tag
 chips, the same five orders (remembered beside the vault, never
 inside it), per-entry reveal, a 30-second pasteboard expiry, an HOTP step, adding, editing and deleting
@@ -545,15 +551,14 @@ export, committed together once the last one is in), optional Face ID unlock, an
 QR code. A concealed entry shows no code and offers no copy, exactly as on the phone and the desktop
 client, an entry kind this build cannot display is still listed in its tab and explained rather than
 hidden, and a second account from an issuer that is already there asks the phone's *Issuer already
-exists* question first. The list speaks its codes one character at a time to VoiceOver and every control is a 44-point
-target. **Face ID** is off until it is turned on in **Settings**, and turning it on
+exists* question first. The shared renderer supplies text labels for TalkBack/VoiceOver; native iOS compilation and device
+accessibility verification are still outstanding. **Face ID** is off until it is turned on in **Settings**, and turning it on
 asks for the vault password: the app keeps the derived vault key in a Keychain item that is released
 only after a successful check of the *currently enrolled* face and never leaves the device, so the
 vault file stays encrypted with the password and a forgotten face costs only the shortcut. OpenPGP
-backups are not there yet; that list, with milestones, is in
-[the iOS client plan](docs/ios-client-plan.md). Its workflow tests both parts on a simulator and
-builds an unsigned `iphoneos` Release `.ipa` (`OfflineOTP-ios-unsigned.ipa`) alongside the simulator
-bundle with no signing identity: sideloaders (such as AltStore, SideStore, or Sideloadly) or local
+backups use the bundled in-app engine when it is present; that list, with milestones, is in
+[the iOS client plan](docs/ios-client-plan.md). Its workflow builds an unsigned `iphoneos` Release
+`.ipa` (`OfflineOTP-ios-unsigned.ipa`) with no signing identity: sideloaders (such as AltStore, SideStore, or Sideloadly) or local
 Mac signing tools sign the `.ipa` on your own machine, while Apple Developer distribution and
 TestFlight stay manual, as releases do everywhere else here. On a Mac,
 `cd ios && swift test` runs the format tests and `xcodegen generate && xcodebuild … test` the app's.

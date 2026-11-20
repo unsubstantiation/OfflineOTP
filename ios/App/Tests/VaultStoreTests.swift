@@ -21,6 +21,10 @@ final class VaultStoreTests: XCTestCase {
         VaultStore(directory: directory)
     }
 
+    private func vaultAdapter(_ store: VaultStore) -> VaultCoordinator {
+        VaultCoordinator(store: store, onExport: { _, _ in }, onImport: { _ in }, onOpenLink: { _ in })
+    }
+
     private func unlockedStore() -> VaultStore {
         let store = makeStore()
         store.unlock(password: "correct horse", confirmation: "correct horse", creating: true)
@@ -684,14 +688,19 @@ final class VaultStoreTests: XCTestCase {
     @MainActor
     func testComposePasswordChangeAdapterRejectsClosedAndStaleSessions() {
         let store = unlockedStore()
-        let closed = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
-        closed.close()
-        XCTAssertNotNil(closed.change(current: "correct horse", next: "new password", confirmation: "new password"))
-        let stale = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
+        let closed = vaultAdapter(store)
+        XCTAssertNil(closed.action(key: "passwordChange"))
+        closed.invalidate()
+        XCTAssertNotNil(closed.action(key: "confirm"))
+        let stale = vaultAdapter(store)
+        XCTAssertNil(stale.action(key: "passwordChange"))
+        stale.change(key: "current", value: "correct horse")
+        stale.change(key: "next", value: "new password")
+        stale.change(key: "confirmation", value: "new password")
         store.lock()
         store.unlock(password: "correct horse")
-        XCTAssertNotNil(stale.change(current: "correct horse", next: "new password", confirmation: "new password"))
-        stale.close()
+        XCTAssertNotNil(stale.action(key: "confirm"))
+        stale.invalidate()
         store.lock()
         store.unlock(password: "correct horse")
         XCTAssertTrue(store.isUnlocked)
@@ -701,11 +710,18 @@ final class VaultStoreTests: XCTestCase {
     func testComposePasswordChangeAdapterAllowsRetryAndPreservesEntries() throws {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try draft("preserved")))
-        let adapter = ComposePasswordChangeHost.Coordinator(store: store, onDismiss: {})
-        defer { adapter.close() }
-        XCTAssertNotNil(adapter.change(current: "correct horse", next: "new password", confirmation: "mismatch"))
-        XCTAssertNotNil(adapter.change(current: "wrong password", next: "new password", confirmation: "new password"))
-        XCTAssertNil(adapter.change(current: "correct horse", next: "new password", confirmation: "new password"))
+        let adapter = vaultAdapter(store)
+        defer { adapter.invalidate() }
+        XCTAssertNil(adapter.action(key: "passwordChange"))
+        adapter.change(key: "current", value: "correct horse")
+        adapter.change(key: "next", value: "new password")
+        adapter.change(key: "confirmation", value: "mismatch")
+        XCTAssertNotNil(adapter.action(key: "confirm"))
+        adapter.change(key: "current", value: "wrong password")
+        adapter.change(key: "confirmation", value: "new password")
+        XCTAssertNotNil(adapter.action(key: "confirm"))
+        adapter.change(key: "current", value: "correct horse")
+        XCTAssertNil(adapter.action(key: "confirm"))
         store.lock()
         store.unlock(password: "new password")
         XCTAssertTrue(store.isUnlocked)
@@ -718,32 +734,30 @@ final class VaultStoreTests: XCTestCase {
         store.setInactivityLockSeconds(60)
         let exported = try PreferencesExport.export(store.preferencesPort)
         store.setInactivityLockSeconds(30)
-        var applied: String?
-        let adapter = ComposePreferencesImportHost.Coordinator(
-            store: store, data: exported.bytes, onDismiss: {}, onApplied: { applied = $0 })
+        let adapter = vaultAdapter(store)
         // Planning validates the document without touching any setting.
+        adapter.imported(data: exported.bytes, kind: "preferences")
         XCTAssertEqual(store.inactivityLockSeconds, 30)
-        XCTAssertTrue(adapter.confirm())
+        XCTAssertNil(adapter.action(key: "confirm"))
         XCTAssertEqual(store.inactivityLockSeconds, 60)
-        XCTAssertEqual(applied, "1 settings imported.")
-        adapter.close()
+        adapter.invalidate()
     }
 
     @MainActor
     func testComposePreferencesImportRefusesForeignFileAndStaleSession() throws {
         let store = unlockedStore()
         let foreign = try PreferencesExport.export(store.preferencesPort, platform: "desktop")
-        let refused = ComposePreferencesImportHost.Coordinator(
-            store: store, data: foreign.bytes, onDismiss: {}, onApplied: { _ in })
-        XCTAssertFalse(refused.confirm())
-        refused.close()
+        let refused = vaultAdapter(store)
+        refused.imported(data: foreign.bytes, kind: "preferences")
+        XCTAssertNotNil(refused.action(key: "confirm"))
+        refused.invalidate()
         let exported = try PreferencesExport.export(store.preferencesPort)
-        let stale = ComposePreferencesImportHost.Coordinator(
-            store: store, data: exported.bytes, onDismiss: {}, onApplied: { _ in })
+        let stale = vaultAdapter(store)
+        stale.imported(data: exported.bytes, kind: "preferences")
         store.lock()
         store.unlock(password: "correct horse")
-        XCTAssertFalse(stale.confirm())
-        stale.close()
+        XCTAssertNotNil(stale.action(key: "confirm"))
+        stale.invalidate()
     }
 
     @MainActor
@@ -752,12 +766,11 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertTrue(store.add(try draft("alice")))
         XCTAssertTrue(store.add(try draft("bob")))
         store.toggleReveal(at: 0)
-        let adapter = ComposeEntryConfirmationHost.Coordinator(
-            store: store, index: 0, name: "alice", entry: store.entries[0],
-            epoch: store.generation, onDismiss: {})
-        XCTAssertNil(adapter.confirm())
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "delete:0"))
+        XCTAssertNil(adapter.action(key: "confirm"))
         XCTAssertEqual(store.entries.map(\.label), ["bob"])
-        adapter.close()
+        adapter.invalidate()
     }
 
     @MainActor
@@ -765,19 +778,17 @@ final class VaultStoreTests: XCTestCase {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try draft("alice")))
         store.toggleReveal(at: 0)
-        let stale = ComposeEntryConfirmationHost.Coordinator(
-            store: store, index: 0, name: "alice", entry: store.entries[0],
-            epoch: store.generation, onDismiss: {})
+        let stale = vaultAdapter(store)
+        XCTAssertNil(stale.action(key: "delete:0"))
         store.lock()
         store.unlock(password: "correct horse")
-        XCTAssertNotNil(stale.confirm())
+        XCTAssertNotNil(stale.action(key: "confirm"))
         XCTAssertEqual(store.entries.count, 1)
-        stale.close()
-        let closed = ComposeEntryConfirmationHost.Coordinator(
-            store: store, index: 0, name: "alice", entry: store.entries[0],
-            epoch: store.generation, onDismiss: {})
-        closed.close()
-        XCTAssertNotNil(closed.confirm())
+        stale.invalidate()
+        let closed = vaultAdapter(store)
+        XCTAssertNil(closed.action(key: "delete:0"))
+        closed.invalidate()
+        XCTAssertNotNil(closed.action(key: "confirm"))
         XCTAssertEqual(store.entries.count, 1)
     }
 

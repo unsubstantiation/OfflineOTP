@@ -12,7 +12,7 @@ class OpenPgpCrossBuildTest(unittest.TestCase):
     def test_all_clients_explain_external_apps_are_not_required(self):
         notice = 'OpenPGP runs in this app using key files. No external OpenPGP app is required.'
         for path in (ROOT / 'app/src/main/res/values/strings_backup.xml',
-                     UI / 'OpenPgpExportDialog.kt', IOS / 'BackupView.swift'):
+                     UI / 'OpenPgpExportDialog.kt', IOS / 'ComposeVaultHost.swift'):
             self.assertIn(notice, path.read_text())
         for dialog in ('OpenPgpImportDialog.kt', 'OpenPgpExportDialog.kt'):
             self.assertIn('Text(text = OPENPGP_IN_APP_NOTICE)', (UI / dialog).read_text())
@@ -37,8 +37,8 @@ class OpenPgpCrossBuildTest(unittest.TestCase):
         self.assertIn('offlineotp_openpgp.encrypt(', port)
         self.assertIn('offlineotp_openpgp.decrypt(', port)
         self.assertIn('throw Self.unavailable()', port)
-        self.assertIn('availability.canEncrypt', (IOS / 'BackupView.swift').read_text())
-        self.assertIn('availability.canRestore', (IOS / 'BackupView.swift').read_text())
+        self.assertIn('availability.canEncrypt', (IOS / 'ComposeVaultHost.swift').read_text())
+        self.assertIn('availability.canRestore', (IOS / 'ComposeVaultHost.swift').read_text())
 
     def test_android_preserves_optional_provider_without_requiring_it(self):
         settings = (APP / 'Utilities/Settings.kt').read_text()

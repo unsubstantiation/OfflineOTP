@@ -39,7 +39,7 @@ SETTINGS_ACTIVITY = (
 )
 STRINGS_SETTINGS = ROOT / "app/src/main/res/values/strings_settings.xml"
 STRINGS_AUTH = ROOT / "app/src/main/res/values/strings_auth.xml"
-IOS_LIST = ROOT / "ios/App/Sources/EntryListView.swift"
+IOS_LIST = ROOT / "ios/App/Sources/ComposeVaultHost.swift"
 
 
 def function_body(text, signature):
@@ -76,10 +76,10 @@ class IosTagChipsShowCountsTest(unittest.TestCase):
         self.store = (ROOT / "ios/App/Sources/VaultStore.swift").read_text(encoding="utf-8")
 
     def test_the_chip_title_comes_from_the_shared_counts(self):
-        strip = self.list_view.split("struct TagStrip: View {", 1)[1].split("\nstruct TagChip", 1)[0]
-        self.assertIn("TagChip(title: tagChipTitle(tag),", strip)
-        self.assertIn("store.tagCounts(for: store.category)[tag]", strip)
-        self.assertIn('return "\\(tag) (\\(count))"', strip)
+        self.assertIn("store.tags(for: store.category)", self.list_view)
+        self.assertIn("store.tagCounts(for: store.category)[tag]", self.list_view)
+        self.assertIn('tag.count >= 0) "${tag.label} (${tag.count})"',
+            (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text())
 
     def test_the_counts_count_each_entry_once_per_tag(self):
         self.assertIn("public func tagCounts(for category: EntryCategory) -> [String: Int]", self.store)

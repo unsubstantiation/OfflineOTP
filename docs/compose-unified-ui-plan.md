@@ -9,7 +9,12 @@ and generated-theme work, remaining differences, and validation boundaries.
 Swing UI, its fallback tasks and Swing-specific tests were removed in PR #125 (merged at
 `3e8fb2700a5622f6c7e4062283190cf82ac7165d`). The `:desktop` module remains the shared engine
 and AWT artwork library, not a second UI. Android MainActivity uses the shared Compose cards
-with Activity chrome/dialogs still retained.
+with Activity chrome/dialogs still retained. The iOS release path also uses shared Compose: the
+vault, forms and dialogs are drawn by `:ui-foundation` behind `AppRootViewController` and
+`ComposeVaultHost`; the SwiftUI production sources were removed rather than excluded.
+Android now also uses shared Compose forms for the entry-delete confirmation and the
+biometric-enrolment password prompt through `ui/src/androidMain/.../host/ComposeDialogViews.kt`;
+the Activity/controller keep native lifecycle, verification and keychain adapters.
 
 The user reports a successful build and operation on a device. Platform, tested artifact/commit
 and workflow scope are not yet specified. This is recorded in the
