@@ -1073,7 +1073,7 @@ public struct EmailEditInput: Equatable, CustomStringConvertible {
     public func build(existing: Entry) throws -> Entry {
         guard existing.kind == .email else { throw EmailCredentialError.invalidAccount }
         for text in [issuer, label, hiddenLabel, thumbnail] {
-            try InputPolicy.validateText(text, maxChars: InputPolicy.maxTextChars)
+            try InputPolicy.validateText(text, limit: InputPolicy.maxTextChars)
         }
         let accountJson = try EmailFieldInput.json(from: account)
         let identityJson = try identities.map { try EmailFieldInput.json(from: $0) }
@@ -1161,8 +1161,8 @@ public struct EmailConnectionInput: Equatable, CustomStringConvertible {
     func apply(to json: inout [String: JSONValue]) throws {
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedHost.isEmpty else { throw EmailCredentialError.invalidAccount }
-        try InputPolicy.validateText(host, maxChars: InputPolicy.maxTextChars)
-        try InputPolicy.validateText(username, maxChars: EmailMaterial.maxCredentialChars)
+        try InputPolicy.validateText(host, limit: InputPolicy.maxTextChars)
+        try InputPolicy.validateText(username, limit: EmailMaterial.maxCredentialChars)
         guard let portNum = Int(port.trimmingCharacters(in: .whitespacesAndNewlines)),
               (1...65535).contains(portNum),
               (0...2).contains(encryption) else {
@@ -1214,8 +1214,8 @@ public struct EmailIdentityInput: Equatable, CustomStringConvertible {
     public var description: String { "EmailIdentityInput(redacted)" }
 
     func apply(to json: inout [String: JSONValue]) throws {
-        try InputPolicy.validateText(name, maxChars: InputPolicy.maxTextChars)
-        try InputPolicy.validateText(address, maxChars: InputPolicy.maxTextChars)
+        try InputPolicy.validateText(name, limit: InputPolicy.maxTextChars)
+        try InputPolicy.validateText(address, limit: InputPolicy.maxTextChars)
         let email = address.trimmingCharacters(in: .whitespacesAndNewlines)
         guard email.filter({ $0 == "@" }).count == 1,
               !email.hasPrefix("@"),
@@ -1306,7 +1306,7 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
         }
         var accountJson = email.account
         if let name = accountName {
-            try InputPolicy.validateText(name, maxChars: InputPolicy.maxTextChars)
+            try InputPolicy.validateText(name, limit: InputPolicy.maxTextChars)
             let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty,
                   name.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else {
