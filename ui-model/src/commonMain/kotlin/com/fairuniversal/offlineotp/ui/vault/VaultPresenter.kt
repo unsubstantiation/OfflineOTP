@@ -32,11 +32,14 @@ class VaultPresenter(
     private val deleteEntry: ((VaultCardState) -> Unit)? = null,
     /** Remembers the chosen order after the filter has changed. */
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
+    /** Remembers the chosen tag-matching rule after cycling. */
+    private val tagRuleSelected: ((Constants.TagFunctionality) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
     private val lockVault: (() -> Unit)? = null,
     private val onChange: (() -> Unit)? = null,
     private val addEntry: (() -> Unit)? = null,
-    private val editEntry: ((VaultCardState) -> Unit)? = null
+    private val editEntry: ((VaultCardState) -> Unit)? = null,
+    private val editCounter: ((VaultCardState) -> Unit)? = null
 ) {
 
     /** The selection currently shown. Change it through the [actions], never by assigning here. */
@@ -114,6 +117,7 @@ class VaultPresenter(
                 importUri: (() -> Unit)? = null,
                 importPasswords: (() -> Unit)? = null,
                 importEmail: (() -> Unit)? = null,
+                importThunderbird: (() -> Unit)? = null,
                 viewEmailDetails: ((VaultCardState) -> Unit)? = null,
                 configureLayout: (() -> Unit)? = null,
                 importLinScp: (() -> Unit)? = null,
@@ -129,6 +133,7 @@ class VaultPresenter(
                 exportArchives: (() -> Unit)? = null,
                 exportPasswords: (() -> Unit)? = null,
                 exportEmail: (() -> Unit)? = null,
+                exportThunderbird: (() -> Unit)? = null,
                 exportPreferences: (() -> Unit)? = null,
                 importPreferences: (() -> Unit)? = null): VaultActions = VaultActions(
         onImportPreferences = importPreferences,
@@ -141,6 +146,7 @@ class VaultPresenter(
         onExportArchives = exportArchives,
         onExportPasswords = exportPasswords,
         onExportEmail = exportEmail,
+        onExportThunderbird = exportThunderbird,
         onExportPreferences = exportPreferences,
         onExportOpenPgp = exportOpenPgp,
         onImportOpenPgp = importOpenPgp,
@@ -149,6 +155,7 @@ class VaultPresenter(
         onConfigureLayout = configureLayout,
         onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },
         onImportEmail = importEmail,
+        onImportThunderbird = importThunderbird,
         onImportPasswords = importPasswords,
         onImportUri = importUri,
         onRestoreEncrypted = restoreEncrypted,
@@ -158,6 +165,7 @@ class VaultPresenter(
         onMoveDown = moveEntry?.let { move -> { card -> move(card, 1) } },
         onAddEntry = addEntry,
         onEditEntry = editEntry?.let { edit -> { card -> if (card.id in revealed) edit(card) } },
+        onEditCounter = editCounter?.let { edit -> { card -> if (card.id in revealed && card.counter != null) edit(card) } },
         onCopyToken = { card -> if (copyEntry != null) copyEntry(card) else copyToken(card) },
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter,
@@ -168,6 +176,13 @@ class VaultPresenter(
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
         onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
         onToggleUntagged = { applyFilter(filter.withUntaggedToggled()) },
+        onCycleTagRule = {
+            if (!locked) {
+                val next = filter.withCycledTagFunctionality()
+                applyFilter(next)
+                tagRuleSelected?.invoke(next.tagFunctionality)
+            }
+        },
         onClearFilters = { applyFilter(filter.clearedFilters()) },
         onSelectSort = { mode ->
             if (!locked) {

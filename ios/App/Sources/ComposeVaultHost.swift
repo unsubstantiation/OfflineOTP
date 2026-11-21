@@ -65,7 +65,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var linScpPendingData = Data()
     private var editorIndex: Int?
     private var editorKind: EntryKind = .totp
-    private var cardLayout: String = UserDefaults.standard.string(forKey: "offlineotp.card_layout") ?? "DEFAULT"
     private var active = true
     private var surfaceEpoch: Int?
 
@@ -76,7 +75,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         self.onImport = onImport
         self.onOpenLink = onOpenLink
         super.init()
-        presentation.updateCardLayout(layout: cardLayout)
+        if store.cardLayout == "DEFAULT",
+           let legacyLayout = UserDefaults.standard.string(forKey: "offlineotp.card_layout"),
+           ["DEFAULT", "COMPACT", "FULL"].contains(legacyLayout) {
+            store.setCardLayout(legacyLayout)
+            UserDefaults.standard.removeObject(forKey: "offlineotp.card_layout")
+        }
+        presentation.updateCardLayout(layout: store.cardLayout)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }
         }
@@ -159,7 +164,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             cards: cards,
             sortLabel: store.sortMode.title,
             toast: toast,
-            hiddenTitleEnabled: false)
+            hiddenTitleEnabled: store.hideIssuer)
     }
 
     // MARK: - Vault actions
@@ -411,7 +416,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         draft["type"] = kind.rawValue
         draft["issuer"] = entry?.issuer ?? ""
         draft["label"] = entry?.label ?? ""
-        draft["hiddenLabel"] = entry?.hiddenLabel ?? ""
+        draft["hiddenLabel"] = index == nil ? (entry?.hiddenLabel ?? "") : ""
         switch kind {
         case .note:
             draft["secret"] = entry?.noteText ?? ""
@@ -420,18 +425,19 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case .sshKey:
             let keys = try? entry?.sshKeys()
             draft["publicKey"] = keys?.publicKey ?? ""
-            draft["privateKey"] = keys?.privateKey ?? ""
+            draft["privateKey"] = ""
             draft["sshHost"] = entry?.sshHost ?? ""
             draft["sshPort"] = entry?.sshPort.map { $0 > 0 ? String($0) : "" } ?? ""
             draft["sshUsername"] = entry?.sshUsername ?? ""
-            draft["sshPassword"] = entry?.sshPassword ?? ""
+            draft["sshPassword"] = ""
         default:
             draft["secret"] = entry?.secretBase32 ?? ""
         }
         draft["digits"] = entry.map { String($0.digits) } ?? "6"
         draft["period"] = entry.map { String($0.period) } ?? "30"
         draft["counter"] = entry.map { String($0.counter) } ?? "0"
-        draft["pin"] = entry?.pin ?? ""
+        draft["algorithm"] = entry?.algorithm.rawValue ?? "SHA1"
+        draft["pin"] = index == nil ? (entry?.pin ?? "") : ""
         draft["tags"] = entry?.tags.joined(separator: ", ") ?? ""
         openSurface("editor", keepDraft: true)
     }
@@ -471,7 +477,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "cardLayout":
             return surface(key: key, title: "Card layout",
                 sections: [PortableSection(title: "", rows: [
-                    row("layout", "Card layout", value: draft["layout"] ?? cardLayout, kind: "info")])],
+                    row("layout", "Card layout", value: draft["layout"] ?? store.cardLayout, kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "sort":
             let rows = SortMode.allCases.map { mode in
@@ -531,10 +537,20 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 sections: [PortableSection(title: "One link or QR payload", rows: rows)],
                 confirmLabel: "Import", dismissLabel: "Cancel")
         case "prefsConfirm":
+            var rows = [row("info", "The vault, its password and its accounts are never included.", kind: "info")]
+            var errorMessage = ""
+            do {
+                let preview = try PreferencesExport.inspect(pendingImport)
+                rows.append(row("count", "Settings", value: String(preview.applied), kind: "info"))
+                rows.append(row("skipped", "Skipped", value: String(preview.unknownKeys.count + preview.refusedKeys.count), kind: "info"))
+            } catch PreferencesExport.PreferencesError.wrongPlatform(let source, _) {
+                errorMessage = "That preferences file was exported from \(source) and cannot be imported on iOS."
+            } catch {
+                errorMessage = "That file is not an OfflineOTP preferences file this version can read."
+            }
             return surface(key: key, title: "Import preferences?",
-                sections: [PortableSection(title: "Only sort order and auto-lock are carried between iOS installs.", rows: [
-                    row("info", "The vault, its password and its accounts are never included.", kind: "info")])],
-                confirmLabel: "Apply", dismissLabel: "Cancel")
+                sections: [PortableSection(title: "Portable iOS display, sort order and auto-lock settings.", rows: rows)],
+                confirmLabel: "Apply", dismissLabel: "Cancel", message: errorMessage)
         case "backupExportDialog":
             return surface(key: key, title: "Export encrypted backup",
                 sections: [PortableSection(title: "", rows: [
@@ -771,7 +787,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("autoLock", "Auto-lock after inactivity", detail: "Currently \(store.inactivityLockSeconds) seconds"),
                 row("passwordChange", "Change vault password")]),
             PortableSection(title: "Vault", rows: [
-                row("cardLayout", "Card layout", detail: "Currently \(cardLayout.capitalized)"),
+                row("cardLayout", "Card layout", detail: "Currently \(store.cardLayout.capitalized)"),
+                row("hideIssuer",
+                    store.hideIssuer ? "Show issuer while concealed" : "Hide issuer while concealed",
+                    detail: store.hideIssuer ? "Hidden until revealed" : "Shown while concealed"),
                 row("info", "Entries", value: String(store.entries.count), kind: "info"),
                 row("info2", store.folderPath, kind: "info"),
                 row("storageLocation", "Storage location…")]),
@@ -850,6 +869,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                             kind == .hotp ? "Counter" : "Period (seconds)",
                             value: kind == .hotp ? (draft["counter"] ?? "0") : (draft["period"] ?? "30"),
                             kind: "text"))
+            rows.append(row("algorithm", "Algorithm", value: draft["algorithm"] ?? "SHA1", kind: "info"))
         }
         if kind == .motp {
             rows.append(row("pin", "PIN", value: draft["pin"] ?? "", kind: "text"))
@@ -975,9 +995,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         ]
         if store.isRevealed(entry) {
             fields.append(("Hidden label", entry.hiddenLabel))
+            if entry.kind == .totp || entry.kind == .hotp {
+                fields.append(("Algorithm", entry.algorithm.rawValue))
+            }
+            if entry.kind?.isOtp == true {
+                fields.append(("Digits", String(entry.digits)))
+                if entry.kind == .hotp {
+                    fields.append(("Counter", String(entry.counter)))
+                } else {
+                    fields.append(("Period", "\(entry.period) s"))
+                }
+            }
             if let note = entry.noteText { fields.append(("Note", note)) }
             if let connection = entry.sshConnection {
                 fields.append(("Destination", connection.summary ?? ""))
+            }
+            if entry.kind == .passwordArchive, let bytes = entry.passwordArchiveBytes {
+                fields.append(("Archive size", "\(bytes.count) bytes"))
             }
         }
         fields.append(("Tags", entry.tags.joined(separator: ", ")))
@@ -1133,6 +1167,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     secret: current.secretBase32,
                     digits: String(current.digits),
                     timing: draft["counter"] ?? "0",
+                    algorithm: current.algorithm,
                     tags: current.tags,
                     newEntry: false)
                 updated = EntryDraft.preservingMetadata(of: current, in: updated)
@@ -1175,6 +1210,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             do {
                 let result = try PreferencesExport.apply(pendingImport, into: store.preferencesPort)
                 store.reloadInactivityLock()
+                presentation.updateCardLayout(layout: store.cardLayout)
                 pendingImport = Data()
                 message("\(result.applied) settings imported.")
                 closeSurface()
@@ -1287,9 +1323,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard ["DEFAULT", "COMPACT", "FULL"].contains(chosen) else {
                 return "Choose a valid card layout."
             }
-            cardLayout = chosen
-            UserDefaults.standard.set(chosen, forKey: "offlineotp.card_layout")
-            presentation.updateCardLayout(layout: chosen)
+            store.setCardLayout(chosen)
+            presentation.updateCardLayout(layout: store.cardLayout)
             message("Card layout updated.")
             closeSurface()
             return nil
@@ -1467,23 +1502,53 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func saveEditor() -> String? {
         let kind = EntryKind(rawValue: draft["type"] ?? "") ?? editorKind
         do {
+            let existing = editorIndex.flatMap { store.entries.indices.contains($0) ? store.entries[$0] : nil }
             let timing = kind == .hotp ? (draft["counter"] ?? "0") : (draft["period"] ?? "30")
+            let algorithm = OtpHashAlgorithm(rawValue: draft["algorithm"] ?? "SHA1") ?? .sha1
+            let hiddenLabel: String = {
+                if draft["clearHiddenLabel"] == "true" { return "" }
+                let typed = draft["hiddenLabel"] ?? ""
+                if let existing, typed.isEmpty { return existing.hiddenLabel }
+                return typed
+            }()
+            let pin: String = {
+                if draft["clearPin"] == "true" { return "" }
+                let typed = draft["pin"] ?? ""
+                if let existing, typed.isEmpty { return existing.pin }
+                return typed
+            }()
+            let privateKey: String = {
+                let typed = draft["privateKey"] ?? ""
+                if let existing, kind == .sshKey, typed.isEmpty {
+                    return (try? existing.sshKeys().privateKey) ?? ""
+                }
+                return typed
+            }()
+            let sshPassword: String = {
+                if draft["clearSshPassword"] == "true" { return "" }
+                let typed = draft["sshPassword"] ?? ""
+                if let existing, kind == .sshKey, typed.isEmpty {
+                    return existing.sshPassword ?? ""
+                }
+                return typed
+            }()
             var built = try EntryDraft.create(
                 kind: kind,
                 issuer: draft["issuer"] ?? "",
                 label: draft["label"] ?? "",
-                hiddenLabel: draft["hiddenLabel"] ?? "",
+                hiddenLabel: hiddenLabel,
                 secret: draft["secret"] ?? "",
                 digits: draft["digits"] ?? "6",
                 timing: timing,
-                pin: draft["pin"] ?? "",
+                algorithm: kind == .steam ? .sha1 : algorithm,
+                pin: pin,
                 tags: (draft["tags"] ?? "").split(whereSeparator: { $0 == "," || $0.isNewline }).map(String.init),
                 publicKey: draft["publicKey"] ?? "",
-                privateKey: draft["privateKey"] ?? "",
+                privateKey: privateKey,
                 sshHost: draft["sshHost"] ?? "",
                 sshPortText: draft["sshPort"] ?? "",
                 sshUsername: draft["sshUsername"] ?? "",
-                sshPassword: draft["sshPassword"] ?? "",
+                sshPassword: sshPassword,
                 newEntry: editorIndex == nil)
             if let index = editorIndex, store.entries.indices.contains(index) {
                 built = EntryDraft.preservingMetadata(of: store.entries[index], in: built)
@@ -1551,6 +1616,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         switch command {
         case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation", "cardLayout":
             openSurface(command)
+            return nil
+        case "hideIssuer":
+            store.setHideIssuer(!store.hideIssuer)
+            message(store.hideIssuer ? "Issuer titles hidden while concealed." : "Issuer titles shown while concealed.")
             return nil
         case "passwordImportPreview":
             let mode: PasswordImport.Mode = draft["passwordImportMode"] == "archive" ? .archive : .individual

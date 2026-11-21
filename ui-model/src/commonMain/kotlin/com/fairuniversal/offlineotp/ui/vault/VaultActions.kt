@@ -41,6 +41,7 @@ class VaultActions(
     val onSelectCategory: (EntryListPresentation.Category) -> Unit = {},
     val onToggleTag: (String) -> Unit = {},
     val onToggleUntagged: () -> Unit = {},
+    val onCycleTagRule: (() -> Unit)? = null,
     val onClearFilters: () -> Unit = {},
     val onSelectSort: (Constants.SortMode) -> Unit = {},
     val onLock: () -> Unit = {},
@@ -52,6 +53,7 @@ class VaultActions(
     val onImportUri: (() -> Unit)? = null,
     val onImportPasswords: (() -> Unit)? = null,
     val onImportEmail: (() -> Unit)? = null,
+    val onImportThunderbird: (() -> Unit)? = null,
     val onViewEmailDetails: ((VaultCardState) -> Unit)? = null,
     val onConfigureLayout: (() -> Unit)? = null,
     val onImportLinScp: (() -> Unit)? = null,
@@ -67,6 +69,7 @@ class VaultActions(
     val onExportArchives: (() -> Unit)? = null,
     val onExportPasswords: (() -> Unit)? = null,
     val onExportEmail: (() -> Unit)? = null,
+    val onExportThunderbird: (() -> Unit)? = null,
     val onExportPreferences: (() -> Unit)? = null,
     val onImportPreferences: (() -> Unit)? = null
 ) {
@@ -85,6 +88,7 @@ class VaultActions(
         onExportArchives = onExportArchives?.let { action -> { if (isActive()) action() } },
         onExportPasswords = onExportPasswords?.let { action -> { if (isActive()) action() } },
         onExportEmail = onExportEmail?.let { action -> { if (isActive()) action() } },
+        onExportThunderbird = onExportThunderbird?.let { action -> { if (isActive()) action() } },
         onExportPreferences = onExportPreferences?.let { action -> { if (isActive()) action() } },
         onExportOpenPgp = onExportOpenPgp?.let { action -> { if (isActive()) action() } },
         onImportOpenPgp = onImportOpenPgp?.let { action -> { if (isActive()) action() } },
@@ -93,6 +97,7 @@ class VaultActions(
         onConfigureLayout = onConfigureLayout?.let { action -> { if (isActive()) action() } },
         onViewEmailDetails = onViewEmailDetails?.let { action -> { if (isActive()) action(it) } },
         onImportEmail = onImportEmail?.let { action -> { if (isActive()) action() } },
+        onImportThunderbird = onImportThunderbird?.let { action -> { if (isActive()) action() } },
         onImportPasswords = onImportPasswords?.let { action -> { if (isActive()) action() } },
         onImportUri = onImportUri?.let { action -> { if (isActive()) action() } },
         onRestoreEncrypted = onRestoreEncrypted?.let { action -> { if (isActive()) action() } },
@@ -116,6 +121,7 @@ class VaultActions(
         onSelectCategory = { if (isActive()) onSelectCategory(it) },
         onToggleTag = { if (isActive()) onToggleTag(it) },
         onToggleUntagged = { if (isActive()) onToggleUntagged() },
+        onCycleTagRule = onCycleTagRule?.let { action -> { if (isActive()) action() } },
         onClearFilters = { if (isActive()) onClearFilters() },
         onSelectSort = { if (isActive()) onSelectSort(it) },
         onLock = { if (isActive()) onLock() }

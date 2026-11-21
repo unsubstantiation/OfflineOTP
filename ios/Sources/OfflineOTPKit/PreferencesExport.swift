@@ -56,12 +56,18 @@ public enum PreferencesExport {
     public static let catalog: [Setting] = [
         Setting(key: sortModeKey, kind: .string),
         Setting(key: inactivityLockKey, kind: .integer),
+        Setting(key: cardLayoutKey, kind: .string),
+        Setting(key: hideIssuerKey, kind: .boolean),
     ]
 
     /// Mirrors `SortMode.settingsKey` and the desktop client's `PreferencesExport.UI_SORT_MODE`.
     public static let sortModeKey = "ui_sort_mode"
     /// Mirrors `VaultStore.inactivitySettingKey`.
     public static let inactivityLockKey = "ui_inactivity_lock_seconds"
+    /// Mirrors `VaultStore.cardLayoutSettingKey` and `PreferencesExport.UI_CARD_LAYOUT`.
+    public static let cardLayoutKey = "ui_card_layout"
+    /// Mirrors `VaultStore.hideIssuerSettingKey`.
+    public static let hideIssuerKey = "ui_hide_issuer"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.
     public static let quickUnlockKey = "biometric_unlock"
 
@@ -177,12 +183,28 @@ public enum PreferencesExport {
         return Export(bytes: data, keysWritten: written, skipped: skipped, includesSecrets: false)
     }
 
+    /// Validates a preferences document without writing to any store, returning the import summary.
+    public static func inspect(_ bytes: Data,
+                               platform: String = platformIos) throws -> Import {
+        let (_, summary) = try parseDocument(bytes, platform: platform)
+        return summary
+    }
+
     /// Applies a document previously written by `export(_:platform:)`.
     ///
     /// Named `apply` rather than `import` to match the Kotlin object's method without shadowing a
     /// declaration keyword; the operation is the same, and a caller reads it as "apply this file".
     public static func apply(_ bytes: Data, into port: SettingsPort,
                              platform: String = platformIos) throws -> Import {
+        let (accepted, summary) = try parseDocument(bytes, platform: platform)
+        for (entry, value) in accepted { port.write(entry.key, value) }
+        return summary
+    }
+
+    private static func parseDocument(
+        _ bytes: Data,
+        platform: String
+    ) throws -> ([(Setting, Value)], Import) {
         guard !bytes.isEmpty, bytes.count <= maxBytes else { throw PreferencesError.invalidSize }
         guard let parsed = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw PreferencesError.invalidDocument
@@ -209,9 +231,8 @@ public enum PreferencesExport {
             guard let entry = setting(key) else { unknown.append(key); continue }
             accepted.append((entry, try value(entry, settings[key])))
         }
-        for (entry, value) in accepted { port.write(entry.key, value) }
-        return Import(applied: accepted.count, unknownKeys: unknown.sorted(),
-                      refusedKeys: refused.sorted(), includesSecrets: false)
+        return (accepted, Import(applied: accepted.count, unknownKeys: unknown.sorted(),
+                                 refusedKeys: refused.sorted(), includesSecrets: false))
     }
 
     private static func jsonValue(_ entry: Setting, _ value: Value) throws -> Any {

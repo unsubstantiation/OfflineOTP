@@ -176,6 +176,7 @@ data class PortableEntryDraft(
     val digits: String = "6",
     val period: String = "30",
     val counter: String = "0",
+    val algorithm: String = "SHA1",
     val pin: String = "",
     val publicKey: String = "",
     val privateKey: String = "",
@@ -183,7 +184,10 @@ data class PortableEntryDraft(
     val sshPort: String = "",
     val sshUsername: String = "",
     val sshPassword: String = "",
-    val tags: String = ""
+    val tags: String = "",
+    val clearHiddenLabel: Boolean = false,
+    val clearPin: Boolean = false,
+    val clearSshPassword: Boolean = false
 ) {
     fun withoutSecrets(): PortableEntryDraft =
         copy(secret = "", pin = "", hiddenLabel = "", privateKey = "", sshPassword = "")

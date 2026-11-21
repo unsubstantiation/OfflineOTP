@@ -40,10 +40,23 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
 
 ## Changes in this increment
 
-Five Compose imports (OTP URI/image, password file, FairEmail, OpenPGP and preferences) now use one
-`ScrollableDialogBody`. Confirm/cancel buttons remain outside the scrolling body. OpenPGP merge/
-replace controls are disabled during work, like the rest of its controls, so the displayed restore
-mode cannot change mid-operation. Regression source tests pin these common presentation rules.
+- **Desktop Compose feature parity**: Restored Thunderbird CSV credential import and selective
+  plaintext CSV export (`DesktopThunderbirdImport`, `DesktopThunderbirdExport`, `VaultToolId`
+  routing, and `MultiChoiceSelectionDialog` in `ComposeMain.kt`); wired per-entry account actions
+  (`DesktopEntryActions`) using the shared `EntryCopyDialog`, `EntryDetailsDialog`, `QrCodeDialog`,
+  `TagsDialog`, `ThumbnailPickerDialog`, and `EntryCounterDialog` forms; and added persisted
+  tag-filter rule cycling (`Any tag` / `All tags` / `One tag`) in `VaultTagChips`,
+  `VaultController`, and `PreferencesExport.desktopCatalog`.
+- **iOS & portable manual-entry parity**: Extended `PortableEntryDraft` and
+  `SharedManualEntryDialog` with TOTP/HOTP hash-algorithm selection (`SHA1`/`SHA256`/`SHA512`) and
+  explicit secret-removal toggles (`clearHiddenLabel`, `clearPin`, `clearSshPassword`); persisted
+  `ui_card_layout` and `ui_hide_issuer` in `VaultStore` and `PreferencesExport.swift`; added
+  `PreferencesExport.inspect` so iOS `PreferencesImportDialog` previews exact setting counts before
+  applying; and preserved HOTP hash algorithms when editing counters on iOS.
+- **Android shared Compose dialog host**: Added `PreferencesImportComposeView`
+  (`PreferencesImportDialog`) and `ComposeDialogHost.setOnDismissListener` so Android preferences
+  import previews setting counts through the same shared Compose dialog as desktop and iOS while
+  wiping read bytes on dismiss.
 
 ## Required acceptance gates
 

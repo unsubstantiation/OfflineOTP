@@ -41,6 +41,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
             "EmailDetailsDialog(",
             "EntryDetailsDialog(",
             "EmailImportDialog(",
+            "PreferencesImportDialog(",
         ):
             self.assertIn(form, host)
         self.assertIn("ForestTheme {", host)
@@ -126,6 +127,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
         settings = SETTINGS.read_text(encoding="utf-8")
         self.assertIn("EntryCopyComposeView(", settings)
         self.assertIn("DeleteConfirmationComposeView(", settings)
+        self.assertIn("PreferencesImportComposeView(", settings)
         self.assertIn("dismissSettingsPrompts()", settings)
 
         backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text(encoding="utf-8")
@@ -137,6 +139,8 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("class QrCodeComposeView(", views)
         self.assertIn("class CheckboxConfirmationComposeView(", views)
         self.assertIn("class EncryptedRestorePasswordComposeView(", views)
+        self.assertIn("class PreferencesImportComposeView(", views)
+        self.assertIn("fun setOnDismissListener(", views)
 
         intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text(encoding="utf-8")
         self.assertIn("EncryptedRestorePasswordComposeView(", intro)

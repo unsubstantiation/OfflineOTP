@@ -135,6 +135,7 @@ fun VaultScreen(
                     strings = strings,
                     clearLabel = strings.clearFilters,
                     showClear = state.filter.hasTagFilter || state.filter.hasQuery,
+                    tagRuleLabel = strings.tagRuleTitle(state.filter.tagFunctionality),
                     actions = actions
                 )
             }

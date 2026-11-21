@@ -77,6 +77,24 @@ data class VaultFilter(
     fun withUntaggedToggled(): VaultFilter = copy(untaggedSelected = !untaggedSelected)
 
     /**
+     * Cycles how selected tags combine (`OR` -> `AND` -> `SINGLE` -> `OR`). Entering `SINGLE`
+     * keeps at most the first selected tag so the single-selection invariant holds immediately.
+     */
+    fun withCycledTagFunctionality(): VaultFilter {
+        val next = when (tagFunctionality) {
+            Constants.TagFunctionality.OR -> Constants.TagFunctionality.AND
+            Constants.TagFunctionality.AND -> Constants.TagFunctionality.SINGLE
+            Constants.TagFunctionality.SINGLE -> Constants.TagFunctionality.OR
+        }
+        val narrowed = if (next == Constants.TagFunctionality.SINGLE && selectedTags.size > 1) {
+            selectedTags.take(1)
+        } else {
+            selectedTags
+        }
+        return copy(tagFunctionality = next, selectedTags = narrowed)
+    }
+
+    /**
      * The filter with the narrowing removed: query, tag selection and untagged cleared. The tab and
      * the order stay, because "Clear" clears the filters that hide rows, not the user's tab choice.
      */

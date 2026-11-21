@@ -63,6 +63,21 @@ class PreferencesExportDesktopTest {
     fun aDesktopFileIsRefusedByAndroidAndViceVersa() {
         val settings = newSettings()
         settings.putString(PreferencesExport.UI_SORT_MODE, "AZ")
+        settings.putString(PreferencesExport.UI_CARD_LAYOUT, "COMPACT")
+        settings.putString(PreferencesExport.UI_TAG_FUNCTIONALITY, "AND")
+        val roundTripTarget = newSettings()
+        val fullExport = PreferencesExport.export(
+            DesktopPreferencesPort(settings), includeSecrets = false,
+            platform = PreferencesExport.PLATFORM_DESKTOP)
+        try {
+            val imported = PreferencesExport.import(
+                fullExport.bytes, DesktopPreferencesPort(roundTripTarget), PreferencesExport.PLATFORM_DESKTOP)
+            assertEquals(3, imported.applied)
+            assertEquals("COMPACT", roundTripTarget.getString(PreferencesExport.UI_CARD_LAYOUT, ""))
+            assertEquals("AND", roundTripTarget.getString(PreferencesExport.UI_TAG_FUNCTIONALITY, ""))
+        } finally {
+            fullExport.zero()
+        }
         val desktopFile = PreferencesExport.export(
             DesktopPreferencesPort(settings), includeSecrets = false,
             platform = PreferencesExport.PLATFORM_DESKTOP)

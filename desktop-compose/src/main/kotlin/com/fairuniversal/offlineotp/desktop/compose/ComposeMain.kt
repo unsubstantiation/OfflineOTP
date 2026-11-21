@@ -39,7 +39,18 @@ import com.fairuniversal.offlineotp.ui.vault.OpenPgpImportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopLinScpImport
 import com.fairuniversal.offlineotp.ui.vault.LinScpImportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopEmailImport
+import com.fairuniversal.offlineotp.desktop.control.DesktopThunderbirdImport
+import com.fairuniversal.offlineotp.desktop.control.DesktopThunderbirdExport
+import com.fairuniversal.offlineotp.desktop.control.DesktopEntryActions
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
+import com.fairuniversal.offlineotp.ui.vault.MultiChoiceSelectionDialog
+import com.fairuniversal.offlineotp.ui.vault.EntryDetailsDialog
+import com.fairuniversal.offlineotp.ui.vault.QrCodeDialog
+import com.fairuniversal.offlineotp.ui.vault.TagsDialog
+import com.fairuniversal.offlineotp.ui.vault.ThumbnailPickerDialog
+import com.fairuniversal.offlineotp.ui.vault.EntryCounterDialog
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPasswordImport
 import com.fairuniversal.offlineotp.ui.vault.PasswordImportDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopUriImport
@@ -390,6 +401,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         VaultFilter(
             sortMode = controller.savedSortMode(),
             category = EntryListPresentation.Category.OTP,
+            tagFunctionality = controller.savedTagFunctionality(),
             // The desktop client has always let a search and a tag selection narrow the list
             // together; the projection carries that policy as a value.
             combination = VaultFilterCombination.SEARCH_AND_TAGS
@@ -430,6 +442,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val emailExporter = remember(vault) { DesktopEmailExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val thunderbirdExporter = remember(vault) { DesktopThunderbirdExport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val preferencesExporter = remember(vault) { DesktopPreferencesExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, controller::exportPreferences, { revision++ }) }
     val preferencesImporter = remember(vault) { DesktopPreferencesImport(vault, exportWorker,
@@ -439,6 +453,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val passwordImporter = remember(vault) { DesktopPasswordImport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
     val emailImporter = remember(vault) { DesktopEmailImport(vault, exportWorker,
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
+    val thunderbirdImporter = remember(vault) { DesktopThunderbirdImport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
     val linScpImporter = remember(vault) { DesktopLinScpImport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, EntryEditor(controller, vault)::importEntries) }
@@ -458,9 +474,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val creation = remember(vault) { DesktopEntryCreation(vault) }
     val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
+    val entryActions = remember(vault) { DesktopEntryActions(vault, { controller.save(vault.key, vault.snapshot()) }, { revision++ }) }
     val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
+    val lifetimeHolder = remember(vault) { arrayOfNulls<DesktopSessionLifetime>(1) }
     var transactionMode by remember(vault) { mutableStateOf(false) }
     var transactionResult by remember(vault) { mutableStateOf<DesktopEntryTransaction.Result?>(null) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
@@ -469,8 +487,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             appearance = VaultAppearance(cardLayout = controller.savedCardLayout()),
-            addEntry = { autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            addEntry = { entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
             editEntry = { card ->
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }; copyNotice = null
                 creation.pending?.let { creation.dismiss(it) }
@@ -479,23 +498,46 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 editing.open(card.id)
                 revision++
             },
-            advanceCounter = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
-            enterPin = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
-            deleteEntry = { card -> autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
+            entryActions = { card ->
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }; copyNotice = null
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                entryActions.openMenu(card.id, revealed = card.revealed, canMoveUp = card.canMoveUp, canMoveDown = card.canMoveDown, active = { lifetimeHolder[0]?.checkActive() == true })
+                revision++
+            },
+            editCounter = { card ->
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }; copyNotice = null
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                entryActions.openCounter(card.id, card.revealed) { lifetimeHolder[0]?.checkActive() == true }
+                revision++
+            },
+            advanceCounter = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
+            enterPin = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
+            deleteEntry = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
             sortSelected = { mode -> controller.saveSortMode(mode) },
+            tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) },
             lockVault = {
                 showStorageLocation = false
                 transactionHolder[0]?.close()
+                entryActions.close()
                 emailDetails.close()
                 openPgpImporter.close()
                 linScpImporter.close()
                 emailImporter.close()
+                thunderbirdImporter.close()
                 passwordImporter.close()
                 imageReader.close()
                 uriImporter.close()
                 restorer.close()
                 preferencesImporter.close()
-                hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+                hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); thunderbirdExporter.close(); preferencesExporter.close()
                 openPgpExporter.close()
                 linScpExporter.close()
                 exporter.close()
@@ -514,7 +556,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val lifetime = remember(presenter) {
         DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false) {
             presenter.lock() // Invalidates callbacks and dialogs before destroying the owned vault.
-        }
+        }.also { lifetimeHolder[0] = it }
     }
     val transaction = remember(vault, lifetime) {
         DesktopEntryTransaction(vault, controller.detachedSave(exportWorker) { task -> EventQueue.invokeLater(task) }, presenter::lock)
@@ -523,12 +565,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     // Quiesce every other session owner before submitting a background entry transaction. A fresh
     // unlock is required afterwards; none of these terminal owners is reused for editing.
     fun quiesceForTransaction() {
-        layoutSettings.close(); autoLock.close(); copier.close(); mover.close()
+        layoutSettings.close(); autoLock.close(); copier.close(); mover.close(); entryActions.close()
         creation.close(); editing.close(); emailDetails.close(); dialogs.close()
-        openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close()
+        openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close()
         imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close()
         hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close()
-        archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close()
+        archiveExporter.close(); passwordExporter.close(); emailExporter.close(); thunderbirdExporter.close(); preferencesExporter.close()
         openPgpExporter.close(); linScpExporter.close(); exporter.close()
     }
     fun beginCreation(draft: com.fairuniversal.offlineotp.Database.Entry) {
@@ -555,7 +597,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
         onDispose {
             transaction.close()
-            layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
+            entryActions.close(); layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); thunderbirdExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
             try { lifetime.close() } finally { scheduler.close(); exportWorker.shutdown() }
         }
@@ -720,9 +762,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, importEmail = {
-            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -731,6 +774,23 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     val file = DesktopSavePicker.openEmailBackup(window)
                     if (file != null && lifetime.checkActive() && !vault.isLocked) emailImporter.open(file)
                 } catch (_: Exception) { copyNotice = "The FairEmail backup could not be selected." }
+                revision++
+            }
+        }, importThunderbird = {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                try {
+                    val file = DesktopSavePicker.openThunderbirdCsv(window)
+                    if (file != null && lifetime.checkActive() && !vault.isLocked) {
+                        thunderbirdImporter.openAndRead(file, lifetime::checkActive)
+                    }
+                } catch (_: Exception) { copyNotice = "The Thunderbird CSV file could not be selected." }
                 revision++
             }
         }, importLinScp = {
@@ -820,10 +880,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 creation.pending?.let { creation.dismiss(it) }
                 editing.pending?.let { editing.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 try {
                     val target = DesktopSavePicker.emailExport(window)
                     if (target != null && lifetime.checkActive() && !vault.isLocked) emailExporter.open(target)
                 } catch (_: Exception) { copyNotice = "The email export destination could not be selected." }
+            }
+        }, exportThunderbird = {
+            if (lifetime.checkActive() && thunderbirdExporter.pending == null) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
+                if (!thunderbirdExporter.open(lifetime::checkActive) && lifetime.checkActive()) {
+                    copyNotice = "No email or password entries are available to export as Thunderbird CSV."
+                }
             }
         }, exportPreferences = {
             if (lifetime.checkActive() && preferencesExporter.status != DesktopPreferencesExport.Status.WRITING) {
@@ -958,6 +1029,186 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     emailImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "FairEmail import",
         message = "Imported $count accounts. Identical accounts were skipped. The original file is unchanged.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { emailImporter.dismissNotice() }, onDismiss = { emailImporter.dismissNotice() }) }
+    val thunderbirdRequest = thunderbirdImporter.pending
+    if (thunderbirdRequest != null) EntryConfirmationDialog(
+        title = "Import Thunderbird CSV",
+        message = when {
+            thunderbirdRequest.busy -> "Reading Thunderbird CSV…"
+            thunderbirdRequest.failed -> "Could not read Thunderbird CSV. Check that the file is a valid Thunderbird or Firefox login export."
+            thunderbirdRequest.count != null -> "Import ${thunderbirdRequest.count} email accounts from this Thunderbird CSV? Existing identical entries will be skipped."
+            else -> "Preparing Thunderbird CSV import…"
+        },
+        confirmLabel = if (thunderbirdRequest.count != null && !thunderbirdRequest.busy && !thunderbirdRequest.failed) "Import" else "Close",
+        dismissLabel = "Cancel",
+        onConfirm = {
+            if (thunderbirdRequest.count != null && !thunderbirdRequest.busy && !thunderbirdRequest.failed) {
+                if (thunderbirdImporter.confirm(thunderbirdRequest, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+            } else {
+                thunderbirdImporter.dismiss(thunderbirdRequest)
+            }
+        },
+        onDismiss = { thunderbirdImporter.dismiss(thunderbirdRequest) }
+    )
+    thunderbirdImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "Thunderbird import",
+        message = "Imported $count email accounts. Identical entries were skipped. Protect or remove the original plaintext CSV separately.",
+        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { thunderbirdImporter.dismissNotice() }, onDismiss = { thunderbirdImporter.dismissNotice() }) }
+    thunderbirdExporter.pending?.let { request ->
+        if (request.status == DesktopThunderbirdExport.Status.SELECT) {
+            MultiChoiceSelectionDialog(
+                inputKey = request,
+                title = "Export Thunderbird CSV",
+                message = "Select the email or password credentials to export as a Thunderbird-compatible CSV.",
+                items = request.candidates.map { it.label },
+                confirmLabel = "Choose file…",
+                dismissLabel = "Cancel",
+                onConfirm = { selected ->
+                    if (lifetime.checkActive() && thunderbirdExporter.pending === request) {
+                        try {
+                            val target = DesktopSavePicker.thunderbirdExport(window)
+                            if (target != null && lifetime.checkActive() && !vault.isLocked) {
+                                thunderbirdExporter.choose(request, selected, target, lifetime::checkActive)
+                            }
+                        } catch (_: Exception) {
+                            copyNotice = "The Thunderbird export destination could not be selected."
+                        }
+                    }
+                },
+                onDismiss = { thunderbirdExporter.dismiss(request) }
+            )
+        } else {
+            EntryConfirmationDialog(
+                title = "Export Thunderbird CSV (plaintext)",
+                message = when (request.status) {
+                    DesktopThunderbirdExport.Status.CONFIRM -> "Export ${request.count} selected credential(s)? This unencrypted CSV contains plaintext passwords. Anyone with the file can read them. Store it securely and remove it when no longer needed. Existing files will not be overwritten."
+                    DesktopThunderbirdExport.Status.WRITING -> "Writing plaintext Thunderbird CSV. Closing cannot stop an already-started write."
+                    DesktopThunderbirdExport.Status.SAVED -> "Exported ${request.count} credential(s) to Thunderbird CSV. Protect this plaintext file."
+                    DesktopThunderbirdExport.Status.EXISTS -> "The destination already exists and was not overwritten. Choose a new filename."
+                    else -> "Could not export Thunderbird CSV. A partial plaintext file may remain; inspect and remove it securely."
+                },
+                confirmLabel = if (request.status == DesktopThunderbirdExport.Status.CONFIRM) "Export plaintext secrets" else "Close",
+                dismissLabel = "Cancel",
+                onConfirm = {
+                    if (request.status == DesktopThunderbirdExport.Status.CONFIRM) thunderbirdExporter.confirm(request, lifetime::checkActive)
+                    else thunderbirdExporter.dismiss(request)
+                },
+                onDismiss = { thunderbirdExporter.dismiss(request) }
+            )
+        }
+    }
+    entryActions.pending?.let { actionRequest ->
+        when (actionRequest.surface) {
+            DesktopEntryActions.Surface.MENU -> EntryCopyDialog(
+                fields = actionRequest.actions.map { it.label },
+                title = "Account actions — ${actionRequest.title}",
+                cancelLabel = "Close",
+                onSelect = { index ->
+                    val chosen = actionRequest.actions.getOrNull(index) ?: return@EntryCopyDialog
+                    when (chosen) {
+                        DesktopEntryActions.Action.REVEAL_OR_HIDE -> {
+                            entryActions.dismiss(actionRequest)
+                            presenter.toggleReveal(actionRequest.entryId)
+                        }
+                        DesktopEntryActions.Action.MOVE_UP, DesktopEntryActions.Action.MOVE_DOWN -> {
+                            val card = state.cards.firstOrNull { it.id == actionRequest.entryId }
+                            entryActions.dismiss(actionRequest)
+                            if (card != null) {
+                                val delta = if (chosen == DesktopEntryActions.Action.MOVE_UP) -1 else 1
+                                val moved = mover.move(moveFrame, card, delta, lifetime::checkActive)
+                                if (lifetime.checkActive() && !vault.isLocked) {
+                                    moveFailed = !moved
+                                    presenter.applyFilter(presenter.filter)
+                                }
+                            }
+                            revision++
+                        }
+                        else -> {
+                            val opened = entryActions.selectSubSurface(
+                                actionRequest,
+                                chosen,
+                                presenter.isRevealed(actionRequest.entryId),
+                                lifetime::checkActive
+                            )
+                            if (!opened && lifetime.checkActive()) {
+                                copyNotice = "That action is no longer available for this entry."
+                            }
+                            revision++
+                        }
+                    }
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.DETAILS -> EntryDetailsDialog(
+                title = "Details — ${actionRequest.title}",
+                body = actionRequest.detailsBody,
+                confirmLabel = "Close",
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.QR -> {
+                val matrix = actionRequest.qrMatrix
+                if (matrix != null && presenter.isRevealed(actionRequest.entryId)) {
+                    QrCodeDialog(
+                        title = actionRequest.title,
+                        matrixSize = matrix.size,
+                        matrixBits = matrix.bits,
+                        confirmLabel = "Close",
+                        onDismiss = { entryActions.dismiss(actionRequest) }
+                    )
+                } else {
+                    entryActions.dismiss(actionRequest)
+                }
+            }
+            DesktopEntryActions.Surface.TAGS -> TagsDialog(
+                inputKey = actionRequest,
+                initialStates = actionRequest.tagStates,
+                tagCounts = actionRequest.tagCounts,
+                maxTagChars = InputPolicy.MAX_TAG_CHARS,
+                title = actionRequest.title,
+                onTagCreated = {},
+                onSelectionConfirmed = { selectedStates ->
+                    if (entryActions.submitTags(actionRequest, selectedStates, lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not save tags."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.THUMBNAIL -> ThumbnailPickerDialog(
+                title = actionRequest.title,
+                selected = actionRequest.selectedThumbnail,
+                artwork = artwork,
+                unchangedLabel = "Reset to ${ThumbnailCatalog.DEFAULT_NAME}",
+                onSelect = { chosen ->
+                    if (entryActions.submitThumbnail(actionRequest, chosen, lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not save artwork."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.COUNTER -> EntryCounterDialog(
+                inputKey = actionRequest,
+                initialCounter = actionRequest.initialCounter,
+                title = actionRequest.title,
+                inputLabel = "Counter",
+                confirmLabel = "Save",
+                dismissLabel = "Cancel",
+                isValid = DesktopEntryActions::isValidCounter,
+                onSubmit = { value ->
+                    if (entryActions.submitCounter(actionRequest, value, presenter.isRevealed(actionRequest.entryId), lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not update HOTP counter."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+        }
+    }
     val passwordRequest = passwordImporter.pending
     if (passwordRequest != null) PasswordImportDialog(inputKey = passwordRequest, busy = passwordRequest.busy,
         count = passwordRequest.count, failed = passwordRequest.failed,

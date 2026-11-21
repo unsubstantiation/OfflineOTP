@@ -560,6 +560,7 @@ private fun RenderSharedSurface(
                 digits = rowValue("digits").ifEmpty { "6" },
                 period = rowValue("period").ifEmpty { "30" },
                 counter = rowValue("counter").ifEmpty { "0" },
+                algorithm = rowValue("algorithm").ifEmpty { "SHA1" },
                 pin = rowValue("pin"),
                 publicKey = rowValue("publicKey"),
                 privateKey = rowValue("privateKey"),
@@ -585,6 +586,7 @@ private fun RenderSharedSurface(
                 surfaceActions.change("digits", draft.digits)
                 surfaceActions.change("period", draft.period)
                 surfaceActions.change("counter", draft.counter)
+                surfaceActions.change("algorithm", draft.algorithm)
                 surfaceActions.change("pin", draft.pin)
                 surfaceActions.change("publicKey", draft.publicKey)
                 surfaceActions.change("privateKey", draft.privateKey)
@@ -593,6 +595,9 @@ private fun RenderSharedSurface(
                 surfaceActions.change("sshUsername", draft.sshUsername)
                 surfaceActions.change("sshPassword", draft.sshPassword)
                 surfaceActions.change("tags", draft.tags)
+                surfaceActions.change("clearHiddenLabel", if (draft.clearHiddenLabel) "true" else "false")
+                surfaceActions.change("clearPin", if (draft.clearPin) "true" else "false")
+                surfaceActions.change("clearSshPassword", if (draft.clearSshPassword) "true" else "false")
                 confirm()
             },
             onDismiss = onDismiss

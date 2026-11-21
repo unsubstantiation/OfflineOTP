@@ -32,12 +32,14 @@ data class VaultStrings(
     val exportArchives: String = "Export password archive (plaintext)",
     val exportPasswords: String = "Export browser passwords (plaintext)",
     val exportEmail: String = "Export FairEmail accounts (plaintext)",
+    val exportThunderbird: String = "Export Thunderbird CSV (plaintext)",
     val exportPreferences: String = "Export preferences",
     val exportOpenPgp: String = "Export OpenPGP backup",
     val importOpenPgp: String = "Import OpenPGP backup",
     val exportLinScp: String = "Export LinSCP Key/Sessions",
     val importLinScp: String = "Import LinSCP Key/Sessions",
     val importEmail: String = "Import FairEmail backup",
+    val importThunderbird: String = "Import Thunderbird CSV",
     val importPasswords: String = "Import password file",
     val importUri: String = "Import OTP URI / QR image",
     val restoreEncrypted: String = "Restore encrypted backup",
@@ -48,6 +50,9 @@ data class VaultStrings(
     val sortAction: String = "Sort",
     val clearFilters: String = "Clear",
     val allTags: String = "All tags",
+    val tagRuleAny: String = "Rule: Any tag",
+    val tagRuleAll: String = "Rule: All tags",
+    val tagRuleSingle: String = "Rule: One tag",
     val privacyReveal: String = "Reveal entry details",
     val privacyHide: String = "Hide entry details",
     val moveUp: String = "Move up",
@@ -102,6 +107,13 @@ data class VaultStrings(
         Constants.SortMode.LABEL -> "Label"
         Constants.SortMode.LAST_USED -> "Last used"
         Constants.SortMode.MOST_USED -> "Most used"
+    }
+
+    /** Label for the active tag combination mode (`OR`, `AND`, `SINGLE`). */
+    fun tagRuleTitle(functionality: Constants.TagFunctionality): String = when (functionality) {
+        Constants.TagFunctionality.OR -> tagRuleAny
+        Constants.TagFunctionality.AND -> tagRuleAll
+        Constants.TagFunctionality.SINGLE -> tagRuleSingle
     }
 
     /** `Tag (3)` as the tag panel shows it. */

@@ -75,6 +75,22 @@ class PortablePresentationTest {
         assertFalse(PortablePasswordEditDraft(password = "top-secret").toString().contains("top-secret"))
         assertFalse(PortableEmailAccountDraft(incomingPassword = "top-secret").toString().contains("top-secret"))
         assertFalse(PortableEntryDraft(secret = "JBSWY3DPEHPK3PXP").toString().contains("JBSWY3DPEHPK3PXP"))
+        val scrubbed = PortableEntryDraft(
+            secret = "JBSWY3DPEHPK3PXP",
+            algorithm = "SHA512",
+            pin = "1234",
+            hiddenLabel = "vault-hint",
+            privateKey = "ssh-key",
+            sshPassword = "pw",
+            clearHiddenLabel = true
+        ).withoutSecrets()
+        assertEquals("", scrubbed.secret)
+        assertEquals("", scrubbed.pin)
+        assertEquals("", scrubbed.hiddenLabel)
+        assertEquals("", scrubbed.privateKey)
+        assertEquals("", scrubbed.sshPassword)
+        assertEquals("SHA512", scrubbed.algorithm)
+        assertTrue(scrubbed.clearHiddenLabel)
         assertEquals(
             PasswordImport.Mode.values().map { it.name },
             PortablePasswordImportMode.values().map { it.name }

@@ -366,3 +366,26 @@ class NativeComposeFoundationTest(unittest.TestCase):
             '                             busy: busy)',
             host,
         )
+
+    def test_portable_manual_entry_and_ios_settings_parity(self):
+        contract = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt').read_text(encoding='utf-8')
+        for field in ('val algorithm: String', 'val clearHiddenLabel: Boolean', 'val clearPin: Boolean', 'val clearSshPassword: Boolean'):
+            self.assertIn(field, contract)
+
+        dialog = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt').read_text(encoding='utf-8')
+        for sym in ('PORTABLE_HASH_ALGORITHMS', 'clearHiddenLabel', 'clearPin', 'clearSshPassword', '"SHA1"', '"SHA256"', '"SHA512"'):
+            self.assertIn(sym, dialog)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('draft["clearHiddenLabel"]', host)
+        self.assertIn('draft["clearPin"]', host)
+        self.assertIn('draft["clearSshPassword"]', host)
+        self.assertIn('PreferencesExport.inspect(', host)
+        self.assertIn('store.hideIssuer', host)
+        self.assertIn('store.cardLayout', host)
+
+        prefs = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
+        self.assertIn('public static let cardLayoutKey = "ui_card_layout"', prefs)
+        self.assertIn('public static let hideIssuerKey = "ui_hide_issuer"', prefs)
+        self.assertIn('public static func inspect(', prefs)
+

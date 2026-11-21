@@ -45,6 +45,9 @@ class QrCodeImageTest {
             assertTrue(QrCodeImage.payloadFor(hotp)!!.startsWith("otpauth://hotp/"))
             // Steam keeps its own scheme name so a scanner knows to use the Steam alphabet.
             assertTrue(QrCodeImage.payloadFor(steam)!!.startsWith("otpauth://steam/"))
+            val matrix = QrCodeImage.matrixFor(QrCodeImage.payloadFor(hotp)!!)
+            assertTrue(matrix.size > 0)
+            assertEquals(matrix.size * matrix.size, matrix.bits.length)
         } finally { hotp.destroy(); steam.destroy() }
     }
 

@@ -170,6 +170,7 @@ internal fun VaultTagChips(
     strings: VaultStrings,
     clearLabel: String,
     showClear: Boolean,
+    tagRuleLabel: String? = null,
     actions: VaultActions
 ) {
     Row(
@@ -187,6 +188,14 @@ internal fun VaultTagChips(
                 onClick = {
                     if (chip.isUntagged) actions.onToggleUntagged() else actions.onToggleTag(chip.name)
                 }
+            )
+        }
+        val cycleTagRule = actions.onCycleTagRule
+        if (cycleTagRule != null && tagRuleLabel != null) {
+            SharedVaultTagChip(
+                label = tagRuleLabel,
+                selected = false,
+                onClick = cycleTagRule
             )
         }
         if (showClear) {
