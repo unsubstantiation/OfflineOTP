@@ -101,6 +101,7 @@ public enum EntryDraft {
                               publicKey: String = "", privateKey: String = "",
                               sshHost: String = "", sshPortText: String = "",
                               sshUsername: String = "", sshPassword: String = "",
+                              thumbnailName: String? = nil,
                               newEntry: Bool = false,
                               now: Int64 = EntryUsage.nowMillis()) throws -> Entry {
         guard offerableKinds.contains(kind) else { throw EntryDraftError.kindNotOfferable }
@@ -186,6 +187,12 @@ public enum EntryDraft {
         // present (the shared default name, since this client has no logo artwork) and
         // `details_visible` is only written when true, so a new entry keeps the legacy bytes the
         // other clients write for the default state.
+        let resolvedThumbnail: String
+        if let explicit = thumbnailName, !explicit.isEmpty, ThumbnailCatalog.names.contains(explicit) {
+            resolvedThumbnail = explicit
+        } else {
+            resolvedThumbnail = ThumbnailCatalog.resolveName(issuer)
+        }
         var fields: [String: JSONValue] = [
             "secret": .string(Base32.encode(seed)),
             "issuer": .string(issuer),
@@ -193,7 +200,7 @@ public enum EntryDraft {
             "digits": .int(Int64(entryDigits)),
             "type": .string(kind.rawValue),
             "algorithm": .string(algorithm.rawValue),
-            "thumbnail": .string(ThumbnailCatalog.resolveName(issuer)),
+            "thumbnail": .string(resolvedThumbnail),
             "last_used": .int(newEntry ? now : 0),
             "used_frequency": .int(0),
         ]
@@ -227,13 +234,27 @@ public enum EntryDraft {
         return entry
     }
 
-    /// An edit keeps the metadata the form does not show — the same three fields
-    /// `EntryDialog.preserveEditMetadata` carries over on the desktop.
-    public static func preservingMetadata(of existing: Entry, in replacement: Entry) -> Entry {
+    /// An edit keeps the metadata the form does not show — including any custom brand logo chosen
+    /// on Android, Desktop, or iOS unless `overrideThumbnail` explicitly selects a new one.
+    public static func preservingMetadata(
+        of existing: Entry,
+        in replacement: Entry,
+        overrideThumbnail: String? = nil
+    ) -> Entry {
         var result = replacement
         result.setDetailsVisible(existing.detailsVisible)
         result.setLastUsed(existing.lastUsed)
         result.setUsedFrequency(existing.usedFrequency)
+        if let override = overrideThumbnail, !override.isEmpty, ThumbnailCatalog.names.contains(override) {
+            result.setThumbnail(override)
+        } else if overrideThumbnail == nil || overrideThumbnail?.isEmpty == true {
+            let previous = existing.thumbnail
+            if !previous.isEmpty,
+               previous != ThumbnailCatalog.defaultName,
+               previous != ThumbnailCatalog.resolveName(existing.issuer) {
+                result.setThumbnail(previous)
+            }
+        }
         return result
     }
 }

@@ -55,6 +55,18 @@ class VaultPresenter(
         onChange?.invoke()
     }
 
+    fun setHideIssuer(hideIssuer: Boolean) {
+        if (locked) return
+        appearance = appearance.copy(showIssuer = !hideIssuer)
+        onChange?.invoke()
+    }
+
+    fun setAppearance(layout: Constants.CardLayouts, hideIssuer: Boolean) {
+        if (locked) return
+        appearance = appearance.copy(cardLayout = layout, showIssuer = !hideIssuer)
+        onChange?.invoke()
+    }
+
     private val revealed = LinkedHashSet<Long>()
     private var locked = false
 

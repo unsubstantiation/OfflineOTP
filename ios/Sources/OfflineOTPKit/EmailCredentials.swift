@@ -853,6 +853,19 @@ public enum ThunderbirdCsv {
 /// High-level Thunderbird vault entry import & export matching `ThunderbirdImport.kt` in `:core`
 /// (including legacy `PASSWORD` entries with mail schemes!).
 public enum ThunderbirdImport {
+    public static func isExportable(_ entry: Entry) -> Bool {
+        if entry.kind == .email, entry.secretBytes != nil {
+            return true
+        }
+        if entry.kind == .password, let fields = try? entry.passwordFields() {
+            let rawUrl = fields.value("url").isEmpty ? fields.value("hostname") : fields.value("url")
+            let low = rawUrl.lowercased()
+            return low.hasPrefix("imap://") || low.hasPrefix("pop://") || low.hasPrefix("pop3://") ||
+                low.hasPrefix("smtp://") || low.hasPrefix("mailbox://")
+        }
+        return false
+    }
+
     public static func entries(from data: Data) throws -> [Entry] {
         let accounts = try EmailMaterial.importThunderbirdCsv(data)
         return try accounts.map { try Entry.email(account: $0) }

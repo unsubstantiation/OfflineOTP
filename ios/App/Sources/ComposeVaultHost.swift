@@ -112,6 +112,26 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let pinRequired = entry.kind == .motp && entry.pin.isEmpty
             let code = try? entry.code(unixTime: Int64(now.timeIntervalSince1970))
             let hasCode = entry.kind?.isOtp == true && code != nil && code != Entry.motpNoPinCode
+            let canCopy: Bool = {
+                if hasCode { return true }
+                if entry.kind == .note { return !(entry.noteText ?? "").isEmpty }
+                guard revealed else { return false }
+                switch entry.kind {
+                case .sshKey:
+                    let keys = try? entry.sshKeys()
+                    return !(keys?.publicKey ?? "").isEmpty || !(keys?.privateKey ?? "").isEmpty
+                        || !(entry.sshConnection?.password ?? "").isEmpty
+                case .password:
+                    guard let fields = try? entry.passwordFields() else { return false }
+                    return !fields.value("password").isEmpty || !fields.value(PasswordCsvExport.fieldUsername).isEmpty
+                case .email:
+                    guard let account = try? entry.emailAccount() else { return false }
+                    return !(account.account["password"]?.stringValue ?? "").isEmpty
+                        || !(account.identities.first?["password"]?.stringValue ?? "").isEmpty
+                default:
+                    return false
+                }
+            }()
             let previous: String
             if revealed, (entry.kind == .totp || entry.kind == .steam),
                let older = try? entry.code(unixTime: Int64(now.timeIntervalSince1970) - Int64(entry.period)) {
@@ -137,9 +157,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 revealed: revealed,
                 canStep: entry.kind == .hotp && revealed,
                 hasCode: hasCode,
-                mark: title,
+                mark: entry.thumbnail != ThumbnailCatalog.defaultName ? entry.thumbnail : title,
                 tags: entry.tags,
                 canReorder: store.canReorder,
+                canCopy: canCopy,
                 pinRequired: pinRequired)
         }
         let chips = store.tags(for: store.category).map { tag in
@@ -239,10 +260,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "reveal":
             store.toggleReveal(at: position)
         case "copy":
-            copyCode(at: position)
+            copyCredential(at: position)
         case "pin":
             if entry.kind == .motp {
                 editorIndex = position
+                openedFields = entry.fields
                 draft = ["pin": entry.pin]
                 openSurface("pinEdit", keepDraft: true)
             }
@@ -253,6 +275,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if store.isRevealed(entry) { openDetails(at: position) }
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
+        case "delete":
+            if store.isRevealed(entry) {
+                editorIndex = position
+                openedFields = entry.fields
+                openSurface("delete", keepDraft: true)
+            }
         case "more":
             if store.isRevealed(entry) { openSurface("more:\(position)") }
         case "moveUp", "moveDown":
@@ -287,6 +315,31 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         toast = text
         toastExpiry = Date().addingTimeInterval(2.5)
         refresh()
+    }
+
+    private func copyCredential(at index: Int) {
+        guard store.entries.indices.contains(index) else { return }
+        let entry = store.entries[index]
+        if entry.kind?.isOtp == true {
+            copyCode(at: index)
+            return
+        }
+        if entry.kind == .note {
+            if let note = entry.noteText, !note.isEmpty {
+                copySecret(note, label: "Note", at: index)
+            }
+            return
+        }
+        guard store.isRevealed(entry) else { return }
+        if entry.kind == .password, let fields = try? entry.passwordFields() {
+            let password = fields.value("password")
+            let username = fields.value(PasswordCsvExport.fieldUsername)
+            if !password.isEmpty && username.isEmpty {
+                copySecret(password, label: "Password", at: index)
+                return
+            }
+        }
+        openSurface("copySelect:\(index)")
     }
 
     private func copyCode(at index: Int) {
@@ -370,6 +423,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if let index, store.entries.indices.contains(index),
            let account = try? store.entries[index].emailAccount() {
             let entry = store.entries[index]
+            openedFields = entry.fields
             let primary = account.identities.first ?? [:]
             draft["name"] = account.account["name"]?.stringValue ?? ""
             draft["address"] = account.address
@@ -413,6 +467,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         editorKind = kind
         draft = [:]
         let entry = index.flatMap { store.entries.indices.contains($0) ? store.entries[$0] : nil }
+        openedFields = entry?.fields
         draft["type"] = kind.rawValue
         draft["issuer"] = entry?.issuer ?? ""
         draft["label"] = entry?.label ?? ""
@@ -439,6 +494,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         draft["algorithm"] = entry?.algorithm.rawValue ?? "SHA1"
         draft["pin"] = index == nil ? (entry?.pin ?? "") : ""
         draft["tags"] = entry?.tags.joined(separator: ", ") ?? ""
+        draft["thumbnail"] = entry?.thumbnail ?? ""
         openSurface("editor", keepDraft: true)
     }
 
@@ -450,6 +506,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if key.hasPrefix("more:") {
             let position = Int(String(key.dropFirst("more:".count))) ?? -1
             return actionSurface(at: position)
+        }
+        if key.hasPrefix("copySelect:") {
+            let position = Int(String(key.dropFirst("copySelect:".count))) ?? -1
+            return copySelectSurface(at: position)
         }
         if key == "linScpImport" { return linScpImportSurface() }
         if key == "linScpExport" { return linScpExportSurface() }
@@ -610,13 +670,47 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 confirmLabel: "Export", dismissLabel: "Cancel")
         case "thunderbirdExportSelect":
             let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
-                guard entry.kind == .email || entry.kind == .password else { return nil }
+                guard ThunderbirdImport.isExportable(entry) else { return nil }
                 let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
                 return row("choice:\(idx)", label.isEmpty ? "Credential" : label, kind: "toggle")
             }
             return surface(key: key, title: "Export Thunderbird CSV",
                 sections: [PortableSection(title: "Select the email credentials to export.", rows: rows)],
                 confirmLabel: "Export", dismissLabel: "Cancel")
+        case "thunderbirdConfirm":
+            let count = Int(draft["previewCount"] ?? "0") ?? 0
+            let noun = count == 1 ? "credential" : "credentials"
+            return surface(key: key, title: "Import Thunderbird CSV",
+                sections: [PortableSection(title: "", rows: [
+                    row("info", "Import \(count) email \(noun) from this Thunderbird CSV? Identical entries will be skipped.", kind: "info")
+                ])],
+                confirmLabel: "Import", dismissLabel: "Cancel")
+        case "passwordExport":
+            let plan = store.passwordExportPlan()
+            var rows: [PortableRow] = [
+                row("foreign", "Foreign", value: String(plan.foreignPasswords), kind: "info"),
+                row("archives", "Archives", value: String(plan.archives), kind: "info")
+            ]
+            for (idx, group) in plan.groups.enumerated() {
+                rows.append(row("pwGroup:\(idx)",
+                    "Group \(idx + 1): \(group.dialect.browserName) — \(group.indices.count) records"))
+            }
+            return surface(key: key, title: "Export browser passwords (plaintext)",
+                sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Export", dismissLabel: "Cancel", showConfirm: false)
+        case "thumbnailEdit":
+            let current = editorIndex.flatMap { store.entries.indices.contains($0) ? store.entries[$0].thumbnail : nil } ?? ""
+            let resolvedDefault = editorIndex.flatMap {
+                store.entries.indices.contains($0) ? ThumbnailCatalog.resolveName(store.entries[$0].issuer) : nil
+            } ?? ThumbnailCatalog.defaultName
+            let rows: [PortableRow] = [
+                row("selected", "Selected", value: current, kind: "info"),
+                row("unchangedLabel", "Reset", value: "Reset to \(resolvedDefault)", kind: "info"),
+                row("catalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info")
+            ]
+            return surface(key: key, title: "Choose artwork",
+                sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Save", dismissLabel: "Close", showConfirm: false)
         case "openpgpExportDialog":
             let recipientRows = openPgpRecipientNames.enumerated().map { idx, name in
                 row("recipient:\(idx)", name, kind: "info")
@@ -875,6 +969,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("pin", "PIN", value: draft["pin"] ?? "", kind: "text"))
         }
         rows.append(row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text"))
+        rows.append(row("thumbnail", "Artwork", value: draft["thumbnail"] ?? "", kind: "info"))
+        rows.append(row("thumbnailCatalog", "Artwork catalog",
+                        value: ThumbnailCatalog.names.joined(separator: ","), kind: "info"))
         return surface(key: "editor", title: editorIndex == nil ? "Add entry" : "Edit entry",
             sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Save",
             dismissLabel: "Cancel", message: store.message ?? "")
@@ -951,6 +1048,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         rows.append(row("reveal:\(index)", "Reveal or hide"))
         rows.append(row("tags:\(index)", "Edit tags"))
+        if entry.kind != .sshKey && entry.kind != .passwordArchive {
+            rows.append(row("thumbnail:\(index)", "Change artwork…"))
+        }
         if store.otpUri(for: index) != nil {
             rows.append(row("qr:\(index)", "Show QR code"))
         }
@@ -969,6 +1069,20 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if let sshPass = entry.sshConnection?.password, !sshPass.isEmpty {
             rows.append(row("copySshPassword:\(index)", "Copy SSH password"))
         }
+        if entry.kind == .password, let fields = try? entry.passwordFields() {
+            if !fields.value("password").isEmpty {
+                rows.append(row("copyPassword:\(index)", "Copy password"))
+            }
+            if !fields.value(PasswordCsvExport.fieldUsername).isEmpty {
+                rows.append(row("copyUsername:\(index)", "Copy username"))
+            }
+            if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+                rows.append(row("exportPasswordCsv:\(index)", "Export as \(dialect.browserName) CSV…"))
+            }
+        }
+        if entry.kind == .passwordArchive {
+            rows.append(row("exportArchive:\(index)", "Export password file…"))
+        }
         if entry.kind == .email, let account = try? entry.emailAccount() {
             if !(account.account["password"]?.stringValue ?? "").isEmpty {
                 rows.append(row("copyImapPassword:\(index)", "Copy incoming password"))
@@ -981,6 +1095,50 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         return surface(key: "more:\(index)", title: "Entry actions",
             sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Done",
             dismissLabel: "Close", showConfirm: false)
+    }
+
+    private func copySelectSurface(at index: Int) -> PortableSurfaceState {
+        guard store.entries.indices.contains(index) else {
+            return surface(key: "copySelect:\(index)", title: "Choose field to copy", sections: [],
+                           confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
+        }
+        let entry = store.entries[index]
+        guard store.isRevealed(entry) else {
+            return surface(key: "copySelect:\(index)", title: "Choose field to copy", sections: [],
+                           confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
+        }
+        var rows: [PortableRow] = []
+        switch entry.kind {
+        case .sshKey:
+            if let keys = try? entry.sshKeys() {
+                if !keys.publicKey.isEmpty { rows.append(row("copyPublic:\(index)", "Public key")) }
+                if !keys.privateKey.isEmpty { rows.append(row("copyPrivate:\(index)", "Private key")) }
+            }
+            if let sshPass = entry.sshConnection?.password, !sshPass.isEmpty {
+                rows.append(row("copySshPassword:\(index)", "Connection password"))
+            }
+        case .password:
+            if let fields = try? entry.passwordFields() {
+                if !fields.value("password").isEmpty { rows.append(row("copyPassword:\(index)", "Password")) }
+                if !fields.value(PasswordCsvExport.fieldUsername).isEmpty {
+                    rows.append(row("copyUsername:\(index)", "Username"))
+                }
+            }
+        case .email:
+            if let account = try? entry.emailAccount() {
+                if !(account.account["password"]?.stringValue ?? "").isEmpty {
+                    rows.append(row("copyImapPassword:\(index)", "Incoming password"))
+                }
+                if !(account.identities.first?["password"]?.stringValue ?? "").isEmpty {
+                    rows.append(row("copySmtpPassword:\(index)", "Outgoing password"))
+                }
+            }
+        default:
+            break
+        }
+        return surface(key: "copySelect:\(index)", title: "Choose field to copy",
+            sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Done",
+            dismissLabel: "Cancel", showConfirm: false)
     }
 
     private func detailsSurface(at index: Int) -> PortableSurfaceState {
@@ -1056,7 +1214,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             || surfaceKey.hasPrefix("passwordEdit:") || surfaceKey == "linScpImport"
             || surfaceKey == "linScpExport" || surfaceKey == "fairEmailImport"
             || surfaceKey == "fairEmailExportSelect" || surfaceKey == "thunderbirdExportSelect"
-            || surfaceKey == "cardLayout" || surfaceKey == "passwordImportChoice" {
+            || surfaceKey == "cardLayout" || surfaceKey == "passwordImportChoice"
+            || surfaceKey == "thumbnailEdit" {
             if key == "linScpSelectedIndices" {
                 linScpSelected = Set(value.split(separator: ",").compactMap { Int($0) })
             } else if key == "linScpImportSelected" {
@@ -1079,8 +1238,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                ["passwordChange", "autoLock", "prefsConfirm", "restore", "backupExportDialog",
                 "editor", "emailEditor", "delete", "tagEdit", "pinEdit", "counterEdit",
                 "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
-                "fairEmailExportSelect", "thunderbirdExportSelect",
-                "cardLayout", "passwordImportChoice"].contains(surfaceKey),
+                "fairEmailExportSelect", "thunderbirdExportSelect", "thunderbirdConfirm",
+                "cardLayout", "passwordImportChoice", "thumbnailEdit"].contains(surfaceKey),
                store.generation != epoch {
                 closeSurface()
                 return "The vault session changed. Close and reopen this dialog."
@@ -1104,6 +1263,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "editor": return saveEditor()
         case "emailEditor": return saveEmailEditor()
         case "delete":
+            if let index = editorIndex, let expected = openedFields,
+               (!store.entries.indices.contains(index) || store.entries[index].fields != expected) {
+                closeSurface()
+                return "The entry changed. Close and reopen delete confirmation."
+            }
             guard let index = editorIndex, store.remove(at: index) else {
                 return store.message ?? "The entry could not be removed."
             }
@@ -1111,17 +1275,43 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         case "tagEdit":
-            guard let index = editorIndex, let tags = draft["tags"] else {
-                return "No tags were entered."
+            guard let index = editorIndex, store.entries.indices.contains(index),
+                  openedFields == nil || store.entries[index].fields == openedFields,
+                  let tags = draft["tags"] else {
+                return "The entry changed or no tags were entered."
             }
-            guard store.setTags(at: index, tags: tags.split(separator: ",").map(String.init)) else {
+            let parsedTags = tags.split(whereSeparator: { $0 == "," || $0.isNewline }).map(String.init)
+            guard store.setTags(at: index, tags: parsedTags) else {
                 return store.message ?? "The tags could not be saved."
             }
             message("Tags updated.")
             closeSurface()
             return nil
+        case "thumbnailEdit":
+            guard let index = editorIndex, store.entries.indices.contains(index),
+                  openedFields == nil || store.entries[index].fields == openedFields else {
+                closeSurface()
+                return "The entry changed. Close and reopen the artwork picker."
+            }
+            let chosen = draft["thumbnail"] ?? ""
+            guard store.setThumbnail(at: index, name: chosen) else {
+                return store.message ?? "The artwork could not be saved."
+            }
+            message("Artwork updated.")
+            closeSurface()
+            return nil
+        case "thunderbirdConfirm":
+            guard !pendingImport.isEmpty,
+                  let plan = store.importThunderbirdBackup(data: pendingImport) else {
+                return store.message ?? "That file is not a valid Thunderbird CSV export."
+            }
+            pendingImport = Data()
+            message(BackupWording.restoreSummary(plan, replace: false))
+            closeSurface()
+            return nil
         case "pinEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
+                  openedFields == nil || store.entries[index].fields == openedFields,
                   store.entries[index].kind == .motp else {
                 return "The entry changed. Close and reopen the PIN prompt."
             }
@@ -1154,6 +1344,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
         case "counterEdit":
             guard let index = editorIndex, store.entries.indices.contains(index),
+                  openedFields == nil || store.entries[index].fields == openedFields,
                   store.entries[index].kind == .hotp else {
                 return "The entry changed. Close and reopen the counter editor."
             }
@@ -1463,6 +1654,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     mergedIdentities[0] = primary
                 }
                 let account = EmailMaterial.Account(account: mergedAccount, identities: mergedIdentities)
+                guard openedFields == nil || store.entries[index].fields == openedFields else {
+                    return "The email account changed. Close and reopen the editor."
+                }
                 var built = try Entry.email(account: account, tags: tags)
                 built = EntryDraft.preservingMetadata(of: store.entries[index], in: built)
                 guard store.update(at: index, with: built) else {
@@ -1532,6 +1726,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 }
                 return typed
             }()
+            let chosenThumbnail = (draft["thumbnail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
             var built = try EntryDraft.create(
                 kind: kind,
                 issuer: draft["issuer"] ?? "",
@@ -1549,9 +1744,19 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 sshPortText: draft["sshPort"] ?? "",
                 sshUsername: draft["sshUsername"] ?? "",
                 sshPassword: sshPassword,
+                thumbnailName: chosenThumbnail.isEmpty ? nil : chosenThumbnail,
                 newEntry: editorIndex == nil)
             if let index = editorIndex, store.entries.indices.contains(index) {
-                built = EntryDraft.preservingMetadata(of: store.entries[index], in: built)
+                guard openedFields == nil || store.entries[index].fields == openedFields else {
+                    return "The entry changed. Close and reopen the editor."
+                }
+                let explicitOverride: String? = (chosenThumbnail != store.entries[index].thumbnail)
+                    ? chosenThumbnail : nil
+                built = EntryDraft.preservingMetadata(
+                    of: store.entries[index],
+                    in: built,
+                    overrideThumbnail: explicitOverride
+                )
                 guard store.update(at: index, with: built) else {
                     return store.message ?? "The entry could not be saved."
                 }
@@ -1583,6 +1788,35 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         }
         if command == "archiveExportSelect", let index {
+            guard let archive = store.exportPasswordArchive(at: index) else {
+                return store.message ?? "The password archive could not be exported."
+            }
+            onExport(archive.data, archive.name)
+            closeSurface()
+            return nil
+        }
+        if command == "pwGroup", let index {
+            let plan = store.passwordExportPlan()
+            guard plan.groups.indices.contains(index) else {
+                return "The password export group changed. Reopen the export dialog."
+            }
+            let group = plan.groups[index]
+            guard let exported = store.exportBrowserPasswordsCsvGroup(indices: group.indices, dialect: group.dialect) else {
+                return store.message ?? "The browser password CSV could not be written."
+            }
+            onExport(exported.data, exported.name)
+            closeSurface()
+            return nil
+        }
+        if command == "exportPasswordCsv", let index {
+            guard let exported = store.exportSinglePasswordCsv(at: index) else {
+                return store.message ?? "That entry cannot be exported as a browser CSV."
+            }
+            onExport(exported.data, exported.name)
+            closeSurface()
+            return nil
+        }
+        if command == "exportArchive", let index {
             guard let archive = store.exportPasswordArchive(at: index) else {
                 return store.message ?? "The password archive could not be exported."
             }
@@ -1809,7 +2043,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             onExport(backup.data, backup.name)
             return nil
         case "thunderbirdExport":
-            if store.entries.contains(where: { $0.kind == .email }) {
+            if store.entries.contains(where: { ThunderbirdImport.isExportable($0) }) {
                 draft = [:]
                 openSurface("thunderbirdExportSelect", keepDraft: true)
                 return nil
@@ -1833,6 +2067,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         case "csvExport":
+            let plan = store.passwordExportPlan()
+            if !plan.groups.isEmpty || plan.foreignPasswords > 0 || plan.archives > 0 {
+                draft = [:]
+                openSurface("passwordExport", keepDraft: true)
+                return nil
+            }
             guard let csv = store.exportBrowserPasswordsCsv() else {
                 return store.message ?? "No browser passwords could be exported."
             }
@@ -1891,13 +2131,22 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "tags":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
             editorIndex = index
+            openedFields = store.entries[index].fields
             draft = ["tags": store.entries[index].tags.joined(separator: ", ")]
             openSurface("tagEdit", keepDraft: true)
+            return nil
+        case "thumbnail":
+            guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
+            editorIndex = index
+            openedFields = store.entries[index].fields
+            draft = ["thumbnail": store.entries[index].thumbnail]
+            openSurface("thumbnailEdit", keepDraft: true)
             return nil
         case "pin":
             guard let index, store.entries.indices.contains(index),
                   store.entries[index].kind == .motp else { return "The entry changed." }
             editorIndex = index
+            openedFields = store.entries[index].fields
             draft = ["pin": store.entries[index].pin]
             openSurface("pinEdit", keepDraft: true)
             return nil
@@ -1905,6 +2154,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let index, store.entries.indices.contains(index),
                   store.entries[index].kind == .hotp else { return "The entry changed." }
             editorIndex = index
+            openedFields = store.entries[index].fields
             draft = ["counter": String(store.entries[index].counter)]
             openSurface("counterEdit", keepDraft: true)
             return nil
@@ -1920,6 +2170,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "delete":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
             editorIndex = index
+            openedFields = store.entries[index].fields
             openSurface("delete", keepDraft: true)
             return nil
         default: return nil
@@ -2038,12 +2289,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return
         }
         if kind == "thunderbird" {
-            guard let plan = store.importThunderbirdBackup(data: data) else {
+            linScpPendingData = Data()
+            guard let count = store.previewThunderbirdBackupCount(data: data) else {
+                pendingImport = Data()
                 message(store.message ?? "That file is not a valid Thunderbird CSV export.")
                 return
             }
-            pendingImport = Data()
-            message(BackupWording.restoreSummary(plan, replace: false))
+            draft = ["previewCount": String(count)]
+            openSurface("thunderbirdConfirm", keepDraft: true)
             return
         }
         if kind == "linScp" {

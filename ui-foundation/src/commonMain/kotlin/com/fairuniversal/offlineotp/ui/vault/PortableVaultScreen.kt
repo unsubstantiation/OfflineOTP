@@ -222,7 +222,7 @@ private fun PortableCardView(
             ForestTextAction(if (card.revealed) "Hide" else "Reveal",
                 onClick = { onCard(card.index, "reveal") },
                 contentDescription = "Show or hide the code for " + displayTitle)
-            if (card.hasCode) {
+            if (card.canCopy) {
                 ForestTextAction("Copy", onClick = { onCard(card.index, "copy") },
                     contentDescription = "Copy Token for " + displayTitle)
             }
@@ -243,6 +243,9 @@ private fun PortableCardView(
                     contentDescription = "Shows entry details")
                 ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
                     contentDescription = "Edit " + displayTitle)
+                ForestTextAction("Delete", onClick = { onCard(card.index, "delete") },
+                    color = ForestPalette.warning,
+                    contentDescription = "Delete " + displayTitle)
                 ForestTextAction("More", onClick = { onCard(card.index, "more") },
                     contentDescription = "More actions for " + displayTitle)
             }

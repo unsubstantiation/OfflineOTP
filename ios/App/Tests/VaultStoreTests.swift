@@ -849,4 +849,36 @@ final class VaultStoreTests: XCTestCase {
         ))
         XCTAssertEqual(restored.entries.count, store.entries.count)
     }
+
+    @MainActor
+    func testSessionRevealedPasswordsExportAndArtworkAndThunderbirdConfirmWork() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("ops-totp", issuer: "Internal Corp")))
+        XCTAssertTrue(store.setThumbnail(at: 0, name: "GitHub"))
+        XCTAssertEqual(store.entries[0].thumbnail, "GitHub")
+        XCTAssertTrue(store.setThumbnail(at: 0, name: ""))
+        XCTAssertEqual(store.entries[0].thumbnail, "Default")
+
+        let csv = Data("name,url,username,password\r\nGitLab,gitlab.example.com,alice,pw123\r\n".utf8)
+        XCTAssertNotNil(store.importBrowserPasswords(filename: "logins.csv", data: csv, mode: .individual))
+        let pwIndex = try XCTUnwrap(store.entries.firstIndex(where: { $0.kind == .password }))
+        XCTAssertNil(store.exportBrowserPasswordsCsv())
+        store.toggleReveal(at: pwIndex)
+        let revealedCsv = try XCTUnwrap(store.exportBrowserPasswordsCsv())
+        XCTAssertTrue(String(decoding: revealedCsv.data, as: UTF8.self).contains("pw123"))
+
+        let plan = store.passwordExportPlan()
+        XCTAssertEqual(plan.groups.count, 1)
+        XCTAssertEqual(plan.groups[0].dialect, .chrome)
+        XCTAssertNotNil(store.exportSinglePasswordCsv(at: pwIndex))
+
+        let tbCsv = Data("url,username,password\r\nimap://mail.example.com,ops@example.com,imap-secret\r\n".utf8)
+        XCTAssertEqual(store.previewThunderbirdBackupCount(data: tbCsv), 1)
+        let adapter = vaultAdapter(store)
+        adapter.imported(data: tbCsv, kind: "thunderbird")
+        XCTAssertFalse(store.entries.contains(where: { $0.kind == .email }))
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertTrue(store.entries.contains(where: { $0.kind == .email }))
+        adapter.invalidate()
+    }
 }

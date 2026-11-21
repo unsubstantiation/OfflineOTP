@@ -190,4 +190,64 @@ class DesktopEntryCopyTest {
             assertEquals("connection-password", h.clipboardValue)
         } finally { h.close() }
     }
+
+    @Test
+    fun emailAndPasswordEntriesExposeSelectableCredentialFieldsOnlyWhenRevealed() {
+        val h = Harness()
+        try {
+            val emailAccount = com.fairuniversal.offlineotp.Utilities.EmailMaterial.create(
+                name = "Ops Mail",
+                address = "ops@example.com",
+                incomingHost = "imap.example.com",
+                incomingPort = 993,
+                incomingEncryption = 0,
+                incomingProtocol = 0,
+                incomingUser = "ops@example.com",
+                incomingPassword = "in-secret",
+                incomingAuth = 1,
+                outgoingHost = "smtp.example.com",
+                outgoingPort = 465,
+                outgoingEncryption = 0,
+                outgoingUser = "ops@example.com",
+                outgoingPassword = "out-secret",
+                outgoingAuth = 1
+            )
+            val email = Entry.email(emailAccount.account, emailAccount.identity, emailAccount.identities, arrayListOf("ops"))
+            assertTrue(h.editor.add(email))
+            val hiddenEmailCard = VaultCards.of(email, 0L, revealed = false)
+            assertTrue(h.copier.open(h.copier.bind(listOf(hiddenEmailCard)), hiddenEmailCard, false) == null)
+
+            val revealedEmailCard = VaultCards.of(email, 0L, revealed = true)
+            val emailFrame = h.copier.bind(listOf(revealedEmailCard))
+            val emailReq1 = h.copier.open(emailFrame, revealedEmailCard, true)!!
+            assertEquals(
+                listOf(EntryEditor.CopyField.EMAIL_INCOMING_PASSWORD, EntryEditor.CopyField.EMAIL_OUTGOING_PASSWORD),
+                emailReq1.fields
+            )
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(emailReq1, EntryEditor.CopyField.EMAIL_INCOMING_PASSWORD, true))
+            assertEquals("in-secret", h.clipboardValue)
+            val emailReq2 = h.copier.open(emailFrame, revealedEmailCard, true)!!
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(emailReq2, EntryEditor.CopyField.EMAIL_OUTGOING_PASSWORD, true))
+            assertEquals("out-secret", h.clipboardValue)
+
+            val passwordCsv = "name,url,username,password\r\nGitLab,gitlab.example.com,alice,pw-secret\r\n".toByteArray()
+            val pw = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+                passwordCsv,
+                "logins.csv",
+                com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.INDIVIDUAL
+            ).single()
+            assertTrue(h.editor.add(pw))
+            val hiddenPwCard = VaultCards.of(pw, 0L, revealed = false)
+            assertTrue(h.copier.open(h.copier.bind(listOf(hiddenPwCard)), hiddenPwCard, false) == null)
+            val revealedPwCard = VaultCards.of(pw, 0L, revealed = true)
+            val pwFrame = h.copier.bind(listOf(revealedPwCard))
+            val pwReq1 = h.copier.open(pwFrame, revealedPwCard, true)!!
+            assertEquals(listOf(EntryEditor.CopyField.PASSWORD, EntryEditor.CopyField.PASSWORD_USERNAME), pwReq1.fields)
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(pwReq1, EntryEditor.CopyField.PASSWORD_USERNAME, true))
+            assertEquals("alice", h.clipboardValue)
+            val pwReq2 = h.copier.open(pwFrame, revealedPwCard, true)!!
+            assertEquals(DesktopEntryCopy.Result.COPIED, h.copier.copy(pwReq2, EntryEditor.CopyField.PASSWORD, true))
+            assertEquals("pw-secret", h.clipboardValue)
+        } finally { h.close() }
+    }
 }

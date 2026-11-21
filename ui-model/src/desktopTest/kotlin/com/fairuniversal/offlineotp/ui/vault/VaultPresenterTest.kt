@@ -612,4 +612,21 @@ class VaultPresenterTest {
         assertFalse(text.contains("backup codes"))
         assertTrue(text.contains("VaultPresenter"))
     }
+
+    @Test
+    fun setHideIssuerAndSetAppearanceUpdateFramesUntilLocked() {
+        val harness = harnessOf(totp("GitHub", "alice"))
+        assertEquals("GitHub", harness.presenter.frame(1_000L).cards.single().issuer)
+        harness.presenter.setHideIssuer(true)
+        assertEquals("", harness.presenter.frame(1_000L).cards.single().issuer)
+        harness.presenter.setAppearance(com.fairuniversal.offlineotp.Utilities.Constants.CardLayouts.COMPACT, false)
+        assertEquals("GitHub", harness.presenter.frame(1_000L).cards.single().issuer)
+        assertEquals(
+            com.fairuniversal.offlineotp.Utilities.Constants.CardLayouts.COMPACT,
+            harness.presenter.appearance.cardLayout
+        )
+        harness.presenter.lock()
+        harness.presenter.setHideIssuer(true)
+        assertTrue(harness.presenter.appearance.showIssuer)
+    }
 }
