@@ -284,7 +284,18 @@ private fun RenderSharedSurface(
                     surfaceActions.change("layout", selected.name)
                     confirm()
                 },
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                hideIssuer = rowValue("hideIssuer") == "true",
+                showPreviousToken = rowValue("showPreviousToken") != "false",
+                tokenGroupSize = rowValue("tokenGroupSize").toIntOrNull()?.takeIf { it == 0 || it == 2 || it == 3 } ?: 3,
+                allowDefaultGrouping = false,
+                onSaveDisplay = { selected, hideIssuer, showPreviousToken, tokenGroupSize ->
+                    surfaceActions.change("layout", selected.name)
+                    surfaceActions.change("hideIssuer", if (hideIssuer) "true" else "false")
+                    surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
+                    surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
+                    confirm()
+                }
             )
         }
         "passwordImportChoice" -> {
@@ -303,8 +314,9 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss
             )
         }
-        "fairEmailExportSelect", "thunderbirdExportSelect" -> {
+        "fairEmailExportSelect", "thunderbirdExportSelect", "searchIncludes" -> {
             val choiceRows = rows.filter { it.key.startsWith("choice:") }
+            val initialSelected = choiceRows.indices.filter { choiceRows[it].checked }.toSet()
             MultiChoiceSelectionDialog(
                 inputKey = dialogKey,
                 title = dialog.title,
@@ -312,6 +324,7 @@ private fun RenderSharedSurface(
                 items = choiceRows.map { it.title },
                 confirmLabel = dialog.confirmLabel,
                 dismissLabel = dialog.dismissLabel,
+                initialSelected = initialSelected,
                 onConfirm = { selected ->
                     val mapped = selected.sorted().mapNotNull { idx ->
                         choiceRows.getOrNull(idx)?.key?.removePrefix("choice:")

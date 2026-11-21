@@ -68,6 +68,20 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   iOS Thunderbird CSV import/export; and exposed persisted `ui_hide_issuer` in Compose desktop's
   `SharedCardLayoutDialog` and `PreferencesExport.desktopCatalog`.
 
+- **Selective FairEmail export, per-entry password/archive exports, and display & search settings
+  parity**: Added selective FairEmail account export (`DesktopEmailExport.openSelective` +
+  `MultiChoiceSelectionDialog`) and per-entry browser password CSV / raw archive export actions
+  (`DesktopEntryActions`, `DesktopPasswordExport.openSingle`, `DesktopArchiveExport.openSingle`) on
+  Compose desktop, matching Android and iOS; added `ThunderbirdImport.isExportable` to `:core` so
+  Android and desktop Thunderbird selective export cover both `EMAIL` accounts and legacy
+  URL-bearing `PASSWORD` logins; extended `SharedCardLayoutDialog` in `:ui-foundation` across
+  desktop and iOS with token digit grouping (`ui_split_group_size`), `Show previous code`
+  (`ui_show_prev_token`), and `Hide issuer` (`ui_hide_issuer`); added configurable vault search
+  fields (`ui_search_includes`: `Label`, `Issuer`, `Tags`) on desktop and iOS via the shared
+  `MultiChoiceSelectionDialog`; and persisted `ui_tag_functionality`, `ui_show_prev_token`,
+  `ui_split_group_size`, and `ui_search_includes` in both `PreferencesExport.desktopCatalog` and
+  iOS `PreferencesExport.catalog`.
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

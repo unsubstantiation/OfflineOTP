@@ -94,4 +94,70 @@ class DesktopLayoutSettingsTest {
             dir.deleteRecursively()
         }
     }
+
+    @Test fun displayAndSearchSettingsPersistAndRoundTrip() {
+        val dir = Files.createTempDirectory("compose-display-search-").toFile()
+        val storage = DesktopStorage.open(dir)
+        val controller = VaultController(storage)
+        val state = state()
+        try {
+            assertTrue(controller.savedShowPreviousToken())
+            assertEquals(null, controller.savedTokenGroupSize())
+            assertEquals(
+                com.fairuniversal.offlineotp.Utilities.Constants.SearchIncludes.values().toList(),
+                controller.savedSearchIncludes()
+            )
+            assertFalse(controller.trySaveSearchIncludes(emptyList()))
+            assertTrue(
+                controller.trySaveSearchIncludes(
+                    listOf(
+                        com.fairuniversal.offlineotp.Utilities.Constants.SearchIncludes.LABEL,
+                        com.fairuniversal.offlineotp.Utilities.Constants.SearchIncludes.TAGS
+                    )
+                )
+            )
+            val settings = DesktopLayoutSettings(
+                state,
+                controller::savedCardLayout,
+                controller::trySaveCardLayout,
+                controller::savedHideIssuer,
+                controller::trySaveHideIssuer,
+                controller::savedShowPreviousToken,
+                controller::trySaveShowPreviousToken,
+                controller::savedTokenGroupSize,
+                controller::trySaveTokenGroupSize
+            )
+            settings.open()
+            val req = settings.pending!!
+            var appliedPrev = true
+            var appliedGroup: Int? = 99
+            assertTrue(
+                settings.submit(req, CardLayouts.FULL, true, false, 2, { true }) { _, _, showPrev, groupSize ->
+                    appliedPrev = showPrev
+                    appliedGroup = groupSize
+                }
+            )
+            assertFalse(appliedPrev)
+            assertEquals(2, appliedGroup)
+
+            val reopened = VaultController(DesktopStorage.open(dir))
+            assertEquals(CardLayouts.FULL, reopened.savedCardLayout())
+            assertTrue(reopened.savedHideIssuer())
+            assertFalse(reopened.savedShowPreviousToken())
+            assertEquals(2, reopened.savedTokenGroupSize())
+            assertEquals(
+                listOf(
+                    com.fairuniversal.offlineotp.Utilities.Constants.SearchIncludes.LABEL,
+                    com.fairuniversal.offlineotp.Utilities.Constants.SearchIncludes.TAGS
+                ),
+                reopened.savedSearchIncludes()
+            )
+            assertTrue(reopened.trySaveTokenGroupSize(null))
+            assertEquals(null, reopened.savedTokenGroupSize())
+            settings.close()
+        } finally {
+            state.lock()
+            dir.deleteRecursively()
+        }
+    }
 }

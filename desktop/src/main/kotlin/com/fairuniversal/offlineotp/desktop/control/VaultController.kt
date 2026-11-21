@@ -175,6 +175,73 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedShowPreviousToken(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_PREV_TOKEN,
+            "true"
+        ).toBooleanStrictOrNull() ?: true
+    } catch (_: RuntimeException) { true }
+
+    fun trySaveShowPreviousToken(showPrevious: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_PREV_TOKEN,
+            showPrevious.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedTokenGroupSize(): Int? = try {
+        val raw = vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE,
+            ""
+        )
+        raw.toIntOrNull()?.takeIf { it == 0 || it == 2 || it == 3 }
+    } catch (_: RuntimeException) { null }
+
+    fun trySaveTokenGroupSize(groupSize: Int?): Boolean {
+        if (groupSize != null && groupSize != 0 && groupSize != 2 && groupSize != 3) return false
+        return try {
+            if (groupSize == null) {
+                vault.preferences.remove(com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE)
+            } else {
+                vault.preferences.putInt(com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE, groupSize)
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedSearchIncludes(): List<Constants.SearchIncludes> = try {
+        val raw = vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SEARCH_INCLUDES,
+            ""
+        )
+        if (raw.isBlank()) {
+            Constants.SearchIncludes.values().toList()
+        } else {
+            val resolved = raw.split('\n', ',')
+                .mapNotNull { token ->
+                    val normalized = token.trim().uppercase(java.util.Locale.ROOT)
+                    Constants.SearchIncludes.values().firstOrNull { it.name == normalized }
+                }
+                .distinct()
+            resolved.ifEmpty { Constants.SearchIncludes.values().toList() }
+        }
+    } catch (_: RuntimeException) {
+        Constants.SearchIncludes.values().toList()
+    }
+
+    fun trySaveSearchIncludes(includes: List<Constants.SearchIncludes>): Boolean {
+        val distinct = includes.distinct()
+        if (distinct.isEmpty()) return false
+        return try {
+            vault.preferences.putString(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SEARCH_INCLUDES,
+                distinct.joinToString("\n") { it.name }
+            )
+            true
+        } catch (_: Exception) { false }
+    }
+
     /** Portable allowlisted preferences only; never export vault auth state or backup passwords. */
     fun exportPreferences(): com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export =
         com.fairuniversal.offlineotp.Utilities.PreferencesExport.export(

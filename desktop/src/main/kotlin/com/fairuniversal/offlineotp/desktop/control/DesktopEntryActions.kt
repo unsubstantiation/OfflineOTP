@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
+import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
 
@@ -30,6 +31,8 @@ class DesktopEntryActions(
         MANAGE_TAGS("Manage tags"),
         CHANGE_THUMBNAIL("Change artwork"),
         SET_COUNTER("Set counter…"),
+        EXPORT_PASSWORD_CSV("Export as browser CSV…"),
+        EXPORT_PASSWORD_ARCHIVE("Export password file…"),
         MOVE_UP("Move up"),
         MOVE_DOWN("Move down")
     }
@@ -70,6 +73,10 @@ class DesktopEntryActions(
             add(Action.MANAGE_TAGS)
             add(Action.CHANGE_THUMBNAIL)
             if (revealed && entry.isCounterBased()) add(Action.SET_COUNTER)
+            if (revealed && PasswordCsvExport.support(entry) is PasswordCsvExport.Support.Exportable) {
+                add(Action.EXPORT_PASSWORD_CSV)
+            }
+            if (entry.isPasswordArchive()) add(Action.EXPORT_PASSWORD_ARCHIVE)
             if (canMoveUp) add(Action.MOVE_UP)
             if (canMoveDown) add(Action.MOVE_DOWN)
         }
@@ -165,7 +172,11 @@ class DesktopEntryActions(
                 title = "Set HOTP counter",
                 initialCounter = entry.getCounter().toString()
             )
-            Action.REVEAL_OR_HIDE, Action.MOVE_UP, Action.MOVE_DOWN -> null
+            Action.REVEAL_OR_HIDE,
+            Action.EXPORT_PASSWORD_CSV,
+            Action.EXPORT_PASSWORD_ARCHIVE,
+            Action.MOVE_UP,
+            Action.MOVE_DOWN -> null
         }
         pending = next
         changed()

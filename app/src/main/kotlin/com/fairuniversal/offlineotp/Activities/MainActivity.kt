@@ -1693,7 +1693,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun chooseThunderbirdExport() {
-        val entries = adapter?.getEntries()?.filter { it.isEmail() } ?: emptyList()
+        val entries = adapter?.getEntries()?.filter { ThunderbirdImport.isExportable(it) } ?: emptyList()
         if (entries.isEmpty()) {
             Toast.makeText(this, R.string.thunderbird_export_empty, Toast.LENGTH_LONG).show()
             return

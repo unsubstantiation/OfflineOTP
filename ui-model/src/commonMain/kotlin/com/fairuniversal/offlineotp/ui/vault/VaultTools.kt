@@ -4,7 +4,7 @@ package com.fairuniversal.offlineotp.ui.vault
 enum class VaultTool(val group: Group) {
     IMPORT_URI(Group.IMPORT), IMPORT_PASSWORDS(Group.IMPORT), IMPORT_EMAIL(Group.IMPORT), IMPORT_THUNDERBIRD(Group.IMPORT), IMPORT_LINSCP(Group.IMPORT),
     EXPORT_ARCHIVES(Group.BACKUP), EXPORT_PASSWORDS(Group.BACKUP), EXPORT_EMAIL(Group.BACKUP), EXPORT_THUNDERBIRD(Group.BACKUP), EXPORT_ENCRYPTED(Group.BACKUP), RESTORE_ENCRYPTED(Group.BACKUP), EXPORT_LINSCP(Group.BACKUP), IMPORT_OPENPGP(Group.BACKUP), EXPORT_OPENPGP(Group.BACKUP),
-    ENROLL_HARDWARE_UNLOCK(Group.SETTINGS), REMOVE_HARDWARE_UNLOCK(Group.SETTINGS), HARDWARE_COPY(Group.SETTINGS), HARDWARE_OATH(Group.SETTINGS), STORAGE_LOCATION(Group.SETTINGS), CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
+    ENROLL_HARDWARE_UNLOCK(Group.SETTINGS), REMOVE_HARDWARE_UNLOCK(Group.SETTINGS), HARDWARE_COPY(Group.SETTINGS), HARDWARE_OATH(Group.SETTINGS), STORAGE_LOCATION(Group.SETTINGS), CHANGE_PASSWORD(Group.SETTINGS), CARD_LAYOUT(Group.SETTINGS), SEARCH_FIELDS(Group.SETTINGS), AUTO_LOCK(Group.SETTINGS), EXPORT_PREFERENCES(Group.SETTINGS), IMPORT_PREFERENCES(Group.SETTINGS);
 
     enum class Group { IMPORT, BACKUP, SETTINGS }
 
@@ -30,6 +30,7 @@ enum class VaultTool(val group: Group) {
         STORAGE_LOCATION -> strings.storageLocation
         CHANGE_PASSWORD -> strings.changePassword
         CARD_LAYOUT -> strings.cardLayout
+        SEARCH_FIELDS -> strings.searchFields
         IMPORT_PREFERENCES -> strings.importPreferences
         EXPORT_PREFERENCES -> strings.exportPreferences
         AUTO_LOCK -> strings.autoLock
@@ -56,6 +57,7 @@ enum class VaultTool(val group: Group) {
         STORAGE_LOCATION -> actions.onStorageLocation
         CHANGE_PASSWORD -> actions.onChangePassword
         CARD_LAYOUT -> actions.onConfigureLayout
+        SEARCH_FIELDS -> actions.onConfigureSearchFields
         IMPORT_PREFERENCES -> actions.onImportPreferences
         EXPORT_PREFERENCES -> actions.onExportPreferences
         AUTO_LOCK -> actions.onConfigureAutoLock

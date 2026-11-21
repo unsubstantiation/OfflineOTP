@@ -14,6 +14,25 @@ import java.util.Locale
 object ThunderbirdImport {
     const val MAX_BATCH_PAYLOAD_BYTES = PasswordImport.MAX_BATCH_PAYLOAD_BYTES
 
+    /** True when [entry] can be represented as at least one Thunderbird/Firefox login CSV row. */
+    @JvmStatic
+    fun isExportable(entry: Entry): Boolean {
+        if (entry.isEmail()) return true
+        if (!entry.isPassword()) return false
+        return try {
+            val fields = entry.getPasswordFields()
+            val url = fields.value("url")
+                .ifBlank { fields.value("hostname") }
+                .ifBlank { fields.value("host") }
+                .ifBlank { fields.value("login_uri") }
+                .ifBlank { fields.value("origin") }
+                .trim()
+            url.isNotEmpty()
+        } catch (_: Exception) {
+            false
+        }
+    }
+
     /**
      * Prepare Thunderbird CSV bytes (Firefox/Thunderbird export or hostname-based variant)
      * into EMAIL vault entries that are indistinguishable from FairEmail imports. The

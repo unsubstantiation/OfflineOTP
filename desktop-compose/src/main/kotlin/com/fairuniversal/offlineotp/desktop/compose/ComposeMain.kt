@@ -25,6 +25,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopEmailDetails
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.desktop.control.DesktopPreferencesImport
 import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
+import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.desktop.control.DesktopArchiveExport
 import com.fairuniversal.offlineotp.ui.vault.ArchiveExportDialog
@@ -399,6 +400,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
+            searchIncludes = controller.savedSearchIncludes(),
             sortMode = controller.savedSortMode(),
             category = EntryListPresentation.Category.OTP,
             tagFunctionality = controller.savedTagFunctionality(),
@@ -469,6 +471,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
     val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
+    var showSearchFields by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault) }
@@ -481,7 +484,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedCardLayout,
             controller::trySaveCardLayout,
             controller::savedHideIssuer,
-            controller::trySaveHideIssuer
+            controller::trySaveHideIssuer,
+            controller::savedShowPreviousToken,
+            controller::trySaveShowPreviousToken,
+            controller::savedTokenGroupSize,
+            controller::trySaveTokenGroupSize
         )
     }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
@@ -533,6 +540,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) },
             lockVault = {
                 showStorageLocation = false
+                showSearchFields = false
                 transactionHolder[0]?.close()
                 entryActions.close()
                 emailDetails.close()
@@ -559,7 +567,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 onLock()
             },
             onChange = { revision++ }
-        ).also { it.setHideIssuer(controller.savedHideIssuer()) }
+        ).also {
+            it.setDisplaySettings(
+                controller.savedCardLayout(),
+                controller.savedHideIssuer(),
+                controller.savedShowPreviousToken(),
+                controller.savedTokenGroupSize()
+            )
+        }
     }
     val lifetime = remember(presenter) {
         DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false) {
@@ -573,6 +588,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     // Quiesce every other session owner before submitting a background entry transaction. A fresh
     // unlock is required afterwards; none of these terminal owners is reused for editing.
     fun quiesceForTransaction() {
+        showSearchFields = false
         layoutSettings.close(); autoLock.close(); copier.close(); mover.close(); entryActions.close()
         creation.close(); editing.close(); emailDetails.close(); dialogs.close()
         openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close()
@@ -848,8 +864,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
+                showSearchFields = false
                 copyNotice = null; moveFailed = false
                 layoutSettings.open(); revision++
+            }
+        }, configureSearchFields = {
+            if (lifetime.checkActive()) {
+                creation.pending?.let { creation.dismiss(it) }
+                editing.pending?.let { editing.dismiss(it) }
+                emailDetails.pending?.let { emailDetails.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
+                layoutSettings.pending?.let { layoutSettings.dismiss(it) }
+                copier.pending?.let { copier.dismiss(it) }
+                dialogs.pending?.let { dialogs.dismiss(it) }
+                autoLock.pending?.let { autoLock.dismiss(it) }
+                copyNotice = null; moveFailed = false
+                showSearchFields = true; revision++
             }
         }, enrollHardwareUnlock = {
             if (lifetime.checkActive() && hardwareRemoval.pending == null && hardwareCopy.pending == null && hardwareOath.pending == null)
@@ -889,10 +919,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 editing.pending?.let { editing.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
-                try {
-                    val target = DesktopSavePicker.emailExport(window)
-                    if (target != null && lifetime.checkActive() && !vault.isLocked) emailExporter.open(target)
-                } catch (_: Exception) { copyNotice = "The email export destination could not be selected." }
+                if (!emailExporter.openSelective(lifetime::checkActive) && lifetime.checkActive()) {
+                    copyNotice = "No FairEmail accounts are available to export."
+                }
             }
         }, exportThunderbird = {
             if (lifetime.checkActive() && thunderbirdExporter.pending == null) {
@@ -1069,6 +1098,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 items = request.candidates.map { it.label },
                 confirmLabel = "Choose file…",
                 dismissLabel = "Cancel",
+                initialSelected = request.candidates.indices.toSet(),
                 onConfirm = { selected ->
                     if (lifetime.checkActive() && thunderbirdExporter.pending === request) {
                         try {
@@ -1115,6 +1145,37 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                         DesktopEntryActions.Action.REVEAL_OR_HIDE -> {
                             entryActions.dismiss(actionRequest)
                             presenter.toggleReveal(actionRequest.entryId)
+                        }
+                        DesktopEntryActions.Action.EXPORT_PASSWORD_CSV -> {
+                            val entryId = actionRequest.entryId
+                            val wasRevealed = presenter.isRevealed(entryId)
+                            entryActions.dismiss(actionRequest)
+                            if (lifetime.checkActive() && wasRevealed && passwordExporter.pending == null) {
+                                try {
+                                    val target = DesktopSavePicker.passwordExport(window)
+                                    if (target != null && !passwordExporter.openSingle(entryId, presenter.isRevealed(entryId), target, lifetime::checkActive) && lifetime.checkActive()) {
+                                        copyNotice = "Could not prepare this password entry for browser CSV export."
+                                    }
+                                } catch (_: Exception) {
+                                    copyNotice = "The password export destination could not be selected."
+                                }
+                            }
+                            revision++
+                        }
+                        DesktopEntryActions.Action.EXPORT_PASSWORD_ARCHIVE -> {
+                            val entryId = actionRequest.entryId
+                            entryActions.dismiss(actionRequest)
+                            if (lifetime.checkActive() && archiveExporter.pending == null) {
+                                try {
+                                    val target = DesktopSavePicker.archiveExport(window)
+                                    if (target != null && !archiveExporter.openSingle(entryId, target, lifetime::checkActive) && lifetime.checkActive()) {
+                                        copyNotice = "Could not prepare this password archive for export."
+                                    }
+                                } catch (_: Exception) {
+                                    copyNotice = "The password export destination could not be selected."
+                                }
+                            }
+                            revision++
                         }
                         DesktopEntryActions.Action.MOVE_UP, DesktopEntryActions.Action.MOVE_DOWN -> {
                             val card = state.cards.firstOrNull { it.id == actionRequest.entryId }
@@ -1275,10 +1336,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onConfirm = {
             preferencesImporter.confirm(preferencesRequest, lifetime::checkActive) { plan ->
                 if (plan.contains(PreferencesExport.UI_INACTIVITY_LOCK_SECONDS)) lifetime.changeTimeout(controller.savedInactivityLockSeconds())
-                if (plan.contains(PreferencesExport.UI_CARD_LAYOUT)) presenter.setCardLayout(controller.savedCardLayout())
-                if (plan.contains(PreferencesExport.UI_HIDE_ISSUER)) presenter.setHideIssuer(controller.savedHideIssuer())
+                if (plan.contains(PreferencesExport.UI_CARD_LAYOUT) ||
+                    plan.contains(PreferencesExport.UI_HIDE_ISSUER) ||
+                    plan.contains(PreferencesExport.UI_SHOW_PREV_TOKEN) ||
+                    plan.contains(PreferencesExport.UI_SPLIT_GROUP_SIZE)
+                ) {
+                    presenter.setDisplaySettings(
+                        controller.savedCardLayout(),
+                        controller.savedHideIssuer(),
+                        controller.savedShowPreviousToken(),
+                        controller.savedTokenGroupSize()
+                    )
+                }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
                 if (plan.contains(PreferencesExport.UI_SORT_MODE)) presenter.applyFilter(presenter.filter.copy(sortMode = controller.savedSortMode()))
+                if (plan.contains(PreferencesExport.UI_SEARCH_INCLUDES)) presenter.applyFilter(presenter.filter.copy(searchIncludes = controller.savedSearchIncludes()))
             }
         }, onDismiss = { preferencesImporter.dismiss(preferencesRequest) })
     preferencesImporter.appliedCount?.let { count -> EntryConfirmationDialog(title = "Preferences imported",
@@ -1334,18 +1406,43 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             }, onDismiss = { passwordExporter.dismiss(request) })
     }
     emailExporter.pending?.let { request ->
-        EntryConfirmationDialog(title = "Export FairEmail accounts (plaintext)",
-            message = when (request.status) {
-                DesktopEmailExport.Status.CONFIRM -> "Export ALL email accounts, including hidden or filtered-out accounts? This unencrypted JSON file contains incoming and outgoing passwords or tokens and every stored identity. Anyone with the file can read them. Store it securely and remove it when no longer needed. Existing files will not be overwritten."
-                DesktopEmailExport.Status.WRITING -> "Writing plaintext accounts. Closing this dialog cannot stop a write that has already started."
-                DesktopEmailExport.Status.SAVED -> "Exported ${request.count} email accounts. The file contains plaintext secrets; protect it."
-                DesktopEmailExport.Status.EXISTS -> "The destination already exists and was not overwritten. Choose a new filename."
-                DesktopEmailExport.Status.FAILED -> "Could not export email accounts (none available, invalid account or write failure). A partial plaintext file may remain; inspect and remove it securely."
-            }, confirmLabel = if (request.status == DesktopEmailExport.Status.CONFIRM) "Export plaintext secrets" else "Close",
-            dismissLabel = "Cancel", onConfirm = {
-                if (request.status == DesktopEmailExport.Status.CONFIRM) emailExporter.confirm(request, lifetime::checkActive)
-                else emailExporter.dismiss(request)
-            }, onDismiss = { emailExporter.dismiss(request) })
+        if (request.status == DesktopEmailExport.Status.SELECT) {
+            MultiChoiceSelectionDialog(
+                inputKey = request,
+                title = "Export FairEmail accounts",
+                message = "Select the email accounts to export, including hidden or filtered-out accounts.",
+                items = request.candidates.map { it.label },
+                confirmLabel = "Choose file…",
+                dismissLabel = "Cancel",
+                initialSelected = request.candidates.indices.toSet(),
+                onConfirm = { selected ->
+                    if (lifetime.checkActive() && emailExporter.pending === request) {
+                        try {
+                            val target = DesktopSavePicker.emailExport(window)
+                            if (target != null && lifetime.checkActive() && !vault.isLocked) {
+                                emailExporter.choose(request, selected, target, lifetime::checkActive)
+                            }
+                        } catch (_: Exception) {
+                            copyNotice = "The email export destination could not be selected."
+                        }
+                    }
+                },
+                onDismiss = { emailExporter.dismiss(request) }
+            )
+        } else {
+            EntryConfirmationDialog(title = "Export FairEmail accounts (plaintext)",
+                message = when (request.status) {
+                    DesktopEmailExport.Status.CONFIRM -> "Export ${if (request.selectedIds != null) "${request.count} selected" else "ALL"} email accounts, including hidden or filtered-out accounts? This unencrypted JSON file contains incoming and outgoing passwords or tokens and every stored identity. Anyone with the file can read them. Store it securely and remove it when no longer needed. Existing files will not be overwritten."
+                    DesktopEmailExport.Status.WRITING -> "Writing plaintext accounts. Closing this dialog cannot stop a write that has already started."
+                    DesktopEmailExport.Status.SAVED -> "Exported ${request.count} email accounts. The file contains plaintext secrets; protect it."
+                    DesktopEmailExport.Status.EXISTS -> "The destination already exists and was not overwritten. Choose a new filename."
+                    DesktopEmailExport.Status.FAILED, DesktopEmailExport.Status.SELECT -> "Could not export email accounts (none available, invalid account or write failure). A partial plaintext file may remain; inspect and remove it securely."
+                }, confirmLabel = if (request.status == DesktopEmailExport.Status.CONFIRM) "Export plaintext secrets" else "Close",
+                dismissLabel = "Cancel", onConfirm = {
+                    if (request.status == DesktopEmailExport.Status.CONFIRM) emailExporter.confirm(request, lifetime::checkActive)
+                    else emailExporter.dismiss(request)
+                }, onDismiss = { emailExporter.dismiss(request) })
+        }
     }
     preferencesExporter.status?.let { status -> EntryConfirmationDialog(title = "Export preferences",
         message = when (status) {
@@ -1406,6 +1503,38 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onDismiss = { exporter.dismiss(exportRequest) })
     if (exporter.saved) EntryConfirmationDialog(title = "Encrypted backup", message = "Encrypted backup saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { exporter.dismissNotice() }, onDismiss = { exporter.dismissNotice() })
+    if (showSearchFields) {
+        val allIncludes = Constants.SearchIncludes.values().toList()
+        val initialSelected = allIncludes.indices.filter { allIncludes[it] in presenter.filter.searchIncludes }.toSet()
+        MultiChoiceSelectionDialog(
+            inputKey = presenter.filter.searchIncludes,
+            title = "Search fields",
+            message = "Choose which entry fields match when searching the vault.",
+            items = allIncludes.map { include ->
+                when (include) {
+                    Constants.SearchIncludes.LABEL -> "Label"
+                    Constants.SearchIncludes.ISSUER -> "Issuer"
+                    Constants.SearchIncludes.TAGS -> "Tags"
+                }
+            },
+            confirmLabel = "Save",
+            dismissLabel = "Cancel",
+            initialSelected = initialSelected,
+            onConfirm = { selected ->
+                val chosen = selected.sorted().mapNotNull { allIncludes.getOrNull(it) }
+                if (lifetime.checkActive() && chosen.isNotEmpty()) {
+                    if (controller.trySaveSearchIncludes(chosen)) {
+                        presenter.applyFilter(presenter.filter.copy(searchIncludes = chosen))
+                        showSearchFields = false
+                    } else {
+                        copyNotice = "Could not save search fields."
+                    }
+                    revision++
+                }
+            },
+            onDismiss = { showSearchFields = false; revision++ }
+        )
+    }
     val layoutRequest = layoutSettings.pending
     if (layoutRequest != null) CardLayoutDialog(inputKey = layoutRequest, current = layoutRequest.current,
         failed = layoutRequest.failed,
@@ -1417,6 +1546,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         hideIssuer = layoutRequest.hideIssuer,
         onSaveAppearance = { layout, hideIssuer ->
             layoutSettings.submit(layoutRequest, layout, hideIssuer, lifetime::checkActive, presenter::setAppearance)
+            revision++
+        },
+        showPreviousToken = layoutRequest.showPreviousToken,
+        tokenGroupSize = layoutRequest.tokenGroupSize,
+        onSaveDisplay = { layout, hideIssuer, showPreviousToken, tokenGroupSize ->
+            layoutSettings.submit(
+                layoutRequest,
+                layout,
+                hideIssuer,
+                showPreviousToken,
+                tokenGroupSize,
+                lifetime::checkActive,
+                presenter::setDisplaySettings
+            )
             revision++
         })
     val timeoutRequest = autoLock.pending

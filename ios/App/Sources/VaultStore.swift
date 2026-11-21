@@ -61,9 +61,8 @@ public final class VaultStore: ObservableObject {
     @Published public var tagFunctionality: TagFunctionality = .or
     @Published public private(set) var sortMode: SortMode = .unsorted
 
-    /// The fields the search covers. The desktop client always searches all three, and so does this
-    /// one; Android's narrower preference lives in its own settings, which neither client reads.
-    public let searchIncludes: Set<SearchInclude> = Set(SearchInclude.allCases)
+    /// The fields the search covers (`LABEL`, `ISSUER`, `TAGS`), persisted under `ui_search_includes`.
+    @Published public private(set) var searchIncludes: Set<SearchInclude> = Set(SearchInclude.allCases)
 
     /// Whether this device can offer the quick unlock, and which sensor it would use. It changes when
     /// a face is enrolled or removed, so it is asked again whenever the lock screen appears.
@@ -135,13 +134,19 @@ public final class VaultStore: ObservableObject {
 
     public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
     public static let cardLayoutSettingKey = "ui_card_layout"
+    public static let tagFunctionalitySettingKey = "ui_tag_functionality"
     public static let hideIssuerSettingKey = "ui_hide_issuer"
+    public static let showPrevTokenSettingKey = "ui_show_prev_token"
+    public static let splitGroupSizeSettingKey = "ui_split_group_size"
+    public static let searchIncludesSettingKey = "ui_search_includes"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
 
     @Published public private(set) var inactivityLockSeconds = 0
     @Published public private(set) var cardLayout = "DEFAULT"
     @Published public private(set) var hideIssuer = false
+    @Published public private(set) var showPreviousToken = true
+    @Published public private(set) var tokenGroupSize = 3
     private var lastActivityDate = Date()
 
     private let vault: PasswordVault
@@ -180,7 +185,15 @@ public final class VaultStore: ObservableObject {
         self.sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         self.inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         self.cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        self.tagFunctionality = VaultStore.storedTagFunctionality(
+            settings.string(VaultStore.tagFunctionalitySettingKey))
         self.hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
+        self.showPreviousToken = VaultStore.storedShowPreviousToken(
+            settings.string(VaultStore.showPrevTokenSettingKey))
+        self.tokenGroupSize = VaultStore.storedTokenGroupSize(
+            settings.integer(VaultStore.splitGroupSizeSettingKey))
+        self.searchIncludes = VaultStore.storedSearchIncludes(
+            settings.string(VaultStore.searchIncludesSettingKey))
         // Both are read before the first unlock: the lock screen has to know whether to offer the
         // quick unlock.
         self.biometricUnlockEnabled =
@@ -431,7 +444,18 @@ public final class VaultStore: ObservableObject {
         inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        tagFunctionality = VaultStore.storedTagFunctionality(
+            settings.string(VaultStore.tagFunctionalitySettingKey))
+        if tagFunctionality == .single, selectedTags.count > 1 {
+            selectedTags = Array(selectedTags.prefix(1))
+        }
         hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
+        showPreviousToken = VaultStore.storedShowPreviousToken(
+            settings.string(VaultStore.showPrevTokenSettingKey))
+        tokenGroupSize = VaultStore.storedTokenGroupSize(
+            settings.integer(VaultStore.splitGroupSizeSettingKey))
+        searchIncludes = VaultStore.storedSearchIncludes(
+            settings.string(VaultStore.searchIncludesSettingKey))
         lastActivityDate = Date()
     }
 
@@ -441,6 +465,35 @@ public final class VaultStore: ObservableObject {
             return "DEFAULT"
         }
         return candidate
+    }
+
+    private static func storedTagFunctionality(_ raw: String?) -> TagFunctionality {
+        guard let candidate = raw?.uppercased(),
+              let resolved = TagFunctionality(rawValue: candidate) else {
+            return .or
+        }
+        return resolved
+    }
+
+    private static func storedShowPreviousToken(_ raw: String?) -> Bool {
+        guard let raw else { return true }
+        return raw != "false"
+    }
+
+    private static func storedTokenGroupSize(_ raw: Int?) -> Int {
+        guard let raw, [0, 2, 3].contains(raw) else { return 3 }
+        return raw
+    }
+
+    private static func storedSearchIncludes(_ raw: String?) -> Set<SearchInclude> {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return Set(SearchInclude.allCases)
+        }
+        let parsed = Set(
+            raw.split(whereSeparator: { $0 == "\n" || $0 == "," })
+                .compactMap { SearchInclude(rawValue: $0.trimmingCharacters(in: .whitespaces).uppercased()) }
+        )
+        return parsed.isEmpty ? Set(SearchInclude.allCases) : parsed
     }
 
     /// Persists the Compose vault card density (`DEFAULT`, `COMPACT`, or `FULL`).
@@ -454,6 +507,27 @@ public final class VaultStore: ObservableObject {
     public func setHideIssuer(_ hidden: Bool) {
         hideIssuer = hidden
         settings.setString(VaultStore.hideIssuerSettingKey, hidden ? "true" : "false")
+    }
+
+    /// Persists whether the previous rolling code is shown on revealed OTP cards (`ui_show_prev_token`).
+    public func setShowPreviousToken(_ show: Bool) {
+        showPreviousToken = show
+        settings.setString(VaultStore.showPrevTokenSettingKey, show ? "true" : "false")
+    }
+
+    /// Persists explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets).
+    public func setTokenGroupSize(_ groupSize: Int) {
+        let resolved = VaultStore.storedTokenGroupSize(groupSize)
+        tokenGroupSize = resolved
+        settings.setInteger(VaultStore.splitGroupSizeSettingKey, resolved)
+    }
+
+    /// Persists which fields (`LABEL`, `ISSUER`, `TAGS`) search matches (`ui_search_includes`).
+    public func setSearchIncludes(_ includes: Set<SearchInclude>) {
+        guard !includes.isEmpty else { return }
+        searchIncludes = includes
+        let ordered = SearchInclude.allCases.filter { includes.contains($0) }.map(\.rawValue)
+        settings.setString(VaultStore.searchIncludesSettingKey, ordered.joined(separator: "\n"))
     }
 
     /// Persists the idle auto-lock timeout (`0` disables auto-lock).
@@ -598,6 +672,7 @@ public final class VaultStore: ObservableObject {
         if functionality == .single, selectedTags.count > 1 {
             selectedTags = Array(selectedTags.prefix(1))
         }
+        settings.setString(VaultStore.tagFunctionalitySettingKey, functionality.rawValue)
     }
 
     /// Drops the search and the tag filter, leaving the tab and the order alone.

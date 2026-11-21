@@ -59,7 +59,13 @@ class DesktopThunderbirdAndActionsTest {
                 "passwords.csv",
                 PasswordImport.Mode.INDIVIDUAL
             ).single()
+            val nonUriPw = PasswordImport.prepare(
+                "Title,URL,Username,Password,Notes\nLocalNote,,local-user,local-secret,\n".toByteArray(),
+                "passwords.csv",
+                PasswordImport.Mode.INDIVIDUAL
+            ).single()
             assertTrue(state.add(pwEntry))
+            assertTrue(state.add(nonUriPw))
 
             var writtenBytes: ByteArray? = null
             val exporter = DesktopThunderbirdExport(
@@ -156,6 +162,44 @@ class DesktopThunderbirdAndActionsTest {
         val validThumb = ThumbnailCatalog.NAMES.first { it != ThumbnailCatalog.DEFAULT_NAME }
         assertTrue(actions.submitThumbnail(actions.pending!!, validThumb) { true })
         assertEquals(validThumb, hotp.getThumbnailName())
+
+        // Per-entry browser password CSV export (gated on reveal) and password archive export.
+        val browserPw = PasswordImport.prepare(
+            "name,url,username,password\nGitHub,https://github.com,alice,pw-999\n".toByteArray(),
+            "chrome.csv",
+            PasswordImport.Mode.INDIVIDUAL
+        ).single()
+        val archiveEntry = PasswordImport.prepare(
+            "raw-archive-payload".toByteArray(),
+            "vault.kdbx",
+            PasswordImport.Mode.ARCHIVE
+        ).single()
+        assertTrue(state.add(browserPw))
+        assertTrue(state.add(archiveEntry))
+
+        assertTrue(actions.openMenu(browserPw.getListId(), revealed = false, canMoveUp = false, canMoveDown = false) { true })
+        assertFalse(DesktopEntryActions.Action.EXPORT_PASSWORD_CSV in actions.pending!!.actions)
+        assertTrue(actions.openMenu(browserPw.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
+        assertTrue(DesktopEntryActions.Action.EXPORT_PASSWORD_CSV in actions.pending!!.actions)
+
+        assertTrue(actions.openMenu(archiveEntry.getListId(), revealed = false, canMoveUp = false, canMoveDown = false) { true })
+        assertTrue(DesktopEntryActions.Action.EXPORT_PASSWORD_ARCHIVE in actions.pending!!.actions)
+
+        val direct = Executor { it.run() }
+        var singleCsv: ByteArray? = null
+        val pwExporter = DesktopPasswordExport(state, direct, { it.run() }, {}, write = { _, b -> singleCsv = b.copyOf() })
+        assertFalse(pwExporter.openSingle(browserPw.getListId(), revealed = false, File("pw.csv")) { true })
+        assertTrue(pwExporter.openSingle(browserPw.getListId(), revealed = true, File("pw.csv")) { true })
+        assertTrue(pwExporter.confirm(pwExporter.pending!!) { true })
+        assertTrue(String(singleCsv!!, StandardCharsets.UTF_8).contains("pw-999"))
+        pwExporter.close()
+
+        var singleArchive: ByteArray? = null
+        val archiveExporter = DesktopArchiveExport(state, direct, { it.run() }, {}, write = { _, b -> singleArchive = b.copyOf() })
+        assertTrue(archiveExporter.openSingle(archiveEntry.getListId(), File("archive.bin")) { true })
+        assertTrue(archiveExporter.confirm(archiveExporter.pending!!) { true })
+        assertEquals("raw-archive-payload", String(singleArchive!!, StandardCharsets.UTF_8))
+        archiveExporter.close()
 
         actions.close()
         assertNull(actions.pending)

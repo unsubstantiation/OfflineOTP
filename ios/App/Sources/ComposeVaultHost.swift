@@ -133,9 +133,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 }
             }()
             let previous: String
-            if revealed, (entry.kind == .totp || entry.kind == .steam),
+            if revealed, store.showPreviousToken, (entry.kind == .totp || entry.kind == .steam),
                let older = try? entry.code(unixTime: Int64(now.timeIntervalSince1970) - Int64(entry.period)) {
-                previous = CodeFormat.grouped(older)
+                previous = CodeFormat.grouped(older, groupSize: store.tokenGroupSize)
             } else {
                 previous = ""
             }
@@ -150,7 +150,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 title: title,
                 subtitle: revealed && !entry.label.isEmpty && !entry.issuer.isEmpty ? entry.label : "",
                 concealedTitle: entry.label.isEmpty ? "Concealed" : entry.label,
-                code: revealed ? CodeFormat.grouped(code ?? "") : "",
+                code: revealed ? CodeFormat.grouped(code ?? "", groupSize: store.tokenGroupSize) : "",
                 previousCode: previous,
                 metadata: metadata,
                 secondsLeft: Int32(seconds),
@@ -537,7 +537,22 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "cardLayout":
             return surface(key: key, title: "Card layout",
                 sections: [PortableSection(title: "", rows: [
-                    row("layout", "Card layout", value: draft["layout"] ?? store.cardLayout, kind: "info")])],
+                    row("layout", "Card layout", value: draft["layout"] ?? store.cardLayout, kind: "info"),
+                    row("hideIssuer", "Hide issuer",
+                        value: draft["hideIssuer"] ?? (store.hideIssuer ? "true" : "false"), kind: "info"),
+                    row("showPreviousToken", "Show previous code",
+                        value: draft["showPreviousToken"] ?? (store.showPreviousToken ? "true" : "false"), kind: "info"),
+                    row("tokenGroupSize", "Token grouping",
+                        value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
+                confirmLabel: "Save", dismissLabel: "Cancel")
+        case "searchIncludes":
+            let rows = [
+                row("choice:LABEL", "Label", kind: "toggle", checked: store.searchIncludes.contains(.label)),
+                row("choice:ISSUER", "Issuer", kind: "toggle", checked: store.searchIncludes.contains(.issuer)),
+                row("choice:TAGS", "Tags", kind: "toggle", checked: store.searchIncludes.contains(.tags)),
+            ]
+            return surface(key: key, title: "Search fields",
+                sections: [PortableSection(title: "Choose which entry fields match when searching the vault.", rows: rows)],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "sort":
             let rows = SortMode.allCases.map { mode in
@@ -663,7 +678,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
                 guard entry.kind == .email else { return nil }
                 let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
-                return row("choice:\(idx)", label.isEmpty ? "Email account" : label, kind: "toggle")
+                return row("choice:\(idx)", label.isEmpty ? "Email account" : label, kind: "toggle", checked: true)
             }
             return surface(key: key, title: "Export FairEmail backup",
                 sections: [PortableSection(title: "Select the email accounts to export.", rows: rows)],
@@ -672,7 +687,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
                 guard ThunderbirdImport.isExportable(entry) else { return nil }
                 let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
-                return row("choice:\(idx)", label.isEmpty ? "Credential" : label, kind: "toggle")
+                return row("choice:\(idx)", label.isEmpty ? "Credential" : label, kind: "toggle", checked: true)
             }
             return surface(key: key, title: "Export Thunderbird CSV",
                 sections: [PortableSection(title: "Select the email credentials to export.", rows: rows)],
@@ -875,6 +890,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let quick = store.biometry.isAvailable ? [
             row("biometric", store.biometricUnlockEnabled ? "Disable quick unlock" : "Enable quick unlock",
                 detail: "Unlock with \(store.biometryTitle) on this device.")] : []
+        let searchSummary = SearchInclude.allCases
+            .filter { store.searchIncludes.contains($0) }
+            .map { include -> String in
+                switch include {
+                case .label: return "Label"
+                case .issuer: return "Issuer"
+                case .tags: return "Tags"
+                }
+            }
+            .joined(separator: ", ")
         let sections = [
             PortableSection(title: "Quick unlock", rows: quick),
             PortableSection(title: "Security", rows: [
@@ -882,6 +907,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("passwordChange", "Change vault password")]),
             PortableSection(title: "Vault", rows: [
                 row("cardLayout", "Card layout", detail: "Currently \(store.cardLayout.capitalized)"),
+                row("searchIncludes", "Search fields", detail: searchSummary),
                 row("hideIssuer",
                     store.hideIssuer ? "Show issuer while concealed" : "Hide issuer while concealed",
                     detail: store.hideIssuer ? "Hidden until revealed" : "Shown while concealed"),
@@ -1214,8 +1240,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             || surfaceKey.hasPrefix("passwordEdit:") || surfaceKey == "linScpImport"
             || surfaceKey == "linScpExport" || surfaceKey == "fairEmailImport"
             || surfaceKey == "fairEmailExportSelect" || surfaceKey == "thunderbirdExportSelect"
-            || surfaceKey == "cardLayout" || surfaceKey == "passwordImportChoice"
-            || surfaceKey == "thumbnailEdit" {
+            || surfaceKey == "cardLayout" || surfaceKey == "searchIncludes"
+            || surfaceKey == "passwordImportChoice" || surfaceKey == "thumbnailEdit" {
             if key == "linScpSelectedIndices" {
                 linScpSelected = Set(value.split(separator: ",").compactMap { Int($0) })
             } else if key == "linScpImportSelected" {
@@ -1239,7 +1265,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 "editor", "emailEditor", "delete", "tagEdit", "pinEdit", "counterEdit",
                 "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
                 "fairEmailExportSelect", "thunderbirdExportSelect", "thunderbirdConfirm",
-                "cardLayout", "passwordImportChoice", "thumbnailEdit"].contains(surfaceKey),
+                "cardLayout", "searchIncludes", "passwordImportChoice", "thumbnailEdit"].contains(surfaceKey),
                store.generation != epoch {
                 closeSurface()
                 return "The vault session changed. Close and reopen this dialog."
@@ -1510,13 +1536,36 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         case "cardLayout":
-            let chosen = draft["layout"] ?? "DEFAULT"
+            let chosen = draft["layout"] ?? store.cardLayout
             guard ["DEFAULT", "COMPACT", "FULL"].contains(chosen) else {
                 return "Choose a valid card layout."
             }
             store.setCardLayout(chosen)
+            if let hideRaw = draft["hideIssuer"] {
+                store.setHideIssuer(hideRaw == "true")
+            }
+            if let prevRaw = draft["showPreviousToken"] {
+                store.setShowPreviousToken(prevRaw != "false")
+            }
+            if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
+               [0, 2, 3].contains(parsedGroup) {
+                store.setTokenGroupSize(parsedGroup)
+            }
             presentation.updateCardLayout(layout: store.cardLayout)
             message("Card layout updated.")
+            closeSurface()
+            return nil
+        case "searchIncludes":
+            let chosen = Set(
+                (draft["selectedIndices"] ?? "")
+                    .split(separator: ",")
+                    .compactMap { SearchInclude(rawValue: $0.trimmingCharacters(in: .whitespaces).uppercased()) }
+            )
+            guard !chosen.isEmpty else {
+                return "Select at least one search field."
+            }
+            store.setSearchIncludes(chosen)
+            message("Search fields updated.")
             closeSurface()
             return nil
         case "passwordImportChoice":
@@ -1848,7 +1897,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         }
         switch command {
-        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation", "cardLayout":
+        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation", "cardLayout", "searchIncludes":
             openSurface(command)
             return nil
         case "hideIssuer":

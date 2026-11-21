@@ -161,4 +161,36 @@ class DesktopEmailExportTest {
             assertEquals(1, writes)
         } finally { exporter.close(); state.lock() }
     }
+    @Test fun selectiveExportWritesOnlyChosenEmailAccounts() {
+        val dir = Files.createTempDirectory("email-selective-").toFile()
+        val state = state(); val worker = Queue(); val ui = Queue()
+        val first = EmailEntryInput(address = "first@example.com", incomingHost = "imap1.example.com",
+            outgoingHost = "smtp1.example.com", incomingPassword = "p1", outgoingPassword = "p1").build()
+        val second = EmailEntryInput(address = "second@example.com", incomingHost = "imap2.example.com",
+            outgoingHost = "smtp2.example.com", incomingPassword = "p2", outgoingPassword = "p2").build()
+        var written: ByteArray? = null
+        val exporter = DesktopEmailExport(state, worker, ui::execute, {}, write = { _, bytes -> written = bytes.copyOf() })
+        try {
+            assertFalse(exporter.openSelective { true })
+            state.add(first); state.add(second)
+            assertTrue(exporter.openSelective { true })
+            val req = exporter.pending!!
+            assertEquals(DesktopEmailExport.Status.SELECT, req.status)
+            assertEquals(2, req.candidates.size)
+            assertFalse(exporter.choose(req, emptySet(), File(dir, "accounts.json")) { true })
+            assertTrue(exporter.choose(req, setOf(1), File(dir, "accounts.json")) { true })
+            assertEquals(DesktopEmailExport.Status.CONFIRM, req.status)
+            assertEquals(1, req.count)
+            assertTrue(exporter.confirm(req) { true })
+            worker.run(); ui.run()
+            assertEquals(DesktopEmailExport.Status.SAVED, req.status)
+            val json = String(written!!, Charsets.UTF_8)
+            assertTrue(json.contains("second@example.com"))
+            assertFalse(json.contains("first@example.com"))
+        } finally {
+            exporter.close()
+            state.lock()
+            dir.deleteRecursively()
+        }
+    }
 }

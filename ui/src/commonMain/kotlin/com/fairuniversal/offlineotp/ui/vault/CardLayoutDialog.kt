@@ -13,7 +13,10 @@ fun CardLayoutDialog(
     onSave: (Constants.CardLayouts) -> Unit,
     onDismiss: () -> Unit,
     hideIssuer: Boolean? = null,
-    onSaveAppearance: ((Constants.CardLayouts, Boolean) -> Unit)? = null
+    onSaveAppearance: ((Constants.CardLayouts, Boolean) -> Unit)? = null,
+    showPreviousToken: Boolean? = null,
+    tokenGroupSize: Int? = null,
+    onSaveDisplay: ((Constants.CardLayouts, Boolean, Boolean, Int?) -> Unit)? = null
 ) {
     val layouts = Constants.CardLayouts.values()
     val initial = when (current) {
@@ -34,6 +37,14 @@ fun CardLayoutDialog(
             { chosen, hidden ->
                 val resolved = layouts.firstOrNull { it.name == chosen.name } ?: Constants.CardLayouts.DEFAULT
                 onSaveAppearance(resolved, hidden)
+            }
+        } else null,
+        showPreviousToken = showPreviousToken,
+        tokenGroupSize = tokenGroupSize,
+        onSaveDisplay = if (onSaveDisplay != null) {
+            { chosen, hidden, showPrev, groupSize ->
+                val resolved = layouts.firstOrNull { it.name == chosen.name } ?: Constants.CardLayouts.DEFAULT
+                onSaveDisplay(resolved, hidden, showPrev, groupSize)
             }
         } else null
     )
