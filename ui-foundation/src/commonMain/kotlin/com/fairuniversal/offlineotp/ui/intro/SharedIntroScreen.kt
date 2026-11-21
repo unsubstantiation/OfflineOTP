@@ -1,5 +1,6 @@
 package com.fairuniversal.offlineotp.ui.intro
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -8,9 +9,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
@@ -23,11 +25,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -35,12 +32,10 @@ import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
 
 /**
- * Shared Compose form for the Intro Wizard slides.
+ * Shared Compose form for first-run setup slides.
  *
- * [encryptionType] and [authMethod] are managed by the host adapter.
- * [onEncryptionChanged] and [onAuthMethodChanged] notify the host of changes.
- * [onSaveSettings] hands the final configuration to the host for native task execution.
- * [onRestoreBackup] requests the host to open the Android document picker.
+ * Host adapters own storage, cryptographic key derivation and file pickers. Password fields stay
+ * ephemeral in composition memory and are cleared before submission.
  */
 @Composable
 fun SharedIntroScreen(
@@ -59,44 +54,44 @@ fun SharedIntroScreen(
     error: String? = null,
     creating: Boolean = false
 ) {
-    // The host adapter manages the slide index and lifecycle.
-    // This composable renders the four logical slides in sequence.
     Box(modifier = modifier.fillMaxSize().background(ForestPalette.backgroundDeep)) {
         Column(
             modifier = Modifier
                 .align(Alignment.Center)
                 .widthIn(max = 380.dp)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(text = strings.appTitle, style = ForestType.title, color = ForestPalette.textPrimary)
-            
-            // Slide 1: Simple introduction (Static slide)
-            Text(text = strings.encryptionDescKeystore, style = ForestType.body, color = ForestPalette.textSecondary)
-            
-            // Slide 2: Encryption Selection
             Text(text = strings.encryptionTitle, style = ForestType.title, color = ForestPalette.textPrimary)
-            Text(text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.encryptionDescPassword else strings.encryptionDescKeystore,
-                style = ForestType.body, color = ForestPalette.textSecondary, modifier = Modifier.padding(top = 16.dp))
-            
-            // Slide 3: Authentication
-            Text(text = strings.authTitle, style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 32.dp))
-            Text(text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.authDescPassword else strings.authDescKeystore,
-                style = ForestType.body, color = ForestPalette.textSecondary)
-            
+            Text(
+                text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.encryptionDescPassword else strings.encryptionDescKeystore,
+                style = ForestType.body,
+                color = ForestPalette.textSecondary,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+
+            Text(text = strings.authTitle, style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 16.dp))
+            Text(
+                text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.authDescPassword else strings.authDescKeystore,
+                style = ForestType.body,
+                color = ForestPalette.textSecondary
+            )
+
             if (error != null) {
                 Text(text = error, style = ForestType.label, color = ForestPalette.warning, modifier = Modifier.padding(top = 8.dp))
             }
-            
+
             var password by remember { mutableStateOf("") }
             var confirmation by remember { mutableStateOf("") }
-            
+
             if (encryptionType == Constants.EncryptionType.PASSWORD) {
                 OutlinedTextField(
                     value = password,
                     onValueChange = { password = it; onPasswordInput(it, confirmation) },
-                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     singleLine = true,
                     label = { Text(text = strings.passwordLabel, style = ForestType.label) },
                     visualTransformation = PasswordVisualTransformation(),
@@ -114,25 +109,38 @@ fun SharedIntroScreen(
                     keyboardActions = KeyboardActions(onDone = {})
                 )
             }
-            
-            // Slide 4: Android Sync
-            Text(text = strings.syncTitle, style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 32.dp))
+
+            Text(text = strings.syncTitle, style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 16.dp))
             Text(text = strings.syncDesc, style = ForestType.body, color = ForestPalette.textSecondary)
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
                 Switch(
                     checked = syncEnabled,
                     onCheckedChange = onSyncEnabledChanged,
                     enabled = !busy
                 )
-                Text(text = if (syncEnabled) strings.syncEnabledText else strings.syncDisabledText, style = ForestType.body, color = ForestPalette.textPrimary)
+                Text(
+                    text = if (syncEnabled) strings.syncEnabledText else strings.syncDisabledText,
+                    style = ForestType.body,
+                    color = ForestPalette.textPrimary
+                )
             }
-            
-            // Slide 5: Finished
-            Text(text = if (busy) strings.finishedTitleProgress else (if (error != null) strings.finishedTitleFailed else strings.finishedTitleSuccess),
-                style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 32.dp))
-            Text(text = if (busy) strings.finishedDescProgress else (if (error != null) strings.finishedDescFailed else strings.finishedDescSuccess),
-                style = ForestType.body, color = if (error != null) ForestPalette.warning else ForestPalette.textSecondary)
-            
+
+            Text(
+                text = if (busy) strings.finishedTitleProgress else (if (error != null) strings.finishedTitleFailed else strings.finishedTitleSuccess),
+                style = ForestType.title,
+                color = ForestPalette.textPrimary,
+                modifier = Modifier.padding(top = 16.dp)
+            )
+            Text(
+                text = if (busy) strings.finishedDescProgress else (if (error != null) strings.finishedDescFailed else strings.finishedDescSuccess),
+                style = ForestType.body,
+                color = if (error != null) ForestPalette.warning else ForestPalette.textSecondary
+            )
+
             val canSubmit = !busy && (encryptionType != Constants.EncryptionType.PASSWORD || (password.isNotEmpty() && confirmation == password))
             val buttonColors = ButtonDefaults.buttonColors(
                 containerColor = ForestPalette.surfaceVariant,
@@ -140,28 +148,35 @@ fun SharedIntroScreen(
                 disabledContainerColor = ForestPalette.surfaceVariant,
                 disabledContentColor = ForestPalette.textPrimary
             )
-            
+
             Button(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 colors = buttonColors,
                 enabled = canSubmit && !busy,
                 onClick = {
+                    val submitted = if (encryptionType == Constants.EncryptionType.PASSWORD) password else null
+                    password = ""
+                    confirmation = ""
                     onSaveSettings(
                         encryptionType,
                         if (encryptionType == Constants.EncryptionType.PASSWORD) Constants.AuthMethod.PASSWORD else Constants.AuthMethod.NONE,
-                        if (encryptionType == Constants.EncryptionType.PASSWORD) password else null,
+                        submitted,
                         syncEnabled
                     )
                 }
             ) {
                 Text(text = strings.buttonCreateVault, style = ForestType.label)
             }
-            
+
             Button(
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                 colors = buttonColors,
                 enabled = !busy,
-                onClick = onRestoreBackup
+                onClick = {
+                    password = ""
+                    confirmation = ""
+                    onRestoreBackup()
+                }
             ) {
                 Text(text = strings.buttonRestoreBackup, style = ForestType.label)
             }

@@ -12,9 +12,17 @@ and AWT artwork library, not a second UI. Android MainActivity uses the shared C
 with Activity chrome/dialogs still retained. The iOS release path also uses shared Compose: the
 vault, forms and dialogs are drawn by `:ui-foundation` behind `AppRootViewController` and
 `ComposeVaultHost`; the SwiftUI production sources were removed rather than excluded.
-Android now also uses shared Compose forms for the entry-delete confirmation and the
-biometric-enrolment password prompt through `ui/src/androidMain/.../host/ComposeDialogViews.kt`;
-the Activity/controller keep native lifecycle, verification and keychain adapters.
+Android now also uses shared Compose forms for all entry-action dialogs (delete confirmation,
+HOTP counter, mOTP PIN, thumbnail picker), every card detail/copy/tag/QR dialog in
+`AndroidVaultController` (QR code display, SSH key/password copy, FairEmail connection details,
+password details, tag picker, password entry editing), MainActivity prompts (automatic-time notice,
+password import mode chooser, FairEmail encrypted backup password prompt, FairEmail/Thunderbird
+multi-choice account export, password archive/CSV export confirmations, used-tokens notice, and
+vault-unavailable notice), SettingsActivity confirmations (biometric-enrolment password prompt,
+preferences export mode, encryption-change warning, login-backup old-password removal, and keystore
+reset confirmation), and BackupActivity's OpenPGP key-file passphrase chooser through
+`ui/src/androidMain/.../host/ComposeDialogViews.kt` and `VaultComposeView.kt`; the Activity and
+controller keep native lifecycle, verification, SAF and keychain adapters.
 
 The user reports a successful build and operation on a device. Platform, tested artifact/commit
 and workflow scope are not yet specified. This is recorded in the

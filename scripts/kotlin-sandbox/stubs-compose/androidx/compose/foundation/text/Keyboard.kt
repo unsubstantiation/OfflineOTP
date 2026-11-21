@@ -7,4 +7,7 @@ class KeyboardOptions(
     val imeAction: ImeAction = ImeAction.Default
 )
 interface KeyboardActionScope
-class KeyboardActions(val onDone: (KeyboardActionScope.() -> Unit)? = null)
+class KeyboardActions(
+    val onDone: (KeyboardActionScope.() -> Unit)? = null,
+    val onNext: (KeyboardActionScope.() -> Unit)? = null
+)

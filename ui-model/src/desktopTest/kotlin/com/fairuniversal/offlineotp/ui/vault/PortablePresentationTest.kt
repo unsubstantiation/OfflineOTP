@@ -40,6 +40,18 @@ class PortablePresentationTest {
         val revealed = card(revealed = true)
         assertEquals("123456", revealed.visibleCode())
         assertEquals("Issuer", revealed.visibleTitle(hideIssuer = true))
+        assertFalse(revealed.toString().contains("123456"))
+        assertFalse(revealed.toString().contains("654321"))
+    }
+
+    @Test
+    fun expiryWarningAndPinPromptFollowCardFlags() {
+        assertFalse(card(revealed = true).isExpiring)
+        assertTrue(card(revealed = true).copy(secondsLeft = 5).isExpiring)
+        assertFalse(card(revealed = true).copy(secondsLeft = 0).isExpiring)
+        assertFalse(card(revealed = true).copy(hasCode = false, secondsLeft = 3).isExpiring)
+        val motpNoPin = card(revealed = true).copy(hasCode = false, pinRequired = true)
+        assertTrue(motpNoPin.pinRequired)
     }
 
     @Test

@@ -9,6 +9,13 @@ import com.fairuniversal.offlineotp.ui.vault.VaultActions
 import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+import com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
+import com.fairuniversal.offlineotp.ui.host.HideableNoticeComposeView
+import com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
 import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.KeyguardManager
@@ -118,7 +125,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var thunderbirdPendingUri: Uri? = null
     private var thunderbirdExportPending: ByteArray? = null
     private var thunderbirdExportGeneration: Long = -1L
-    private var thunderbirdExportSelectionDialog: AlertDialog? = null
+    private var thunderbirdExportSelectionDialog: ComposeDialogHost? = null
+    private var passwordExportPrompt: ComposeDialogHost? = null
+    private var usedTokensPrompt: ComposeDialogHost? = null
+    private var vaultUnavailablePrompt: ComposeDialogHost? = null
     private var linScpPendingUri: Uri? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
@@ -216,12 +226,23 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun vaultUnavailable() {
         authenticationPending = false
         VaultSession.fail(com.fairuniversal.offlineotp.Utilities.SessionFailure.VAULT_UNAVAILABLE)
-        AlertDialog.Builder(this)
-            .setTitle(R.string.security_vault_error_title)
-            .setMessage(R.string.security_vault_error)
-            .setCancelable(false)
-            .setPositiveButton(android.R.string.ok, DialogInterface.OnClickListener { _, _ -> finishAndRemoveTask() })
-            .show()
+        vaultUnavailablePrompt?.dismiss()
+        var host: EntryDetailsComposeView? = null
+        val closeAndFinish = {
+            val h = host
+            if (vaultUnavailablePrompt === h) vaultUnavailablePrompt = null
+            h?.dismiss()
+            finishAndRemoveTask()
+        }
+        host = EntryDetailsComposeView(
+            activity = this,
+            title = getString(R.string.security_vault_error_title),
+            body = getString(R.string.security_vault_error),
+            confirmLabel = getString(android.R.string.ok),
+            onDismiss = closeAndFinish
+        )
+        vaultUnavailablePrompt = host
+        host.show()
     }
 
     override fun onVaultLocked() {
@@ -231,6 +252,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdPendingUri = null
         thunderbirdExportSelectionDialog?.dismiss()
         thunderbirdExportSelectionDialog = null
+        passwordExportPrompt?.dismiss()
+        passwordExportPrompt = null
+        usedTokensPrompt?.dismiss()
+        usedTokensPrompt = null
         passwordCsvExportPending?.fill(0)
         passwordCsvExportPending = null
         passwordCsvExportGeneration = -1L
@@ -246,6 +271,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         emailImportBytes = null
         emailImportPrompt?.dismiss()
         emailImportPrompt = null
+        passwordImportPrompt?.dismiss()
+        passwordImportPrompt = null
+        autoTimePrompt?.dismiss()
+        autoTimePrompt = null
         emailExportSelectionDialog?.dismiss()
         emailExportSelectionDialog = null
         authenticationPending = false
@@ -375,9 +404,29 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun checkAutomaticTime() {
         val autoTime = AndroidSettings.Global.getInt(getContentResolver(), AndroidSettings.Global.AUTO_TIME, 0)
 
-        if (autoTime == 0)
-            HideableDialog.ShowHidableDialog(this, R.string.dialog_title_auto_time,
-                R.string.dialog_msg_auto_time, R.string.settings_key_dialog_hide_auto_time)
+        if (autoTime == 0 && !settings!!.getBoolean(R.string.settings_key_dialog_hide_auto_time, false)) {
+            autoTimePrompt?.dismiss()
+            autoTimePrompt = null
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = HideableNoticeComposeView(
+                activity = this,
+                title = getString(R.string.dialog_title_auto_time),
+                message = getString(R.string.dialog_msg_auto_time),
+                dontShowAgainLabel = getString(R.string.dialog_hint_dont_show_again),
+                confirmLabel = getString(android.R.string.ok),
+                initialHidden = false,
+                onHiddenChanged = { checked ->
+                    settings!!.setBoolean(R.string.settings_key_dialog_hide_auto_time, checked)
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (autoTimePrompt === pending.host) autoTimePrompt = null
+                }
+            )
+            pending.host = view
+            autoTimePrompt = view
+            view.show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -1091,13 +1140,23 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun showUsedTokensDialog() {
-        AlertDialog.Builder(this)
-            .setTitle(R.string.dialog_title_used_tokens)
-            .setMessage(R.string.dialog_msg_used_tokens)
-            .setPositiveButton(android.R.string.ok,
-                DialogInterface.OnClickListener { _, _ -> settings!!.setUsedTokensDialogShown(true) })
-            .create()
-            .show()
+        usedTokensPrompt?.dismiss()
+        var host: EntryDetailsComposeView? = null
+        val closeHost = {
+            val h = host
+            if (usedTokensPrompt === h) usedTokensPrompt = null
+            h?.dismiss()
+            settings!!.setUsedTokensDialogShown(true)
+        }
+        host = EntryDetailsComposeView(
+            activity = this,
+            title = getString(R.string.dialog_title_used_tokens),
+            body = getString(R.string.dialog_msg_used_tokens),
+            confirmLabel = getString(android.R.string.ok),
+            onDismiss = closeHost
+        )
+        usedTokensPrompt = host
+        host.show()
     }
 
     private fun setupDrawer() {
@@ -1378,19 +1437,31 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             return
         }
         val selectionGeneration = VaultSession.generation()
-        val selected = BooleanArray(emailEntries.size)
-        val labels = emailEntries.map { "${it.getLabel()} (${it.getIssuer()})" }.toTypedArray()
-        val dialog = AlertDialog.Builder(this).setTitle(R.string.email_export_select)
-            .setMessage(R.string.email_export_warning)
-            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
-            .setPositiveButton(R.string.email_export) { _, _ ->
-                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
-                val chosen = emailEntries.filterIndexed { index, _ -> selected[index] }
-                if (chosen.isEmpty()) return@setPositiveButton
+        val labels = emailEntries.map { "${it.getLabel()} (${it.getIssuer()})" }
+        emailExportSelectionDialog?.dismiss()
+        var host: MultiChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (emailExportSelectionDialog === h) emailExportSelectionDialog = null
+            h?.dismiss()
+            Unit
+        }
+        host = MultiChoiceSelectionComposeView(
+            activity = this,
+            title = getString(R.string.email_export_select),
+            message = getString(R.string.email_export_warning),
+            items = labels,
+            confirmLabel = getString(R.string.email_export),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { selectedIndices ->
+                closeHost()
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@MultiChoiceSelectionComposeView
+                val chosen = emailEntries.filterIndexed { index, _ -> index in selectedIndices }
+                if (chosen.isEmpty()) return@MultiChoiceSelectionComposeView
                 val accounts = try { chosen.map { it.getEmailAccount() } }
-                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
                 val file = try { EmailMaterial.exportBackup(accounts) }
-                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
                 val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("application/json").putExtra(Intent.EXTRA_TITLE, "fairemail-accounts.json")
                 try {
@@ -1401,18 +1472,21 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     file.fill(0); emailExportPending = null; emailExportGeneration = -1L
                     Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show()
                 }
-            }.setNegativeButton(android.R.string.cancel, null).create()
-        emailExportSelectionDialog = dialog
-        dialog.setOnDismissListener { if (emailExportSelectionDialog === dialog) emailExportSelectionDialog = null }
-        dialog.show()
+            },
+            onDismiss = closeHost
+        )
+        emailExportSelectionDialog = host
+        host.show()
     }
 
     private var emailExportPending: ByteArray? = null
     private var emailExportGeneration: Long = -1L
     private var emailImportPendingUri: Uri? = null
-    private var emailImportPrompt: AlertDialog? = null
+    private var emailImportPrompt: ComposeDialogHost? = null
+    private var passwordImportPrompt: ComposeDialogHost? = null
+    private var autoTimePrompt: ComposeDialogHost? = null
     private var emailImportBytes: ByteArray? = null
-    private var emailExportSelectionDialog: AlertDialog? = null
+    private var emailExportSelectionDialog: ComposeDialogHost? = null
 
     private fun resumeEmailImport() {
         val uri = emailImportPendingUri ?: return
@@ -1435,28 +1509,37 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             bytes.fill(0)
         } catch (_: Exception) {
             // FairEmail's normal export can be password encrypted. Prompt only when a plain/gzip
-            // import did not parse; password widgets are transient and never saved in view state.
-            val password = android.widget.EditText(this).apply {
-                isSaveEnabled = false
-                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-                transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
-            }
+            // import did not parse; the shared Compose form never retains view state across lock.
+            emailImportPrompt?.dismiss()
+            emailImportPrompt = null
+            emailImportBytes?.fill(0)
             emailImportBytes = bytes
-            val dialog = AlertDialog.Builder(this).setTitle(R.string.email_backup_password)
-                .setView(password)
-                .setPositiveButton(android.R.string.ok) { _, _ ->
-                    try { importEmailBytes(bytes, password.text.toString()) }
-                    catch (_: Exception) { Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show() }
-                }.setNegativeButton(android.R.string.cancel, null)
-                .create()
-            emailImportPrompt = dialog
-            dialog.setOnDismissListener {
-                password.setText("")
+            val pending = object { var host: ComposeDialogHost? = null }
+            val cleanup = {
                 bytes.fill(0)
                 if (emailImportBytes === bytes) emailImportBytes = null
-                if (emailImportPrompt === dialog) emailImportPrompt = null
+                pending.host?.dismiss()
+                if (emailImportPrompt === pending.host) emailImportPrompt = null
             }
-            dialog.show()
+            val view = EmailImportPasswordComposeView(
+                activity = this,
+                onRead = { password ->
+                    try {
+                        importEmailBytes(bytes, password)
+                        cleanup()
+                        true
+                    } catch (_: Exception) {
+                        Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show()
+                        false
+                    }
+                },
+                onDismiss = cleanup
+            ).apply {
+                isSaveEnabled = false
+            }
+            pending.host = view
+            emailImportPrompt = view
+            view.show()
         }
     }
 
@@ -1494,9 +1577,24 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun choosePasswordImport() {
         if (VaultSession.getKey() == null) return
         val generation = VaultSession.generation()
-        AlertDialog.Builder(this).setTitle(R.string.password_import_prompt)
-            .setItems(arrayOf(getString(R.string.password_import_individual), getString(R.string.password_import_archive))) { _, index ->
-                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@setItems
+        passwordImportPrompt?.dismiss()
+        passwordImportPrompt = null
+        val pending = object { var host: ComposeDialogHost? = null }
+        val close = {
+            pending.host?.dismiss()
+            if (passwordImportPrompt === pending.host) passwordImportPrompt = null
+        }
+        val view = EntryCopyComposeView(
+            activity = this,
+            title = getString(R.string.password_import_prompt),
+            cancelLabel = getString(android.R.string.cancel),
+            fields = listOf(
+                getString(R.string.password_import_individual),
+                getString(R.string.password_import_archive)
+            ),
+            onSelect = { index ->
+                close()
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@EntryCopyComposeView
                 passwordExportName = null
                 passwordExportDigest = null
                 passwordImportMode = if (index == 0) PasswordImport.Mode.INDIVIDUAL else PasswordImport.Mode.ARCHIVE
@@ -1506,7 +1604,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     passwordImportMode = null
                     Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
                 }
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            },
+            onDismiss = close
+        )
+        pending.host = view
+        passwordImportPrompt = view
+        view.show()
     }
 
     /** A picker may outlive a lock/recreation. Only resume after a fresh vault unlock. */
@@ -1596,17 +1699,29 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             return
         }
         val selectionGeneration = VaultSession.generation()
-        val selected = BooleanArray(entries.size)
-        val labels = entries.map { "${it.getLabel()} (${it.getIssuer()})" }.toTypedArray()
-        val dialog = AlertDialog.Builder(this).setTitle(R.string.thunderbird_export_select)
-            .setMessage(R.string.thunderbird_export_warning)
-            .setMultiChoiceItems(labels, selected) { _, index, checked -> selected[index] = checked }
-            .setPositiveButton(R.string.thunderbird_export) { _, _ ->
-                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@setPositiveButton
-                val chosen = entries.filterIndexed { index, _ -> selected[index] }
-                if (chosen.isEmpty()) return@setPositiveButton
+        val labels = entries.map { "${it.getLabel()} (${it.getIssuer()})" }
+        thunderbirdExportSelectionDialog?.dismiss()
+        var host: MultiChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (thunderbirdExportSelectionDialog === h) thunderbirdExportSelectionDialog = null
+            h?.dismiss()
+            Unit
+        }
+        host = MultiChoiceSelectionComposeView(
+            activity = this,
+            title = getString(R.string.thunderbird_export_select),
+            message = getString(R.string.thunderbird_export_warning),
+            items = labels,
+            confirmLabel = getString(R.string.thunderbird_export),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { selectedIndices ->
+                closeHost()
+                if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@MultiChoiceSelectionComposeView
+                val chosen = entries.filterIndexed { index, _ -> index in selectedIndices }
+                if (chosen.isEmpty()) return@MultiChoiceSelectionComposeView
                 val file = try { ThunderbirdImport.exportCsv(chosen) }
-                    catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show(); return@setPositiveButton }
+                    catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
                 val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("text/csv").putExtra(Intent.EXTRA_TITLE, "thunderbird-credentials.csv")
                 try {
@@ -1617,10 +1732,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     file.fill(0); thunderbirdExportPending = null; thunderbirdExportGeneration = -1L
                     Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
                 }
-            }.setNegativeButton(android.R.string.cancel, null).create()
-        thunderbirdExportSelectionDialog = dialog
-        dialog.setOnDismissListener { if (thunderbirdExportSelectionDialog === dialog) thunderbirdExportSelectionDialog = null }
-        dialog.show()
+            },
+            onDismiss = closeHost
+        )
+        thunderbirdExportSelectionDialog = host
+        host.show()
     }
 
     private fun saveThunderbirdExport(uri: Uri) {
@@ -1822,10 +1938,24 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     fun requestPasswordArchiveExport(entry: Entry) {
         val generation = VaultSession.generation()
         if (adapter?.canExportPasswordArchive(entry, generation) != true) return
-        AlertDialog.Builder(this).setTitle(R.string.password_export).setMessage(R.string.password_export_warning)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                if (adapter?.canExportPasswordArchive(entry, generation) != true) return@setPositiveButton
-                val digest = adapter?.passwordArchiveDigest(entry, generation) ?: return@setPositiveButton
+        passwordExportPrompt?.dismiss()
+        var host: DeleteConfirmationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (passwordExportPrompt === h) passwordExportPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = DeleteConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.password_export),
+            message = getString(R.string.password_export_warning),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                closeHost()
+                if (adapter?.canExportPasswordArchive(entry, generation) != true) return@DeleteConfirmationComposeView
+                val digest = adapter?.passwordArchiveDigest(entry, generation) ?: return@DeleteConfirmationComposeView
                 passwordImportMode = null
                 passwordExportName = entry.getLabel()
                 passwordExportDigest = digest
@@ -1837,7 +1967,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     passwordExportDigest = null
                     Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
                 }
-            }.setNegativeButton(android.R.string.cancel, null).show()
+            },
+            onDismiss = closeHost
+        )
+        passwordExportPrompt = host
+        host.show()
     }
 
     /**
@@ -1864,15 +1998,28 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val dialect = browsers.singleOrNull() ?: PasswordCsvExport.Dialect.FIREFOX
         val browser = PasswordCsvExport.browserName(dialect)
         val title = getString(R.string.password_export_csv, browser)
-        AlertDialog.Builder(this).setTitle(title)
-            .setMessage(getString(R.string.password_export_csv_warning, browser))
-            .setPositiveButton(android.R.string.ok) { _, _ ->
-                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@setPositiveButton
+        passwordExportPrompt?.dismiss()
+        var host: DeleteConfirmationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (passwordExportPrompt === h) passwordExportPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = DeleteConfirmationComposeView(
+            activity = this,
+            title = title,
+            message = getString(R.string.password_export_csv_warning, browser),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                closeHost()
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@DeleteConfirmationComposeView
                 val chosen = exportable.map { it.first }
                 val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
                     catch (_: Exception) {
                         Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
-                        return@setPositiveButton
+                        return@DeleteConfirmationComposeView
                     }
                 val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("text/csv")
@@ -1887,9 +2034,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     passwordCsvExportGeneration = -1L
                     Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
                 }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+            },
+            onDismiss = closeHost
+        )
+        passwordExportPrompt = host
+        host.show()
     }
 
     private fun savePasswordCsvExport(uri: Uri) {
@@ -2283,6 +2432,24 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     override fun onDestroy() {
         dismissPendingImport()
         dismissMigrationImport()
+        emailImportBytes?.fill(0)
+        emailImportBytes = null
+        emailImportPrompt?.dismiss()
+        emailImportPrompt = null
+        passwordImportPrompt?.dismiss()
+        passwordImportPrompt = null
+        autoTimePrompt?.dismiss()
+        autoTimePrompt = null
+        emailExportSelectionDialog?.dismiss()
+        emailExportSelectionDialog = null
+        thunderbirdExportSelectionDialog?.dismiss()
+        thunderbirdExportSelectionDialog = null
+        passwordExportPrompt?.dismiss()
+        passwordExportPrompt = null
+        usedTokensPrompt?.dismiss()
+        usedTokensPrompt = null
+        vaultUnavailablePrompt?.dismiss()
+        vaultUnavailablePrompt = null
         timeoutAnimator?.cancel()
         timeoutAnimator = null
         settings!!.unregisterPreferenceChangeListener(this)

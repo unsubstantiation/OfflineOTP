@@ -62,20 +62,43 @@ Tests prevent reintroducing the native Android prompt and exercise callback/clea
 
 ## Android shared dialog hosts
 
-`ui/src/androidMain/.../host/ComposeDialogViews.kt` now provides two Android hosts for forms that
-already render in the desktop and iOS clients: `BiometricEnableComposeView` and
-`DeleteConfirmationComposeView`. Each extends `AbstractComposeView`, wraps the shared form in
-`ForestTheme`, and uses `DisposeOnDetachedFromWindow`. They attach an invisible composition to the
-Activity decor rather than nesting another Android `Dialog`: the shared Material 3 `AlertDialog`
-already owns its platform window. `show()`/`dismiss()` are the only native lifecycle commands. The
-app keeps only capability adapters: `SettingsActivity` still verifies the password and calls
-`BiometricKeyStore.save`; `EntryActionDialogs` tracks the hosts for lock dismissal and calls back
-into the controller, which re-resolves the entry before deleting it. No password, key or entry is
-retained in the Compose views.
+`ui/src/androidMain/.../host/ComposeDialogViews.kt` provides Android hosts (`ComposeDialogHost`
+subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 
-The native password `EditText` builders and the native delete `AlertDialog.Builder` are gone from
-those paths, so there is one production form for each on Android and desktop. The main unlock
-Activity still uses its native autofill/biometric/hardware-key adapter; it was not changed here.
+- `BiometricEnableComposeView` (`BiometricEnableDialog`)
+- `DeleteConfirmationComposeView` (`EntryConfirmationDialog`)
+- `PinEntryComposeView` (`SharedEntryPinDialog`)
+- `CounterEntryComposeView` (`EntryCounterDialog`)
+- `ThumbnailPickerComposeView` (`ThumbnailPickerDialog` + `VaultArtwork`)
+- `TagsComposeView` (`TagsDialog`)
+- `HideableNoticeComposeView` (`HideableDialog`)
+- `EntryCopyComposeView` (`EntryCopyDialog`)
+- `EmailDetailsComposeView` (`EmailDetailsDialog`)
+- `EntryDetailsComposeView` (`EntryDetailsDialog`)
+- `EmailImportPasswordComposeView` (`EmailImportDialog`)
+- `MultiChoiceSelectionComposeView` (`MultiChoiceSelectionDialog`)
+- `QrCodeComposeView` (`QrCodeDialog`)
+
+Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
+`DisposeOnDetachedFromWindow`. They attach an invisible composition to the Activity decor rather
+than nesting another Android window: the shared Material 3 `AlertDialog` already owns its platform
+window. `show()`/`dismiss()` are the only native lifecycle commands. The app keeps only capability
+adapters: `SettingsActivity` verifies the password and calls `BiometricKeyStore.save`;
+`EntryActionDialogs`, `AndroidVaultController` and `MainActivity` track active hosts for lock
+dismissal, wipe staged import buffers on close/lock, and re-resolve live entries before mutating
+the vault. No password, key or entry is retained in the Compose views.
+
+The native `AlertDialog.Builder` / `EditText` implementations are retired from `EntryActionDialogs`
+(counter, PIN, delete, thumbnail), `AndroidVaultController` (QR code display, SSH field copy,
+FairEmail details, password details, tag picker, and password entry editing), `MainActivity`
+(auto-time warning, password import mode chooser, FairEmail encrypted backup password prompt,
+FairEmail/Thunderbird multi-choice account export, password archive/CSV export confirmations,
+used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode,
+encryption-change warning, login-backup old-password removal, and keystore reset confirmation),
+and `BackupActivity` (OpenPGP key-file passphrase mode chooser). The main unlock Activity,
+onboarding wizard, and About/library screens still retain their native autofill/fragment adapters
+while `:ui-foundation` carries the shared Compose forms (`SharedUnlockScreen`,
+`SharedIntroScreen`, `AboutDialog`).
 
 ## Next work in dependency order
 
