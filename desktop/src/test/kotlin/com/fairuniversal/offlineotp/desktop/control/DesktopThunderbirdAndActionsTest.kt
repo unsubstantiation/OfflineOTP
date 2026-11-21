@@ -119,35 +119,14 @@ class DesktopThunderbirdAndActionsTest {
             changed = {}
         )
 
-        // Concealed menu omits Edit, Details, Show QR code, and Set counter, while offering Delete.
-        assertTrue(actions.openMenu(hotp.getListId(), revealed = false, canMoveUp = false, canMoveDown = true) { true })
-        val concealedMenu = actions.pending!!
-        assertFalse(DesktopEntryActions.Action.EDIT in concealedMenu.actions)
-        assertFalse(DesktopEntryActions.Action.DETAILS in concealedMenu.actions)
-        assertFalse(DesktopEntryActions.Action.SHOW_QR in concealedMenu.actions)
-        assertFalse(DesktopEntryActions.Action.SET_COUNTER in concealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.MANAGE_TAGS in concealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.MOVE_DOWN in concealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.DELETE in concealedMenu.actions)
-
-        // Revealed HOTP menu offers Edit, Details, Show QR code, Set counter, and Delete; Note never offers Show QR code.
-        assertTrue(actions.openMenu(hotp.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
-        val revealedMenu = actions.pending!!
-        assertTrue(DesktopEntryActions.Action.EDIT in revealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.DETAILS in revealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.SHOW_QR in revealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.SET_COUNTER in revealedMenu.actions)
-        assertTrue(DesktopEntryActions.Action.DELETE in revealedMenu.actions)
-
-        assertTrue(actions.selectSubSurface(revealedMenu, DesktopEntryActions.Action.DETAILS, revealed = true) { true })
-        assertTrue(actions.pending!!.detailsBody.contains("Algorithm: SHA256"))
-
-        assertTrue(actions.openMenu(note.getListId(), revealed = true, canMoveUp = true, canMoveDown = false) { true })
-        assertFalse(DesktopEntryActions.Action.SHOW_QR in actions.pending!!.actions)
+        // Concealed entry refuses QR disclosure; revealed OTP entry builds QR matrix, while Note never offers QR.
+        assertFalse(actions.openQr(hotp.getListId(), revealed = false) { true })
+        assertTrue(actions.openQr(hotp.getListId(), revealed = true) { true })
+        assertNotNull(actions.pending!!.qrMatrix)
+        assertFalse(actions.openQr(note.getListId(), revealed = true) { true })
 
         // Tag update & failed-persistence rollback.
-        assertTrue(actions.openMenu(hotp.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
-        assertTrue(actions.selectSubSurface(actions.pending!!, DesktopEntryActions.Action.MANAGE_TAGS, revealed = true) { true })
+        assertTrue(actions.openTags(hotp.getListId()) { true })
         assertTrue(actions.submitTags(actions.pending!!, linkedMapOf("work" to true, "ops" to true)) { true })
         assertEquals(listOf("work", "ops"), hotp.getTags())
 
@@ -161,15 +140,15 @@ class DesktopThunderbirdAndActionsTest {
         assertTrue(actions.submitCounter(actions.pending!!, "42", revealed = true) { true })
         assertEquals(42L, hotp.getCounter())
 
-        assertTrue(actions.openMenu(hotp.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
-        assertTrue(actions.selectSubSurface(actions.pending!!, DesktopEntryActions.Action.CHANGE_THUMBNAIL, revealed = true) { true })
+        assertTrue(actions.openThumbnail(hotp.getListId()) { true })
         val validThumb = ThumbnailCatalog.NAMES.first { it != ThumbnailCatalog.DEFAULT_NAME }
         assertTrue(actions.submitThumbnail(actions.pending!!, validThumb) { true })
         assertEquals(validThumb, hotp.getThumbnailName())
 
-        // Per-entry browser password CSV export (gated on reveal) and password archive export.
+        // Password and password-archive entries edit tags, artwork, and extra columns via DesktopEntryEditing,
+        // while exports remain vault-wide via DesktopPasswordExport.open and DesktopArchiveExport.open.
         val browserPw = PasswordImport.prepare(
-            "name,url,username,password\nGitHub,https://github.com,alice,pw-999\n".toByteArray(),
+            "name,url,username,password,note\nGitHub,https://github.com,alice,pw-999,team login\n".toByteArray(),
             "chrome.csv",
             PasswordImport.Mode.INDIVIDUAL
         ).single()
@@ -181,30 +160,58 @@ class DesktopThunderbirdAndActionsTest {
         assertTrue(state.add(browserPw))
         assertTrue(state.add(archiveEntry))
 
-        assertTrue(actions.openMenu(browserPw.getListId(), revealed = false, canMoveUp = false, canMoveDown = false) { true })
-        assertFalse(DesktopEntryActions.Action.EXPORT_PASSWORD_CSV in actions.pending!!.actions)
-        assertTrue(actions.openMenu(browserPw.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
-        assertTrue(DesktopEntryActions.Action.EXPORT_PASSWORD_CSV in actions.pending!!.actions)
+        val editing = DesktopEntryEditing(state, state::replace)
+        editing.open(browserPw.getListId())
+        val pwReq = editing.pending!!
+        val pwInit = editing.initialPasswordInput(pwReq)!!
+        val updatedExtras = pwInit.extraFields!!.map {
+            if (it.name == "note") it.copy(value = "updated note") else it
+        }
+        assertTrue(
+            editing.submitPassword(
+                pwReq,
+                pwInit.copy(tags = "dev\nops", thumbnail = validThumb, extraFields = updatedExtras),
+                revealed = true
+            ) { true }
+        )
+        val updatedPw = state.snapshot().first { it.isPassword() }
+        assertEquals("updated note", updatedPw.getPasswordFields().value("note"))
+        assertEquals(listOf("dev", "ops"), updatedPw.getTags())
+        assertEquals(validThumb, updatedPw.getThumbnailName())
 
-        assertTrue(actions.openMenu(archiveEntry.getListId(), revealed = false, canMoveUp = false, canMoveDown = false) { true })
-        assertTrue(DesktopEntryActions.Action.EXPORT_PASSWORD_ARCHIVE in actions.pending!!.actions)
+        editing.open(archiveEntry.getListId())
+        val archReq = editing.pending!!
+        val archInit = editing.initialPasswordInput(archReq)!!
+        assertTrue(archInit.archiveMode)
+        assertTrue(
+            editing.submitPassword(
+                archReq,
+                archInit.copy(issuer = "Team Archive", label = "vault.kdbx", tags = "backup", thumbnail = validThumb),
+                revealed = true
+            ) { true }
+        )
+        val updatedArch = state.snapshot().first { it.isPasswordArchive() }
+        assertEquals("Team Archive", updatedArch.getIssuer())
+        assertEquals(listOf("backup"), updatedArch.getTags())
 
         val direct = Executor { it.run() }
-        var singleCsv: ByteArray? = null
-        val pwExporter = DesktopPasswordExport(state, direct, { it.run() }, {}, write = { _, b -> singleCsv = b.copyOf() })
-        assertFalse(pwExporter.openSingle(browserPw.getListId(), revealed = false, File("pw.csv")) { true })
-        assertTrue(pwExporter.openSingle(browserPw.getListId(), revealed = true, File("pw.csv")) { true })
+        var groupCsv: ByteArray? = null
+        val pwExporter = DesktopPasswordExport(state, direct, { it.run() }, {}, write = { _, b -> groupCsv = b.copyOf() })
+        assertTrue(pwExporter.open { true })
+        assertTrue(pwExporter.choose(pwExporter.pending!!, 0, File("pw.csv")) { true })
         assertTrue(pwExporter.confirm(pwExporter.pending!!) { true })
-        assertTrue(String(singleCsv!!, StandardCharsets.UTF_8).contains("pw-999"))
+        assertTrue(String(groupCsv!!, StandardCharsets.UTF_8).contains("pw-999"))
         pwExporter.close()
 
-        var singleArchive: ByteArray? = null
-        val archiveExporter = DesktopArchiveExport(state, direct, { it.run() }, {}, write = { _, b -> singleArchive = b.copyOf() })
-        assertTrue(archiveExporter.openSingle(archiveEntry.getListId(), File("archive.bin")) { true })
+        var exportedArchive: ByteArray? = null
+        val archiveExporter = DesktopArchiveExport(state, direct, { it.run() }, {}, write = { _, b -> exportedArchive = b.copyOf() })
+        assertTrue(archiveExporter.open { true })
+        assertTrue(archiveExporter.choose(archiveExporter.pending!!, 0, File("archive.bin")) { true })
         assertTrue(archiveExporter.confirm(archiveExporter.pending!!) { true })
-        assertEquals("raw-archive-payload", String(singleArchive!!, StandardCharsets.UTF_8))
+        assertEquals("raw-archive-payload", String(exportedArchive!!, StandardCharsets.UTF_8))
         archiveExporter.close()
 
+        editing.close()
         actions.close()
         assertNull(actions.pending)
         state.lock()

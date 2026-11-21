@@ -270,16 +270,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "step":
             if store.advanceCounter(at: position) { message("Counter stepped. Copy the new code for this step.") }
             else { message(store.message ?? "This entry has no counter to step.") }
-        case "details":
-            if store.isRevealed(entry) { openDetails(at: position) }
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
             editorIndex = position
             openedFields = entry.fields
             openSurface("delete", keepDraft: true)
-        case "more":
-            openSurface("more:\(position)")
         case "moveUp", "moveDown":
             guard let origin = store.visibleIndices.firstIndex(of: position) else { return }
             let destination = origin + (action == "moveUp" ? -1 : 1)
@@ -411,7 +407,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let entry = store.entries[index]
         if entry.kind == .email {
             openEmailFullEditor(index: index)
-        } else if entry.kind == .password, PasswordCsvExport.supportsCommonEdit(entry) {
+        } else if entry.kind == .password || entry.kind == .passwordArchive {
             openPasswordEditor(index: index)
         } else {
             openEditor(index: index, kind: entry.kind ?? .totp)
@@ -491,14 +487,36 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func openPasswordEditor(index: Int) {
         guard store.entries.indices.contains(index) else { return }
         let entry = store.entries[index]
+        editorIndex = index
         passwordEditIndex = index
         openedFields = entry.fields
         openedGeneration = store.generation
+        let isArchive = entry.kind == .passwordArchive
+        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry)
         draft = [
+            "issuer": entry.issuer,
+            "label": entry.label,
+            "tags": entry.tags.joined(separator: "\n"),
+            "thumbnail": entry.thumbnail,
+            "archiveMode": isArchive ? "true" : "false",
+            "customColumnsMode": (!isArchive && !commonEdit) ? "true" : "false",
+            "archiveSizeBytes": String(entry.passwordArchiveBytes?.count ?? 0),
             "url": (try? entry.passwordFields().value(PasswordCsvExport.fieldURL)) ?? "",
             "username": (try? entry.passwordFields().value(PasswordCsvExport.fieldUsername)) ?? "",
             "password": ""
         ]
+        if !isArchive, let fields = try? entry.passwordFields() {
+            let coreNames: Set<String> = ["url", "username", "password"]
+            let pwNames: Set<String> = ["password", "pass", "login_password"]
+            var extraIdx = 0
+            for item in fields.items {
+                let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if commonEdit && coreNames.contains(norm) { continue }
+                let secret = !commonEdit && pwNames.contains(norm)
+                draft["pwColVal:\(extraIdx)"] = secret ? "" : item.value
+                extraIdx += 1
+            }
+        }
         openSurface("passwordEdit:\(index)", keepDraft: true)
     }
 
@@ -556,7 +574,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         draft["type"] = kind.rawValue
         draft["issuer"] = entry?.issuer ?? ""
         draft["label"] = entry?.label ?? ""
-        draft["hiddenLabel"] = index == nil ? (entry?.hiddenLabel ?? "") : ""
+        draft["hiddenLabel"] = entry?.hiddenLabel ?? ""
         switch kind {
         case .note:
             draft["secret"] = entry?.noteText ?? ""
@@ -577,7 +595,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         draft["period"] = entry.map { String($0.period) } ?? "30"
         draft["counter"] = entry.map { String($0.counter) } ?? "0"
         draft["algorithm"] = entry?.algorithm.rawValue ?? "SHA1"
-        draft["pin"] = index == nil ? (entry?.pin ?? "") : ""
+        draft["pin"] = entry?.pin ?? ""
         draft["tags"] = entry?.tags.joined(separator: ", ") ?? ""
         draft["thumbnail"] = entry?.thumbnail ?? ""
         openSurface("editor", keepDraft: true)
@@ -773,7 +791,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Tags",
                 sections: [PortableSection(title: "", rows: tagRows)],
                 confirmLabel: "Save", dismissLabel: "Cancel")
-        case "qr": return qrSurface()
+        case "qr", "qrFromEdit": return qrSurface(key: key)
         case "fairEmailExportSelect":
             let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
                 guard entry.kind == .email else { return nil }
@@ -927,17 +945,49 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     private func passwordEditSurface(at index: Int) -> PortableSurfaceState {
-        guard store.entries.indices.contains(index),
-              let fields = try? store.entries[index].passwordFields() else {
+        guard store.entries.indices.contains(index) else {
             return surface(key: "passwordEdit:\(index)", title: "Edit password",
                 sections: [], message: "This entry cannot be edited here.")
         }
-        return surface(key: "passwordEdit:\(index)", title: "Edit password",
-            sections: [PortableSection(title: "Notes, GUIDs, timestamps and other stored columns are kept as they are.", rows: [
-                row("url", "URL", value: draft["url"] ?? fields.value(PasswordCsvExport.fieldURL), kind: "text"),
-                row("username", "Username", value: draft["username"] ?? fields.value(PasswordCsvExport.fieldUsername), kind: "text"),
-                row("password", "New password (blank keeps the stored one)", value: draft["password"] ?? "", kind: "secure")
-            ])], confirmLabel: "Save", dismissLabel: "Cancel")
+        let entry = store.entries[index]
+        let isArchive = entry.kind == .passwordArchive
+        guard isArchive || entry.kind == .password else {
+            return surface(key: "passwordEdit:\(index)", title: "Edit password",
+                sections: [], message: "This entry cannot be edited here.")
+        }
+        let commonEdit = !isArchive && PasswordCsvExport.supportsCommonEdit(entry)
+        var rows: [PortableRow] = [
+            row("issuer", "Issuer", value: draft["issuer"] ?? entry.issuer, kind: "text"),
+            row("label", "Account", value: draft["label"] ?? entry.label, kind: "text"),
+            row("tags", "Tags", value: draft["tags"] ?? entry.tags.joined(separator: "\n"), kind: "text"),
+            row("thumbnail", "Artwork", value: draft["thumbnail"] ?? entry.thumbnail, kind: "info"),
+            row("thumbnailCatalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info"),
+            row("archiveMode", "Archive", value: isArchive ? "true" : "false", kind: "info"),
+            row("customColumnsMode", "Custom", value: (!isArchive && !commonEdit) ? "true" : "false", kind: "info"),
+            row("archiveSizeBytes", "Archive size", value: String(entry.passwordArchiveBytes?.count ?? 0), kind: "info")
+        ]
+        if !isArchive, let fields = try? entry.passwordFields() {
+            rows.append(row("url", "URL", value: draft["url"] ?? fields.value(PasswordCsvExport.fieldURL), kind: "text"))
+            rows.append(row("username", "Username", value: draft["username"] ?? fields.value(PasswordCsvExport.fieldUsername), kind: "text"))
+            rows.append(row("password", "New password (blank keeps the stored one)", value: draft["password"] ?? "", kind: "secure"))
+            let coreNames: Set<String> = ["url", "username", "password"]
+            let pwNames: Set<String> = ["password", "pass", "login_password"]
+            var extraIdx = 0
+            for item in fields.items {
+                let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                if commonEdit && coreNames.contains(norm) { continue }
+                let secret = !commonEdit && pwNames.contains(norm)
+                let kindTag = secret ? "SECRET" : "TEXT"
+                rows.append(row("pwCol:\(extraIdx):\(kindTag):\(item.name)", item.name,
+                                value: draft["pwColVal:\(extraIdx)"] ?? (secret ? "" : item.value),
+                                kind: secret ? "secure" : "text"))
+                extraIdx += 1
+            }
+        }
+        return surface(key: "passwordEdit:\(index)", title: isArchive ? "Edit password archive" : "Edit password",
+            sections: [PortableSection(title: "Notes, GUIDs, timestamps and other stored columns are kept as they are.", rows: rows)],
+            confirmLabel: "Save", dismissLabel: "Cancel",
+            message: draft["surfaceError"] ?? "")
     }
 
     private func emailEncryptionLabel(_ raw: String?) -> String {
@@ -1181,6 +1231,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         rows.append(row("thumbnail", "Artwork", value: draft["thumbnail"] ?? "", kind: "info"))
         rows.append(row("thumbnailCatalog", "Artwork catalog",
                         value: ThumbnailCatalog.names.joined(separator: ","), kind: "info"))
+        if let index = editorIndex {
+            rows.append(row("canShowQr", "QR", value: store.otpUri(for: index) != nil ? "true" : "false", kind: "info"))
+        }
         return surface(key: "editor", title: editorIndex == nil ? "Add entry" : "Edit entry",
             sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Save",
             dismissLabel: "Cancel", message: store.message ?? "")
@@ -1199,14 +1252,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             confirmLabel: "Delete", dismissLabel: "Cancel")
     }
 
-    private func qrSurface() -> PortableSurfaceState {
+    private func qrSurface(key: String = "qr") -> PortableSurfaceState {
         let payload = editorIndex.flatMap { store.otpUri(for: $0) } ?? ""
         var rows = [row("info", payload, kind: "info")]
         if let matrix = qrMatrix(for: payload) {
             rows.append(row("matrixSize", "Size", value: String(matrix.size), kind: "info"))
             rows.append(row("matrixBits", "Bits", value: matrix.bits, kind: "info"))
         }
-        return surface(key: "qr", title: "QR code",
+        return surface(key: key, title: "QR code",
             sections: [PortableSection(title: "Link", rows: rows)],
             confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
     }
@@ -1462,7 +1515,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func action(key: String) -> String? {
         guard active, store.isUnlocked else { return "The vault locked. Close and try again." }
         defer { if active { refresh() } }
-        if key == "dismiss" { closeSurface(); return nil }
+        if key == "dismiss" {
+            if surfaceKey == "qrFromEdit" {
+                openSurface("editor", keepDraft: true)
+                return nil
+            }
+            closeSurface()
+            return nil
+        }
         if key == "confirm" {
             // A dialog opened in one session must never apply to a later one. Flow-specific
             // surfaces keep their own epoch when they stage files or candidate lists.
@@ -1834,23 +1894,87 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
               openedGeneration.map { store.generation == $0 } == true,
               store.entries.indices.contains(index),
               store.entries[index].fields == openedFields,
-              store.isRevealed(store.entries[index]),
-              PasswordCsvExport.supportsCommonEdit(store.entries[index]) else {
+              store.isRevealed(store.entries[index]) else {
             draft["password"] = ""
             return "The entry or session changed. Close and reopen the editor."
         }
-        let url = draft["url"] ?? ""
-        let username = draft["username"] ?? ""
-        let password = draft["password"] ?? ""
-        guard url.utf16.count <= PasswordCsvExport.commonEditFieldLimit,
-              username.utf16.count <= PasswordCsvExport.commonEditFieldLimit,
-              password.utf16.count <= PasswordCsvExport.commonEditFieldLimit else {
-            return "Every value must fit the entry limits."
-        }
         let entry = store.entries[index]
+        let parsedTags = (draft["tags"] ?? "")
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        let chosenThumbnail = (draft["thumbnail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            let replacement = try PasswordCsvExport.withEditedFields(entry, url: url,
-                username: username, password: password.isEmpty ? nil : password)
+            var replacement: Entry
+            if entry.kind == .passwordArchive {
+                var updated = entry.fields
+                updated["issuer"] = .string(draft["issuer"] ?? entry.issuer)
+                let nextLabel = (draft["label"] ?? "").isEmpty ? entry.label : (draft["label"] ?? entry.label)
+                updated["label"] = .string(nextLabel)
+                updated["tags"] = .array(parsedTags.map { .string($0) })
+                replacement = try Entry.parse(.object(updated))
+                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+            } else if PasswordCsvExport.supportsCommonEdit(entry) {
+                let url = draft["url"] ?? ""
+                let username = draft["username"] ?? ""
+                let password = draft["password"] ?? ""
+                guard url.utf16.count <= PasswordCsvExport.commonEditFieldLimit,
+                      username.utf16.count <= PasswordCsvExport.commonEditFieldLimit,
+                      password.utf16.count <= PasswordCsvExport.commonEditFieldLimit else {
+                    return "Every value must fit the entry limits."
+                }
+                replacement = try PasswordCsvExport.withEditedFields(entry, url: url,
+                    username: username, password: password.isEmpty ? nil : password)
+                if let currentFields = try? replacement.passwordFields() {
+                    let coreNames: Set<String> = ["url", "username", "password"]
+                    var extraIdx = 0
+                    var changedExtra = false
+                    var updatedPairs: [PasswordMaterial.Field] = []
+                    for item in currentFields.items {
+                        let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        if coreNames.contains(norm) {
+                            updatedPairs.append(item)
+                        } else {
+                            let nextVal = draft["pwColVal:\(extraIdx)"] ?? item.value
+                            if nextVal != item.value { changedExtra = true }
+                            updatedPairs.append(PasswordMaterial.Field(name: item.name, value: nextVal))
+                            extraIdx += 1
+                        }
+                    }
+                    if changedExtra {
+                        var updated = replacement.fields
+                        updated["secret"] = .string(Base32.encode(try PasswordMaterial.encodeFields(updatedPairs)))
+                        let nameVal = updatedPairs.first { $0.name.lowercased() == "name" }?.value ?? ""
+                        let titleVal = updatedPairs.first { $0.name.lowercased() == "title" }?.value ?? ""
+                        let urlVal = updatedPairs.first { $0.name.lowercased() == "url" }?.value ?? ""
+                        let computedIssuer = !nameVal.isEmpty ? nameVal : (!titleVal.isEmpty ? titleVal : urlVal)
+                        updated["issuer"] = .string(computedIssuer)
+                        replacement = try Entry.parse(.object(updated))
+                    }
+                }
+                replacement.setTags(parsedTags)
+                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+            } else {
+                let origFields = try entry.passwordFields()
+                let pwNames: Set<String> = ["password", "pass", "login_password"]
+                var pairs: [PasswordMaterial.Field] = []
+                for (idx, item) in origFields.items.enumerated() {
+                    let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    let typed = draft["pwColVal:\(idx)"] ?? ""
+                    let nextVal = (pwNames.contains(norm) && typed.isEmpty) ? item.value : typed
+                    pairs.append(PasswordMaterial.Field(name: item.name, value: nextVal))
+                }
+                let effectivePw = pairs.last { pwNames.contains($0.name.lowercased()) }?.value ?? ""
+                guard !effectivePw.isEmpty else { throw PasswordCsvExportError.emptyPassword }
+                var updated = entry.fields
+                updated["secret"] = .string(Base32.encode(try PasswordMaterial.encodeFields(pairs)))
+                updated["issuer"] = .string(draft["issuer"] ?? entry.issuer)
+                let nextLabel = (draft["label"] ?? "").isEmpty ? entry.label : (draft["label"] ?? entry.label)
+                updated["label"] = .string(nextLabel)
+                updated["tags"] = .array(parsedTags.map { .string($0) })
+                replacement = try Entry.parse(.object(updated))
+                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+            }
             guard store.update(at: index, with: replacement) else {
                 return store.message ?? "The password entry could not be saved to the vault."
             }
@@ -2270,22 +2394,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         }
-        if command == "exportPasswordCsv", let index {
-            guard let exported = store.exportSinglePasswordCsv(at: index) else {
-                return store.message ?? "That entry cannot be exported as a browser CSV."
-            }
-            onExport(exported.data, exported.name)
-            closeSurface()
-            return nil
-        }
-        if command == "exportArchive", let index {
-            guard let archive = store.exportPasswordArchive(at: index) else {
-                return store.message ?? "The password archive could not be exported."
-            }
-            onExport(archive.data, archive.name)
-            closeSurface()
-            return nil
-        }
         if command == "passwordImportMode", parts.count > 1 {
             let mode: PasswordImport.Mode = parts[1] == "archive" ? .archive : .individual
             guard let plan = store.importBrowserPasswords(
@@ -2624,6 +2732,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let index, store.otpUri(for: index) != nil else { return "This entry has no QR link." }
             editorIndex = index
             openSurface("qr", keepDraft: true)
+            return nil
+        case "qrFromEdit":
+            guard let index = editorIndex, store.otpUri(for: index) != nil else { return "This entry has no QR link." }
+            openSurface("qrFromEdit", keepDraft: true)
             return nil
         case "edit":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }

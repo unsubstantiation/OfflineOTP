@@ -8348,9 +8348,9 @@ fun main() {
                 mixedParsed.rows[1].valueAt(0) == "https://site.test",
                 { "a mixed export lost an entry's URL" })
 
-            // The dialog exposes the entry menu items the adapter now offers.
-            expect(R.id.menu_popup_edit_password != R.id.menu_popup_export_password_csv,
-                { "the edit and export menu items share an id" })
+            // The edit and remove menu items use distinct ids.
+            expect(R.id.menu_popup_edit_password != R.id.menu_popup_remove,
+                { "the edit and remove menu items share an id" })
         } finally {
             chromeEntry.destroy(); firefoxEntry.destroy(); safariEntry.destroy(); session.destroy()
         }
@@ -8443,6 +8443,86 @@ fun main() {
             { "the Android removal prompt must use the shared identity rule" })
         expect(!removal.contains("dialogs.delete(entry.getLabel()"),
             { "the raw label re-introduces the empty-quote prompt" })
+    }
+
+    check("Android Edit dialog consolidates QR, keystrokes, tags, artwork, details, and Delete across entry types") {
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_tap_single, "reveal")
+        val activity = object : MainActivity() {
+            override val resources: Resources get() = fixture.context.resources
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+        }
+        val controller = withPoisonedTransaction {
+            EntriesCardAdapter(activity, TagsAdapter(activity, hashMapOf())).controller
+        }
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val hotp = Entry(Entry.OTPType.HOTP, ENTRY_SEED, 3L, 6, "GitHub", "alice",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf("work")).apply { setDetailsVisible(true) }
+        val pw = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+            "name,url,username,password,note\nGitHub,https://github.com,alice,pw-123,ops-note\n".toByteArray(),
+            "chrome.csv",
+            com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.INDIVIDUAL
+        ).single().apply { setDetailsVisible(true) }
+        val key = SecretKeySpec(ByteArray(32) { 5 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        source.addEntry(hotp)
+        source.addEntry(pw)
+        controller.updateTagsFilter()
+        controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+        controller.setSearchQuery("")
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val composeView = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(
+            activity, strings, com.fairuniversal.offlineotp.ui.vault.VaultActions()
+        )
+        controller.attachComposeEditor(composeView)
+        val editorField = com.fairuniversal.offlineotp.ui.vault.VaultComposeView::class.java
+            .getDeclaredField("editor\$delegate").apply { isAccessible = true }
+        val pwEditorField = com.fairuniversal.offlineotp.ui.vault.VaultComposeView::class.java
+            .getDeclaredField("passwordEditor\$delegate").apply { isAccessible = true }
+        try {
+            // Reveal HOTP and open Edit: editor provides QR, Share as keystrokes, and Delete.
+            val otpFrame = controller.composeFrame(60_000L, strings)!!
+            expect(otpFrame.perform(hotp.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL),
+                { "HOTP reveal failed" })
+            val revealedOtpFrame = controller.composeFrame(60_000L, strings)!!
+            expect(revealedOtpFrame.perform(hotp.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "HOTP EDIT failed" })
+            val editorState = (editorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value!!
+            expect(editorState.javaClass.getDeclaredField("onShowQrCode").apply { isAccessible = true }.get(editorState) != null,
+                { "OTP Edit missing Show QR code callback" })
+            expect(editorState.javaClass.getDeclaredField("onShareKeystrokes").apply { isAccessible = true }.get(editorState) != null,
+                { "OTP Edit missing Share as keystrokes callback" })
+            expect(editorState.javaClass.getDeclaredField("onDelete").apply { isAccessible = true }.get(editorState) != null,
+                { "OTP Edit missing Delete callback" })
+
+            // Switch to Passwords: non-OTP entries start revealed, toggle hides canEditPassword, toggle back restores it.
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS)
+            val pwFrame = controller.composeFrame(60_000L, strings)!!
+            expect(pwFrame.state.cards.single().canEditPassword,
+                { "Revealed password card did not expose canEditPassword" })
+            expect(pwFrame.perform(pw.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL),
+                { "Password hide failed" })
+            val hiddenPwFrame = controller.composeFrame(60_000L, strings)!!
+            expect(!hiddenPwFrame.state.cards.single().canEditPassword,
+                { "Concealed password card still exposed canEditPassword" })
+            expect(hiddenPwFrame.perform(pw.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL),
+                { "Password re-reveal failed" })
+            val revealedPwFrame = controller.composeFrame(60_000L, strings)!!
+            expect(revealedPwFrame.state.cards.single().canEditPassword,
+                { "Re-revealed password card did not expose canEditPassword" })
+            expect(revealedPwFrame.perform(pw.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "Password EDIT failed" })
+            val pwEditorState = (pwEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value!!
+            expect(pwEditorState.javaClass.getDeclaredField("onDelete").apply { isAccessible = true }.get(pwEditorState) != null,
+                { "Password Edit missing Delete callback" })
+        } finally {
+            composeView.clear()
+            controller.lockEntries()
+            VaultSession.lock()
+        }
     }
 
     if (failures == 0) {

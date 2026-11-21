@@ -59,21 +59,37 @@ class VaultComposeView(
     }
     fun ownsEmailCreation(key: Any) = !ended && emailCreation?.key === key
 
-    private class EmailEditor(val initial: EmailEditInput, val submit: (EmailEditInput) -> String?)
+    private class EmailEditor(
+        val initial: EmailEditInput,
+        val onDelete: (() -> Unit)?,
+        val submit: (EmailEditInput) -> String?
+    )
     private var emailEditor by mutableStateOf<EmailEditor?>(null)
-    fun showEmailEditor(initial: EmailEditInput, submit: (EmailEditInput) -> String?) {
+    fun showEmailEditor(
+        initial: EmailEditInput,
+        onDelete: (() -> Unit)? = null,
+        submit: (EmailEditInput) -> String?
+    ) {
         if (ended) return
         clearEntryEditor()
-        emailEditor = EmailEditor(initial, submit)
+        emailEditor = EmailEditor(initial, onDelete, submit)
     }
     fun ownsEmailEditor(initial: EmailEditInput) = !ended && emailEditor?.initial === initial
 
-    private class PasswordEditor(val initial: PasswordEntryInput, val submit: (PasswordEntryInput) -> String?)
+    private class PasswordEditor(
+        val initial: PasswordEntryInput,
+        val onDelete: (() -> Unit)?,
+        val submit: (PasswordEntryInput) -> String?
+    )
     private var passwordEditor by mutableStateOf<PasswordEditor?>(null)
-    fun showPasswordEditor(initial: PasswordEntryInput, submit: (PasswordEntryInput) -> String?) {
+    fun showPasswordEditor(
+        initial: PasswordEntryInput,
+        onDelete: (() -> Unit)? = null,
+        submit: (PasswordEntryInput) -> String?
+    ) {
         if (ended) return
         clearEntryEditor()
-        passwordEditor = PasswordEditor(initial, submit)
+        passwordEditor = PasswordEditor(initial, onDelete, submit)
     }
     fun ownsPasswordEditor(initial: PasswordEntryInput) = !ended && passwordEditor?.initial === initial
 
@@ -121,15 +137,29 @@ class VaultComposeView(
     }
 
     private var ended = false
-    private class Editor(val initial: ManualEntryInput, val editing: Boolean, val submit: (ManualEntryInput) -> String?)
+    private class Editor(
+        val initial: ManualEntryInput,
+        val editing: Boolean,
+        val onShowQrCode: (() -> Unit)?,
+        val onShareKeystrokes: (() -> Unit)?,
+        val onDelete: (() -> Unit)?,
+        val submit: (ManualEntryInput) -> String?
+    )
     private var editor by mutableStateOf<Editor?>(null)
     private var editError by mutableStateOf<String?>(null)
 
     /** Uses the same form and draft validation as desktop; the host owns save authority. */
-    fun showEntryEditor(initial: ManualEntryInput, editing: Boolean = true, submit: (ManualEntryInput) -> String?) {
+    fun showEntryEditor(
+        initial: ManualEntryInput,
+        editing: Boolean = true,
+        onShowQrCode: (() -> Unit)? = null,
+        onShareKeystrokes: (() -> Unit)? = null,
+        onDelete: (() -> Unit)? = null,
+        submit: (ManualEntryInput) -> String?
+    ) {
         if (ended) return
         clearEntryEditor()
-        editor = Editor(initial, editing, submit)
+        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onDelete, submit)
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
@@ -211,7 +241,7 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() })
+            }, onDismiss = { clearEntryEditor() }, onDelete = email.onDelete)
         }
         val password = passwordEditor
         if (password != null) ForestTheme {
@@ -222,12 +252,15 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() })
+            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onDelete = password.onDelete)
         }
         val request = editor
         if (request != null) ForestTheme {
             ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing,
                 artwork = artwork, error = editError, onDismiss = { clearEntryEditor() },
+                onShowQrCode = request.onShowQrCode,
+                onShareKeystrokes = request.onShareKeystrokes,
+                onDelete = request.onDelete,
                 onSubmit = { input ->
                     if (!ended && editor === request) {
                         val failure = request.submit(input)

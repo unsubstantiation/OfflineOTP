@@ -154,12 +154,31 @@ class AndroidVaultController(
         return true
     }
 
+    private fun deleteFromComposeEditor(
+        view: com.fairuniversal.offlineotp.ui.vault.VaultComposeView,
+        target: EntryActionTarget
+    ) {
+        synchronized(VaultSession.MutationLock) {
+            val actual = target.resolve(entries, VaultSession.generation())
+            view.clearEntryEditor()
+            composeEditTarget = null
+            if (actual != null && encryptionKey != null &&
+                VaultSession.getKey() === encryptionKey && composeRevealed(actual)) {
+                val pos = presentation.indexOf(actual)
+                if (pos >= 0) removeItem(pos, requireRevealed = true)
+            }
+        }
+    }
+
     private fun openEmailEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
         if (!entry.isEmail() || !composeRevealed(entry)) return false
         val initial = com.fairuniversal.offlineotp.ui.vault.EmailEditInput.fromEntry(entry)
         composeEditTarget = target
-        view.showEmailEditor(initial) { input ->
+        view.showEmailEditor(
+            initial = initial,
+            onDelete = { deleteFromComposeEditor(view, target) }
+        ) { input ->
             synchronized(VaultSession.MutationLock) {
                 val actual = target.resolve(entries, VaultSession.generation())
                 if (!view.ownsEmailEditor(initial) || composeEditTarget !== target || encryptionKey == null ||
@@ -300,10 +319,13 @@ class AndroidVaultController(
 
     private fun openPasswordEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
-        if (!composeRevealed(entry) || !com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(entry)) return false
-        val initial = com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.fromEntry(entry)
+        if (!composeRevealed(entry) || !com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supportsAny(entry)) return false
+        val initial = com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.fromAnyEntry(entry)
         composeEditTarget = target
-        view.showPasswordEditor(initial) { input ->
+        view.showPasswordEditor(
+            initial = initial,
+            onDelete = { deleteFromComposeEditor(view, target) }
+        ) { input ->
             synchronized(VaultSession.MutationLock) {
                 val actual = target.resolve(entries, VaultSession.generation())
                 if (!view.ownsPasswordEditor(initial) || composeEditTarget !== target || encryptionKey == null ||
@@ -326,7 +348,34 @@ class AndroidVaultController(
         if (!composeRevealed(entry) || (entry.getType() !in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes && !entry.isNote() && !entry.isSshKey())) return false
         composeEditTarget = target
         val initial = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.forEntryEdit(entry)
-        view.showEntryEditor(initial) { input ->
+        val canShowQr = entry.hasOtpUri()
+        view.showEntryEditor(
+            initial = initial,
+            editing = true,
+            onShowQrCode = if (canShowQr) ({
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && composeRevealed(actual) && actual.hasOtpUri()) {
+                        val pos = presentation.indexOf(actual)
+                        if (pos >= 0) showQRCode(pos)
+                    }
+                }
+            }) else null,
+            onShareKeystrokes = if (canShowQr) ({
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    view.clearEntryEditor()
+                    composeEditTarget = null
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && composeRevealed(actual) && actual.hasOtpUri()) {
+                        val pos = presentation.indexOf(actual)
+                        if (pos >= 0 && !establishPinIfNeeded(pos)) sendKeystrokes(pos)
+                    }
+                }
+            }) else null,
+            onDelete = { deleteFromComposeEditor(view, target) }
+        ) { input ->
             synchronized(VaultSession.MutationLock) {
                 val actual = target.resolve(entries, VaultSession.generation())
                 if (!view.ownsEntryEditor(initial) || composeEditTarget !== target || encryptionKey == null || VaultSession.getKey() !== encryptionKey ||
@@ -412,6 +461,8 @@ class AndroidVaultController(
                     }.takeIf { it.isNotEmpty() && composeRevealed(entry) },
                     copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() ||
                         (entry.isSshKey() && entry.getSshKeys().let { it.publicKey.isNotBlank() || it.privateKey.isNotBlank() })),
+                    canEditPassword = composeRevealed(entry) &&
+                        com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supportsAny(entry),
                     canCopyAccount = entry.hasCopyableAccount(),
                     canCopyPassword = entry.hasCopyablePassword(),
                     canMoveUp = presentation.canDrag() && index > 0,
@@ -460,7 +511,8 @@ class AndroidVaultController(
                 AndroidCardCommand.EDIT -> {
                     val opened = when {
                         entry.isEmail() -> openEmailEditor(target, entry)
-                        entry.isPassword() -> openPasswordEditor(target, entry)
+                        com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supportsAny(entry) ->
+                            openPasswordEditor(target, entry)
                         else -> openSharedEditor(target, entry)
                     }
                     if (!opened) return false
@@ -1562,16 +1614,10 @@ class AndroidVaultController(
         }
         if (popupEntry.isPassword() || popupEntry.isPasswordArchive())
             popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
-        if (popupEntry.isPasswordArchive())
-            popup.getMenu().findItem(R.id.menu_popup_export_password_file)?.setVisible(true)
         if (popupEntry.isPassword())
             popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(true)
-        // A browser-imported password is editable and re-exportable; a LinSCP or Thunderbird row
-        // shares the type but has no browser CSV form, so it gets the edit dialog only.
-        if (popupEntry.isPassword()) {
-            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(popupEntry))
-            if (PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable)
-                popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(true)
+        if (com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supportsAny(popupEntry)) {
+            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(true)
         }
         if (popupEntry.isEmail())
             popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(true)
@@ -1581,7 +1627,6 @@ class AndroidVaultController(
             popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(false)
             popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(false)
-            popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(false)
         }
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
@@ -1630,20 +1675,10 @@ class AndroidVaultController(
                     openPasswordEditor(popupTarget, actual)
                 })
                 true
-            } else if (id == R.id.menu_popup_export_password_csv) {
-                withTarget(popupTarget, Consumer { actual ->
-                    (context as? MainActivity)?.requestPasswordCsvExport(actual)
-                })
-                true
-            } else if (id == R.id.menu_popup_export_password_file) {
-                withTarget(popupTarget, Consumer { actual ->
-                    (context as? MainActivity)?.requestPasswordArchiveExport(actual)
-                })
-                true
             } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (actual.isEmail()) { openEmailEditor(popupTarget, actual); return@Consumer }
-                    if (actual.isPassword() && com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(actual)) {
+                    if (com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supportsAny(actual)) {
                         openPasswordEditor(popupTarget, actual)
                         return@Consumer
                     }

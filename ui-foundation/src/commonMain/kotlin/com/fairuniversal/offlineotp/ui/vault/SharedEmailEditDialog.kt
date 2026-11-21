@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailEditDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailField
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
+import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 /**
  * Shared comprehensive multi-identity email editor across Android, Desktop and iOS.
@@ -31,7 +32,8 @@ fun SharedEmailEditDialog(
     thumbnailNames: List<String>,
     error: String?,
     onSubmit: (PortableEmailEditDraft) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     val artworkOptions = remember(thumbnailNames, input.thumbnail) {
@@ -66,6 +68,13 @@ fun SharedEmailEditDialog(
                             }
                         )
                     }
+                }
+                if (onDelete != null) {
+                    ForestTextAction(
+                        text = "Delete",
+                        color = ForestPalette.warning,
+                        onClick = onDelete
+                    )
                 }
                 error?.let { Text(it) }
             }

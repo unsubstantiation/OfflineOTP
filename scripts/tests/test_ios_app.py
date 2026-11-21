@@ -694,7 +694,9 @@ class IosAppTest(unittest.TestCase):
         renderer = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
         self.assertIn('contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")', renderer)
         self.assertIn('contentDescription = "Copy Token for "', renderer)
-        self.assertIn('contentDescription = "Shows entry details"', renderer)
+        self.assertIn('contentDescription = "Edit "', renderer)
+        self.assertNotIn('onCard(card.index, "details")', renderer)
+        self.assertNotIn('onCard(card.index, "more")', renderer)
         for expected in ("Add an entry", "Backups and links", "Settings", "Lock the vault",
                          "How selected tags combine", "Clear the search and tag filters"):
             self.assertIn(f'contentDescription = "{expected}"', renderer, f"{expected} lost its label")

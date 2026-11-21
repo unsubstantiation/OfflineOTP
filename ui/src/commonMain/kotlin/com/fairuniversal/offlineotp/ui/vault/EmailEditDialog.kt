@@ -13,7 +13,8 @@ fun EmailEditDialog(
     initial: EmailEditInput,
     error: String?,
     onSubmit: (EmailEditInput) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     SharedEmailEditDialog(
         inputKey = inputKey,
@@ -21,7 +22,8 @@ fun EmailEditDialog(
         thumbnailNames = ThumbnailCatalog.NAMES,
         error = error,
         onSubmit = { draft -> onSubmit(draft.toModel()) },
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        onDelete = onDelete
     )
 }
 

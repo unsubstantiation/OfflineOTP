@@ -493,7 +493,7 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss
             )
         }
-        "qr" -> {
+        "qr", "qrFromEdit" -> {
             val matrixSize = rowValue("matrixSize").toIntOrNull() ?: 0
             val matrixBits = rowValue("matrixBits")
             if (matrixSize > 0 && matrixBits.length >= matrixSize * matrixSize) {
@@ -600,7 +600,8 @@ private fun RenderSharedSurface(
                     }
                     confirm()
                 },
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                onDelete = { onAction("delete") }
             )
         }
         "emailPasswordEdit" -> {
@@ -761,6 +762,16 @@ private fun RenderSharedSurface(
                 null
             },
             thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+            onShowQrCode = if (dialog.title == "Edit entry" && rowValue("canShowQr") == "true") {
+                { onAction("qrFromEdit") }
+            } else {
+                null
+            },
+            onDelete = if (dialog.title == "Edit entry") {
+                { onAction("delete") }
+            } else {
+                null
+            },
             onSubmit = { draft ->
                 surfaceActions.change("type", draft.kind)
                 surfaceActions.change("issuer", draft.issuer)
@@ -788,23 +799,49 @@ private fun RenderSharedSurface(
             onDismiss = onDismiss
         )
         else -> when {
-            dialog.key.startsWith("passwordEdit:") && rows.isNotEmpty() -> SharedPasswordEntryDialog(
-                inputKey = dialogKey,
-                initial = PortablePasswordEditDraft(
-                    url = rowValue("url"),
-                    username = rowValue("username"),
-                    password = ""
-                ),
-                failed = dialog.message.isNotEmpty(),
-                errorText = dialog.message.ifEmpty { null },
-                onSubmit = { draft ->
-                    surfaceActions.change("url", draft.url)
-                    surfaceActions.change("username", draft.username)
-                    surfaceActions.change("password", draft.password)
-                    confirm()
-                },
-                onDismiss = onDismiss
-            )
+            dialog.key.startsWith("passwordEdit:") && rows.isNotEmpty() -> {
+                val extraRows = rows.filter { it.key.startsWith("pwCol:") }
+                val extraFields = extraRows.map { row ->
+                    val parts = row.key.split(":", limit = 4)
+                    val kind = parts.getOrElse(2) { PortableEmailField.KIND_TEXT }
+                    val colName = parts.getOrElse(3) { row.title }
+                    PortableEmailField(name = colName, value = row.value, kind = kind)
+                }
+                SharedPasswordEntryDialog(
+                    inputKey = dialogKey,
+                    initial = PortablePasswordEditDraft(
+                        url = rowValue("url"),
+                        username = rowValue("username"),
+                        password = "",
+                        issuer = rowValue("issuer"),
+                        label = rowValue("label"),
+                        tags = rowValue("tags"),
+                        thumbnail = rowValue("thumbnail"),
+                        extraFields = extraFields,
+                        customColumnsMode = rowValue("customColumnsMode") == "true",
+                        archiveMode = rowValue("archiveMode") == "true",
+                        archiveSizeBytes = rowValue("archiveSizeBytes").toIntOrNull() ?: 0
+                    ),
+                    failed = dialog.message.isNotEmpty(),
+                    errorText = dialog.message.ifEmpty { null },
+                    thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                    onDelete = { onAction("delete") },
+                    onSubmit = { draft ->
+                        surfaceActions.change("url", draft.url)
+                        surfaceActions.change("username", draft.username)
+                        surfaceActions.change("password", draft.password)
+                        surfaceActions.change("issuer", draft.issuer)
+                        surfaceActions.change("label", draft.label)
+                        surfaceActions.change("tags", draft.tags)
+                        surfaceActions.change("thumbnail", draft.thumbnail)
+                        draft.extraFields.forEachIndexed { idx, field ->
+                            surfaceActions.change("pwColVal:$idx", field.value)
+                        }
+                        confirm()
+                    },
+                    onDismiss = onDismiss
+                )
+            }
             dialog.key.startsWith("details:") && rows.any { it.key.startsWith("emailDetail:") } -> {
                 val entryIdx = dialog.key.removePrefix("details:")
                 val detailRows = buildList {

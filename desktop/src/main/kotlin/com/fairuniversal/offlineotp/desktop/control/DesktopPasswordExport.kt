@@ -35,20 +35,6 @@ class DesktopPasswordExport(private val state: DesktopVaultState, private val wo
         if (!active() || closed || state.isLocked || pending != null) { plan.close(); return false }
         pending = Request(plan); changed(); return true
     }
-    fun openSingle(entryId: Long, revealed: Boolean, file: File, active: () -> Boolean): Boolean {
-        if (closed || state.isLocked || !revealed || pending != null || !active()) return false
-        val entry = state.snapshot().firstOrNull { it.getListId() == entryId } ?: return false
-        val plan = try { DesktopPasswordExportPlan.prepareEntries(listOf(entry)) } catch (_: Exception) { return false }
-        if (plan.groups.size != 1 || !active() || closed || state.isLocked || pending != null) {
-            plan.close(); return false
-        }
-        val request = Request(plan).also {
-            it.selected = 0
-            it.file = file
-            it.status = Status.CONFIRM
-        }
-        pending = request; changed(); return true
-    }
     fun choose(request: Request, index: Int, file: File, active: () -> Boolean): Boolean {
         if (!current(request) || request.status != Status.SELECT || index !in request.groups.indices || !active() || !current(request)) return false
         request.selected = index; request.file = file; request.status = Status.CONFIRM; changed(); return true

@@ -870,7 +870,7 @@ final class VaultStoreTests: XCTestCase {
         let plan = store.passwordExportPlan()
         XCTAssertEqual(plan.groups.count, 1)
         XCTAssertEqual(plan.groups[0].dialect, .chrome)
-        XCTAssertNotNil(store.exportSinglePasswordCsv(at: pwIndex))
+        XCTAssertNotNil(store.exportBrowserPasswordsCsvGroup(indices: plan.groups[0].indices, dialect: plan.groups[0].dialect))
 
         let tbCsv = Data("url,username,password\r\nimap://mail.example.com,ops@example.com,imap-secret\r\n".utf8)
         XCTAssertEqual(store.previewThunderbirdBackupCount(data: tbCsv), 1)
