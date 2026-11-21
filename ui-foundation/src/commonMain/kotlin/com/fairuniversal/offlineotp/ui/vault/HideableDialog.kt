@@ -1,12 +1,11 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -14,63 +13,64 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 /**
- * Shared Compose form for a dialog with a "don't show again" checkbox.
+ * Shared Compose notice dialog with a "don't show again" toggle.
  *
- * Replaces the native Android HideableDialog (50 lines) with a shared Compose form.
- * The host adapter (HideableDialogHost) will wrap this form and handle native capability adapters
- * (Settings wiring, lifecycle, etc.).
+ * Host adapters resolve localized strings and persist the boolean preference.
  */
 @Composable
 fun HideableDialog(
     inputKey: Any,
-    titleId: Int,
-    msgId: Int,
-    hideSettingId: Int,
-    settingsProvider: (Int) -> Boolean,
-    settingsSaver: (Int, Boolean) -> Unit,
+    title: String,
+    message: String,
+    dontShowAgainLabel: String,
+    confirmLabel: String,
+    initialHidden: Boolean = false,
+    onHiddenChanged: (Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var isHidden by remember(inputKey) { mutableStateOf(settingsProvider(hideSettingId)) }
-    var showDialog by remember(inputKey) { mutableStateOf(!isHidden) }
+    var isHidden by remember(inputKey) { mutableStateOf(initialHidden) }
 
-    fun dismiss() {
-        settingsSaver(hideSettingId, isHidden)
-        showDialog = false
+    fun finish() {
+        onHiddenChanged(isHidden)
         onDismiss()
     }
 
-    if (showDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                dismiss()
-            },
-            title = { Text(text = "Title: $titleId") }, // In real app, use string resource lookup
-            text = {
-                Column(Modifier.fillMaxSize().padding(16.dp)) {
-                    Text(text = "Message: $msgId") // In real app, use string resource lookup
+    AlertDialog(
+        onDismissRequest = { finish() },
+        title = { Text(text = title) },
+        text = {
+            ScrollableDialogBody {
+                Text(text = message)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val next = !isHidden
+                            isHidden = next
+                            onHiddenChanged(next)
+                        }
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Checkbox(
                         checked = isHidden,
-                        onCheckedChange = { newChecked: Boolean ->
-                            isHidden = newChecked
-                            settingsSaver(hideSettingId, newChecked)
+                        onCheckedChange = { next ->
+                            isHidden = next
+                            onHiddenChanged(next)
                         }
-                    ) {
-                        Text(text = "Don't show again")
-                    }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    settingsSaver(hideSettingId, isHidden)
-                    dismiss()
-                }) {
-                    Text(text = "OK")
+                    )
+                    Text(text = dontShowAgainLabel)
                 }
             }
-        )
-    }
+        },
+        confirmButton = {
+            ForestTextAction(text = confirmLabel, onClick = { finish() })
+        }
+    )
 }

@@ -20,6 +20,7 @@ kotlin {
         binaries.framework {
             baseName = 'OfflineOTPPresentation'
             isStatic = true
+            export rootProject.findProject(':ui-contract')
             presentationFramework.add(delegate)
         }
     }

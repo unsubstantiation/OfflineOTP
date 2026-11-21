@@ -1,8 +1,11 @@
-"""Guard the Android dialogs that now use the shared Compose forms.
+"""Guard the Android dialogs that use the shared Compose forms across :ui-foundation and :ui.
 
-The delete confirmation and biometric-enrolment password prompt used to be second, native
-implementations of forms the desktop and iOS hosts already render from :ui-foundation. Android
-must keep its Dialog lifecycle, keychain and verification adapters, but not duplicate form chrome.
+Entry action dialogs (delete, mOTP PIN, HOTP counter, thumbnail picker), entry detail/copy/tag
+prompts (SSH field copy, FairEmail connection details, password details, tag picker), and
+MainActivity prompts (automatic-time warning, password import mode chooser, FairEmail encrypted
+backup password prompt, and biometric enrollment) share Compose forms rather than duplicating
+native AlertDialog/EditText builders. Android retains session checks, keychain/SAF adapters, and
+lock-time host dismissal.
 """
 import re
 import unittest
@@ -12,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 HOST = ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt"
 SETTINGS = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt"
 ACTIONS = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/EntryActionDialogs.kt"
+CONTROLLER = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt"
+MAIN = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt"
 UI_GRADLE = ROOT / "ui/build.gradle"
 
 
@@ -24,8 +29,20 @@ def function_body(text: str, signature: str, closing: str) -> str:
 class AndroidSharedDialogTest(unittest.TestCase):
     def test_android_hosts_render_the_shared_forms(self):
         host = HOST.read_text(encoding="utf-8")
-        self.assertIn("BiometricEnableDialog(", host)
-        self.assertIn("EntryConfirmationDialog(", host)
+        for form in (
+            "BiometricEnableDialog(",
+            "EntryConfirmationDialog(",
+            "SharedEntryPinDialog(",
+            "EntryCounterDialog(",
+            "ThumbnailPickerDialog(",
+            "TagsDialog(",
+            "HideableDialog(",
+            "EntryCopyDialog(",
+            "EmailDetailsDialog(",
+            "EntryDetailsDialog(",
+            "EmailImportDialog(",
+        ):
+            self.assertIn(form, host)
         self.assertIn("ForestTheme {", host)
         self.assertIn("ViewCompositionStrategy.DisposeOnDetachedFromWindow", host)
         self.assertIn("fun show()", host)
@@ -59,6 +76,65 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("confirm.run()", body)
         self.assertIn("pending.host?.dismiss()", body)
         self.assertNotIn("AlertDialog.Builder", body)
+
+    def test_all_entry_action_dialogs_use_shared_compose_hosts(self):
+        actions = ACTIONS.read_text(encoding="utf-8")
+        for view_cls in (
+            "CounterEntryComposeView(",
+            "PinEntryComposeView(",
+            "DeleteConfirmationComposeView(",
+            "ThumbnailPickerComposeView(",
+        ):
+            self.assertIn(view_cls, actions)
+        self.assertNotIn("AlertDialog.Builder", actions)
+        self.assertNotIn("android.widget.EditText", actions)
+
+    def test_vault_controller_and_main_activity_route_prompts_to_shared_compose_hosts(self):
+        controller = CONTROLLER.read_text(encoding="utf-8")
+        for view_cls in (
+            "EntryCopyComposeView(",
+            "EmailDetailsComposeView(",
+            "EntryDetailsComposeView(",
+            "TagsComposeView(",
+            "QrCodeComposeView(",
+        ):
+            self.assertIn(view_cls, controller)
+        self.assertIn("activeTagsDialog?.dismiss()", controller)
+        self.assertIn("activeQrDialog?.dismiss()", controller)
+        self.assertNotIn("AlertDialog.Builder", controller)
+
+        main = MAIN.read_text(encoding="utf-8")
+        for view_cls in (
+            "HideableNoticeComposeView(",
+            "EmailImportPasswordComposeView(",
+            "EntryCopyComposeView(",
+            "MultiChoiceSelectionComposeView(",
+            "DeleteConfirmationComposeView(",
+            "EntryDetailsComposeView(",
+        ):
+            self.assertIn(view_cls, main)
+        for dismiss in (
+            "passwordImportPrompt?.dismiss()",
+            "autoTimePrompt?.dismiss()",
+            "emailExportSelectionDialog?.dismiss()",
+            "thunderbirdExportSelectionDialog?.dismiss()",
+            "passwordExportPrompt?.dismiss()",
+            "usedTokensPrompt?.dismiss()",
+        ):
+            self.assertIn(dismiss, main)
+
+        settings = SETTINGS.read_text(encoding="utf-8")
+        self.assertIn("EntryCopyComposeView(", settings)
+        self.assertIn("DeleteConfirmationComposeView(", settings)
+        self.assertIn("dismissSettingsPrompts()", settings)
+
+        backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("private var activeKeyFileDialog: ComposeDialogHost? = null", backup)
+        self.assertIn("EntryCopyComposeView(", backup)
+
+        views = HOST.read_text(encoding="utf-8")
+        self.assertIn("class MultiChoiceSelectionComposeView(", views)
+        self.assertIn("class QrCodeComposeView(", views)
 
     def test_shared_ui_module_comment_matches_the_current_platform_boundary(self):
         gradle = UI_GRADLE.read_text(encoding="utf-8")

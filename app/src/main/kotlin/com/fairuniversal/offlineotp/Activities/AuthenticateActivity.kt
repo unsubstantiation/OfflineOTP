@@ -1,41 +1,24 @@
 package com.fairuniversal.offlineotp.Activities
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.InputType
+import android.text.method.PasswordTransformationMethod
+import android.view.KeyEvent
 import android.view.View
-import android.view.ViewGroup
+import android.view.ViewStub
+import android.view.WindowManager.LayoutParams
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.ProgressBar
 import android.widget.TextView
+import android.widget.Toast
 
 import androidx.appcompat.widget.Toolbar
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.material3.Button as ComposeButton
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
+
+import com.google.android.material.textfield.TextInputLayout
+
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.AuthenticationError
 import com.fairuniversal.offlineotp.Tasks.AuthenticationOutcome
@@ -46,31 +29,35 @@ import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.Constants.AuthMethod
 import com.fairuniversal.offlineotp.Utilities.EditorActionHelper
 import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
-import com.fairuniversal.offlineotp.Utilities.Settings
-import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultSession
-import com.fairuniversal.offlineotp.ui.theme.ForestPalette
-import com.fairuniversal.offlineotp.ui.theme.ForestType
-import com.fairuniversal.offlineotp.ui.unlock.SharedUnlockScreen
-import com.fairuniversal.offlineotp.ui.unlock.UnlockStrings
+import com.fairuniversal.offlineotp.View.AutoFillable.AutoFillableTextInputEditText
 
-/** Host adapter for the shared unlock form. */
-open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>() {
+import java.util.Arrays
+
+/** Prompts for the password or PIN and hands the derived key to [VaultSession]. */
+open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(),
+    TextView.OnEditorActionListener, View.OnClickListener {
+
+    private val autoFillTextListener = AutoFillableTextInputEditText.AutoFillTextListener { text ->
+        startAuthTask(text.toString())
+    }
 
     private var authMethod: AuthMethod = AuthMethod.NONE
     private var newEncryption: String? = ""
     private var existingAuthCredentials: String = ""
     private var isAuthUpgrade: Boolean = false
 
-    private var unlockComposeHost: View? = null
-    private var unlockProgress: ProgressBar? = null
+    private var passwordLayout: TextInputLayout? = null
+    private var passwordInput: AutoFillableTextInputEditText? = null
+    private var unlockButton: Button? = null
     private var hardwareButton: Button? = null
-    private var biometricButton: Button? = null
     private var hardwarePending = false
     private var hardwareGeneration = -1L
+    private var biometricButton: Button? = null
     private var biometricPending = false
     private var biometricGeneration = -1L
     private var biometricAutoShown = false
+    private var unlockProgress: ProgressBar? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,6 +73,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
         // Abort if no current or legacy credentials are stored.
         if (existingAuthCredentials.isEmpty()) {
+            Toast.makeText(this, R.string.auth_toast_password_missing, Toast.LENGTH_LONG).show()
             finishWithResult(false, null)
             return
         }
@@ -98,8 +86,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         setTitle(R.string.auth_activity_title)
         setContentView(R.layout.activity_container)
         initToolbar()
-        initComposeHost()
-        initHardwareAndBiometricButtons()
+        initPasswordViews()
 
         setBroadcastCallback {
             if (settings!!.getRelockOnScreenOff()) {
@@ -107,12 +94,14 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             }
         }
 
+        getWindow().setSoftInputMode(LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+
         // Auto-prompt fingerprint if it is the quick unlock for this vault. A cancel falls back
         // to the password; the vault file is unchanged so the password still works.
         if (shouldOfferBiometric() && !biometricAutoShown) {
             biometricAutoShown = true
             // Let the view inflate before the system prompt appears.
-            unlockComposeHost?.postDelayed({ if (!isFinishing()) triggerBiometricUnlock() }, 300)
+            passwordInput?.postDelayed({ if (!isFinishing()) triggerBiometricUnlock() }, 300)
         }
     }
 
@@ -122,57 +111,71 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         setSupportActionBar(toolbar)
     }
 
-    private fun initComposeHost() {
+    private fun initPasswordViews() {
         val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
-        stub.setLayoutResource(R.layout.component_frame)
-        val frame = stub.inflate()
+        stub.setLayoutResource(R.layout.content_authenticate)
+        val v = stub.inflate()
 
-        unlockComposeHost = AndroidView(this) {
-            ComposeHost(
-                strings = UnlockStrings(
-                    appTitle = getString(R.string.app_name),
-                    passwordLabel = getString(R.string.auth_hint_password),
-                    unlockAction = getString(R.string.auth_button_unlock),
-                    unlocking = getString(R.string.auth_progress_unlocking)
-                ),
-                onSubmit = { password -> startAuthTask(password) },
-                onHardwareUnlock = { triggerHardwareUnlock() },
-                onRestore = null, // Restore is not part of the unlock activity (handled in IntroScreenActivity)
-                creating = false,
-                onCreate = { _, _ -> },
-                error = null,
-                busy = false,
-                hint = null
-            )
-        }
-        (frame as ViewGroup).addView(unlockComposeHost!!)
-
-        // The Compose host owns the visible dialog window (keyboard, text input, etc.).
-        // We only keep native capability adapters (hardware/biometric buttons) and the progress bar in the host.
-        unlockProgress = requireNotNull(frame.findViewById<ProgressBar>(R.id.unlockProgress))
-        hardwareButton = requireNotNull(frame.findViewById<Button>(R.id.buttonHardwareUnlock))
-        biometricButton = requireNotNull(frame.findViewById<Button>(R.id.buttonBiometricUnlock))
+        initPasswordLabelView(v)
+        initPasswordLayoutView(v)
+        initPasswordInputView(v)
+        initUnlockViews(v)
     }
 
-    private fun initHardwareAndBiometricButtons() {
+    private fun initPasswordLabelView(v: View) {
+        val labelMsg = getIntent()?.getIntExtra(Constants.EXTRA_AUTH_MESSAGE, R.string.auth_msg_authenticate)
+            ?: R.string.auth_msg_authenticate
+        val passwordLabel = requireNotNull(v.findViewById<TextView>(R.id.passwordLabel))
+        passwordLabel.setText(labelMsg)
+    }
+
+    private fun initPasswordLayoutView(v: View) {
+        val layout = requireNotNull(v.findViewById<TextInputLayout>(R.id.passwordLayout))
+        passwordLayout = layout
+        layout.hint = getString(R.string.auth_hint_password)
+        if (settings!!.getBlockAccessibility()) {
+            layout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+        }
+        if (settings!!.getBlockAutofill()) {
+            layout.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)
+        }
+    }
+
+    private fun initPasswordInputView(v: View) {
+        val input = requireNotNull(v.findViewById<AutoFillableTextInputEditText>(R.id.passwordEdit))
+        passwordInput = input
+        input.isSaveEnabled = false
+        input.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+        input.transformationMethod = PasswordTransformationMethod.getInstance()
+        input.setOnEditorActionListener(this)
+    }
+
+    private fun initUnlockViews(v: View) {
+        val button = requireNotNull(v.findViewById<Button>(R.id.buttonUnlock))
+        unlockButton = button
+        button.setOnClickListener(this)
+        unlockProgress = requireNotNull(v.findViewById<ProgressBar>(R.id.unlockProgress))
+        val hardware = requireNotNull(v.findViewById<Button>(R.id.buttonHardwareUnlock))
+        hardwareButton = hardware
         val allowed = getIntent()?.getBooleanExtra(Constants.EXTRA_AUTH_ALLOW_HARDWARE, false) == true &&
             newEncryption.isNullOrEmpty() && authMethod == AuthMethod.PASSWORD &&
             settings?.getEncryption() == Constants.EncryptionType.PASSWORD && HardwareUnlockStore.read(this) != null
-        hardwareButton?.visibility = if (allowed) View.VISIBLE else View.GONE
-        hardwareButton?.setOnClickListener {
+        hardware.visibility = if (allowed) View.VISIBLE else View.GONE
+        hardware.setOnClickListener {
             if (!hardwarePending && allowed) {
+                clearPasswordInput()
                 hardwarePending = true
                 hardwareGeneration = VaultSession.generation()
                 startActivityForResult(Intent(this, HardwareUnlockActivity::class.java), Constants.INTENT_AUTH_HARDWARE)
             }
         }
-
+        val biometric = requireNotNull(v.findViewById<Button>(R.id.buttonBiometricUnlock))
+        biometricButton = biometric
         val biometricAllowed = shouldOfferBiometric()
-        biometricButton?.visibility = if (biometricAllowed) View.VISIBLE else View.GONE
-        biometricButton?.setOnClickListener {
+        biometric.visibility = if (biometricAllowed) View.VISIBLE else View.GONE
+        biometric.setOnClickListener {
             if (!biometricPending && biometricAllowed) {
-                biometricPending = true
-                biometricGeneration = VaultSession.generation()
+                clearPasswordInput()
                 triggerBiometricUnlock()
             }
         }
@@ -199,6 +202,9 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             if (result.isSuccess) {
                 val vaultKey = result.getOrNull()
                 if (vaultKey != null && vaultKey.isNotEmpty()) {
+                    // Hand the vault key to the session; the GCM tag is the real gate, not the
+                    // biometric — a key that was re-encrypted after a password change will fail
+                    // to open the file and the load path will have already cleared the stale item.
                     finishWithResult(true, vaultKey, biometricGeneration)
                     try { vaultKey.fill(0) } catch (_: Exception) { }
                 } else {
@@ -210,6 +216,8 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             biometricPending = false
             val error = BiometricKeyStore.errorFromResult(result)
                     ?: BiometricKeyStore.BiometricError.FAILED
+            // A shortcut that can no longer be used is removed rather than offered again; a
+            // cancel or a lockout keeps the button so the person can simply retry.
             when (error) {
                 BiometricKeyStore.BiometricError.MISSING -> {
                     BiometricKeyStore.clear(this)
@@ -222,6 +230,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             val duration =
                 if (error == BiometricKeyStore.BiometricError.CANCELLED) Toast.LENGTH_SHORT
                 else Toast.LENGTH_LONG
+            // The sentence is a string resource, so it is translated with the rest of the app.
             Toast.makeText(this, error.message(this), duration).show()
         }
     }
@@ -231,22 +240,26 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     override fun onReturnToCanceledTask() {
-        // The Compose host clears the field automatically.
-        unlockComposeHost?.post {
-            // Focus is handled inside the Compose host via keyboard actions
-        }
+        val input = passwordInput ?: return
+        clearPasswordInput()
+        input.requestFocus()
+        val keyboard = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        keyboard.showSoftInput(input, 0)
+    }
+
+    private fun clearPasswordInput() {
+        passwordInput?.setText("")
     }
 
     override fun setupUiForTaskState(isTaskRunning: Boolean) {
-        // Update progress bar and button states
-        unlockProgress?.visibility = if (isTaskRunning) View.VISIBLE else View.GONE
+        val layout = passwordLayout ?: return
+        layout.isEnabled = !isTaskRunning
+        passwordInput?.isEnabled = !isTaskRunning
+        unlockButton?.isEnabled = !isTaskRunning
         hardwareButton?.isEnabled = !isTaskRunning
         biometricButton?.isEnabled = !isTaskRunning
-        // The Compose host state (busy) is updated via the state setter (not directly exposed here,
-        // but the Compose host internally handles the busy flag if we pass it; for simplicity,
-        // we can just disable hardware/biometric buttons and show progress bar).
-        // Note: In a full implementation, we would also pass the busy state to the Compose host.
-        // For now, we'll rely on the host's internal state management or update it via a setter if available.
+        unlockButton?.visibility = if (isTaskRunning) View.INVISIBLE else View.VISIBLE
+        unlockProgress?.visibility = if (isTaskRunning) View.VISIBLE else View.GONE
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
@@ -256,6 +269,19 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             hardwarePending = false
             if (accepted) finishWithResult(true, null, hardwareGeneration)
         }
+    }
+
+    override fun onClick(view: View) {
+        val text = passwordInput?.text
+        startAuthTask(text?.toString() ?: "")
+    }
+
+    override fun onEditorAction(v: TextView?, actionId: Int, event: KeyEvent?): Boolean {
+        if (EditorActionHelper.isActionDoneOrKeyboardEnter(actionId, event)) {
+            startAuthTask(v?.text?.toString() ?: "")
+            return true
+        }
+        return false
     }
 
     private fun startAuthTask(plainPassword: String) {
@@ -308,57 +334,40 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         finish()
     }
 
-    private fun clearPasswordInput() {
-        // The Compose host clears the field automatically when onSubmit is called.
-    }
-
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         finishWithResult(false, null)
         super.onBackPressed()
     }
 
+    override fun onStart() {
+        super.onStart()
+        val input = passwordInput
+        if (input != null && settings!!.getAutoUnlockAfterAutofill()) {
+            input.setAutoFillTextListener(autoFillTextListener)
+        }
+    }
+
+    override fun onStop() {
+        passwordInput?.setAutoFillTextListener(null)
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        clearPasswordInput()
+        passwordInput?.setAutoFillTextListener(null)
+        super.onDestroy()
+    }
+
     override fun onVaultLocked() {
         hardwarePending = false
         biometricPending = false
         cancelBackgroundTask()
+        clearPasswordInput()
         finish()
     }
 
     override fun shouldDestroyOnScreenOff(): Boolean {
         return false
-    }
-
-    @Composable
-    private fun ComposeHost(
-        strings: UnlockStrings,
-        onSubmit: (String) -> Unit,
-        onHardwareUnlock: (() -> Unit)?,
-        onRestore: (() -> Unit)?,
-        creating: Boolean,
-        onCreate: (String, String) -> Unit,
-        error: String?,
-        busy: Boolean,
-        hint: String?
-    ) {
-        // We use SharedUnlockScreen from ui-foundation
-        SharedUnlockScreen(
-            strings = strings,
-            onSubmit = onSubmit,
-            modifier = Modifier.fillMaxSize(),
-            error = error,
-            busy = busy,
-            hint = hint,
-            onHardwareUnlock = onHardwareUnlock,
-            quickUnlockLabel = getString(R.string.hardware_unlock_button),
-            creating = creating,
-            onCreate = onCreate,
-            onRestore = onRestore
-        )
-    }
-
-    override fun onDestroy() {
-        clearPasswordInput()
-        super.onDestroy()
     }
 }

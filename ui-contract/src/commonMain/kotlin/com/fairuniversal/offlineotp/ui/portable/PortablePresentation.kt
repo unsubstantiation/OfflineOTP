@@ -23,7 +23,8 @@ data class PortableCard(
     val hasCode: Boolean,
     val mark: String,
     val tags: List<String>,
-    val canReorder: Boolean = false
+    val canReorder: Boolean = false,
+    val pinRequired: Boolean = false
 ) {
     /** The name shown while the row is concealed, never the hidden label. */
     fun visibleTitle(hideIssuer: Boolean): String =
@@ -31,6 +32,14 @@ data class PortableCard(
 
     /** A displayed code is never guessed from a hidden entry. */
     fun visibleCode(): String = if (revealed && hasCode) code else ""
+
+    /** Matches `:ui-model`'s 5-second rollover warning window. */
+    val isExpiring: Boolean
+        get() = hasCode && secondsLeft in 1..5
+
+    /** Redacts secret-bearing strings from diagnostic logs and assertion failures. */
+    override fun toString(): String =
+        "PortableCard(index=$index, revealed=$revealed, hasCode=$hasCode, pinRequired=$pinRequired)"
 }
 
 /** A tab or tag chip. Counts are supplied by the host so the model never re-derives them. */
@@ -55,6 +64,9 @@ data class PortableVaultState(
     val emptyMessage: String
         get() = if (query.isNotEmpty()) "No entries match this search."
                 else "Nothing here yet. Add an entry with +."
+
+    override fun toString(): String =
+        "PortableVaultState(tabs=${tabs.size}, cards=${cards.size}, hasQuery=${query.isNotEmpty()})"
 
     companion object {
         val EMPTY = PortableVaultState(

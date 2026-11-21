@@ -235,3 +235,39 @@ class NativeComposeFoundationTest(unittest.TestCase):
         store = (ROOT / 'ios/App/Sources/VaultStore.swift').read_text()
         self.assertIn('public func restoreNewVault(encrypted data: Data', store)
         self.assertIn('try vault.create(password: newPassword, entries: restored)', store)
+
+    def test_foundation_forms_and_ios_vault_host_contracts(self):
+        build = (MODULE / 'build.gradle').read_text()
+        self.assertIn("export rootProject.findProject(':ui-contract')", build)
+
+        for rel in (
+            'com/fairuniversal/offlineotp/ui/intro/SharedIntroScreen.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedEntryPinDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EntryCounterDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EntryDetailsDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/TagsDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/HideableDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/MultiChoiceSelectionDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/QrCodeDialog.kt',
+        ):
+            form = (COMMON / rel).read_text()
+            self.assertNotIn('rememberSaveable', form, rel)
+
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text()
+        self.assertIn('clickable { onCard(card.index, "reveal") }', screen)
+        self.assertIn('onCard(card.index, "pin")', screen)
+        self.assertIn('if (card.revealed) {', screen)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
+        self.assertIn('func selectTab(position: Int32)', host)
+        self.assertIn('func card(index: Int32, action: String)', host)
+        self.assertIn('index: Int32(index)', host)
+        self.assertIn('secondsLeft: Int32(seconds)', host)
+        self.assertIn('pinRequired: pinRequired)', host)
+        self.assertIn('openSurface("pinEdit", keepDraft: true)', host)
+        self.assertIn('openSurface("counterEdit", keepDraft: true)', host)
+        self.assertIn('private func openSurface(_ key: String, keepDraft: Bool = false)', host)
+        self.assertIn('EmailMaterial.details(account: account, revealSecrets: emailSecretsVisible)', host)
+        self.assertIn('EmailMaterial.create(', host)
+        self.assertIn('store.importBrowserPasswords(', host)
+        self.assertNotIn(r'action("edit:\(index)")', host)

@@ -1,11 +1,10 @@
 package com.fairuniversal.offlineotp.View
 
-import android.app.AlertDialog
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -13,7 +12,6 @@ import android.view.MenuInflater
 import android.view.View
 import android.widget.Filter
 import android.widget.Filterable
-import android.widget.ImageView
 import android.widget.Toast
 
 import androidx.appcompat.widget.PopupMenu
@@ -41,6 +39,12 @@ import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.EmailDetailsComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
+import com.fairuniversal.offlineotp.ui.host.QrCodeComposeView
+import com.fairuniversal.offlineotp.ui.host.TagsComposeView
 
 import java.util.ArrayList
 import java.util.HashMap
@@ -78,10 +82,11 @@ class AndroidVaultController(
     private val settings: Settings = Settings(context)
     private val dialogs: EntryActionDialogs = EntryActionDialogs(context, settings)
     private var callback: Callback? = null
-    private var activeQrDialog: AlertDialog? = null
-    private var activeSshCopyDialog: AlertDialog? = null
-    private var activePasswordDialog: AlertDialog? = null
-    private var activeEmailDialog: AlertDialog? = null
+    private var activeQrDialog: ComposeDialogHost? = null
+    private var activeSshCopyDialog: ComposeDialogHost? = null
+    private var activePasswordDialog: ComposeDialogHost? = null
+    private var activeEmailDialog: ComposeDialogHost? = null
+    private var activeTagsDialog: ComposeDialogHost? = null
     private var activePopupMenu: PopupMenu? = null
 
     private var composeEditorView: com.fairuniversal.offlineotp.ui.vault.VaultComposeView? = null
@@ -608,6 +613,8 @@ class AndroidVaultController(
         activePasswordDialog = null
         activeEmailDialog?.dismiss()
         activeEmailDialog = null
+        activeTagsDialog?.dismiss()
+        activeTagsDialog = null
         activePopupMenu?.dismiss()
         activePopupMenu = null
     }
@@ -934,9 +941,17 @@ class AndroidVaultController(
                 labels.add(context.getString(R.string.ssh_password))
             }
             activeSshCopyDialog?.dismiss()
-            val dialog = AlertDialog.Builder(context)
-                .setTitle(R.string.choose_ssh_key_to_copy)
-                .setItems(labels.toTypedArray()) { _, index ->
+            activeSshCopyDialog = null
+            val activity = context as? Activity ?: return@BiConsumer
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = EntryCopyComposeView(
+                activity = activity,
+                title = context.getString(R.string.choose_ssh_key_to_copy),
+                cancelLabel = context.getString(android.R.string.cancel),
+                fields = labels,
+                onSelect = { index ->
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
                     if (index in choices.indices) withTarget(target, Consumer { actual ->
                         if (!actual.isSshKey()) return@Consumer
                         val current = actual.getSshKeys()
@@ -953,10 +968,15 @@ class AndroidVaultController(
                         updateLastUsedAndFrequency(currentPos, currentIndex)
                         if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
                     })
-                }.create()
-            activeSshCopyDialog = dialog
-            dialog.setOnDismissListener { if (activeSshCopyDialog === dialog) activeSshCopyDialog = null }
-            dialog.show()
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                }
+            )
+            pending.host = view
+            activeSshCopyDialog = view
+            view.show()
         })
     }
 
@@ -1184,26 +1204,24 @@ class AndroidVaultController(
                 Toast.makeText(context, R.string.toast_qr_failed_to_generate, Toast.LENGTH_LONG).show()
                 return
             }
-            val drawable = BitmapDrawable(context.resources, bitmap)
-            drawable.setFilterBitmap(false)
-
-            val image = ImageView(context)
-            image.setAdjustViewBounds(true)
-            image.setScaleType(ImageView.ScaleType.FIT_CENTER)
-            image.setImageDrawable(drawable)
-
+            val activity = context as? Activity ?: return
             activeQrDialog?.dismiss()
-            val dialog = AlertDialog.Builder(context)
-                .setTitle(R.string.dialog_title_qr_code)
-                .setPositiveButton(android.R.string.ok, { _, _ -> })
-                .setView(image)
-                .create()
-            activeQrDialog = dialog
-            dialog.setOnDismissListener {
-                if (activeQrDialog === dialog) activeQrDialog = null
-                image.setImageDrawable(null)
+            var host: QrCodeComposeView? = null
+            val closeHost = {
+                val h = host
+                if (activeQrDialog === h) activeQrDialog = null
+                h?.dismiss()
+                Unit
             }
-            dialog.show()
+            host = QrCodeComposeView(
+                activity = activity,
+                title = context.getString(R.string.dialog_title_qr_code),
+                bitmap = bitmap,
+                confirmLabel = context.getString(android.R.string.ok),
+                onDismiss = closeHost
+            )
+            activeQrDialog = host
+            host.show()
         } else {
             Toast.makeText(context, R.string.toast_qr_unsupported, Toast.LENGTH_LONG).show()
         }
@@ -1255,16 +1273,42 @@ class AndroidVaultController(
             if (id == R.id.menu_popup_email_details) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (!actual.isEmail()) return@Consumer
-                    // The same row builder feeds the desktop connection-details dialog, so both
-                    // clients describe a stored account identically.
-                    val details = EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
-                        .joinToString("\n") { "${it.label}: ${it.value}" }
+                    // The same row builder and Compose dialog feed desktop and Android, so both
+                    // clients describe a stored account identically and support secret masking.
                     activeEmailDialog?.dismiss()
-                    val dialog = AlertDialog.Builder(context).setTitle(R.string.email_show_details)
-                        .setMessage(com.fairuniversal.offlineotp.ui.vault.EMAIL_EDIT_WARNING + "\n\n" + details).setPositiveButton(android.R.string.ok, null).create()
-                    activeEmailDialog = dialog
-                    dialog.setOnDismissListener { if (activeEmailDialog === dialog) activeEmailDialog = null }
-                    dialog.show()
+                    activeEmailDialog = null
+                    val activity = context as? Activity ?: return@Consumer
+                    val pending = object { var host: ComposeDialogHost? = null }
+                    val view = EmailDetailsComposeView(
+                        activity = activity,
+                        rowsProvider = { visible ->
+                            var rows: List<EmailMaterial.Detail>? = null
+                            withTarget(popupTarget, Consumer { actual ->
+                                if (actual.isEmail()) {
+                                    rows = if (visible) {
+                                        EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
+                                    } else {
+                                        EmailMaterial.details(actual.getEmailAccount(), revealSecrets = false)
+                                    }
+                                }
+                            })
+                            rows
+                        },
+                        onDismiss = {
+                            pending.host?.dismiss()
+                            if (activeEmailDialog === pending.host) activeEmailDialog = null
+                        },
+                        onEditSettings = {
+                            pending.host?.dismiss()
+                            if (activeEmailDialog === pending.host) activeEmailDialog = null
+                            withTarget(popupTarget, Consumer { current ->
+                                if (current.isEmail()) openEmailEditor(popupTarget, current)
+                            })
+                        }
+                    )
+                    pending.host = view
+                    activeEmailDialog = view
+                    view.show()
                 })
                 true
             } else if (id == R.id.menu_popup_password_details) {
@@ -1273,11 +1317,22 @@ class AndroidVaultController(
                     val fields = actual.getPasswordFields()
                     val text = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
                     activePasswordDialog?.dismiss()
-                    val dialog = AlertDialog.Builder(context).setTitle(R.string.password_details)
-                        .setMessage(text).setPositiveButton(android.R.string.ok, null).create()
-                    activePasswordDialog = dialog
-                    dialog.setOnDismissListener { if (activePasswordDialog === dialog) activePasswordDialog = null }
-                    dialog.show()
+                    activePasswordDialog = null
+                    val activity = context as? Activity ?: return@Consumer
+                    val pending = object { var host: ComposeDialogHost? = null }
+                    val view = EntryDetailsComposeView(
+                        activity = activity,
+                        title = context.getString(R.string.password_details),
+                        body = text,
+                        confirmLabel = context.getString(android.R.string.ok),
+                        onDismiss = {
+                            pending.host?.dismiss()
+                            if (activePasswordDialog === pending.host) activePasswordDialog = null
+                        }
+                    )
+                    pending.host = view
+                    activePasswordDialog = view
+                    view.show()
                 })
                 true
             } else if (id == R.id.menu_popup_edit_password) {
@@ -1298,6 +1353,10 @@ class AndroidVaultController(
             } else if (id == R.id.menu_popup_edit) {
                 withTarget(popupTarget, Consumer { actual ->
                     if (actual.isEmail()) { openEmailEditor(popupTarget, actual); return@Consumer }
+                    if (actual.isPassword() && com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(actual)) {
+                        openPasswordEditor(popupTarget, actual)
+                        return@Consumer
+                    }
                     if (actual.isNote() || actual.isSshKey() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
                         openSharedEditor(popupTarget, actual)
                         return@Consumer
@@ -1318,7 +1377,8 @@ class AndroidVaultController(
                     for (tag in getTags()) tagState[tag] = false
                     for (tag in actual.getTags()) tagState[tag] = true
                     val tagsAdapter = TagsAdapter(context, tagState)
-                    tagsAdapter.setTagCounts(getTagCounts())
+                    val liveCounts = getTagCounts()
+                    tagsAdapter.setTagCounts(liveCounts)
                     val saveTags = Callable<Any?> {
                         withTarget(popupTarget, Consumer { edited ->
                             val previous = ArrayList(edited.getTags())
@@ -1333,7 +1393,48 @@ class AndroidVaultController(
                         })
                         null
                     }
-                    TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
+                    val activity = context as? Activity
+                    if (activity != null) {
+                        activeTagsDialog?.dismiss()
+                        activeTagsDialog = null
+                        val pending = object { var host: ComposeDialogHost? = null }
+                        val initialStates = LinkedHashMap<String, Boolean>()
+                        for ((name, checked) in tagState) {
+                            initialStates[name] = checked == true
+                        }
+                        val view = TagsComposeView(
+                            activity = activity,
+                            title = context.getString(R.string.label_tags),
+                            newTagLabel = context.getString(R.string.button_new_tag),
+                            addTagLabel = context.getString(R.string.button_new_tag),
+                            confirmLabel = context.getString(android.R.string.ok),
+                            dismissLabel = context.getString(android.R.string.cancel),
+                            initialStates = initialStates,
+                            tagCounts = liveCounts,
+                            onTagCreated = { created ->
+                                val allTags = tagsAdapter.getTagsWithState()
+                                allTags[created] = true
+                                tagsAdapter.setTags(allTags)
+                            },
+                            onSelectionConfirmed = { confirmed ->
+                                val updated = HashMap<String, Boolean?>()
+                                for ((name, checked) in confirmed) {
+                                    updated[name] = checked
+                                }
+                                tagsAdapter.setTags(updated)
+                                try { saveTags.call() } catch (_: Exception) { }
+                            },
+                            onDismiss = {
+                                pending.host?.dismiss()
+                                if (activeTagsDialog === pending.host) activeTagsDialog = null
+                            }
+                        )
+                        pending.host = view
+                        activeTagsDialog = view
+                        view.show()
+                    } else {
+                        TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
+                    }
                 })
                 true
             } else if (id == R.id.menu_popup_changeImage) {

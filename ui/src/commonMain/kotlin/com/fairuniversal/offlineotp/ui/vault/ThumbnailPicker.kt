@@ -57,3 +57,29 @@ internal fun ThumbnailPicker(selected: String?, artwork: VaultArtwork?, unchange
         ForestTextAction(text = "Back without changing artwork", onClick = onCancel)
     }
 }
+
+/** Standalone dialog wrapper around [ThumbnailPicker] for card-level artwork changes. */
+@Composable
+fun ThumbnailPickerDialog(
+    title: String,
+    selected: String?,
+    artwork: VaultArtwork?,
+    unchangedLabel: String,
+    onSelect: (String?) -> Unit,
+    onDismiss: () -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title) },
+        text = {
+            ThumbnailPicker(
+                selected = selected,
+                artwork = artwork,
+                unchangedLabel = unchangedLabel,
+                onSelect = onSelect,
+                onCancel = onDismiss
+            )
+        },
+        confirmButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) }
+    )
+}

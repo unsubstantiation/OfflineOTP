@@ -22,6 +22,11 @@ class IntentIntegrator(private val activity: Activity) {
         return this
     }
 
+    fun setDesiredBarcodeFormats(vararg formats: String): IntentIntegrator {
+        desiredBarcodeFormats = formats.toList()
+        return this
+    }
+
     fun setPrompt(prompt: String): IntentIntegrator = this
 
     fun setOrientationLocked(locked: Boolean): IntentIntegrator = this
@@ -39,6 +44,8 @@ class IntentIntegrator(private val activity: Activity) {
     }
 
     companion object {
+        const val QR_CODE: String = "QR_CODE"
+
         /** QR symbols only: the app imports OTP provisioning payloads, not arbitrary barcodes. */
         @JvmField
         val QR_CODE_TYPES: List<String> = listOf("QR_CODE")

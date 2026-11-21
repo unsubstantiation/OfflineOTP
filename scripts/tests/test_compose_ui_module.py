@@ -78,6 +78,7 @@ def kotlin_label_map(constant_function):
 
 class FrameLayerBoundaryTest(unittest.TestCase):
 
+    def test_frame_layer_never_imports_a_toolkit_or_platform_api(self):
         """`:ui-model` is the only UI code a non-Compose client may depend on."""
         forbidden = (
             "android", "androidx", "java.awt", "javax.swing", "java.io", "java.nio",
@@ -90,6 +91,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
                     offenders.append(f"{path.relative_to(ROOT)}:{number} {imported}")
         self.assertEqual([], offenders, "the frame layer must stay toolkit-free")
 
+    def test_frame_layer_module_declares_no_compose(self):
         build = (ROOT / "ui-model/build.gradle").read_text(encoding="utf-8")
         self.assertNotIn("org.jetbrains.compose", build)
         self.assertNotIn("org.jetbrains.kotlin.plugin.compose", build)
@@ -97,12 +99,14 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("project(':core')", build)
         self.assertIn("org.jetbrains.kotlin.multiplatform", build)
 
+    def test_frame_layer_is_the_only_ui_dependency_of_a_non_compose_client(self):
         desktop = (ROOT / "desktop/build.gradle").read_text(encoding="utf-8")
         self.assertIn("project(':ui-model')", desktop)
         self.assertNotIn("project(':ui')", desktop)
         ui = (ROOT / "ui/build.gradle").read_text(encoding="utf-8")
         self.assertIn("api project(':ui-model')", ui)
 
+    def test_delete_action_requires_host_support_and_confirmation(self):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("val deleteEntry = actions.onDelete", widgets)
         self.assertIn("if (card.detailsVisible && card.revealed && deleteEntry != null)", widgets)
@@ -116,6 +120,46 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("entryDialogActions", host)
         self.assertIn("dialogs.close()", host)
 
+    def test_pin_dialog_masks_and_does_not_save_input(self):
+        wrapper = (UI_MAIN / "vault/EntryPinDialog.kt").read_text()
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedEntryPinDialog.kt").read_text()
+        self.assertIn("SharedEntryPinDialog(", wrapper)
+        self.assertIn("InputPolicy.MAX_TAG_CHARS", wrapper)
+        self.assertIn("remember(inputKey)", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        self.assertIn("PasswordVisualTransformation()", dialog)
+        self.assertIn('pin = ""\n                onSubmit(submitted)', dialog)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("transaction.submitPin(target, pin.toCharArray(), lifetime::checkActive)", host)
+        self.assertIn("dialogs.close()", host)
+        widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        self.assertIn("card.pinRequired && enterPin != null", widgets)
+
+    def test_counter_confirmation_is_shared_and_host_keeps_only_an_id(self):
+        dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryConfirmationDialog.kt").read_text()
+        self.assertIn("AlertDialog(", dialog)
+        self.assertIn("onDismissRequest = onDismiss", dialog)
+        self.assertNotIn("rememberSaveable", dialog)
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        self.assertIn("VaultEntryDialog(", host)
+        self.assertIn("VaultDialogs { revision++ }", host)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("check(EntryUsage.advanceHotp(candidate[index]))", owner)
+        self.assertIn("dialogs.close()", host)
+
+    def test_dialog_routing_and_failure_wording_live_in_shared_ui(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
+        # PIN/counter/delete routing remains shared; copy failure notices are host outcomes.
+        routed = host.split("    val request = dialogs.pending", 1)[1]
+        self.assertNotIn("EntryPinDialog(", routed)
+        self.assertNotIn("EntryConfirmationDialog(", routed)
+        self.assertNotIn("could not be saved", routed)
+        owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryTransaction.kt").read_text()
+        self.assertIn("dialogs.isCurrent(request)", host)
+        self.assertIn("if (!live || state.isLocked || !unchanged())", owner)
+        renderer = (UI_MAIN / "vault/VaultEntryDialog.kt").read_text()
+        for kind in ("PIN", "COUNTER", "DELETE"):
+            self.assertIn("VaultDialogKind." + kind, renderer)
         self.assertIn("inputKey = request", renderer)
         self.assertIn("strings: VaultDialogStrings", renderer)
 

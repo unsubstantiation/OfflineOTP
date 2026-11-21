@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -12,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
@@ -26,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -115,7 +117,7 @@ fun PortableVaultScreen(
                     contentDescription = "Add an entry")
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp)) {
+            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 4.dp)) {
                 items(state.cards, key = { it.index }) { card ->
                     PortableCardView(card, state.hiddenTitleEnabled, onCard)
                 }
@@ -145,34 +147,47 @@ private fun PortableCardView(
     hideIssuer: Boolean,
     onCard: (Int, String) -> Unit
 ) {
+    val shape = RoundedCornerShape(14.dp)
+    val displayTitle = card.visibleTitle(hideIssuer)
     Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(ForestPalette.surface)
-            .padding(12.dp)
+            .clip(shape)
+            .background(if (card.revealed) ForestPalette.surfaceElevated else ForestPalette.surface)
+            .border(1.dp, ForestPalette.divider, shape)
+            .clickable { onCard(card.index, "reveal") }
+            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
                 Modifier
-                    .width(36.dp)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(ForestPalette.letterTileTint(card.mark))
-            ) { Text(card.mark.take(1), color = ForestPalette.onPrimary) }
-            Spacer(Modifier.width(10.dp))
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(ForestPalette.letterTileTint(card.mark)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(card.mark.take(1).uppercase(), style = ForestType.body, color = ForestPalette.onPrimary)
+            }
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(card.visibleTitle(hideIssuer), style = ForestType.body,
-                    color = ForestPalette.textPrimary, maxLines = 1)
-                Text(card.subtitle, style = ForestType.label, color = ForestPalette.textSecondary,
-                    maxLines = 1)
+                Text(displayTitle, style = ForestType.body, color = ForestPalette.textPrimary, maxLines = 1)
+                if (card.subtitle.isNotEmpty()) {
+                    Text(card.subtitle, style = ForestType.label, color = ForestPalette.textSecondary, maxLines = 1)
+                }
             }
             if (card.hasCode) {
-                Text(card.visibleCode(), style = ForestType.code, color = ForestPalette.otpAmber,
-                    modifier = Modifier.semantics {
-                        contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")
-                    })
+                if (card.revealed) {
+                    val codeColor = if (card.isExpiring) ForestPalette.warning else ForestPalette.otpAmber
+                    Text(card.visibleCode(), style = ForestType.code, color = codeColor,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")
+                        })
+                } else {
+                    Text("••• •••", style = ForestType.code, color = ForestPalette.otpAmberMuted)
+                }
+            } else if (card.pinRequired && card.revealed) {
+                Text("PIN required", style = ForestType.label, color = ForestPalette.warning)
             }
         }
         if (card.previousCode.isNotEmpty()) {
@@ -183,30 +198,62 @@ private fun PortableCardView(
                 })
         }
         if (card.metadata.isNotEmpty()) {
-            Text(card.metadata, style = ForestType.label, color = ForestPalette.textSecondary)
+            Text(
+                card.metadata,
+                style = ForestType.label,
+                color = if (card.isExpiring && card.revealed) ForestPalette.warning else ForestPalette.textSecondary
+            )
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        if (card.revealed && card.tags.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                card.tags.forEach { tag ->
+                    Text(
+                        tag,
+                        style = ForestType.label,
+                        color = ForestPalette.textSecondary,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(ForestPalette.surfaceVariant)
+                            .border(1.dp, ForestPalette.divider, RoundedCornerShape(50))
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
+                }
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ForestTextAction(if (card.revealed) "Hide" else "Reveal",
+                onClick = { onCard(card.index, "reveal") },
+                contentDescription = "Show or hide the code for " + displayTitle)
             if (card.hasCode) {
-                ForestTextAction(if (card.revealed) "Hide" else "Reveal",
-                    onClick = { onCard(card.index, "reveal") },
-                    contentDescription = "Show or hide the code for " + card.visibleTitle(hideIssuer))
                 ForestTextAction("Copy", onClick = { onCard(card.index, "copy") },
-                    contentDescription = "Copy Token for " + card.visibleTitle(hideIssuer))
+                    contentDescription = "Copy Token for " + displayTitle)
+            }
+            if (card.pinRequired) {
+                ForestTextAction("Enter PIN", onClick = { onCard(card.index, "pin") },
+                    contentDescription = "Enter PIN for " + displayTitle)
             }
             if (card.canReorder) {
                 ForestTextAction("Move up", onClick = { onCard(card.index, "moveUp") },
-                    contentDescription = "Move " + card.visibleTitle(hideIssuer) + " up")
+                    contentDescription = "Move " + displayTitle + " up")
                 ForestTextAction("Move down", onClick = { onCard(card.index, "moveDown") },
-                    contentDescription = "Move " + card.visibleTitle(hideIssuer) + " down")
+                    contentDescription = "Move " + displayTitle + " down")
             }
             if (card.canStep) ForestTextAction("Step", onClick = { onCard(card.index, "step") },
                 contentDescription = "Step the counter")
-            ForestTextAction("Details", onClick = { onCard(card.index, "details") },
-                contentDescription = "Shows entry details")
-            ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
-                contentDescription = "Edit " + card.visibleTitle(hideIssuer))
-            ForestTextAction("More", onClick = { onCard(card.index, "more") },
-                contentDescription = "More actions for " + card.visibleTitle(hideIssuer))
+            if (card.revealed) {
+                ForestTextAction("Details", onClick = { onCard(card.index, "details") },
+                    contentDescription = "Shows entry details")
+                ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
+                    contentDescription = "Edit " + displayTitle)
+                ForestTextAction("More", onClick = { onCard(card.index, "more") },
+                    contentDescription = "More actions for " + displayTitle)
+            }
         }
     }
 }

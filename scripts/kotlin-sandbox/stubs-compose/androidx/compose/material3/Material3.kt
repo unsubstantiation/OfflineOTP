@@ -116,3 +116,4 @@ fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
 @Composable fun DropdownMenu(expanded: Boolean, onDismissRequest: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {}
 @Composable fun DropdownMenuItem(text: @Composable () -> Unit, onClick: () -> Unit) {}
 @Composable fun Checkbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {}
+@Composable fun Switch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {}
