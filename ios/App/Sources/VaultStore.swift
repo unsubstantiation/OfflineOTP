@@ -740,6 +740,19 @@ public final class VaultStore: ObservableObject {
         return commit(proposed)
     }
 
+    /// Updates or resets (`""`) the brand-logo thumbnail name on an entry.
+    @discardableResult
+    public func setThumbnail(at index: Int, name: String) -> Bool {
+        guard entries.indices.contains(index) else { return false }
+        if !name.isEmpty, !ThumbnailCatalog.names.contains(name) {
+            message = "Unknown brand logo name."
+            return false
+        }
+        var proposed = entries
+        proposed[index].setThumbnail(name)
+        return commit(proposed)
+    }
+
     /// Swaps or moves an entry within the displayed category slice when `canReorder` is true.
     @discardableResult
     public func moveDisplayed(from displayedOrigin: Int, to displayedDestination: Int) -> Bool {
@@ -1039,25 +1052,102 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Summary of exportable browser-CSV dialect groups, foreign passwords, and raw archives.
+    public struct PasswordExportPlan {
+        public struct Group {
+            public let dialect: PasswordCsvExport.Dialect
+            public let indices: [Int]
+        }
+        public let groups: [Group]
+        public let foreignPasswords: Int
+        public let archives: Int
+    }
+
+    /// Groups vault password entries by browser dialect (`CHROME`, `FIREFOX`, `SAFARI`), matching
+    /// Desktop's `DesktopPasswordExport` and `:ui-foundation`'s `PasswordExportDialog`.
+    public func passwordExportPlan() -> PasswordExportPlan {
+        guard isUnlocked else {
+            return PasswordExportPlan(groups: [], foreignPasswords: 0, archives: 0)
+        }
+        var buckets: [PasswordCsvExport.Dialect: [Int]] = [:]
+        var foreign = 0
+        var archives = 0
+        for (idx, entry) in entries.enumerated() {
+            if entry.kind == .passwordArchive {
+                archives += 1
+            } else if entry.kind == .password {
+                switch PasswordCsvExport.support(entry) {
+                case .exportable(let dialect):
+                    buckets[dialect, default: []].append(idx)
+                case .foreign:
+                    foreign += 1
+                case .notPassword:
+                    break
+                }
+            }
+        }
+        let ordered = PasswordCsvExport.Dialect.allCases.compactMap { dialect -> PasswordExportPlan.Group? in
+            guard let indices = buckets[dialect], !indices.isEmpty else { return nil }
+            return PasswordExportPlan.Group(dialect: dialect, indices: indices)
+        }
+        return PasswordExportPlan(groups: ordered, foreignPasswords: foreign, archives: archives)
+    }
+
+    /// Exports one dialect group of browser password entries as a CSV file.
+    public func exportBrowserPasswordsCsvGroup(
+        indices: [Int],
+        dialect: PasswordCsvExport.Dialect
+    ) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        let selected = indices.compactMap { entries.indices.contains($0) ? entries[$0] : nil }
+        guard !selected.isEmpty else {
+            message = "No browser passwords in that group are available."
+            return nil
+        }
+        do {
+            let data = try PasswordCsvExport.exportCsv(entries: selected, dialect: dialect)
+            return ExportedBackup(name: "\(dialect.browserName.lowercased())-passwords.csv", data: data)
+        } catch {
+            message = "The browser password CSV could not be written."
+            return nil
+        }
+    }
+
+    /// Exports a single revealed browser-imported `PASSWORD` entry in its native dialect.
+    public func exportSinglePasswordCsv(at index: Int) -> ExportedBackup? {
+        guard isUnlocked, entries.indices.contains(index) else { return nil }
+        let entry = entries[index]
+        guard case .exportable(let dialect) = PasswordCsvExport.support(entry) else {
+            message = "That entry cannot be exported as a browser CSV."
+            return nil
+        }
+        do {
+            let data = try PasswordCsvExport.exportCsv(entries: [entry], dialect: dialect)
+            return ExportedBackup(name: "\(dialect.browserName.lowercased())-password.csv", data: data)
+        } catch {
+            message = "The browser password CSV could not be written."
+            return nil
+        }
+    }
+
     /// Exports all revealed browser-imported `PASSWORD` entries as a CSV file, matching Android's
     /// `+ → Export passwords…` and the desktop client's `Export passwords as browser CSV…`.
     public func exportBrowserPasswordsCsv() -> ExportedBackup? {
         guard isUnlocked else { return nil }
-        let revealed = entries.filter { $0.detailsVisible }
-        let dialects = revealed.compactMap { entry -> PasswordCsvExport.Dialect? in
+        let revealed = entries.filter { isRevealed($0) }
+        let exportable = revealed.compactMap { entry -> (Entry, PasswordCsvExport.Dialect)? in
             if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
-                return dialect
+                return (entry, dialect)
             }
             return nil
         }
-        guard !dialects.isEmpty else {
+        guard !exportable.isEmpty else {
             message = "Reveal at least one browser-imported password entry to export."
             return nil
         }
-        let distinct = Array(Set(dialects))
-        let chosen = distinct.count == 1 ? distinct[0] : .firefox
+        let chosen = PasswordCsvExport.agreedDialect(exportable.map(\.0))
         do {
-            let data = try PasswordCsvExport.exportCsv(entries: revealed, dialect: chosen)
+            let data = try PasswordCsvExport.exportCsv(entries: exportable.map(\.0), dialect: chosen)
             return ExportedBackup(name: "passwords.csv", data: data)
         } catch {
             message = "The browser password CSV could not be written."
@@ -1151,6 +1241,22 @@ public final class VaultStore: ObservableObject {
             return ExportedBackup(name: BackupFileNames.fairEmail(now), data: data)
         } catch {
             message = "The FairEmail backup could not be written."
+            return nil
+        }
+    }
+
+    /// Previews how many email credentials a Thunderbird CSV file contains without installing them.
+    public func previewThunderbirdBackupCount(data: Data) -> Int? {
+        guard isUnlocked else { return nil }
+        do {
+            let parsed = try ThunderbirdImport.entries(from: data)
+            guard !parsed.isEmpty else {
+                message = BackupWording.emptyBackup
+                return nil
+            }
+            return parsed.count
+        } catch {
+            message = "That file is not a valid Thunderbird CSV export."
             return nil
         }
     }

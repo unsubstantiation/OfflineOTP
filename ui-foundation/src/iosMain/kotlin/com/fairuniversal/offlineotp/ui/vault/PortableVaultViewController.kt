@@ -189,7 +189,7 @@ private fun RenderSharedSurface(
             onConfirm = ::confirm,
             onDismiss = onDismiss
         )
-        "delete" -> EntryConfirmationDialog(
+        "delete", "thunderbirdConfirm" -> EntryConfirmationDialog(
             title = dialog.title,
             message = row("info")?.title ?: dialog.message,
             confirmLabel = dialog.confirmLabel,
@@ -501,6 +501,32 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss
             )
         }
+        "passwordExport" -> {
+            val groupRows = rows.filter { it.key.startsWith("pwGroup:") }
+            PasswordExportDialog(
+                groups = groupRows.map { it.title },
+                foreign = rowValue("foreign").toIntOrNull() ?: 0,
+                archives = rowValue("archives").toIntOrNull() ?: 0,
+                onSelect = { index ->
+                    groupRows.getOrNull(index)?.let { onAction(it.key) }
+                },
+                onDismiss = onDismiss
+            )
+        }
+        "thumbnailEdit" -> {
+            val names = rowValue("catalog").split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            SharedThumbnailPickerDialog(
+                title = dialog.title,
+                selected = rowValue("selected"),
+                catalogNames = names,
+                unchangedLabel = rowValue("unchangedLabel").ifEmpty { "Reset to Default" },
+                onSelect = { chosen ->
+                    surfaceActions.change("thumbnail", chosen)
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+        }
         "storageLocation" -> StorageLocationDialog(
             directory = rowValue("directory"),
             filenames = rows.filter { it.key.startsWith("file:") }.map { it.title },
@@ -568,7 +594,8 @@ private fun RenderSharedSurface(
                 sshPort = rowValue("sshPort"),
                 sshUsername = rowValue("sshUsername"),
                 sshPassword = rowValue("sshPassword"),
-                tags = rowValue("tags")
+                tags = rowValue("tags"),
+                thumbnail = rowValue("thumbnail")
             ),
             editing = dialog.title == "Edit entry",
             error = dialog.message.ifEmpty { null },
@@ -577,6 +604,7 @@ private fun RenderSharedSurface(
             } else {
                 null
             },
+            thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
             onSubmit = { draft ->
                 surfaceActions.change("type", draft.kind)
                 surfaceActions.change("issuer", draft.issuer)
@@ -595,6 +623,7 @@ private fun RenderSharedSurface(
                 surfaceActions.change("sshUsername", draft.sshUsername)
                 surfaceActions.change("sshPassword", draft.sshPassword)
                 surfaceActions.change("tags", draft.tags)
+                surfaceActions.change("thumbnail", draft.thumbnail)
                 surfaceActions.change("clearHiddenLabel", if (draft.clearHiddenLabel) "true" else "false")
                 surfaceActions.change("clearPin", if (draft.clearPin) "true" else "false")
                 surfaceActions.change("clearSshPassword", if (draft.clearSshPassword) "true" else "false")
@@ -640,7 +669,7 @@ private fun RenderSharedSurface(
                     onDismiss = onDismiss
                 )
             }
-            dialog.key.startsWith("more:") && rows.isNotEmpty() -> EntryCopyDialog(
+            (dialog.key.startsWith("more:") || dialog.key.startsWith("copySelect:")) && rows.isNotEmpty() -> EntryCopyDialog(
                 fields = rows.map { it.title },
                 title = dialog.title,
                 cancelLabel = dialog.dismissLabel,

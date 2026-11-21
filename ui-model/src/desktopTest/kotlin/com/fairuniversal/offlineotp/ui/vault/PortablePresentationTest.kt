@@ -134,4 +134,19 @@ class PortablePresentationTest {
         )
         assertEquals(listOf("issuer"), surface.interactiveRows.map { it.key })
     }
+
+    @Test
+    fun portableCardCanCopyDefaultsToHasCodeAndSupportsCredentialOverride() {
+        val otp = PortableCard(
+            index = 0, title = "GitHub", subtitle = "alice", concealedTitle = "alice",
+            code = "123 456", previousCode = "", metadata = "TOTP · 20s", secondsLeft = 20,
+            revealed = false, canStep = false, hasCode = true, mark = "GitHub", tags = emptyList()
+        )
+        assertTrue(otp.canCopy)
+        val note = otp.copy(hasCode = false, code = "", canCopy = true)
+        assertFalse(note.hasCode)
+        assertTrue(note.canCopy)
+        val draft = PortableEntryDraft(kind = "TOTP", issuer = "Custom", thumbnail = "GitLab")
+        assertEquals("GitLab", draft.withoutSecrets().thumbnail)
+    }
 }

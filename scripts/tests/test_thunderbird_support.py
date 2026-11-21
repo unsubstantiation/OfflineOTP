@@ -74,6 +74,11 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("exportThunderbird =", compose_main)
         self.assertIn("MultiChoiceSelectionDialog(", compose_main)
 
+        ios_host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("ThunderbirdImport.isExportable(", ios_host)
+        self.assertIn("previewThunderbirdBackupCount(", ios_host)
+        self.assertIn('"thunderbirdConfirm"', ios_host)
+
 
     def test_documentation_mentions_thunderbird(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -475,7 +475,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val emailDetails = remember(vault) { DesktopEmailDetails(vault) }
     val editing = remember(vault) { DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace) }
     val entryActions = remember(vault) { DesktopEntryActions(vault, { controller.save(vault.key, vault.snapshot()) }, { revision++ }) }
-    val layoutSettings = remember(vault) { DesktopLayoutSettings(vault, controller::savedCardLayout, controller::trySaveCardLayout) }
+    val layoutSettings = remember(vault) {
+        DesktopLayoutSettings(
+            vault,
+            controller::savedCardLayout,
+            controller::trySaveCardLayout,
+            controller::savedHideIssuer,
+            controller::trySaveHideIssuer
+        )
+    }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
     val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
     val lifetimeHolder = remember(vault) { arrayOfNulls<DesktopSessionLifetime>(1) }
@@ -551,7 +559,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 onLock()
             },
             onChange = { revision++ }
-        )
+        ).also { it.setHideIssuer(controller.savedHideIssuer()) }
     }
     val lifetime = remember(presenter) {
         DesktopSessionLifetime(scheduler, controller.savedInactivityLockSeconds(), startImmediately = false) {
@@ -630,7 +638,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
                 copyable = (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES) || card.revealed) && (card.copyable || card.kind in
-                listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS)))
+                listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS, VaultEntryKind.EMAILS)))
         })
     }
     // Bind exact row instances even when a newly generated frame is structurally equal to the last.
@@ -660,7 +668,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             copyNotice = null
             val request = copier.open(copyFrame, card, presenter.isRevealed(card.id))
             if (request == null) copyNotice = "No copyable value is available for this entry."
-            else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS) performCopy(request, request.fields.single())
+            else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS && card.kind != VaultEntryKind.EMAILS) performCopy(request, request.fields.single())
             revision++
         }, moveEntry = { card, delta ->
             autoLock.pending?.let { autoLock.dismiss(it) }
@@ -1268,6 +1276,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             preferencesImporter.confirm(preferencesRequest, lifetime::checkActive) { plan ->
                 if (plan.contains(PreferencesExport.UI_INACTIVITY_LOCK_SECONDS)) lifetime.changeTimeout(controller.savedInactivityLockSeconds())
                 if (plan.contains(PreferencesExport.UI_CARD_LAYOUT)) presenter.setCardLayout(controller.savedCardLayout())
+                if (plan.contains(PreferencesExport.UI_HIDE_ISSUER)) presenter.setHideIssuer(controller.savedHideIssuer())
+                if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
                 if (plan.contains(PreferencesExport.UI_SORT_MODE)) presenter.applyFilter(presenter.filter.copy(sortMode = controller.savedSortMode()))
             }
         }, onDismiss = { preferencesImporter.dismiss(preferencesRequest) })
@@ -1402,7 +1412,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onSave = { layout ->
             layoutSettings.submit(layoutRequest, layout, lifetime::checkActive, presenter::setCardLayout)
             revision++
-        }, onDismiss = { layoutSettings.dismiss(layoutRequest); revision++ })
+        },
+        onDismiss = { layoutSettings.dismiss(layoutRequest); revision++ },
+        hideIssuer = layoutRequest.hideIssuer,
+        onSaveAppearance = { layout, hideIssuer ->
+            layoutSettings.submit(layoutRequest, layout, hideIssuer, lifetime::checkActive, presenter::setAppearance)
+            revision++
+        })
     val timeoutRequest = autoLock.pending
     if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
         currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,
@@ -1417,9 +1433,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         fields = copyRequest.fields.map { field -> when (field) {
             EntryEditor.CopyField.TOKEN_OR_NOTE -> "Code or note"
             EntryEditor.CopyField.PASSWORD -> "Password"
+            EntryEditor.CopyField.PASSWORD_USERNAME -> "Username"
             EntryEditor.CopyField.SSH_PUBLIC_KEY -> "Public key"
             EntryEditor.CopyField.SSH_PRIVATE_KEY -> "Private key"
             EntryEditor.CopyField.SSH_PASSWORD -> "Connection password"
+            EntryEditor.CopyField.EMAIL_INCOMING_PASSWORD -> "Incoming password"
+            EntryEditor.CopyField.EMAIL_OUTGOING_PASSWORD -> "Outgoing password"
         } },
         onSelect = { index -> copyRequest.fields.getOrNull(index)?.let { performCopy(copyRequest, it) } },
         onDismiss = { copier.dismiss(copyRequest); revision++ })

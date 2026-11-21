@@ -268,6 +268,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedPasswordImportDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedCardLayoutDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedThumbnailPickerDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt',
             'com/fairuniversal/offlineotp/ui/vault/HardwareCopyDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt',
@@ -315,6 +316,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'SharedPasswordImportDialog(',
             'SharedCardLayoutDialog(',
             'SharedEmailDetailsDialog(',
+            'SharedThumbnailPickerDialog(',
+            'PasswordExportDialog(',
         ):
             self.assertIn(shared_call, vc)
 
@@ -388,4 +391,24 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('public static let cardLayoutKey = "ui_card_layout"', prefs)
         self.assertIn('public static let hideIssuerKey = "ui_hide_issuer"', prefs)
         self.assertIn('public static func inspect(', prefs)
+
+    def test_ios_thumbnail_preservation_password_export_dialog_and_card_copy_parity(self):
+        draft = (ROOT / 'ios/Sources/OfflineOTPKit/EntryDraft.swift').read_text(encoding='utf-8')
+        self.assertIn('thumbnailName: String? = nil', draft)
+        self.assertIn('overrideThumbnail: String? = nil', draft)
+
+        store = (ROOT / 'ios/App/Sources/VaultStore.swift').read_text(encoding='utf-8')
+        self.assertIn('public func setThumbnail(at index: Int, name: String) -> Bool', store)
+        self.assertIn('public func passwordExportPlan() -> PasswordExportPlan', store)
+        self.assertIn('entries.filter { isRevealed($0) }', store)
+        self.assertNotIn('entries.filter { $0.detailsVisible }', store)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        for sym in ('copySelect:', 'passwordExport', 'thumbnailEdit', 'thunderbirdConfirm', 'canCopy: canCopy'):
+            self.assertIn(sym, host)
+
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        self.assertIn('if (card.canCopy)', screen)
+        self.assertIn('onCard(card.index, "delete")', screen)
+
 

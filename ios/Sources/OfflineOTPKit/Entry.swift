@@ -86,6 +86,7 @@ public struct Entry: Equatable, Hashable {
     public var issuer: String { fields["issuer"]?.stringValue ?? "" }
     public var label: String { fields["label"]?.stringValue ?? "" }
     public var hiddenLabel: String { fields["hidden_label"]?.stringValue ?? "" }
+    public var thumbnail: String { fields["thumbnail"]?.stringValue ?? ThumbnailCatalog.defaultName }
 
     public var digits: Int {
         if let value = fields["digits"]?.intValue { return Int(value) }
@@ -281,6 +282,14 @@ public struct Entry: Equatable, Hashable {
 
     public mutating func setTags(_ values: [String]) {
         set("tags", .array(values.map { .string($0) }))
+    }
+
+    public mutating func setThumbnail(_ value: String) {
+        if value.isEmpty {
+            set("thumbnail", .string(ThumbnailCatalog.resolveName(issuer)))
+        } else if ThumbnailCatalog.names.contains(value) {
+            set("thumbnail", .string(value))
+        }
     }
 
     // MARK: - Serialization

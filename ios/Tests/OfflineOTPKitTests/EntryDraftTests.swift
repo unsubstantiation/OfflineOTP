@@ -164,16 +164,25 @@ final class EntryDraftTests: XCTestCase {
     }
 
     func testAnEditKeepsTheMetadataTheFormDoesNotShow() throws {
-        var existing = try create()
+        var existing = try create(issuer: "Acme Corp")
         existing.setDetailsVisible(true)
         existing.setLastUsed(1_600_000_000_000)
         existing.setUsedFrequency(7)
+        existing.setThumbnail("GitHub")
         let replacement = EntryDraft.preservingMetadata(of: existing,
-                                                        in: try create(label: "carol"))
+                                                        in: try create(issuer: "Acme Corp", label: "carol"))
         XCTAssertEqual(replacement.label, "carol")
         XCTAssertEqual(replacement.detailsVisible, true)
         XCTAssertEqual(replacement.lastUsed, 1_600_000_000_000)
         XCTAssertEqual(replacement.usedFrequency, 7)
+        XCTAssertEqual(replacement.thumbnail, "GitHub")
+
+        let overridden = EntryDraft.preservingMetadata(
+            of: existing,
+            in: try create(issuer: "Acme Corp", label: "carol", thumbnailName: "GitLab"),
+            overrideThumbnail: "GitLab"
+        )
+        XCTAssertEqual(overridden.thumbnail, "GitLab")
     }
 
     func testAnEntryBuiltHereSurvivesADocumentRoundTrip() throws {

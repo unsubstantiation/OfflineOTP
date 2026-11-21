@@ -40,7 +40,15 @@ class DesktopEntryCopy(
                 if (keys.privateKey.isNotEmpty()) add(EntryEditor.CopyField.SSH_PRIVATE_KEY)
                 if (!target.getSshConnection()?.password.isNullOrEmpty()) add(EntryEditor.CopyField.SSH_PASSWORD)
             }
-            target.isPassword() -> listOf(EntryEditor.CopyField.PASSWORD)
+            target.isEmail() -> buildList {
+                val email = target.getEmailAccount()
+                if (email.account.optString("password").orEmpty().isNotEmpty()) add(EntryEditor.CopyField.EMAIL_INCOMING_PASSWORD)
+                if (email.identity.optString("password").orEmpty().isNotEmpty()) add(EntryEditor.CopyField.EMAIL_OUTGOING_PASSWORD)
+            }
+            target.isPassword() -> buildList {
+                if (target.getPasswordFields().value("password").isNotEmpty()) add(EntryEditor.CopyField.PASSWORD)
+                if (target.getPasswordFields().value("username").isNotEmpty()) add(EntryEditor.CopyField.PASSWORD_USERNAME)
+            }
             target.isTimeBased() || target.isCounterBased() || target.isNote() -> listOf(EntryEditor.CopyField.TOKEN_OR_NOTE)
             else -> emptyList()
         }

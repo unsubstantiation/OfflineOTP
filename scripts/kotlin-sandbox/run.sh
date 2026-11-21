@@ -233,6 +233,7 @@ APP_SOURCES=(
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/MultiChoiceSelectionDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/QrCodeDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedCardLayoutDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedThumbnailPickerDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/CardLayoutDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EncryptedExportDialog.kt"

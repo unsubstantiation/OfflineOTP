@@ -174,7 +174,16 @@ class EntryEditor(
         return recordCopy(entry, password)
     }
 
-    enum class CopyField { TOKEN_OR_NOTE, PASSWORD, SSH_PUBLIC_KEY, SSH_PRIVATE_KEY, SSH_PASSWORD }
+    enum class CopyField {
+        TOKEN_OR_NOTE,
+        PASSWORD,
+        PASSWORD_USERNAME,
+        SSH_PUBLIC_KEY,
+        SSH_PRIVATE_KEY,
+        SSH_PASSWORD,
+        EMAIL_INCOMING_PASSWORD,
+        EMAIL_OUTGOING_PASSWORD
+    }
 
     /** Compose uses transient reveal authority, not a temporary mutation of stored privacy. */
     fun copyRevealed(entry: Entry, field: CopyField, revealed: Boolean): TokenCopyResult {
@@ -186,9 +195,12 @@ class EntryEditor(
                 else -> ""
             }
             CopyField.PASSWORD -> if (entry.isPassword()) entry.getPasswordFields().value("password") else ""
+            CopyField.PASSWORD_USERNAME -> if (entry.isPassword()) entry.getPasswordFields().value("username") else ""
             CopyField.SSH_PUBLIC_KEY -> if (entry.isSshKey()) entry.getSshKeys().publicKey else ""
             CopyField.SSH_PRIVATE_KEY -> if (entry.isSshKey()) entry.getSshKeys().privateKey else ""
             CopyField.SSH_PASSWORD -> if (entry.isSshKey()) entry.getSshConnection()?.password.orEmpty() else ""
+            CopyField.EMAIL_INCOMING_PASSWORD -> if (entry.isEmail()) entry.getEmailAccount().account.optString("password").orEmpty() else ""
+            CopyField.EMAIL_OUTGOING_PASSWORD -> if (entry.isEmail()) entry.getEmailAccount().identity.optString("password").orEmpty() else ""
         }
         return if (text.isEmpty()) TokenCopyResult.Unavailable else recordCopy(entry, text)
     }

@@ -24,6 +24,7 @@ data class PortableCard(
     val mark: String,
     val tags: List<String>,
     val canReorder: Boolean = false,
+    val canCopy: Boolean = hasCode,
     val pinRequired: Boolean = false
 ) {
     /** The name shown while the row is concealed, never the hidden label. */
@@ -185,6 +186,7 @@ data class PortableEntryDraft(
     val sshUsername: String = "",
     val sshPassword: String = "",
     val tags: String = "",
+    val thumbnail: String = "",
     val clearHiddenLabel: Boolean = false,
     val clearPin: Boolean = false,
     val clearSshPassword: Boolean = false

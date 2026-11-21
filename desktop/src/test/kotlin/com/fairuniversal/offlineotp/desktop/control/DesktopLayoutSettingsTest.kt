@@ -57,4 +57,41 @@ class DesktopLayoutSettingsTest {
             assertEquals(CardLayouts.FULL, controller.savedCardLayout())
         } finally { dir.deleteRecursively() }
     }
+
+    @Test fun hideIssuerPersistsAndAppliesTogetherWithCardLayout() {
+        val dir = Files.createTempDirectory("compose-hide-issuer-").toFile()
+        val storage = DesktopStorage.open(dir)
+        val controller = VaultController(storage)
+        val state = state()
+        try {
+            assertFalse(controller.savedHideIssuer())
+            val settings = DesktopLayoutSettings(
+                state,
+                controller::savedCardLayout,
+                controller::trySaveCardLayout,
+                controller::savedHideIssuer,
+                controller::trySaveHideIssuer
+            )
+            settings.open()
+            val req = settings.pending!!
+            assertFalse(req.hideIssuer)
+            var appliedLayout = CardLayouts.DEFAULT
+            var appliedHide = false
+            assertTrue(settings.submit(req, CardLayouts.COMPACT, true, { true }) { layout, hide ->
+                appliedLayout = layout
+                appliedHide = hide
+            })
+            assertEquals(CardLayouts.COMPACT, appliedLayout)
+            assertTrue(appliedHide)
+            val reopened = VaultController(DesktopStorage.open(dir))
+            assertEquals(CardLayouts.COMPACT, reopened.savedCardLayout())
+            assertTrue(reopened.savedHideIssuer())
+            storage.preferences.putString(PreferencesExport.UI_HIDE_ISSUER, "invalid")
+            assertFalse(controller.savedHideIssuer())
+            settings.close()
+        } finally {
+            state.lock()
+            dir.deleteRecursively()
+        }
+    }
 }

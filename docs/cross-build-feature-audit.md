@@ -57,6 +57,16 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   (`PreferencesImportDialog`) and `ComposeDialogHost.setOnDismissListener` so Android preferences
   import previews setting counts through the same shared Compose dialog as desktop and iOS while
   wiping read bytes on dismiss.
+- **Credential copy, artwork preservation, password CSV export & desktop `Hide issuer` parity**:
+  Added incoming/outgoing password copy for revealed `EMAIL` entries and password/username copy
+  selection for `PASSWORD` entries across Android, Compose desktop, and iOS via `EntryCopyDialog`,
+  plus inline concealed-note copy and revealed-card `Delete` on iOS; added native-compatible
+  `SharedThumbnailPickerDialog` in `:ui-foundation` and preserved custom brand-logo names across
+  iOS edits (`EntryDraft.preservingMetadata`); fixed iOS browser password CSV export to check
+  session reveal (`VaultStore.isRevealed`) and wired dialect-grouped export to the shared
+  `PasswordExportDialog`; added preview confirmation and `ThunderbirdImport.isExportable` parity to
+  iOS Thunderbird CSV import/export; and exposed persisted `ui_hide_issuer` in Compose desktop's
+  `SharedCardLayoutDialog` and `PreferencesExport.desktopCatalog`.
 
 ## Required acceptance gates
 

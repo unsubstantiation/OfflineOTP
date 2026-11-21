@@ -199,13 +199,16 @@ object PreferencesExport {
         Setting(UI_SORT_MODE, Kind.STRING),
         Setting(UI_INACTIVITY_LOCK_SECONDS, Kind.INTEGER),
         Setting(UI_CARD_LAYOUT, Kind.STRING),
-        Setting(UI_TAG_FUNCTIONALITY, Kind.STRING)
+        Setting(UI_TAG_FUNCTIONALITY, Kind.STRING),
+        Setting(UI_HIDE_ISSUER, Kind.BOOLEAN)
     )
 
     /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
     const val UI_CARD_LAYOUT = "ui_card_layout"
     /** Desktop key for the tag-matching rule (`OR`, `AND`, `SINGLE`). */
     const val UI_TAG_FUNCTIONALITY = "ui_tag_functionality"
+    /** Desktop key for hiding issuer prefixes on cards until revealed. */
+    const val UI_HIDE_ISSUER = "ui_hide_issuer"
     /** Desktop key for the saved list order. Mirrors `VaultController.SORT_MODE_KEY`. */
     const val UI_SORT_MODE = "ui_sort_mode"
     /** Desktop key for the inactivity lock delay. Mirrors `VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS`. */

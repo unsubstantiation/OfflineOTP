@@ -35,10 +35,13 @@ fun SharedManualEntryDialog(
     error: String?,
     onSubmit: (PortableEntryDraft) -> Unit,
     onDismiss: () -> Unit,
-    onSwitchToEmail: (() -> Unit)? = null
+    onSwitchToEmail: (() -> Unit)? = null,
+    thumbnailNames: List<String> = emptyList()
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
+    var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
     fun dismiss() {
+        pickingThumbnail = false
         input = PortableEntryDraft()
         onDismiss()
     }
@@ -219,6 +222,16 @@ fun SharedManualEntryDialog(
                 ) {
                     input = input.copy(tags = it)
                 }
+                if (thumbnailNames.isNotEmpty() && !ssh) {
+                    val artworkSummary = input.thumbnail.ifEmpty {
+                        if (editing) "Unchanged" else "Automatic (from issuer)"
+                    }
+                    Text(text = "Artwork: $artworkSummary")
+                    ForestTextAction(
+                        text = "Choose artwork…",
+                        onClick = { pickingThumbnail = true }
+                    )
+                }
                 if (error != null) Text(text = error)
             }
         },
@@ -231,6 +244,18 @@ fun SharedManualEntryDialog(
         },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) }
     )
+    if (pickingThumbnail && thumbnailNames.isNotEmpty()) {
+        SharedThumbnailPickerDialog(
+            selected = input.thumbnail,
+            catalogNames = thumbnailNames,
+            unchangedLabel = if (editing) "Keep current artwork" else "Automatic (from issuer)",
+            onSelect = { chosen ->
+                input = input.copy(thumbnail = chosen)
+                pickingThumbnail = false
+            },
+            onDismiss = { pickingThumbnail = false }
+        )
+    }
 }
 
 @Composable

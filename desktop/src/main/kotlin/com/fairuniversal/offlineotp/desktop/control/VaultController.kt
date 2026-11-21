@@ -160,6 +160,21 @@ class VaultController(private val vault: PasswordVault) {
         }
     }
 
+    fun savedHideIssuer(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_ISSUER,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveHideIssuer(hideIssuer: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_ISSUER,
+            hideIssuer.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
     /** Portable allowlisted preferences only; never export vault auth state or backup passwords. */
     fun exportPreferences(): com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export =
         com.fairuniversal.offlineotp.Utilities.PreferencesExport.export(

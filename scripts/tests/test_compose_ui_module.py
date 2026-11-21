@@ -1117,6 +1117,19 @@ class ComposeUiWiringTest(unittest.TestCase):
         components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
         self.assertIn("onCycleTagRule", components)
 
+    def test_cross_platform_credential_copy_and_desktop_hide_issuer_parity(self):
+        prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
+        self.assertIn('const val UI_HIDE_ISSUER = "ui_hide_issuer"', prefs)
+        self.assertIn("Setting(UI_HIDE_ISSUER, Kind.BOOLEAN)", prefs)
+
+        copy_ctrl = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryCopy.kt").read_text(encoding="utf-8")
+        for field in ("EMAIL_INCOMING_PASSWORD", "EMAIL_OUTGOING_PASSWORD", "PASSWORD_USERNAME"):
+            self.assertIn(field, copy_ctrl)
+
+        android_ctrl = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
+        self.assertIn("chooseEmailPasswordToCopy(", android_ctrl)
+        self.assertIn("choosePasswordFieldToCopy(", android_ctrl)
+
 
 if __name__ == "__main__":
     unittest.main()

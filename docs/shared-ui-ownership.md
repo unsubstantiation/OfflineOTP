@@ -42,9 +42,9 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `EmailImportDialog`, `LinScpExportDialog`, `LinScpImportDialog`, `UriImportDialog`,
   `ArchiveExportDialog`, `PasswordExportDialog`, `StorageLocationDialog`, `EmailChoiceField`,
   `SharedPasswordEntryDialog`, `SharedPasswordImportDialog`, `SharedCardLayoutDialog`,
-  `SharedEmailDetailsDialog`, `SharedEmailAccountDialog`, `SharedManualEntryDialog`,
-  `HardwareEnrollmentDialog`, `HardwareUnlockDialog`, `HardwareCopyDialog`, and
-  `HardwareOathDialog`).
+  `SharedThumbnailPickerDialog`, `SharedEmailDetailsDialog`, `SharedEmailAccountDialog`,
+  `SharedManualEntryDialog`, `HardwareEnrollmentDialog`, `HardwareUnlockDialog`,
+  `HardwareCopyDialog`, and `HardwareOathDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
   and `PortableSurfaceActions` to Swift, routing dialog keys directly to the shared `:ui-foundation`
   composables while reserving `PortableSurfaceDialog` for host navigation/edit menus. One

@@ -286,7 +286,10 @@ class AndroidVaultController(
                     detailLabel = entry.getHiddenLabel().ifEmpty {
                         if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
                     }.takeIf { it.isNotEmpty() && composeRevealed(entry) },
-                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey()),
+                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey() ||
+                        (entry.isEmail() && composeRevealed(entry) && entry.getEmailAccount().let {
+                            it.account.optString("password").orEmpty().isNotEmpty() || it.identity.optString("password").orEmpty().isNotEmpty()
+                        })),
                     canMoveUp = presentation.canDrag() && index > 0,
                     canMoveDown = presentation.canDrag() && index < shown.lastIndex
                 )
@@ -873,9 +876,19 @@ class AndroidVaultController(
     private fun copyHandler(position: Int, text: String, dropToBackground: Boolean) {
         if (!validDisplayedPosition(position)) return
         val selected = presentation.get(position)
-        if (selected.isPasswordArchive() || selected.isEmail()) return
+        if (selected.isPasswordArchive()) return
+        if (selected.isEmail()) {
+            chooseEmailPasswordToCopy(position, dropToBackground)
+            return
+        }
         if (selected.isSshKey()) {
             chooseSshKeyToCopy(position, dropToBackground)
+            return
+        }
+        if (selected.isPassword() && selected.getPasswordFields().value("username").isNotEmpty() &&
+            selected.getPasswordFields().value("password").isNotEmpty()
+        ) {
+            choosePasswordFieldToCopy(position, dropToBackground)
             return
         }
         val otp = if (selected.isPassword()) selected.getPasswordFields().value("password")
@@ -966,6 +979,117 @@ class AndroidVaultController(
                         if (!EntryIndexGuard.isValid(currentIndex, entries.getEntries().size)) return@Consumer
                         Tools.copyToClipboard(context, value)
                         updateLastUsedAndFrequency(currentPos, currentIndex)
+                        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+                    })
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                }
+            )
+            pending.host = view
+            activeSshCopyDialog = view
+            view.show()
+        })
+    }
+
+    private enum class EmailCopyField { INCOMING_PASSWORD, OUTGOING_PASSWORD }
+
+    private fun chooseEmailPasswordToCopy(position: Int, dropToBackground: Boolean) {
+        showActionDialog(position, BiConsumer { target, entry ->
+            if (!composeRevealed(entry)) return@BiConsumer
+            val emailAccount = entry.getEmailAccount()
+            val choices = ArrayList<EmailCopyField>()
+            val labels = ArrayList<String>()
+            if (emailAccount.account.optString("password").orEmpty().isNotEmpty()) {
+                choices.add(EmailCopyField.INCOMING_PASSWORD)
+                labels.add("Incoming password")
+            }
+            if (emailAccount.identity.optString("password").orEmpty().isNotEmpty()) {
+                choices.add(EmailCopyField.OUTGOING_PASSWORD)
+                labels.add("Outgoing password")
+            }
+            if (choices.isEmpty()) return@BiConsumer
+            activeSshCopyDialog?.dismiss()
+            activeSshCopyDialog = null
+            val activity = context as? Activity ?: return@BiConsumer
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = EntryCopyComposeView(
+                activity = activity,
+                title = "Choose field to copy",
+                cancelLabel = context.getString(android.R.string.cancel),
+                fields = labels,
+                onSelect = { index ->
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                    if (index in choices.indices) withTarget(target, Consumer { actual ->
+                        if (!actual.isEmail() || !composeRevealed(actual)) return@Consumer
+                        val currentAccount = actual.getEmailAccount()
+                        val value = when (choices[index]) {
+                            EmailCopyField.INCOMING_PASSWORD -> currentAccount.account.optString("password").orEmpty()
+                            EmailCopyField.OUTGOING_PASSWORD -> currentAccount.identity.optString("password").orEmpty()
+                        }
+                        if (value.isEmpty()) return@Consumer
+                        if (!recordCopyUse(actual)) {
+                            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                            return@Consumer
+                        }
+                        Tools.copyToClipboard(context, value)
+                        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+                    })
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                }
+            )
+            pending.host = view
+            activeSshCopyDialog = view
+            view.show()
+        })
+    }
+
+    private enum class PasswordCopyField { PASSWORD, USERNAME }
+
+    private fun choosePasswordFieldToCopy(position: Int, dropToBackground: Boolean) {
+        showActionDialog(position, BiConsumer { target, entry ->
+            val fields = entry.getPasswordFields()
+            val choices = ArrayList<PasswordCopyField>()
+            val labels = ArrayList<String>()
+            if (fields.value("password").isNotEmpty()) {
+                choices.add(PasswordCopyField.PASSWORD)
+                labels.add("Password")
+            }
+            if (fields.value("username").isNotEmpty()) {
+                choices.add(PasswordCopyField.USERNAME)
+                labels.add("Username")
+            }
+            if (choices.isEmpty()) return@BiConsumer
+            activeSshCopyDialog?.dismiss()
+            activeSshCopyDialog = null
+            val activity = context as? Activity ?: return@BiConsumer
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = EntryCopyComposeView(
+                activity = activity,
+                title = "Choose field to copy",
+                cancelLabel = context.getString(android.R.string.cancel),
+                fields = labels,
+                onSelect = { index ->
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                    if (index in choices.indices) withTarget(target, Consumer { actual ->
+                        if (!actual.isPassword()) return@Consumer
+                        val currentFields = actual.getPasswordFields()
+                        val value = when (choices[index]) {
+                            PasswordCopyField.PASSWORD -> currentFields.value("password")
+                            PasswordCopyField.USERNAME -> currentFields.value("username")
+                        }
+                        if (value.isEmpty()) return@Consumer
+                        if (!recordCopyUse(actual)) {
+                            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                            return@Consumer
+                        }
+                        Tools.copyToClipboard(context, value)
                         if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
                     })
                 },
