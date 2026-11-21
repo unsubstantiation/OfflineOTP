@@ -279,7 +279,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_hardware_oath_ui_has_explicit_counter_action_and_lifetime_guard(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/HardwareOathDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/HardwareOathDialog.kt").read_text()
         self.assertIn("hardwareOath.submit(request, pin, index, lifetime::checkActive)", host)
         self.assertGreaterEqual(host.count("hardwareOath.close()"), 2)
         self.assertIn("Advance HOTP counter and show code", dialog)
@@ -289,7 +289,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_hardware_copy_requires_explicit_seed_export_and_touch(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/HardwareCopyDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/HardwareCopyDialog.kt").read_text()
         self.assertIn("requireTouch = true", host)
         self.assertIn("hardwareCopy.submit(request, pin, lifetime::checkActive)", host)
         self.assertIn("hardwareCopy.select(request, index, lifetime::checkActive)", host)
@@ -302,7 +302,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_hardware_unlock_is_optional_serialized_and_ephemeral(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         screen = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt").read_text()
-        dialog = (UI_MAIN / "unlock/HardwareUnlockDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "unlock/HardwareUnlockDialog.kt").read_text()
         self.assertIn("onHardwareUnlock: (() -> Unit)? = null", screen)
         self.assertIn("DesktopHardwareUnlock(worker", host)
         self.assertIn("!busy && !hardwareDialog", host)
@@ -321,7 +321,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_hardware_enrollment_blocks_unlock_exit_and_serializes_old_hardware_work(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "unlock/HardwareEnrollmentDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "unlock/HardwareEnrollmentDialog.kt").read_text()
         self.assertIn("rekey.canCloseWindow && enrollment?.busy != true", host)
         self.assertIn("rekey.canUnlock && enrollment == null", host)
         self.assertIn("DesktopHardwareEnrollment(vault, hardwareWorker", host)
@@ -827,8 +827,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("appearance = VaultAppearance(cardLayout = controller.savedCardLayout())", host)
         self.assertIn("layoutSettings.submit(layoutRequest, layout, lifetime::checkActive, presenter::setCardLayout)", host)
         self.assertIn("layoutSettings.close()", host)
-        form = (UI_MAIN / "vault/CardLayoutDialog.kt").read_text()
-        self.assertIn("Constants.CardLayouts.values()", form)
+        adapter = (UI_MAIN / "vault/CardLayoutDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedCardLayoutDialog.kt").read_text()
+        self.assertIn("Constants.CardLayouts.values()", adapter)
+        self.assertIn("SharedCardLayoutDialog(", adapter)
         self.assertIn('ForestTextAction(text = "Save"', form)
 
     def test_email_details_rechecks_reveal_and_password_edit_is_reachable(self):
@@ -860,9 +862,11 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopPasswordImport(vault, exportWorker", host)
         self.assertIn("passwordImporter.confirm(passwordRequest, lifetime::checkActive)", host)
         self.assertIn("passwordImporter.close()", host)
-        form = (UI_MAIN / "vault/PasswordImportDialog.kt").read_text()
-        self.assertIn("PasswordImport.Mode.INDIVIDUAL", form)
-        self.assertIn("PasswordImport.Mode.ARCHIVE", form)
+        adapter = (UI_MAIN / "vault/PasswordImportDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedPasswordImportDialog.kt").read_text()
+        self.assertIn("PasswordImport.Mode.INDIVIDUAL", adapter)
+        self.assertIn("PasswordImport.Mode.ARCHIVE", adapter)
+        self.assertIn("SharedPasswordImportDialog(", adapter)
         self.assertIn("does not delete or protect the source file", form)
         self.assertIn("No current entries will be replaced", form)
 

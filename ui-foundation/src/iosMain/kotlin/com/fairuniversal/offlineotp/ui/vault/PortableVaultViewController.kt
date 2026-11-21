@@ -39,12 +39,18 @@ interface PortableSurfaceActions {
 class PortableVaultPresentation {
     private var active by mutableStateOf(true)
     private var vault by mutableStateOf(PortableVaultState.EMPTY)
+    private var cardLayout by mutableStateOf(PortableCardLayout.DEFAULT)
     private var surface by mutableStateOf<PortableSurfaceState?>(null)
     private var surfaceEpoch by mutableIntStateOf(0)
 
     /** Replaces the frame without replacing the composition. */
     fun updateVault(state: PortableVaultState) {
         vault = state
+    }
+
+    /** Updates the Compose vault card density/layout (`DEFAULT`, `COMPACT`, or `FULL`). */
+    fun updateCardLayout(layout: String) {
+        cardLayout = PortableCardLayout.values().firstOrNull { it.name == layout } ?: PortableCardLayout.DEFAULT
     }
 
     /** Opens or replaces the visible dialog. A null state closes it. */
@@ -94,7 +100,8 @@ class PortableVaultPresentation {
                     onClearTags = { vaultActions.clearTags() },
                     onTool = { action -> vaultActions.tool(action) },
                     onCard = { index, action -> vaultActions.card(index, action) },
-                    onDismissToast = { vaultActions.tool("dismissToast") }
+                    onDismissToast = { vaultActions.tool("dismissToast") },
+                    cardLayout = cardLayout
                 )
                 val dialog = surface
                 if (dialog != null) {
@@ -255,16 +262,45 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss
             )
         }
-        "passwordImportChoice" -> {
-            val actionRows = rows.filter { it.key.startsWith("passwordImportMode:") }
+        "sort" -> {
+            val sortRows = rows.filter { it.key.startsWith("sort:") }
             EntryCopyDialog(
-                fields = actionRows.map { it.title },
+                fields = sortRows.map { it.title },
                 title = dialog.title,
                 cancelLabel = dialog.dismissLabel,
-                message = dialog.sections.firstOrNull()?.title,
                 onSelect = { index ->
-                    actionRows.getOrNull(index)?.let { onAction(it.key) }
+                    sortRows.getOrNull(index)?.let { onAction(it.key) }
                 },
+                onDismiss = onDismiss
+            )
+        }
+        "cardLayout" -> {
+            val current = PortableCardLayout.values().firstOrNull { it.name == rowValue("layout") }
+                ?: PortableCardLayout.DEFAULT
+            SharedCardLayoutDialog(
+                inputKey = dialogKey,
+                current = current,
+                failed = dialog.message.isNotEmpty(),
+                onSave = { selected ->
+                    surfaceActions.change("layout", selected.name)
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+        }
+        "passwordImportChoice" -> {
+            val count = rowValue("previewCount").toIntOrNull()
+            SharedPasswordImportDialog(
+                inputKey = dialogKey,
+                busy = dialog.busy,
+                count = count,
+                failed = dialog.message.isNotEmpty(),
+                onRead = { mode ->
+                    val rawMode = if (mode == PortablePasswordImportMode.ARCHIVE) "archive" else "individual"
+                    surfaceActions.change("passwordImportMode", rawMode)
+                    onAction("passwordImportPreview")
+                },
+                onConfirm = ::confirm,
                 onDismiss = onDismiss
             )
         }
@@ -597,6 +633,33 @@ private fun RenderSharedSurface(
                     secretsVisible = toggleRow?.title == "Hide passwords",
                     onToggleSecrets = { onAction(toggleRow?.key ?: "toggleEmailSecrets:$entryIdx") },
                     onEditSettings = { onAction("edit:$entryIdx") },
+                    onDismiss = onDismiss
+                )
+            }
+            dialog.key.startsWith("more:") && rows.isNotEmpty() -> EntryCopyDialog(
+                fields = rows.map { it.title },
+                title = dialog.title,
+                cancelLabel = dialog.dismissLabel,
+                onSelect = { index ->
+                    rows.getOrNull(index)?.let { onAction(it.key) }
+                },
+                onDismiss = onDismiss
+            )
+            dialog.key.startsWith("details:") && rows.isNotEmpty() -> {
+                val infoLines = rows.filter { it.kind == PortableRow.KIND_INFO }.map { row ->
+                    if (row.value.isNotEmpty()) "${row.title}: ${row.value}" else row.title
+                }
+                val actionRows = rows.filter { it.kind != PortableRow.KIND_INFO && it.enabled }
+                EntryDetailsDialog(
+                    title = dialog.title,
+                    body = infoLines.joinToString("\n"),
+                    confirmLabel = dialog.dismissLabel,
+                    actions = actionRows.map { row ->
+                        if (row.detail.isNotEmpty()) "${row.title} (${row.detail})" else row.title
+                    },
+                    onAction = { index ->
+                        actionRows.getOrNull(index)?.let { onAction(it.key) }
+                    },
                     onDismiss = onDismiss
                 )
             }

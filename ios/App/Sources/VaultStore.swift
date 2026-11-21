@@ -966,6 +966,24 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Previews how many entries a browser password CSV or archive file would produce without installing them.
+    public func previewBrowserPasswordsCount(
+        filename: String,
+        data: Data,
+        mode: PasswordImport.Mode
+    ) -> Int? {
+        guard isUnlocked else { return nil }
+        do {
+            let parsed = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            return parsed.count
+        } catch {
+            message = mode == .individual
+                ? "That file is not a recognized browser password CSV."
+                : "That password file could not be archived."
+            return nil
+        }
+    }
+
     /// Imports browser password CSV rows (Chrome, Firefox, Safari) or archives an arbitrary password file.
     public func importBrowserPasswords(
         filename: String,

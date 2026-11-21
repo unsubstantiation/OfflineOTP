@@ -37,6 +37,14 @@ data class PortableCard(
     val isExpiring: Boolean
         get() = hasCode && secondsLeft in 1..5
 
+    /** Normalized countdown arc fraction for time-based OTP cards (`0f` when hidden or counter-based). */
+    val countdownProgress: Float
+        get() {
+            if (!hasCode || secondsLeft <= 0) return 0f
+            val step = if (metadata.startsWith("MOTP")) 10 else maxOf(30, secondsLeft)
+            return (secondsLeft.toFloat() / step.toFloat()).coerceIn(0f, 1f)
+        }
+
     /** Redacts secret-bearing strings from diagnostic logs and assertion failures. */
     override fun toString(): String =
         "PortableCard(index=$index, revealed=$revealed, hasCode=$hasCode, pinRequired=$pinRequired)"
@@ -181,4 +189,17 @@ data class PortableEntryDraft(
         copy(secret = "", pin = "", hiddenLabel = "", privateKey = "", sshPassword = "")
 
     override fun toString(): String = "PortableEntryDraft(kind=$kind, redacted)"
+}
+
+/** Toolkit-free mirror of `PasswordImport.Mode` for `:ui-foundation`. */
+enum class PortablePasswordImportMode {
+    INDIVIDUAL,
+    ARCHIVE
+}
+
+/** Toolkit-free mirror of `Constants.CardLayouts` for `:ui-foundation`. */
+enum class PortableCardLayout {
+    COMPACT,
+    DEFAULT,
+    FULL
 }

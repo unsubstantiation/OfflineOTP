@@ -150,6 +150,10 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("dismissComposeDialog()", hardware)
         self.assertEqual(1, hardware.count("AlertDialog.Builder("))
 
+        hardware_unlock = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareUnlockActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("EntryDetailsComposeView(", hardware_unlock)
+        self.assertNotIn("AlertDialog.Builder", hardware_unlock)
+
     def test_shared_ui_module_comment_matches_the_current_platform_boundary(self):
         gradle = UI_GRADLE.read_text(encoding="utf-8")
         self.assertNotRegex(gradle, re.compile(r"iOS currently uses SwiftUI", re.IGNORECASE))

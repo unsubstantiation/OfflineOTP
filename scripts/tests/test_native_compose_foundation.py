@@ -266,6 +266,13 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/SharedEmailDetailsDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedEmailAccountDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedPasswordImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedCardLayoutDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt',
+            'com/fairuniversal/offlineotp/ui/vault/HardwareCopyDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt',
+            'com/fairuniversal/offlineotp/ui/unlock/HardwareEnrollmentDialog.kt',
+            'com/fairuniversal/offlineotp/ui/unlock/HardwareUnlockDialog.kt',
         ):
             form = (COMMON / rel).read_text()
             self.assertNotIn('rememberSaveable', form, rel)
@@ -289,6 +296,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'EntryCounterDialog(',
             'TagsDialog(',
             'EntryCopyDialog(',
+            'EntryDetailsDialog(',
             'MultiChoiceSelectionDialog(',
             'EncryptedExportDialog(',
             'EncryptedRestoreDialog(',
@@ -304,6 +312,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'SharedEmailAccountDialog(',
             'SharedManualEntryDialog(',
             'SharedPasswordEntryDialog(',
+            'SharedPasswordImportDialog(',
+            'SharedCardLayoutDialog(',
             'SharedEmailDetailsDialog(',
         ):
             self.assertIn(shared_call, vc)

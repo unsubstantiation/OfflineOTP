@@ -4,14 +4,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
-import com.fairuniversal.offlineotp.ui.vault.ForestTextAction
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun HardwareEnrollmentDialog(inputKey: Any, busy: Boolean, result: String?, onSubmit: (CharArray) -> Unit, onDismiss: () -> Unit) {
@@ -22,12 +22,12 @@ fun HardwareEnrollmentDialog(inputKey: Any, busy: Boolean, result: String?, onSu
             Text(text = "Submitting locks the vault. Unlock and normal window close are blocked until completion. Do not force-quit. Cancellation or failure cannot undo an authenticator credential already created; inspect the result before retrying. You must unlock again afterwards.")
             if (busy) Text(text = "Enrolling… Touch the key when prompted.")
             else if (result != null) Text(text = result)
-            else OutlinedTextField(value = pin, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) pin = it },
+            else OutlinedTextField(value = pin, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) pin = it },
                 singleLine = true, label = { Text(text = "FIDO PIN (optional; not OATH password)") }, visualTransformation = PasswordVisualTransformation())
         } }, confirmButton = {
-            if (result != null) ForestTextAction(text = "Return to unlock", onClick = { pin = ""; onDismiss() })
-            else ForestTextAction(text = "Lock and replace local enrollment", enabled = !busy, onClick = {
+            if (result != null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = "Return to unlock") }
+            else TextButton(enabled = !busy, onClick = {
                 val submitted = pin.toCharArray(); pin = ""; onSubmit(submitted)
-            })
-        }, dismissButton = { if (!busy && result == null) ForestTextAction(text = "Cancel", onClick = { pin = ""; onDismiss() }) })
+            }) { Text(text = "Lock and replace local enrollment") }
+        }, dismissButton = { if (!busy && result == null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = "Cancel") } })
 }

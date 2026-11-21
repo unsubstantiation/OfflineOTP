@@ -65,6 +65,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var linScpPendingData = Data()
     private var editorIndex: Int?
     private var editorKind: EntryKind = .totp
+    private var cardLayout: String = UserDefaults.standard.string(forKey: "offlineotp.card_layout") ?? "DEFAULT"
     private var active = true
     private var surfaceEpoch: Int?
 
@@ -75,6 +76,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         self.onImport = onImport
         self.onOpenLink = onOpenLink
         super.init()
+        presentation.updateCardLayout(layout: cardLayout)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }
         }
@@ -453,14 +455,24 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return emailEditorSurface()
         }
         if key == "passwordImportChoice" {
+            var rows = [
+                row("passwordImportMode:individual", "Individual credentials (browser CSV)"),
+                row("passwordImportMode:archive", "Keep original file as archive")
+            ]
+            if let preview = draft["previewCount"] {
+                rows.append(row("previewCount", "Items", value: preview, kind: "info"))
+            }
             return PortableSurfaceState(
                 key: key, title: "Import passwords",
-                sections: [PortableSection(title: "Choose how to store this file", rows: [
-                    row("passwordImportMode:individual", "Individual credentials (browser CSV)"),
-                    row("passwordImportMode:archive", "Keep original file as archive")])],
-                confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
+                sections: [PortableSection(title: "Choose how to store this file", rows: rows)],
+                confirmLabel: "Import", dismissLabel: "Cancel", showConfirm: false)
         }
         switch key {
+        case "cardLayout":
+            return PortableSurfaceState(key: key, title: "Card layout",
+                sections: [PortableSection(title: "", rows: [
+                    row("layout", "Card layout", value: draft["layout"] ?? cardLayout, kind: "info")])],
+                confirmLabel: "Save", dismissLabel: "Cancel")
         case "sort":
             let rows = SortMode.allCases.map { mode in
                 PortableRow(key: "sort:\(mode.rawValue)", title: mode == store.sortMode ? "✓ \(mode.title)" : mode.title,
@@ -750,6 +762,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("autoLock", "Auto-lock after inactivity", detail: "Currently \(store.inactivityLockSeconds) seconds"),
                 row("passwordChange", "Change vault password")]),
             PortableSection(title: "Vault", rows: [
+                row("cardLayout", "Card layout", detail: "Currently \(cardLayout.capitalized)"),
                 row("info", "Entries", value: String(store.entries.count), kind: "info"),
                 row("info2", store.folderPath, kind: "info"),
                 row("storageLocation", "Storage location…")]),
@@ -1258,6 +1271,27 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message(plan.message ?? "Backup restored.")
             closeSurface()
             return nil
+        case "cardLayout":
+            let chosen = draft["layout"] ?? "DEFAULT"
+            guard ["DEFAULT", "COMPACT", "FULL"].contains(chosen) else {
+                return "Choose a valid card layout."
+            }
+            cardLayout = chosen
+            UserDefaults.standard.set(chosen, forKey: "offlineotp.card_layout")
+            presentation.updateCardLayout(layout: chosen)
+            message("Card layout updated.")
+            closeSurface()
+            return nil
+        case "passwordImportChoice":
+            let mode: PasswordImport.Mode = draft["passwordImportMode"] == "archive" ? .archive : .individual
+            guard let plan = store.importBrowserPasswords(
+                filename: "passwords.csv", data: pendingImport, mode: mode) else {
+                return store.message ?? "That password file could not be imported."
+            }
+            pendingImport = Data()
+            message(BackupWording.restoreSummary(plan, replace: false))
+            closeSurface()
+            return nil
         case "passwordPrompt":
             if let password = draft["password"], let backup = store.exportBackup(password: password) {
                 onExport(backup.data, backup.name)
@@ -1504,8 +1538,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         }
         switch command {
-        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation":
+        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation", "cardLayout":
             openSurface(command)
+            return nil
+        case "passwordImportPreview":
+            let mode: PasswordImport.Mode = draft["passwordImportMode"] == "archive" ? .archive : .individual
+            guard let count = store.previewBrowserPasswordsCount(
+                filename: "passwords.csv", data: pendingImport, mode: mode) else {
+                return store.message ?? "That password file could not be imported."
+            }
+            draft["previewCount"] = String(count)
             return nil
         case "archiveExport":
             guard store.entries.contains(where: { $0.kind == .passwordArchive }) else {

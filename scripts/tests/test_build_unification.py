@@ -51,7 +51,7 @@ class BuildUnificationTest(unittest.TestCase):
         for path in (
             foundation / 'vault/OpenPgpImportDialog.kt',
             foundation / 'vault/EmailImportDialog.kt',
-            UI / 'vault/PasswordImportDialog.kt',
+            foundation / 'vault/SharedPasswordImportDialog.kt',
             foundation / 'vault/UriImportDialog.kt',
             foundation / 'vault/PreferencesImportDialog.kt',
         ):

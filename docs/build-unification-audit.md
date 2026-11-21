@@ -160,3 +160,18 @@ implementations, while `QrCodeDialog` gains a pure-Compose `Canvas` matrix rende
 `CIQRCodeGenerator` on iOS alongside `ArchiveExportDialog` (`VaultStore.exportPasswordArchive`)
 and `StorageLocationDialog` in iOS Settings/Backups.
 
+## Follow-up: shared vault chrome, hardware dialogs, password import, card layout, and detail sheets
+
+Extracted `SharedVaultComponents` (`SharedVaultSearchField`, `SharedVaultTab`,
+`SharedVaultTagChip`, `CountdownRing`, and `VaultLetterTile`) into `:ui-foundation/src/commonMain`
+so both `:ui`'s `VaultComponents` (Android + Desktop) and `:ui-foundation`'s `PortableVaultScreen`
+(iOS) render identical category tabs, search fields, tag pills, letter tiles, and circular OTP
+countdown arcs. Relocated `HardwareEnrollmentDialog`, `HardwareUnlockDialog`,
+`HardwareCopyDialog`, and `HardwareOathDialog` into `:ui-foundation/src/commonMain`, extracted
+`SharedPasswordImportDialog` and `SharedCardLayoutDialog` (backed by `PortablePasswordImportMode`
+and `PortableCardLayout` in `:ui-contract`), routed iOS `"passwordImportChoice"` (with two-step
+entry count preview), `"cardLayout"`, `"sort"`, `"more:<index>"`, and non-email `"details:<index>"`
+onto shared `:ui-foundation` dialogs, and migrated Android's `HardwareUnlockActivity` wait prompt
+onto `EntryDetailsComposeView`.
+
+
