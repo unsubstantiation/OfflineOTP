@@ -142,6 +142,24 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedTagFunctionality(): Constants.TagFunctionality = try {
+        Constants.TagFunctionality.valueOf(vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAG_FUNCTIONALITY,
+            Constants.TagFunctionality.OR.name
+        ))
+    } catch (_: RuntimeException) { Constants.TagFunctionality.OR }
+
+    fun saveTagFunctionality(functionality: Constants.TagFunctionality) {
+        try {
+            vault.preferences.putString(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAG_FUNCTIONALITY,
+                functionality.name
+            )
+        } catch (_: Exception) {
+            // The tag rule still applies to the open session.
+        }
+    }
+
     /** Portable allowlisted preferences only; never export vault auth state or backup passwords. */
     fun exportPreferences(): com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export =
         com.fairuniversal.offlineotp.Utilities.PreferencesExport.export(

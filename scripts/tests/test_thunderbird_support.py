@@ -52,6 +52,28 @@ class ThunderbirdSupportTest(unittest.TestCase):
                     "thunderbird_export_success", "thunderbird_export_warning"):
             self.assertIn(key, strings)
 
+    def test_desktop_has_thunderbird_import_export(self):
+        for path in ("control/DesktopThunderbirdImport.kt", "control/DesktopThunderbirdExport.kt"):
+            self.assertTrue((DESKTOP / path).exists(), f"missing {path}")
+        imp = (DESKTOP / "control/DesktopThunderbirdImport.kt").read_text(encoding="utf-8")
+        self.assertIn("ThunderbirdImport.prepare", imp)
+        self.assertIn("ThunderbirdCsv.MAX_FILE_BYTES", imp)
+        exp = (DESKTOP / "control/DesktopThunderbirdExport.kt").read_text(encoding="utf-8")
+        self.assertIn("ThunderbirdImport.exportCsv", exp)
+        self.assertIn("ExclusiveExportFile::writeNew", exp)
+        tools = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultTools.kt").read_text(encoding="utf-8")
+        self.assertIn("IMPORT_THUNDERBIRD", tools)
+        self.assertIn("EXPORT_THUNDERBIRD", tools)
+        picker = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/DesktopSavePicker.kt").read_text(encoding="utf-8")
+        self.assertIn("openThunderbirdCsv", picker)
+        self.assertIn("thunderbirdExport", picker)
+        compose_main = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("DesktopThunderbirdImport(", compose_main)
+        self.assertIn("DesktopThunderbirdExport(", compose_main)
+        self.assertIn("importThunderbird =", compose_main)
+        self.assertIn("exportThunderbird =", compose_main)
+        self.assertIn("MultiChoiceSelectionDialog(", compose_main)
+
 
     def test_documentation_mentions_thunderbird(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

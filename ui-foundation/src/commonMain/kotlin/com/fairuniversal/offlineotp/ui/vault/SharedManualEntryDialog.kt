@@ -19,6 +19,7 @@ import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 private val PORTABLE_OFFERABLE_KINDS = listOf("TOTP", "HOTP", "STEAM", "MOTP", "NOTE", "SSH_KEY")
 private val PORTABLE_OTP_KINDS = listOf("TOTP", "HOTP", "STEAM", "MOTP")
+private val PORTABLE_HASH_ALGORITHMS = listOf("SHA1", "SHA256", "SHA512")
 
 /**
  * Native-compatible Compose form for adding/editing OTP, Note, and SSH-key entries.
@@ -60,7 +61,8 @@ fun SharedManualEntryDialog(
                                     tags = input.tags,
                                     digits = if (kind == "STEAM") "5" else "6",
                                     period = "30",
-                                    counter = "0"
+                                    counter = "0",
+                                    algorithm = "SHA1"
                                 )
                             }
                         )
@@ -83,12 +85,15 @@ fun SharedManualEntryDialog(
                                     pin = "",
                                     digits = if (kind == "STEAM") "5" else "6",
                                     period = "30",
-                                    counter = "0"
+                                    counter = "0",
+                                    algorithm = if (kind == "STEAM") "SHA1" else input.algorithm,
+                                    clearPin = false
                                 )
                             }
                         )
                     }
                 }
+                if (editing) Text(text = "Removal choices apply only when you Save.")
                 PortableEntryField("Issuer / title", input.issuer, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                     input = input.copy(issuer = it)
                 }
@@ -101,7 +106,12 @@ fun SharedManualEntryDialog(
                     PortableEntryField("Public key", input.publicKey, multiline = true) {
                         input = input.copy(publicKey = it)
                     }
-                    PortableEntryField("Private key", input.privateKey, masked = true, multiline = true) {
+                    PortableEntryField(
+                        label = if (editing) "New private key (blank keeps stored)" else "Private key",
+                        value = input.privateKey,
+                        masked = true,
+                        multiline = true
+                    ) {
                         input = input.copy(privateKey = it)
                     }
                     PortableEntryField("SSH host (optional)", input.sshHost, limit = PortableInputBounds.MAX_TEXT_CHARS) {
@@ -113,8 +123,21 @@ fun SharedManualEntryDialog(
                     PortableEntryField("SSH user name (optional)", input.sshUsername, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                         input = input.copy(sshUsername = it)
                     }
-                    PortableEntryField("SSH password (optional)", input.sshPassword, masked = true, limit = PortableInputBounds.MAX_TEXT_CHARS) {
-                        input = input.copy(sshPassword = it)
+                    if (!input.clearSshPassword) {
+                        PortableEntryField(
+                            label = if (editing) "New SSH password (blank keeps stored)" else "SSH password (optional)",
+                            value = input.sshPassword,
+                            masked = true,
+                            limit = PortableInputBounds.MAX_TEXT_CHARS
+                        ) {
+                            input = input.copy(sshPassword = it)
+                        }
+                    }
+                    if (editing) {
+                        ForestTextAction(
+                            text = if (input.clearSshPassword) "Will remove SSH password — undo" else "Remove SSH password on Save",
+                            onClick = { input = input.copy(sshPassword = "", clearSshPassword = !input.clearSshPassword) }
+                        )
                     }
                 } else {
                     PortableEntryField(
@@ -127,9 +150,22 @@ fun SharedManualEntryDialog(
                         input = input.copy(secret = it)
                     }
                 }
-                if (!note && !ssh) {
-                    PortableEntryField("Hidden label", input.hiddenLabel, limit = PortableInputBounds.MAX_TEXT_CHARS) {
-                        input = input.copy(hiddenLabel = it)
+                if (!ssh) {
+                    if (!input.clearHiddenLabel) {
+                        PortableEntryField(
+                            label = if (editing) "New Hidden label (blank keeps stored)" else "Hidden label",
+                            value = input.hiddenLabel,
+                            masked = editing,
+                            limit = PortableInputBounds.MAX_TEXT_CHARS
+                        ) {
+                            input = input.copy(hiddenLabel = it)
+                        }
+                    }
+                    if (editing) {
+                        ForestTextAction(
+                            text = if (input.clearHiddenLabel) "Will remove Hidden Label — undo" else "Remove Hidden Label on Save",
+                            onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) }
+                        )
                     }
                 }
                 if (input.kind == "TOTP" || input.kind == "HOTP" || input.kind == "STEAM") {
@@ -145,11 +181,34 @@ fun SharedManualEntryDialog(
                             input = input.copy(period = it)
                         }
                     }
+                    if (input.kind == "TOTP" || input.kind == "HOTP") {
+                        Text(text = "Algorithm: ${input.algorithm}")
+                        for (algorithm in PORTABLE_HASH_ALGORITHMS) {
+                            ForestTextAction(
+                                text = algorithm,
+                                enabled = input.algorithm != algorithm,
+                                onClick = { input = input.copy(algorithm = algorithm) }
+                            )
+                        }
+                    }
                 }
                 if (input.kind == "MOTP") {
                     Text(text = "mOTP uses six digits, ten-second steps and MD5; these are protocol-defined.")
-                    PortableEntryField("PIN (optional)", input.pin, masked = !editing, limit = PortableInputBounds.MAX_TAG_CHARS) {
-                        input = input.copy(pin = it)
+                    if (!input.clearPin) {
+                        PortableEntryField(
+                            label = if (editing) "New PIN (blank keeps stored)" else "PIN (optional)",
+                            value = input.pin,
+                            masked = true,
+                            limit = PortableInputBounds.MAX_TAG_CHARS
+                        ) {
+                            input = input.copy(pin = it)
+                        }
+                    }
+                    if (editing) {
+                        ForestTextAction(
+                            text = if (input.clearPin) "Will remove PIN — undo" else "Remove PIN on Save",
+                            onClick = { input = input.copy(pin = "", clearPin = !input.clearPin) }
+                        )
                     }
                 }
                 PortableEntryField(

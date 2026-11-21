@@ -59,6 +59,7 @@ import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.PreferencesImportComposeView
 
 import java.util.Arrays
 import java.util.function.BooleanSupplier
@@ -534,22 +535,41 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
             return
         }
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.preferences_import_question)
-            .setMessage(R.string.preferences_import_question_detail)
-            .setPositiveButton(android.R.string.ok) { _, _ -> applyPreferencesImport(bytes) }
-            .setNeutralButton(android.R.string.cancel, null)
-            .create()
+        val preview = previewPreferencesImport(bytes, notifyWrongPlatform = false) ?: run {
+            bytes.fill(0)
+            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        var dialogRef: PreferencesImportComposeView? = null
+        val closeDialog = {
+            val host = dialogRef
+            if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null
+            host?.dismiss()
+            Unit
+        }
+        val dialog = PreferencesImportComposeView(
+            activity = this,
+            count = preview.applied,
+            skipped = preview.unknownKeys.size + preview.refusedKeys.size,
+            applyDetail = getString(R.string.preferences_import_question_detail),
+            onConfirm = {
+                val payload = bytes.copyOf()
+                closeDialog()
+                applyPreferencesImport(payload)
+            },
+            onDismiss = { closeDialog() }
+        )
+        dialogRef = dialog
         // Back or a tap outside is a cancel too, and the read bytes must not outlive the dialog.
         dialog.setOnDismissListener { bytes.fill(0) }
-        dialog.show()
+        showSettingsPrompt(dialog)
     }
 
     /**
      * A dry run against a port that writes nowhere: the codec validates the whole document before
      * applying anything, so this rejects a bad file without a second import attempt.
      */
-    private fun isReadablePreferences(bytes: ByteArray): Boolean {
+    private fun previewPreferencesImport(bytes: ByteArray, notifyWrongPlatform: Boolean = true): PreferencesExport.Import? {
         val probe = object : PreferencesExport.SettingsPort {
             override fun storedKeys(): Set<String> = emptySet()
             override fun read(key: String): PreferencesExport.Value? = null
@@ -558,15 +578,16 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
         return try {
             PreferencesExport.import(bytes, probe, PreferencesExport.PLATFORM_ANDROID)
-            true
         } catch (error: IllegalArgumentException) {
             // Say which failure it was: a file for another client is not a corrupt file.
-            if (error is PreferencesExport.WrongPlatformException) {
+            if (notifyWrongPlatform && error is PreferencesExport.WrongPlatformException) {
                 Toast.makeText(this, R.string.preferences_import_wrong_platform, Toast.LENGTH_LONG).show()
             }
-            false
+            null
         }
     }
+
+    private fun isReadablePreferences(bytes: ByteArray): Boolean = previewPreferencesImport(bytes) != null
 
     private fun applyPreferencesImport(bytes: ByteArray) {
         val result = try {

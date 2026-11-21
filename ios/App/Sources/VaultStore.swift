@@ -134,10 +134,14 @@ public final class VaultStore: ObservableObject {
     }
 
     public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
+    public static let cardLayoutSettingKey = "ui_card_layout"
+    public static let hideIssuerSettingKey = "ui_hide_issuer"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
 
     @Published public private(set) var inactivityLockSeconds = 0
+    @Published public private(set) var cardLayout = "DEFAULT"
+    @Published public private(set) var hideIssuer = false
     private var lastActivityDate = Date()
 
     private let vault: PasswordVault
@@ -175,6 +179,8 @@ public final class VaultStore: ObservableObject {
         // desktop client uses, and an unreadable value falls back to the vault order.
         self.sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         self.inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
+        self.cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        self.hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
         // Both are read before the first unlock: the lock screen has to know whether to offer the
         // quick unlock.
         self.biometricUnlockEnabled =
@@ -419,12 +425,35 @@ public final class VaultStore: ObservableObject {
         lastActivityDate = Date()
     }
 
-    /// Re-reads the delay and sort mode from the store, for a setting a preferences import just
-    /// replaced underneath the UI.
+    /// Re-reads the delay, sort mode and display preferences from the store, for a setting a
+    /// preferences import just replaced underneath the UI.
     public func reloadInactivityLock() {
         inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
         sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
+        cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
         lastActivityDate = Date()
+    }
+
+    private static func storedCardLayout(_ raw: String?) -> String {
+        guard let candidate = raw?.uppercased(),
+              ["DEFAULT", "COMPACT", "FULL"].contains(candidate) else {
+            return "DEFAULT"
+        }
+        return candidate
+    }
+
+    /// Persists the Compose vault card density (`DEFAULT`, `COMPACT`, or `FULL`).
+    public func setCardLayout(_ layout: String) {
+        let resolved = VaultStore.storedCardLayout(layout)
+        cardLayout = resolved
+        settings.setString(VaultStore.cardLayoutSettingKey, resolved)
+    }
+
+    /// Persists whether issuer titles stay concealed on unrevealed rows (`ui_hide_issuer`).
+    public func setHideIssuer(_ hidden: Bool) {
+        hideIssuer = hidden
+        settings.setString(VaultStore.hideIssuerSettingKey, hidden ? "true" : "false")
     }
 
     /// Persists the idle auto-lock timeout (`0` disables auto-lock).

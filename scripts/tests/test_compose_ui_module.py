@@ -1102,6 +1102,22 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertTrue((COMPOSE_STUBS / "android").is_dir(), "missing Compose Android platform stubs")
         self.assertTrue((COMPOSE_STUBS / "README.md").is_file(), "Compose stubs need their own limits note")
 
+    def test_desktop_entry_actions_and_tag_rule_cycling_use_shared_dialogs(self):
+        actions = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryActions.kt").read_text(encoding="utf-8")
+        self.assertIn("QrCodeImage.matrixFor", actions)
+        self.assertIn("state.setTags(", actions)
+        self.assertIn("state.setThumbnail(", actions)
+        self.assertIn("state.setCounter(", actions)
+
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        for widget in ("DesktopEntryActions(", "QrCodeDialog(", "TagsDialog(", "ThumbnailPickerDialog(", "EntryCounterDialog("):
+            self.assertIn(widget, host)
+        self.assertIn("tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) }", host)
+
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        self.assertIn("onCycleTagRule", components)
+
 
 if __name__ == "__main__":
     unittest.main()
+

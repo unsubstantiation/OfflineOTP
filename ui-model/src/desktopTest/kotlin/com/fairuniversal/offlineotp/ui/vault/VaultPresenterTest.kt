@@ -33,6 +33,54 @@ class VaultPresenterTest {
     }
 
     @Test
+    fun thunderbirdImportExportAndTagRuleCyclingRespectSessionAndSelectionBounds() {
+        val first = totp("GitHub", "alice").apply { setTags(arrayListOf("work", "dev")) }
+        val second = totp("GitLab", "bob").apply { setTags(arrayListOf("work")) }
+        val list = EntryList().apply { addEntry(first); addEntry(second) }
+        val presenter = VaultPresenter(
+            VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS)
+        )
+        assertNull(presenter.actions().onImportThunderbird)
+        assertNull(presenter.actions().onExportThunderbird)
+        var imports = 0
+        var exports = 0
+        val actions = presenter.actions(
+            importThunderbird = { imports++ },
+            exportThunderbird = { exports++ }
+        )
+        actions.onToggleTag("work")
+        actions.onToggleTag("dev")
+        assertEquals(listOf("work", "dev"), presenter.filter.selectedTags)
+        assertEquals(2, presenter.frame(0L).cards.size)
+
+        actions.onCycleTagRule?.invoke()
+        assertEquals(Constants.TagFunctionality.AND, presenter.filter.tagFunctionality)
+        assertEquals(1, presenter.frame(0L).cards.size)
+
+        actions.onCycleTagRule?.invoke()
+        assertEquals(Constants.TagFunctionality.SINGLE, presenter.filter.tagFunctionality)
+        assertEquals(listOf("work"), presenter.filter.selectedTags)
+
+        actions.onCycleTagRule?.invoke()
+        assertEquals(Constants.TagFunctionality.OR, presenter.filter.tagFunctionality)
+
+        actions.onImportThunderbird?.invoke()
+        actions.onExportThunderbird?.invoke()
+        assertEquals(1, imports)
+        assertEquals(1, exports)
+
+        presenter.lock()
+        actions.onImportThunderbird?.invoke()
+        actions.onExportThunderbird?.invoke()
+        actions.onCycleTagRule?.invoke()
+        assertEquals(1, imports)
+        assertEquals(1, exports)
+        first.destroy()
+        second.destroy()
+    }
+
+    @Test
     fun preferencesExportIsOptionalAndTerminalAfterLock() {
         val list = EntryList()
         val presenter = VaultPresenter(VaultProjection(list, EntryListPresentation(list)), VaultFilter())

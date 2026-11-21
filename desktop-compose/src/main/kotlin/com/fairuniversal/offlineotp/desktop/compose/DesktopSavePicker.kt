@@ -42,6 +42,27 @@ internal object DesktopSavePicker {
         } finally { picker.dispose(); parent.dispose() }
     }
 
+    fun openThunderbirdCsv(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Open Thunderbird CSV export", FileDialog.LOAD)
+        return try {
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
+    fun thunderbirdExport(owner: Window): File? {
+        val parent = Dialog(owner)
+        val picker = FileDialog(parent, "Export plaintext Thunderbird CSV", FileDialog.SAVE)
+        return try {
+            picker.file = "thunderbird-passwords.csv"
+            picker.isVisible = true
+            val name = picker.file ?: return null
+            File(picker.directory, name)
+        } finally { picker.dispose(); parent.dispose() }
+    }
+
     fun openOpenPgpBackup(owner: Window): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Open OpenPGP backup", FileDialog.LOAD)

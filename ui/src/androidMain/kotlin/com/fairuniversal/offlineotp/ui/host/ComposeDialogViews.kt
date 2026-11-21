@@ -25,6 +25,7 @@ import com.fairuniversal.offlineotp.ui.vault.EntryCounterDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryDetailsDialog
 import com.fairuniversal.offlineotp.ui.vault.HideableDialog
 import com.fairuniversal.offlineotp.ui.vault.MultiChoiceSelectionDialog
+import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
 import com.fairuniversal.offlineotp.ui.vault.QrCodeDialog
 import com.fairuniversal.offlineotp.ui.vault.SharedEntryPinDialog
 import com.fairuniversal.offlineotp.ui.vault.TagsDialog
@@ -46,6 +47,12 @@ import com.fairuniversal.offlineotp.ui.vault.VaultArtwork
 abstract class ComposeDialogHost(private val activity: Activity) : AbstractComposeView(activity) {
 
     private var attachedTo: ViewGroup? = null
+    private var dismissListener: (() -> Unit)? = null
+
+    /** Registers a callback fired when [dismiss] detaches an open composition. */
+    fun setOnDismissListener(listener: () -> Unit) {
+        dismissListener = listener
+    }
 
     /** Adds the composition to the Activity window. Calling it twice is harmless. */
     fun show() {
@@ -61,8 +68,14 @@ abstract class ComposeDialogHost(private val activity: Activity) : AbstractCompo
 
     /** Removes the composition, which also closes the shared dialog's own window. */
     fun dismiss() {
+        val hadAttachment = attachedTo != null
         attachedTo?.removeView(this)
         attachedTo = null
+        val listener = dismissListener
+        dismissListener = null
+        if (hadAttachment || listener != null) {
+            listener?.invoke()
+        }
     }
 }
 
@@ -539,6 +552,37 @@ class EncryptedRestorePasswordComposeView(
                 onConfirm = {},
                 onDismiss = onDismiss,
                 decodeDescription = decodeDescription
+            )
+        }
+    }
+}
+
+/** Shared portable-preferences import confirmation host; displays parsed setting counts before applying. */
+class PreferencesImportComposeView(
+    activity: Activity,
+    private val count: Int,
+    private val skipped: Int,
+    private val applyDetail: String,
+    private val onConfirm: () -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            PreferencesImportDialog(
+                busy = false,
+                count = count,
+                skipped = skipped,
+                failed = false,
+                onConfirm = onConfirm,
+                onDismiss = onDismiss,
+                platformName = "Android",
+                applyDetail = applyDetail
             )
         }
     }

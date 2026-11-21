@@ -159,6 +159,53 @@ class DesktopVaultState(key: SecretKey, private val entries: EntryList = EntryLi
         return saved
     }
 
+    /** Sets an explicit HOTP counter by stable id; failed persistence restores the prior counter. */
+    fun setCounter(id: Long, counter: Long, persist: () -> Boolean): Boolean {
+        val entry = entries.getEntries().firstOrNull { it.getListId() == id } ?: return false
+        if (!entry.isCounterBased() || counter < 0L || counter >= EntryUsage.MAX_COUNTER) return false
+        val previous = entry.getCounter()
+        val saved = runCatching {
+            entry.setCounter(counter)
+            entry.validate()
+            persist()
+        }.getOrDefault(false)
+        if (!saved) entry.setCounter(previous)
+        entry.updateOTP(true)
+        if (saved) refreshProjection()
+        return saved
+    }
+
+    /** Replaces tags on a live entry by stable id; failed validation or persistence restores prior tags. */
+    fun setTags(id: Long, tags: List<String>, persist: () -> Boolean): Boolean {
+        val entry = entries.getEntries().firstOrNull { it.getListId() == id } ?: return false
+        val cleaned = LinkedHashSet<String>()
+        for (raw in tags) {
+            val trimmed = raw.trim()
+            if (trimmed.isNotEmpty()) cleaned.add(trimmed)
+        }
+        val previous = ArrayList(entry.getTags())
+        val saved = runCatching {
+            entry.setTags(ArrayList(cleaned))
+            entry.validate()
+            persist()
+        }.getOrDefault(false)
+        if (!saved) entry.setTags(previous) else refreshProjection()
+        return saved
+    }
+
+    /** Updates the catalog thumbnail name of a live entry by stable id, rolling back on save failure. */
+    fun setThumbnail(id: Long, thumbnailName: String, persist: () -> Boolean): Boolean {
+        val entry = entries.getEntries().firstOrNull { it.getListId() == id } ?: return false
+        val previous = entry.getThumbnailName()
+        val saved = runCatching {
+            entry.setThumbnailName(thumbnailName)
+            entry.validate()
+            persist()
+        }.getOrDefault(false)
+        if (!saved) entry.setThumbnailName(previous) else refreshProjection()
+        return saved
+    }
+
     /**
      * Persist a deletion before discarding the live entry. The callback must only save the supplied
      * list, not mutate this session; callers serialize this operation on the UI thread. A failed

@@ -95,6 +95,7 @@ subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 - `QrCodeComposeView` (`QrCodeDialog`)
 - `CheckboxConfirmationComposeView` (`CheckboxConfirmationDialog`)
 - `EncryptedRestorePasswordComposeView` (`EncryptedRestoreDialog`)
+- `PreferencesImportComposeView` (`PreferencesImportDialog`)
 
 Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
 `DisposeOnDetachedFromWindow`. They attach an invisible composition to the Activity decor rather
@@ -110,11 +111,11 @@ The native `AlertDialog.Builder` / `EditText` implementations are retired from `
 FairEmail details, password details, tag picker, and password entry editing), `MainActivity`
 (auto-time warning, password import mode chooser, FairEmail encrypted backup password prompt,
 FairEmail/Thunderbird multi-choice account export, password archive/CSV export confirmations,
-used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode,
-encryption-change warning, login-backup old-password removal, and keystore reset confirmation),
-and `BackupActivity` (OpenPGP key-file passphrase mode chooser). The main unlock Activity,
-onboarding wizard, and About/library screens still retain their native autofill/fragment adapters
-while `:ui-foundation` carries the shared Compose forms (`SharedUnlockScreen`,
+used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode, preferences import confirmation with dry-run setting
+counts, encryption-change warning, login-backup old-password removal, and keystore reset
+confirmation), and `BackupActivity` (OpenPGP key-file passphrase mode chooser). The main unlock
+Activity, onboarding wizard, and About/library screens still retain their native autofill/fragment
+adapters while `:ui-foundation` carries the shared Compose forms (`SharedUnlockScreen`,
 `SharedIntroScreen`, `AboutDialog`).
 
 ## Next work in dependency order

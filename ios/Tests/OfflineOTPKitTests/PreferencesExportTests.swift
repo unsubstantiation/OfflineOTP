@@ -47,6 +47,23 @@ final class PreferencesExportTests: XCTestCase {
         XCTAssertEqual(target.writes[PreferencesExport.sortModeKey], .text("ISSUER"))
     }
 
+    func testCardLayoutAndHideIssuerRoundTripAndInspectPreview() throws {
+        let source = FakePort([
+            PreferencesExport.cardLayoutKey: .text("COMPACT"),
+            PreferencesExport.hideIssuerKey: .boolean(true),
+        ])
+        let exported = try PreferencesExport.export(source)
+        let preview = try PreferencesExport.inspect(exported.bytes)
+        XCTAssertEqual(2, preview.applied)
+        XCTAssertTrue(preview.unknownKeys.isEmpty)
+
+        let target = FakePort()
+        let result = try PreferencesExport.apply(exported.bytes, into: target)
+        XCTAssertEqual(2, result.applied)
+        XCTAssertEqual(.text("COMPACT"), target.writes[PreferencesExport.cardLayoutKey])
+        XCTAssertEqual(.boolean(true), target.writes[PreferencesExport.hideIssuerKey])
+    }
+
     func testAbsentSettingIsNotWrittenAsItsDefault() throws {
         let export = try PreferencesExport.export(FakePort())
         XCTAssertEqual(0, export.keysWritten)

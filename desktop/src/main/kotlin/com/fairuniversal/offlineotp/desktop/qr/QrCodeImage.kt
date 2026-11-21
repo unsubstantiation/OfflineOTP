@@ -41,6 +41,32 @@ object QrCodeImage {
         }
     }
 
+    /** Compact `'1'`/`'0'` square module grid for Compose `QrCodeDialog` rendering. */
+    data class Matrix(val size: Int, val bits: String) {
+        override fun toString(): String = "Matrix(size=$size, redacted)"
+    }
+
+    /**
+     * Encodes [payload] into a square `'1'`/`'0'` bit matrix suitable for the shared
+     * Compose `QrCodeDialog(title, matrixSize, matrixBits, ...)` overload.
+     */
+    fun matrixFor(payload: String): Matrix {
+        if (payload.isEmpty()) throw IllegalArgumentException("empty QR payload")
+        val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, 0, 0)
+        val width = matrix.getWidth()
+        val height = matrix.getHeight()
+        if (width <= 0 || height <= 0) throw IllegalStateException("empty QR matrix")
+        val side = maxOf(width, height)
+        val chars = StringBuilder(side * side)
+        for (y in 0 until side) {
+            for (x in 0 until side) {
+                val dark = x < width && y < height && matrix.get(x, y)
+                chars.append(if (dark) '1' else '0')
+            }
+        }
+        return Matrix(side, chars.toString())
+    }
+
     /**
      * Draws [payload] as a black-on-white QR image, scaled by [scale] modules per pixel. The quiet
      * zone comes from zxing, as on Android, so the code stays scannable on a white dialog.

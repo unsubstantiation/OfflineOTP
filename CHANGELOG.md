@@ -2,6 +2,8 @@
 
 #### Unreleased
 
+ * Cross-build shared UI & feature parity: Restore Thunderbird CSV import and selective export on Compose desktop, add per-entry account actions on desktop (QR code display, details, tag editor, brand-logo picker, direct HOTP counter editing, and keyboard/menu reordering) using shared `:ui-foundation`/`:ui` dialogs, and expose persisted tag-matching rule cycling (`Any tag` / `All tags` / `One tag`) in the desktop tag bar and preferences export. Extend the portable manual-entry contract and iOS Compose host with TOTP/HOTP hash-algorithm selection (`SHA1`/`SHA256`/`SHA512`), explicit removal of stored hidden labels/mOTP PINs/SSH passphrases, `Hide issuer` and `Card layout` portable preference sync, and dry-run setting-count previews in both iOS and Android `PreferencesImportDialog`.
+
  * LinSCP Key/Sessions: Support the updated plain JSON interchange alongside LSCPVLT2 and legacy session backups, preserving complete session metadata and opaque LinSCP fields. Add explicit key/session selection on import and export across Android, desktop and iOS. Encryption remains the default; plain-text export requires opt-in and warns that software on the device can access the secrets. Rename the SSH Keys category to Keys without changing stored type identifiers.
 
  * About parity: Replace desktop’s single-item Help menu with a direct About action available while locked or unlocked. Restore project links, license information, credits, contributing and trademark disclaimers. Generate Kotlin, Swift and Android default text from one checked-in catalog; retain Android translations, Libraries tab, special-feature tap behavior and flavor extras. iOS gains the same project information and explicit external-browser links.
