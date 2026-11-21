@@ -1018,6 +1018,17 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Exports the exact unparsed bytes of a stored `PASSWORD_ARCHIVE` entry under a safe fixed name.
+    public func exportPasswordArchive(at index: Int) -> ExportedBackup? {
+        guard isUnlocked, entries.indices.contains(index) else { return nil }
+        let entry = entries[index]
+        guard entry.kind == .passwordArchive, let bytes = entry.passwordArchiveBytes else {
+            message = "That entry does not contain an exportable password archive."
+            return nil
+        }
+        return ExportedBackup(name: "password-archive.bin", data: bytes)
+    }
+
     /// Adds a manually entered FairEmail-compatible email account to the vault.
     @discardableResult
     public func addEmailAccount(_ account: EmailMaterial.Account, tags: [String] = [], now: Date = Date()) -> Bool {

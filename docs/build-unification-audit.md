@@ -145,3 +145,18 @@ export, selective FairEmail/Thunderbird account export, interactive tag checklis
 file import through `QrImageReader`. On Android, `IntroScreenActivity` first-run backup password
 entry and `HardwareKeyActivity` confirmation/account-selection prompts now also render through
 `ComposeDialogHost` views.
+
+## Follow-up: shared credential editors, email details, QR matrix, and archive/storage dialogs
+
+Promoted `ArchiveExportDialog`, `PasswordExportDialog`, `StorageLocationDialog`, and
+`EmailChoiceField` into `:ui-foundation/src/commonMain`, and extracted native-compatible shared
+implementations (`SharedPasswordEntryDialog`, `SharedEmailDetailsDialog`,
+`SharedEmailAccountDialog`, and `SharedManualEntryDialog`, backed by `PortableDetailRow`,
+`PortablePasswordEditDraft`, `PortableEmailAccountDraft`, and `PortableEntryDraft` in
+`:ui-contract` with `PortableInputBounds` constants pinned to `BrowserPasswordCsv` and
+`EmailMaterial`). `:ui` adapters (`PasswordEntryDialog`, `EmailDetailsDialog`, `EmailEntryDialog`)
+and iOS (`PortableVaultViewController` + `ComposeVaultHost.swift`) now render the same Compose
+implementations, while `QrCodeDialog` gains a pure-Compose `Canvas` matrix renderer fed by
+`CIQRCodeGenerator` on iOS alongside `ArchiveExportDialog` (`VaultStore.exportPasswordArchive`)
+and `StorageLocationDialog` in iOS Settings/Backups.
+

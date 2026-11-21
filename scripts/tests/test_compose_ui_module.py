@@ -186,12 +186,15 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertNotIn("mutableStateOf(emptySet<Long>())", host)
 
     def test_email_creation_is_optional_ephemeral_and_deadline_guarded(self):
-        dialog = (UI_MAIN / "vault/EmailEntryDialog.kt").read_text()
+        adapter = (UI_MAIN / "vault/EmailEntryDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/SharedEmailAccountDialog.kt").read_text()
         manual = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("SharedEmailAccountDialog(", adapter)
         self.assertIn("remember(inputKey)", dialog)
         self.assertNotIn("rememberSaveable", dialog)
-        self.assertIn("input = input.withoutSecrets(); onSubmit(submitted)", dialog)
+        self.assertIn("input = input.withoutSecrets()", dialog)
+        self.assertIn("onSubmit(submitted)", dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
         self.assertIn("input = ManualEntryInput(); email = true", manual)
@@ -231,7 +234,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_password_export_is_explicit_plaintext_and_lifetime_guarded(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/PasswordExportDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/PasswordExportDialog.kt").read_text()
         self.assertIn("passwordExporter.confirm(request, lifetime::checkActive)", host)
         self.assertIn("passwordExporter.choose(request, index, target, lifetime::checkActive)", host)
         self.assertGreaterEqual(host.count("passwordExporter.close()"), 2)
@@ -242,7 +245,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
     def test_archive_export_requires_plaintext_consent_and_ignores_stored_paths(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         picker = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/DesktopSavePicker.kt").read_text()
-        dialog = (UI_MAIN / "vault/ArchiveExportDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/ArchiveExportDialog.kt").read_text()
         self.assertIn("archiveExporter.confirm(request, lifetime::checkActive)", host)
         self.assertIn("archiveExporter.choose(request, index, target, lifetime::checkActive)", host)
         self.assertGreaterEqual(host.count("archiveExporter.close()"), 2)
@@ -265,7 +268,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
 
     def test_storage_location_uses_startup_path_and_plain_read_only_text(self):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        dialog = (UI_MAIN / "vault/StorageLocationDialog.kt").read_text()
+        dialog = (UI_FOUNDATION / "vault/StorageLocationDialog.kt").read_text()
         self.assertIn("ComposeVaultApp(controller, DesktopStorageLocation(directory))", host)
         self.assertIn("directory = location.dataDirectory", host)
         self.assertIn("showStorageLocation = false", host)
@@ -835,7 +838,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("PasswordEntryInput.supports(it)", host)
         components = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("card.kind == VaultEntryKind.PASSWORDS && card.canEditPassword", components)
-        form = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
+        adapter = (UI_MAIN / "vault/EmailDetailsDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedEmailDetailsDialog.kt").read_text()
+        self.assertIn("SharedEmailDetailsDialog(", adapter)
         self.assertIn("Show passwords", form)
         self.assertNotIn("rememberSaveable", form)
         self.assertNotIn("SelectionContainer", form)
@@ -864,7 +869,9 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_password_edit_clears_drafts_and_checks_live_reveal(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
-        form = (UI_MAIN / "vault/PasswordEntryDialog.kt").read_text()
+        adapter = (UI_MAIN / "vault/PasswordEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedPasswordEntryDialog.kt").read_text()
+        self.assertIn("SharedPasswordEntryDialog(", adapter)
         self.assertIn("PasswordVisualTransformation()", form)
         self.assertIn("input = input.withoutPassword()", form)
         self.assertNotIn("rememberSaveable", form)

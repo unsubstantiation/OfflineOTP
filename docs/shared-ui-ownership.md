@@ -27,16 +27,19 @@ colors help, but do not solve that duplication.
 The last SwiftUI production screen was replaced by one shared Compose composition:
 
 - `:ui-contract` owns `PortableCard`, `PortableChip`, `PortableVaultState`, `PortableRow`,
-  `PortableSurfaceState`, `PortableInputBounds`, and `AutoLockOptions`: strings, numbers and
-  booleans only, with no engine, toolkit or host type.
+  `PortableSurfaceState`, `PortableDetailRow`, `PortablePasswordEditDraft`,
+  `PortableEmailAccountDraft`, `PortableEntryDraft`, `PortableInputBounds`, and `AutoLockOptions`:
+  strings, numbers and booleans only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, and the engine-free shared
-  Compose dialogs consumed directly across Android, Desktop, and iOS (`AboutDialog`,
+  Compose dialogs/forms consumed directly across Android, Desktop, and iOS (`AboutDialog`,
   `AutoLockDialog`, `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`,
   `EntryConfirmationDialog`, `CheckboxConfirmationDialog`, `SharedEntryPinDialog`,
   `EntryCounterDialog`, `EntryDetailsDialog`, `TagsDialog`, `HideableDialog`,
   `MultiChoiceSelectionDialog`, `QrCodeDialog`, `EntryCopyDialog`, `EncryptedExportDialog`,
   `EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`, `EmailImportDialog`,
-  `LinScpExportDialog`, `LinScpImportDialog`, and `UriImportDialog`).
+  `LinScpExportDialog`, `LinScpImportDialog`, `UriImportDialog`, `ArchiveExportDialog`,
+  `PasswordExportDialog`, `StorageLocationDialog`, `EmailChoiceField`, `SharedPasswordEntryDialog`,
+  `SharedEmailDetailsDialog`, `SharedEmailAccountDialog`, and `SharedManualEntryDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
   and `PortableSurfaceActions` to Swift, routing dialog keys directly to the shared `:ui-foundation`
   composables while reserving `PortableSurfaceDialog` for host navigation/edit menus. One

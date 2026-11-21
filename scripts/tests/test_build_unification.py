@@ -25,8 +25,10 @@ class BuildUnificationTest(unittest.TestCase):
         self.assertIn('PasswordEntryDialog(', desktop)
         for name in ('EmailEntryDialog.kt', 'PasswordEntryEditDialog.kt'):
             self.assertFalse((APP / 'Dialogs' / name).exists())
-        form = (UI / 'vault/PasswordEntryDialog.kt').read_text()
-        self.assertIn('BrowserPasswordCsv.MAX_FIELD_CHARS', form)
+        adapter = (UI / 'vault/PasswordEntryDialog.kt').read_text()
+        form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedPasswordEntryDialog.kt').read_text()
+        self.assertIn('BrowserPasswordCsv.MAX_FIELD_CHARS', adapter)
+        self.assertIn('SharedPasswordEntryDialog(', adapter)
         self.assertIn('verticalScroll(rememberScrollState())', form)
         self.assertIn('Show password', form)
         self.assertNotIn('rememberSaveable', form)

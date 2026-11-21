@@ -119,3 +119,66 @@ data class PortableSurfaceState(
             it.kind != PortableRow.KIND_INFO && it.enabled
         }
 }
+
+/** Label/value row for read-only detail dialogs shared across Android, Desktop and iOS. */
+data class PortableDetailRow(val label: String, val value: String) {
+    override fun toString(): String = "PortableDetailRow($label=<redacted>)"
+}
+
+/** Ephemeral browser/common password edit fields; never exposes the password in diagnostics. */
+data class PortablePasswordEditDraft(
+    val url: String = "",
+    val username: String = "",
+    val password: String = ""
+) {
+    fun withoutPassword(): PortablePasswordEditDraft = copy(password = "")
+    override fun toString(): String = "PortablePasswordEditDraft(redacted)"
+}
+
+/** Ephemeral email account creation/editing draft shared across Desktop, Android and iOS. */
+data class PortableEmailAccountDraft(
+    val name: String = "",
+    val address: String = "",
+    val protocol: Int = 0,
+    val incomingHost: String = "",
+    val incomingPort: String = "993",
+    val incomingEncryption: Int = 0,
+    val incomingAuth: String = "1",
+    val incomingUser: String = "",
+    val incomingPassword: String = "",
+    val outgoingHost: String = "",
+    val outgoingPort: String = "465",
+    val outgoingEncryption: Int = 0,
+    val outgoingAuth: String = "1",
+    val outgoingUser: String = "",
+    val outgoingPassword: String = "",
+    val tags: String = ""
+) {
+    fun withoutSecrets(): PortableEmailAccountDraft = copy(incomingPassword = "", outgoingPassword = "")
+    override fun toString(): String = "PortableEmailAccountDraft(redacted)"
+}
+
+/** Ephemeral manual OTP / Note / SSH-key entry draft for native-compatible Compose editors. */
+data class PortableEntryDraft(
+    val kind: String = "TOTP",
+    val issuer: String = "",
+    val label: String = "",
+    val hiddenLabel: String = "",
+    val secret: String = "",
+    val digits: String = "6",
+    val period: String = "30",
+    val counter: String = "0",
+    val pin: String = "",
+    val publicKey: String = "",
+    val privateKey: String = "",
+    val sshHost: String = "",
+    val sshPort: String = "",
+    val sshUsername: String = "",
+    val sshPassword: String = "",
+    val tags: String = ""
+) {
+    fun withoutSecrets(): PortableEntryDraft =
+        copy(secret = "", pin = "", hiddenLabel = "", privateKey = "", sshPassword = "")
+
+    override fun toString(): String = "PortableEntryDraft(kind=$kind, redacted)"
+}

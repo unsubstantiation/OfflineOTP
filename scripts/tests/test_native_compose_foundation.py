@@ -258,6 +258,14 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/LinScpImportDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/ArchiveExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/PasswordExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/StorageLocationDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EmailChoiceField.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedPasswordEntryDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedEmailDetailsDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedEmailAccountDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt',
         ):
             form = (COMMON / rel).read_text()
             self.assertNotIn('rememberSaveable', form, rel)
@@ -266,6 +274,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('const val MAX_TEXT_CHARS: Int = 1024', bounds)
         self.assertIn('const val MAX_URI_CHARS: Int = 16384', bounds)
         self.assertIn('const val MAX_TAG_CHARS: Int = 128', bounds)
+        self.assertIn('const val MAX_PASSWORD_FIELD_CHARS: Int = 64 * 1024', bounds)
+        self.assertIn('const val MAX_EMAIL_CREDENTIAL_CHARS: Int = 16 * 1024', bounds)
 
         vc = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text()
         for shared_call in (
@@ -288,6 +298,13 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'LinScpExportDialog(',
             'LinScpImportDialog(',
             'UriImportDialog(',
+            'QrCodeDialog(',
+            'ArchiveExportDialog(',
+            'StorageLocationDialog(',
+            'SharedEmailAccountDialog(',
+            'SharedManualEntryDialog(',
+            'SharedPasswordEntryDialog(',
+            'SharedEmailDetailsDialog(',
         ):
             self.assertIn(shared_call, vc)
 

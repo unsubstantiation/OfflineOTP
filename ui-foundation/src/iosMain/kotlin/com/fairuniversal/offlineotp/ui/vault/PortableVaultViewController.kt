@@ -436,11 +436,176 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss
             )
         }
-        else -> PortableSurfaceDialog(
-            state = dialog,
-            onChange = { key, value -> surfaceActions.change(key, value) },
-            onAction = { key -> onAction(key) },
+        "qr" -> {
+            val matrixSize = rowValue("matrixSize").toIntOrNull() ?: 0
+            val matrixBits = rowValue("matrixBits")
+            if (matrixSize > 0 && matrixBits.length >= matrixSize * matrixSize) {
+                QrCodeDialog(
+                    title = dialog.title,
+                    matrixSize = matrixSize,
+                    matrixBits = matrixBits,
+                    confirmLabel = dialog.confirmLabel,
+                    onDismiss = onDismiss
+                )
+            } else {
+                PortableSurfaceDialog(
+                    state = dialog,
+                    onChange = { key, value -> surfaceActions.change(key, value) },
+                    onAction = { key -> onAction(key) },
+                    onDismiss = onDismiss
+                )
+            }
+        }
+        "archiveExport" -> {
+            val archiveRows = rows.filter { it.key.startsWith("archiveExportSelect:") }
+            ArchiveExportDialog(
+                labels = archiveRows.map { it.title },
+                onSelect = { index ->
+                    archiveRows.getOrNull(index)?.let { onAction(it.key) }
+                },
+                onDismiss = onDismiss
+            )
+        }
+        "storageLocation" -> StorageLocationDialog(
+            directory = rowValue("directory"),
+            files = rows.filter { it.key.startsWith("file:") }.map { it.title },
             onDismiss = onDismiss
         )
+        "emailEditor" -> SharedEmailAccountDialog(
+            inputKey = dialogKey,
+            initial = PortableEmailAccountDraft(
+                name = rowValue("name"),
+                address = rowValue("address"),
+                protocol = rowValue("inProtoNum").toIntOrNull() ?: 0,
+                incomingHost = rowValue("inHost"),
+                incomingPort = rowValue("inPort").ifEmpty { "993" },
+                incomingEncryption = rowValue("inEncNum").toIntOrNull() ?: 0,
+                incomingAuth = rowValue("inAuth").ifEmpty { "1" },
+                incomingUser = rowValue("inUser"),
+                incomingPassword = "",
+                outgoingHost = rowValue("outHost"),
+                outgoingPort = rowValue("outPort").ifEmpty { "465" },
+                outgoingEncryption = rowValue("outEncNum").toIntOrNull() ?: 0,
+                outgoingAuth = rowValue("outAuth").ifEmpty { "1" },
+                outgoingUser = rowValue("outUser"),
+                outgoingPassword = "",
+                tags = rowValue("tags")
+            ),
+            editing = dialog.title == "Edit email account",
+            error = dialog.message.ifEmpty { null },
+            onSubmit = { draft ->
+                surfaceActions.change("name", draft.name)
+                surfaceActions.change("address", draft.address)
+                surfaceActions.change("inProto", draft.protocol.toString())
+                surfaceActions.change("inHost", draft.incomingHost)
+                surfaceActions.change("inPort", draft.incomingPort)
+                surfaceActions.change("inEnc", draft.incomingEncryption.toString())
+                surfaceActions.change("inAuth", draft.incomingAuth)
+                surfaceActions.change("inUser", draft.incomingUser)
+                surfaceActions.change("inPass", draft.incomingPassword)
+                surfaceActions.change("outHost", draft.outgoingHost)
+                surfaceActions.change("outPort", draft.outgoingPort)
+                surfaceActions.change("outEnc", draft.outgoingEncryption.toString())
+                surfaceActions.change("outAuth", draft.outgoingAuth)
+                surfaceActions.change("outUser", draft.outgoingUser)
+                surfaceActions.change("outPass", draft.outgoingPassword)
+                surfaceActions.change("tags", draft.tags)
+                confirm()
+            },
+            onDismiss = onDismiss
+        )
+        "editor" -> SharedManualEntryDialog(
+            inputKey = dialogKey,
+            initial = PortableEntryDraft(
+                kind = rowValue("type").ifEmpty { "TOTP" },
+                issuer = rowValue("issuer"),
+                label = rowValue("label"),
+                hiddenLabel = rowValue("hiddenLabel"),
+                secret = rowValue("secret"),
+                digits = rowValue("digits").ifEmpty { "6" },
+                period = rowValue("period").ifEmpty { "30" },
+                counter = rowValue("counter").ifEmpty { "0" },
+                pin = rowValue("pin"),
+                publicKey = rowValue("publicKey"),
+                privateKey = rowValue("privateKey"),
+                sshHost = rowValue("sshHost"),
+                sshPort = rowValue("sshPort"),
+                sshUsername = rowValue("sshUsername"),
+                sshPassword = rowValue("sshPassword"),
+                tags = rowValue("tags")
+            ),
+            editing = dialog.title == "Edit entry",
+            error = dialog.message.ifEmpty { null },
+            onSwitchToEmail = if (dialog.title != "Edit entry") {
+                { onAction("switchToEmailEditor") }
+            } else {
+                null
+            },
+            onSubmit = { draft ->
+                surfaceActions.change("type", draft.kind)
+                surfaceActions.change("issuer", draft.issuer)
+                surfaceActions.change("label", draft.label)
+                surfaceActions.change("hiddenLabel", draft.hiddenLabel)
+                surfaceActions.change("secret", draft.secret)
+                surfaceActions.change("digits", draft.digits)
+                surfaceActions.change("period", draft.period)
+                surfaceActions.change("counter", draft.counter)
+                surfaceActions.change("pin", draft.pin)
+                surfaceActions.change("publicKey", draft.publicKey)
+                surfaceActions.change("privateKey", draft.privateKey)
+                surfaceActions.change("sshHost", draft.sshHost)
+                surfaceActions.change("sshPort", draft.sshPort)
+                surfaceActions.change("sshUsername", draft.sshUsername)
+                surfaceActions.change("sshPassword", draft.sshPassword)
+                surfaceActions.change("tags", draft.tags)
+                confirm()
+            },
+            onDismiss = onDismiss
+        )
+        else -> when {
+            dialog.key.startsWith("passwordEdit:") && rows.isNotEmpty() -> SharedPasswordEntryDialog(
+                inputKey = dialogKey,
+                initial = PortablePasswordEditDraft(
+                    url = rowValue("url"),
+                    username = rowValue("username"),
+                    password = ""
+                ),
+                failed = dialog.message.isNotEmpty(),
+                errorText = dialog.message.ifEmpty { null },
+                onSubmit = { draft ->
+                    surfaceActions.change("url", draft.url)
+                    surfaceActions.change("username", draft.username)
+                    surfaceActions.change("password", draft.password)
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+            dialog.key.startsWith("details:") && rows.any { it.key.startsWith("emailDetail:") } -> {
+                val entryIdx = dialog.key.removePrefix("details:")
+                val detailRows = buildList {
+                    for (detail in rows.filter { it.key.startsWith("emailDetail:") }) {
+                        add(PortableDetailRow(label = detail.title, value = detail.value))
+                    }
+                    val tags = rowValue("info:Tags")
+                    if (tags.isNotEmpty()) {
+                        add(PortableDetailRow(label = "Tags", value = tags))
+                    }
+                }
+                val toggleRow = rows.firstOrNull { it.key.startsWith("toggleEmailSecrets:") }
+                SharedEmailDetailsDialog(
+                    rows = detailRows,
+                    secretsVisible = toggleRow?.title == "Hide passwords",
+                    onToggleSecrets = { onAction(toggleRow?.key ?: "toggleEmailSecrets:$entryIdx") },
+                    onEditSettings = { onAction("edit:$entryIdx") },
+                    onDismiss = onDismiss
+                )
+            }
+            else -> PortableSurfaceDialog(
+                state = dialog,
+                onChange = { key, value -> surfaceActions.change(key, value) },
+                onAction = { key -> onAction(key) },
+                onDismiss = onDismiss
+            )
+        }
     }
 }

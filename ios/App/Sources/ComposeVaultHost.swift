@@ -1,3 +1,4 @@
+import CoreImage
 import UIKit
 import OfflineOTPKit
 import OfflineOTPPresentation
@@ -369,11 +370,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft["inPort"] = String(account.account["port"]?.intValue ?? 993)
             draft["inEnc"] = String(account.account["encryption"]?.intValue ?? 0)
             draft["inProto"] = String(account.account["protocol"]?.intValue ?? 0)
+            draft["inAuth"] = String(account.account["auth_type"]?.intValue ?? 1)
             draft["inUser"] = account.account["user"]?.stringValue ?? ""
             draft["inPass"] = ""
             draft["outHost"] = primary["host"]?.stringValue ?? ""
             draft["outPort"] = String(primary["port"]?.intValue ?? 465)
             draft["outEnc"] = String(primary["encryption"]?.intValue ?? 0)
+            draft["outAuth"] = String(primary["auth_type"]?.intValue ?? 1)
             draft["outUser"] = primary["user"]?.stringValue ?? ""
             draft["outPass"] = ""
             draft["tags"] = entry.tags.joined(separator: ", ")
@@ -384,11 +387,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft["inPort"] = "993"
             draft["inEnc"] = "0"
             draft["inProto"] = "0"
+            draft["inAuth"] = "1"
             draft["inUser"] = ""
             draft["inPass"] = ""
             draft["outHost"] = ""
             draft["outPort"] = "465"
             draft["outEnc"] = "0"
+            draft["outAuth"] = "1"
             draft["outUser"] = ""
             draft["outPass"] = ""
             draft["tags"] = ""
@@ -605,6 +610,24 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 sections: [PortableSection(title: "", rows: rows)],
                 confirmLabel: "Restore", dismissLabel: "Cancel")
         case "passwordPrompt": return passwordPromptSurface()
+        case "archiveExport":
+            let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
+                guard entry.kind == .passwordArchive else { return nil }
+                let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
+                return row("archiveExportSelect:\(idx)", label.isEmpty ? "Password archive" : label)
+            }
+            return PortableSurfaceState(key: key, title: "Export password archive",
+                sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Export", dismissLabel: "Cancel", showConfirm: false)
+        case "storageLocation":
+            let rows = [
+                row("directory", "Directory", value: store.folderPath, kind: "info"),
+                row("file:vault", "vault.enc", kind: "info"),
+                row("file:preferences", "preferences.json", kind: "info")
+            ]
+            return PortableSurfaceState(key: key, title: "Storage location",
+                sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
         default:
             return PortableSurfaceState(key: key, title: "Action",
                 sections: [PortableSection(title: "", rows: [])], confirmLabel: "Done",
@@ -691,15 +714,20 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text")]),
             PortableSection(title: "Incoming server", rows: [
                 row("emailCycleProto", "Protocol", value: inProto, kind: "action"),
+                row("inProtoNum", "Incoming protocol code", value: draft["inProto"] ?? "0", kind: "info"),
                 row("inHost", "Server host", value: draft["inHost"] ?? "", kind: "text"),
                 row("inPort", "Port", value: draft["inPort"] ?? "993", kind: "text"),
                 row("emailCycleInEnc", "Security", value: emailEncryptionLabel(draft["inEnc"]), kind: "action"),
+                row("inEncNum", "Incoming security code", value: draft["inEnc"] ?? "0", kind: "info"),
+                row("inAuth", "Authentication type", value: draft["inAuth"] ?? "1", kind: "text"),
                 row("inUser", "User name", value: draft["inUser"] ?? "", kind: "text"),
                 row("inPass", "Password\(passHint)", value: draft["inPass"] ?? "", kind: "secure")]),
             PortableSection(title: "Outgoing SMTP server", rows: [
                 row("outHost", "Server host", value: draft["outHost"] ?? "", kind: "text"),
                 row("outPort", "Port", value: draft["outPort"] ?? "465", kind: "text"),
                 row("emailCycleOutEnc", "Security", value: emailEncryptionLabel(draft["outEnc"]), kind: "action"),
+                row("outEncNum", "Outgoing security code", value: draft["outEnc"] ?? "0", kind: "info"),
+                row("outAuth", "Authentication type", value: draft["outAuth"] ?? "1", kind: "text"),
                 row("outUser", "User name", value: draft["outUser"] ?? "", kind: "text"),
                 row("outPass", "Password\(passHint)", value: draft["outPass"] ?? "", kind: "secure")])
         ]
@@ -723,7 +751,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("passwordChange", "Change vault password")]),
             PortableSection(title: "Vault", rows: [
                 row("info", "Entries", value: String(store.entries.count), kind: "info"),
-                row("info2", store.folderPath, kind: "info")]),
+                row("info2", store.folderPath, kind: "info"),
+                row("storageLocation", "Storage location…")]),
             PortableSection(title: "Preferences", rows: [
                 row("prefsExport", "Export preferences…"), row("prefsImport", "Import preferences…")]),
             PortableSection(title: "About", rows: [row("about", "About OfflineOTP")])
@@ -741,6 +770,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("backupImport", "Import encrypted backup…")]),
             PortableSection(title: "Other formats", rows: [
                 row("csvExport", "Export passwords as browser CSV…"),
+                row("archiveExport", "Export password archive…"),
                 row("importPasswordsCsv", "Import browser passwords…"),
                 row("uriImport", "Import an otpauth:// link…"),
                 row("qrCamera", "Scan an otpauth:// QR code…")]),
@@ -823,9 +853,41 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     private func qrSurface() -> PortableSurfaceState {
         let payload = editorIndex.flatMap { store.otpUri(for: $0) } ?? ""
+        var rows = [row("info", payload, kind: "info")]
+        if let matrix = qrMatrix(for: payload) {
+            rows.append(row("matrixSize", "Size", value: String(matrix.size), kind: "info"))
+            rows.append(row("matrixBits", "Bits", value: matrix.bits, kind: "info"))
+        }
         return PortableSurfaceState(key: "qr", title: "QR code",
-            sections: [PortableSection(title: "Link", rows: [row("info", payload, kind: "info")])],
+            sections: [PortableSection(title: "Link", rows: rows)],
             confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
+    }
+
+    private func qrMatrix(for payload: String) -> (size: Int, bits: String)? {
+        guard !payload.isEmpty,
+              let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(Data(payload.utf8), forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let output = filter.outputImage else { return nil }
+        let width = Int(output.extent.width)
+        let height = Int(output.extent.height)
+        guard width > 0, width == height, width <= 256 else { return nil }
+        var pixels = [UInt8](repeating: 255, count: width * height * 4)
+        let context = CIContext(options: [.useSoftwareRenderer: true])
+        context.render(
+            output,
+            toBitmap: &pixels,
+            rowBytes: width * 4,
+            bounds: output.extent,
+            format: .RGBA8,
+            colorSpace: CGColorSpaceCreateDeviceRGB()
+        )
+        var chars = String()
+        chars.reserveCapacity(width * height)
+        for idx in 0..<(width * height) {
+            chars.append(pixels[idx * 4] < 128 ? "1" : "0")
+        }
+        return (width, chars)
     }
 
     private func passwordPromptSurface() -> PortableSurfaceState {
@@ -1279,7 +1341,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let inEnc = Int(draft["inEnc"] ?? "0") ?? 0
         let inProto = Int(draft["inProto"] ?? "0") ?? 0
         let outEnc = Int(draft["outEnc"] ?? "0") ?? 0
-        let tags = (draft["tags"] ?? "").split(separator: ",").map(String.init)
+        guard let inAuth = Int((draft["inAuth"] ?? "1").trimmingCharacters(in: .whitespacesAndNewlines)),
+              let outAuth = Int((draft["outAuth"] ?? "1").trimmingCharacters(in: .whitespacesAndNewlines)) else {
+            return "Authentication types must be numeric FairEmail IDs."
+        }
+        let tags = (draft["tags"] ?? "").split(whereSeparator: { $0 == "," || $0.isNewline }).map(String.init)
         let typedInPass = draft["inPass"] ?? ""
         let typedOutPass = draft["outPass"] ?? ""
         do {
@@ -1299,13 +1365,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     incomingProtocol: inProto,
                     incomingUser: draft["inUser"] ?? "",
                     incomingPassword: inPass,
-                    incomingAuth: Int(existingAccount.account["auth_type"]?.intValue ?? 1),
+                    incomingAuth: inAuth,
                     outgoingHost: draft["outHost"] ?? "",
                     outgoingPort: outPort,
                     outgoingEncryption: outEnc,
                     outgoingUser: draft["outUser"] ?? "",
                     outgoingPassword: outPass,
-                    outgoingAuth: Int(existingAccount.identities.first?["auth_type"]?.intValue ?? 1))
+                    outgoingAuth: outAuth)
                 var mergedAccount = existingAccount.account
                 for (k, v) in validated.account { mergedAccount[k] = v }
                 var mergedIdentities = existingAccount.identities
@@ -1332,11 +1398,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     incomingProtocol: inProto,
                     incomingUser: draft["inUser"] ?? "",
                     incomingPassword: typedInPass,
+                    incomingAuth: inAuth,
                     outgoingHost: draft["outHost"] ?? "",
                     outgoingPort: outPort,
                     outgoingEncryption: outEnc,
                     outgoingUser: draft["outUser"] ?? "",
-                    outgoingPassword: typedOutPass)
+                    outgoingPassword: typedOutPass,
+                    outgoingAuth: outAuth)
                 guard store.addEmailAccount(account, tags: tags) else {
                     return store.message ?? "The email account could not be saved."
                 }
@@ -1364,7 +1432,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 digits: draft["digits"] ?? "6",
                 timing: timing,
                 pin: draft["pin"] ?? "",
-                tags: (draft["tags"] ?? "").split(separator: ",").map(String.init),
+                tags: (draft["tags"] ?? "").split(whereSeparator: { $0 == "," || $0.isNewline }).map(String.init),
                 publicKey: draft["publicKey"] ?? "",
                 privateKey: draft["privateKey"] ?? "",
                 sshHost: draft["sshHost"] ?? "",
@@ -1404,6 +1472,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             else { linScpSelected.insert(index) }
             return nil
         }
+        if command == "archiveExportSelect", let index {
+            guard let archive = store.exportPasswordArchive(at: index) else {
+                return store.message ?? "The password archive could not be exported."
+            }
+            onExport(archive.data, archive.name)
+            closeSurface()
+            return nil
+        }
         if command == "passwordImportMode", parts.count > 1 {
             let mode: PasswordImport.Mode = parts[1] == "archive" ? .archive : .individual
             guard let plan = store.importBrowserPasswords(
@@ -1428,8 +1504,17 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         }
         switch command {
-        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport":
+        case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation":
             openSurface(command)
+            return nil
+        case "archiveExport":
+            guard store.entries.contains(where: { $0.kind == .passwordArchive }) else {
+                return "There are no stored password archives in this vault."
+            }
+            openSurface("archiveExport")
+            return nil
+        case "switchToEmailEditor":
+            openEmailEditor(index: nil)
             return nil
         case "type":
             let offerable = EntryDraft.offerableKinds
