@@ -57,7 +57,11 @@ public enum PreferencesExport {
         Setting(key: sortModeKey, kind: .string),
         Setting(key: inactivityLockKey, kind: .integer),
         Setting(key: cardLayoutKey, kind: .string),
+        Setting(key: tagFunctionalityKey, kind: .string),
         Setting(key: hideIssuerKey, kind: .boolean),
+        Setting(key: showPrevTokenKey, kind: .boolean),
+        Setting(key: splitGroupSizeKey, kind: .integer),
+        Setting(key: searchIncludesKey, kind: .stringSet),
     ]
 
     /// Mirrors `SortMode.settingsKey` and the desktop client's `PreferencesExport.UI_SORT_MODE`.
@@ -66,8 +70,16 @@ public enum PreferencesExport {
     public static let inactivityLockKey = "ui_inactivity_lock_seconds"
     /// Mirrors `VaultStore.cardLayoutSettingKey` and `PreferencesExport.UI_CARD_LAYOUT`.
     public static let cardLayoutKey = "ui_card_layout"
+    /// Mirrors `VaultStore.tagFunctionalitySettingKey` and `PreferencesExport.UI_TAG_FUNCTIONALITY`.
+    public static let tagFunctionalityKey = "ui_tag_functionality"
     /// Mirrors `VaultStore.hideIssuerSettingKey`.
     public static let hideIssuerKey = "ui_hide_issuer"
+    /// Mirrors `VaultStore.showPrevTokenSettingKey` and `PreferencesExport.UI_SHOW_PREV_TOKEN`.
+    public static let showPrevTokenKey = "ui_show_prev_token"
+    /// Mirrors `VaultStore.splitGroupSizeSettingKey` and `PreferencesExport.UI_SPLIT_GROUP_SIZE`.
+    public static let splitGroupSizeKey = "ui_split_group_size"
+    /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.
+    public static let searchIncludesKey = "ui_search_includes"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.
     public static let quickUnlockKey = "biometric_unlock"
 

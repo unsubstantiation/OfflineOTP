@@ -44,11 +44,11 @@ class DesktopThunderbirdExport(
     private var work: Work? = null
     private var closed = false
 
-    /** Opens selection over live `EMAIL` and `PASSWORD` entries; returns false when none exist. */
+    /** Opens selection over exportable live `EMAIL` and `PASSWORD` entries; returns false when none exist. */
     fun open(active: () -> Boolean): Boolean {
         if (closed || state.isLocked || pending != null || !active()) return false
         val candidates = state.snapshot()
-            .filter { it.isEmail() || it.isPassword() }
+            .filter { ThunderbirdImport.isExportable(it) }
             .map { entry ->
                 val kindTag = if (entry.isEmail()) "Email" else "Password"
                 val name = listOf(entry.getIssuer().trim(), entry.getLabel().trim())
@@ -83,7 +83,7 @@ class DesktopThunderbirdExport(
         if (!current(request) || request.status != Status.CONFIRM || !active()) return false
         val target = request.file ?: return false
         val selected = state.snapshot().filter {
-            (it.isEmail() || it.isPassword()) && it.getListId() in request.selectedIds
+            ThunderbirdImport.isExportable(it) && it.getListId() in request.selectedIds
         }
         if (selected.isEmpty()) {
             request.status = Status.FAILED

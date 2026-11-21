@@ -881,4 +881,53 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertTrue(store.entries.contains(where: { $0.kind == .email }))
         adapter.invalidate()
     }
+
+    @MainActor
+    func testDisplayPreferencesSearchFieldsAndTagRulePersistAndRoundTrip() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("ops-label", issuer: "AcmeIssuer")))
+        store.toggleReveal(at: 0)
+
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "cardLayout"))
+        adapter.change(key: "layout", value: "COMPACT")
+        adapter.change(key: "hideIssuer", value: "true")
+        adapter.change(key: "showPreviousToken", value: "false")
+        adapter.change(key: "tokenGroupSize", value: "2")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.cardLayout, "COMPACT")
+        XCTAssertTrue(store.hideIssuer)
+        XCTAssertFalse(store.showPreviousToken)
+        XCTAssertEqual(store.tokenGroupSize, 2)
+
+        XCTAssertNil(adapter.action(key: "searchIncludes"))
+        adapter.change(key: "selectedIndices", value: "LABEL,TAGS")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.searchIncludes, [.label, .tags])
+        store.query = "AcmeIssuer"
+        XCTAssertTrue(store.displayedIndices.isEmpty)
+        store.query = "ops-label"
+        XCTAssertEqual(store.displayedIndices.count, 1)
+
+        adapter.tool(action: "tagRule")
+        XCTAssertEqual(store.tagFunctionality, .and)
+
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        store.setCardLayout("DEFAULT")
+        store.setHideIssuer(false)
+        store.setShowPreviousToken(true)
+        store.setTokenGroupSize(3)
+        store.setSearchIncludes(Set(SearchInclude.allCases))
+        store.setTagFunctionality(.or)
+
+        adapter.imported(data: exported.bytes, kind: "preferences")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.cardLayout, "COMPACT")
+        XCTAssertTrue(store.hideIssuer)
+        XCTAssertFalse(store.showPreviousToken)
+        XCTAssertEqual(store.tokenGroupSize, 2)
+        XCTAssertEqual(store.searchIncludes, [.label, .tags])
+        XCTAssertEqual(store.tagFunctionality, .and)
+        adapter.invalidate()
+    }
 }

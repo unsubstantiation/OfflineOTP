@@ -47,7 +47,11 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `HardwareCopyDialog`, and `HardwareOathDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
   and `PortableSurfaceActions` to Swift, routing dialog keys directly to the shared `:ui-foundation`
-  composables while reserving `PortableSurfaceDialog` for host navigation/edit menus. One
+  composables (`SharedCardLayoutDialog` for card density, token grouping, `Hide issuer`, and
+  `Show previous code`; `MultiChoiceSelectionDialog` for selective FairEmail/Thunderbird exports and
+  configurable `Search fields`; `PasswordExportDialog`, `ArchiveExportDialog`, `SharedManualEntryDialog`,
+  `SharedEmailAccountDialog`, `SharedThumbnailPickerDialog`, etc.) while reserving
+  `PortableSurfaceDialog` for host navigation/edit menus. One
   main-thread composition survives frame replacement; closing the host revokes every callback.
 - `AppDelegate.swift` installs `AppRootViewController`, which switches between
   `UnlockComposeViewController` and `VaultComposeViewController`, supplies native document

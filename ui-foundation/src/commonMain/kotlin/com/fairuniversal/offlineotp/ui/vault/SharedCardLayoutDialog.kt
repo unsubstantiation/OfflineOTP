@@ -2,7 +2,6 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -19,7 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 
-/** Shared Compose vault card layout selector across Desktop and iOS. */
+/** Shared Compose vault card layout and display selector across Desktop and iOS. */
 @Composable
 fun SharedCardLayoutDialog(
     inputKey: Any,
@@ -28,15 +27,21 @@ fun SharedCardLayoutDialog(
     onSave: (PortableCardLayout) -> Unit,
     onDismiss: () -> Unit,
     hideIssuer: Boolean? = null,
-    onSaveAppearance: ((PortableCardLayout, Boolean) -> Unit)? = null
+    onSaveAppearance: ((PortableCardLayout, Boolean) -> Unit)? = null,
+    showPreviousToken: Boolean? = null,
+    tokenGroupSize: Int? = null,
+    allowDefaultGrouping: Boolean = true,
+    onSaveDisplay: ((PortableCardLayout, Boolean, Boolean, Int?) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
     var hideIssuerChecked by remember(inputKey) { mutableStateOf(hideIssuer == true) }
+    var showPreviousChecked by remember(inputKey) { mutableStateOf(showPreviousToken != false) }
+    var selectedGroupSize by remember(inputKey) { mutableStateOf(tokenGroupSize) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
         text = {
-            Column {
+            ScrollableDialogBody {
                 Text(text = "Choose the Compose vault card layout. Saving keeps your current filter and revealed entries.")
                 for (layout in PortableCardLayout.values()) {
                     val label = when (layout) {
@@ -48,6 +53,24 @@ fun SharedCardLayoutDialog(
                         text = if (selected == layout) "Selected: $label" else label,
                         onClick = { selected = layout }
                     )
+                }
+                if (onSaveDisplay != null) {
+                    Text(
+                        text = "Token grouping",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    val groupOptions = buildList<Pair<Int?, String>> {
+                        if (allowDefaultGrouping) add(null to "Default")
+                        add(0 to "Don't split")
+                        add(2 to "After two characters")
+                        add(3 to "After three characters")
+                    }
+                    for ((size, label) in groupOptions) {
+                        ForestTextAction(
+                            text = if (selectedGroupSize == size) "Selected: $label" else label,
+                            onClick = { selectedGroupSize = size }
+                        )
+                    }
                 }
                 if (hideIssuer != null) {
                     Row(
@@ -65,15 +88,31 @@ fun SharedCardLayoutDialog(
                         Text(text = "Hide issuer label on cards")
                     }
                 }
+                if (showPreviousToken != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showPreviousChecked = !showPreviousChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = showPreviousChecked,
+                            onCheckedChange = { showPreviousChecked = it }
+                        )
+                        Text(text = "Show previous code when revealed")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
         confirmButton = {
             ForestTextAction(text = "Save", onClick = {
-                if (onSaveAppearance != null && hideIssuer != null) {
-                    onSaveAppearance(selected, hideIssuerChecked)
-                } else {
-                    onSave(selected)
+                when {
+                    onSaveDisplay != null -> onSaveDisplay(selected, hideIssuerChecked, showPreviousChecked, selectedGroupSize)
+                    onSaveAppearance != null && hideIssuer != null -> onSaveAppearance(selected, hideIssuerChecked)
+                    else -> onSave(selected)
                 }
             })
         },

@@ -1130,6 +1130,28 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("chooseEmailPasswordToCopy(", android_ctrl)
         self.assertIn("choosePasswordFieldToCopy(", android_ctrl)
 
+    def test_selective_email_export_per_entry_exports_and_display_search_parity(self):
+        prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
+        for key in ("UI_SHOW_PREV_TOKEN", "UI_SPLIT_GROUP_SIZE", "UI_SEARCH_INCLUDES"):
+            self.assertIn(key, prefs)
+
+        email_exp = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEmailExport.kt").read_text(encoding="utf-8")
+        self.assertIn("fun openSelective(", email_exp)
+        self.assertIn("fun choose(", email_exp)
+
+        entry_actions = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryActions.kt").read_text(encoding="utf-8")
+        self.assertIn("EXPORT_PASSWORD_CSV", entry_actions)
+        self.assertIn("EXPORT_PASSWORD_ARCHIVE", entry_actions)
+
+        shared_layout = (UI_FOUNDATION / "vault/SharedCardLayoutDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("showPreviousToken", shared_layout)
+        self.assertIn("tokenGroupSize", shared_layout)
+        self.assertIn("onSaveDisplay", shared_layout)
+
+        ios_vc = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt").read_text(encoding="utf-8")
+        self.assertIn('"searchIncludes"', ios_vc)
+        self.assertIn("onSaveDisplay =", ios_vc)
+
 
 if __name__ == "__main__":
     unittest.main()

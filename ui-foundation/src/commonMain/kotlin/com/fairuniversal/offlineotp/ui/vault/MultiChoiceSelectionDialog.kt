@@ -35,9 +35,12 @@ fun MultiChoiceSelectionDialog(
     confirmLabel: String,
     dismissLabel: String,
     onConfirm: (Set<Int>) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    initialSelected: Set<Int> = emptySet()
 ) {
-    var selected by remember(inputKey) { mutableStateOf(emptySet<Int>()) }
+    var selected by remember(inputKey) {
+        mutableStateOf(initialSelected.filter { it in items.indices }.toSet())
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title, style = ForestType.title, color = ForestPalette.textPrimary) },

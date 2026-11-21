@@ -75,6 +75,10 @@ class PreferencesFormatTest(unittest.TestCase):
         port = read(DESKTOP / "storage/DesktopPreferencesPort.kt")
         self.assertIn("PreferencesExport.setting(key, PreferencesExport.PLATFORM_DESKTOP)", port)
 
+        swift = read(IOS_KIT / "PreferencesExport.swift")
+        for key in ("tagFunctionalityKey", "showPrevTokenKey", "splitGroupSizeKey", "searchIncludesKey"):
+            self.assertIn(key, swift)
+
 
 class PreferencesWiringTest(unittest.TestCase):
     def test_android_settings_screen_offers_export_and_import(self):

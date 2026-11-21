@@ -34,6 +34,17 @@ class DesktopArchiveExport(private val state: DesktopVaultState, private val wor
         if (!active() || closed || state.isLocked || pending != null) return false
         pending = Request(entries); changed(); return true
     }
+    fun openSingle(entryId: Long, file: File, active: () -> Boolean): Boolean {
+        if (closed || state.isLocked || pending != null || !active()) return false
+        val entry = state.snapshot().firstOrNull { it.getListId() == entryId && it.isPasswordArchive() } ?: return false
+        if (!active() || closed || state.isLocked || pending != null) return false
+        val request = Request(listOf(entry)).also {
+            it.selected = 0
+            it.file = file
+            it.status = Status.CONFIRM
+        }
+        pending = request; changed(); return true
+    }
     fun choose(request: Request, index: Int, file: File, active: () -> Boolean): Boolean {
         if (!current(request) || request.status != Status.SELECT || index !in request.entries.indices || !active() || !current(request)) return false
         request.selected = index; request.file = file; request.status = Status.CONFIRM; changed(); return true

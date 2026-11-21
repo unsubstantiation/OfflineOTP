@@ -20,6 +20,7 @@ data class VaultStrings(
     val closeTools: String = "Close",
     val addEntry: String = "Add entry",
     val cardLayout: String = "Card layout",
+    val searchFields: String = "Search fields",
     val autoLock: String = "Auto-lock",
     val emailDetails: String = "Connection details",
     val importPreferences: String = "Import preferences",

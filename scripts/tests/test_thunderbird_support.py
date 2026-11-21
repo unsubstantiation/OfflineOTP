@@ -60,6 +60,7 @@ class ThunderbirdSupportTest(unittest.TestCase):
         self.assertIn("ThunderbirdCsv.MAX_FILE_BYTES", imp)
         exp = (DESKTOP / "control/DesktopThunderbirdExport.kt").read_text(encoding="utf-8")
         self.assertIn("ThunderbirdImport.exportCsv", exp)
+        self.assertIn("ThunderbirdImport.isExportable", exp)
         self.assertIn("ExclusiveExportFile::writeNew", exp)
         tools = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultTools.kt").read_text(encoding="utf-8")
         self.assertIn("IMPORT_THUNDERBIRD", tools)

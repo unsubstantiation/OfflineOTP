@@ -50,18 +50,26 @@ final class PreferencesExportTests: XCTestCase {
     func testCardLayoutAndHideIssuerRoundTripAndInspectPreview() throws {
         let source = FakePort([
             PreferencesExport.cardLayoutKey: .text("COMPACT"),
+            PreferencesExport.tagFunctionalityKey: .text("AND"),
             PreferencesExport.hideIssuerKey: .boolean(true),
+            PreferencesExport.showPrevTokenKey: .boolean(false),
+            PreferencesExport.splitGroupSizeKey: .integer(2),
+            PreferencesExport.searchIncludesKey: .textSet(["LABEL", "TAGS"]),
         ])
         let exported = try PreferencesExport.export(source)
         let preview = try PreferencesExport.inspect(exported.bytes)
-        XCTAssertEqual(2, preview.applied)
+        XCTAssertEqual(6, preview.applied)
         XCTAssertTrue(preview.unknownKeys.isEmpty)
 
         let target = FakePort()
         let result = try PreferencesExport.apply(exported.bytes, into: target)
-        XCTAssertEqual(2, result.applied)
+        XCTAssertEqual(6, result.applied)
         XCTAssertEqual(.text("COMPACT"), target.writes[PreferencesExport.cardLayoutKey])
+        XCTAssertEqual(.text("AND"), target.writes[PreferencesExport.tagFunctionalityKey])
         XCTAssertEqual(.boolean(true), target.writes[PreferencesExport.hideIssuerKey])
+        XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showPrevTokenKey])
+        XCTAssertEqual(.integer(2), target.writes[PreferencesExport.splitGroupSizeKey])
+        XCTAssertEqual(.textSet(["LABEL", "TAGS"]), target.writes[PreferencesExport.searchIncludesKey])
     }
 
     func testAbsentSettingIsNotWrittenAsItsDefault() throws {

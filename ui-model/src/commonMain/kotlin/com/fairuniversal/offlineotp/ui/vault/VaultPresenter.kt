@@ -67,6 +67,23 @@ class VaultPresenter(
         onChange?.invoke()
     }
 
+    fun setDisplaySettings(
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?
+    ) {
+        if (locked) return
+        appearance = appearance.copy(
+            cardLayout = layout,
+            showIssuer = !hideIssuer,
+            showPreviousToken = showPreviousToken,
+            groupTokens = tokenGroupSize != 0,
+            tokenGroupSize = tokenGroupSize?.takeIf { it > 0 }
+        )
+        onChange?.invoke()
+    }
+
     private val revealed = LinkedHashSet<Long>()
     private var locked = false
 
@@ -132,6 +149,7 @@ class VaultPresenter(
                 importThunderbird: (() -> Unit)? = null,
                 viewEmailDetails: ((VaultCardState) -> Unit)? = null,
                 configureLayout: (() -> Unit)? = null,
+                configureSearchFields: (() -> Unit)? = null,
                 importLinScp: (() -> Unit)? = null,
                 exportLinScp: (() -> Unit)? = null,
                 importOpenPgp: (() -> Unit)? = null,
@@ -165,6 +183,7 @@ class VaultPresenter(
         onExportLinScp = exportLinScp,
         onImportLinScp = importLinScp,
         onConfigureLayout = configureLayout,
+        onConfigureSearchFields = configureSearchFields,
         onViewEmailDetails = viewEmailDetails?.let { view -> { card -> if (card.id in revealed && card.kind == VaultEntryKind.EMAILS) view(card) } },
         onImportEmail = importEmail,
         onImportThunderbird = importThunderbird,

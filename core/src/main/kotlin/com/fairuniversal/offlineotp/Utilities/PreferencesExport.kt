@@ -200,7 +200,10 @@ object PreferencesExport {
         Setting(UI_INACTIVITY_LOCK_SECONDS, Kind.INTEGER),
         Setting(UI_CARD_LAYOUT, Kind.STRING),
         Setting(UI_TAG_FUNCTIONALITY, Kind.STRING),
-        Setting(UI_HIDE_ISSUER, Kind.BOOLEAN)
+        Setting(UI_HIDE_ISSUER, Kind.BOOLEAN),
+        Setting(UI_SHOW_PREV_TOKEN, Kind.BOOLEAN),
+        Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
+        Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
     )
 
     /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
@@ -209,6 +212,12 @@ object PreferencesExport {
     const val UI_TAG_FUNCTIONALITY = "ui_tag_functionality"
     /** Desktop key for hiding issuer prefixes on cards until revealed. */
     const val UI_HIDE_ISSUER = "ui_hide_issuer"
+    /** Desktop key for showing the previous rolling OTP code on revealed cards. */
+    const val UI_SHOW_PREV_TOKEN = "ui_show_prev_token"
+    /** Desktop key for explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets). */
+    const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
+    /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */
+    const val UI_SEARCH_INCLUDES = "ui_search_includes"
     /** Desktop key for the saved list order. Mirrors `VaultController.SORT_MODE_KEY`. */
     const val UI_SORT_MODE = "ui_sort_mode"
     /** Desktop key for the inactivity lock delay. Mirrors `VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS`. */
