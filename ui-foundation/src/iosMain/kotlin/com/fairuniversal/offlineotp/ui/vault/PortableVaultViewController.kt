@@ -4,7 +4,6 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.window.ComposeUIViewController
@@ -41,7 +40,7 @@ class PortableVaultPresentation {
     private var vault by mutableStateOf(PortableVaultState.EMPTY)
     private var cardLayout by mutableStateOf(PortableCardLayout.DEFAULT)
     private var surface by mutableStateOf<PortableSurfaceState?>(null)
-    private var surfaceEpoch by mutableIntStateOf(0)
+    private var surfaceEpoch by mutableStateOf(0)
 
     /** Replaces the frame without replacing the composition. */
     fun updateVault(state: PortableVaultState) {
@@ -504,7 +503,7 @@ private fun RenderSharedSurface(
         }
         "storageLocation" -> StorageLocationDialog(
             directory = rowValue("directory"),
-            files = rows.filter { it.key.startsWith("file:") }.map { it.title },
+            filenames = rows.filter { it.key.startsWith("file:") }.map { it.title },
             onDismiss = onDismiss
         )
         "emailEditor" -> SharedEmailAccountDialog(

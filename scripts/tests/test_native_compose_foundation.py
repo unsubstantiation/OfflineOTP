@@ -340,3 +340,29 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('EmailMaterial.create(', host)
         self.assertIn('store.importBrowserPasswords(', host)
         self.assertNotIn(r'action("edit:\(index)")', host)
+
+    def test_kotlin_compose_imports_and_ios_objc_interop_signatures(self):
+        """Guard against Compose top-level import errors and Kotlin/Native ObjC label/default-arg mismatches."""
+        for module in ('ui-contract', 'ui-foundation', 'ui', 'app', 'desktop', 'desktop-compose'):
+            for path in (ROOT / module / 'src').rglob('*.kt'):
+                text = path.read_text(encoding='utf-8')
+                self.assertNotIn('import androidx.compose.ui.then', text, str(path))
+
+        compile_ui = (ROOT / 'scripts/kotlin-sandbox/compile-ui.sh').read_text(encoding='utf-8')
+        self.assertIn('ui-foundation/src/iosMain/kotlin', compile_ui)
+        self.assertIn('phase 0b: ios host seam', compile_ui)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('presentation.updateVault(state: vaultState())', host)
+        self.assertIn('presentation.updateSurface(state: surfaceState(surfaceKey))', host)
+        self.assertIn('presentation.updateSurface(state: surfaceState(key))', host)
+        self.assertIn('presentation.updateSurface(state: nil)', host)
+        self.assertNotIn('presentation.updateVault(vaultState())', host)
+        self.assertNotIn('presentation.updateSurface(nil)', host)
+        self.assertEqual(1, host.count('PortableSurfaceState('))
+        self.assertIn(
+            'PortableSurfaceState(key: key, title: title, sections: sections, confirmLabel: confirmLabel,\n'
+            '                             dismissLabel: dismissLabel, showConfirm: showConfirm, message: message,\n'
+            '                             busy: busy)',
+            host,
+        )
