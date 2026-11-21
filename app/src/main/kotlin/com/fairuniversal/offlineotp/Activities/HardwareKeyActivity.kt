@@ -6,7 +6,6 @@ import android.os.Handler
 import android.os.Looper
 import android.view.View
 import android.widget.Button
-import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -25,6 +24,10 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.CheckboxConfirmationComposeView
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
 
 /** Foreground-only OATH account access and optional FIDO2 vault-unlock enrollment. */
 class HardwareKeyActivity : BaseActivity() {
@@ -36,6 +39,8 @@ class HardwareKeyActivity : BaseActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var clock: () -> Long = System::currentTimeMillis
     private var dialog: AlertDialog? = null
+    private var composeDialog: ComposeDialogHost? = null
+    private var composeCleanup: (() -> Unit)? = null
     private var listed: HardwareOathClient.Accounts? = null
     private var listRevision = 0
 
@@ -98,6 +103,7 @@ class HardwareKeyActivity : BaseActivity() {
     private fun clearSensitiveUi() {
         if (::password.isInitialized) password.setText("")
         if (::discovery.isInitialized) discovery.cancel()
+        dismissComposeDialog()
         dialog?.dismiss()
         dialog = null
         listed = null
@@ -112,6 +118,7 @@ class HardwareKeyActivity : BaseActivity() {
                                  discard: (T) -> Unit = {}, cancelWork: () -> Unit = {},
                                  interruptedMessage: Int? = null, finished: (T?, Boolean) -> Unit) {
         if (!sessionReady()) { entry?.destroy(); return }
+        dismissComposeDialog()
         val text = password.text
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         password.setText("")
@@ -197,11 +204,20 @@ class HardwareKeyActivity : BaseActivity() {
 
     private fun confirmHotp(deviceId: String, account: HardwareOathClient.Account, revision: Int) {
         if (revision != listRevision || !sessionReady()) return
-        showDialog(AlertDialog.Builder(this).setTitle(R.string.hardware_title)
-            .setMessage(R.string.hardware_calculate_hotp)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+        lateinit var view: DeleteConfirmationComposeView
+        view = DeleteConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.hardware_title),
+            message = getString(R.string.hardware_calculate_hotp),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                dismissComposeDialog(view)
                 if (revision == listRevision && sessionReady()) calculate(deviceId, account)
-            }.setNegativeButton(android.R.string.cancel, null).create())
+            },
+            onDismiss = { dismissComposeDialog(view) }
+        )
+        showComposeDialog(view)
     }
 
     private fun calculate(deviceId: String, account: HardwareOathClient.Account) {
@@ -245,14 +261,23 @@ class HardwareKeyActivity : BaseActivity() {
             return
         }
         val names = candidates.map { displayName(it.getIssuer(), it.getLabel()) }
-        val selection = AlertDialog.Builder(this).setTitle(R.string.hardware_choose)
-            .setItems(names.toTypedArray()) { _, index ->
-                val selected = candidates.removeAt(index)
+        lateinit var selection: EntryCopyComposeView
+        selection = EntryCopyComposeView(
+            activity = this,
+            title = getString(R.string.hardware_choose),
+            cancelLabel = getString(android.R.string.cancel),
+            fields = names,
+            onSelect = { index ->
+                val selected = candidates.getOrNull(index)
+                if (selected != null) candidates.removeAt(index)
                 candidates.forEach { it.destroy() }
                 candidates.clear()
-                confirmCopy(selected)
-            }.setNegativeButton(android.R.string.cancel, null).create()
-        showDialog(selection) {
+                dismissComposeDialog(selection)
+                if (selected != null) confirmCopy(selected)
+            },
+            onDismiss = { dismissComposeDialog(selection) }
+        )
+        showComposeDialog(selection) {
             candidates.forEach { it.destroy() }
             candidates.clear()
         }
@@ -260,20 +285,27 @@ class HardwareKeyActivity : BaseActivity() {
 
     private fun confirmCopy(entry: Entry) {
         var transferred = false
-        val touch = CheckBox(this).apply { setText(R.string.hardware_require_touch) }
-        val confirmation = AlertDialog.Builder(this).setTitle(R.string.hardware_copy)
-            .setMessage(R.string.hardware_copy_warning).setView(touch)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+        lateinit var confirmation: CheckboxConfirmationComposeView
+        confirmation = CheckboxConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.hardware_copy),
+            message = getString(R.string.hardware_copy_warning),
+            checkboxLabel = getString(R.string.hardware_require_touch),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { requireTouch ->
                 transferred = true
-                val requireTouch = touch.isChecked
+                dismissComposeDialog(confirmation)
                 runOperation(HardwareKeyDiscovery.Protocol.OATH, entry,
                     work = { device, pin, permitted -> HardwareOathClient.copyToKey(device, pin, entry, requireTouch, permitted); true },
                     interruptedMessage = R.string.hardware_copy_uncertain) { _, success ->
                     if (success) Toast.makeText(this, R.string.hardware_copy_done, Toast.LENGTH_LONG).show()
                     else showUncertain(R.string.hardware_copy_uncertain)
                 }
-            }.setNegativeButton(android.R.string.cancel, null).create()
-        showDialog(confirmation) { if (!transferred) entry.destroy() }
+            },
+            onDismiss = { dismissComposeDialog(confirmation) }
+        )
+        showComposeDialog(confirmation) { if (!transferred) entry.destroy() }
     }
 
     private fun confirmEnrollment() {
@@ -282,10 +314,20 @@ class HardwareKeyActivity : BaseActivity() {
             Toast.makeText(this, R.string.hardware_enroll_password_only, Toast.LENGTH_LONG).show()
             return
         }
-        showDialog(AlertDialog.Builder(this).setTitle(R.string.hardware_enroll)
-            .setMessage(R.string.hardware_enroll_warning)
-            .setPositiveButton(android.R.string.ok) { _, _ -> enroll() }
-            .setNegativeButton(android.R.string.cancel, null).create())
+        lateinit var view: DeleteConfirmationComposeView
+        view = DeleteConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.hardware_enroll),
+            message = getString(R.string.hardware_enroll_warning),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                dismissComposeDialog(view)
+                enroll()
+            },
+            onDismiss = { dismissComposeDialog(view) }
+        )
+        showComposeDialog(view)
     }
 
     private fun enroll() {
@@ -314,14 +356,23 @@ class HardwareKeyActivity : BaseActivity() {
     }
 
     private fun confirmRemoval() {
-        showDialog(AlertDialog.Builder(this).setTitle(R.string.hardware_remove)
-            .setMessage(R.string.hardware_remove_confirm)
-            .setPositiveButton(android.R.string.ok) { _, _ ->
+        lateinit var view: DeleteConfirmationComposeView
+        view = DeleteConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.hardware_remove),
+            message = getString(R.string.hardware_remove_confirm),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                dismissComposeDialog(view)
                 val key = VaultSession.getKey()
                 val removed = key != null && HardwareUnlockStore.remove(this, generation, key)
                 Toast.makeText(this, if (removed) R.string.hardware_remove_done else R.string.hardware_failed,
                     Toast.LENGTH_LONG).show()
-            }.setNegativeButton(android.R.string.cancel, null).create())
+            },
+            onDismiss = { dismissComposeDialog(view) }
+        )
+        showComposeDialog(view)
     }
 
     /** Account labels may come from a key or QR; controls must not reorder or spoof the picker. */
@@ -337,13 +388,23 @@ class HardwareKeyActivity : BaseActivity() {
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
-    private fun showDialog(value: AlertDialog, cleanup: () -> Unit = {}) {
+    private fun showComposeDialog(value: ComposeDialogHost, cleanup: () -> Unit = {}) {
+        dismissComposeDialog()
         dialog?.dismiss()
-        dialog = value
-        value.setOnDismissListener {
-            cleanup()
-            if (dialog === value) dialog = null
-        }
+        dialog = null
+        composeDialog = value
+        composeCleanup = cleanup
         value.show()
+    }
+
+    private fun dismissComposeDialog(target: ComposeDialogHost? = composeDialog) {
+        val current = target ?: return
+        if (composeDialog === current) {
+            composeDialog = null
+            val cleanup = composeCleanup
+            composeCleanup = null
+            cleanup?.invoke()
+        }
+        current.dismiss()
     }
 }

@@ -127,3 +127,21 @@ Android's LinSCP read/decrypt prompt now uses the same shared form as desktop, i
 existing Android text master-key input. The native AlertDialog/EditText copy was removed. See
 [shared UI ownership](shared-ui-ownership.md) for the actual production boundaries and the
 JVM dependency work needed before iOS can consume the same Compose screens.
+
+## Follow-up: cross-platform `:ui-foundation` transfer/settings/action dialog consolidation
+
+Relocated the engine-free transfer and chooser dialogs (`EntryCopyDialog`, `EncryptedExportDialog`,
+`EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`, `EmailImportDialog`,
+`LinScpExportDialog`, `LinScpImportDialog`, and `UriImportDialog`) from `:ui/src/commonMain` into
+native-compatible `:ui-foundation/src/commonMain`, backed by `PortableInputBounds` in `:ui-contract`
+(pinned to `InputPolicy` in `PortablePresentationTest`).
+
+`PortableVaultViewController` on iOS now renders those shared `:ui-foundation` composables directly
+(alongside `AboutDialog`, `AutoLockDialog`, `PasswordChangeDialog`, `BiometricEnableDialog`,
+`PreferencesImportDialog`, `EntryConfirmationDialog`, `SharedEntryPinDialog`, `EntryCounterDialog`,
+`TagsDialog`, and `MultiChoiceSelectionDialog`), adding confirmed encrypted-backup passwords,
+Merge/Replace restore confirmation for encrypted and OpenPGP backups, multi-recipient OpenPGP
+export, selective FairEmail/Thunderbird account export, interactive tag checklists, and QR-image
+file import through `QrImageReader`. On Android, `IntroScreenActivity` first-run backup password
+entry and `HardwareKeyActivity` confirmation/account-selection prompts now also render through
+`ComposeDialogHost` views.

@@ -10,20 +10,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun EncryptedRestoreDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean,
-                           onDecode: (String) -> Unit, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit) {
+                           onDecode: (String) -> Unit, onConfirm: (Boolean) -> Unit, onDismiss: () -> Unit,
+                           decodeDescription: String = "Open a password-encrypted OfflineOTP backup. You will confirm before entries are changed.") {
     var password by remember(inputKey) { mutableStateOf("") }
     var replace by remember(inputKey, count) { mutableStateOf(false) }
     fun dismiss() { password = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Restore encrypted backup") },
         text = { Column {
             if (count == null) {
-                Text(text = "Open a password-encrypted OfflineOTP backup. You will confirm before entries are changed.")
+                Text(text = decodeDescription)
                 OutlinedTextField(value = password,
-                    onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it },
+                    onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it },
                     enabled = !busy, singleLine = true, label = { Text(text = "Backup password") },
                     visualTransformation = PasswordVisualTransformation())
             } else {

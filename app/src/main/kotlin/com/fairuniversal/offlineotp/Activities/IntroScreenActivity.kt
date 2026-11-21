@@ -50,6 +50,7 @@ import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.UIHelper
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.EncryptedRestorePasswordComposeView
 
 import java.util.Arrays
 import java.util.Locale
@@ -66,6 +67,7 @@ open class IntroScreenActivity : IntroActivity() {
     private var setupGeneration: Long = VaultSession.generation()
     private var authSlideIndex = 2
     private var firstRunRestoreTask: FirstRunBackupRestoreTask? = null
+    private var firstRunPasswordDialog: EncryptedRestorePasswordComposeView? = null
 
     private val saveSettingsCallback = IntroFinishedFragment.SaveSettingsCallback { success, key ->
         setupFinished = success
@@ -114,26 +116,23 @@ open class IntroScreenActivity : IntroActivity() {
     }
 
     private fun promptFirstRunBackupPassword(uri: Uri) {
-        val field = EditText(this).apply {
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-            hint = "Backup password"
-        }
-        AlertDialog.Builder(this)
-            .setTitle("Restore encrypted backup")
-            .setMessage("Enter the password used to encrypt this backup. Your selected Android vault authentication remains unchanged.")
-            .setView(field)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton("Continue", null)
-            .create().also { dialog ->
-                dialog.setOnShowListener {
-                    dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setOnClickListener {
-                        val password = field.text?.toString().orEmpty()
-                        if (password.isEmpty()) { field.setError("Enter the backup password"); return@setOnClickListener }
-                        dialog.dismiss()
-                        readFirstRunBackup(uri, password)
-                    }
-                }
-            }.show()
+        firstRunPasswordDialog?.dismiss()
+        lateinit var view: EncryptedRestorePasswordComposeView
+        view = EncryptedRestorePasswordComposeView(
+            activity = this,
+            decodeDescription = "Enter the password used to encrypt this backup. Your selected Android vault authentication remains unchanged.",
+            onDecode = { password ->
+                if (firstRunPasswordDialog === view) firstRunPasswordDialog = null
+                view.dismiss()
+                readFirstRunBackup(uri, password)
+            },
+            onDismiss = {
+                if (firstRunPasswordDialog === view) firstRunPasswordDialog = null
+                view.dismiss()
+            }
+        )
+        firstRunPasswordDialog = view
+        view.show()
     }
 
     private fun readFirstRunBackup(uri: Uri, backupPassword: String) {
@@ -320,6 +319,8 @@ open class IntroScreenActivity : IntroActivity() {
 
     override fun onDestroy() {
         authenticationFragment?.clearCredentialInputs()
+        firstRunPasswordDialog?.dismiss()
+        firstRunPasswordDialog = null
         encryptionKey?.let { Arrays.fill(it, 0) }
         encryptionKey = null
         super.onDestroy()

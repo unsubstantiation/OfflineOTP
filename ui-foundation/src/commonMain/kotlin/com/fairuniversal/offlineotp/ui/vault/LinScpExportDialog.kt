@@ -11,7 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 const val LINSCP_PLAIN_WARNING = "Warning: Exported secrets will be accessible by software on your device."
 
@@ -46,9 +46,9 @@ fun LinScpExportDialog(inputKey: Any, choices: List<String>, busy: Boolean, erro
             Text(LINSCP_PLAIN_WARNING)
             Text(if (plainText) "Saved as .json, never .aes. Existing files are not overwritten." else "Encrypted with Argon2id and AES-256-GCM (.json.aes).")
             if (!plainText) {
-                OutlinedTextField(value = password, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
+                OutlinedTextField(value = password, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it }, enabled = !busy,
                     label = { Text("Export password") }, visualTransformation = PasswordVisualTransformation())
-                OutlinedTextField(value = confirmation, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
+                OutlinedTextField(value = confirmation, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
                     label = { Text("Confirm password") }, visualTransformation = PasswordVisualTransformation())
             }
             error?.let { Text(it) }

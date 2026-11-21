@@ -10,7 +10,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 /** Only collects a new backup password. Neither password nor confirmation is saveable. */
 @Composable
@@ -25,10 +25,10 @@ fun EncryptedExportDialog(inputKey: Any, busy: Boolean, error: String?,
         text = { Column {
             Text(text = description)
             OutlinedTextField(value = password,
-                onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
+                onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = "Backup password") }, visualTransformation = PasswordVisualTransformation())
             OutlinedTextField(value = confirmation,
-                onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
+                onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = "Confirm password") }, visualTransformation = PasswordVisualTransformation())
             if (error != null) Text(text = error)
             if (busy) Text(text = "Encrypting… Cancel or lock stops pending work; a file write already started may finish.")

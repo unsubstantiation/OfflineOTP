@@ -159,7 +159,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
     def test_desktop_otp_image_import_is_discoverable_from_tools(self):
         strings = (ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt').read_text()
         self.assertIn('Import OTP URI / QR image', strings)
-        dialog = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt').read_text()
+        dialog = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt').read_text()
         self.assertIn('Import QR code image…', dialog)
         self.assertIn('onChooseImage?.let', dialog)
         host = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text()
@@ -249,9 +249,51 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/HideableDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/MultiChoiceSelectionDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/QrCodeDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EntryCopyDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EncryptedExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EncryptedRestoreDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/OpenPgpExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/OpenPgpImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EmailImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/LinScpImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt',
         ):
             form = (COMMON / rel).read_text()
             self.assertNotIn('rememberSaveable', form, rel)
+
+        bounds = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableInputBounds.kt').read_text()
+        self.assertIn('const val MAX_TEXT_CHARS: Int = 1024', bounds)
+        self.assertIn('const val MAX_URI_CHARS: Int = 16384', bounds)
+        self.assertIn('const val MAX_TAG_CHARS: Int = 128', bounds)
+
+        vc = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text()
+        for shared_call in (
+            'AboutDialog(',
+            'AutoLockDialog(',
+            'PasswordChangeDialog(',
+            'BiometricEnableDialog(',
+            'PreferencesImportDialog(',
+            'EntryConfirmationDialog(',
+            'SharedEntryPinDialog(',
+            'EntryCounterDialog(',
+            'TagsDialog(',
+            'EntryCopyDialog(',
+            'MultiChoiceSelectionDialog(',
+            'EncryptedExportDialog(',
+            'EncryptedRestoreDialog(',
+            'OpenPgpExportDialog(',
+            'OpenPgpImportDialog(',
+            'EmailImportDialog(',
+            'LinScpExportDialog(',
+            'LinScpImportDialog(',
+            'UriImportDialog(',
+        ):
+            self.assertIn(shared_call, vc)
+
+        root = (ROOT / 'ios/App/Sources/AppRootViewController.swift').read_text()
+        self.assertIn('QrImageReader.payload(in:)', root)
+        self.assertIn('importedQrImagePayload(', root)
 
         screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text()
         self.assertIn('clickable { onCard(card.index, "reveal") }', screen)

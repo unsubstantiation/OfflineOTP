@@ -66,7 +66,7 @@ class LinScpSupportTest(unittest.TestCase):
         self.assertIn('title: "Export LinSCP Key/Sessions"', ios_backup_view)
 
     def test_plain_export_is_explicit_and_both_imports_show_a_selection(self):
-        form = (ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt").read_text()
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt").read_text()
         self.assertIn("mutableStateOf(false)", form)
         self.assertIn("Exported secrets will be accessible by software on your device", form)
         self.assertIn("selected.isNotEmpty()", form)

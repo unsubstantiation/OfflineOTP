@@ -26,14 +26,21 @@ colors help, but do not solve that duplication.
 
 The last SwiftUI production screen was replaced by one shared Compose composition:
 
-- `:ui-contract` owns `PortableCard`, `PortableChip`, `PortableVaultState`, `PortableRow` and
-  `PortableSurfaceState`: strings, numbers and booleans only, with no engine, toolkit or host type.
-- `:ui-foundation` owns `PortableVaultScreen` and `PortableSurfaceDialog`. The first draws tabs,
-  search, tag chips, cards, empty state and toast; the second draws the editor, detail, sort,
-  settings, backup/transfer, restore, tags and QR dialogs from host-supplied sections.
+- `:ui-contract` owns `PortableCard`, `PortableChip`, `PortableVaultState`, `PortableRow`,
+  `PortableSurfaceState`, `PortableInputBounds`, and `AutoLockOptions`: strings, numbers and
+  booleans only, with no engine, toolkit or host type.
+- `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, and the engine-free shared
+  Compose dialogs consumed directly across Android, Desktop, and iOS (`AboutDialog`,
+  `AutoLockDialog`, `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`,
+  `EntryConfirmationDialog`, `CheckboxConfirmationDialog`, `SharedEntryPinDialog`,
+  `EntryCounterDialog`, `EntryDetailsDialog`, `TagsDialog`, `HideableDialog`,
+  `MultiChoiceSelectionDialog`, `QrCodeDialog`, `EntryCopyDialog`, `EncryptedExportDialog`,
+  `EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`, `EmailImportDialog`,
+  `LinScpExportDialog`, `LinScpImportDialog`, and `UriImportDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
-  and `PortableSurfaceActions` to Swift. One main-thread composition survives frame replacement;
-  closing the host revokes every callback.
+  and `PortableSurfaceActions` to Swift, routing dialog keys directly to the shared `:ui-foundation`
+  composables while reserving `PortableSurfaceDialog` for host navigation/edit menus. One
+  main-thread composition survives frame replacement; closing the host revokes every callback.
 - `AppDelegate.swift` installs `AppRootViewController`, which switches between
   `UnlockComposeViewController` and `VaultComposeViewController`, supplies native document
   pickers/camera/lifecycle adapters and owns the scene-privacy cover. Every action is re-checked
@@ -78,6 +85,8 @@ subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 - `EmailImportPasswordComposeView` (`EmailImportDialog`)
 - `MultiChoiceSelectionComposeView` (`MultiChoiceSelectionDialog`)
 - `QrCodeComposeView` (`QrCodeDialog`)
+- `CheckboxConfirmationComposeView` (`CheckboxConfirmationDialog`)
+- `EncryptedRestorePasswordComposeView` (`EncryptedRestoreDialog`)
 
 Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
 `DisposeOnDetachedFromWindow`. They attach an invisible composition to the Activity decor rather

@@ -9,7 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun EmailImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean,
@@ -20,7 +20,7 @@ fun EmailImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean
         text = { ScrollableDialogBody {
             Text(text = "Import accounts and their SMTP identities from a FairEmail JSON, gzip or encrypted backup. The source file is not changed or deleted. Maximum file size: 8 MiB.")
             if (count == null) OutlinedTextField(value = password,
-                onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
+                onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = "Backup password (blank for unencrypted files)") },
                 visualTransformation = PasswordVisualTransformation())
             if (busy) Text(text = "Reading FairEmail backup…")

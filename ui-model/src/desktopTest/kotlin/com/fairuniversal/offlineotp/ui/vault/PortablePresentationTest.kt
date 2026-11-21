@@ -1,7 +1,9 @@
 package com.fairuniversal.offlineotp.ui.vault
 
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.ui.portable.PortableCard
 import com.fairuniversal.offlineotp.ui.portable.PortableChip
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 import com.fairuniversal.offlineotp.ui.portable.PortableRow
 import com.fairuniversal.offlineotp.ui.portable.PortableSection
 import com.fairuniversal.offlineotp.ui.portable.PortableSurfaceState
@@ -52,6 +54,9 @@ class PortablePresentationTest {
         assertFalse(card(revealed = true).copy(hasCode = false, secondsLeft = 3).isExpiring)
         val motpNoPin = card(revealed = true).copy(hasCode = false, pinRequired = true)
         assertTrue(motpNoPin.pinRequired)
+        assertEquals(InputPolicy.MAX_TEXT_CHARS, PortableInputBounds.MAX_TEXT_CHARS)
+        assertEquals(InputPolicy.MAX_URI_CHARS, PortableInputBounds.MAX_URI_CHARS)
+        assertEquals(InputPolicy.MAX_TAG_CHARS, PortableInputBounds.MAX_TAG_CHARS)
     }
 
     @Test

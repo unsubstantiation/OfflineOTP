@@ -135,6 +135,20 @@ class AndroidSharedDialogTest(unittest.TestCase):
         views = HOST.read_text(encoding="utf-8")
         self.assertIn("class MultiChoiceSelectionComposeView(", views)
         self.assertIn("class QrCodeComposeView(", views)
+        self.assertIn("class CheckboxConfirmationComposeView(", views)
+        self.assertIn("class EncryptedRestorePasswordComposeView(", views)
+
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("EncryptedRestorePasswordComposeView(", intro)
+        self.assertIn("firstRunPasswordDialog?.dismiss()", intro)
+        self.assertNotIn("AlertDialog.Builder", intro)
+
+        hardware = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("EntryCopyComposeView(", hardware)
+        self.assertIn("CheckboxConfirmationComposeView(", hardware)
+        self.assertIn("DeleteConfirmationComposeView(", hardware)
+        self.assertIn("dismissComposeDialog()", hardware)
+        self.assertEqual(1, hardware.count("AlertDialog.Builder("))
 
     def test_shared_ui_module_comment_matches_the_current_platform_boundary(self):
         gradle = UI_GRADLE.read_text(encoding="utf-8")

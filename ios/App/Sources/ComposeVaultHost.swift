@@ -50,7 +50,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var pendingImport = Data()
     private var lastImported = Data()
     private var openPgpRecipients: [Data] = []
+    private var openPgpRecipientNames: [String] = []
     private var openPgpSecretKey = Data()
+    private var pendingQrImagePayload: String?
+    private var qrImageFailed = false
     private var passwordEditIndex: Int?
     private var openedFields: [String: JSONValue]?
     private var openedGeneration: Int?
@@ -312,6 +315,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     func closeSurface() {
+        if surfaceKey == "uriImport" {
+            store.cancelMigrationImport()
+            pendingQrImagePayload = nil
+            qrImageFailed = false
+        }
         surfaceKey = ""
         surfaceEpoch = nil
         draft = [:]
@@ -484,34 +492,56 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     row("aboutLink:issues", "Report a problem", kind: "action")])],
                 confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
         case "fairEmailImport":
+            var rows = [row("password", "Backup password (optional)", value: draft["password"] ?? "", kind: "secure")]
+            if let preview = draft["previewCount"] {
+                rows.append(row("previewCount", "Accounts", value: preview, kind: "info"))
+            }
             return PortableSurfaceState(key: key, title: "Import FairEmail backup",
-                sections: [PortableSection(title: "", rows: [
-                    row("password", "Backup password (optional)", value: draft["password"] ?? "", kind: "secure")])],
+                sections: [PortableSection(title: "", rows: rows)],
                 confirmLabel: "Import", dismissLabel: "Cancel")
         case "uriImport":
+            let migrationStep = store.openMigrationImport
+            var rows = [
+                row("uri", "Link", value: draft["uri"] ?? "", kind: "text"),
+                row("collecting", "Collecting", value: migrationStep != nil ? "true" : "false", kind: "info"),
+                row("imageReady", "Image ready", value: pendingQrImagePayload != nil ? "true" : "false", kind: "info"),
+                row("imageFailed", "Image failed", value: qrImageFailed ? "true" : "false", kind: "info")
+            ]
+            if let notice = migrationStep?.message {
+                rows.append(row("migrationNotice", "Migration", value: notice, kind: "info"))
+            }
             return PortableSurfaceState(key: key, title: "Import otpauth:// link",
-                sections: [PortableSection(title: "One link or QR payload", rows: [
-                    row("uri", "Link", value: draft["uri"] ?? "", kind: "text")])],
+                sections: [PortableSection(title: "One link or QR payload", rows: rows)],
                 confirmLabel: "Import", dismissLabel: "Cancel")
         case "prefsConfirm":
             return PortableSurfaceState(key: key, title: "Import preferences?",
                 sections: [PortableSection(title: "Only sort order and auto-lock are carried between iOS installs.", rows: [
                     row("info", "The vault, its password and its accounts are never included.", kind: "info")])],
                 confirmLabel: "Apply", dismissLabel: "Cancel")
+        case "backupExportDialog":
+            return PortableSurfaceState(key: key, title: "Export encrypted backup",
+                sections: [PortableSection(title: "", rows: [
+                    row("backupPassword", "Backup password", value: draft["backupPassword"] ?? "", kind: "secure"),
+                    row("backupConfirm", "Confirm backup password", value: draft["backupConfirm"] ?? "", kind: "secure")])],
+                confirmLabel: "Export", dismissLabel: "Cancel")
         case "restore":
+            var rows = [row("password", "Backup password", value: draft["password"] ?? "", kind: "secure")]
+            if let preview = draft["previewCount"] {
+                rows.append(row("previewCount", "Entries", value: preview, kind: "info"))
+            }
             return PortableSurfaceState(key: key, title: "Restore encrypted backup",
-                sections: [PortableSection(title: "The backup password is not the vault password", rows: [
-                    row("password", "Backup password", value: draft["password"] ?? "", kind: "secure")])],
+                sections: [PortableSection(title: "The backup password is not the vault password", rows: rows)],
                 confirmLabel: "Restore", dismissLabel: "Cancel")
         case "biometricEnable":
             return PortableSurfaceState(key: key, title: "Enable quick unlock",
-                sections: [PortableSection(title: "Confirm the vault password", rows: [
+                sections: [PortableSection(title: "Enter the vault password to turn this on.", rows: [
                     row("password", "Vault password", value: draft["password"] ?? "", kind: "secure")])],
                 confirmLabel: "Enable", dismissLabel: "Cancel")
         case "delete": return deleteSurface()
         case "pinEdit":
             return PortableSurfaceState(key: key, title: "Enter mOTP PIN",
                 sections: [PortableSection(title: "", rows: [
+                    row("entryId", "Entry", value: String(editorIndex ?? 0), kind: "info"),
                     row("pin", "PIN", value: draft["pin"] ?? "", kind: "secure")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "counterEdit":
@@ -519,18 +549,60 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 sections: [PortableSection(title: "", rows: [
                     row("counter", "Counter", value: draft["counter"] ?? "0", kind: "text")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
-        case "tagEdit": return PortableSurfaceState(key: key, title: "Tags",
-            sections: [PortableSection(title: "", rows: [
-                row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text")])],
-            confirmLabel: "Save", dismissLabel: "Cancel")
+        case "tagEdit":
+            let currentSet = Set((draft["tags"] ?? "").split(separator: ",").map {
+                $0.trimmingCharacters(in: .whitespacesAndNewlines)
+            }.filter { !$0.isEmpty })
+            var counts: [String: Int] = [:]
+            for entry in store.entries {
+                for tag in entry.tags { counts[tag, default: 0] += 1 }
+            }
+            var tagRows: [PortableRow] = [row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text")]
+            for tag in counts.keys.sorted() {
+                tagRows.append(row("tag:\(tag)", tag, value: String(counts[tag] ?? 0),
+                                   kind: "toggle", checked: currentSet.contains(tag)))
+            }
+            return PortableSurfaceState(key: key, title: "Tags",
+                sections: [PortableSection(title: "", rows: tagRows)],
+                confirmLabel: "Save", dismissLabel: "Cancel")
         case "qr": return qrSurface()
+        case "fairEmailExportSelect":
+            let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
+                guard entry.kind == .email else { return nil }
+                let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
+                return row("choice:\(idx)", label.isEmpty ? "Email account" : label, kind: "toggle")
+            }
+            return PortableSurfaceState(key: key, title: "Export FairEmail backup",
+                sections: [PortableSection(title: "Select the email accounts to export.", rows: rows)],
+                confirmLabel: "Export", dismissLabel: "Cancel")
+        case "thunderbirdExportSelect":
+            let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
+                guard entry.kind == .email || entry.kind == .password else { return nil }
+                let label = [entry.issuer, entry.label].filter { !$0.isEmpty }.joined(separator: " — ")
+                return row("choice:\(idx)", label.isEmpty ? "Credential" : label, kind: "toggle")
+            }
+            return PortableSurfaceState(key: key, title: "Export Thunderbird CSV",
+                sections: [PortableSection(title: "Select the email credentials to export.", rows: rows)],
+                confirmLabel: "Export", dismissLabel: "Cancel")
+        case "openpgpExportDialog":
+            let recipientRows = openPgpRecipientNames.enumerated().map { idx, name in
+                row("recipient:\(idx)", name, kind: "info")
+            }
+            return PortableSurfaceState(key: key, title: "Export OpenPGP backup",
+                sections: [PortableSection(title: "", rows: recipientRows)],
+                confirmLabel: "Export", dismissLabel: "Cancel")
         case "openpgpRestore":
+            var rows = [
+                row("info", "Choose your secret key after selecting the backup.", kind: "info"),
+                row("openpgpSecret", "Choose secret key…",
+                    detail: openPgpSecretKey.isEmpty ? "None selected" : "Key selected"),
+                row("passphrase", "Key passphrase (optional)", value: draft["passphrase"] ?? "", kind: "secure")
+            ]
+            if let preview = draft["previewCount"] {
+                rows.append(row("previewCount", "Entries", value: preview, kind: "info"))
+            }
             return PortableSurfaceState(key: key, title: "Restore OpenPGP backup",
-                sections: [PortableSection(title: "", rows: [
-                    row("info", "Choose your secret key after selecting the backup.", kind: "info"),
-                    row("openpgpSecret", "Choose secret key…",
-                        detail: openPgpSecretKey.isEmpty ? "None selected" : "Key selected"),
-                    row("passphrase", "Key passphrase (optional)", value: draft["passphrase"] ?? "", kind: "secure")])],
+                sections: [PortableSection(title: "", rows: rows)],
                 confirmLabel: "Restore", dismissLabel: "Cancel")
         case "passwordPrompt": return passwordPromptSurface()
         default:
@@ -858,13 +930,21 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func change(key: String, value: String) {
         guard active else { return }
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "passwordPrompt"
-            || surfaceKey == "backups" || surfaceKey == "biometricEnable" || surfaceKey == "restore"
+            || surfaceKey == "backups" || surfaceKey == "backupExportDialog"
+            || surfaceKey == "biometricEnable" || surfaceKey == "restore"
             || surfaceKey == "autoLock" || surfaceKey == "passwordChange"
             || surfaceKey == "tagEdit" || surfaceKey == "pinEdit" || surfaceKey == "counterEdit"
             || surfaceKey == "uriImport" || surfaceKey == "openpgpRestore"
             || surfaceKey.hasPrefix("passwordEdit:") || surfaceKey == "linScpImport"
-            || surfaceKey == "linScpExport" || surfaceKey == "fairEmailImport" {
-            draft[key] = value
+            || surfaceKey == "linScpExport" || surfaceKey == "fairEmailImport"
+            || surfaceKey == "fairEmailExportSelect" || surfaceKey == "thunderbirdExportSelect" {
+            if key == "linScpSelectedIndices" {
+                linScpSelected = Set(value.split(separator: ",").compactMap { Int($0) })
+            } else if key == "linScpImportSelected" {
+                linScpSelected = Set(value.split(separator: ",").compactMap { Int($0) })
+            } else {
+                draft[key] = value
+            }
             refresh()
         }
     }
@@ -877,9 +957,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             // A dialog opened in one session must never apply to a later one. Flow-specific
             // surfaces keep their own epoch when they stage files or candidate lists.
             if let epoch = surfaceEpoch,
-               ["passwordChange", "autoLock", "prefsConfirm", "restore", "editor", "emailEditor",
-                "delete", "tagEdit", "pinEdit", "counterEdit", "biometricEnable", "uriImport",
-                "fairEmailImport", "openpgpRestore"].contains(surfaceKey),
+               ["passwordChange", "autoLock", "prefsConfirm", "restore", "backupExportDialog",
+                "editor", "emailEditor", "delete", "tagEdit", "pinEdit", "counterEdit",
+                "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
+                "fairEmailExportSelect", "thunderbirdExportSelect"].contains(surfaceKey),
                store.generation != epoch {
                 closeSurface()
                 return "The vault session changed. Close and reopen this dialog."
@@ -1043,16 +1124,59 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "linScpExport":
             return exportLinScpSelection()
+        case "fairEmailExportSelect":
+            let indices = (draft["selectedIndices"] ?? "").split(separator: ",").compactMap { Int($0) }
+            guard !indices.isEmpty, indices.allSatisfy({ store.entries.indices.contains($0) }) else {
+                return "Select at least one email account to export."
+            }
+            let chosen = indices.map { store.entries[$0] }
+            guard let backup = store.exportFairEmailBackup(selected: chosen) else {
+                return store.message ?? "The FairEmail backup could not be written."
+            }
+            onExport(backup.data, backup.name)
+            closeSurface()
+            return nil
+        case "thunderbirdExportSelect":
+            let indices = (draft["selectedIndices"] ?? "").split(separator: ",").compactMap { Int($0) }
+            guard !indices.isEmpty, indices.allSatisfy({ store.entries.indices.contains($0) }) else {
+                return "Select at least one credential to export."
+            }
+            let chosen = indices.map { store.entries[$0] }
+            guard let backup = store.exportThunderbirdBackup(selected: chosen) else {
+                return store.message ?? "The Thunderbird CSV could not be written."
+            }
+            onExport(backup.data, backup.name)
+            closeSurface()
+            return nil
+        case "backupExportDialog":
+            let password = draft["backupPassword"] ?? ""
+            let confirmation = draft["backupConfirm"] ?? ""
+            guard !password.isEmpty else { return "Enter a backup password first." }
+            guard password == confirmation else { return "The backup passwords do not match." }
+            guard let backup = store.exportBackup(password: password) else {
+                return store.message ?? "The backup could not be written."
+            }
+            draft["backupPassword"] = ""; draft["backupConfirm"] = ""
+            onExport(backup.data, backup.name)
+            closeSurface()
+            return nil
         case "uriImport":
-            guard let uri = draft["uri"], store.importUri(uri).didAdd else {
+            let raw = (draft["uri"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let allowAdditional = draft["allowAdditional"] == "true"
+            draft["uri"] = ""
+            if raw.lowercased().hasPrefix("otpauth-migration:") {
+                return applyImportedPayload(raw, allowAdditional: allowAdditional, closeWhenAdded: true)
+            }
+            guard store.importUri(raw, allowDuplicateIssuer: allowAdditional).didAdd else {
                 return store.message ?? "That link could not be imported."
             }
             message("Entry imported.")
             closeSurface()
             return nil
         case "restore":
+            let replace = draft["replace"] == "true"
             guard let plan = store.restore(encrypted: pendingImport,
-                                           password: draft["password"] ?? "", replace: false) else {
+                                           password: draft["password"] ?? "", replace: replace) else {
                 return store.message ?? "The backup could not be read."
             }
             pendingImport = Data()
@@ -1063,8 +1187,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard !pendingImport.isEmpty, !openPgpSecretKey.isEmpty else {
                 return "Choose both the encrypted backup and your secret key."
             }
+            let replace = draft["replace"] == "true"
             guard let plan = store.restoreOpenPgpBackup(message: pendingImport,
-                    secretKeyBlock: openPgpSecretKey, passphrase: draft["passphrase"]) else {
+                secretKeyBlock: openPgpSecretKey, passphrase: draft["passphrase"], replace: replace) else {
                 return store.message ?? "The OpenPGP backup could not be restored."
             }
             pendingImport = Data(); openPgpSecretKey = Data()
@@ -1290,7 +1415,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         }
-        if command == "link", parts.count > 1, let url = URL(string: parts[1]) {
+        if command == "link", parts.count > 1, let url = URL(string: parts[1]),
+           ["http", "https"].contains(url.scheme ?? "") {
             onOpenLink(url)
             return nil
         }
@@ -1369,10 +1495,57 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "linScpPlain":
             draft["linScpPlain"] = draft["linScpPlain"] == "true" ? "false" : "true"
             return nil
+        case "restorePreview":
+            guard let count = store.previewEncryptedBackupCount(
+                encrypted: pendingImport, password: draft["password"] ?? "") else {
+                return store.message ?? "The backup could not be read."
+            }
+            draft["previewCount"] = String(count)
+            return nil
+        case "fairEmailPreview":
+            guard let count = store.previewFairEmailBackupCount(
+                data: pendingImport,
+                password: draft["password"].flatMap({ $0.isEmpty ? nil : $0 })
+            ) else {
+                return store.message ?? "The FairEmail backup could not be read."
+            }
+            draft["previewCount"] = String(count)
+            return nil
+        case "openpgpPreview":
+            guard !pendingImport.isEmpty, !openPgpSecretKey.isEmpty else {
+                return "Choose both the encrypted backup and your secret key."
+            }
+            guard let count = store.previewOpenPgpBackupCount(
+                message: pendingImport,
+                secretKeyBlock: openPgpSecretKey,
+                passphrase: draft["passphrase"]
+            ) else {
+                return store.message ?? "The OpenPGP backup could not be restored."
+            }
+            draft["previewCount"] = String(count)
+            return nil
+        case "openpgpClearRecipients":
+            openPgpRecipients = []
+            openPgpRecipientNames = []
+            return nil
+        case "openpgpClearSecret":
+            openPgpSecretKey = Data()
+            draft.removeValue(forKey: "previewCount")
+            return nil
         case "openpgpRecipient":
-            closeSurface(); onImport("openpgpRecipient"); return nil
+            guard openPgpRecipients.count < 8 else {
+                return "Up to 8 recipient key files can be selected."
+            }
+            onImport("openpgpRecipient"); return nil
         case "openpgpExport":
-            guard store.openPgpAvailability.canEncrypt, !openPgpRecipients.isEmpty else {
+            guard store.openPgpAvailability.canEncrypt else {
+                return "This build does not include the OpenPGP engine."
+            }
+            if surfaceKey != "openpgpExportDialog" && openPgpRecipients.isEmpty {
+                openSurface("openpgpExportDialog", keepDraft: true)
+                return nil
+            }
+            guard !openPgpRecipients.isEmpty else {
                 return "Choose a recipient public key first."
             }
             guard let backup = store.exportOpenPgpBackup(recipientKeyBlocks: openPgpRecipients) else {
@@ -1384,9 +1557,25 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "openpgpImport":
             closeSurface(); onImport("openpgpBackup"); return nil
         case "openpgpSecret":
-            closeSurface(); onImport("openpgpSecret"); return nil
+            onImport("openpgpSecret"); return nil
         case "qrCamera":
             closeSurface(); onImport("qrCamera"); return nil
+        case "qrImage":
+            pendingQrImagePayload = nil
+            qrImageFailed = false
+            onImport("qrImage")
+            return nil
+        case "qrImageDiscard":
+            pendingQrImagePayload = nil
+            qrImageFailed = false
+            return nil
+        case "qrImageImport":
+            guard let payload = pendingQrImagePayload else {
+                return "Choose a QR image first."
+            }
+            pendingQrImagePayload = nil
+            let allowAdditional = draft["allowAdditional"] == "true"
+            return applyImportedPayload(payload, allowAdditional: allowAdditional, closeWhenAdded: true)
         case "backupImport", "csvImport", "importPasswordsCsv", "prefsImport",
              "fairEmailImport", "thunderbirdImport":
             // File selection stays native; the shared compose form asks for credentials.
@@ -1402,18 +1591,33 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             onImport(kind)
             return nil
         case "fairEmailExport":
+            if store.entries.contains(where: { $0.kind == .email }) {
+                draft = [:]
+                openSurface("fairEmailExportSelect", keepDraft: true)
+                return nil
+            }
             guard let backup = store.exportFairEmailBackup() else {
                 return store.message ?? "The FairEmail backup could not be written."
             }
             onExport(backup.data, backup.name)
             return nil
         case "thunderbirdExport":
+            if store.entries.contains(where: { $0.kind == .email }) {
+                draft = [:]
+                openSurface("thunderbirdExportSelect", keepDraft: true)
+                return nil
+            }
             guard let backup = store.exportThunderbirdBackup() else {
                 return store.message ?? "The Thunderbird CSV could not be written."
             }
             onExport(backup.data, backup.name)
             return nil
         case "backupExport":
+            if (draft["backupPassword"] ?? "").isEmpty {
+                draft = [:]
+                openSurface("backupExportDialog", keepDraft: true)
+                return nil
+            }
             guard let password = draft["backupPassword"], !password.isEmpty,
                   let backup = store.exportBackup(password: password) else {
                 return store.message ?? "Enter a backup password first."
@@ -1516,17 +1720,70 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     /// The native picker hands only bytes to the adapter; the key data never reaches Compose.
-    func setOpenPgpData(_ data: Data, kind: String) {
+    func setOpenPgpData(_ data: Data, kind: String, filename: String = "") {
         switch kind {
-        case "openpgpRecipient": openPgpRecipients = [data]
+        case "openpgpRecipient":
+            guard openPgpRecipients.count < 8 else { return }
+            openPgpRecipients.append(data)
+            let label = filename.isEmpty ? "Recipient key #\(openPgpRecipients.count)" : filename
+            openPgpRecipientNames.append(label)
+            if surfaceKey != "openpgpExportDialog" {
+                openSurface("openpgpExportDialog", keepDraft: true)
+            } else {
+                refresh()
+            }
         case "openpgpSecret":
             openPgpSecretKey = data
+            draft.removeValue(forKey: "previewCount")
             if !pendingImport.isEmpty { openSurface("openpgpRestore", keepDraft: true) }
         case "openpgpBackup":
             pendingImport = data
             draft = [:]
             openSurface("openpgpRestore", keepDraft: true)
         default: break
+        }
+    }
+
+    /// Receives a decoded QR image payload from `QrImageReader` without displaying the secret URI.
+    func importedQrImagePayload(_ payload: String?) {
+        guard active, store.isUnlocked else { return }
+        if let payload, !payload.isEmpty {
+            pendingQrImagePayload = payload
+            qrImageFailed = false
+        } else {
+            pendingQrImagePayload = nil
+            qrImageFailed = true
+        }
+        if surfaceKey != "uriImport" {
+            openSurface("uriImport", keepDraft: true)
+        } else {
+            refresh()
+        }
+    }
+
+    private func applyImportedPayload(_ text: String, allowAdditional: Bool, closeWhenAdded: Bool) -> String? {
+        switch store.importPayload(text, allowDuplicateIssuer: allowAdditional) {
+        case .added:
+            message("Scanned code imported. Review the new entry before copying a code.")
+            if closeWhenAdded { closeSurface() }
+            return nil
+        case .duplicateIssuer:
+            return "An account for this issuer already exists. Enable the checkbox to add another."
+        case .migration(let step):
+            if let entries = step.entries {
+                let result = store.confirmMigrationImport(entries)
+                switch result {
+                case .imported:
+                    message(result.message)
+                    if closeWhenAdded { closeSurface() }
+                    return nil
+                case .saveFailed, .locked:
+                    return result.message
+                }
+            }
+            return step.message
+        case .duplicateEntry, .rejected:
+            return store.message ?? "That QR code did not contain a supported link."
         }
     }
 
@@ -1538,8 +1795,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message("Scanned code imported. Review the new entry before copying a code.")
         case .duplicateIssuer:
             message("An account for this issuer already exists. Review the list before adding another.")
-        case .migration:
-            message("Migration codes imported. Review the new accounts before copying a code.")
+        case .migration(let step):
+            if let entries = step.entries {
+                message(store.confirmMigrationImport(entries).message)
+            } else {
+                message(step.message ?? "Migration code scanned. Scan the remaining codes.")
+            }
         case .duplicateEntry, .rejected:
             message(store.message ?? "That QR code did not contain a supported link.")
         }

@@ -42,22 +42,22 @@ class BuildUnificationTest(unittest.TestCase):
             self.assertIn('password-edit-contract.json', (ROOT / source).read_text())
 
     def test_import_forms_share_scrollable_body(self):
-        components = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/DialogComponents.kt').read_text()
+        foundation = ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui'
+        components = (foundation / 'vault/DialogComponents.kt').read_text()
         body = components[components.index('fun ScrollableDialogBody'):]
         self.assertIn('Column(Modifier.verticalScroll(rememberScrollState()))', body)
-        for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
-                     'UriImportDialog'):
-            form = (UI / 'vault' / (name + '.kt')).read_text()
-        form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt').read_text()
-        self.assertIn('text = { ScrollableDialogBody {', form)
-        self.assertIn('confirmButton =', form)
-        self.assertIn('dismissButton =', form)
-        for name in ('OpenPgpImportDialog', 'EmailImportDialog', 'PasswordImportDialog',
-                     'UriImportDialog'):
+        for path in (
+            foundation / 'vault/OpenPgpImportDialog.kt',
+            foundation / 'vault/EmailImportDialog.kt',
+            UI / 'vault/PasswordImportDialog.kt',
+            foundation / 'vault/UriImportDialog.kt',
+            foundation / 'vault/PreferencesImportDialog.kt',
+        ):
+            form = path.read_text()
             self.assertIn('text = { ScrollableDialogBody {', form)
             self.assertIn('confirmButton =', form)
             self.assertIn('dismissButton =', form)
-        pgp = (UI / 'vault/OpenPgpImportDialog.kt').read_text()
+        pgp = (foundation / 'vault/OpenPgpImportDialog.kt').read_text()
         self.assertIn('else "Merge", enabled = !busy', pgp)
         self.assertIn('else "Replace all current entries", enabled = !busy', pgp)
 
@@ -85,7 +85,7 @@ class BuildUnificationTest(unittest.TestCase):
         host = (ROOT / 'ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt').read_text()
         self.assertIn('LinScpImportDialog(reading.key', host)
         self.assertIn('LinScpImportDialog(importing.key', host)
-        form = (UI / 'vault/LinScpImportDialog.kt').read_text()
+        form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpImportDialog.kt').read_text()
         self.assertIn('allowKeyFileSelection: Boolean = true', form)
         self.assertIn('val submitted = password; password = ""; onRead(submitted)', form)
         self.assertNotIn('rememberSaveable', form)
