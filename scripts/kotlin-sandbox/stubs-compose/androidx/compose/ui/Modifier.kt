@@ -2,7 +2,7 @@
 package androidx.compose.ui
 
 interface Modifier {
+    infix fun then(other: Modifier): Modifier = this
+
     companion object : Modifier
 }
-
-fun Modifier.then(other: Modifier): Modifier = this

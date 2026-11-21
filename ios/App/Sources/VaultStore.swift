@@ -784,6 +784,24 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Previews the entry count of a password-encrypted backup without mutating the vault.
+    public func previewEncryptedBackupCount(encrypted data: Data, password: String) -> Int? {
+        guard isUnlocked else { return nil }
+        do {
+            let document = try EncryptedBackup.open(password: password, data: data)
+            return try VaultDocument.decode(document).count
+        } catch VaultCryptoError.authenticationFailed {
+            message = BackupWording.wrongPassword
+            return nil
+        } catch EncryptedBackupError.invalidPassword {
+            message = "The backup password is empty or too long."
+            return nil
+        } catch {
+            message = BackupWording.unreadableBackup
+            return nil
+        }
+    }
+
     /// Restores a password-encrypted backup, merging or replacing. Returns the plan, or nil with a
     /// sentence in `message`.
     public func restore(encrypted data: Data, password: String, replace: Bool) -> RestorePlan? {
@@ -900,6 +918,30 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Previews the entry count of an OpenPGP `.json.gpg` backup without mutating the vault.
+    public func previewOpenPgpBackupCount(
+        message cipherData: Data,
+        secretKeyBlock: Data,
+        passphrase: String?
+    ) -> Int? {
+        guard isUnlocked else { return nil }
+        do {
+            let document = try OpenPgpBackupCodec.open(
+                port: openPgp,
+                message: cipherData,
+                secretKeyBlock: secretKeyBlock,
+                passphrase: passphrase?.isEmpty == true ? nil : passphrase
+            )
+            return try VaultDocument.decode(document).count
+        } catch let error as OpenPgpError {
+            message = error.errorDescription ?? BackupWording.unreadableBackup
+            return nil
+        } catch {
+            message = BackupWording.unreadableBackup
+            return nil
+        }
+    }
+
     /// Decrypts and merges/replaces an OpenPGP `.json.gpg` backup.
     public func restoreOpenPgpBackup(
         message cipherData: Data,
@@ -920,6 +962,24 @@ public final class VaultStore: ObservableObject {
             return nil
         } catch {
             message = BackupWording.unreadableBackup
+            return nil
+        }
+    }
+
+    /// Previews how many entries a browser password CSV or archive file would produce without installing them.
+    public func previewBrowserPasswordsCount(
+        filename: String,
+        data: Data,
+        mode: PasswordImport.Mode
+    ) -> Int? {
+        guard isUnlocked else { return nil }
+        do {
+            let parsed = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            return parsed.count
+        } catch {
+            message = mode == .individual
+                ? "That file is not a recognized browser password CSV."
+                : "That password file could not be archived."
             return nil
         }
     }
@@ -976,6 +1036,17 @@ public final class VaultStore: ObservableObject {
         }
     }
 
+    /// Exports the exact unparsed bytes of a stored `PASSWORD_ARCHIVE` entry under a safe fixed name.
+    public func exportPasswordArchive(at index: Int) -> ExportedBackup? {
+        guard isUnlocked, entries.indices.contains(index) else { return nil }
+        let entry = entries[index]
+        guard entry.kind == .passwordArchive, let bytes = entry.passwordArchiveBytes else {
+            message = "That entry does not contain an exportable password archive."
+            return nil
+        }
+        return ExportedBackup(name: "password-archive.bin", data: bytes)
+    }
+
     /// Adds a manually entered FairEmail-compatible email account to the vault.
     @discardableResult
     public func addEmailAccount(_ account: EmailMaterial.Account, tags: [String] = [], now: Date = Date()) -> Bool {
@@ -1020,11 +1091,29 @@ public final class VaultStore: ObservableObject {
         }
     }
 
-    /// Exports all `EMAIL` entries in FairEmail's unencrypted JSON backup format.
-    public func exportFairEmailBackup(now: Date = Date()) -> ExportedBackup? {
+    /// Previews the account count of a FairEmail backup without mutating the vault.
+    public func previewFairEmailBackupCount(data: Data, password: String? = nil) -> Int? {
         guard isUnlocked else { return nil }
         do {
-            let accounts = try entries.filter { $0.kind == .email }.map { try $0.emailAccount() }
+            return try EmailMaterial.importBackup(data, password: password).count
+        } catch EmailCredentialError.passwordRequired {
+            message = "Enter the password this FairEmail backup was encrypted with."
+            return nil
+        } catch EmailCredentialError.decryptionFailed {
+            message = BackupWording.wrongPassword
+            return nil
+        } catch {
+            message = "That file could not be read as a FairEmail backup."
+            return nil
+        }
+    }
+
+    /// Exports all or selected `EMAIL` entries in FairEmail's unencrypted JSON backup format.
+    public func exportFairEmailBackup(now: Date = Date(), selected: [Entry]? = nil) -> ExportedBackup? {
+        guard isUnlocked else { return nil }
+        do {
+            let source = selected ?? entries
+            let accounts = try source.filter { $0.kind == .email }.map { try $0.emailAccount() }
             guard !accounts.isEmpty else {
                 message = "There are no email accounts in this vault to export."
                 return nil
@@ -1059,11 +1148,11 @@ public final class VaultStore: ObservableObject {
         }
     }
 
-    /// Exports `EMAIL` (and legacy mail-scheme `PASSWORD`) entries as a Thunderbird CSV file.
-    public func exportThunderbirdBackup(now: Date = Date()) -> ExportedBackup? {
+    /// Exports all or selected `EMAIL` (and legacy mail-scheme `PASSWORD`) entries as a Thunderbird CSV file.
+    public func exportThunderbirdBackup(now: Date = Date(), selected: [Entry]? = nil) -> ExportedBackup? {
         guard isUnlocked else { return nil }
         do {
-            let data = try ThunderbirdImport.exportCsv(entries: entries)
+            let data = try ThunderbirdImport.exportCsv(entries: selected ?? entries)
             return ExportedBackup(name: BackupFileNames.thunderbird(now), data: data)
         } catch EmailCredentialError.noExportableAccounts {
             message = "There are no email credentials in this vault to export."

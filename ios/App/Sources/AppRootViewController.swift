@@ -46,7 +46,7 @@ final class AppRootViewController: UIViewController {
                 },
                 onImport: { [weak self] kind in
                     guard let self else { return }
-                    if kind == "qrCamera" { self.scanQr() } else { self.pickImport(kind: kind) }
+                    if kind == "qrCamera" { self.scanQr() } else if kind == "qrImage" { self.pickQrImage() } else { self.pickImport(kind: kind) }
                 },
                 onOpenLink: { url in
                     UIApplication.shared.open(url, options: [:], completionHandler: nil)
@@ -90,14 +90,26 @@ final class AppRootViewController: UIViewController {
         present(capture, animated: true)
     }
 
+    private func pickQrImage() {
+        filePicker.open(types: [.image], from: self) { [weak self] urls in
+            guard let self, let url = urls.first else { return }
+            self.readBounded(url) { data in
+                guard let vault = self.current as? VaultComposeViewController else { return }
+                let payload = UIImage(data: data).flatMap(QrImageReader.payload(in:))
+                vault.coordinator.importedQrImagePayload(payload)
+            }
+        }
+    }
+
     private func pickImport(kind: String) {
         let types: [UTType] = kind == "preferences" ? [.json] : [.data, .json, .commaSeparatedText]
         filePicker.open(types: types, from: self) { [weak self] urls in
             guard let self, let url = urls.first else { return }
+            let filename = url.lastPathComponent
             self.readBounded(url) { data in
                 guard let vault = self.current as? VaultComposeViewController else { return }
                 if kind.hasPrefix("openpgp") {
-                    vault.coordinator.setOpenPgpData(data, kind: kind)
+                    vault.coordinator.setOpenPgpData(data, kind: kind, filename: filename)
                 } else {
                     vault.coordinator.imported(data: data, kind: kind)
                 }

@@ -13,7 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun HardwareOathDialog(inputKey: Any, labels: List<String>, codes: List<String?>, counters: List<Boolean>, busy: Boolean,
@@ -23,7 +23,7 @@ fun HardwareOathDialog(inputKey: Any, labels: List<String>, codes: List<String?>
     AlertDialog(onDismissRequest = { pin = ""; onDismiss() }, title = { Text(text = "OATH security key") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Text(text = "Connect one PC/SC-compatible key. No secrets are imported into the vault. Enter the OATH password if configured (not the FIDO PIN). Calculating HOTP advances the key counter and cannot be undone. Touch the key if required. Cancellation cannot undo an already-issued device command.")
-            OutlinedTextField(value = pin, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) pin = it }, enabled = !busy,
+            OutlinedTextField(value = pin, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) pin = it }, enabled = !busy,
                 singleLine = true, label = { Text(text = "OATH password (optional; re-enter per operation)") }, visualTransformation = PasswordVisualTransformation())
             if (busy) Text(text = "Waiting for security key…")
             if (message != null) Text(text = message)

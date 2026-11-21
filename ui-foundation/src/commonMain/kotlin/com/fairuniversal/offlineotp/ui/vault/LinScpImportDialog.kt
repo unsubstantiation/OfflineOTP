@@ -13,7 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun LinScpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean, keySelected: Boolean,
@@ -29,7 +29,7 @@ fun LinScpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolea
             Text(text = "Read an encrypted vault, backup bundle or sessions.ini (maximum 16 MiB). Source and key files remain unchanged.")
             if (count == null) {
                 OutlinedTextField(value = password,
-                    onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) password = it }, enabled = !busy,
+                    onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it }, enabled = !busy,
                     singleLine = true, label = { Text(text = secretLabel) },
                     visualTransformation = PasswordVisualTransformation())
                 if (allowKeyFileSelection) {

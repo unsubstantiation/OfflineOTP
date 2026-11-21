@@ -15,8 +15,10 @@ import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.vault.BiometricEnableDialog
+import com.fairuniversal.offlineotp.ui.vault.CheckboxConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
+import com.fairuniversal.offlineotp.ui.vault.EncryptedRestoreDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryCounterDialog
@@ -475,6 +477,68 @@ class QrCodeComposeView(
                 qrBitmap = qrBitmap,
                 confirmLabel = confirmLabel,
                 onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared two-button confirmation dialog with an explicit checkbox option (e.g. hardware touch). */
+class CheckboxConfirmationComposeView(
+    activity: Activity,
+    private val title: String,
+    private val message: String,
+    private val checkboxLabel: String,
+    private val confirmLabel: String,
+    private val dismissLabel: String,
+    private val onConfirm: (Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            CheckboxConfirmationDialog(
+                inputKey = this@CheckboxConfirmationComposeView,
+                title = title,
+                message = message,
+                checkboxLabel = checkboxLabel,
+                confirmLabel = confirmLabel,
+                dismissLabel = dismissLabel,
+                onConfirm = onConfirm,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared password prompt for encrypted backup restore; never saves password state. */
+class EncryptedRestorePasswordComposeView(
+    activity: Activity,
+    private val onDecode: (String) -> Unit,
+    private val onDismiss: () -> Unit,
+    private val decodeDescription: String = "Open a password-encrypted OfflineOTP backup. You will confirm before entries are changed."
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            EncryptedRestoreDialog(
+                inputKey = this@EncryptedRestorePasswordComposeView,
+                busy = false,
+                count = null,
+                failed = false,
+                onDecode = onDecode,
+                onConfirm = {},
+                onDismiss = onDismiss,
+                decodeDescription = decodeDescription
             )
         }
     }

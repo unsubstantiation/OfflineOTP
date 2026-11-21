@@ -10,6 +10,6 @@ inline fun Modifier.semantics(
     crossinline properties: SemanticsPropertyReceiver.() -> Unit
 ): Modifier = this
 
-var SemanticsPropertyReceiver.contentDescription: String?
-    get() = null
+var SemanticsPropertyReceiver.contentDescription: String
+    get() = ""
     set(value) {}

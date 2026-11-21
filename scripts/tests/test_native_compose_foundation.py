@@ -159,7 +159,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
     def test_desktop_otp_image_import_is_discoverable_from_tools(self):
         strings = (ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultStrings.kt').read_text()
         self.assertIn('Import OTP URI / QR image', strings)
-        dialog = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt').read_text()
+        dialog = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt').read_text()
         self.assertIn('Import QR code image…', dialog)
         self.assertIn('onChooseImage?.let', dialog)
         host = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text()
@@ -249,9 +249,78 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/HideableDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/MultiChoiceSelectionDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/QrCodeDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EntryCopyDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EncryptedExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EncryptedRestoreDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/OpenPgpExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/OpenPgpImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EmailImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/LinScpImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/ArchiveExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/PasswordExportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/StorageLocationDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/EmailChoiceField.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedPasswordEntryDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedEmailDetailsDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedEmailAccountDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedPasswordImportDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedCardLayoutDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt',
+            'com/fairuniversal/offlineotp/ui/vault/HardwareCopyDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt',
+            'com/fairuniversal/offlineotp/ui/unlock/HardwareEnrollmentDialog.kt',
+            'com/fairuniversal/offlineotp/ui/unlock/HardwareUnlockDialog.kt',
         ):
             form = (COMMON / rel).read_text()
             self.assertNotIn('rememberSaveable', form, rel)
+
+        bounds = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableInputBounds.kt').read_text()
+        self.assertIn('const val MAX_TEXT_CHARS: Int = 1024', bounds)
+        self.assertIn('const val MAX_URI_CHARS: Int = 16384', bounds)
+        self.assertIn('const val MAX_TAG_CHARS: Int = 128', bounds)
+        self.assertIn('const val MAX_PASSWORD_FIELD_CHARS: Int = 64 * 1024', bounds)
+        self.assertIn('const val MAX_EMAIL_CREDENTIAL_CHARS: Int = 16 * 1024', bounds)
+
+        vc = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text()
+        for shared_call in (
+            'AboutDialog(',
+            'AutoLockDialog(',
+            'PasswordChangeDialog(',
+            'BiometricEnableDialog(',
+            'PreferencesImportDialog(',
+            'EntryConfirmationDialog(',
+            'SharedEntryPinDialog(',
+            'EntryCounterDialog(',
+            'TagsDialog(',
+            'EntryCopyDialog(',
+            'EntryDetailsDialog(',
+            'MultiChoiceSelectionDialog(',
+            'EncryptedExportDialog(',
+            'EncryptedRestoreDialog(',
+            'OpenPgpExportDialog(',
+            'OpenPgpImportDialog(',
+            'EmailImportDialog(',
+            'LinScpExportDialog(',
+            'LinScpImportDialog(',
+            'UriImportDialog(',
+            'QrCodeDialog(',
+            'ArchiveExportDialog(',
+            'StorageLocationDialog(',
+            'SharedEmailAccountDialog(',
+            'SharedManualEntryDialog(',
+            'SharedPasswordEntryDialog(',
+            'SharedPasswordImportDialog(',
+            'SharedCardLayoutDialog(',
+            'SharedEmailDetailsDialog(',
+        ):
+            self.assertIn(shared_call, vc)
+
+        root = (ROOT / 'ios/App/Sources/AppRootViewController.swift').read_text()
+        self.assertIn('QrImageReader.payload(in:)', root)
+        self.assertIn('importedQrImagePayload(', root)
 
         screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text()
         self.assertIn('clickable { onCard(card.index, "reveal") }', screen)
@@ -271,3 +340,29 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('EmailMaterial.create(', host)
         self.assertIn('store.importBrowserPasswords(', host)
         self.assertNotIn(r'action("edit:\(index)")', host)
+
+    def test_kotlin_compose_imports_and_ios_objc_interop_signatures(self):
+        """Guard against Compose top-level import errors and Kotlin/Native ObjC label/default-arg mismatches."""
+        for module in ('ui-contract', 'ui-foundation', 'ui', 'app', 'desktop', 'desktop-compose'):
+            for path in (ROOT / module / 'src').rglob('*.kt'):
+                text = path.read_text(encoding='utf-8')
+                self.assertNotIn('import androidx.compose.ui.then', text, str(path))
+
+        compile_ui = (ROOT / 'scripts/kotlin-sandbox/compile-ui.sh').read_text(encoding='utf-8')
+        self.assertIn('ui-foundation/src/iosMain/kotlin', compile_ui)
+        self.assertIn('phase 0b: ios host seam', compile_ui)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('presentation.updateVault(state: vaultState())', host)
+        self.assertIn('presentation.updateSurface(state: surfaceState(surfaceKey))', host)
+        self.assertIn('presentation.updateSurface(state: surfaceState(key))', host)
+        self.assertIn('presentation.updateSurface(state: nil)', host)
+        self.assertNotIn('presentation.updateVault(vaultState())', host)
+        self.assertNotIn('presentation.updateSurface(nil)', host)
+        self.assertEqual(1, host.count('PortableSurfaceState('))
+        self.assertIn(
+            'PortableSurfaceState(key: key, title: title, sections: sections, confirmLabel: confirmLabel,\n'
+            '                             dismissLabel: dismissLabel, showConfirm: showConfirm, message: message,\n'
+            '                             busy: busy)',
+            host,
+        )

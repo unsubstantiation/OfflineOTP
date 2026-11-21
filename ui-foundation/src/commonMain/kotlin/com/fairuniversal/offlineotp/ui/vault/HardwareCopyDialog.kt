@@ -13,7 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
 fun HardwareCopyDialog(inputKey: Any, labels: List<String>, selected: Int, selecting: Boolean, confirming: Boolean,
@@ -28,7 +28,7 @@ fun HardwareCopyDialog(inputKey: Any, labels: List<String>, selected: Int, selec
             } else {
                 Text(text = labels.getOrNull(selected).orEmpty())
                 Text(text = "This exports the secret seed to the first connected PC/SC OATH key. Connect only the intended key. Touch is required for future calculations. Existing hardware credentials with the same ID are refused, not overwritten. The vault copy remains. HOTP copies start at the stored counter and can diverge if both copies are used. Cancellation cannot undo an issued device write.")
-                if (confirming) OutlinedTextField(value = pin, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) pin = it },
+                if (confirming) OutlinedTextField(value = pin, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) pin = it },
                     singleLine = true, label = { Text(text = "OATH password (optional; not FIDO PIN)") }, visualTransformation = PasswordVisualTransformation())
             }
             if (message != null) Text(text = message)

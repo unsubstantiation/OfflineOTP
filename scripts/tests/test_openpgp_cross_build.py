@@ -5,7 +5,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 APP = ROOT / 'app/src/main/kotlin/com/fairuniversal/offlineotp'
 DESKTOP = ROOT / 'desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop'
-UI = ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault'
+UI = ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault'
 IOS = ROOT / 'ios/App/Sources'
 
 class OpenPgpCrossBuildTest(unittest.TestCase):

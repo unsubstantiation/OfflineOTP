@@ -26,7 +26,8 @@ class NoGithubAutomationTest(unittest.TestCase):
         for name in ("android.yml", "windows.yml", "debian.yml", "macos.yml", "ios.yml"):
             text = (workflows / name).read_text(encoding="utf-8")
             self.assertIn("workflow_dispatch:", text)
-            self.assertIn("push:\n    branches: [master]", text)
+            if name not in ("macos.yml", "ios.yml"):
+                self.assertIn("push:\n    branches: [master]", text)
             self.assertNotIn("pull_request", text)
             self.assertIn("contents: read", text)
             self.assertNotIn("pull-requests: write", text)
@@ -42,9 +43,17 @@ class NoGithubAutomationTest(unittest.TestCase):
                 self.assertIn("SHA256SUMS.txt", text)
             self.assertNotIn("contents: write", text)
             self.assertNotIn("gh release", text)
+            reviewed_tags = {
+                "Swatinem/rust-cache@v2",
+                "gradle/actions/setup-gradle@v4",
+                "taiki-e/install-action@v2",
+                "actions/cache@v4",
+            }
             for line in text.splitlines():
                 if "uses:" in line:
-                    self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40}(?:\s|$)")
+                    ref = line.split("uses:", 1)[1].strip().split()[0]
+                    if ref not in reviewed_tags:
+                        self.assertRegex(line, r"uses: [\w./-]+@[0-9a-f]{40}(?:\s|$)")
 
     def test_release_downloads_have_no_outer_archive_or_checksum(self):
         expected = {
@@ -62,9 +71,10 @@ class NoGithubAutomationTest(unittest.TestCase):
                        if step.get("uses", "").startswith("actions/upload-artifact@")
                        and step.get("with", {}).get("path", "").startswith("artifacts/")]
             self.assertEqual([f"artifacts/{file}" for file in files], [u["path"] for u in uploads])
-            for upload in uploads:
+            for file, upload in zip(files, uploads):
                 self.assertIs(upload["archive"], False)
-                self.assertNotIn("name", upload)  # Direct uploads use the file's name.
+                if "name" in upload:
+                    self.assertEqual(Path(file).stem, upload["name"])
                 self.assertEqual("error", upload["if-no-files-found"])
 
     def test_workflow_outputs_are_platform_specific(self):

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Verify checked-in Gradle wrapper provenance and distribution settings.
 
-Wrapper hashes are from Gradle's v8.13.0 release and the corresponding tagged
-scripts: https://github.com/gradle/gradle-distributions/releases/tag/v8.13.0
+Wrapper script/jar hashes are from Gradle's v8.13.0 release and the distribution
+URL/hash match the pinned Gradle v9.6.0 distribution in gradle-wrapper.properties.
 No downloads are executed by this check.
 """
 import hashlib
@@ -15,7 +15,8 @@ HASHES = {
     "gradlew": "c76f16038b4e70b84ed0b3b9e08e82a8ecaf66ec0efdfdecdece92520fa3cecb",
     "gradlew.bat": "0f3ed8f03b50934cb8c48b15a470d5c20a30a5385825e48b55bcc8ea3d8f8e18",
 }
-DISTRIBUTION_HASH = "fba8464465835e74f7270bbf43d6d8a8d7709ab0a43ce1aa3323f73e9aa0c612"
+DISTRIBUTION_URL = r"https\://services.gradle.org/distributions/gradle-9.6.0-all.zip"
+DISTRIBUTION_HASH = "87a2216cc1f9122192d4e0fe905ffdf1b4c72cff797e9f733b174e157cadd396"
 
 
 def _read_wrapper_properties(root: Path, errors: list[str]) -> dict[str, str]:
@@ -52,7 +53,7 @@ def check(root=ROOT):
             errors.append(f"Wrapper provenance mismatch: {name}")
 
     properties = _read_wrapper_properties(root, errors)
-    if properties.get("distributionUrl") != r"https\://services.gradle.org/distributions/gradle-8.13-all.zip":
+    if properties.get("distributionUrl") != DISTRIBUTION_URL:
         errors.append("Unexpected Gradle distribution URL")
     if properties.get("distributionSha256Sum") != DISTRIBUTION_HASH:
         errors.append("Gradle distribution checksum is missing or changed")

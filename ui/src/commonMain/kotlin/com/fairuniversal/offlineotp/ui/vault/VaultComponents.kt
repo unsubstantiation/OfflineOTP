@@ -88,14 +88,7 @@ internal fun VaultSearchField(
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth(),
-        singleLine = true,
-        placeholder = { Text(text = hint, style = ForestType.body, color = ForestPalette.textHint) },
-        shape = RoundedCornerShape(12.dp)
-    )
+    SharedVaultSearchField(value = value, hint = hint, onValueChange = onValueChange, modifier = modifier)
 }
 
 /** The five kind tabs, in `EntryListPresentation.Category` order. */
@@ -113,33 +106,12 @@ internal fun VaultCategoryTabs(
         horizontalArrangement = Arrangement.spacedBy(2.dp)
     ) {
         for (tab in tabs) {
-            VaultTab(
+            SharedVaultTab(
                 label = strings.categoryCount(tab.category, tab.count),
                 selected = tab.selected,
                 onClick = { onSelect(tab.category) }
             )
         }
-    }
-}
-
-@Composable
-private fun VaultTab(label: String, selected: Boolean, onClick: () -> Unit) {
-    val color = if (selected) ForestPalette.accent else ForestPalette.textSecondary
-    Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(text = label, style = ForestType.tab, color = color)
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier
-                .width(18.dp)
-                .height(2.dp)
-                .background(if (selected) ForestPalette.accent else Color.Transparent)
-        )
     }
 }
 
@@ -209,7 +181,7 @@ internal fun VaultTagChips(
         verticalAlignment = Alignment.CenterVertically
     ) {
         for (chip in chips) {
-            VaultTagChipView(
+            SharedVaultTagChip(
                 label = strings.tagCount(chip.name, chip.count),
                 selected = chip.selected,
                 onClick = {
@@ -221,22 +193,6 @@ internal fun VaultTagChips(
             ForestTextAction(text = clearLabel, onClick = actions.onClearFilters)
         }
     }
-}
-
-@Composable
-private fun VaultTagChipView(label: String, selected: Boolean, onClick: () -> Unit) {
-    Text(
-        text = label,
-        style = ForestType.label,
-        color = if (selected) ForestPalette.onPrimary else ForestPalette.textSecondary,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(ForestPalette.surfaceVariant)
-            .background(if (selected) ForestPalette.accent else Color.Transparent)
-            .border(1.dp, if (selected) ForestPalette.accent else ForestPalette.divider, RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
-    )
 }
 
 /**
@@ -456,35 +412,6 @@ private fun VaultCodeArea(card: VaultCardState, strings: VaultStrings) {
     }
 }
 
-/** Circular "time left in this step" indicator. */
-@Composable
-internal fun CountdownRing(progress: Float, expiring: Boolean, diameter: Dp) {
-    val sweepColor = if (expiring) ForestPalette.warning else ForestPalette.otpAmber
-    Canvas(modifier = Modifier.size(diameter)) {
-        val strokeWidth = size.minDimension / 7f
-        val inset = strokeWidth / 2f
-        val arcSize = Size(size.width - strokeWidth, size.height - strokeWidth)
-        drawArc(
-            color = ForestPalette.otpAmberMuted,
-            startAngle = -90f,
-            sweepAngle = 360f,
-            useCenter = false,
-            topLeft = Offset(inset, inset),
-            size = arcSize,
-            style = Stroke(width = strokeWidth)
-        )
-        drawArc(
-            color = sweepColor,
-            startAngle = -90f,
-            sweepAngle = 360f * progress.coerceIn(0f, 1f),
-            useCenter = false,
-            topLeft = Offset(inset, inset),
-            size = arcSize,
-            style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
-        )
-    }
-}
-
 /** Called only for visible rows with thumbnails enabled; image loading is memoized across ticks. */
 @Composable
 private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
@@ -499,24 +426,6 @@ private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: Vau
             contentDescription = null, // Decorative: the adjacent identity text is already announced.
             modifier = Modifier.size(sizeDp.coerceAtLeast(0f).dp),
             contentScale = ContentScale.Fit
-        )
-    }
-}
-
-/** Issuer artwork stand-in: a coloured tile with the account's initial. */
-@Composable
-private fun VaultLetterTile(seed: String, title: String, sizeDp: Float) {
-    Box(
-        modifier = Modifier
-            .size(sizeDp.coerceAtLeast(0f).dp)
-            .clip(CircleShape)
-            .background(ForestPalette.letterTileTint(seed)),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = title.trim().take(1).uppercase(),
-            style = ForestType.title,
-            color = ForestPalette.thumbnailBackground
         )
     }
 }

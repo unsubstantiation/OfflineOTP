@@ -37,6 +37,14 @@ data class PortableCard(
     val isExpiring: Boolean
         get() = hasCode && secondsLeft in 1..5
 
+    /** Normalized countdown arc fraction for time-based OTP cards (`0f` when hidden or counter-based). */
+    val countdownProgress: Float
+        get() {
+            if (!hasCode || secondsLeft <= 0) return 0f
+            val step = if (metadata.startsWith("MOTP")) 10 else maxOf(30, secondsLeft)
+            return (secondsLeft.toFloat() / step.toFloat()).coerceIn(0f, 1f)
+        }
+
     /** Redacts secret-bearing strings from diagnostic logs and assertion failures. */
     override fun toString(): String =
         "PortableCard(index=$index, revealed=$revealed, hasCode=$hasCode, pinRequired=$pinRequired)"
@@ -118,4 +126,80 @@ data class PortableSurfaceState(
         get() = sections.flatMap { it.rows }.filter {
             it.kind != PortableRow.KIND_INFO && it.enabled
         }
+}
+
+/** Label/value row for read-only detail dialogs shared across Android, Desktop and iOS. */
+data class PortableDetailRow(val label: String, val value: String) {
+    override fun toString(): String = "PortableDetailRow($label=<redacted>)"
+}
+
+/** Ephemeral browser/common password edit fields; never exposes the password in diagnostics. */
+data class PortablePasswordEditDraft(
+    val url: String = "",
+    val username: String = "",
+    val password: String = ""
+) {
+    fun withoutPassword(): PortablePasswordEditDraft = copy(password = "")
+    override fun toString(): String = "PortablePasswordEditDraft(redacted)"
+}
+
+/** Ephemeral email account creation/editing draft shared across Desktop, Android and iOS. */
+data class PortableEmailAccountDraft(
+    val name: String = "",
+    val address: String = "",
+    val protocol: Int = 0,
+    val incomingHost: String = "",
+    val incomingPort: String = "993",
+    val incomingEncryption: Int = 0,
+    val incomingAuth: String = "1",
+    val incomingUser: String = "",
+    val incomingPassword: String = "",
+    val outgoingHost: String = "",
+    val outgoingPort: String = "465",
+    val outgoingEncryption: Int = 0,
+    val outgoingAuth: String = "1",
+    val outgoingUser: String = "",
+    val outgoingPassword: String = "",
+    val tags: String = ""
+) {
+    fun withoutSecrets(): PortableEmailAccountDraft = copy(incomingPassword = "", outgoingPassword = "")
+    override fun toString(): String = "PortableEmailAccountDraft(redacted)"
+}
+
+/** Ephemeral manual OTP / Note / SSH-key entry draft for native-compatible Compose editors. */
+data class PortableEntryDraft(
+    val kind: String = "TOTP",
+    val issuer: String = "",
+    val label: String = "",
+    val hiddenLabel: String = "",
+    val secret: String = "",
+    val digits: String = "6",
+    val period: String = "30",
+    val counter: String = "0",
+    val pin: String = "",
+    val publicKey: String = "",
+    val privateKey: String = "",
+    val sshHost: String = "",
+    val sshPort: String = "",
+    val sshUsername: String = "",
+    val sshPassword: String = "",
+    val tags: String = ""
+) {
+    fun withoutSecrets(): PortableEntryDraft =
+        copy(secret = "", pin = "", hiddenLabel = "", privateKey = "", sshPassword = "")
+
+    override fun toString(): String = "PortableEntryDraft(kind=$kind, redacted)"
+}
+
+/** Toolkit-free mirror of `PasswordImport.Mode` for `:ui-foundation`. */
+enum class PortablePasswordImportMode {
+    INDIVIDUAL,
+    ARCHIVE
+}
+
+/** Toolkit-free mirror of `Constants.CardLayouts` for `:ui-foundation`. */
+enum class PortableCardLayout {
+    COMPACT,
+    DEFAULT,
+    FULL
 }

@@ -50,11 +50,12 @@ fun PortableVaultScreen(
     onClearTags: () -> Unit,
     onTool: (String) -> Unit,
     onCard: (Int, String) -> Unit,
-    onDismissToast: () -> Unit
+    onDismissToast: () -> Unit,
+    cardLayout: PortableCardLayout = PortableCardLayout.DEFAULT
 ) {
     Column(Modifier.fillMaxSize().background(ForestPalette.background)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+            Modifier.fillMaxWidth().background(ForestPalette.appBar).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("OfflineOTP", style = ForestType.title, color = ForestPalette.textPrimary)
@@ -66,26 +67,27 @@ fun PortableVaultScreen(
             ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             state.tabs.forEachIndexed { position, tab ->
-                ForestTextAction(
-                    text = if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label,
-                    onClick = { onTab(position) },
-                    color = if (tab.selected) ForestPalette.accent else ForestPalette.textSecondary
+                SharedVaultTab(
+                    label = if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label,
+                    selected = tab.selected,
+                    onClick = { onTab(position) }
                 )
             }
         }
-        OutlinedTextField(
+        SharedVaultSearchField(
             value = state.query,
+            hint = "Search",
             onValueChange = onQuery,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            singleLine = true,
-            label = { Text("Search", style = ForestType.label) }
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
         )
         if (state.tags.isNotEmpty()) {
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ForestTextAction(
@@ -95,10 +97,10 @@ fun PortableVaultScreen(
                     contentDescription = "How selected tags combine"
                 )
                 state.tags.forEach { tag ->
-                    ForestTextAction(
-                        text = if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label,
-                        onClick = { onTag(tag.label) },
-                        color = if (tag.selected) ForestPalette.accent else ForestPalette.textSecondary
+                    SharedVaultTagChip(
+                        label = if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label,
+                        selected = tag.selected,
+                        onClick = { onTag(tag.label) }
                     )
                 }
                 if (state.includeUntagged || state.tags.any { it.selected }) {
@@ -119,7 +121,7 @@ fun PortableVaultScreen(
         } else {
             LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 4.dp)) {
                 items(state.cards, key = { it.index }) { card ->
-                    PortableCardView(card, state.hiddenTitleEnabled, onCard)
+                    PortableCardView(card, state.hiddenTitleEnabled, cardLayout, onCard)
                 }
             }
         }
@@ -145,10 +147,14 @@ fun PortableVaultScreen(
 private fun PortableCardView(
     card: PortableCard,
     hideIssuer: Boolean,
+    cardLayout: PortableCardLayout,
     onCard: (Int, String) -> Unit
 ) {
     val shape = RoundedCornerShape(14.dp)
     val displayTitle = card.visibleTitle(hideIssuer)
+    val verticalPad = if (cardLayout == PortableCardLayout.COMPACT) 8.dp else 12.dp
+    val maxLines = if (cardLayout == PortableCardLayout.FULL) 3 else 1
+    val stackCodeBelow = cardLayout == PortableCardLayout.FULL
     Column(
         Modifier
             .fillMaxWidth()
@@ -157,38 +163,24 @@ private fun PortableCardView(
             .background(if (card.revealed) ForestPalette.surfaceElevated else ForestPalette.surface)
             .border(1.dp, ForestPalette.divider, shape)
             .clickable { onCard(card.index, "reveal") }
-            .padding(horizontal = 14.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = verticalPad)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(38.dp)
-                    .clip(CircleShape)
-                    .background(ForestPalette.letterTileTint(card.mark)),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(card.mark.take(1).uppercase(), style = ForestType.body, color = ForestPalette.onPrimary)
-            }
+            VaultLetterTile(seed = card.mark, title = card.mark, sizeDp = 38f)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(displayTitle, style = ForestType.body, color = ForestPalette.textPrimary, maxLines = 1)
+                Text(displayTitle, style = ForestType.body, color = ForestPalette.textPrimary, maxLines = maxLines)
                 if (card.subtitle.isNotEmpty()) {
-                    Text(card.subtitle, style = ForestType.label, color = ForestPalette.textSecondary, maxLines = 1)
+                    Text(card.subtitle, style = ForestType.label, color = ForestPalette.textSecondary, maxLines = maxLines)
                 }
             }
-            if (card.hasCode) {
-                if (card.revealed) {
-                    val codeColor = if (card.isExpiring) ForestPalette.warning else ForestPalette.otpAmber
-                    Text(card.visibleCode(), style = ForestType.code, color = codeColor,
-                        modifier = Modifier.semantics {
-                            contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")
-                        })
-                } else {
-                    Text("••• •••", style = ForestType.code, color = ForestPalette.otpAmberMuted)
-                }
-            } else if (card.pinRequired && card.revealed) {
-                Text("PIN required", style = ForestType.label, color = ForestPalette.warning)
+            if (!stackCodeBelow) {
+                PortableCardCodeArea(card = card)
             }
+        }
+        if (stackCodeBelow && (card.hasCode || (card.pinRequired && card.revealed))) {
+            Spacer(Modifier.height(6.dp))
+            PortableCardCodeArea(card = card)
         }
         if (card.previousCode.isNotEmpty()) {
             Text("Previous " + card.previousCode, style = ForestType.label,
@@ -255,6 +247,33 @@ private fun PortableCardView(
                     contentDescription = "More actions for " + displayTitle)
             }
         }
+    }
+}
+
+@Composable
+private fun PortableCardCodeArea(card: PortableCard) {
+    if (card.hasCode) {
+        if (card.revealed) {
+            val codeColor = if (card.isExpiring) ForestPalette.warning else ForestPalette.otpAmber
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (card.secondsLeft > 0) {
+                    CountdownRing(
+                        progress = card.countdownProgress,
+                        expiring = card.isExpiring,
+                        diameter = 16.dp
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text(card.visibleCode(), style = ForestType.code, color = codeColor,
+                    modifier = Modifier.semantics {
+                        contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" ")
+                    })
+            }
+        } else {
+            Text("••• •••", style = ForestType.code, color = ForestPalette.otpAmberMuted)
+        }
+    } else if (card.pinRequired && card.revealed) {
+        Text("PIN required", style = ForestType.label, color = ForestPalette.warning)
     }
 }
 

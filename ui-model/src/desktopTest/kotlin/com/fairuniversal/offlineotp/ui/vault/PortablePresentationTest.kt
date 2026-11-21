@@ -1,7 +1,19 @@
 package com.fairuniversal.offlineotp.ui.vault
 
+import com.fairuniversal.offlineotp.Utilities.BrowserPasswordCsv
+import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.EmailMaterial
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.ui.portable.PortableCard
+import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableChip
+import com.fairuniversal.offlineotp.ui.portable.PortableDetailRow
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailAccountDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEntryDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
+import com.fairuniversal.offlineotp.ui.portable.PortablePasswordEditDraft
+import com.fairuniversal.offlineotp.ui.portable.PortablePasswordImportMode
 import com.fairuniversal.offlineotp.ui.portable.PortableRow
 import com.fairuniversal.offlineotp.ui.portable.PortableSection
 import com.fairuniversal.offlineotp.ui.portable.PortableSurfaceState
@@ -52,6 +64,25 @@ class PortablePresentationTest {
         assertFalse(card(revealed = true).copy(hasCode = false, secondsLeft = 3).isExpiring)
         val motpNoPin = card(revealed = true).copy(hasCode = false, pinRequired = true)
         assertTrue(motpNoPin.pinRequired)
+        assertEquals(InputPolicy.MAX_TEXT_CHARS, PortableInputBounds.MAX_TEXT_CHARS)
+        assertEquals(InputPolicy.MAX_URI_CHARS, PortableInputBounds.MAX_URI_CHARS)
+        assertEquals(InputPolicy.MAX_TAG_CHARS, PortableInputBounds.MAX_TAG_CHARS)
+        assertEquals(InputPolicy.MAX_TAGS, PortableInputBounds.MAX_TAGS)
+        assertEquals(InputPolicy.MAX_NOTE_CHARACTERS, PortableInputBounds.MAX_NOTE_CHARACTERS)
+        assertEquals(BrowserPasswordCsv.MAX_FIELD_CHARS, PortableInputBounds.MAX_PASSWORD_FIELD_CHARS)
+        assertEquals(EmailMaterial.MAX_CREDENTIAL_CHARS, PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS)
+        assertFalse(PortableDetailRow("Password", "top-secret").toString().contains("top-secret"))
+        assertFalse(PortablePasswordEditDraft(password = "top-secret").toString().contains("top-secret"))
+        assertFalse(PortableEmailAccountDraft(incomingPassword = "top-secret").toString().contains("top-secret"))
+        assertFalse(PortableEntryDraft(secret = "JBSWY3DPEHPK3PXP").toString().contains("JBSWY3DPEHPK3PXP"))
+        assertEquals(
+            PasswordImport.Mode.values().map { it.name },
+            PortablePasswordImportMode.values().map { it.name }
+        )
+        assertEquals(
+            Constants.CardLayouts.values().map { it.name },
+            PortableCardLayout.values().map { it.name }
+        )
     }
 
     @Test

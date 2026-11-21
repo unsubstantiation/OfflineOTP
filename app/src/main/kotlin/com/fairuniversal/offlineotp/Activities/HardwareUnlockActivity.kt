@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.Activities
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.view.View
 import android.widget.Button
@@ -17,6 +16,8 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.SessionState
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import javax.crypto.spec.SecretKeySpec
 
 /** One-use FIDO2 unlock; key material is handed to the session, never an Intent. */
@@ -24,7 +25,7 @@ class HardwareUnlockActivity : BaseActivity() {
     private var generation = -1L
     private lateinit var discovery: HardwareKeyDiscovery
     private lateinit var pin: EditText
-    private var progress: AlertDialog? = null
+    private var progress: ComposeDialogHost? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -53,12 +54,24 @@ class HardwareUnlockActivity : BaseActivity() {
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         pin.setText("")
         val supplied = chars.takeIf { it.isNotEmpty() }
-        val prompt = AlertDialog.Builder(this).setTitle(R.string.hardware_title).setMessage(R.string.hardware_connect)
-            .setNegativeButton(android.R.string.cancel) { _, _ -> discovery.cancel() }.create()
+        var promptRef: ComposeDialogHost? = null
+        val prompt = EntryDetailsComposeView(
+            activity = this,
+            title = getString(R.string.hardware_title),
+            body = getString(R.string.hardware_connect),
+            confirmLabel = getString(android.R.string.cancel),
+            onDismiss = {
+                val active = promptRef
+                if (active != null && progress === active) {
+                    progress = null
+                    discovery.cancel()
+                }
+                active?.dismiss()
+            }
+        )
+        promptRef = prompt
         progress?.dismiss()
         progress = prompt
-        prompt.setOnCancelListener { discovery.cancel() }
-        prompt.setOnDismissListener { if (progress === prompt) { progress = null; discovery.cancel() } }
         prompt.show()
         val state = CommandState()
         discovery.start(HardwareKeyDiscovery.Protocol.FIDO, { device, permitted ->

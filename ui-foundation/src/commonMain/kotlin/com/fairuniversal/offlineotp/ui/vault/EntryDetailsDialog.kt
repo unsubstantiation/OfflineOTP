@@ -13,12 +13,25 @@ fun EntryDetailsDialog(
     title: String,
     body: String,
     confirmLabel: String,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    actions: List<String> = emptyList(),
+    onAction: ((Int) -> Unit)? = null
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
-        text = { ScrollableDialogBody { Text(text = body) } },
+        text = {
+            ScrollableDialogBody {
+                if (body.isNotEmpty()) {
+                    Text(text = body)
+                }
+                if (onAction != null) {
+                    actions.forEachIndexed { index, label ->
+                        ForestTextAction(text = label, onClick = { onAction(index) })
+                    }
+                }
+            }
+        },
         confirmButton = { ForestTextAction(text = confirmLabel, onClick = onDismiss) }
     )
 }

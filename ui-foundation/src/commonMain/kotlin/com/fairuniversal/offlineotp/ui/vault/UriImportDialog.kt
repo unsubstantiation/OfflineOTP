@@ -9,7 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 /** URI text contains seeds; never save it or echo parser details into the result text. */
 @Composable
@@ -32,7 +32,7 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
                 ForestTextAction(text = "Discard image payload", onClick = onDiscardImage)
             }
             if (imageFailed) Text(text = "Could not read a supported QR image. Check the image and its size.")
-            OutlinedTextField(value = uri, enabled = !imageBusy && !imageReady, onValueChange = { if (it.length <= InputPolicy.MAX_URI_CHARS) uri = it },
+            OutlinedTextField(value = uri, enabled = !imageBusy && !imageReady, onValueChange = { if (it.length <= PortableInputBounds.MAX_URI_CHARS) uri = it },
                 label = { Text(text = "Secret OTP URI") }, visualTransformation = PasswordVisualTransformation())
             ForestTextAction(text = if (allowAdditional) "Additional accounts for existing issuers: allowed" else "Additional accounts for existing issuers: excluded",
                 enabled = !collecting, onClick = { allowAdditional = !allowAdditional })

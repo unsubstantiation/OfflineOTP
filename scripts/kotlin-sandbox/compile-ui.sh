@@ -84,7 +84,8 @@ mapfile -d '' MODEL_TEST_SOURCES < <(find "$MODEL_TEST" -name '*.kt' -print0 | s
 # Only the multiplatform stubs: the desktop window and Android platform stubs are compiled with the
 # host phases that need them (and the Android ones need the app's Android stubs on the classpath).
 mapfile -d '' COMPOSE_STUB_SOURCES < <(find "$COMPOSE_STUBS" -name '*.kt' \
-    -not -path "$COMPOSE_STUBS/desktop/*" -not -path "$COMPOSE_STUBS/android/*" -print0 | sort -z)
+    -not -path "$COMPOSE_STUBS/desktop/*" -not -path "$COMPOSE_STUBS/android/*" \
+    -not -path "$COMPOSE_STUBS/ios/*" -print0 | sort -z)
 # Compose Desktop (window) stubs are only needed by the host phase.
 mapfile -d '' COMPOSE_DESKTOP_STUB_SOURCES < <(find "$COMPOSE_STUBS/desktop" -name '*.kt' -print0 2>/dev/null | sort -z)
 mapfile -d '' HOST_SOURCES < <(find "$ROOT/desktop-compose/src/main/kotlin" -name '*.kt' -print0 | sort -z)
@@ -92,6 +93,9 @@ mapfile -d '' HOST_SOURCES < <(find "$ROOT/desktop-compose/src/main/kotlin" -nam
 mapfile -d '' ANDROID_UI_SOURCES < <(find "$ROOT/ui/src/androidMain/kotlin" -name '*.kt' -print0 | sort -z)
 mapfile -d '' COMPOSE_ANDROID_STUB_SOURCES < <(find "$COMPOSE_STUBS/android" -name '*.kt' -print0 2>/dev/null | sort -z)
 mapfile -d '' ANDROID_STUBS < <(find "$SANDBOX/stubs/android" -name '*.kt' -print0 2>/dev/null | sort -z)
+# iOS host seam: type-checks ui-foundation/src/iosMain against UIKit + ComposeUIViewController stubs.
+mapfile -d '' IOS_UI_SOURCES < <(find "$ROOT/ui-foundation/src/iosMain/kotlin" -name '*.kt' -print0 | sort -z)
+mapfile -d '' COMPOSE_IOS_STUB_SOURCES < <(find "$COMPOSE_STUBS/ios" -name '*.kt' -print0 2>/dev/null | sort -z)
 
 [[ ${#CORE_SOURCES[@]} -gt 0 ]] || { echo "no core sources under $CORE_MAIN" >&2; exit 2; }
 [[ ${#MODEL_SOURCES[@]} -gt 0 ]] || { echo "no frame-layer sources under $MODEL_MAIN" >&2; exit 2; }
@@ -99,7 +103,7 @@ mapfile -d '' ANDROID_STUBS < <(find "$SANDBOX/stubs/android" -name '*.kt' -prin
 [[ ${#COMPOSE_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose stubs under $COMPOSE_STUBS" >&2; exit 2; }
 
 rm -rf "$OUT"
-mkdir -p "$OUT/core" "$OUT/model" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android"
+mkdir -p "$OUT/core" "$OUT/model" "$OUT/ui" "$OUT/tests" "$OUT/host" "$OUT/android" "$OUT/ios"
 
 echo "kotlinc: $KOTLINC"
 # Contracts must remain toolkit-free; foundation must compile WITHOUT core/model classes.
@@ -109,6 +113,12 @@ mapfile -d '' CONTRACT_SOURCES < <(find "$ROOT/ui-contract/src/commonMain/kotlin
 mapfile -d '' FOUNDATION_SOURCES < <(find "$ROOT/ui-foundation/src/commonMain/kotlin" "$ROOT/ui-contract/src/commonMain/kotlin" -name '*.kt' -print0 | sort -z)
 echo "phase 0: native-compatible presentation (no core/model classpath; JVM stubs only)"
 "$KOTLINC" -jvm-target 1.8 -nowarn "${FOUNDATION_SOURCES[@]}" "${COMPOSE_STUB_SOURCES[@]}" -d "$OUT/foundation"
+
+echo "phase 0b: ios host seam (${#IOS_UI_SOURCES[@]} files, UIKit + Compose iOS stubs)"
+[[ ${#IOS_UI_SOURCES[@]} -gt 0 ]] || { echo "no sources under ui-foundation/src/iosMain/kotlin" >&2; exit 2; }
+[[ ${#COMPOSE_IOS_STUB_SOURCES[@]} -gt 0 ]] || { echo "no Compose iOS stubs under $COMPOSE_STUBS/ios" >&2; exit 2; }
+"$KOTLINC" -jvm-target 1.8 -nowarn -cp "$OUT/foundation:$STDLIB" \
+    "${IOS_UI_SOURCES[@]}" "${COMPOSE_IOS_STUB_SOURCES[@]}" -d "$OUT/ios"
 
 echo "phase 1: core (${#CORE_SOURCES[@]} files, no android/androidx stubs)"
 "$KOTLINC" -jvm-target 1.8 -nowarn \
