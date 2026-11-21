@@ -13,10 +13,11 @@ final class EntryDraftTests: XCTestCase {
                         label: String = "alice", secret: String = "JBSWY3DPEHPK3PXP",
                         digits: String = "6", timing: String = "30",
                         algorithm: OtpHashAlgorithm = .sha1, pin: String = "", tags: [String] = [],
+                        thumbnailName: String? = nil,
                         newEntry: Bool = true) throws -> Entry {
         try EntryDraft.create(kind: kind, issuer: issuer, label: label, secret: secret,
                              digits: digits, timing: timing, algorithm: algorithm, pin: pin,
-                             tags: tags, newEntry: newEntry, now: now)
+                             tags: tags, thumbnailName: thumbnailName, newEntry: newEntry, now: now)
     }
 
     func testANewTimeBasedEntryIsWrittenInTheSharedFieldOrder() throws {
