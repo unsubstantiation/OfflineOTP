@@ -76,7 +76,7 @@ class PreferencesFormatTest(unittest.TestCase):
         self.assertIn("PreferencesExport.setting(key, PreferencesExport.PLATFORM_DESKTOP)", port)
 
         swift = read(IOS_KIT / "PreferencesExport.swift")
-        for key in ("tagFunctionalityKey", "showPrevTokenKey", "splitGroupSizeKey", "searchIncludesKey"):
+        for key in ("tagFunctionalityKey", "showPrevTokenKey", "showIndividualTimeoutsKey", "splitGroupSizeKey", "searchIncludesKey"):
             self.assertIn(key, swift)
 
 

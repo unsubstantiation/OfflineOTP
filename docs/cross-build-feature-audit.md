@@ -82,6 +82,24 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   `ui_split_group_size`, and `ui_search_includes` in both `PreferencesExport.desktopCatalog` and
   iOS `PreferencesExport.catalog`.
 
+- **Shared multi-identity email editing, drag-and-drop card reordering & individual countdown
+  parity**: Migrated `SharedEmailEditDialog`, `SharedEmailPasswordDialog`, and
+  `SharedEmailSettingsDialog` into `:ui-foundation` over toolkit-free DTOs in `:ui-contract`
+  (`PortableEmailField`, `PortableEmailEditDraft`, `PortableEmailPasswordDraft`,
+  `PortableEmailConnectionDraft`, `PortableEmailIdentityDraft`, `PortableEmailSettingsDraft`) so
+  Android, Compose desktop, and iOS share one production implementation for comprehensive
+  multi-identity FairEmail editing (`Issuer`, `Label`, `Hidden Label`, newline-separated `Tags`,
+  `Artwork`, incoming fields, and all `1..N` SMTP identities), masked credential-only rotation,
+  and non-secret connection/sender settings with staged secondary SMTP identity (`#2..#N`)
+  removal; wired live `EmailSettingsDialog` and `EmailPasswordDialog` dispatch from
+  `EmailDetailsDialog` on both Compose desktop (`ComposeMain.kt`) and Android
+  (`EmailDetailsComposeView` / `EmailSettingsComposeView` / `EmailPasswordComposeView` plus inline
+  `Connection details` card action); shared `portableEntryDragDirection` in `:ui-contract` so iOS
+  `PortableVaultScreen` supports press-and-hold drag-and-drop card reordering with lifted card
+  previews and edge auto-scrolling alongside masked OTP countdown rings; and added persisted
+  `ui_show_individual_timeouts` (`Show individual countdown timers`) in `SharedCardLayoutDialog`,
+  `PreferencesExport.desktopCatalog`, and iOS `VaultStore` / `PreferencesExport.catalog`.
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

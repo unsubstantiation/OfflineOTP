@@ -1411,6 +1411,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onEditCounter = { published.perform(it.id, AndroidCardCommand.EDIT_COUNTER) },
             onEnterPin = { published.perform(it.id, AndroidCardCommand.ENTER_PIN) },
             onEntryActions = { published.perform(it.id, AndroidCardCommand.MENU, anchor) },
+            onViewEmailDetails = { published.perform(it.id, AndroidCardCommand.EMAIL_DETAILS) },
             onMoveUp = { published.perform(it.id, AndroidCardCommand.MOVE_UP) },
             onMoveDown = { published.perform(it.id, AndroidCardCommand.MOVE_DOWN) }
         ))

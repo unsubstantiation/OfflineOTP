@@ -488,7 +488,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedShowPreviousToken,
             controller::trySaveShowPreviousToken,
             controller::savedTokenGroupSize,
-            controller::trySaveTokenGroupSize
+            controller::trySaveTokenGroupSize,
+            controller::savedShowIndividualTimeouts,
+            controller::trySaveShowIndividualTimeouts
         )
     }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
@@ -572,7 +574,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.savedCardLayout(),
                 controller.savedHideIssuer(),
                 controller.savedShowPreviousToken(),
-                controller.savedTokenGroupSize()
+                controller.savedTokenGroupSize(),
+                controller.savedShowIndividualTimeouts()
             )
         }
     }
@@ -1003,7 +1006,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             },
             onEditPasswords = {
                 if (lifetime.checkActive() && emailDetails.rows(detailsRequest, presenter.isRevealed(detailsRequest.entryId)) != null) {
-                    editing.open(detailsRequest.entryId)
+                    editing.openEmailPasswords(detailsRequest.entryId)
                     emailDetails.dismiss(detailsRequest)
                 }
                 revision++
@@ -1561,6 +1564,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 presenter::setDisplaySettings
             )
             revision++
+        },
+        showIndividualCountdowns = layoutRequest.showIndividualTimeouts,
+        onSaveCardDisplay = { layout, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual ->
+            layoutSettings.submit(
+                layoutRequest,
+                layout,
+                hideIssuer,
+                showPreviousToken,
+                tokenGroupSize,
+                showIndividual,
+                lifetime::checkActive,
+                presenter::setDisplaySettings
+            )
+            revision++
         })
     val timeoutRequest = autoLock.pending
     if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
@@ -1609,7 +1626,29 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         )
     }
     val editRequest = editing.pending
-    if (editRequest != null && editRequest.isEmail) {
+    if (editRequest != null && editRequest.isEmail && editRequest.emailSettings) {
+        val initial = remember(editRequest) { editing.initialEmailSettings(editRequest) }
+        if (initial != null) EmailSettingsDialog(
+            inputKey = editRequest, initial = initial,
+            failed = editRequest.failure != null,
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                revision++
+            })
+    }
+    if (editRequest != null && editRequest.isEmail && editRequest.emailPasswords) {
+        val initial = remember(editRequest) { editing.initialEmailPasswords(editRequest) }
+        if (initial != null) EmailPasswordDialog(
+            inputKey = editRequest, initial = initial,
+            failed = editRequest.failure != null,
+            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onSubmit = { input ->
+                editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                revision++
+            })
+    }
+    if (editRequest != null && editRequest.isEmail && !editRequest.emailSettings && !editRequest.emailPasswords) {
         val initial = remember(editRequest) { editing.initialEmailEdit(editRequest) }
         if (initial != null) com.fairuniversal.offlineotp.ui.vault.EmailEditDialog(
             inputKey = editRequest, initial = initial,

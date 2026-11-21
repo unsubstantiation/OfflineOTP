@@ -125,25 +125,33 @@ class DesktopLayoutSettingsTest {
                 controller::savedShowPreviousToken,
                 controller::trySaveShowPreviousToken,
                 controller::savedTokenGroupSize,
-                controller::trySaveTokenGroupSize
+                controller::trySaveTokenGroupSize,
+                controller::savedShowIndividualTimeouts,
+                controller::trySaveShowIndividualTimeouts
             )
+            assertTrue(controller.savedShowIndividualTimeouts())
             settings.open()
             val req = settings.pending!!
+            assertTrue(req.showIndividualTimeouts)
             var appliedPrev = true
             var appliedGroup: Int? = 99
+            var appliedIndividual = true
             assertTrue(
-                settings.submit(req, CardLayouts.FULL, true, false, 2, { true }) { _, _, showPrev, groupSize ->
+                settings.submit(req, CardLayouts.FULL, true, false, 2, false, { true }) { _, _, showPrev, groupSize, showInd ->
                     appliedPrev = showPrev
                     appliedGroup = groupSize
+                    appliedIndividual = showInd
                 }
             )
             assertFalse(appliedPrev)
             assertEquals(2, appliedGroup)
+            assertFalse(appliedIndividual)
 
             val reopened = VaultController(DesktopStorage.open(dir))
             assertEquals(CardLayouts.FULL, reopened.savedCardLayout())
             assertTrue(reopened.savedHideIssuer())
             assertFalse(reopened.savedShowPreviousToken())
+            assertFalse(reopened.savedShowIndividualTimeouts())
             assertEquals(2, reopened.savedTokenGroupSize())
             assertEquals(
                 listOf(

@@ -18,6 +18,10 @@ import com.fairuniversal.offlineotp.ui.vault.BiometricEnableDialog
 import com.fairuniversal.offlineotp.ui.vault.CheckboxConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
+import com.fairuniversal.offlineotp.ui.vault.EmailPasswordDialog
+import com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput
+import com.fairuniversal.offlineotp.ui.vault.EmailSettingsDialog
+import com.fairuniversal.offlineotp.ui.vault.EmailSettingsInput
 import com.fairuniversal.offlineotp.ui.vault.EncryptedRestoreDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
@@ -354,7 +358,8 @@ class EmailDetailsComposeView(
     activity: Activity,
     private val rowsProvider: (Boolean) -> List<EmailMaterial.Detail>?,
     private val onDismiss: () -> Unit,
-    private val onEditSettings: (() -> Unit)? = null
+    private val onEditSettings: (() -> Unit)? = null,
+    private val onEditPasswords: (() -> Unit)? = null
 ) : ComposeDialogHost(activity) {
 
     init {
@@ -363,14 +368,75 @@ class EmailDetailsComposeView(
 
     @Composable
     override fun Content() {
-        var secretsVisible by remember { mutableStateOf(true) }
+        var secretsVisible by remember { mutableStateOf(false) }
         ForestTheme {
             EmailDetailsDialog(
                 rows = rowsProvider(secretsVisible),
                 secretsVisible = secretsVisible,
                 onToggleSecrets = { secretsVisible = !secretsVisible },
                 onDismiss = onDismiss,
-                onEditSettings = onEditSettings
+                onEditSettings = onEditSettings,
+                onEditPasswords = onEditPasswords
+            )
+        }
+    }
+}
+
+/** Shared non-secret email connection & sender identity settings dialog for Android. */
+class EmailSettingsComposeView(
+    activity: Activity,
+    private val initial: EmailSettingsInput,
+    private val onSubmit: (EmailSettingsInput) -> String?,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        var failed by remember { mutableStateOf(false) }
+        ForestTheme {
+            EmailSettingsDialog(
+                inputKey = initial,
+                initial = initial,
+                failed = failed,
+                onSubmit = { input ->
+                    val error = onSubmit(input)
+                    if (error == null) onDismiss() else failed = true
+                },
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared masked credential-only email password/token editor dialog for Android. */
+class EmailPasswordComposeView(
+    activity: Activity,
+    private val initial: EmailPasswordInput,
+    private val onSubmit: (EmailPasswordInput) -> String?,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        var failed by remember { mutableStateOf(false) }
+        ForestTheme {
+            EmailPasswordDialog(
+                inputKey = initial,
+                initial = initial,
+                failed = failed,
+                onSubmit = { input ->
+                    val error = onSubmit(input)
+                    if (error == null) onDismiss() else failed = true
+                },
+                onDismiss = onDismiss
             )
         }
     }

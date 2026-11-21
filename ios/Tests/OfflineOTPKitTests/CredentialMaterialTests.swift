@@ -65,4 +65,84 @@ final class CredentialMaterialTests: XCTestCase {
         XCTAssertEqual(tbEntries.count, 1)
         XCTAssertEqual(try tbEntries[0].emailAccount().address, "alice@example.com")
     }
+
+    func testMultiIdentityEmailEditPasswordAndSettingsParity() throws {
+        let base = try EmailMaterial.create(
+            name: "Primary Mail",
+            address: "alice@example.com",
+            incomingHost: "imap.example.com",
+            incomingPort: 993,
+            incomingEncryption: 0,
+            incomingProtocol: 0,
+            incomingUser: "alice",
+            incomingPassword: "imap-old",
+            outgoingHost: "smtp.example.com",
+            outgoingPort: 465,
+            outgoingEncryption: 0,
+            outgoingUser: "alice",
+            outgoingPassword: "smtp1-old"
+        )
+        var acct = base.account
+        acct["poll_interval"] = .int(15)
+        acct["pop"] = .bool(false)
+        var id1 = base.identity
+        var id2 = base.identity
+        id2["primary"] = .bool(false)
+        id2["name"] = .string("Alias Sender")
+        id2["email"] = .string("alias@example.com")
+        id2["host"] = .string("smtp2.example.com")
+        id2["password"] = .string("smtp2-old")
+        id1["primary"] = .bool(true)
+        let multiAccount = EmailMaterial.Account(account: acct, identities: [id1, id2])
+        let entry = try Entry.email(account: multiAccount, tags: ["ops,team"])
+
+        // 1. Comprehensive multi-identity edit preserves extensions, updates artwork/issuer/tags, syncs legacy flags.
+        var fullEdit = try EmailEditInput.fromEntry(entry)
+        fullEdit.issuer = "Custom Mail Issuer"
+        fullEdit.label = "Ops Mailbox"
+        fullEdit.hiddenLabel = "Hidden Ops"
+        fullEdit.thumbnail = "Fastmail"
+        fullEdit.tags = "ops,team\nprod"
+        if let protoIdx = fullEdit.account.firstIndex(where: { $0.name == "protocol" }) {
+            fullEdit.account = EmailFieldInput.updated(fullEdit.account, index: protoIdx, value: "1")
+        }
+        if let pw2Idx = fullEdit.identities[1].firstIndex(where: { $0.name == "password" }) {
+            fullEdit.identities[1] = EmailFieldInput.updated(fullEdit.identities[1], index: pw2Idx, value: "smtp2-edited")
+        }
+        let editedEntry = try fullEdit.build(existing: entry)
+        XCTAssertEqual(editedEntry.issuer, "Custom Mail Issuer")
+        XCTAssertEqual(editedEntry.label, "Ops Mailbox")
+        XCTAssertEqual(editedEntry.hiddenLabel, "Hidden Ops")
+        XCTAssertEqual(editedEntry.thumbnail, "Fastmail")
+        XCTAssertEqual(editedEntry.tags, ["ops,team", "prod"])
+        let decodedEdited = try editedEntry.emailAccount()
+        XCTAssertEqual(decodedEdited.account["pop"]?.boolValue, true)
+        XCTAssertEqual(decodedEdited.account["poll_interval"]?.intValue, 15)
+        XCTAssertEqual(decodedEdited.identities[1]["password"]?.stringValue, "smtp2-edited")
+
+        // 2. Masked password-only rotation keeps blank fields untouched and preserves Entry metadata.
+        var pwEdit = try EmailPasswordInput.fromEntry(editedEntry)
+        XCTAssertEqual(pwEdit.outgoing, ["", ""])
+        pwEdit.incoming = ""
+        pwEdit.outgoing = ["smtp1-rotated", ""]
+        let rotatedEntry = try pwEdit.build(existing: editedEntry)
+        XCTAssertEqual(rotatedEntry.issuer, "Custom Mail Issuer")
+        XCTAssertEqual(rotatedEntry.thumbnail, "Fastmail")
+        let decodedRotated = try rotatedEntry.emailAccount()
+        XCTAssertEqual(decodedRotated.account["password"]?.stringValue, "imap-old")
+        XCTAssertEqual(decodedRotated.identities[0]["password"]?.stringValue, "smtp1-rotated")
+        XCTAssertEqual(decodedRotated.identities[1]["password"]?.stringValue, "smtp2-edited")
+
+        // 3. Connection settings edit removes non-primary SMTP #2 while keeping primary credentials & metadata.
+        var settingsEdit = try EmailSettingsInput.fromEntry(rotatedEntry)
+        XCTAssertEqual(settingsEdit.removableIdentities, [1])
+        settingsEdit.accountName = "Updated Account Name"
+        settingsEdit.removedIdentities = [1]
+        let trimmedEntry = try settingsEdit.build(existing: rotatedEntry)
+        XCTAssertEqual(trimmedEntry.issuer, "Custom Mail Issuer")
+        let decodedTrimmed = try trimmedEntry.emailAccount()
+        XCTAssertEqual(decodedTrimmed.identities.count, 1)
+        XCTAssertEqual(decodedTrimmed.account["name"]?.stringValue, "Updated Account Name")
+        XCTAssertEqual(decodedTrimmed.identities[0]["password"]?.stringValue, "smtp1-rotated")
+    }
 }

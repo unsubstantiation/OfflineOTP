@@ -67,6 +67,7 @@ class PreferencesExportDesktopTest {
         settings.putString(PreferencesExport.UI_TAG_FUNCTIONALITY, "AND")
         settings.putString(PreferencesExport.UI_HIDE_ISSUER, "true")
         settings.putString(PreferencesExport.UI_SHOW_PREV_TOKEN, "false")
+        settings.putString(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS, "false")
         settings.putInt(PreferencesExport.UI_SPLIT_GROUP_SIZE, 2)
         settings.putString(PreferencesExport.UI_SEARCH_INCLUDES, "LABEL\nTAGS")
         val roundTripTarget = newSettings()
@@ -76,11 +77,12 @@ class PreferencesExportDesktopTest {
         try {
             val imported = PreferencesExport.import(
                 fullExport.bytes, DesktopPreferencesPort(roundTripTarget), PreferencesExport.PLATFORM_DESKTOP)
-            assertEquals(7, imported.applied)
+            assertEquals(8, imported.applied)
             assertEquals("COMPACT", roundTripTarget.getString(PreferencesExport.UI_CARD_LAYOUT, ""))
             assertEquals("AND", roundTripTarget.getString(PreferencesExport.UI_TAG_FUNCTIONALITY, ""))
             assertEquals("true", roundTripTarget.getString(PreferencesExport.UI_HIDE_ISSUER, ""))
             assertEquals("false", roundTripTarget.getString(PreferencesExport.UI_SHOW_PREV_TOKEN, ""))
+            assertEquals("false", roundTripTarget.getString(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS, ""))
             assertEquals(2, roundTripTarget.getInt(PreferencesExport.UI_SPLIT_GROUP_SIZE, -1))
             assertEquals("LABEL\nTAGS", roundTripTarget.getString(PreferencesExport.UI_SEARCH_INCLUDES, ""))
         } finally {

@@ -905,3 +905,446 @@ public enum EmailCredentialError: Error, Equatable {
     case noExportableAccounts
     case tooLarge
 }
+
+/// Typed, lossless FairEmail account/identity field mirroring `EmailFieldInput.kt` in `:core`.
+public struct EmailFieldInput: Equatable, CustomStringConvertible {
+    public enum Kind: String, Equatable {
+        case text = "TEXT"
+        case number = "NUMBER"
+        case boolean = "BOOLEAN"
+        case object = "OBJECT"
+        case array = "ARRAY"
+        case null = "NULL"
+    }
+
+    public let name: String
+    public var value: String
+    public let kind: Kind
+
+    public init(name: String, value: String, kind: Kind) {
+        self.name = name
+        self.value = value
+        self.kind = kind
+    }
+
+    public var description: String { "EmailFieldInput(redacted)" }
+
+    public func putInto(_ json: inout [String: JSONValue]) throws {
+        guard value.utf8.count <= EmailMaterial.maxBytes else {
+            throw EmailCredentialError.tooLarge
+        }
+        if kind != .text {
+            try InputPolicy.validateJSONDepth(value)
+        }
+        let parsed: JSONValue
+        switch kind {
+        case .text:
+            parsed = .string(value)
+        case .number:
+            guard let array = (try? JSONValue.decode("[\(value)]"))?.arrayValue,
+                  array.count == 1 else {
+                throw EmailCredentialError.invalidAccount
+            }
+            switch array[0] {
+            case .int, .double:
+                parsed = array[0]
+            default:
+                throw EmailCredentialError.invalidAccount
+            }
+        case .boolean:
+            guard value == "true" || value == "false" else {
+                throw EmailCredentialError.invalidAccount
+            }
+            parsed = .bool(value == "true")
+        case .object:
+            guard let obj = (try? JSONValue.decode(value))?.objectValue else {
+                throw EmailCredentialError.invalidAccount
+            }
+            parsed = .object(obj)
+        case .array:
+            guard let arr = (try? JSONValue.decode(value))?.arrayValue else {
+                throw EmailCredentialError.invalidAccount
+            }
+            parsed = .array(arr)
+        case .null:
+            guard value == "null" else {
+                throw EmailCredentialError.invalidAccount
+            }
+            parsed = .null
+        }
+        json[name] = parsed
+    }
+
+    public static func fields(from json: [String: JSONValue]) -> [EmailFieldInput] {
+        json.keys.sorted().compactMap { key in
+            guard let val = json[key] else { return nil }
+            switch val {
+            case .null:
+                return EmailFieldInput(name: key, value: "null", kind: .null)
+            case .bool(let flag):
+                return EmailFieldInput(name: key, value: flag ? "true" : "false", kind: .boolean)
+            case .int(let number):
+                return EmailFieldInput(name: key, value: String(number), kind: .number)
+            case .double(let number):
+                return EmailFieldInput(name: key, value: val.compact(), kind: .number)
+            case .object:
+                return EmailFieldInput(name: key, value: val.compact(), kind: .object)
+            case .array:
+                return EmailFieldInput(name: key, value: val.compact(), kind: .array)
+            case .string(let text):
+                return EmailFieldInput(name: key, value: text, kind: .text)
+            }
+        }
+    }
+
+    public static func updated(_ fields: [EmailFieldInput], index: Int, value: String) -> [EmailFieldInput] {
+        guard fields.indices.contains(index) else { return fields }
+        let name = fields[index].name
+        return fields.enumerated().map { idx, old in
+            let linked: String
+            if name == "protocol" && old.name == "pop" {
+                linked = value == "1" ? "true" : "false"
+            } else if name == "pop" && old.name == "protocol" {
+                linked = value == "true" ? "1" : "0"
+            } else if name == "encryption" && old.name == "starttls" {
+                linked = value == "1" ? "true" : "false"
+            } else if name == "starttls" && old.name == "encryption" {
+                linked = value == "true" ? "1" : "0"
+            } else {
+                linked = old.value
+            }
+            return EmailFieldInput(name: old.name, value: idx == index ? value : linked, kind: old.kind)
+        }
+    }
+
+    public static func json(from fields: [EmailFieldInput]) throws -> [String: JSONValue] {
+        var out: [String: JSONValue] = [:]
+        for field in fields {
+            try field.putInto(&out)
+        }
+        return out
+    }
+}
+
+/// Comprehensive multi-identity email editor model mirroring `EmailEditInput.kt` in `:core`.
+public struct EmailEditInput: Equatable, CustomStringConvertible {
+    public var issuer: String
+    public var label: String
+    public var hiddenLabel: String
+    public var tags: String
+    public var thumbnail: String
+    public var account: [EmailFieldInput]
+    public var identities: [[EmailFieldInput]]
+
+    public init(
+        issuer: String,
+        label: String,
+        hiddenLabel: String,
+        tags: String,
+        thumbnail: String,
+        account: [EmailFieldInput],
+        identities: [[EmailFieldInput]]
+    ) {
+        self.issuer = issuer
+        self.label = label
+        self.hiddenLabel = hiddenLabel
+        self.tags = tags
+        self.thumbnail = thumbnail
+        self.account = account
+        self.identities = identities
+    }
+
+    public var description: String { "EmailEditInput(redacted)" }
+
+    public static func fromEntry(_ entry: Entry) throws -> EmailEditInput {
+        guard entry.kind == .email else { throw EmailCredentialError.invalidAccount }
+        let email = try entry.emailAccount()
+        return EmailEditInput(
+            issuer: entry.issuer,
+            label: entry.label,
+            hiddenLabel: entry.hiddenLabel,
+            tags: entry.tags.joined(separator: "\n"),
+            thumbnail: entry.thumbnail,
+            account: EmailFieldInput.fields(from: email.account),
+            identities: email.identities.map { EmailFieldInput.fields(from: $0) }
+        )
+    }
+
+    public func build(existing: Entry) throws -> Entry {
+        guard existing.kind == .email else { throw EmailCredentialError.invalidAccount }
+        for text in [issuer, label, hiddenLabel, thumbnail] {
+            try InputPolicy.validateText(text, maxChars: InputPolicy.maxTextChars)
+        }
+        let accountJson = try EmailFieldInput.json(from: account)
+        let identityJson = try identities.map { try EmailFieldInput.json(from: $0) }
+        let bytes = try EmailMaterial.encode(account: accountJson, identities: identityJson)
+        let cleanedTags = EntryDraft.cleanedTags(
+            tags.split(whereSeparator: \.isNewline).map { String($0).trimmingCharacters(in: .whitespaces) }
+        )
+        var fields = existing.fields
+        fields["secret"] = .string(Base32.encode(bytes))
+        fields["issuer"] = .string(issuer)
+        fields["label"] = .string(label)
+        if hiddenLabel.isEmpty {
+            fields.removeValue(forKey: "hidden_label")
+        } else {
+            fields["hidden_label"] = .string(hiddenLabel)
+        }
+        fields["tags"] = .array(cleanedTags.map { .string($0) })
+        fields["thumbnail"] = .string(thumbnail.isEmpty ? ThumbnailCatalog.defaultName : thumbnail)
+        return try Entry.parse(.object(fields))
+    }
+}
+
+/// Masked credential-only email password/token editor model mirroring `EmailPasswordInput.kt` in `:ui-model`.
+public struct EmailPasswordInput: Equatable, CustomStringConvertible {
+    public var incoming: String
+    public var outgoing: [String]
+
+    public init(incoming: String = "", outgoing: [String] = []) {
+        self.incoming = incoming
+        self.outgoing = outgoing
+    }
+
+    public var description: String { "EmailPasswordInput(redacted)" }
+
+    public static func fromEntry(_ entry: Entry) throws -> EmailPasswordInput {
+        guard entry.kind == .email else { throw EmailCredentialError.invalidAccount }
+        let email = try entry.emailAccount()
+        return EmailPasswordInput(
+            incoming: "",
+            outgoing: Array(repeating: "", count: email.identities.count)
+        )
+    }
+
+    public func build(existing: Entry) throws -> Entry {
+        guard existing.kind == .email else { throw EmailCredentialError.invalidAccount }
+        let email = try existing.emailAccount()
+        guard outgoing.count == email.identities.count,
+              incoming.utf16.count <= EmailMaterial.maxCredentialChars,
+              outgoing.allSatisfy({ $0.utf16.count <= EmailMaterial.maxCredentialChars }) else {
+            throw EmailCredentialError.invalidAccount
+        }
+        var accountJson = email.account
+        if !incoming.isEmpty {
+            accountJson["password"] = .string(incoming)
+        }
+        var identityJson = email.identities
+        for (idx, password) in outgoing.enumerated() where !password.isEmpty {
+            identityJson[idx]["password"] = .string(password)
+        }
+        let bytes = try EmailMaterial.encode(account: accountJson, identities: identityJson)
+        var fields = existing.fields
+        fields["secret"] = .string(Base32.encode(bytes))
+        return try Entry.parse(.object(fields))
+    }
+}
+
+/// Non-secret transport settings for one incoming account or SMTP identity, mirroring `EmailConnectionInput.kt`.
+public struct EmailConnectionInput: Equatable, CustomStringConvertible {
+    public var host: String
+    public var port: String
+    public var encryption: Int
+    public var username: String
+    public var authentication: String?
+
+    public init(host: String, port: String, encryption: Int, username: String, authentication: String? = nil) {
+        self.host = host
+        self.port = port
+        self.encryption = encryption
+        self.username = username
+        self.authentication = authentication
+    }
+
+    public var description: String { "EmailConnectionInput(redacted)" }
+
+    func apply(to json: inout [String: JSONValue]) throws {
+        let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedHost.isEmpty else { throw EmailCredentialError.invalidAccount }
+        try InputPolicy.validateText(host, maxChars: InputPolicy.maxTextChars)
+        try InputPolicy.validateText(username, maxChars: EmailMaterial.maxCredentialChars)
+        guard let portNum = Int(port.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...65535).contains(portNum),
+              (0...2).contains(encryption) else {
+            throw EmailCredentialError.invalidAccount
+        }
+        if let authText = authentication {
+            guard (1...10).contains(authText.count),
+                  authText.allSatisfy({ $0 >= "0" && $0 <= "9" }),
+                  let authType = Int64(authText), authType >= 0 else {
+                throw EmailCredentialError.invalidAccount
+            }
+            json["auth_type"] = .int(authType)
+        }
+        json["host"] = .string(trimmedHost)
+        json["port"] = .int(Int64(portNum))
+        json["encryption"] = .int(Int64(encryption))
+        json["user"] = .string(username.trimmingCharacters(in: .whitespacesAndNewlines))
+    }
+
+    static func from(_ json: [String: JSONValue]) -> EmailConnectionInput {
+        let enc: Int
+        if let explicit = json["encryption"]?.intValue {
+            enc = Int(explicit)
+        } else if json["starttls"]?.boolValue == true {
+            enc = 1
+        } else {
+            enc = 0
+        }
+        return EmailConnectionInput(
+            host: json["host"]?.stringValue ?? "",
+            port: String(json["port"]?.intValue ?? 0),
+            encryption: enc,
+            username: json["user"]?.stringValue ?? "",
+            authentication: String(json["auth_type"]?.intValue ?? 0)
+        )
+    }
+}
+
+/// Sender display name and email address for one SMTP identity, mirroring `EmailIdentityInput.kt`.
+public struct EmailIdentityInput: Equatable, CustomStringConvertible {
+    public var name: String
+    public var address: String
+
+    public init(name: String, address: String) {
+        self.name = name
+        self.address = address
+    }
+
+    public var description: String { "EmailIdentityInput(redacted)" }
+
+    func apply(to json: inout [String: JSONValue]) throws {
+        try InputPolicy.validateText(name, maxChars: InputPolicy.maxTextChars)
+        try InputPolicy.validateText(address, maxChars: InputPolicy.maxTextChars)
+        let email = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard email.filter({ $0 == "@" }).count == 1,
+              !email.hasPrefix("@"),
+              !email.hasSuffix("@"),
+              email.unicodeScalars.allSatisfy({ !CharacterSet.whitespacesAndNewlines.contains($0) && !CharacterSet.controlCharacters.contains($0) }),
+              name.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else {
+            throw EmailCredentialError.invalidAccount
+        }
+        if name != (json["name"]?.stringValue ?? "") {
+            json["name"] = .string(name.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        if address != (json["email"]?.stringValue ?? "") {
+            json["email"] = .string(email)
+        }
+    }
+}
+
+/// Multi-identity connection & sender settings editor model mirroring `EmailSettingsInput.kt` in `:core`.
+public struct EmailSettingsInput: Equatable, CustomStringConvertible {
+    public var protocolMode: Int
+    public var incoming: EmailConnectionInput
+    public var outgoing: [EmailConnectionInput]
+    public var identities: [EmailIdentityInput]?
+    public var accountName: String?
+    public var removedIdentities: Set<Int>
+    public var removableIdentities: Set<Int>
+
+    public init(
+        protocolMode: Int,
+        incoming: EmailConnectionInput,
+        outgoing: [EmailConnectionInput],
+        identities: [EmailIdentityInput]? = nil,
+        accountName: String? = nil,
+        removedIdentities: Set<Int> = [],
+        removableIdentities: Set<Int> = []
+    ) {
+        self.protocolMode = protocolMode
+        self.incoming = incoming
+        self.outgoing = outgoing
+        self.identities = identities
+        self.accountName = accountName
+        self.removedIdentities = removedIdentities
+        self.removableIdentities = removableIdentities
+    }
+
+    public var description: String { "EmailSettingsInput(redacted)" }
+
+    public static func fromEntry(_ entry: Entry) throws -> EmailSettingsInput {
+        guard entry.kind == .email else { throw EmailCredentialError.invalidAccount }
+        let email = try entry.emailAccount()
+        let proto: Int
+        if let explicit = email.account["protocol"]?.intValue {
+            proto = Int(explicit)
+        } else if email.account["pop"]?.boolValue == true {
+            proto = 1
+        } else {
+            proto = 0
+        }
+        let removable = Set(
+            email.identities.indices.filter { idx in
+                idx > 0 && email.identities[idx]["primary"]?.boolValue != true
+            }
+        )
+        return EmailSettingsInput(
+            protocolMode: proto,
+            incoming: EmailConnectionInput.from(email.account),
+            outgoing: email.identities.map { EmailConnectionInput.from($0) },
+            identities: email.identities.map {
+                EmailIdentityInput(
+                    name: $0["name"]?.stringValue ?? "",
+                    address: $0["email"]?.stringValue ?? ""
+                )
+            },
+            accountName: email.account["name"]?.stringValue ?? "",
+            removedIdentities: [],
+            removableIdentities: removable
+        )
+    }
+
+    public func build(existing: Entry) throws -> Entry {
+        guard existing.kind == .email, (0...1).contains(protocolMode) else {
+            throw EmailCredentialError.invalidAccount
+        }
+        let email = try existing.emailAccount()
+        guard outgoing.count == email.identities.count,
+              removedIdentities.allSatisfy({ $0 > 0 && $0 < email.identities.count && email.identities[$0]["primary"]?.boolValue != true }) else {
+            throw EmailCredentialError.invalidAccount
+        }
+        var accountJson = email.account
+        if let name = accountName {
+            try InputPolicy.validateText(name, maxChars: InputPolicy.maxTextChars)
+            let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty,
+                  name.unicodeScalars.allSatisfy({ !CharacterSet.controlCharacters.contains($0) }) else {
+                throw EmailCredentialError.invalidAccount
+            }
+            if name != (accountJson["name"]?.stringValue ?? "") {
+                accountJson["name"] = .string(trimmed)
+            }
+        }
+        accountJson["protocol"] = .int(Int64(protocolMode))
+        if accountJson["pop"] != nil {
+            accountJson["pop"] = .bool(protocolMode == 1)
+        }
+        try incoming.apply(to: &accountJson)
+        if accountJson["starttls"] != nil {
+            accountJson["starttls"] = .bool(incoming.encryption == 1)
+        }
+        var identityJson = email.identities
+        for (idx, conn) in outgoing.enumerated() where !removedIdentities.contains(idx) {
+            try conn.apply(to: &identityJson[idx])
+            if identityJson[idx]["starttls"] != nil {
+                identityJson[idx]["starttls"] = .bool(conn.encryption == 1)
+            }
+        }
+        if let senderValues = identities {
+            guard senderValues.count == email.identities.count else {
+                throw EmailCredentialError.invalidAccount
+            }
+            for (idx, sender) in senderValues.enumerated() where !removedIdentities.contains(idx) {
+                try sender.apply(to: &identityJson[idx])
+            }
+        }
+        let keptIdentities = identityJson.enumerated()
+            .filter { !removedIdentities.contains($0.offset) }
+            .map(\.element)
+        let bytes = try EmailMaterial.encode(account: accountJson, identities: keptIdentities)
+        var fields = existing.fields
+        fields["secret"] = .string(Base32.encode(bytes))
+        return try Entry.parse(.object(fields))
+    }
+}

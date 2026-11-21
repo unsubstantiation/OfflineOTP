@@ -73,13 +73,30 @@ class VaultPresenter(
         showPreviousToken: Boolean,
         tokenGroupSize: Int?
     ) {
+        setDisplaySettings(
+            layout = layout,
+            hideIssuer = hideIssuer,
+            showPreviousToken = showPreviousToken,
+            tokenGroupSize = tokenGroupSize,
+            showIndividualCountdowns = appearance.showIndividualCountdowns
+        )
+    }
+
+    fun setDisplaySettings(
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean
+    ) {
         if (locked) return
         appearance = appearance.copy(
             cardLayout = layout,
             showIssuer = !hideIssuer,
             showPreviousToken = showPreviousToken,
             groupTokens = tokenGroupSize != 0,
-            tokenGroupSize = tokenGroupSize?.takeIf { it > 0 }
+            tokenGroupSize = tokenGroupSize?.takeIf { it > 0 },
+            showIndividualCountdowns = showIndividualCountdowns
         )
         onChange?.invoke()
     }

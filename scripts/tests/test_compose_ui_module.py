@@ -1152,6 +1152,45 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn('"searchIncludes"', ios_vc)
         self.assertIn("onSaveDisplay =", ios_vc)
 
+    def test_shared_email_editors_drag_reordering_and_individual_countdown_parity(self):
+        for shared_name in ("SharedEmailEditDialog.kt", "SharedEmailPasswordDialog.kt", "SharedEmailSettingsDialog.kt"):
+            shared_file = UI_FOUNDATION / "vault" / shared_name
+            self.assertTrue(shared_file.is_file(), f"missing {shared_name} in :ui-foundation")
+
+        for adapter_name, shared_call in (
+            ("EmailEditDialog.kt", "SharedEmailEditDialog("),
+            ("EmailPasswordDialog.kt", "SharedEmailPasswordDialog("),
+            ("EmailSettingsDialog.kt", "SharedEmailSettingsDialog("),
+        ):
+            adapter_text = (UI_MAIN / "vault" / adapter_name).read_text(encoding="utf-8")
+            self.assertIn(shared_call, adapter_text)
+
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("editing.openEmailPasswords(detailsRequest.entryId)", host)
+        self.assertIn("editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
+        self.assertIn("editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)", host)
+        self.assertIn("showIndividualCountdowns = layoutRequest.showIndividualTimeouts", host)
+
+        android_dialogs = (UI_ANDROID / "host/ComposeDialogViews.kt").read_text(encoding="utf-8")
+        self.assertIn("class EmailSettingsComposeView(", android_dialogs)
+        self.assertIn("class EmailPasswordComposeView(", android_dialogs)
+        self.assertIn("var secretsVisible by remember { mutableStateOf(false) }", android_dialogs)
+
+        android_ctrl = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
+        self.assertIn("AndroidCardCommand.EMAIL_DETAILS ->", android_ctrl)
+        self.assertIn("openEmailSettingsEditor(", android_ctrl)
+        self.assertIn("openEmailPasswordEditor(", android_ctrl)
+
+        drag_contract = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableEntryDrag.kt").read_text(encoding="utf-8")
+        self.assertIn("fun portableEntryDragDirection(", drag_contract)
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("detectDragGesturesAfterLongPress(", portable_screen)
+        self.assertIn("portableEntryDragDirection(", portable_screen)
+
+        prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
+        self.assertIn('const val UI_SHOW_INDIVIDUAL_TIMEOUTS = "ui_show_individual_timeouts"', prefs)
+        self.assertIn("Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN)", prefs)
+
 
 if __name__ == "__main__":
     unittest.main()

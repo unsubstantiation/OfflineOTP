@@ -10,8 +10,16 @@ import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableChip
 import com.fairuniversal.offlineotp.ui.portable.PortableDetailRow
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailAccountDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailConnectionDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailEditDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailField
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailIdentityDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailPasswordDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailSettingsDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEntryDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEntryDragBounds
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
+import com.fairuniversal.offlineotp.ui.portable.portableEntryDragDirection
 import com.fairuniversal.offlineotp.ui.portable.PortablePasswordEditDraft
 import com.fairuniversal.offlineotp.ui.portable.PortablePasswordImportMode
 import com.fairuniversal.offlineotp.ui.portable.PortableRow
@@ -148,5 +156,61 @@ class PortablePresentationTest {
         assertTrue(note.canCopy)
         val draft = PortableEntryDraft(kind = "TOTP", issuer = "Custom", thumbnail = "GitLab")
         assertEquals("GitLab", draft.withoutSecrets().thumbnail)
+    }
+
+    @Test
+    fun portableEmailDraftsSynchronizeLegacyFlagsScrubSecretsAndRedactToString() {
+        assertEquals(
+            com.fairuniversal.offlineotp.Utilities.EmailMaterial.MAX_BYTES,
+            PortableInputBounds.MAX_EMAIL_BYTES
+        )
+        val initialFields = listOf(
+            PortableEmailField("protocol", "0", PortableEmailField.KIND_NUMBER),
+            PortableEmailField("pop", "false", PortableEmailField.KIND_BOOLEAN),
+            PortableEmailField("encryption", "0", PortableEmailField.KIND_NUMBER),
+            PortableEmailField("starttls", "false", PortableEmailField.KIND_BOOLEAN),
+            PortableEmailField("password", "top-secret", PortableEmailField.KIND_TEXT)
+        )
+        val popUpdated = PortableEmailField.updated(initialFields, 0, "1")
+        assertEquals("true", popUpdated[1].value)
+        val startTlsUpdated = PortableEmailField.updated(popUpdated, 3, "true")
+        assertEquals("1", startTlsUpdated[2].value)
+
+        val editDraft = PortableEmailEditDraft(
+            issuer = "Work",
+            label = "alice@example.com",
+            account = startTlsUpdated,
+            identities = listOf(listOf(PortableEmailField("password", "smtp-secret")))
+        )
+        assertFalse(editDraft.toString().contains("top-secret"))
+        val scrubbedEdit = editDraft.withoutSecrets()
+        assertEquals("", scrubbedEdit.account.first { it.name == "password" }.value)
+        assertEquals("", scrubbedEdit.identities.single().single().value)
+
+        val pwDraft = PortableEmailPasswordDraft(incoming = "in-secret", outgoing = listOf("out-1", "out-2"))
+        assertFalse(pwDraft.toString().contains("in-secret"))
+        assertEquals(PortableEmailPasswordDraft(incoming = "", outgoing = listOf("", "")), pwDraft.withoutSecrets())
+
+        val settingsDraft = PortableEmailSettingsDraft(
+            protocol = 0,
+            incoming = PortableEmailConnectionDraft("imap.example.com", "993", 0, "alice", "1"),
+            outgoing = listOf(PortableEmailConnectionDraft("smtp.example.com", "465", 0, "alice", "1")),
+            identities = listOf(PortableEmailIdentityDraft("Alice", "alice@example.com")),
+            accountName = "Work"
+        )
+        assertFalse(settingsDraft.toString().contains("imap.example.com"))
+    }
+
+    @Test
+    fun portableEntryDragDirectionMovesOneNeighborStepOnlyPastMidpoint() {
+        val visible = listOf(
+            PortableEntryDragBounds(id = 10L, top = 0f, height = 60f),
+            PortableEntryDragBounds(id = 20L, top = 68f, height = 60f),
+            PortableEntryDragBounds(id = 30L, top = 136f, height = 60f)
+        )
+        val order = listOf(10L, 20L, 30L)
+        assertEquals(0, portableEntryDragDirection(20L, pointerY = 40f, order = order, visible = visible))
+        assertEquals(-1, portableEntryDragDirection(20L, pointerY = 20f, order = order, visible = visible))
+        assertEquals(1, portableEntryDragDirection(20L, pointerY = 175f, order = order, visible = visible))
     }
 }

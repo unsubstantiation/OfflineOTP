@@ -127,7 +127,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 case .email:
                     guard let account = try? entry.emailAccount() else { return false }
                     return !(account.account["password"]?.stringValue ?? "").isEmpty
-                        || !(account.identities.first?["password"]?.stringValue ?? "").isEmpty
+                        || account.identities.contains(where: { !($0["password"]?.stringValue ?? "").isEmpty })
                 default:
                     return false
                 }
@@ -139,7 +139,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             } else {
                 previous = ""
             }
-            let seconds = CodeFormat.secondsRemaining(kind: kind, period: entry.period, now: now) ?? 0
+            let rawSeconds = CodeFormat.secondsRemaining(kind: kind, period: entry.period, now: now) ?? 0
+            let nonDefaultPeriod = entry.kind == .motp || entry.period != 30
+            let seconds = (store.showIndividualTimeouts || nonDefaultPeriod) ? rawSeconds : 0
             let title = entry.issuer.isEmpty ? (entry.label.isEmpty ? "Untitled entry" : entry.label) : entry.issuer
             var metadata = kind
             if entry.kind?.isOtp == true && seconds > 0 { metadata += " · \(seconds)s" }
@@ -395,12 +397,82 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard store.entries.indices.contains(index) else { return }
         let entry = store.entries[index]
         if entry.kind == .email {
-            openEmailEditor(index: index)
+            openEmailFullEditor(index: index)
         } else if entry.kind == .password, PasswordCsvExport.supportsCommonEdit(entry) {
             openPasswordEditor(index: index)
         } else {
             openEditor(index: index, kind: entry.kind ?? .totp)
         }
+    }
+
+    private func openEmailFullEditor(index: Int) {
+        guard store.entries.indices.contains(index),
+              store.isRevealed(store.entries[index]),
+              let initial = try? EmailEditInput.fromEntry(store.entries[index]) else { return }
+        editorIndex = index
+        openedFields = store.entries[index].fields
+        openedGeneration = store.generation
+        draft = [
+            "issuer": initial.issuer,
+            "label": initial.label,
+            "hiddenLabel": initial.hiddenLabel,
+            "tags": initial.tags,
+            "thumbnail": initial.thumbnail
+        ]
+        for (fIdx, field) in initial.account.enumerated() {
+            draft["acctVal:\(fIdx)"] = field.value
+        }
+        for (idIdx, fields) in initial.identities.enumerated() {
+            for (fIdx, field) in fields.enumerated() {
+                draft["idVal:\(idIdx):\(fIdx)"] = field.value
+            }
+        }
+        openSurface("emailEdit", keepDraft: true)
+    }
+
+    private func openEmailPasswordEditor(index: Int) {
+        guard store.entries.indices.contains(index),
+              store.isRevealed(store.entries[index]),
+              let initial = try? EmailPasswordInput.fromEntry(store.entries[index]) else { return }
+        editorIndex = index
+        openedFields = store.entries[index].fields
+        openedGeneration = store.generation
+        draft = ["identityCount": String(initial.outgoing.count)]
+        openSurface("emailPasswordEdit", keepDraft: true)
+    }
+
+    private func openEmailSettingsEditor(index: Int) {
+        guard store.entries.indices.contains(index),
+              store.isRevealed(store.entries[index]),
+              let initial = try? EmailSettingsInput.fromEntry(store.entries[index]) else { return }
+        editorIndex = index
+        openedFields = store.entries[index].fields
+        openedGeneration = store.generation
+        draft = [
+            "accountName": initial.accountName ?? "",
+            "protocol": String(initial.protocolMode),
+            "inHost": initial.incoming.host,
+            "inPort": initial.incoming.port,
+            "inEnc": String(initial.incoming.encryption),
+            "inUser": initial.incoming.username,
+            "inAuth": initial.incoming.authentication ?? "0",
+            "identityCount": String(initial.outgoing.count),
+            "removableIndices": initial.removableIdentities.sorted().map(String.init).joined(separator: ",")
+        ]
+        for (idx, conn) in initial.outgoing.enumerated() {
+            draft["outHost:\(idx)"] = conn.host
+            draft["outPort:\(idx)"] = conn.port
+            draft["outEnc:\(idx)"] = String(conn.encryption)
+            draft["outUser:\(idx)"] = conn.username
+            draft["outAuth:\(idx)"] = conn.authentication ?? "0"
+        }
+        if let senders = initial.identities {
+            for (idx, sender) in senders.enumerated() {
+                draft["outName:\(idx)"] = sender.name
+                draft["outAddr:\(idx)"] = sender.address
+            }
+        }
+        openSurface("emailSettingsEdit", keepDraft: true)
     }
 
     private func openPasswordEditor(index: Int) {
@@ -520,6 +592,15 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if key == "emailEditor" {
             return emailEditorSurface()
         }
+        if key == "emailEdit" {
+            return emailEditSurface()
+        }
+        if key == "emailPasswordEdit" {
+            return emailPasswordEditSurface()
+        }
+        if key == "emailSettingsEdit" {
+            return emailSettingsEditSurface()
+        }
         if key == "passwordImportChoice" {
             var rows = [
                 row("passwordImportMode:individual", "Individual credentials (browser CSV)"),
@@ -542,6 +623,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: draft["hideIssuer"] ?? (store.hideIssuer ? "true" : "false"), kind: "info"),
                     row("showPreviousToken", "Show previous code",
                         value: draft["showPreviousToken"] ?? (store.showPreviousToken ? "true" : "false"), kind: "info"),
+                    row("showIndividualTimeouts", "Show individual countdown timers",
+                        value: draft["showIndividualTimeouts"] ?? (store.showIndividualTimeouts ? "true" : "false"), kind: "info"),
                     row("tokenGroupSize", "Token grouping",
                         value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
@@ -886,6 +969,89 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message: store.message ?? "")
     }
 
+    private func emailEditSurface() -> PortableSurfaceState {
+        guard let index = editorIndex, store.entries.indices.contains(index),
+              let initial = try? EmailEditInput.fromEntry(store.entries[index]) else {
+            return surface(key: "emailEdit", title: "Edit email entry", sections: [],
+                           confirmLabel: "Save", dismissLabel: "Cancel",
+                           message: "The email entry changed. Close and reopen the editor.")
+        }
+        let metaRows: [PortableRow] = [
+            row("issuer", "Issuer", value: draft["issuer"] ?? initial.issuer, kind: "text"),
+            row("label", "Label", value: draft["label"] ?? initial.label, kind: "text"),
+            row("hiddenLabel", "Hidden Label", value: draft["hiddenLabel"] ?? initial.hiddenLabel, kind: "text"),
+            row("tags", "Tags", value: draft["tags"] ?? initial.tags, kind: "text"),
+            row("thumbnail", "Artwork", value: draft["thumbnail"] ?? initial.thumbnail, kind: "text"),
+            row("thumbnailCatalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info")
+        ]
+        let accountRows: [PortableRow] = initial.account.enumerated().map { fIdx, field in
+            row("acct:\(fIdx):\(field.kind.rawValue):\(field.name)", field.name,
+                value: draft["acctVal:\(fIdx)"] ?? field.value, kind: "text")
+        }
+        var sections: [PortableSection] = [
+            PortableSection(title: "Entry", rows: metaRows),
+            PortableSection(title: "Incoming account", rows: accountRows)
+        ]
+        for (idIdx, fields) in initial.identities.enumerated() {
+            let idRows: [PortableRow] = fields.enumerated().map { fIdx, field in
+                row("id:\(idIdx):\(fIdx):\(field.kind.rawValue):\(field.name)", field.name,
+                    value: draft["idVal:\(idIdx):\(fIdx)"] ?? field.value, kind: "text")
+            }
+            sections.append(PortableSection(title: "SMTP identity #\(idIdx + 1)", rows: idRows))
+        }
+        return surface(
+            key: "emailEdit",
+            title: "Edit email entry",
+            sections: sections,
+            confirmLabel: "Save",
+            dismissLabel: "Cancel",
+            message: draft["surfaceError"] ?? "")
+    }
+
+    private func emailPasswordEditSurface() -> PortableSurfaceState {
+        let count = draft["identityCount"] ?? "1"
+        return surface(
+            key: "emailPasswordEdit",
+            title: "Change email passwords / tokens",
+            sections: [PortableSection(title: "", rows: [
+                row("identityCount", "Identities", value: count, kind: "info")
+            ])],
+            confirmLabel: "Save",
+            dismissLabel: "Cancel",
+            message: draft["surfaceError"] ?? "")
+    }
+
+    private func emailSettingsEditSurface() -> PortableSurfaceState {
+        let count = Int(draft["identityCount"] ?? "1") ?? 1
+        var rows: [PortableRow] = [
+            row("accountName", "Account display name", value: draft["accountName"] ?? "", kind: "text"),
+            row("protocol", "Protocol", value: draft["protocol"] ?? "0", kind: "info"),
+            row("inHost", "Incoming server", value: draft["inHost"] ?? "", kind: "text"),
+            row("inPort", "Incoming port", value: draft["inPort"] ?? "", kind: "text"),
+            row("inEnc", "Incoming encryption", value: draft["inEnc"] ?? "0", kind: "info"),
+            row("inUser", "Incoming username", value: draft["inUser"] ?? "", kind: "text"),
+            row("inAuth", "Incoming auth", value: draft["inAuth"] ?? "0", kind: "text"),
+            row("identityCount", "Identities", value: String(count), kind: "info"),
+            row("removableIndices", "Removable", value: draft["removableIndices"] ?? "", kind: "info")
+        ]
+        for idx in 0..<max(1, count) {
+            rows.append(row("outName:\(idx)", "Sender name", value: draft["outName:\(idx)"] ?? "", kind: "text"))
+            rows.append(row("outAddr:\(idx)", "Sender email", value: draft["outAddr:\(idx)"] ?? "", kind: "text"))
+            rows.append(row("outHost:\(idx)", "Outgoing server", value: draft["outHost:\(idx)"] ?? "", kind: "text"))
+            rows.append(row("outPort:\(idx)", "Outgoing port", value: draft["outPort:\(idx)"] ?? "", kind: "text"))
+            rows.append(row("outEnc:\(idx)", "Outgoing encryption", value: draft["outEnc:\(idx)"] ?? "0", kind: "info"))
+            rows.append(row("outUser:\(idx)", "Outgoing username", value: draft["outUser:\(idx)"] ?? "", kind: "text"))
+            rows.append(row("outAuth:\(idx)", "Outgoing auth", value: draft["outAuth:\(idx)"] ?? "0", kind: "text"))
+        }
+        return surface(
+            key: "emailSettingsEdit",
+            title: "Edit email settings",
+            sections: [PortableSection(title: "", rows: rows)],
+            confirmLabel: "Save",
+            dismissLabel: "Cancel",
+            message: draft["surfaceError"] ?? "")
+    }
+
     private func settingsSurface() -> PortableSurfaceState {
         let quick = store.biometry.isAvailable ? [
             row("biometric", store.biometricUnlockEnabled ? "Disable quick unlock" : "Enable quick unlock",
@@ -1155,8 +1321,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 if !(account.account["password"]?.stringValue ?? "").isEmpty {
                     rows.append(row("copyImapPassword:\(index)", "Incoming password"))
                 }
-                if !(account.identities.first?["password"]?.stringValue ?? "").isEmpty {
-                    rows.append(row("copySmtpPassword:\(index)", "Outgoing password"))
+                for (idIdx, identity) in account.identities.enumerated()
+                    where !(identity["password"]?.stringValue ?? "").isEmpty {
+                    if idIdx == 0 {
+                        rows.append(row("copySmtpPassword:\(index)", "Outgoing password"))
+                    } else {
+                        rows.append(row("copySmtpPasswordIdx:\(index):\(idIdx)", "Outgoing #\(idIdx + 1) password"))
+                    }
                 }
             }
         default:
@@ -1231,7 +1402,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func change(key: String, value: String) {
         guard active else { return }
-        if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "passwordPrompt"
+        if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
+            || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
+            || surfaceKey == "passwordPrompt"
             || surfaceKey == "backups" || surfaceKey == "backupExportDialog"
             || surfaceKey == "biometricEnable" || surfaceKey == "restore"
             || surfaceKey == "autoLock" || surfaceKey == "passwordChange"
@@ -1262,7 +1435,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             // surfaces keep their own epoch when they stage files or candidate lists.
             if let epoch = surfaceEpoch,
                ["passwordChange", "autoLock", "prefsConfirm", "restore", "backupExportDialog",
-                "editor", "emailEditor", "delete", "tagEdit", "pinEdit", "counterEdit",
+                "editor", "emailEditor", "emailEdit", "emailPasswordEdit", "emailSettingsEdit",
+                "delete", "tagEdit", "pinEdit", "counterEdit",
                 "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
                 "fairEmailExportSelect", "thunderbirdExportSelect", "thunderbirdConfirm",
                 "cardLayout", "searchIncludes", "passwordImportChoice", "thumbnailEdit"].contains(surfaceKey),
@@ -1288,6 +1462,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         switch surfaceKey {
         case "editor": return saveEditor()
         case "emailEditor": return saveEmailEditor()
+        case "emailEdit": return saveEmailFullEditor()
+        case "emailPasswordEdit": return saveEmailPasswordEditor()
+        case "emailSettingsEdit": return saveEmailSettingsEditor()
         case "delete":
             if let index = editorIndex, let expected = openedFields,
                (!store.entries.indices.contains(index) || store.entries[index].fields != expected) {
@@ -1547,6 +1724,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if let prevRaw = draft["showPreviousToken"] {
                 store.setShowPreviousToken(prevRaw != "false")
             }
+            if let indRaw = draft["showIndividualTimeouts"] {
+                store.setShowIndividualTimeouts(indRaw != "false")
+            }
             if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
                [0, 2, 3].contains(parsedGroup) {
                 store.setTokenGroupSize(parsedGroup)
@@ -1648,6 +1828,150 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         } catch {
             draft["password"] = ""
             return "The password entry could not be updated. A password cannot be empty."
+        }
+    }
+
+    private func saveEmailFullEditor() -> String? {
+        guard let index = editorIndex, store.isUnlocked,
+              openedGeneration.map({ store.generation == $0 }) != false,
+              store.entries.indices.contains(index),
+              store.entries[index].fields == openedFields,
+              store.isRevealed(store.entries[index]),
+              var input = try? EmailEditInput.fromEntry(store.entries[index]) else {
+            return "The email entry or session changed. Close and reopen the editor."
+        }
+        input.issuer = draft["issuer"] ?? input.issuer
+        input.label = draft["label"] ?? input.label
+        input.hiddenLabel = draft["hiddenLabel"] ?? input.hiddenLabel
+        input.tags = draft["tags"] ?? input.tags
+        input.thumbnail = draft["thumbnail"] ?? input.thumbnail
+        for fIdx in input.account.indices {
+            if let updatedVal = draft["acctVal:\(fIdx)"] {
+                input.account = EmailFieldInput.updated(input.account, index: fIdx, value: updatedVal)
+            }
+        }
+        for idIdx in input.identities.indices {
+            for fIdx in input.identities[idIdx].indices {
+                if let updatedVal = draft["idVal:\(idIdx):\(fIdx)"] {
+                    input.identities[idIdx] = EmailFieldInput.updated(
+                        input.identities[idIdx],
+                        index: fIdx,
+                        value: updatedVal
+                    )
+                }
+            }
+        }
+        do {
+            let replacement = try input.build(existing: store.entries[index])
+            guard store.update(at: index, with: replacement) else {
+                let err = store.message ?? "Could not save email entry. Original retained."
+                draft["surfaceError"] = err
+                return err
+            }
+            message("Email entry updated.")
+            closeSurface()
+            return nil
+        } catch {
+            let err = "Invalid email entry. Check field values and JSON structure."
+            draft["surfaceError"] = err
+            return err
+        }
+    }
+
+    private func saveEmailPasswordEditor() -> String? {
+        let clearSecrets = {
+            self.draft["inPass"] = ""
+            for key in self.draft.keys where key.hasPrefix("outPass:") {
+                self.draft[key] = ""
+            }
+        }
+        guard let index = editorIndex, store.isUnlocked,
+              openedGeneration.map({ store.generation == $0 }) != false,
+              store.entries.indices.contains(index),
+              store.entries[index].fields == openedFields,
+              store.isRevealed(store.entries[index]),
+              var input = try? EmailPasswordInput.fromEntry(store.entries[index]) else {
+            clearSecrets()
+            return "The email entry or session changed. Close and reopen the editor."
+        }
+        input.incoming = draft["inPass"] ?? ""
+        for idx in input.outgoing.indices {
+            input.outgoing[idx] = draft["outPass:\(idx)"] ?? ""
+        }
+        clearSecrets()
+        do {
+            let replacement = try input.build(existing: store.entries[index])
+            guard store.update(at: index, with: replacement) else {
+                let err = store.message ?? "Could not save email credentials. Original retained."
+                draft["surfaceError"] = err
+                return err
+            }
+            message("Email credentials updated.")
+            closeSurface()
+            return nil
+        } catch {
+            let err = "Could not save email credentials. Original entry retained; re-enter changes to retry."
+            draft["surfaceError"] = err
+            return err
+        }
+    }
+
+    private func saveEmailSettingsEditor() -> String? {
+        guard let index = editorIndex, store.isUnlocked,
+              openedGeneration.map({ store.generation == $0 }) != false,
+              store.entries.indices.contains(index),
+              store.entries[index].fields == openedFields,
+              store.isRevealed(store.entries[index]),
+              var input = try? EmailSettingsInput.fromEntry(store.entries[index]) else {
+            return "The email entry or session changed. Close and reopen the editor."
+        }
+        input.accountName = draft["accountName"] ?? input.accountName
+        input.protocolMode = Int(draft["protocol"] ?? String(input.protocolMode)) ?? input.protocolMode
+        input.incoming = EmailConnectionInput(
+            host: draft["inHost"] ?? input.incoming.host,
+            port: draft["inPort"] ?? input.incoming.port,
+            encryption: Int(draft["inEnc"] ?? String(input.incoming.encryption)) ?? input.incoming.encryption,
+            username: draft["inUser"] ?? input.incoming.username,
+            authentication: draft["inAuth"] ?? input.incoming.authentication
+        )
+        for idx in input.outgoing.indices {
+            let prev = input.outgoing[idx]
+            input.outgoing[idx] = EmailConnectionInput(
+                host: draft["outHost:\(idx)"] ?? prev.host,
+                port: draft["outPort:\(idx)"] ?? prev.port,
+                encryption: Int(draft["outEnc:\(idx)"] ?? String(prev.encryption)) ?? prev.encryption,
+                username: draft["outUser:\(idx)"] ?? prev.username,
+                authentication: draft["outAuth:\(idx)"] ?? prev.authentication
+            )
+        }
+        if var senders = input.identities {
+            for idx in senders.indices {
+                senders[idx] = EmailIdentityInput(
+                    name: draft["outName:\(idx)"] ?? senders[idx].name,
+                    address: draft["outAddr:\(idx)"] ?? senders[idx].address
+                )
+            }
+            input.identities = senders
+        }
+        input.removedIdentities = Set(
+            (draft["removedIndices"] ?? "")
+                .split(separator: ",")
+                .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
+        )
+        do {
+            let replacement = try input.build(existing: store.entries[index])
+            guard store.update(at: index, with: replacement) else {
+                let err = store.message ?? "Could not save email settings. Original retained."
+                draft["surfaceError"] = err
+                return err
+            }
+            message("Email settings updated.")
+            closeSurface()
+            return nil
+        } catch {
+            let err = "Could not save email settings. Check server, port and sender fields; original retained."
+            draft["surfaceError"] = err
+            return err
         }
     }
 
@@ -1834,6 +2158,28 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if command == "linScpExportSelect", let index {
             if linScpSelected.contains(index) { linScpSelected.remove(index) }
             else { linScpSelected.insert(index) }
+            return nil
+        }
+        if command == "copySmtpPasswordIdx", parts.count > 1 {
+            let subparts = parts[1].split(separator: ":").compactMap { Int($0) }
+            guard subparts.count == 2,
+                  store.entries.indices.contains(subparts[0]),
+                  let account = try? store.entries[subparts[0]].emailAccount(),
+                  account.identities.indices.contains(subparts[1]) else {
+                return "The entry changed."
+            }
+            let secret = account.identities[subparts[1]]["password"]?.stringValue ?? ""
+            guard !secret.isEmpty else { return "This identity has no outgoing password to copy." }
+            copySecret(secret, label: "Outgoing #\(subparts[1] + 1) password", at: subparts[0])
+            closeSurface()
+            return nil
+        }
+        if command == "editEmailSettings", let index {
+            openEmailSettingsEditor(index: index)
+            return nil
+        }
+        if command == "editEmailPasswords", let index {
+            openEmailPasswordEditor(index: index)
             return nil
         }
         if command == "archiveExportSelect", let index {

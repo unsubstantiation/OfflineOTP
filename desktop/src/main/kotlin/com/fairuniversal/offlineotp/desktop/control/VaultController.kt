@@ -190,6 +190,21 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedShowIndividualTimeouts(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS,
+            "true"
+        ).toBooleanStrictOrNull() ?: true
+    } catch (_: RuntimeException) { true }
+
+    fun trySaveShowIndividualTimeouts(showIndividual: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS,
+            showIndividual.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
     fun savedTokenGroupSize(): Int? = try {
         val raw = vault.preferences.getString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE,
