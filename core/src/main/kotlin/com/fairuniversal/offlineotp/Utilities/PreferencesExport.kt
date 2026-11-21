@@ -202,6 +202,7 @@ object PreferencesExport {
         Setting(UI_TAG_FUNCTIONALITY, Kind.STRING),
         Setting(UI_HIDE_ISSUER, Kind.BOOLEAN),
         Setting(UI_SHOW_PREV_TOKEN, Kind.BOOLEAN),
+        Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN),
         Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
         Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
     )
@@ -214,6 +215,8 @@ object PreferencesExport {
     const val UI_HIDE_ISSUER = "ui_hide_issuer"
     /** Desktop key for showing the previous rolling OTP code on revealed cards. */
     const val UI_SHOW_PREV_TOKEN = "ui_show_prev_token"
+    /** Desktop key for showing standard 30-second countdown rings on individual OTP cards. */
+    const val UI_SHOW_INDIVIDUAL_TIMEOUTS = "ui_show_individual_timeouts"
     /** Desktop key for explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets). */
     const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
     /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */

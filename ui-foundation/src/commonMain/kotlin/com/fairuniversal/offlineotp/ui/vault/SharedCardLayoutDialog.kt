@@ -31,12 +31,15 @@ fun SharedCardLayoutDialog(
     showPreviousToken: Boolean? = null,
     tokenGroupSize: Int? = null,
     allowDefaultGrouping: Boolean = true,
-    onSaveDisplay: ((PortableCardLayout, Boolean, Boolean, Int?) -> Unit)? = null
+    onSaveDisplay: ((PortableCardLayout, Boolean, Boolean, Int?) -> Unit)? = null,
+    showIndividualCountdowns: Boolean? = null,
+    onSaveCardDisplay: ((PortableCardLayout, Boolean, Boolean, Int?, Boolean) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
     var hideIssuerChecked by remember(inputKey) { mutableStateOf(hideIssuer == true) }
     var showPreviousChecked by remember(inputKey) { mutableStateOf(showPreviousToken != false) }
     var selectedGroupSize by remember(inputKey) { mutableStateOf(tokenGroupSize) }
+    var showIndividualChecked by remember(inputKey) { mutableStateOf(showIndividualCountdowns != false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
@@ -54,7 +57,7 @@ fun SharedCardLayoutDialog(
                         onClick = { selected = layout }
                     )
                 }
-                if (onSaveDisplay != null) {
+                if (onSaveDisplay != null || onSaveCardDisplay != null) {
                     Text(
                         text = "Token grouping",
                         modifier = Modifier.padding(top = 8.dp)
@@ -104,12 +107,35 @@ fun SharedCardLayoutDialog(
                         Text(text = "Show previous code when revealed")
                     }
                 }
+                if (showIndividualCountdowns != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showIndividualChecked = !showIndividualChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = showIndividualChecked,
+                            onCheckedChange = { showIndividualChecked = it }
+                        )
+                        Text(text = "Show individual countdown timers")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
         confirmButton = {
             ForestTextAction(text = "Save", onClick = {
                 when {
+                    onSaveCardDisplay != null -> onSaveCardDisplay(
+                        selected,
+                        hideIssuerChecked,
+                        showPreviousChecked,
+                        selectedGroupSize,
+                        showIndividualChecked
+                    )
                     onSaveDisplay != null -> onSaveDisplay(selected, hideIssuerChecked, showPreviousChecked, selectedGroupSize)
                     onSaveAppearance != null && hideIssuer != null -> onSaveAppearance(selected, hideIssuerChecked)
                     else -> onSave(selected)

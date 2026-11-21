@@ -78,7 +78,9 @@ object VaultCards {
             revealed = revealed,
             revealedContent = if (revealed) revealedContent(entry, kind) else null,
             pinRequired = pinRequired,
-            copyable = token != null && entry.hasCopyableToken()
+            copyable = token != null && entry.hasCopyableToken(),
+            canCopyAccount = entry.hasCopyableAccount(),
+            canCopyPassword = entry.hasCopyablePassword()
         )
     }
 

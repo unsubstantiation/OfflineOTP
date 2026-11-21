@@ -3,6 +3,8 @@ package com.fairuniversal.offlineotp.ui.vault
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,16 +29,26 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.fairuniversal.offlineotp.ui.portable.*
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
+import kotlinx.coroutines.delay
 
 /**
  * The unlocked vault, drawn from values the host has already projected. No entry, session, file or
@@ -53,6 +66,57 @@ fun PortableVaultScreen(
     onDismissToast: () -> Unit,
     cardLayout: PortableCardLayout = PortableCardLayout.DEFAULT
 ) {
+    val listState = rememberLazyListState()
+    val latestCards by rememberUpdatedState(state.cards)
+    val latestOnCard by rememberUpdatedState(onCard)
+    var draggingIndex by remember { mutableStateOf<Int?>(null) }
+    var pointerY by remember { mutableStateOf(0f) }
+    var grabOffset by remember { mutableStateOf(0f) }
+    fun endDrag() {
+        draggingIndex = null
+    }
+    fun moveIfNeeded() {
+        val activeIndex = draggingIndex ?: return
+        val card = latestCards.firstOrNull { it.index == activeIndex } ?: run { endDrag(); return }
+        if (!card.canReorder) { endDrag(); return }
+        val order = latestCards.map { it.index.toLong() }
+        val visible = listState.layoutInfo.visibleItemsInfo.mapNotNull { item ->
+            val keyIndex = (item.key as? Int)?.toLong() ?: (item.key as? Long)
+            keyIndex?.let { PortableEntryDragBounds(it, item.offset.toFloat(), item.size.toFloat()) }
+        }
+        val direction = portableEntryDragDirection(activeIndex.toLong(), pointerY, order, visible)
+        if (direction == 0) return
+        val pos = latestCards.indexOfFirst { it.index == activeIndex }
+        val targetPos = pos + direction
+        if (pos < 0 || targetPos !in latestCards.indices) return
+        val neighborIndex = latestCards[targetPos].index
+        draggingIndex = neighborIndex
+        latestOnCard(activeIndex, if (direction < 0) "moveUp" else "moveDown")
+    }
+    LaunchedEffect(draggingIndex != null) {
+        while (draggingIndex != null) {
+            val info = listState.layoutInfo
+            val edge = 56f
+            val scroll = when {
+                pointerY < info.viewportStartOffset + edge -> -12f
+                pointerY > info.viewportEndOffset - edge -> 12f
+                else -> 0f
+            }
+            if (scroll != 0f) listState.scrollBy(scroll)
+            moveIfNeeded()
+            delay(16)
+        }
+    }
+    val filterKey = listOf(
+        state.tabs.indexOfFirst { it.selected },
+        state.query,
+        state.sortLabel,
+        state.includeUntagged,
+        state.tags.filter { it.selected }.joinToString("\n") { it.label }
+    )
+    LaunchedEffect(filterKey) {
+        endDrag()
+    }
     Column(Modifier.fillMaxSize().background(ForestPalette.background)) {
         Row(
             Modifier.fillMaxWidth().background(ForestPalette.appBar).padding(horizontal = 12.dp, vertical = 8.dp),
@@ -119,9 +183,53 @@ fun PortableVaultScreen(
                     contentDescription = "Add an entry")
             }
         } else {
-            LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 4.dp)) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .pointerInput(Unit) {
+                        detectDragGesturesAfterLongPress(
+                            onDragStart = { position ->
+                                val hit = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                                    position.y >= it.offset && position.y < it.offset + it.size
+                                }
+                                val hitKey = (hit?.key as? Int) ?: (hit?.key as? Long)?.toInt()
+                                val card = latestCards.firstOrNull { it.index == hitKey }
+                                if (card != null && card.canReorder) {
+                                    draggingIndex = card.index
+                                    pointerY = position.y
+                                    grabOffset = position.y - checkNotNull(hit).offset
+                                }
+                            },
+                            onDrag = { change, amount ->
+                                if (draggingIndex != null) {
+                                    change.consume()
+                                    pointerY += amount.y
+                                    moveIfNeeded()
+                                }
+                            },
+                            onDragEnd = { endDrag() },
+                            onDragCancel = { endDrag() }
+                        )
+                    }
+            ) {
                 items(state.cards, key = { it.index }) { card ->
-                    PortableCardView(card, state.hiddenTitleEnabled, cardLayout, onCard)
+                    val dragging = draggingIndex == card.index
+                    Box(
+                        modifier = Modifier
+                            .zIndex(if (dragging) 1f else 0f)
+                            .graphicsLayer {
+                                if (dragging) {
+                                    val top = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.key == card.index }?.offset?.toFloat() ?: 0f
+                                    translationY = pointerY - grabOffset - top
+                                    shadowElevation = 12f
+                                }
+                            }
+                    ) {
+                        PortableCardView(card, state.hiddenTitleEnabled, cardLayout, onCard)
+                    }
                 }
             }
         }
@@ -223,8 +331,19 @@ private fun PortableCardView(
                 onClick = { onCard(card.index, "reveal") },
                 contentDescription = "Show or hide the code for " + displayTitle)
             if (card.canCopy) {
-                ForestTextAction("Copy", onClick = { onCard(card.index, "copy") },
+                ForestTextAction(if (card.hasCode) "Copy Token" else "Copy",
+                    onClick = { onCard(card.index, "copy") },
                     contentDescription = "Copy Token for " + displayTitle)
+            }
+            if (card.canCopyAccount) {
+                ForestTextAction("Copy Account",
+                    onClick = { onCard(card.index, "copyAccount") },
+                    contentDescription = "Copy Account for " + displayTitle)
+            }
+            if (card.canCopyPassword) {
+                ForestTextAction("Copy Password",
+                    onClick = { onCard(card.index, "copyPassword") },
+                    contentDescription = "Copy Password for " + displayTitle)
             }
             if (card.pinRequired) {
                 ForestTextAction("Enter PIN", onClick = { onCard(card.index, "pin") },
@@ -243,12 +362,9 @@ private fun PortableCardView(
                     contentDescription = "Shows entry details")
                 ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
                     contentDescription = "Edit " + displayTitle)
-                ForestTextAction("Delete", onClick = { onCard(card.index, "delete") },
-                    color = ForestPalette.warning,
-                    contentDescription = "Delete " + displayTitle)
-                ForestTextAction("More", onClick = { onCard(card.index, "more") },
-                    contentDescription = "More actions for " + displayTitle)
             }
+            ForestTextAction("More", onClick = { onCard(card.index, "more") },
+                contentDescription = "More actions for " + displayTitle)
         }
     }
 }
@@ -273,7 +389,17 @@ private fun PortableCardCodeArea(card: PortableCard) {
                     })
             }
         } else {
-            Text("••• •••", style = ForestType.code, color = ForestPalette.otpAmberMuted)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (card.secondsLeft > 0) {
+                    CountdownRing(
+                        progress = card.countdownProgress,
+                        expiring = card.isExpiring,
+                        diameter = 16.dp
+                    )
+                    Spacer(Modifier.width(6.dp))
+                }
+                Text("••• •••", style = ForestType.code, color = ForestPalette.otpAmberMuted)
+            }
         }
     } else if (card.pinRequired && card.revealed) {
         Text("PIN required", style = ForestType.label, color = ForestPalette.warning)

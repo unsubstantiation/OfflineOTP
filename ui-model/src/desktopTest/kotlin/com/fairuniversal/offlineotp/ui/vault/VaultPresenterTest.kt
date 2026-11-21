@@ -629,4 +629,28 @@ class VaultPresenterTest {
         harness.presenter.setHideIssuer(true)
         assertTrue(harness.presenter.appearance.showIssuer)
     }
+
+    @Test
+    fun setDisplaySettingsControlsStandardIndividualCountdownsUntilLocked() {
+        val harness = harnessOf(totp("GitHub", "alice"))
+        assertTrue(harness.presenter.frame(1_000L).cards.single().showCountdown)
+        harness.presenter.setDisplaySettings(
+            layout = com.fairuniversal.offlineotp.Utilities.Constants.CardLayouts.DEFAULT,
+            hideIssuer = false,
+            showPreviousToken = true,
+            tokenGroupSize = 3,
+            showIndividualCountdowns = false
+        )
+        assertFalse(harness.presenter.appearance.showIndividualCountdowns)
+        assertFalse(harness.presenter.frame(1_000L).cards.single().showCountdown)
+        harness.presenter.lock()
+        harness.presenter.setDisplaySettings(
+            layout = com.fairuniversal.offlineotp.Utilities.Constants.CardLayouts.DEFAULT,
+            hideIssuer = false,
+            showPreviousToken = true,
+            tokenGroupSize = 3,
+            showIndividualCountdowns = true
+        )
+        assertFalse(harness.presenter.appearance.showIndividualCountdowns)
+    }
 }

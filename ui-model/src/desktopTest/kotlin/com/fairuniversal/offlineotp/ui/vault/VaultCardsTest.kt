@@ -195,4 +195,16 @@ class VaultCardsTest {
         assertTrue(VaultCards.hasCode(totp()))
         assertFalse(VaultCards.hasCode(note()))
     }
+
+    @Test
+    fun copyAccountAndPasswordFlagsAreAvailableWhileConcealedExceptOnNotes() {
+        val otp = totp(revealed = false).apply { setHiddenLabel("hunter2") }
+        val otpCard = VaultCards.of(otp, 0L, revealed = false)
+        assertTrue(otpCard.canCopyAccount)
+        assertTrue(otpCard.canCopyPassword)
+
+        val noteCard = VaultCards.of(note(revealed = false), 0L, revealed = false)
+        assertFalse(noteCard.canCopyAccount)
+        assertFalse(noteCard.canCopyPassword)
+    }
 }

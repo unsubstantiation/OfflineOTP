@@ -40,6 +40,10 @@ data class VaultCardState(
     val pinRequired: Boolean = false,
     /** Whether the host may copy [token] (HOTP needs an explicit calculation first). */
     val copyable: Boolean = false,
+    /** Whether the card has an account/username value that can be copied (even while concealed). */
+    val canCopyAccount: Boolean = false,
+    /** Whether the card has a password value that can be copied (even while concealed). */
+    val canCopyPassword: Boolean = false,
     val detailsVisible: Boolean = true,
     /** Protected auxiliary label; absent on concealed rows. */
     val detailLabel: String? = null,

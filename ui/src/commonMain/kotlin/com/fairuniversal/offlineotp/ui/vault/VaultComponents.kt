@@ -288,10 +288,16 @@ internal fun VaultEntryCard(
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (card.detailsVisible && !appearance.codeBelowIdentity) VaultCodeArea(card = card, strings = strings)
+            val showCodeArea = card.detailsVisible &&
+                (card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null)
+            if (showCodeArea && !appearance.codeBelowIdentity) {
+                Spacer(modifier = Modifier.width(12.dp))
+                VaultCodeArea(card = card, strings = strings)
+            }
         }
-        if (card.detailsVisible && appearance.codeBelowIdentity) {
+        val showCodeBelow = card.detailsVisible && appearance.codeBelowIdentity &&
+            (card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null)
+        if (showCodeBelow) {
             Spacer(modifier = Modifier.height(8.dp))
             VaultCodeArea(card = card, strings = strings)
         }
@@ -315,6 +321,20 @@ internal fun VaultEntryCard(
                     onClick = { actions.onCopyToken(card) }
                 )
             }
+            val copyAccount = actions.onCopyAccount
+            if (card.detailsVisible && card.canCopyAccount && copyAccount != null) {
+                ForestTextAction(
+                    text = strings.copyAccount,
+                    onClick = { copyAccount(card) }
+                )
+            }
+            val copyPassword = actions.onCopyPassword
+            if (card.detailsVisible && card.canCopyPassword && copyPassword != null) {
+                ForestTextAction(
+                    text = strings.copyPassword,
+                    onClick = { copyPassword(card) }
+                )
+            }
             val enterPin = actions.onEnterPin
             if (card.detailsVisible && card.pinRequired && enterPin != null) {
                 ForestTextAction(text = strings.enterPin, onClick = { enterPin(card) })
@@ -332,10 +352,6 @@ internal fun VaultEntryCard(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            val deleteEntry = actions.onDelete
-            if (card.detailsVisible && card.revealed && deleteEntry != null) {
-                ForestTextAction(text = strings.deleteAction, onClick = { deleteEntry(card) })
-            }
             val viewEmail = actions.onViewEmailDetails
             if (viewEmail != null && card.kind == VaultEntryKind.EMAILS && card.revealed) {
                 ForestTextAction(text = strings.emailDetails, onClick = { viewEmail(card) })

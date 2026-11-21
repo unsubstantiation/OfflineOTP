@@ -389,4 +389,51 @@ class DesktopEntryEditingTest {
             assertEquals(0, writes)
         } finally { edits.close(); state.lock() }
     }
+
+    @Test
+    fun openEmailPasswordsSetsPasswordsModeAndRejectsNonEmailTargets() {
+        val state = state()
+        val otp = input.build()
+        val emailAccount = com.fairuniversal.offlineotp.Utilities.EmailMaterial.create(
+            "Work", "alice@example.com", "imap.example.com", 993, 0, 0,
+            "alice", "in-pw", 1, "smtp.example.com", 465, 0, "alice", "out-pw", 1
+        )
+        val email = Entry.email(emailAccount.account, emailAccount.identity)
+        state.add(otp)
+        state.add(email)
+        val editor = EntryEditor(VaultController(DesktopStorage.open(Files.createTempDirectory("email-pw-mode-").toFile())), state)
+        var replaced: Entry? = null
+        val edits = DesktopEntryEditing(state) { old, next ->
+            val ok = state.replace(old, next)
+            if (ok) replaced = next
+            ok
+        }
+        try {
+            edits.openEmailPasswords(otp.getListId())
+            assertTrue(edits.pending == null)
+
+            edits.openEmailPasswords(email.getListId())
+            val req = edits.pending!!
+            assertTrue(req.isEmail)
+            assertTrue(req.emailPasswords)
+            assertFalse(req.emailSettings)
+            val initial = edits.initialEmailPasswords(req)!!
+            assertEquals("", initial.incoming)
+            assertEquals(listOf(""), initial.outgoing)
+            assertTrue(
+                edits.submitEmailPasswords(
+                    req,
+                    com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput("rotated-in", listOf("")),
+                    revealed = true
+                )
+            )
+            val updated = replaced!!.getEmailAccount()
+            assertEquals("rotated-in", updated.account.optString("password"))
+            assertEquals("out-pw", updated.identities[0].optString("password"))
+        } finally {
+            editor.toString()
+            edits.close()
+            state.lock()
+        }
+    }
 }

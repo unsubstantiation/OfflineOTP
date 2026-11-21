@@ -88,6 +88,61 @@ public struct Entry: Equatable, Hashable {
     public var hiddenLabel: String { fields["hidden_label"]?.stringValue ?? "" }
     public var thumbnail: String { fields["thumbnail"]?.stringValue ?? ThumbnailCatalog.defaultName }
 
+    /// Account identifier for Copy Account (empty when inapplicable, such as notes or archives).
+    public var accountToCopy: String {
+        switch kind {
+        case .note, .passwordArchive:
+            return ""
+        case .password:
+            let user = (try? passwordFields().value(PasswordCsvExport.fieldUsername)) ?? ""
+            return user.isEmpty ? label : user
+        case .email:
+            if let email = try? emailAccount() {
+                let addr = email.address.isEmpty ? (email.account["user"]?.stringValue ?? "") : email.address
+                if !addr.isEmpty { return addr }
+            }
+            return label
+        case .sshKey:
+            let user = sshConnection?.username ?? ""
+            return user.isEmpty ? label : user
+        default:
+            return label
+        }
+    }
+
+    /// Labeled password candidate(s) for Copy Password (empty when inapplicable or unset).
+    public var passwordChoicesToCopy: [(label: String, secret: String)] {
+        switch kind {
+        case .note, .passwordArchive:
+            return []
+        case .password:
+            let pw = (try? passwordFields().value("password")) ?? ""
+            let resolved = pw.isEmpty ? hiddenLabel : pw
+            return resolved.isEmpty ? [] : [("Password", resolved)]
+        case .email:
+            var choices: [(label: String, secret: String)] = []
+            if let email = try? emailAccount() {
+                let incoming = email.account["password"]?.stringValue ?? ""
+                if !incoming.isEmpty { choices.append(("Incoming password", incoming)) }
+                for (index, identity) in email.identities.enumerated() {
+                    let outgoing = identity["password"]?.stringValue ?? ""
+                    if !outgoing.isEmpty {
+                        let choiceLabel = email.identities.count == 1 ? "Outgoing password" : "Outgoing #\(index + 1) password"
+                        choices.append((choiceLabel, outgoing))
+                    }
+                }
+            }
+            if !hiddenLabel.isEmpty { choices.append(("Password", hiddenLabel)) }
+            return choices
+        case .sshKey:
+            let sshPw = sshConnection?.password ?? ""
+            let resolved = sshPw.isEmpty ? hiddenLabel : sshPw
+            return resolved.isEmpty ? [] : [("Password", resolved)]
+        default:
+            return hiddenLabel.isEmpty ? [] : [("Password", hiddenLabel)]
+        }
+    }
+
     public var digits: Int {
         if let value = fields["digits"]?.intValue { return Int(value) }
         return kind == .steam ? TokenCalculator.steamDefaultDigits : TokenCalculator.totpDefaultDigits

@@ -1365,6 +1365,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             customPeriod = { seconds -> getString(R.string.format_custom_period, seconds) },
             copyAction = getString(R.string.button_card_copy),
             copyContent = getString(R.string.compose_copy_content),
+            copyAccount = getString(R.string.compose_copy_account),
+            copyPassword = getString(R.string.compose_copy_password),
             privacyReveal = getString(R.string.privacy_reveal),
             privacyHide = getString(R.string.privacy_hide),
             moveUp = getString(R.string.compose_move_up),
@@ -1402,6 +1404,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val anchor = view
         view.render(published.state, VaultActions(
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
+            onCopyAccount = { published.perform(it.id, AndroidCardCommand.COPY_ACCOUNT) },
+            onCopyPassword = { published.perform(it.id, AndroidCardCommand.COPY_PASSWORD) },
             onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) },
             onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) },
             onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) },
@@ -1411,6 +1415,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onEditCounter = { published.perform(it.id, AndroidCardCommand.EDIT_COUNTER) },
             onEnterPin = { published.perform(it.id, AndroidCardCommand.ENTER_PIN) },
             onEntryActions = { published.perform(it.id, AndroidCardCommand.MENU, anchor) },
+            onViewEmailDetails = { published.perform(it.id, AndroidCardCommand.EMAIL_DETAILS) },
             onMoveUp = { published.perform(it.id, AndroidCardCommand.MOVE_UP) },
             onMoveDown = { published.perform(it.id, AndroidCardCommand.MOVE_DOWN) }
         ))

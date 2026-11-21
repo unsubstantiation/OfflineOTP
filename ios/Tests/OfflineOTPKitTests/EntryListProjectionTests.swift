@@ -183,7 +183,7 @@ final class EntryListProjectionTests: XCTestCase {
         XCTAssertEqual(SortMode.allCases.map(\.rawValue),
                        ["UNSORTED", "ISSUER", "LABEL", "LAST_USED", "MOST_USED"])
         XCTAssertEqual(SortMode.allCases.map(\.title),
-                       ["Unsorted", "Issuer", "Label", "Last used", "Most used"])
+                       ["Unsorted", "Issuer", "Account", "Last used", "Most used"])
         XCTAssertEqual(SortMode.settingsKey, "ui_sort_mode")
         XCTAssertEqual(SortMode.stored("LAST_USED"), .lastUsed)
         // An unreadable preference falls back to the vault order instead of failing the unlock.

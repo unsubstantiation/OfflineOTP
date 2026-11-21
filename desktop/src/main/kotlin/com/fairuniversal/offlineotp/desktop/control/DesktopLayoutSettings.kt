@@ -12,13 +12,16 @@ class DesktopLayoutSettings(
     private val readShowPreviousToken: () -> Boolean = { true },
     private val writeShowPreviousToken: (Boolean) -> Boolean = { true },
     private val readTokenGroupSize: () -> Int? = { null },
-    private val writeTokenGroupSize: (Int?) -> Boolean = { true }
+    private val writeTokenGroupSize: (Int?) -> Boolean = { true },
+    private val readShowIndividualTimeouts: () -> Boolean = { true },
+    private val writeShowIndividualTimeouts: (Boolean) -> Boolean = { true }
 ) {
     class Request internal constructor(
         val current: Constants.CardLayouts,
         val hideIssuer: Boolean = false,
         val showPreviousToken: Boolean = true,
-        val tokenGroupSize: Int? = null
+        val tokenGroupSize: Int? = null,
+        val showIndividualTimeouts: Boolean = true
     ) {
         var failed = false
             internal set
@@ -28,7 +31,13 @@ class DesktopLayoutSettings(
     private var closed = false
     fun open() {
         if (!closed && !state.isLocked) {
-            pending = Request(read(), readHideIssuer(), readShowPreviousToken(), readTokenGroupSize())
+            pending = Request(
+                read(),
+                readHideIssuer(),
+                readShowPreviousToken(),
+                readTokenGroupSize(),
+                readShowIndividualTimeouts()
+            )
         }
     }
     fun dismiss(request: Request) { if (pending === request) pending = null }
@@ -74,6 +83,26 @@ class DesktopLayoutSettings(
         if (!active() || !valid(request)) return false
         if (!savedGroup) { request.failed = true; return false }
         pending = null; apply(layout, hideIssuer, showPreviousToken, tokenGroupSize); return true
+    }
+    fun submit(
+        request: Request,
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualTimeouts: Boolean,
+        active: () -> Boolean,
+        apply: (Constants.CardLayouts, Boolean, Boolean, Int?, Boolean) -> Unit
+    ): Boolean {
+        if (!valid(request) || !active() || !valid(request)) return false
+        val savedLayout = try { write(layout) } catch (_: Exception) { false }
+        val savedHide = if (savedLayout) try { writeHideIssuer(hideIssuer) } catch (_: Exception) { false } else false
+        val savedPrev = if (savedHide) try { writeShowPreviousToken(showPreviousToken) } catch (_: Exception) { false } else false
+        val savedGroup = if (savedPrev) try { writeTokenGroupSize(tokenGroupSize) } catch (_: Exception) { false } else false
+        val savedTimeouts = if (savedGroup) try { writeShowIndividualTimeouts(showIndividualTimeouts) } catch (_: Exception) { false } else false
+        if (!active() || !valid(request)) return false
+        if (!savedTimeouts) { request.failed = true; return false }
+        pending = null; apply(layout, hideIssuer, showPreviousToken, tokenGroupSize, showIndividualTimeouts); return true
     }
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 }

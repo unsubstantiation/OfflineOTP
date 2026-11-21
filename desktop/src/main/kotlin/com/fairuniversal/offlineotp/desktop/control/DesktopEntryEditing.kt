@@ -10,7 +10,13 @@ import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 /** UI-thread edit authority: exact dialog and entry identity, not a reusable id or list position. */
 class DesktopEntryEditing(private val state: DesktopVaultState, private val replace: (Entry, Entry) -> Boolean) {
     enum class Failure { INVALID_INPUT, SAVE_FAILED }
-    class Request internal constructor(internal val target: Entry, val emailSettings: Boolean = false) {
+    enum class EmailMode { FULL, SETTINGS, PASSWORDS }
+    class Request internal constructor(
+        internal val target: Entry,
+        val emailMode: EmailMode = EmailMode.FULL
+    ) {
+        val emailSettings: Boolean get() = emailMode == EmailMode.SETTINGS
+        val emailPasswords: Boolean get() = emailMode == EmailMode.PASSWORDS
         val isEmail: Boolean get() = target.isEmail()
         val isPassword: Boolean get() = target.isPassword()
         val entryId: Long get() = target.getListId()
@@ -22,12 +28,18 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
     private var closed = false
 
     fun open(id: Long, emailSettings: Boolean = false) {
+        openInternal(id, if (emailSettings) EmailMode.SETTINGS else EmailMode.FULL)
+    }
+    fun openEmailPasswords(id: Long) {
+        openInternal(id, EmailMode.PASSWORDS)
+    }
+    private fun openInternal(id: Long, emailMode: EmailMode) {
         if (closed || state.isLocked) return
         val target = state.snapshot().firstOrNull { it.getListId() == id } ?: return
         if (target.isPassword() && !PasswordEntryInput.supports(target)) return
         if (!target.isEmail() && !target.isPassword() && target.getType() !in EntryDraft.offerableTypes()) return
-        if (emailSettings && !target.isEmail()) return
-        pending = Request(target, emailSettings)
+        if (emailMode != EmailMode.FULL && !target.isEmail()) return
+        pending = Request(target, emailMode)
     }
     private fun current(request: Request): Boolean = !closed && !state.isLocked && pending === request &&
         state.snapshot().any { it === request.target }

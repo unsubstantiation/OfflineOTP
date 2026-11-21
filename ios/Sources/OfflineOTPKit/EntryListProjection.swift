@@ -57,7 +57,7 @@ public enum SortMode: String, CaseIterable, Equatable {
         switch self {
         case .unsorted: return "Unsorted"
         case .issuer: return "Issuer"
-        case .label: return "Label"
+        case .label: return "Account"
         case .lastUsed: return "Last used"
         case .mostUsed: return "Most used"
         }

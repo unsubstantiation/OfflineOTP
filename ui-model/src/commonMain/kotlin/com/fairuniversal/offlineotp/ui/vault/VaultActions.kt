@@ -15,6 +15,10 @@ import com.fairuniversal.offlineotp.View.EntryListPresentation
 class VaultActions(
     /** Copy the entry's current code; the host decides whether that is allowed. */
     val onCopyToken: (VaultCardState) -> Unit = {},
+    /** Copy the entry's account/username even while concealed; null hides the button. */
+    val onCopyAccount: ((VaultCardState) -> Unit)? = null,
+    /** Copy the entry's password even while concealed; null hides the button. */
+    val onCopyPassword: ((VaultCardState) -> Unit)? = null,
     /** Reveal or hide this row's protected content. */
     val onToggleReveal: (VaultCardState) -> Unit = {},
     /**
@@ -108,6 +112,8 @@ class VaultActions(
         onEditEntry = onEditEntry?.let { action -> { if (isActive()) action(it) } },
         onAddEntry = onAddEntry?.let { action -> { if (isActive()) action() } },
         onCopyToken = { if (isActive()) onCopyToken(it) },
+        onCopyAccount = onCopyAccount?.let { action -> { if (isActive()) action(it) } },
+        onCopyPassword = onCopyPassword?.let { action -> { if (isActive()) action(it) } },
         onToggleReveal = { if (isActive()) onToggleReveal(it) },
         onNextCounter = onNextCounter?.let { action -> { if (isActive()) action(it) } },
         onEntryActions = onEntryActions?.let { action -> { if (isActive()) action(it) } },

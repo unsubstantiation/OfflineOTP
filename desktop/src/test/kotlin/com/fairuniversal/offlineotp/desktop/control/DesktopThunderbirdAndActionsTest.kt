@@ -119,21 +119,25 @@ class DesktopThunderbirdAndActionsTest {
             changed = {}
         )
 
-        // Concealed menu omits Details, Show QR code, and Set counter.
+        // Concealed menu omits Edit, Details, Show QR code, and Set counter, while offering Delete.
         assertTrue(actions.openMenu(hotp.getListId(), revealed = false, canMoveUp = false, canMoveDown = true) { true })
         val concealedMenu = actions.pending!!
+        assertFalse(DesktopEntryActions.Action.EDIT in concealedMenu.actions)
         assertFalse(DesktopEntryActions.Action.DETAILS in concealedMenu.actions)
         assertFalse(DesktopEntryActions.Action.SHOW_QR in concealedMenu.actions)
         assertFalse(DesktopEntryActions.Action.SET_COUNTER in concealedMenu.actions)
         assertTrue(DesktopEntryActions.Action.MANAGE_TAGS in concealedMenu.actions)
         assertTrue(DesktopEntryActions.Action.MOVE_DOWN in concealedMenu.actions)
+        assertTrue(DesktopEntryActions.Action.DELETE in concealedMenu.actions)
 
-        // Revealed HOTP menu offers Details, Show QR code, and Set counter; Note never offers Show QR code.
+        // Revealed HOTP menu offers Edit, Details, Show QR code, Set counter, and Delete; Note never offers Show QR code.
         assertTrue(actions.openMenu(hotp.getListId(), revealed = true, canMoveUp = false, canMoveDown = false) { true })
         val revealedMenu = actions.pending!!
+        assertTrue(DesktopEntryActions.Action.EDIT in revealedMenu.actions)
         assertTrue(DesktopEntryActions.Action.DETAILS in revealedMenu.actions)
         assertTrue(DesktopEntryActions.Action.SHOW_QR in revealedMenu.actions)
         assertTrue(DesktopEntryActions.Action.SET_COUNTER in revealedMenu.actions)
+        assertTrue(DesktopEntryActions.Action.DELETE in revealedMenu.actions)
 
         assertTrue(actions.selectSubSurface(revealedMenu, DesktopEntryActions.Action.DETAILS, revealed = true) { true })
         assertTrue(actions.pending!!.detailsBody.contains("Algorithm: SHA256"))

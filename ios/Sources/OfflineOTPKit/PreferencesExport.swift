@@ -60,6 +60,7 @@ public enum PreferencesExport {
         Setting(key: tagFunctionalityKey, kind: .string),
         Setting(key: hideIssuerKey, kind: .boolean),
         Setting(key: showPrevTokenKey, kind: .boolean),
+        Setting(key: showIndividualTimeoutsKey, kind: .boolean),
         Setting(key: splitGroupSizeKey, kind: .integer),
         Setting(key: searchIncludesKey, kind: .stringSet),
     ]
@@ -76,6 +77,8 @@ public enum PreferencesExport {
     public static let hideIssuerKey = "ui_hide_issuer"
     /// Mirrors `VaultStore.showPrevTokenSettingKey` and `PreferencesExport.UI_SHOW_PREV_TOKEN`.
     public static let showPrevTokenKey = "ui_show_prev_token"
+    /// Mirrors `VaultStore.showIndividualTimeoutsSettingKey` and `PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS`.
+    public static let showIndividualTimeoutsKey = "ui_show_individual_timeouts"
     /// Mirrors `VaultStore.splitGroupSizeSettingKey` and `PreferencesExport.UI_SPLIT_GROUP_SIZE`.
     public static let splitGroupSizeKey = "ui_split_group_size"
     /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.

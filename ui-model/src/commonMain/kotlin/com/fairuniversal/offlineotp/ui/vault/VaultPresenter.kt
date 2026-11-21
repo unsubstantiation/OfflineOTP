@@ -73,13 +73,30 @@ class VaultPresenter(
         showPreviousToken: Boolean,
         tokenGroupSize: Int?
     ) {
+        setDisplaySettings(
+            layout = layout,
+            hideIssuer = hideIssuer,
+            showPreviousToken = showPreviousToken,
+            tokenGroupSize = tokenGroupSize,
+            showIndividualCountdowns = appearance.showIndividualCountdowns
+        )
+    }
+
+    fun setDisplaySettings(
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean
+    ) {
         if (locked) return
         appearance = appearance.copy(
             cardLayout = layout,
             showIssuer = !hideIssuer,
             showPreviousToken = showPreviousToken,
             groupTokens = tokenGroupSize != 0,
-            tokenGroupSize = tokenGroupSize?.takeIf { it > 0 }
+            tokenGroupSize = tokenGroupSize?.takeIf { it > 0 },
+            showIndividualCountdowns = showIndividualCountdowns
         )
         onChange?.invoke()
     }
@@ -139,6 +156,8 @@ class VaultPresenter(
 
     /** The screen's callbacks, wired to this presenter and to the host's optional hooks. */
     fun actions(copyEntry: ((VaultCardState) -> Unit)? = null,
+                copyAccount: ((VaultCardState) -> Unit)? = null,
+                copyPassword: ((VaultCardState) -> Unit)? = null,
                 moveEntry: ((VaultCardState, Int) -> Unit)? = null,
                 configureAutoLock: (() -> Unit)? = null,
                 exportEncrypted: (() -> Unit)? = null,
@@ -198,6 +217,8 @@ class VaultPresenter(
         onEditEntry = editEntry?.let { edit -> { card -> if (card.id in revealed) edit(card) } },
         onEditCounter = editCounter?.let { edit -> { card -> if (card.id in revealed && card.counter != null) edit(card) } },
         onCopyToken = { card -> if (copyEntry != null) copyEntry(card) else copyToken(card) },
+        onCopyAccount = copyAccount,
+        onCopyPassword = copyPassword,
         onToggleReveal = { card -> toggleReveal(card.id) },
         onNextCounter = advanceCounter,
         onEntryActions = entryActions,

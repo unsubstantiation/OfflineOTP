@@ -52,9 +52,9 @@
     <string name="label_digits">Digits</string>
     <string name="label_counter">Counter</string>
     <string name="label_issuer">Issuer</string>
-    <string name="label_label">Label</string>
-    <string name="label_hidden_label">Hidden Label</string>
-    <string name="hint_hidden_label">Hidden label (visible only when revealed)</string>
+    <string name="label_label">Account</string>
+    <string name="label_hidden_label">Password</string>
+    <string name="hint_hidden_label">Password (visible only when revealed)</string>
     <string name="label_algorithm">Algorithm</string>
     <string name="label_tags">Tags</string>
     <string name="label_advanced">Advanced options</string>
@@ -74,7 +74,7 @@
 
     <string name="menu_sort_none">Unsorted</string>
     <string name="menu_sort_issuer">Issuer</string>
-    <string name="menu_sort_label">Label</string>
+    <string name="menu_sort_label">Account</string>
     <string name="menu_sort_last_used">Last used</string>
     <string name="menu_sort_most_used">Most used</string>
 
@@ -251,6 +251,8 @@
     <string name="linscp_export_success">LinSCP Key/Sessions exported</string>
     <string name="linscp_export_failed">Could not export LinSCP Key/Sessions</string>
     <string name="compose_copy_content">Copy</string>
+    <string name="compose_copy_account">Copy Account</string>
+    <string name="compose_copy_password">Copy Password</string>
     <string name="compose_move_up">Move up</string>
     <string name="compose_move_down">Move down</string>
     <string name="compose_reveal_token">Reveal</string>

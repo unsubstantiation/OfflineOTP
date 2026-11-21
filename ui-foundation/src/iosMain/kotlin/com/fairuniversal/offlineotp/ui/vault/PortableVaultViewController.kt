@@ -295,6 +295,15 @@ private fun RenderSharedSurface(
                     surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
                     surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
                     confirm()
+                },
+                showIndividualCountdowns = rowValue("showIndividualTimeouts") != "false",
+                onSaveCardDisplay = { selected, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual ->
+                    surfaceActions.change("layout", selected.name)
+                    surfaceActions.change("hideIssuer", if (hideIssuer) "true" else "false")
+                    surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
+                    surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
+                    surfaceActions.change("showIndividualTimeouts", if (showIndividual) "true" else "false")
+                    confirm()
                 }
             )
         }
@@ -545,6 +554,140 @@ private fun RenderSharedSurface(
             filenames = rows.filter { it.key.startsWith("file:") }.map { it.title },
             onDismiss = onDismiss
         )
+        "emailEdit" -> {
+            val accountFields = rows.filter { it.key.startsWith("acct:") }.map { row ->
+                val parts = row.key.split(":", limit = 4)
+                val kind = parts.getOrElse(2) { PortableEmailField.KIND_TEXT }
+                val fieldName = parts.getOrElse(3) { row.title }
+                PortableEmailField(name = fieldName, value = row.value, kind = kind)
+            }
+            val identityGroups = linkedMapOf<Int, MutableList<PortableEmailField>>()
+            rows.filter { it.key.startsWith("id:") }.forEach { row ->
+                val parts = row.key.split(":", limit = 5)
+                val idIdx = parts.getOrNull(1)?.toIntOrNull() ?: 0
+                val kind = parts.getOrElse(3) { PortableEmailField.KIND_TEXT }
+                val fieldName = parts.getOrElse(4) { row.title }
+                identityGroups.getOrPut(idIdx) { mutableListOf() }
+                    .add(PortableEmailField(name = fieldName, value = row.value, kind = kind))
+            }
+            val orderedIdentities = identityGroups.entries.sortedBy { it.key }.map { it.value.toList() }
+            SharedEmailEditDialog(
+                inputKey = dialogKey,
+                initial = PortableEmailEditDraft(
+                    issuer = rowValue("issuer"),
+                    label = rowValue("label"),
+                    hiddenLabel = rowValue("hiddenLabel"),
+                    tags = rowValue("tags"),
+                    thumbnail = rowValue("thumbnail"),
+                    account = accountFields,
+                    identities = orderedIdentities
+                ),
+                thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                error = dialog.message.ifEmpty { null },
+                onSubmit = { draft ->
+                    surfaceActions.change("issuer", draft.issuer)
+                    surfaceActions.change("label", draft.label)
+                    surfaceActions.change("hiddenLabel", draft.hiddenLabel)
+                    surfaceActions.change("tags", draft.tags)
+                    surfaceActions.change("thumbnail", draft.thumbnail)
+                    draft.account.forEachIndexed { fIdx, field ->
+                        surfaceActions.change("acctVal:$fIdx", field.value)
+                    }
+                    draft.identities.forEachIndexed { idIdx, fields ->
+                        fields.forEachIndexed { fIdx, field ->
+                            surfaceActions.change("idVal:$idIdx:$fIdx", field.value)
+                        }
+                    }
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+        }
+        "emailPasswordEdit" -> {
+            val count = (rowValue("identityCount").toIntOrNull() ?: 1).coerceAtLeast(1)
+            SharedEmailPasswordDialog(
+                inputKey = dialogKey,
+                initial = PortableEmailPasswordDraft(
+                    incoming = "",
+                    outgoing = List(count) { "" }
+                ),
+                failed = dialog.message.isNotEmpty(),
+                errorText = dialog.message.ifEmpty { null },
+                onSubmit = { draft ->
+                    surfaceActions.change("inPass", draft.incoming)
+                    draft.outgoing.forEachIndexed { idx, pw ->
+                        surfaceActions.change("outPass:$idx", pw)
+                    }
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+        }
+        "emailSettingsEdit" -> {
+            val count = (rowValue("identityCount").toIntOrNull() ?: 1).coerceAtLeast(1)
+            val removable = rowValue("removableIndices")
+                .split(",")
+                .mapNotNull { it.trim().toIntOrNull() }
+                .toSet()
+            val outgoing = (0 until count).map { idx ->
+                PortableEmailConnectionDraft(
+                    host = rowValue("outHost:$idx"),
+                    port = rowValue("outPort:$idx"),
+                    encryption = rowValue("outEnc:$idx").toIntOrNull() ?: 0,
+                    username = rowValue("outUser:$idx"),
+                    authentication = rowValue("outAuth:$idx").ifEmpty { "0" }
+                )
+            }
+            val identities = (0 until count).map { idx ->
+                PortableEmailIdentityDraft(
+                    name = rowValue("outName:$idx"),
+                    address = rowValue("outAddr:$idx")
+                )
+            }
+            SharedEmailSettingsDialog(
+                inputKey = dialogKey,
+                initial = PortableEmailSettingsDraft(
+                    protocol = rowValue("protocol").toIntOrNull() ?: 0,
+                    incoming = PortableEmailConnectionDraft(
+                        host = rowValue("inHost"),
+                        port = rowValue("inPort"),
+                        encryption = rowValue("inEnc").toIntOrNull() ?: 0,
+                        username = rowValue("inUser"),
+                        authentication = rowValue("inAuth").ifEmpty { "0" }
+                    ),
+                    outgoing = outgoing,
+                    identities = identities,
+                    accountName = rowValue("accountName"),
+                    removedIdentities = emptySet(),
+                    removableIdentities = removable
+                ),
+                failed = dialog.message.isNotEmpty(),
+                errorText = dialog.message.ifEmpty { null },
+                onSubmit = { draft ->
+                    draft.accountName?.let { surfaceActions.change("accountName", it) }
+                    surfaceActions.change("protocol", draft.protocol.toString())
+                    surfaceActions.change("inHost", draft.incoming.host)
+                    surfaceActions.change("inPort", draft.incoming.port)
+                    surfaceActions.change("inEnc", draft.incoming.encryption.toString())
+                    surfaceActions.change("inUser", draft.incoming.username)
+                    draft.incoming.authentication?.let { surfaceActions.change("inAuth", it) }
+                    surfaceActions.change("removedIndices", draft.removedIdentities.sorted().joinToString(","))
+                    draft.outgoing.forEachIndexed { idx, conn ->
+                        surfaceActions.change("outHost:$idx", conn.host)
+                        surfaceActions.change("outPort:$idx", conn.port)
+                        surfaceActions.change("outEnc:$idx", conn.encryption.toString())
+                        surfaceActions.change("outUser:$idx", conn.username)
+                        conn.authentication?.let { surfaceActions.change("outAuth:$idx", it) }
+                    }
+                    draft.identities?.forEachIndexed { idx, sender ->
+                        surfaceActions.change("outName:$idx", sender.name)
+                        surfaceActions.change("outAddr:$idx", sender.address)
+                    }
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+        }
         "emailEditor" -> SharedEmailAccountDialog(
             inputKey = dialogKey,
             initial = PortableEmailAccountDraft(
@@ -678,7 +821,8 @@ private fun RenderSharedSurface(
                     rows = detailRows,
                     secretsVisible = toggleRow?.title == "Hide passwords",
                     onToggleSecrets = { onAction(toggleRow?.key ?: "toggleEmailSecrets:$entryIdx") },
-                    onEditSettings = { onAction("edit:$entryIdx") },
+                    onEditSettings = { onAction("editEmailSettings:$entryIdx") },
+                    onEditPasswords = { onAction("editEmailPasswords:$entryIdx") },
                     onDismiss = onDismiss
                 )
             }

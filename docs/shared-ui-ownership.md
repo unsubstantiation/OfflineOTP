@@ -28,8 +28,11 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
 
 - `:ui-contract` owns `PortableCard`, `PortableChip`, `PortableVaultState`, `PortableRow`,
   `PortableSurfaceState`, `PortableDetailRow`, `PortablePasswordEditDraft`,
-  `PortableEmailAccountDraft`, `PortableEntryDraft`, `PortablePasswordImportMode`,
-  `PortableCardLayout`, `PortableInputBounds`, and `AutoLockOptions`:
+  `PortableEmailAccountDraft`, `PortableEmailField`, `PortableEmailEditDraft`,
+  `PortableEmailPasswordDraft`, `PortableEmailConnectionDraft`, `PortableEmailIdentityDraft`,
+  `PortableEmailSettingsDraft`, `PortableEntryDraft`, `PortableEntryDragBounds`,
+  `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
+  `PortableInputBounds`, and `AutoLockOptions`:
   strings, numbers and booleans only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultComponents`
   (`SharedVaultSearchField`, `SharedVaultTab`, `SharedVaultTagChip`, `CountdownRing`, and
@@ -43,6 +46,7 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `ArchiveExportDialog`, `PasswordExportDialog`, `StorageLocationDialog`, `EmailChoiceField`,
   `SharedPasswordEntryDialog`, `SharedPasswordImportDialog`, `SharedCardLayoutDialog`,
   `SharedThumbnailPickerDialog`, `SharedEmailDetailsDialog`, `SharedEmailAccountDialog`,
+  `SharedEmailEditDialog`, `SharedEmailPasswordDialog`, `SharedEmailSettingsDialog`,
   `SharedManualEntryDialog`, `HardwareEnrollmentDialog`, `HardwareUnlockDialog`,
   `HardwareCopyDialog`, and `HardwareOathDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`

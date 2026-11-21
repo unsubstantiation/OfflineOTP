@@ -25,6 +25,8 @@ data class PortableCard(
     val tags: List<String>,
     val canReorder: Boolean = false,
     val canCopy: Boolean = hasCode,
+    val canCopyAccount: Boolean = false,
+    val canCopyPassword: Boolean = false,
     val pinRequired: Boolean = false
 ) {
     /** The name shown while the row is concealed, never the hidden label. */
@@ -208,4 +210,103 @@ enum class PortableCardLayout {
     COMPACT,
     DEFAULT,
     FULL
+}
+
+/**
+ * Typed, lossless FairEmail account/identity field for shared multi-identity editing across
+ * Android, Desktop and iOS.
+ */
+data class PortableEmailField(
+    val name: String,
+    val value: String,
+    val kind: String = KIND_TEXT
+) {
+    override fun toString(): String = "PortableEmailField(redacted)"
+
+    companion object {
+        const val KIND_TEXT: String = "TEXT"
+        const val KIND_NUMBER: String = "NUMBER"
+        const val KIND_BOOLEAN: String = "BOOLEAN"
+        const val KIND_OBJECT: String = "OBJECT"
+        const val KIND_ARRAY: String = "ARRAY"
+        const val KIND_NULL: String = "NULL"
+
+        /** Updates [index] and keeps legacy `pop` / `starttls` compatibility flags synchronized. */
+        fun updated(fields: List<PortableEmailField>, index: Int, value: String): List<PortableEmailField> {
+            val name = fields[index].name
+            return fields.mapIndexed { i, old ->
+                val linked = when {
+                    name == "protocol" && old.name == "pop" -> (value == "1").toString()
+                    name == "pop" && old.name == "protocol" -> if (value == "true") "1" else "0"
+                    name == "encryption" && old.name == "starttls" -> (value == "1").toString()
+                    name == "starttls" && old.name == "encryption" -> if (value == "true") "1" else "0"
+                    else -> old.value
+                }
+                old.copy(value = if (i == index) value else linked)
+            }
+        }
+    }
+}
+
+/** Comprehensive multi-identity email edit draft shared across Android, Desktop and iOS. */
+data class PortableEmailEditDraft(
+    val issuer: String = "",
+    val label: String = "",
+    val hiddenLabel: String = "",
+    val tags: String = "",
+    val thumbnail: String = "",
+    val account: List<PortableEmailField> = emptyList(),
+    val identities: List<List<PortableEmailField>> = emptyList()
+) {
+    fun withoutSecrets(): PortableEmailEditDraft = copy(
+        account = account.map { if (it.name == "password") it.copy(value = "") else it },
+        identities = identities.map { fields ->
+            fields.map { if (it.name == "password") it.copy(value = "") else it }
+        }
+    )
+
+    override fun toString(): String = "PortableEmailEditDraft(redacted)"
+}
+
+/** Masked credential-only email password/token draft; blank fields preserve stored credentials. */
+data class PortableEmailPasswordDraft(
+    val incoming: String = "",
+    val outgoing: List<String> = emptyList()
+) {
+    fun withoutSecrets(): PortableEmailPasswordDraft =
+        PortableEmailPasswordDraft(outgoing = List(outgoing.size) { "" })
+
+    override fun toString(): String = "PortableEmailPasswordDraft(redacted)"
+}
+
+/** Transport connection metadata for one incoming account or SMTP identity (never carries secrets). */
+data class PortableEmailConnectionDraft(
+    val host: String = "",
+    val port: String = "",
+    val encryption: Int = 0,
+    val username: String = "",
+    val authentication: String? = null
+) {
+    override fun toString(): String = "PortableEmailConnectionDraft(redacted)"
+}
+
+/** Sender display name and email address for one SMTP identity. */
+data class PortableEmailIdentityDraft(
+    val name: String = "",
+    val address: String = ""
+) {
+    override fun toString(): String = "PortableEmailIdentityDraft(redacted)"
+}
+
+/** Multi-identity email connection & sender settings draft, including staged SMTP removals. */
+data class PortableEmailSettingsDraft(
+    val protocol: Int = 0,
+    val incoming: PortableEmailConnectionDraft = PortableEmailConnectionDraft(),
+    val outgoing: List<PortableEmailConnectionDraft> = emptyList(),
+    val identities: List<PortableEmailIdentityDraft>? = null,
+    val accountName: String? = null,
+    val removedIdentities: Set<Int> = emptySet(),
+    val removableIdentities: Set<Int> = emptySet()
+) {
+    override fun toString(): String = "PortableEmailSettingsDraft(redacted)"
 }

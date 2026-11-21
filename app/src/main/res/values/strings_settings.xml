@@ -238,7 +238,7 @@
     </string-array>
 
     <string-array name="settings_entries_search_includes">
-        <item>Label</item>
+        <item>Account</item>
         <item>Issuer</item>
         <item>Tags</item>
     </string-array>

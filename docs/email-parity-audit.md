@@ -2,8 +2,12 @@
 
 ## Changes
 
-- Android, Windows, macOS and Linux desktop use the same Compose email editing form.
-  Android creation now also uses the desktop form and shared creation input, with guarded
+- Android, Windows, macOS, Linux desktop and iOS now render the same shared Compose Multiplatform
+  email creation, comprehensive multi-identity editing (`SharedEmailEditDialog`), masked
+  credential-only rotation (`SharedEmailPasswordDialog`), and connection/sender settings +
+  secondary SMTP identity removal (`SharedEmailSettingsDialog`) forms from `:ui-foundation` over
+  toolkit-free DTOs in `:ui-contract`.
+  Android creation also uses the shared creation input, with guarded
   save-before-adopt import persistence rather than the legacy numeric-field dialog.
 - Edit includes issuer, label, Hidden Label, newline-separated tags, artwork, every stored
   incoming account field and every stored SMTP identity field. Imported extension objects
@@ -15,9 +19,13 @@
 - Protocol, encryption, boolean flags and artwork use compact dropdowns. Password/token
   fields are masked until explicitly revealed. Changing canonical transport settings updates
   matching legacy `pop`/`starttls` flags (and vice versa).
-- iOS uses native SwiftUI, not JVM/Compose code. Its editor follows the same field coverage,
-  reuses OfflineOTPKit email encoding and entry validation, preserves extension fields, and
-  checks original full entry fields, session generation and reveal status before saving.
+- iOS hosts the shared `:ui-foundation` Compose email dialogs (`SharedEmailAccountDialog`,
+  `SharedEmailEditDialog`, `SharedEmailPasswordDialog`, `SharedEmailSettingsDialog`, and
+  `SharedEmailDetailsDialog`) from `ComposeVaultHost.swift`, backed by `OfflineOTPKit`
+  (`EmailEditInput`, `EmailPasswordInput`, `EmailSettingsInput`) so multi-identity edits,
+  extension fields, Entry metadata (`issuer`, `label`, `hidden_label`, `thumbnail`, `tags`),
+  masked credential rotation, and secondary SMTP identity removal match Android and desktop while
+  re-checking exact opening entry fields, session generation, and live reveal status before saving.
 - Existing details/copy views are retained. Email creation, editing and detail views display
   the requested warning; no operation here contacts or changes a mail server.
 

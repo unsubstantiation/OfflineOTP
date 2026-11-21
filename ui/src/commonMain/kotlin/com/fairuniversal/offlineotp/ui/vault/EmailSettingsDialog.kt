@@ -1,70 +1,61 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import com.fairuniversal.offlineotp.Utilities.EmailMaterial
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.EmailIdentityInput
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailConnectionDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailIdentityDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailSettingsDraft
 
+/** Thin `:ui` adapter mapping [EmailSettingsInput] onto [SharedEmailSettingsDialog] in `:ui-foundation`. */
 @Composable
-fun EmailSettingsDialog(inputKey: Any, initial: EmailSettingsInput, failed: Boolean,
-                        onSubmit: (EmailSettingsInput) -> Unit, onDismiss: () -> Unit) {
-    var input by remember(inputKey) { mutableStateOf(initial) }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Edit email settings") },
-        text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-            Text(text = EMAIL_EDIT_WARNING)
-            input.accountName?.let { name ->
-                OutlinedTextField(value = name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) input = input.copy(accountName = it) }, label = { Text(text = "Account display name") }, singleLine = true)
-            }
-            EmailChoiceField("Incoming protocol", input.protocol.toString(), EMAIL_PROTOCOL_OPTIONS) { input = input.copy(protocol = it.toInt()) }
-            ConnectionFields("Incoming", input.incoming) { input = input.copy(incoming = it) }
-            input.outgoing.forEachIndexed { index, connection ->
-                if (index in input.removableIdentities) {
-                    val removed = index in input.removedIdentities
-                    ForestTextAction(text = if (removed) "Undo removal of SMTP #${index + 1}" else "Remove SMTP #${index + 1} on Save", onClick = {
-                        input = input.copy(removedIdentities = if (removed) input.removedIdentities - index else input.removedIdentities + index)
-                    })
-                    if (removed) {
-                        Text(text = "SMTP #${index + 1} marked for removal; Save commits this change.")
-                        return@forEachIndexed
-                    }
-                }
-                input.identities?.getOrNull(index)?.let { identity ->
-                    Text(text = "SMTP identity #${index + 1}")
-                    fun update(name: String = identity.name, address: String = identity.address) {
-                        input = input.copy(identities = input.identities?.mapIndexed { i, old ->
-                            if (i == index) old.copy(name = name, address = address) else old
-                        })
-                    }
-                    OutlinedTextField(value = identity.name, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) update(name = it) }, label = { Text(text = "Sender display name") }, singleLine = true)
-                    OutlinedTextField(value = identity.address, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) update(address = it) }, label = { Text(text = "Sender email address") }, singleLine = true)
-                }
-                ConnectionFields("Outgoing SMTP #${index + 1}", connection) { next ->
-                    input = input.copy(outgoing = input.outgoing.mapIndexed { i, old -> if (i == index) next else old })
-                }
-            }
-            if (failed) Text(text = "Could not save settings. Check account name, sender addresses, hosts, ports, encryption, authentication types and storage. Original account retained.")
-        } }, confirmButton = { ForestTextAction(text = "Save", onClick = { onSubmit(input) }) },
-        dismissButton = { ForestTextAction(text = "Cancel", onClick = onDismiss) })
+fun EmailSettingsDialog(
+    inputKey: Any,
+    initial: EmailSettingsInput,
+    failed: Boolean,
+    onSubmit: (EmailSettingsInput) -> Unit,
+    onDismiss: () -> Unit
+) {
+    SharedEmailSettingsDialog(
+        inputKey = inputKey,
+        initial = initial.toPortable(),
+        failed = failed,
+        onSubmit = { draft -> onSubmit(draft.toModel()) },
+        onDismiss = onDismiss
+    )
 }
 
-@Composable
-private fun ConnectionFields(label: String, input: EmailConnectionInput, change: (EmailConnectionInput) -> Unit) {
-    Text(text = label)
-    OutlinedTextField(value = input.host, onValueChange = { if (it.length <= InputPolicy.MAX_TEXT_CHARS) change(input.copy(host = it)) }, label = { Text(text = "$label host") }, singleLine = true)
-    OutlinedTextField(value = input.port, onValueChange = { if (it.length <= 5) change(input.copy(port = it)) }, label = { Text(text = "$label port (1–65535)") }, singleLine = true)
-    OutlinedTextField(value = input.username, onValueChange = { if (it.length <= EmailMaterial.MAX_CREDENTIAL_CHARS) change(input.copy(username = it)) }, label = { Text(text = "$label username") }, singleLine = true)
-    input.authentication?.let { authentication ->
-        OutlinedTextField(value = authentication, onValueChange = { if (it.length <= 10) change(input.copy(authentication = it)) }, label = { Text(text = "$label authentication type (1 = password)") }, singleLine = true)
-    }
-    EmailChoiceField("$label encryption", input.encryption.toString(), EMAIL_ENCRYPTION_OPTIONS) { change(input.copy(encryption = it.toInt())) }
-}
+private fun EmailConnectionInput.toPortable(): PortableEmailConnectionDraft = PortableEmailConnectionDraft(
+    host = host,
+    port = port,
+    encryption = encryption,
+    username = username,
+    authentication = authentication
+)
+
+private fun PortableEmailConnectionDraft.toModel(): EmailConnectionInput = EmailConnectionInput(
+    host = host,
+    port = port,
+    encryption = encryption,
+    username = username,
+    authentication = authentication
+)
+
+private fun EmailSettingsInput.toPortable(): PortableEmailSettingsDraft = PortableEmailSettingsDraft(
+    protocol = protocol,
+    incoming = incoming.toPortable(),
+    outgoing = outgoing.map { it.toPortable() },
+    identities = identities?.map { PortableEmailIdentityDraft(name = it.name, address = it.address) },
+    accountName = accountName,
+    removedIdentities = removedIdentities,
+    removableIdentities = removableIdentities
+)
+
+private fun PortableEmailSettingsDraft.toModel(): EmailSettingsInput = EmailSettingsInput(
+    protocol = protocol,
+    incoming = incoming.toModel(),
+    outgoing = outgoing.map { it.toModel() },
+    identities = identities?.map { EmailIdentityInput(name = it.name, address = it.address) },
+    accountName = accountName,
+    removedIdentities = removedIdentities,
+    removableIdentities = removableIdentities
+)

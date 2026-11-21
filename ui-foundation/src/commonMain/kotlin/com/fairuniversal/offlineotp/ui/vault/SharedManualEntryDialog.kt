@@ -100,7 +100,7 @@ fun SharedManualEntryDialog(
                 PortableEntryField("Issuer / title", input.issuer, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                     input = input.copy(issuer = it)
                 }
-                PortableEntryField("Label", input.label, limit = PortableInputBounds.MAX_TEXT_CHARS) {
+                PortableEntryField("Account", input.label, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                     input = input.copy(label = it)
                 }
                 val note = input.kind == "NOTE"
@@ -156,9 +156,9 @@ fun SharedManualEntryDialog(
                 if (!ssh) {
                     if (!input.clearHiddenLabel) {
                         PortableEntryField(
-                            label = if (editing) "New Hidden label (blank keeps stored)" else "Hidden label",
+                            label = if (editing) "New Password (blank keeps stored)" else "Password",
                             value = input.hiddenLabel,
-                            masked = editing,
+                            masked = true,
                             limit = PortableInputBounds.MAX_TEXT_CHARS
                         ) {
                             input = input.copy(hiddenLabel = it)
@@ -166,7 +166,7 @@ fun SharedManualEntryDialog(
                     }
                     if (editing) {
                         ForestTextAction(
-                            text = if (input.clearHiddenLabel) "Will remove Hidden Label — undo" else "Remove Hidden Label on Save",
+                            text = if (input.clearHiddenLabel) "Will remove Password — undo" else "Remove Password on Save",
                             onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) }
                         )
                     }

@@ -137,6 +137,7 @@ public final class VaultStore: ObservableObject {
     public static let tagFunctionalitySettingKey = "ui_tag_functionality"
     public static let hideIssuerSettingKey = "ui_hide_issuer"
     public static let showPrevTokenSettingKey = "ui_show_prev_token"
+    public static let showIndividualTimeoutsSettingKey = "ui_show_individual_timeouts"
     public static let splitGroupSizeSettingKey = "ui_split_group_size"
     public static let searchIncludesSettingKey = "ui_search_includes"
     static let biometricEnabled = "enabled"
@@ -146,6 +147,7 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var cardLayout = "DEFAULT"
     @Published public private(set) var hideIssuer = false
     @Published public private(set) var showPreviousToken = true
+    @Published public private(set) var showIndividualTimeouts = true
     @Published public private(set) var tokenGroupSize = 3
     private var lastActivityDate = Date()
 
@@ -190,6 +192,8 @@ public final class VaultStore: ObservableObject {
         self.hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
         self.showPreviousToken = VaultStore.storedShowPreviousToken(
             settings.string(VaultStore.showPrevTokenSettingKey))
+        self.showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
+            settings.string(VaultStore.showIndividualTimeoutsSettingKey))
         self.tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         self.searchIncludes = VaultStore.storedSearchIncludes(
@@ -452,6 +456,8 @@ public final class VaultStore: ObservableObject {
         hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
         showPreviousToken = VaultStore.storedShowPreviousToken(
             settings.string(VaultStore.showPrevTokenSettingKey))
+        showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
+            settings.string(VaultStore.showIndividualTimeoutsSettingKey))
         tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         searchIncludes = VaultStore.storedSearchIncludes(
@@ -476,6 +482,11 @@ public final class VaultStore: ObservableObject {
     }
 
     private static func storedShowPreviousToken(_ raw: String?) -> Bool {
+        guard let raw else { return true }
+        return raw != "false"
+    }
+
+    private static func storedShowIndividualTimeouts(_ raw: String?) -> Bool {
         guard let raw else { return true }
         return raw != "false"
     }
@@ -513,6 +524,12 @@ public final class VaultStore: ObservableObject {
     public func setShowPreviousToken(_ show: Bool) {
         showPreviousToken = show
         settings.setString(VaultStore.showPrevTokenSettingKey, show ? "true" : "false")
+    }
+
+    /// Persists whether standard 30-second countdown rings are shown on OTP cards (`ui_show_individual_timeouts`).
+    public func setShowIndividualTimeouts(_ show: Bool) {
+        showIndividualTimeouts = show
+        settings.setString(VaultStore.showIndividualTimeoutsSettingKey, show ? "true" : "false")
     }
 
     /// Persists explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets).

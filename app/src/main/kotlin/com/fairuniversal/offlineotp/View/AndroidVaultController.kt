@@ -41,6 +41,8 @@ import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.EmailDetailsComposeView
+import com.fairuniversal.offlineotp.ui.host.EmailPasswordComposeView
+import com.fairuniversal.offlineotp.ui.host.EmailSettingsComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import com.fairuniversal.offlineotp.ui.host.QrCodeComposeView
@@ -174,6 +176,128 @@ class AndroidVaultController(
         return true
     }
 
+    private fun openEmailSettingsEditor(target: EntryActionTarget, entry: Entry): Boolean {
+        if (!entry.isEmail() || !composeRevealed(entry)) return false
+        val activity = context as? Activity ?: return false
+        activeEmailDialog?.dismiss()
+        activeEmailDialog = null
+        val initial = com.fairuniversal.offlineotp.ui.vault.EmailSettingsInput.fromEntry(entry)
+        composeEditTarget = target
+        val pending = object { var host: ComposeDialogHost? = null }
+        val dialog = EmailSettingsComposeView(
+            activity = activity,
+            initial = initial,
+            onSubmit = { input ->
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    if (activeEmailDialog !== pending.host || composeEditTarget !== target || encryptionKey == null ||
+                        VaultSession.getKey() !== encryptionKey || actual == null || !composeRevealed(actual)) {
+                        pending.host?.dismiss()
+                        if (activeEmailDialog === pending.host) activeEmailDialog = null
+                        "The entry or session changed."
+                    } else {
+                        val replacement = try { input.build(actual) } catch (_: Exception) { null }
+                        if (replacement == null) "Invalid email settings. Check server, port and sender fields."
+                        else if (replaceEntry(actual, replacement, preserveMissingPin = false)) null
+                        else "Could not save email settings. Original retained."
+                    }
+                }
+            },
+            onDismiss = {
+                pending.host?.dismiss()
+                if (activeEmailDialog === pending.host) activeEmailDialog = null
+            }
+        )
+        pending.host = dialog
+        activeEmailDialog = dialog
+        dialog.show()
+        return true
+    }
+
+    private fun openEmailPasswordEditor(target: EntryActionTarget, entry: Entry): Boolean {
+        if (!entry.isEmail() || !composeRevealed(entry)) return false
+        val activity = context as? Activity ?: return false
+        activeEmailDialog?.dismiss()
+        activeEmailDialog = null
+        val initial = com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput.fromEntry(entry)
+        composeEditTarget = target
+        val pending = object { var host: ComposeDialogHost? = null }
+        val dialog = EmailPasswordComposeView(
+            activity = activity,
+            initial = initial,
+            onSubmit = { input ->
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    if (activeEmailDialog !== pending.host || composeEditTarget !== target || encryptionKey == null ||
+                        VaultSession.getKey() !== encryptionKey || actual == null || !composeRevealed(actual)) {
+                        pending.host?.dismiss()
+                        if (activeEmailDialog === pending.host) activeEmailDialog = null
+                        "The entry or session changed."
+                    } else {
+                        val replacement = try { input.build(actual) } catch (_: Exception) { null }
+                        if (replacement == null) "Invalid email credentials."
+                        else if (replaceEntry(actual, replacement, preserveMissingPin = false)) null
+                        else "Could not save email credentials. Original retained."
+                    }
+                }
+            },
+            onDismiss = {
+                pending.host?.dismiss()
+                if (activeEmailDialog === pending.host) activeEmailDialog = null
+            }
+        )
+        pending.host = dialog
+        activeEmailDialog = dialog
+        dialog.show()
+        return true
+    }
+
+    private fun openEmailDetailsDialog(target: EntryActionTarget, entry: Entry): Boolean {
+        if (!entry.isEmail() || !composeRevealed(entry)) return false
+        activeEmailDialog?.dismiss()
+        activeEmailDialog = null
+        val activity = context as? Activity ?: return false
+        val pending = object { var host: ComposeDialogHost? = null }
+        val view = EmailDetailsComposeView(
+            activity = activity,
+            rowsProvider = { visible ->
+                var rows: List<EmailMaterial.Detail>? = null
+                withTarget(target, Consumer { actual ->
+                    if (actual.isEmail() && composeRevealed(actual)) {
+                        rows = if (visible) {
+                            EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
+                        } else {
+                            EmailMaterial.details(actual.getEmailAccount(), revealSecrets = false)
+                        }
+                    }
+                })
+                rows
+            },
+            onDismiss = {
+                pending.host?.dismiss()
+                if (activeEmailDialog === pending.host) activeEmailDialog = null
+            },
+            onEditSettings = {
+                pending.host?.dismiss()
+                if (activeEmailDialog === pending.host) activeEmailDialog = null
+                withTarget(target, Consumer { current ->
+                    if (current.isEmail()) openEmailSettingsEditor(target, current)
+                })
+            },
+            onEditPasswords = {
+                pending.host?.dismiss()
+                if (activeEmailDialog === pending.host) activeEmailDialog = null
+                withTarget(target, Consumer { current ->
+                    if (current.isEmail()) openEmailPasswordEditor(target, current)
+                })
+            }
+        )
+        pending.host = view
+        activeEmailDialog = view
+        view.show()
+        return true
+    }
+
     private fun openPasswordEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
         if (!composeRevealed(entry) || !com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput.supports(entry)) return false
@@ -280,16 +404,16 @@ class AndroidVaultController(
                     detailsVisible = false, token = null, previousToken = null, tags = emptyList(),
                     thumbnailName = "", counter = null, remainingSeconds = null, progress = null, customPeriodSeconds = null,
                     expiring = false, revealed = false, revealedContent = null, pinRequired = false,
-                    copyable = false
+                    copyable = false, canCopyAccount = false, canCopyPassword = false
                 ) else card.copy(
                     detailsVisible = true,
                     detailLabel = entry.getHiddenLabel().ifEmpty {
                         if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
                     }.takeIf { it.isNotEmpty() && composeRevealed(entry) },
-                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey() ||
-                        (entry.isEmail() && composeRevealed(entry) && entry.getEmailAccount().let {
-                            it.account.optString("password").orEmpty().isNotEmpty() || it.identity.optString("password").orEmpty().isNotEmpty()
-                        })),
+                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() ||
+                        (entry.isSshKey() && entry.getSshKeys().let { it.publicKey.isNotBlank() || it.privateKey.isNotBlank() })),
+                    canCopyAccount = entry.hasCopyableAccount(),
+                    canCopyPassword = entry.hasCopyablePassword(),
                     canMoveUp = presentation.canDrag() && index > 0,
                     canMoveDown = presentation.canDrag() && index < shown.lastIndex
                 )
@@ -347,6 +471,12 @@ class AndroidVaultController(
                         !(entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty())) return false
                     cardActions.onCopyButtonClicked("", position)
                 }
+                AndroidCardCommand.COPY_ACCOUNT -> {
+                    if (!copyAccountValue(entry, settings.isMinimizeAppOnCopyEnabled())) return false
+                }
+                AndroidCardCommand.COPY_PASSWORD -> {
+                    if (!copyPasswordValue(position, entry, settings.isMinimizeAppOnCopyEnabled())) return false
+                }
                 AndroidCardCommand.REVEAL_TOKEN -> {
                     if (!establishPinIfNeeded(position)) cardTapToRevealHandler(position)
                 }
@@ -369,6 +499,9 @@ class AndroidVaultController(
                 AndroidCardCommand.MENU -> {
                     if (anchor == null) return false
                     showPopupMenu(anchor, position)
+                }
+                AndroidCardCommand.EMAIL_DETAILS -> {
+                    if (!openEmailDetailsDialog(target, entry)) return false
                 }
                 AndroidCardCommand.MOVE_UP, AndroidCardCommand.MOVE_DOWN -> {
                     val to = position + if (command == AndroidCardCommand.MOVE_UP) -1 else 1
@@ -993,11 +1126,72 @@ class AndroidVaultController(
         })
     }
 
+    private fun copyAccountValue(selected: Entry, dropToBackground: Boolean): Boolean {
+        val value = selected.accountToCopy()
+        if (value.isEmpty()) return false
+        if (!recordCopyUse(selected)) {
+            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+            return false
+        }
+        Tools.copyToClipboard(context, value)
+        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+        return true
+    }
+
+    private fun copyPasswordValue(position: Int, selected: Entry, dropToBackground: Boolean): Boolean {
+        val choices = selected.passwordChoicesToCopy()
+        if (choices.isEmpty()) return false
+        if (choices.map { it.second }.distinct().size == 1) {
+            if (!recordCopyUse(selected)) {
+                Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                return false
+            }
+            Tools.copyToClipboard(context, choices.first().second)
+            if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+            return true
+        }
+        showActionDialog(position, BiConsumer { target, entry ->
+            val currentChoices = entry.passwordChoicesToCopy()
+            if (currentChoices.isEmpty()) return@BiConsumer
+            activeSshCopyDialog?.dismiss()
+            activeSshCopyDialog = null
+            val activity = context as? Activity ?: return@BiConsumer
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = EntryCopyComposeView(
+                activity = activity,
+                title = "Choose password to copy",
+                cancelLabel = context.getString(android.R.string.cancel),
+                fields = currentChoices.map { it.first },
+                onSelect = { index ->
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                    withTarget(target, Consumer { actual ->
+                        val value = actual.passwordChoicesToCopy().getOrNull(index)?.second.orEmpty()
+                        if (value.isEmpty()) return@Consumer
+                        if (!recordCopyUse(actual)) {
+                            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                            return@Consumer
+                        }
+                        Tools.copyToClipboard(context, value)
+                        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+                    })
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                }
+            )
+            pending.host = view
+            activeSshCopyDialog = view
+            view.show()
+        })
+        return true
+    }
+
     private enum class EmailCopyField { INCOMING_PASSWORD, OUTGOING_PASSWORD }
 
     private fun chooseEmailPasswordToCopy(position: Int, dropToBackground: Boolean) {
         showActionDialog(position, BiConsumer { target, entry ->
-            if (!composeRevealed(entry)) return@BiConsumer
             val emailAccount = entry.getEmailAccount()
             val choices = ArrayList<EmailCopyField>()
             val labels = ArrayList<String>()
@@ -1023,7 +1217,7 @@ class AndroidVaultController(
                     pending.host?.dismiss()
                     if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
                     if (index in choices.indices) withTarget(target, Consumer { actual ->
-                        if (!actual.isEmail() || !composeRevealed(actual)) return@Consumer
+                        if (!actual.isEmail()) return@Consumer
                         val currentAccount = actual.getEmailAccount()
                         val value = when (choices[index]) {
                             EmailCopyField.INCOMING_PASSWORD -> currentAccount.account.optString("password").orEmpty()
@@ -1357,7 +1551,7 @@ class AndroidVaultController(
         val popupEntry = presentation.get(pos)
         val popupGeneration = VaultSession.generation()
         val popupTarget = EntryActionTarget(popupEntry, popupGeneration)
-        val menuItemView = requireNotNull(view.findViewById<View>(R.id.menuButton))
+        val menuItemView = view.findViewById<View>(R.id.menuButton) ?: view
         val popup = PopupMenu(view.context, menuItemView)
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
@@ -1381,6 +1575,14 @@ class AndroidVaultController(
         }
         if (popupEntry.isEmail())
             popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(true)
+        if (!composeRevealed(popupEntry)) {
+            popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(false)
+        }
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)
@@ -1396,43 +1598,7 @@ class AndroidVaultController(
 
             if (id == R.id.menu_popup_email_details) {
                 withTarget(popupTarget, Consumer { actual ->
-                    if (!actual.isEmail()) return@Consumer
-                    // The same row builder and Compose dialog feed desktop and Android, so both
-                    // clients describe a stored account identically and support secret masking.
-                    activeEmailDialog?.dismiss()
-                    activeEmailDialog = null
-                    val activity = context as? Activity ?: return@Consumer
-                    val pending = object { var host: ComposeDialogHost? = null }
-                    val view = EmailDetailsComposeView(
-                        activity = activity,
-                        rowsProvider = { visible ->
-                            var rows: List<EmailMaterial.Detail>? = null
-                            withTarget(popupTarget, Consumer { actual ->
-                                if (actual.isEmail()) {
-                                    rows = if (visible) {
-                                        EmailMaterial.details(actual.getEmailAccount(), revealSecrets = true)
-                                    } else {
-                                        EmailMaterial.details(actual.getEmailAccount(), revealSecrets = false)
-                                    }
-                                }
-                            })
-                            rows
-                        },
-                        onDismiss = {
-                            pending.host?.dismiss()
-                            if (activeEmailDialog === pending.host) activeEmailDialog = null
-                        },
-                        onEditSettings = {
-                            pending.host?.dismiss()
-                            if (activeEmailDialog === pending.host) activeEmailDialog = null
-                            withTarget(popupTarget, Consumer { current ->
-                                if (current.isEmail()) openEmailEditor(popupTarget, current)
-                            })
-                        }
-                    )
-                    pending.host = view
-                    activeEmailDialog = view
-                    view.show()
+                    openEmailDetailsDialog(popupTarget, actual)
                 })
                 true
             } else if (id == R.id.menu_popup_password_details) {
