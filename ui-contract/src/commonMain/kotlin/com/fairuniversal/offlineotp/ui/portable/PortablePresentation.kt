@@ -136,13 +136,26 @@ data class PortableDetailRow(val label: String, val value: String) {
     override fun toString(): String = "PortableDetailRow($label=<redacted>)"
 }
 
-/** Ephemeral browser/common password edit fields; never exposes the password in diagnostics. */
+/** Ephemeral password / archive edit fields; never exposes credentials in diagnostics. */
 data class PortablePasswordEditDraft(
     val url: String = "",
     val username: String = "",
-    val password: String = ""
+    val password: String = "",
+    val issuer: String = "",
+    val label: String = "",
+    val tags: String = "",
+    val thumbnail: String = "",
+    val extraFields: List<PortableEmailField> = emptyList(),
+    val customColumnsMode: Boolean = false,
+    val archiveMode: Boolean = false,
+    val archiveSizeBytes: Int = 0
 ) {
-    fun withoutPassword(): PortablePasswordEditDraft = copy(password = "")
+    fun withoutPassword(): PortablePasswordEditDraft = copy(
+        password = "",
+        extraFields = extraFields.map { field ->
+            if (field.kind == PortableEmailField.KIND_SECRET) field.copy(value = "") else field
+        }
+    )
     override fun toString(): String = "PortablePasswordEditDraft(redacted)"
 }
 
@@ -225,6 +238,7 @@ data class PortableEmailField(
 
     companion object {
         const val KIND_TEXT: String = "TEXT"
+        const val KIND_SECRET: String = "SECRET"
         const val KIND_NUMBER: String = "NUMBER"
         const val KIND_BOOLEAN: String = "BOOLEAN"
         const val KIND_OBJECT: String = "OBJECT"

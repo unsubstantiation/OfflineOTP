@@ -18,12 +18,15 @@ import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryDraft
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
+import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 /** Add/edit form. Input stays in composition; the host validates and owns any created entry. */
 @Composable
 fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
                       initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null,
-                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null, submitNotice: String? = null) {
+                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null, submitNotice: String? = null,
+                      onShowQrCode: (() -> Unit)? = null, onShareKeystrokes: (() -> Unit)? = null,
+                      onDelete: (() -> Unit)? = null) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
     var email by remember(inputKey) { mutableStateOf(false) }
@@ -108,6 +111,20 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                 }
                 EntryInputField("Tags (one per line)", input.tags, multiline = true,
                     limit = InputPolicy.MAX_TAGS * (InputPolicy.MAX_TAG_CHARS + 1)) { input = input.copy(tags = it) }
+                if (editing) {
+                    onShowQrCode?.let { showQr ->
+                        ForestTextAction(text = "Show QR code", onClick = showQr)
+                    }
+                    onShareKeystrokes?.let { shareKeys ->
+                        ForestTextAction(text = "Share as keystrokes", onClick = shareKeys)
+                    }
+                    onDelete?.let { deleteEntry ->
+                        ForestTextAction(text = "Delete", color = ForestPalette.warning, onClick = {
+                            input = ManualEntryInput()
+                            deleteEntry()
+                        })
+                    }
+                }
                 if (error != null) Text(text = error)
             }
         },

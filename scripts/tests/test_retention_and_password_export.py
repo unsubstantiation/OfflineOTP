@@ -114,11 +114,11 @@ class BrowserPasswordExportTest(unittest.TestCase):
     def test_android_reaches_the_policy_from_the_entry_menu(self):
         menu = read(RES / "menu/menu_popup.xml")
         self.assertIn('android:id="@+id/menu_popup_edit_password"', menu)
-        self.assertIn('android:id="@+id/menu_popup_export_password_csv"', menu)
+        self.assertNotIn('menu_popup_export_password_csv', menu)
+        self.assertNotIn('menu_popup_export_password_file', menu)
         adapter = read(APP / "View/AndroidVaultController.kt")
         self.assertIn("openPasswordEditor(popupTarget, actual)", adapter)
-        self.assertIn("requestPasswordCsvExport(actual)", adapter)
-        self.assertIn("PasswordCsvExport.support(popupEntry) is PasswordCsvExport.Support.Exportable", adapter)
+        self.assertNotIn("requestPasswordCsvExport(actual)", adapter)
         adapter_dialog = read(ROOT / "ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryDialog.kt")
         dialog = read(ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedPasswordEntryDialog.kt")
         model = read(ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PasswordEntryInput.kt")
@@ -127,6 +127,7 @@ class BrowserPasswordExportTest(unittest.TestCase):
         self.assertIn("SharedPasswordEntryDialog(", adapter_dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("Show password", dialog)
+        self.assertIn('text = "Delete"', dialog)
         self.assertIn("view.ownsPasswordEditor(initial)", adapter)
         self.assertFalse((APP / "Dialogs/PasswordEntryEditDialog.kt").exists())
 

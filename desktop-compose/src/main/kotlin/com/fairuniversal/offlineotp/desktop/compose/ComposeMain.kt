@@ -515,16 +515,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 editing.open(card.id)
                 revision++
             },
-            entryActions = { card ->
-                autoLock.pending?.let { autoLock.dismiss(it) }
-                copier.pending?.let { copier.dismiss(it) }; copyNotice = null
-                creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
-                dialogs.pending?.let { dialogs.dismiss(it) }
-                emailDetails.pending?.let { emailDetails.dismiss(it) }
-                entryActions.openMenu(card.id, revealed = card.revealed, canMoveUp = card.canMoveUp, canMoveDown = card.canMoveDown, active = { lifetimeHolder[0]?.checkActive() == true })
-                revision++
-            },
             editCounter = { card ->
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }; copyNotice = null
@@ -653,7 +643,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         val liveEntries = vault.snapshot().associateBy { it.getListId() }
         frame.copy(cards = frame.cards.mapIndexed { index, card ->
             card.copy(canEditPassword = card.revealed && liveEntries[card.id]?.let {
-                it.isPassword() && PasswordEntryInput.supports(it)
+                PasswordEntryInput.supports(it) || PasswordEntryInput.supportsAny(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
                 copyable = card.detailsVisible && (card.copyable || card.kind == VaultEntryKind.NOTES ||
@@ -870,17 +860,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     val file = DesktopSavePicker.openOpenPgpBackup(window)
                     if (file != null && lifetime.checkActive() && !vault.isLocked) openPgpImporter.open(file)
                 } catch (_: Exception) { copyNotice = "The OpenPGP backup could not be selected." }
-                revision++
-            }
-        }, viewEmailDetails = { card ->
-            if (lifetime.checkActive()) {
-                creation.pending?.let { creation.dismiss(it) }
-                editing.pending?.let { editing.dismiss(it) }
-                copier.pending?.let { copier.dismiss(it) }
-                dialogs.pending?.let { dialogs.dismiss(it) }
-                autoLock.pending?.let { autoLock.dismiss(it) }
-                copyNotice = null; moveFailed = false
-                emailDetails.open(card.id, presenter.isRevealed(card.id))
                 revision++
             }
         }, configureLayout = {
@@ -1157,167 +1136,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     else thunderbirdExporter.dismiss(request)
                 },
                 onDismiss = { thunderbirdExporter.dismiss(request) }
-            )
-        }
-    }
-    entryActions.pending?.let { actionRequest ->
-        when (actionRequest.surface) {
-            DesktopEntryActions.Surface.MENU -> EntryCopyDialog(
-                fields = actionRequest.actions.map { it.label },
-                title = "Account actions — ${actionRequest.title}",
-                cancelLabel = "Close",
-                onSelect = { index ->
-                    val chosen = actionRequest.actions.getOrNull(index) ?: return@EntryCopyDialog
-                    when (chosen) {
-                        DesktopEntryActions.Action.REVEAL_OR_HIDE -> {
-                            entryActions.dismiss(actionRequest)
-                            presenter.toggleReveal(actionRequest.entryId)
-                        }
-                        DesktopEntryActions.Action.EDIT -> {
-                            val entryId = actionRequest.entryId
-                            entryActions.dismiss(actionRequest)
-                            if (lifetime.checkActive() && presenter.isRevealed(entryId)) {
-                                editing.open(entryId)
-                            }
-                            revision++
-                        }
-                        DesktopEntryActions.Action.DELETE -> {
-                            val entryId = actionRequest.entryId
-                            entryActions.dismiss(actionRequest)
-                            if (lifetime.checkActive()) {
-                                dialogs.open(VaultDialogKind.DELETE, entryId)
-                            }
-                            revision++
-                        }
-                        DesktopEntryActions.Action.EXPORT_PASSWORD_CSV -> {
-                            val entryId = actionRequest.entryId
-                            val wasRevealed = presenter.isRevealed(entryId)
-                            entryActions.dismiss(actionRequest)
-                            if (lifetime.checkActive() && wasRevealed && passwordExporter.pending == null) {
-                                try {
-                                    val target = DesktopSavePicker.passwordExport(window)
-                                    if (target != null && !passwordExporter.openSingle(entryId, presenter.isRevealed(entryId), target, lifetime::checkActive) && lifetime.checkActive()) {
-                                        copyNotice = "Could not prepare this password entry for browser CSV export."
-                                    }
-                                } catch (_: Exception) {
-                                    copyNotice = "The password export destination could not be selected."
-                                }
-                            }
-                            revision++
-                        }
-                        DesktopEntryActions.Action.EXPORT_PASSWORD_ARCHIVE -> {
-                            val entryId = actionRequest.entryId
-                            entryActions.dismiss(actionRequest)
-                            if (lifetime.checkActive() && archiveExporter.pending == null) {
-                                try {
-                                    val target = DesktopSavePicker.archiveExport(window)
-                                    if (target != null && !archiveExporter.openSingle(entryId, target, lifetime::checkActive) && lifetime.checkActive()) {
-                                        copyNotice = "Could not prepare this password archive for export."
-                                    }
-                                } catch (_: Exception) {
-                                    copyNotice = "The password export destination could not be selected."
-                                }
-                            }
-                            revision++
-                        }
-                        DesktopEntryActions.Action.MOVE_UP, DesktopEntryActions.Action.MOVE_DOWN -> {
-                            val card = state.cards.firstOrNull { it.id == actionRequest.entryId }
-                            entryActions.dismiss(actionRequest)
-                            if (card != null) {
-                                val delta = if (chosen == DesktopEntryActions.Action.MOVE_UP) -1 else 1
-                                val moved = mover.move(moveFrame, card, delta, lifetime::checkActive)
-                                if (lifetime.checkActive() && !vault.isLocked) {
-                                    moveFailed = !moved
-                                    presenter.applyFilter(presenter.filter)
-                                }
-                            }
-                            revision++
-                        }
-                        else -> {
-                            val opened = entryActions.selectSubSurface(
-                                actionRequest,
-                                chosen,
-                                presenter.isRevealed(actionRequest.entryId),
-                                lifetime::checkActive
-                            )
-                            if (!opened && lifetime.checkActive()) {
-                                copyNotice = "That action is no longer available for this entry."
-                            }
-                            revision++
-                        }
-                    }
-                },
-                onDismiss = { entryActions.dismiss(actionRequest) }
-            )
-            DesktopEntryActions.Surface.DETAILS -> EntryDetailsDialog(
-                title = "Details — ${actionRequest.title}",
-                body = actionRequest.detailsBody,
-                confirmLabel = "Close",
-                onDismiss = { entryActions.dismiss(actionRequest) }
-            )
-            DesktopEntryActions.Surface.QR -> {
-                val matrix = actionRequest.qrMatrix
-                if (matrix != null && presenter.isRevealed(actionRequest.entryId)) {
-                    QrCodeDialog(
-                        title = actionRequest.title,
-                        matrixSize = matrix.size,
-                        matrixBits = matrix.bits,
-                        confirmLabel = "Close",
-                        onDismiss = { entryActions.dismiss(actionRequest) }
-                    )
-                } else {
-                    entryActions.dismiss(actionRequest)
-                }
-            }
-            DesktopEntryActions.Surface.TAGS -> TagsDialog(
-                inputKey = actionRequest,
-                initialStates = actionRequest.tagStates,
-                tagCounts = actionRequest.tagCounts,
-                maxTagChars = InputPolicy.MAX_TAG_CHARS,
-                title = actionRequest.title,
-                onTagCreated = {},
-                onSelectionConfirmed = { selectedStates ->
-                    if (entryActions.submitTags(actionRequest, selectedStates, lifetime::checkActive)) {
-                        presenter.applyFilter(presenter.filter)
-                    } else if (lifetime.checkActive()) {
-                        copyNotice = "Could not save tags."
-                    }
-                    revision++
-                },
-                onDismiss = { entryActions.dismiss(actionRequest) }
-            )
-            DesktopEntryActions.Surface.THUMBNAIL -> ThumbnailPickerDialog(
-                title = actionRequest.title,
-                selected = actionRequest.selectedThumbnail,
-                artwork = artwork,
-                unchangedLabel = "Reset to ${ThumbnailCatalog.DEFAULT_NAME}",
-                onSelect = { chosen ->
-                    if (entryActions.submitThumbnail(actionRequest, chosen, lifetime::checkActive)) {
-                        presenter.applyFilter(presenter.filter)
-                    } else if (lifetime.checkActive()) {
-                        copyNotice = "Could not save artwork."
-                    }
-                    revision++
-                },
-                onDismiss = { entryActions.dismiss(actionRequest) }
-            )
-            DesktopEntryActions.Surface.COUNTER -> EntryCounterDialog(
-                inputKey = actionRequest,
-                initialCounter = actionRequest.initialCounter,
-                title = actionRequest.title,
-                inputLabel = "Counter",
-                confirmLabel = "Save",
-                dismissLabel = "Cancel",
-                isValid = DesktopEntryActions::isValidCounter,
-                onSubmit = { value ->
-                    if (entryActions.submitCounter(actionRequest, value, presenter.isRevealed(actionRequest.entryId), lifetime::checkActive)) {
-                        presenter.applyFilter(presenter.filter)
-                    } else if (lifetime.checkActive()) {
-                        copyNotice = "Could not update HOTP counter."
-                    }
-                    revision++
-                },
-                onDismiss = { entryActions.dismiss(actionRequest) }
             )
         }
     }
@@ -1703,6 +1521,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             inputKey = editRequest, initial = initial,
             error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onDelete = {
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) dialogs.open(VaultDialogKind.DELETE, entryId)
+                revision++
+            },
             onSubmit = { input ->
                 editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
                 revision++
@@ -1712,7 +1536,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         val initial = remember(editRequest) { editing.initialPasswordInput(editRequest) }
         if (initial != null) PasswordEntryDialog(inputKey = editRequest, initial = initial,
             failed = editRequest.failure != null,
+            artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onDelete = {
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) dialogs.open(VaultDialogKind.DELETE, entryId)
+                revision++
+            },
             onSubmit = { input ->
                 if (lifetime.checkActive() && editing.submitPassword(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
                     presenter.applyFilter(presenter.filter)
@@ -1722,6 +1553,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     if (editRequest != null && !editRequest.isPassword && !editRequest.isEmail) {
         val initial = remember(editRequest) { editing.initialInput(editRequest) }
+        val showQr = editing.canShowQr(editRequest)
         if (initial != null) ManualEntryDialog(
             inputKey = editRequest, initial = initial, editing = true, artwork = artwork,
             error = when (editRequest.failure) {
@@ -1729,14 +1561,96 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 DesktopEntryEditing.Failure.SAVE_FAILED -> "Could not save changes. The original entry was retained; re-enter any secret changes to retry."
                 null -> null
             },
-            onDismiss = { editing.dismiss(editRequest); revision++ },
+            onDismiss = { entryActions.pending?.let { entryActions.dismiss(it) }; editing.dismiss(editRequest); revision++ },
+            onShowQrCode = if (showQr) ({
+                if (lifetime.checkActive()) {
+                    entryActions.openQr(editRequest.entryId, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                    revision++
+                }
+            }) else null,
+            onDelete = {
+                val entryId = editRequest.entryId
+                entryActions.pending?.let { entryActions.dismiss(it) }
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) dialogs.open(VaultDialogKind.DELETE, entryId)
+                revision++
+            },
             onSubmit = { input ->
                 if (editing.submit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
+                    entryActions.pending?.let { entryActions.dismiss(it) }
                     presenter.entryRemoved(editRequest.entryId) // Discard prior reveal state for the replacement.
                 }
                 revision++
             }
         )
+    }
+    entryActions.pending?.let { actionRequest ->
+        when (actionRequest.surface) {
+            DesktopEntryActions.Surface.QR -> {
+                val matrix = actionRequest.qrMatrix
+                if (matrix != null && presenter.isRevealed(actionRequest.entryId)) {
+                    QrCodeDialog(
+                        title = actionRequest.title,
+                        matrixSize = matrix.size,
+                        matrixBits = matrix.bits,
+                        confirmLabel = "Close",
+                        onDismiss = { entryActions.dismiss(actionRequest) }
+                    )
+                } else {
+                    entryActions.dismiss(actionRequest)
+                }
+            }
+            DesktopEntryActions.Surface.TAGS -> TagsDialog(
+                inputKey = actionRequest,
+                initialStates = actionRequest.tagStates,
+                tagCounts = actionRequest.tagCounts,
+                maxTagChars = InputPolicy.MAX_TAG_CHARS,
+                title = actionRequest.title,
+                onTagCreated = {},
+                onSelectionConfirmed = { selectedStates ->
+                    if (entryActions.submitTags(actionRequest, selectedStates, lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not save tags."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.THUMBNAIL -> ThumbnailPickerDialog(
+                title = actionRequest.title,
+                selected = actionRequest.selectedThumbnail,
+                artwork = artwork,
+                unchangedLabel = "Reset to ${ThumbnailCatalog.DEFAULT_NAME}",
+                onSelect = { chosen ->
+                    if (entryActions.submitThumbnail(actionRequest, chosen, lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not save artwork."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+            DesktopEntryActions.Surface.COUNTER -> EntryCounterDialog(
+                inputKey = actionRequest,
+                initialCounter = actionRequest.initialCounter,
+                title = actionRequest.title,
+                inputLabel = "Counter",
+                confirmLabel = "Save",
+                dismissLabel = "Cancel",
+                isValid = DesktopEntryActions::isValidCounter,
+                onSubmit = { value ->
+                    if (entryActions.submitCounter(actionRequest, value, presenter.isRevealed(actionRequest.entryId), lifetime::checkActive)) {
+                        presenter.applyFilter(presenter.filter)
+                    } else if (lifetime.checkActive()) {
+                        copyNotice = "Could not update HOTP counter."
+                    }
+                    revision++
+                },
+                onDismiss = { entryActions.dismiss(actionRequest) }
+            )
+        }
     }
     val request = dialogs.pending
     if (request != null) {

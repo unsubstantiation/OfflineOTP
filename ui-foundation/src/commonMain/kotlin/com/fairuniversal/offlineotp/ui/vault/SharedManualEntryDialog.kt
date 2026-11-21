@@ -16,6 +16,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import com.fairuniversal.offlineotp.ui.portable.PortableEntryDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
+import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 private val PORTABLE_OFFERABLE_KINDS = listOf("TOTP", "HOTP", "STEAM", "MOTP", "NOTE", "SSH_KEY")
 private val PORTABLE_OTP_KINDS = listOf("TOTP", "HOTP", "STEAM", "MOTP")
@@ -36,7 +37,10 @@ fun SharedManualEntryDialog(
     onSubmit: (PortableEntryDraft) -> Unit,
     onDismiss: () -> Unit,
     onSwitchToEmail: (() -> Unit)? = null,
-    thumbnailNames: List<String> = emptyList()
+    thumbnailNames: List<String> = emptyList(),
+    onShowQrCode: (() -> Unit)? = null,
+    onShareKeystrokes: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
@@ -156,9 +160,9 @@ fun SharedManualEntryDialog(
                 if (!ssh) {
                     if (!input.clearHiddenLabel) {
                         PortableEntryField(
-                            label = if (editing) "New Password (blank keeps stored)" else "Password",
+                            label = "Password",
                             value = input.hiddenLabel,
-                            masked = true,
+                            masked = !editing,
                             limit = PortableInputBounds.MAX_TEXT_CHARS
                         ) {
                             input = input.copy(hiddenLabel = it)
@@ -199,9 +203,9 @@ fun SharedManualEntryDialog(
                     Text(text = "mOTP uses six digits, ten-second steps and MD5; these are protocol-defined.")
                     if (!input.clearPin) {
                         PortableEntryField(
-                            label = if (editing) "New PIN (blank keeps stored)" else "PIN (optional)",
+                            label = "PIN (optional)",
                             value = input.pin,
-                            masked = true,
+                            masked = !editing,
                             limit = PortableInputBounds.MAX_TAG_CHARS
                         ) {
                             input = input.copy(pin = it)
@@ -222,7 +226,7 @@ fun SharedManualEntryDialog(
                 ) {
                     input = input.copy(tags = it)
                 }
-                if (thumbnailNames.isNotEmpty() && !ssh) {
+                if (thumbnailNames.isNotEmpty()) {
                     val artworkSummary = input.thumbnail.ifEmpty {
                         if (editing) "Unchanged" else "Automatic (from issuer)"
                     }
@@ -231,6 +235,24 @@ fun SharedManualEntryDialog(
                         text = "Choose artwork…",
                         onClick = { pickingThumbnail = true }
                     )
+                }
+                if (editing) {
+                    onShowQrCode?.let { showQr ->
+                        ForestTextAction(text = "Show QR code", onClick = showQr)
+                    }
+                    onShareKeystrokes?.let { shareKeys ->
+                        ForestTextAction(text = "Share as keystrokes", onClick = shareKeys)
+                    }
+                    onDelete?.let { deleteEntry ->
+                        ForestTextAction(
+                            text = "Delete",
+                            color = ForestPalette.warning,
+                            onClick = {
+                                input = PortableEntryDraft()
+                                deleteEntry()
+                            }
+                        )
+                    }
                 }
                 if (error != null) Text(text = error)
             }

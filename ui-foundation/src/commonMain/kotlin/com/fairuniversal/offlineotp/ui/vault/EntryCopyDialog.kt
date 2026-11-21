@@ -22,12 +22,12 @@ fun EntryCopyDialog(
     message: String? = null
 ) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = title) },
-        text = { Column {
+        text = { ScrollableDialogBody { Column {
             if (!message.isNullOrEmpty()) {
                 Text(text = message, style = ForestType.body, color = ForestPalette.textSecondary)
                 Spacer(Modifier.height(8.dp))
             }
             fields.forEachIndexed { index, field -> ForestTextAction(text = field, onClick = { onSelect(index) }) }
-        } },
+        } } },
         confirmButton = { ForestTextAction(text = cancelLabel, onClick = onDismiss) })
 }

@@ -1414,8 +1414,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onNextCounter = { published.perform(it.id, AndroidCardCommand.NEXT_COUNTER) },
             onEditCounter = { published.perform(it.id, AndroidCardCommand.EDIT_COUNTER) },
             onEnterPin = { published.perform(it.id, AndroidCardCommand.ENTER_PIN) },
-            onEntryActions = { published.perform(it.id, AndroidCardCommand.MENU, anchor) },
-            onViewEmailDetails = { published.perform(it.id, AndroidCardCommand.EMAIL_DETAILS) },
             onMoveUp = { published.perform(it.id, AndroidCardCommand.MOVE_UP) },
             onMoveDown = { published.perform(it.id, AndroidCardCommand.MOVE_DOWN) }
         ))
@@ -1939,58 +1937,16 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         Toast.makeText(this, if (saved) R.string.linscp_export_success else R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
     }
 
-    /** Called only from a revealed archive's action menu. */
-    fun requestPasswordArchiveExport(entry: Entry) {
-        val generation = VaultSession.generation()
-        if (adapter?.canExportPasswordArchive(entry, generation) != true) return
-        passwordExportPrompt?.dismiss()
-        var host: DeleteConfirmationComposeView? = null
-        val closeHost = {
-            val h = host
-            if (passwordExportPrompt === h) passwordExportPrompt = null
-            h?.dismiss()
-            Unit
-        }
-        host = DeleteConfirmationComposeView(
-            activity = this,
-            title = getString(R.string.password_export),
-            message = getString(R.string.password_export_warning),
-            confirmLabel = getString(android.R.string.ok),
-            dismissLabel = getString(android.R.string.cancel),
-            onConfirm = {
-                closeHost()
-                if (adapter?.canExportPasswordArchive(entry, generation) != true) return@DeleteConfirmationComposeView
-                val digest = adapter?.passwordArchiveDigest(entry, generation) ?: return@DeleteConfirmationComposeView
-                passwordImportMode = null
-                passwordExportName = entry.getLabel()
-                passwordExportDigest = digest
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("text/csv").putExtra(Intent.EXTRA_TITLE, entry.getLabel())
-                try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_EXPORT) }
-                catch (_: Exception) {
-                    passwordExportName = null
-                    passwordExportDigest = null
-                    Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
-                }
-            },
-            onDismiss = closeHost
-        )
-        passwordExportPrompt = host
-        host.show()
-    }
-
     /**
-     * Exports one browser-imported password in its own dialect, or every such entry at once when
-     * [entry] is null. Entries that did not come from a browser have no browser CSV form and are
-     * left out; the caller says so instead of writing a file that drops their columns.
+     * Exports every revealed browser-imported password in its agreed dialect. Single-entry exports
+     * are not offered; [entry] must be null.
      */
     fun requestPasswordCsvExport(entry: Entry?) {
+        if (entry != null) return
         val current = adapter ?: return
         val generation = VaultSession.generation()
         if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
-        // A browser CSV is plaintext, so the same rule as the archive export applies: only a
-        // revealed entry may leave the vault. A password with no browser form is reported below.
-        val candidates = (if (entry == null) current.getEntries() else listOf(entry))
+        val candidates = current.getEntries()
             .filter { it.areDetailsVisible() }
             .map { it to PasswordCsvExport.support(it) }
         val exportable = candidates.filter { it.second is PasswordCsvExport.Support.Exportable }

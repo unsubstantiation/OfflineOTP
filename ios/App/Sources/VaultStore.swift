@@ -1205,23 +1205,6 @@ public final class VaultStore: ObservableObject {
         }
     }
 
-    /// Exports a single revealed browser-imported `PASSWORD` entry in its native dialect.
-    public func exportSinglePasswordCsv(at index: Int) -> ExportedBackup? {
-        guard isUnlocked, entries.indices.contains(index) else { return nil }
-        let entry = entries[index]
-        guard case .exportable(let dialect) = PasswordCsvExport.support(entry) else {
-            message = "That entry cannot be exported as a browser CSV."
-            return nil
-        }
-        do {
-            let data = try PasswordCsvExport.exportCsv(entries: [entry], dialect: dialect)
-            return ExportedBackup(name: "\(dialect.browserName.lowercased())-password.csv", data: data)
-        } catch {
-            message = "The browser password CSV could not be written."
-            return nil
-        }
-    }
-
     /// Exports all revealed browser-imported `PASSWORD` entries as a CSV file, matching Android's
     /// `+ → Export passwords…` and the desktop client's `Export passwords as browser CSV…`.
     public func exportBrowserPasswordsCsv() -> ExportedBackup? {

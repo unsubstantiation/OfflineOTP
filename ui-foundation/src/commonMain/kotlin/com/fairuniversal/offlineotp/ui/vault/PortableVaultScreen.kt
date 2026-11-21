@@ -358,13 +358,9 @@ private fun PortableCardView(
             if (card.canStep) ForestTextAction("Step", onClick = { onCard(card.index, "step") },
                 contentDescription = "Step the counter")
             if (card.revealed) {
-                ForestTextAction("Details", onClick = { onCard(card.index, "details") },
-                    contentDescription = "Shows entry details")
                 ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
                     contentDescription = "Edit " + displayTitle)
             }
-            ForestTextAction("More", onClick = { onCard(card.index, "more") },
-                contentDescription = "More actions for " + displayTitle)
         }
     }
 }

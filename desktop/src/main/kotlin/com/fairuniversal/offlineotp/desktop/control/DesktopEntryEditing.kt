@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryDraft
+import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
 import com.fairuniversal.offlineotp.ui.vault.EmailSettingsInput
 import com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
@@ -18,7 +19,7 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
         val emailSettings: Boolean get() = emailMode == EmailMode.SETTINGS
         val emailPasswords: Boolean get() = emailMode == EmailMode.PASSWORDS
         val isEmail: Boolean get() = target.isEmail()
-        val isPassword: Boolean get() = target.isPassword()
+        val isPassword: Boolean get() = PasswordEntryInput.supportsAny(target)
         val entryId: Long get() = target.getListId()
         var failure: Failure? = null
             internal set
@@ -36,17 +37,18 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
     private fun openInternal(id: Long, emailMode: EmailMode) {
         if (closed || state.isLocked) return
         val target = state.snapshot().firstOrNull { it.getListId() == id } ?: return
-        if (target.isPassword() && !PasswordEntryInput.supports(target)) return
-        if (!target.isEmail() && !target.isPassword() && target.getType() !in EntryDraft.offerableTypes()) return
+        if (!target.isEmail() && !PasswordEntryInput.supportsAny(target) && target.getType() !in EntryDraft.offerableTypes()) return
         if (emailMode != EmailMode.FULL && !target.isEmail()) return
         pending = Request(target, emailMode)
     }
     private fun current(request: Request): Boolean = !closed && !state.isLocked && pending === request &&
         state.snapshot().any { it === request.target }
+    fun canShowQr(request: Request): Boolean =
+        current(request) && QrCodeImage.payloadFor(request.target) != null
     fun initialInput(request: Request): ManualEntryInput? =
         if (current(request) && !request.isPassword && !request.isEmail) ManualEntryInput.forEntryEdit(request.target) else null
     fun initialPasswordInput(request: Request): PasswordEntryInput? =
-        if (current(request) && request.isPassword) PasswordEntryInput.fromEntry(request.target) else null
+        if (current(request) && request.isPassword) PasswordEntryInput.fromAnyEntry(request.target) else null
 
     fun initialEmailEdit(request: Request): com.fairuniversal.offlineotp.ui.vault.EmailEditInput? =
         if (current(request) && request.isEmail) com.fairuniversal.offlineotp.ui.vault.EmailEditInput.fromEntry(request.target) else null
