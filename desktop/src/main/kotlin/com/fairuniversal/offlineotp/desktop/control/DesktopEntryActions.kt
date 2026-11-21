@@ -5,6 +5,8 @@ import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
+import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 
 /**
  * Headless per-entry actions owner for the desktop Compose client, bringing desktop parity with
@@ -26,6 +28,7 @@ class DesktopEntryActions(
 
     enum class Action(val label: String) {
         REVEAL_OR_HIDE("Reveal or hide"),
+        EDIT("Edit"),
         DETAILS("Details"),
         SHOW_QR("Show QR code"),
         MANAGE_TAGS("Manage tags"),
@@ -34,7 +37,8 @@ class DesktopEntryActions(
         EXPORT_PASSWORD_CSV("Export as browser CSV…"),
         EXPORT_PASSWORD_ARCHIVE("Export password file…"),
         MOVE_UP("Move up"),
-        MOVE_DOWN("Move down")
+        MOVE_DOWN("Move down"),
+        DELETE("Delete")
     }
 
     class Request internal constructor(
@@ -67,6 +71,7 @@ class DesktopEntryActions(
         val items = buildList {
             add(Action.REVEAL_OR_HIDE)
             if (revealed) {
+                if (isEditable(entry)) add(Action.EDIT)
                 add(Action.DETAILS)
                 if (QrCodeImage.payloadFor(entry) != null) add(Action.SHOW_QR)
             }
@@ -79,6 +84,7 @@ class DesktopEntryActions(
             if (entry.isPasswordArchive()) add(Action.EXPORT_PASSWORD_ARCHIVE)
             if (canMoveUp) add(Action.MOVE_UP)
             if (canMoveDown) add(Action.MOVE_DOWN)
+            add(Action.DELETE)
         }
         pending = Request(
             entryId = entryId,
@@ -173,10 +179,12 @@ class DesktopEntryActions(
                 initialCounter = entry.getCounter().toString()
             )
             Action.REVEAL_OR_HIDE,
+            Action.EDIT,
             Action.EXPORT_PASSWORD_CSV,
             Action.EXPORT_PASSWORD_ARCHIVE,
             Action.MOVE_UP,
-            Action.MOVE_DOWN -> null
+            Action.MOVE_DOWN,
+            Action.DELETE -> null
         }
         pending = next
         changed()
@@ -229,14 +237,21 @@ class DesktopEntryActions(
         fun isValidCounter(text: String): Boolean =
             text.trim().toLongOrNull()?.let { it in 0L until EntryUsage.MAX_COUNTER } == true
 
+        private fun isEditable(entry: Entry): Boolean =
+            entry.getType() in ManualEntryInput.otpTypes ||
+                entry.isNote() ||
+                entry.isSshKey() ||
+                entry.isEmail() ||
+                (entry.isPassword() && PasswordEntryInput.supports(entry))
+
         private fun displayTitle(entry: Entry): String =
             entry.getIssuer().ifBlank { entry.getLabel().ifBlank { "Entry" } }
 
         internal fun buildDetailsBody(entry: Entry): String = buildList {
             add("Type: ${entry.getType().name}")
             if (entry.getIssuer().isNotBlank()) add("Issuer: ${entry.getIssuer()}")
-            if (entry.getLabel().isNotBlank()) add("Label: ${entry.getLabel()}")
-            if (entry.getHiddenLabel().isNotBlank()) add("Hidden label: ${entry.getHiddenLabel()}")
+            if (entry.getLabel().isNotBlank()) add("Account: ${entry.getLabel()}")
+            if (entry.getHiddenLabel().isNotBlank()) add("Password: ${entry.getHiddenLabel()}")
             when {
                 entry.isEmail() -> {
                     val account = runCatching { entry.getEmailAccount() }.getOrNull()

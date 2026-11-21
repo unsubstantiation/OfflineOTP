@@ -404,16 +404,16 @@ class AndroidVaultController(
                     detailsVisible = false, token = null, previousToken = null, tags = emptyList(),
                     thumbnailName = "", counter = null, remainingSeconds = null, progress = null, customPeriodSeconds = null,
                     expiring = false, revealed = false, revealedContent = null, pinRequired = false,
-                    copyable = false
+                    copyable = false, canCopyAccount = false, canCopyPassword = false
                 ) else card.copy(
                     detailsVisible = true,
                     detailLabel = entry.getHiddenLabel().ifEmpty {
                         if (entry.isSshKey()) entry.getSshConnection()?.summary().orEmpty() else ""
                     }.takeIf { it.isNotEmpty() && composeRevealed(entry) },
-                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() || entry.isPassword() || entry.isSshKey() ||
-                        (entry.isEmail() && composeRevealed(entry) && entry.getEmailAccount().let {
-                            it.account.optString("password").orEmpty().isNotEmpty() || it.identity.optString("password").orEmpty().isNotEmpty()
-                        })),
+                    copyable = entry.areDetailsVisible() && (card.copyable || entry.isNote() ||
+                        (entry.isSshKey() && entry.getSshKeys().let { it.publicKey.isNotBlank() || it.privateKey.isNotBlank() })),
+                    canCopyAccount = entry.hasCopyableAccount(),
+                    canCopyPassword = entry.hasCopyablePassword(),
                     canMoveUp = presentation.canDrag() && index > 0,
                     canMoveDown = presentation.canDrag() && index < shown.lastIndex
                 )
@@ -470,6 +470,12 @@ class AndroidVaultController(
                     if ((entry.isTimeBased() || entry.isCounterBased()) && !entry.hasCopyableToken() &&
                         !(entry.getType() == Entry.OTPType.MOTP && entry.getPin().isEmpty())) return false
                     cardActions.onCopyButtonClicked("", position)
+                }
+                AndroidCardCommand.COPY_ACCOUNT -> {
+                    if (!copyAccountValue(entry, settings.isMinimizeAppOnCopyEnabled())) return false
+                }
+                AndroidCardCommand.COPY_PASSWORD -> {
+                    if (!copyPasswordValue(position, entry, settings.isMinimizeAppOnCopyEnabled())) return false
                 }
                 AndroidCardCommand.REVEAL_TOKEN -> {
                     if (!establishPinIfNeeded(position)) cardTapToRevealHandler(position)
@@ -1120,11 +1126,72 @@ class AndroidVaultController(
         })
     }
 
+    private fun copyAccountValue(selected: Entry, dropToBackground: Boolean): Boolean {
+        val value = selected.accountToCopy()
+        if (value.isEmpty()) return false
+        if (!recordCopyUse(selected)) {
+            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+            return false
+        }
+        Tools.copyToClipboard(context, value)
+        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+        return true
+    }
+
+    private fun copyPasswordValue(position: Int, selected: Entry, dropToBackground: Boolean): Boolean {
+        val choices = selected.passwordChoicesToCopy()
+        if (choices.isEmpty()) return false
+        if (choices.map { it.second }.distinct().size == 1) {
+            if (!recordCopyUse(selected)) {
+                Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                return false
+            }
+            Tools.copyToClipboard(context, choices.first().second)
+            if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+            return true
+        }
+        showActionDialog(position, BiConsumer { target, entry ->
+            val currentChoices = entry.passwordChoicesToCopy()
+            if (currentChoices.isEmpty()) return@BiConsumer
+            activeSshCopyDialog?.dismiss()
+            activeSshCopyDialog = null
+            val activity = context as? Activity ?: return@BiConsumer
+            val pending = object { var host: ComposeDialogHost? = null }
+            val view = EntryCopyComposeView(
+                activity = activity,
+                title = "Choose password to copy",
+                cancelLabel = context.getString(android.R.string.cancel),
+                fields = currentChoices.map { it.first },
+                onSelect = { index ->
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                    withTarget(target, Consumer { actual ->
+                        val value = actual.passwordChoicesToCopy().getOrNull(index)?.second.orEmpty()
+                        if (value.isEmpty()) return@Consumer
+                        if (!recordCopyUse(actual)) {
+                            Toast.makeText(context, "Not copied: the vault could not be saved or the session changed.", Toast.LENGTH_LONG).show()
+                            return@Consumer
+                        }
+                        Tools.copyToClipboard(context, value)
+                        if (dropToBackground) (context as? MainActivity)?.moveTaskToBack(true)
+                    })
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
+                }
+            )
+            pending.host = view
+            activeSshCopyDialog = view
+            view.show()
+        })
+        return true
+    }
+
     private enum class EmailCopyField { INCOMING_PASSWORD, OUTGOING_PASSWORD }
 
     private fun chooseEmailPasswordToCopy(position: Int, dropToBackground: Boolean) {
         showActionDialog(position, BiConsumer { target, entry ->
-            if (!composeRevealed(entry)) return@BiConsumer
             val emailAccount = entry.getEmailAccount()
             val choices = ArrayList<EmailCopyField>()
             val labels = ArrayList<String>()
@@ -1150,7 +1217,7 @@ class AndroidVaultController(
                     pending.host?.dismiss()
                     if (activeSshCopyDialog === pending.host) activeSshCopyDialog = null
                     if (index in choices.indices) withTarget(target, Consumer { actual ->
-                        if (!actual.isEmail() || !composeRevealed(actual)) return@Consumer
+                        if (!actual.isEmail()) return@Consumer
                         val currentAccount = actual.getEmailAccount()
                         val value = when (choices[index]) {
                             EmailCopyField.INCOMING_PASSWORD -> currentAccount.account.optString("password").orEmpty()
@@ -1484,7 +1551,7 @@ class AndroidVaultController(
         val popupEntry = presentation.get(pos)
         val popupGeneration = VaultSession.generation()
         val popupTarget = EntryActionTarget(popupEntry, popupGeneration)
-        val menuItemView = requireNotNull(view.findViewById<View>(R.id.menuButton))
+        val menuItemView = view.findViewById<View>(R.id.menuButton) ?: view
         val popup = PopupMenu(view.context, menuItemView)
         val inflate: MenuInflater = popup.getMenuInflater()
         inflate.inflate(R.menu.menu_popup, popup.getMenu())
@@ -1508,6 +1575,14 @@ class AndroidVaultController(
         }
         if (popupEntry.isEmail())
             popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(true)
+        if (!composeRevealed(popupEntry)) {
+            popup.getMenu().findItem(R.id.menu_popup_edit)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_edit_password)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_show_qr_code)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_password_details)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_email_details)?.setVisible(false)
+            popup.getMenu().findItem(R.id.menu_popup_export_password_csv)?.setVisible(false)
+        }
         if (popupEntry.getType() == Entry.OTPType.MOTP) {
             // Look up the mOTP PIN item by ID rather than menu position.
             popup.getMenu().findItem(R.id.menu_popup_establishPin)?.setVisible(true)

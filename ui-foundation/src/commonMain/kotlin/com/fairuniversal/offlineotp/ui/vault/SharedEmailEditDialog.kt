@@ -47,8 +47,8 @@ fun SharedEmailEditDialog(
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(PortableInputBounds.EMAIL_EDIT_WARNING)
                 SharedEmailEditText("Issuer", input.issuer) { input = input.copy(issuer = it) }
-                SharedEmailEditText("Label", input.label) { input = input.copy(label = it) }
-                SharedEmailEditText("Hidden Label", input.hiddenLabel) { input = input.copy(hiddenLabel = it) }
+                SharedEmailEditText("Account", input.label) { input = input.copy(label = it) }
+                SharedEmailEditText("Password", input.hiddenLabel) { input = input.copy(hiddenLabel = it) }
                 SharedEmailEditText("Tags (one per line)", input.tags) { input = input.copy(tags = it) }
                 if (artworkOptions.isNotEmpty()) {
                     EmailChoiceField("Artwork", input.thumbnail, artworkOptions) {

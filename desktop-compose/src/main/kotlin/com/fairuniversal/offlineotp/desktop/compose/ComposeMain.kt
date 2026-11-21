@@ -656,24 +656,28 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 it.isPassword() && PasswordEntryInput.supports(it)
             } == true, canMoveUp = vault.presentation.canDrag() && index > 0,
                 canMoveDown = vault.presentation.canDrag() && index < frame.cards.lastIndex,
-                copyable = (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES) || card.revealed) && (card.copyable || card.kind in
-                listOf(VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.PASSWORDS, VaultEntryKind.EMAILS)))
+                copyable = card.detailsVisible && (card.copyable || card.kind == VaultEntryKind.NOTES ||
+                    (card.kind == VaultEntryKind.SSH_KEYS && liveEntries[card.id]?.getSshKeys()?.let {
+                        it.publicKey.isNotBlank() || it.privateKey.isNotBlank()
+                    } == true)))
         })
     }
     // Bind exact row instances even when a newly generated frame is structurally equal to the last.
     val copyFrame = copier.bind(state.cards)
     val moveFrame = mover.bind(state.cards)
-    fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
-        val result = copier.copy(request, field, presenter.isRevealed(request.entryId), lifetime::checkActive)
+    fun reportCopyOutcome(result: DesktopEntryCopy.Result) {
         if (!lifetime.checkActive() || vault.isLocked) return
         copyNotice = when (result) {
             DesktopEntryCopy.Result.COPIED -> null
-            DesktopEntryCopy.Result.UNAVAILABLE -> "No value is available, or the entry is no longer revealed."
+            DesktopEntryCopy.Result.UNAVAILABLE -> "No copyable value is available for this entry."
             DesktopEntryCopy.Result.SAVE_FAILED -> "Nothing was copied: the vault could not be saved."
             DesktopEntryCopy.Result.CLIPBOARD_FAILED -> "The system clipboard is unavailable."
         }
         presenter.applyFilter(presenter.filter)
         revision++
+    }
+    fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
+        reportCopyOutcome(copier.copy(request, field, presenter.isRevealed(request.entryId), lifetime::checkActive))
     }
 
     VaultScreen(
@@ -688,6 +692,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             val request = copier.open(copyFrame, card, presenter.isRevealed(card.id))
             if (request == null) copyNotice = "No copyable value is available for this entry."
             else if (request.fields.size == 1 && card.kind != VaultEntryKind.SSH_KEYS && card.kind != VaultEntryKind.EMAILS) performCopy(request, request.fields.single())
+            revision++
+        }, copyAccount = { card ->
+            autoLock.pending?.let { autoLock.dismiss(it) }
+            creation.pending?.let { creation.dismiss(it) }
+            emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            dialogs.pending?.let { dialogs.dismiss(it) }
+            copyNotice = null
+            val request = copier.openAccount(copyFrame, card)
+            if (request == null) copyNotice = "No copyable account is available for this entry."
+            else performCopy(request, EntryEditor.CopyField.ACCOUNT)
+            revision++
+        }, copyPassword = { card ->
+            autoLock.pending?.let { autoLock.dismiss(it) }
+            creation.pending?.let { creation.dismiss(it) }
+            emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            dialogs.pending?.let { dialogs.dismiss(it) }
+            copyNotice = null
+            val request = copier.openPassword(copyFrame, card)
+            if (request == null) copyNotice = "No copyable password is available for this entry."
+            else if (request.fields.size == 1) performCopy(request, request.fields.single())
             revision++
         }, moveEntry = { card, delta ->
             autoLock.pending?.let { autoLock.dismiss(it) }
@@ -1149,6 +1173,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                             entryActions.dismiss(actionRequest)
                             presenter.toggleReveal(actionRequest.entryId)
                         }
+                        DesktopEntryActions.Action.EDIT -> {
+                            val entryId = actionRequest.entryId
+                            entryActions.dismiss(actionRequest)
+                            if (lifetime.checkActive() && presenter.isRevealed(entryId)) {
+                                editing.open(entryId)
+                            }
+                            revision++
+                        }
+                        DesktopEntryActions.Action.DELETE -> {
+                            val entryId = actionRequest.entryId
+                            entryActions.dismiss(actionRequest)
+                            if (lifetime.checkActive()) {
+                                dialogs.open(VaultDialogKind.DELETE, entryId)
+                            }
+                            revision++
+                        }
                         DesktopEntryActions.Action.EXPORT_PASSWORD_CSV -> {
                             val entryId = actionRequest.entryId
                             val wasRevealed = presenter.isRevealed(entryId)
@@ -1515,7 +1555,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             message = "Choose which entry fields match when searching the vault.",
             items = allIncludes.map { include ->
                 when (include) {
-                    Constants.SearchIncludes.LABEL -> "Label"
+                    Constants.SearchIncludes.LABEL -> "Account"
                     Constants.SearchIncludes.ISSUER -> "Issuer"
                     Constants.SearchIncludes.TAGS -> "Tags"
                 }
@@ -1590,8 +1630,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { moveFailed = false }, onDismiss = { moveFailed = false })
     val copyRequest = copier.pending
     if (copyRequest != null) EntryCopyDialog(
-        fields = copyRequest.fields.map { field -> when (field) {
+        fields = if (copyRequest.passwordChoiceLabels.isNotEmpty()) copyRequest.passwordChoiceLabels
+        else copyRequest.fields.map { field -> when (field) {
             EntryEditor.CopyField.TOKEN_OR_NOTE -> "Code or note"
+            EntryEditor.CopyField.ACCOUNT -> "Account"
+            EntryEditor.CopyField.ENTRY_PASSWORD -> "Password"
             EntryEditor.CopyField.PASSWORD -> "Password"
             EntryEditor.CopyField.PASSWORD_USERNAME -> "Username"
             EntryEditor.CopyField.SSH_PUBLIC_KEY -> "Public key"
@@ -1600,7 +1643,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             EntryEditor.CopyField.EMAIL_INCOMING_PASSWORD -> "Incoming password"
             EntryEditor.CopyField.EMAIL_OUTGOING_PASSWORD -> "Outgoing password"
         } },
-        onSelect = { index -> copyRequest.fields.getOrNull(index)?.let { performCopy(copyRequest, it) } },
+        onSelect = { index ->
+            if (copyRequest.passwordChoiceLabels.isNotEmpty()) {
+                reportCopyOutcome(copier.copyPasswordChoice(copyRequest, index, lifetime::checkActive))
+            } else {
+                copyRequest.fields.getOrNull(index)?.let { performCopy(copyRequest, it) }
+            }
+        },
         onDismiss = { copier.dismiss(copyRequest); revision++ })
     copyNotice?.let { message -> EntryConfirmationDialog(title = "Copy", message = message,
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { copyNotice = null }, onDismiss = { copyNotice = null }) }
@@ -1700,8 +1749,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onDismiss = { dialogs.dismiss(request) },
             onConfirm = {
                 if (request.kind == VaultDialogKind.DELETE || request.kind == VaultDialogKind.COUNTER) {
-                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode &&
-                        (request.kind != VaultDialogKind.DELETE || presenter.isRevealed(request.entryId))) {
+                    if (dialogs.isCurrent(request) && lifetime.checkActive() && !transactionMode) {
                         val target = vault.snapshot().firstOrNull { it.getListId() == request.entryId }
                         if (target != null) {
                             transactionMode = true

@@ -60,6 +60,8 @@ data class VaultStrings(
     val moveDown: String = "Move down",
     val copyContent: String = "Copy",
     val copyAction: String = "Copy Token",
+    val copyAccount: String = "Copy Account",
+    val copyPassword: String = "Copy Password",
     val revealAction: String = "Reveal",
     val hideAction: String = "Hide",
     val entryActions: String = "Account actions",
@@ -105,7 +107,7 @@ data class VaultStrings(
     fun sortTitle(mode: Constants.SortMode): String = when (mode) {
         Constants.SortMode.UNSORTED -> "Unsorted"
         Constants.SortMode.ISSUER -> "Issuer"
-        Constants.SortMode.LABEL -> "Label"
+        Constants.SortMode.LABEL -> "Account"
         Constants.SortMode.LAST_USED -> "Last used"
         Constants.SortMode.MOST_USED -> "Most used"
     }

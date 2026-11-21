@@ -484,6 +484,51 @@ open class Entry {
         this.hiddenLabel = hiddenLabel ?: ""
     }
 
+    /** Account identifier for Copy Account (empty when inapplicable, such as notes or archives). */
+    fun accountToCopy(): String = when {
+        isNote() || isPasswordArchive() -> ""
+        isPassword() -> runCatching { getPasswordFields().value("username") }.getOrDefault("").ifEmpty { getLabel() }
+        isEmail() -> runCatching {
+            val email = getEmailAccount()
+            email.address.ifEmpty { email.account.optString("user").orEmpty() }
+        }.getOrDefault("").ifEmpty { getLabel() }
+        isSshKey() -> getSshConnection()?.username.orEmpty().ifEmpty { getLabel() }
+        else -> getLabel()
+    }
+
+    /** Labeled password candidate(s) for Copy Password (empty when inapplicable or unset). */
+    fun passwordChoicesToCopy(): List<Pair<String, String>> = when {
+        isNote() || isPasswordArchive() -> emptyList()
+        isPassword() -> {
+            val pw = runCatching { getPasswordFields().value("password") }.getOrDefault("").ifEmpty { getHiddenLabel() }
+            if (pw.isNotEmpty()) listOf("Password" to pw) else emptyList()
+        }
+        isEmail() -> runCatching {
+            val email = getEmailAccount()
+            buildList {
+                val incoming = email.account.optString("password").orEmpty()
+                if (incoming.isNotEmpty()) add("Incoming password" to incoming)
+                email.identities.forEachIndexed { index, identity ->
+                    val outgoing = identity.optString("password").orEmpty()
+                    if (outgoing.isNotEmpty()) {
+                        val choiceLabel = if (email.identities.size == 1) "Outgoing password" else "Outgoing #${index + 1} password"
+                        add(choiceLabel to outgoing)
+                    }
+                }
+                if (getHiddenLabel().isNotEmpty()) add("Password" to getHiddenLabel())
+            }
+        }.getOrDefault(emptyList())
+        isSshKey() -> {
+            val pw = getSshConnection()?.password.orEmpty().ifEmpty { getHiddenLabel() }
+            if (pw.isNotEmpty()) listOf("Password" to pw) else emptyList()
+        }
+        else -> if (getHiddenLabel().isNotEmpty()) listOf("Password" to getHiddenLabel()) else emptyList()
+    }
+
+    fun hasCopyableAccount(): Boolean = accountToCopy().isNotEmpty()
+
+    fun hasCopyablePassword(): Boolean = passwordChoicesToCopy().isNotEmpty()
+
     fun getPeriod(): Int = period
 
     /**

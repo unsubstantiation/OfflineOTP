@@ -176,6 +176,8 @@ class EntryEditor(
 
     enum class CopyField {
         TOKEN_OR_NOTE,
+        ACCOUNT,
+        ENTRY_PASSWORD,
         PASSWORD,
         PASSWORD_USERNAME,
         SSH_PUBLIC_KEY,
@@ -185,15 +187,18 @@ class EntryEditor(
         EMAIL_OUTGOING_PASSWORD
     }
 
-    /** Compose uses transient reveal authority, not a temporary mutation of stored privacy. */
+    /** Copy credentials from a live unlocked entry; Hide/Reveal controls visual display only. */
     fun copyRevealed(entry: Entry, field: CopyField, revealed: Boolean): TokenCopyResult {
-        if (!revealed || state.isLocked || state.snapshot().none { it === entry }) return TokenCopyResult.Unavailable
+        @Suppress("UNUSED_PARAMETER") val ignoredReveal = revealed
+        if (state.isLocked || state.snapshot().none { it === entry }) return TokenCopyResult.Unavailable
         val text = when (field) {
             CopyField.TOKEN_OR_NOTE -> when {
                 entry.isNote() -> entry.getNote()
                 entry.hasCopyableToken() -> entry.getCurrentOTP().orEmpty()
                 else -> ""
             }
+            CopyField.ACCOUNT -> entry.accountToCopy()
+            CopyField.ENTRY_PASSWORD -> entry.passwordChoicesToCopy().firstOrNull()?.second.orEmpty()
             CopyField.PASSWORD -> if (entry.isPassword()) entry.getPasswordFields().value("password") else ""
             CopyField.PASSWORD_USERNAME -> if (entry.isPassword()) entry.getPasswordFields().value("username") else ""
             CopyField.SSH_PUBLIC_KEY -> if (entry.isSshKey()) entry.getSshKeys().publicKey else ""
@@ -202,6 +207,13 @@ class EntryEditor(
             CopyField.EMAIL_INCOMING_PASSWORD -> if (entry.isEmail()) entry.getEmailAccount().account.optString("password").orEmpty() else ""
             CopyField.EMAIL_OUTGOING_PASSWORD -> if (entry.isEmail()) entry.getEmailAccount().identity.optString("password").orEmpty() else ""
         }
+        return if (text.isEmpty()) TokenCopyResult.Unavailable else recordCopy(entry, text)
+    }
+
+    /** Copies the [index]-th password candidate from [Entry.passwordChoicesToCopy] (e.g. multi-identity email). */
+    fun copyPasswordChoice(entry: Entry, index: Int): TokenCopyResult {
+        if (state.isLocked || state.snapshot().none { it === entry }) return TokenCopyResult.Unavailable
+        val text = entry.passwordChoicesToCopy().getOrNull(index)?.second.orEmpty()
         return if (text.isEmpty()) TokenCopyResult.Unavailable else recordCopy(entry, text)
     }
 

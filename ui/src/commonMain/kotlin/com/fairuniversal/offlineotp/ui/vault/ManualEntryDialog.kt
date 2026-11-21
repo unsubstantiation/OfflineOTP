@@ -65,7 +65,7 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                     input = ManualEntryInput(); email = true
                 })
                 EntryInputField("Issuer", input.issuer, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(issuer = it) }
-                EntryInputField("Label", input.label, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(label = it) }
+                EntryInputField("Account", input.label, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(label = it) }
                 Text(text = "Artwork: ${input.thumbnailName ?: if (editing) "Keep current" else "Automatic from issuer"}")
                 ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
                 val note = input.type == Entry.OTPType.NOTE
@@ -86,9 +86,9 @@ fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput
                 }
                 if (!note && !ssh) {
                     if (editing) ForestTextAction(
-                        text = if (input.clearHiddenLabel) "Will remove Hidden Label — undo" else "Remove stored Hidden Label",
+                        text = if (input.clearHiddenLabel) "Will remove Password — undo" else "Remove stored Password",
                         onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) })
-                    if (!input.clearHiddenLabel) EntryInputField("Hidden Label", input.hiddenLabel, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
+                    if (!input.clearHiddenLabel) EntryInputField("Password", input.hiddenLabel, masked = !editing, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
                 }
                 if (input.type == Entry.OTPType.MOTP) {
                     if (editing) ForestTextAction(

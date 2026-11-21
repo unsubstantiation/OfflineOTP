@@ -409,7 +409,9 @@ class NativeComposeFoundationTest(unittest.TestCase):
 
         screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
         self.assertIn('if (card.canCopy)', screen)
-        self.assertIn('onCard(card.index, "delete")', screen)
+        self.assertIn('if (card.canCopyAccount)', screen)
+        self.assertIn('if (card.canCopyPassword)', screen)
+        self.assertNotIn('onCard(card.index, "delete")', screen)
         self.assertIn('detectDragGesturesAfterLongPress(', screen)
 
         ios_vc = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')

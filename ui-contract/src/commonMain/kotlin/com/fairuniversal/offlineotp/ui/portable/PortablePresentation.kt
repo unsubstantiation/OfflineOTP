@@ -25,6 +25,8 @@ data class PortableCard(
     val tags: List<String>,
     val canReorder: Boolean = false,
     val canCopy: Boolean = hasCode,
+    val canCopyAccount: Boolean = false,
+    val canCopyPassword: Boolean = false,
     val pinRequired: Boolean = false
 ) {
     /** The name shown while the row is concealed, never the hidden label. */

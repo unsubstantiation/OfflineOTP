@@ -331,8 +331,19 @@ private fun PortableCardView(
                 onClick = { onCard(card.index, "reveal") },
                 contentDescription = "Show or hide the code for " + displayTitle)
             if (card.canCopy) {
-                ForestTextAction("Copy", onClick = { onCard(card.index, "copy") },
+                ForestTextAction(if (card.hasCode) "Copy Token" else "Copy",
+                    onClick = { onCard(card.index, "copy") },
                     contentDescription = "Copy Token for " + displayTitle)
+            }
+            if (card.canCopyAccount) {
+                ForestTextAction("Copy Account",
+                    onClick = { onCard(card.index, "copyAccount") },
+                    contentDescription = "Copy Account for " + displayTitle)
+            }
+            if (card.canCopyPassword) {
+                ForestTextAction("Copy Password",
+                    onClick = { onCard(card.index, "copyPassword") },
+                    contentDescription = "Copy Password for " + displayTitle)
             }
             if (card.pinRequired) {
                 ForestTextAction("Enter PIN", onClick = { onCard(card.index, "pin") },
@@ -351,12 +362,9 @@ private fun PortableCardView(
                     contentDescription = "Shows entry details")
                 ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
                     contentDescription = "Edit " + displayTitle)
-                ForestTextAction("Delete", onClick = { onCard(card.index, "delete") },
-                    color = ForestPalette.warning,
-                    contentDescription = "Delete " + displayTitle)
-                ForestTextAction("More", onClick = { onCard(card.index, "more") },
-                    contentDescription = "More actions for " + displayTitle)
             }
+            ForestTextAction("More", onClick = { onCard(card.index, "more") },
+                contentDescription = "More actions for " + displayTitle)
         }
     }
 }

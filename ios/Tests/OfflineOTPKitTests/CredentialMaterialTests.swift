@@ -142,6 +142,14 @@ final class CredentialMaterialTests: XCTestCase {
         XCTAssertEqual(trimmedEntry.issuer, "Custom Mail Issuer")
         let decodedTrimmed = try trimmedEntry.emailAccount()
         XCTAssertEqual(decodedTrimmed.identities.count, 1)
+
+        // 4. Account and password copy helpers resolve credentials across entry kinds without reveal.
+        XCTAssertEqual(rotatedEntry.accountToCopy, "ops1@example.com")
+        XCTAssertEqual(rotatedEntry.passwordChoicesToCopy.map(\.secret),
+                       ["imap-old", "smtp1-rotated", "smtp2-edited", "Hidden Ops"])
+        let noteEntry = try EntryDraft.create(kind: .note, issuer: "Notes", label: "Memo", secret: "private")
+        XCTAssertEqual(noteEntry.accountToCopy, "")
+        XCTAssertTrue(noteEntry.passwordChoicesToCopy.isEmpty)
         XCTAssertEqual(decodedTrimmed.account["name"]?.stringValue, "Updated Account Name")
         XCTAssertEqual(decodedTrimmed.identities[0]["password"]?.stringValue, "smtp1-rotated")
     }

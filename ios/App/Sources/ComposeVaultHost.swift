@@ -115,23 +115,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let canCopy: Bool = {
                 if hasCode { return true }
                 if entry.kind == .note { return !(entry.noteText ?? "").isEmpty }
-                guard revealed else { return false }
-                switch entry.kind {
-                case .sshKey:
+                if entry.kind == .sshKey {
                     let keys = try? entry.sshKeys()
                     return !(keys?.publicKey ?? "").isEmpty || !(keys?.privateKey ?? "").isEmpty
-                        || !(entry.sshConnection?.password ?? "").isEmpty
-                case .password:
-                    guard let fields = try? entry.passwordFields() else { return false }
-                    return !fields.value("password").isEmpty || !fields.value(PasswordCsvExport.fieldUsername).isEmpty
-                case .email:
-                    guard let account = try? entry.emailAccount() else { return false }
-                    return !(account.account["password"]?.stringValue ?? "").isEmpty
-                        || account.identities.contains(where: { !($0["password"]?.stringValue ?? "").isEmpty })
-                default:
-                    return false
                 }
+                return false
             }()
+            let canCopyAccount = !entry.accountToCopy.isEmpty
+            let canCopyPassword = !entry.passwordChoicesToCopy.isEmpty
             let previous: String
             if revealed, store.showPreviousToken, (entry.kind == .totp || entry.kind == .steam),
                let older = try? entry.code(unixTime: Int64(now.timeIntervalSince1970) - Int64(entry.period)) {
@@ -163,6 +154,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 tags: entry.tags,
                 canReorder: store.canReorder,
                 canCopy: canCopy,
+                canCopyAccount: canCopyAccount,
+                canCopyPassword: canCopyPassword,
                 pinRequired: pinRequired)
         }
         let chips = store.tags(for: store.category).map { tag in
@@ -263,6 +256,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             store.toggleReveal(at: position)
         case "copy":
             copyCredential(at: position)
+        case "copyAccount":
+            copyAccount(at: position)
+        case "copyPassword":
+            copyEntryPassword(at: position)
         case "pin":
             if entry.kind == .motp {
                 editorIndex = position
@@ -278,13 +275,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
-            if store.isRevealed(entry) {
-                editorIndex = position
-                openedFields = entry.fields
-                openSurface("delete", keepDraft: true)
-            }
+            editorIndex = position
+            openedFields = entry.fields
+            openSurface("delete", keepDraft: true)
         case "more":
-            if store.isRevealed(entry) { openSurface("more:\(position)") }
+            openSurface("more:\(position)")
         case "moveUp", "moveDown":
             guard let origin = store.visibleIndices.firstIndex(of: position) else { return }
             let destination = origin + (action == "moveUp" ? -1 : 1)
@@ -332,7 +327,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             return
         }
-        guard store.isRevealed(entry) else { return }
         if entry.kind == .password, let fields = try? entry.passwordFields() {
             let password = fields.value("password")
             let username = fields.value(PasswordCsvExport.fieldUsername)
@@ -342,6 +336,25 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
         }
         openSurface("copySelect:\(index)")
+    }
+
+    private func copyAccount(at index: Int) {
+        guard store.entries.indices.contains(index) else { return }
+        let value = store.entries[index].accountToCopy
+        guard !value.isEmpty else { return }
+        copySecret(value, label: "Account", at: index)
+    }
+
+    private func copyEntryPassword(at index: Int) {
+        guard store.entries.indices.contains(index) else { return }
+        let choices = store.entries[index].passwordChoicesToCopy
+        guard !choices.isEmpty else { return }
+        let uniqueSecrets = Set(choices.map(\.secret))
+        if uniqueSecrets.count == 1, let first = choices.first {
+            copySecret(first.secret, label: "Password", at: index)
+            return
+        }
+        openSurface("copySelect:password:\(index)")
     }
 
     private func copyCode(at index: Int) {
@@ -579,6 +592,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             let position = Int(String(key.dropFirst("more:".count))) ?? -1
             return actionSurface(at: position)
         }
+        if key.hasPrefix("copySelect:password:") {
+            let position = Int(String(key.dropFirst("copySelect:password:".count))) ?? -1
+            return copyPasswordSelectSurface(at: position)
+        }
         if key.hasPrefix("copySelect:") {
             let position = Int(String(key.dropFirst("copySelect:".count))) ?? -1
             return copySelectSurface(at: position)
@@ -630,7 +647,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "searchIncludes":
             let rows = [
-                row("choice:LABEL", "Label", kind: "toggle", checked: store.searchIncludes.contains(.label)),
+                row("choice:LABEL", "Account", kind: "toggle", checked: store.searchIncludes.contains(.label)),
                 row("choice:ISSUER", "Issuer", kind: "toggle", checked: store.searchIncludes.contains(.issuer)),
                 row("choice:TAGS", "Tags", kind: "toggle", checked: store.searchIncludes.contains(.tags)),
             ]
@@ -978,8 +995,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         let metaRows: [PortableRow] = [
             row("issuer", "Issuer", value: draft["issuer"] ?? initial.issuer, kind: "text"),
-            row("label", "Label", value: draft["label"] ?? initial.label, kind: "text"),
-            row("hiddenLabel", "Hidden Label", value: draft["hiddenLabel"] ?? initial.hiddenLabel, kind: "text"),
+            row("label", "Account", value: draft["label"] ?? initial.label, kind: "text"),
+            row("hiddenLabel", "Password", value: draft["hiddenLabel"] ?? initial.hiddenLabel, kind: "text"),
             row("tags", "Tags", value: draft["tags"] ?? initial.tags, kind: "text"),
             row("thumbnail", "Artwork", value: draft["thumbnail"] ?? initial.thumbnail, kind: "text"),
             row("thumbnailCatalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info")
@@ -1060,7 +1077,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             .filter { store.searchIncludes.contains($0) }
             .map { include -> String in
                 switch include {
-                case .label: return "Label"
+                case .label: return "Account"
                 case .issuer: return "Issuer"
                 case .tags: return "Tags"
                 }
@@ -1133,8 +1150,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         var rows: [PortableRow] = [
             row("type", "Type", value: kind.rawValue, kind: "action"),
             row("issuer", "Issuer / title", value: draft["issuer"] ?? "", kind: "text"),
-            row("label", "Label", value: draft["label"] ?? "", kind: "text"),
-            row("hiddenLabel", "Hidden label", value: draft["hiddenLabel"] ?? "", kind: "text")
+            row("label", "Account", value: draft["label"] ?? "", kind: "text"),
+            row("hiddenLabel", "Password", value: draft["hiddenLabel"] ?? "", kind: "text")
         ]
         if kind == .sshKey {
             rows.append(row("publicKey", "Public key", value: draft["publicKey"] ?? "", kind: "text"))
@@ -1234,21 +1251,34 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                            dismissLabel: "Close", showConfirm: false)
         }
         let entry = store.entries[index]
+        let revealed = store.isRevealed(entry)
         var rows: [PortableRow] = []
         if entry.kind?.isOtp == true {
             rows.append(row("copy:\(index)", "Copy token"))
         }
+        if !entry.accountToCopy.isEmpty {
+            rows.append(row("copyAccount:\(index)", "Copy account"))
+        }
+        if !entry.passwordChoicesToCopy.isEmpty {
+            rows.append(row("copyEntryPassword:\(index)", "Copy password"))
+        }
         rows.append(row("reveal:\(index)", "Reveal or hide"))
+        if revealed {
+            rows.append(row("edit:\(index)", "Edit entry"))
+            rows.append(row("details:\(index)", "Details"))
+        }
         rows.append(row("tags:\(index)", "Edit tags"))
         if entry.kind != .sshKey && entry.kind != .passwordArchive {
             rows.append(row("thumbnail:\(index)", "Change artwork…"))
         }
-        if store.otpUri(for: index) != nil {
+        if revealed, store.otpUri(for: index) != nil {
             rows.append(row("qr:\(index)", "Show QR code"))
         }
         if entry.kind == .hotp {
             rows.append(row("step:\(index)", "Advance counter"))
-            rows.append(row("counter:\(index)", "Set counter…"))
+            if revealed {
+                rows.append(row("counter:\(index)", "Set counter…"))
+            }
         }
         if entry.kind == .motp {
             rows.append(row("pin:\(index)", "Set PIN…"))
@@ -1261,16 +1291,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if let sshPass = entry.sshConnection?.password, !sshPass.isEmpty {
             rows.append(row("copySshPassword:\(index)", "Copy SSH password"))
         }
-        if entry.kind == .password, let fields = try? entry.passwordFields() {
-            if !fields.value("password").isEmpty {
-                rows.append(row("copyPassword:\(index)", "Copy password"))
-            }
-            if !fields.value(PasswordCsvExport.fieldUsername).isEmpty {
-                rows.append(row("copyUsername:\(index)", "Copy username"))
-            }
-            if case .exportable(let dialect) = PasswordCsvExport.support(entry) {
-                rows.append(row("exportPasswordCsv:\(index)", "Export as \(dialect.browserName) CSV…"))
-            }
+        if entry.kind == .password, revealed,
+           case .exportable(let dialect) = PasswordCsvExport.support(entry) {
+            rows.append(row("exportPasswordCsv:\(index)", "Export as \(dialect.browserName) CSV…"))
         }
         if entry.kind == .passwordArchive {
             rows.append(row("exportArchive:\(index)", "Export password file…"))
@@ -1289,16 +1312,26 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             dismissLabel: "Close", showConfirm: false)
     }
 
+    private func copyPasswordSelectSurface(at index: Int) -> PortableSurfaceState {
+        guard store.entries.indices.contains(index) else {
+            return surface(key: "copySelect:password:\(index)", title: "Choose password to copy", sections: [],
+                           confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
+        }
+        let choices = store.entries[index].passwordChoicesToCopy
+        let rows: [PortableRow] = choices.enumerated().map { choiceIdx, item in
+            row("copyPasswordChoice:\(index):\(choiceIdx)", item.label)
+        }
+        return surface(key: "copySelect:password:\(index)", title: "Choose password to copy",
+            sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Done",
+            dismissLabel: "Cancel", showConfirm: false)
+    }
+
     private func copySelectSurface(at index: Int) -> PortableSurfaceState {
         guard store.entries.indices.contains(index) else {
             return surface(key: "copySelect:\(index)", title: "Choose field to copy", sections: [],
                            confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
         }
         let entry = store.entries[index]
-        guard store.isRevealed(entry) else {
-            return surface(key: "copySelect:\(index)", title: "Choose field to copy", sections: [],
-                           confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false)
-        }
         var rows: [PortableRow] = []
         switch entry.kind {
         case .sshKey:
@@ -1346,10 +1379,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let entry = store.entries[index]
         var rows: [PortableRow] = []
         var fields: [(String, String)] = [
-            ("Type", entry.kind?.rawValue ?? "ENTRY"), ("Issuer", entry.issuer), ("Label", entry.label)
+            ("Type", entry.kind?.rawValue ?? "ENTRY"), ("Issuer", entry.issuer), ("Account", entry.label)
         ]
         if store.isRevealed(entry) {
-            fields.append(("Hidden label", entry.hiddenLabel))
+            fields.append(("Password", entry.hiddenLabel))
             if entry.kind == .totp || entry.kind == .hotp {
                 fields.append(("Algorithm", entry.algorithm.rawValue))
             }
@@ -2158,6 +2191,40 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if command == "linScpExportSelect", let index {
             if linScpSelected.contains(index) { linScpSelected.remove(index) }
             else { linScpSelected.insert(index) }
+            return nil
+        }
+        if command == "copyPasswordChoice", parts.count > 1 {
+            let subparts = parts[1].split(separator: ":").compactMap { Int($0) }
+            guard subparts.count == 2,
+                  store.entries.indices.contains(subparts[0]) else {
+                return "The entry changed."
+            }
+            let choices = store.entries[subparts[0]].passwordChoicesToCopy
+            guard choices.indices.contains(subparts[1]) else {
+                return "That password choice is no longer available."
+            }
+            let item = choices[subparts[1]]
+            guard !item.secret.isEmpty else { return "This entry has no password to copy." }
+            copySecret(item.secret, label: item.label, at: subparts[0])
+            closeSurface()
+            return nil
+        }
+        if command == "copyAccount", let index {
+            guard store.entries.indices.contains(index) else { return "The entry changed." }
+            copyAccount(at: index)
+            closeSurface()
+            return nil
+        }
+        if command == "copyEntryPassword", let index {
+            guard store.entries.indices.contains(index) else { return "The entry changed." }
+            let choices = store.entries[index].passwordChoicesToCopy
+            guard !choices.isEmpty else { return "This entry has no password to copy." }
+            if Set(choices.map(\.secret)).count == 1, let first = choices.first {
+                copySecret(first.secret, label: "Password", at: index)
+                closeSurface()
+            } else {
+                openSurface("copySelect:password:\(index)")
+            }
             return nil
         }
         if command == "copySmtpPasswordIdx", parts.count > 1 {
