@@ -275,6 +275,10 @@ public final class VaultStore: ObservableObject {
             message = "Use at least \(InputPolicy.minVaultPasswordChars) characters."
             return
         }
+        guard password.count <= InputPolicy.maxVaultPasswordChars else {
+            message = "Use at most \(InputPolicy.maxVaultPasswordChars) characters."
+            return
+        }
         guard password == confirmation else {
             message = "The two passwords do not match."
             return
@@ -582,6 +586,10 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked else { return false }
         guard newPassword.count >= InputPolicy.minVaultPasswordChars else {
             message = "Use at least \(InputPolicy.minVaultPasswordChars) characters."
+            return false
+        }
+        guard newPassword.count <= InputPolicy.maxVaultPasswordChars else {
+            message = "Use at most \(InputPolicy.maxVaultPasswordChars) characters."
             return false
         }
         guard newPassword == confirmation else {
@@ -932,7 +940,12 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked else { return nil }
         do {
             let document = try EncryptedBackup.open(password: password, data: data)
-            return try VaultDocument.decode(document).count
+            let decoded = try VaultDocument.decode(document)
+            guard !decoded.isEmpty else {
+                message = BackupWording.emptyBackup
+                return nil
+            }
+            return decoded.count
         } catch VaultCryptoError.authenticationFailed {
             message = BackupWording.wrongPassword
             return nil
@@ -1075,7 +1088,12 @@ public final class VaultStore: ObservableObject {
                 secretKeyBlock: secretKeyBlock,
                 passphrase: passphrase?.isEmpty == true ? nil : passphrase
             )
-            return try VaultDocument.decode(document).count
+            let decoded = try VaultDocument.decode(document)
+            guard !decoded.isEmpty else {
+                message = BackupWording.emptyBackup
+                return nil
+            }
+            return decoded.count
         } catch let error as OpenPgpError {
             message = error.errorDescription ?? BackupWording.unreadableBackup
             return nil
@@ -1118,6 +1136,10 @@ public final class VaultStore: ObservableObject {
         guard isUnlocked else { return nil }
         do {
             let parsed = try PasswordImport.entries(filename: filename, data: data, mode: mode)
+            guard !parsed.isEmpty else {
+                message = BackupWording.emptyBackup
+                return nil
+            }
             return parsed.count
         } catch {
             message = mode == .individual
@@ -1298,7 +1320,12 @@ public final class VaultStore: ObservableObject {
     public func previewFairEmailBackupCount(data: Data, password: String? = nil) -> Int? {
         guard isUnlocked else { return nil }
         do {
-            return try EmailMaterial.importBackup(data, password: password).count
+            let accounts = try EmailMaterial.importBackup(data, password: password)
+            guard !accounts.isEmpty else {
+                message = BackupWording.emptyBackup
+                return nil
+            }
+            return accounts.count
         } catch EmailCredentialError.passwordRequired {
             message = "Enter the password this FairEmail backup was encrypted with."
             return nil

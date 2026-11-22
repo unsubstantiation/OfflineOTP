@@ -181,7 +181,7 @@ private fun RenderSharedSurface(
         )
         "prefsConfirm" -> PreferencesImportDialog(
             busy = dialog.busy,
-            count = rowValue("count").toIntOrNull() ?: 1,
+            count = rowValue("count").toIntOrNull(),
             skipped = rowValue("skipped").toIntOrNull() ?: 0,
             failed = dialog.message.isNotEmpty(),
             platformName = "iOS",
@@ -249,10 +249,9 @@ private fun RenderSharedSurface(
                 dismissLabel = dialog.dismissLabel,
                 maxTagChars = PortableInputBounds.MAX_TAG_CHARS,
                 tagCounts = counts,
-                onTagCreated = { created ->
-                    val next = (currentSet + created.trim()).filter { it.isNotEmpty() }
-                    surfaceActions.change("tags", next.joinToString(", "))
-                },
+                errorText = dialog.message.ifEmpty { null },
+                dismissOnConfirm = false,
+                onTagCreated = {},
                 onSelectionConfirmed = { selectedStates ->
                     val chosen = selectedStates.filterValues { it }.keys.joinToString(", ")
                     surfaceActions.change("tags", chosen)
@@ -445,14 +444,15 @@ private fun RenderSharedSurface(
         "linScpImport" -> {
             val choiceRows = rows.filter { it.key.startsWith("linScpSelect:") }
             val count = choiceRows.size.takeIf { it > 0 }
+            val keySelected = rowDetail("linScpKey") == "Key selected"
             LinScpImportDialog(
                 inputKey = dialogKey,
                 busy = dialog.busy,
                 count = count,
                 failed = dialog.message.isNotEmpty(),
-                keySelected = false,
-                onChooseKey = {},
-                onClearKey = {},
+                keySelected = keySelected,
+                onChooseKey = { onAction("linScpKey") },
+                onClearKey = { onAction("linScpClearKey") },
                 onRead = { password ->
                     surfaceActions.change("linScpPassword", password)
                     onAction("linScpRead")
@@ -464,7 +464,7 @@ private fun RenderSharedSurface(
                 onDismiss = onDismiss,
                 choices = choiceRows.map { it.title },
                 secretLabel = "Backup password or base64 sessions.key",
-                allowKeyFileSelection = false
+                allowKeyFileSelection = true
             )
         }
         "uriImport" -> {
@@ -623,6 +623,7 @@ private fun RenderSharedSurface(
                     confirm()
                 },
                 onDismiss = onDismiss,
+                onViewDetails = { onAction("details") },
                 onDelete = { onAction("delete") }
             )
         }
@@ -862,6 +863,11 @@ private fun RenderSharedSurface(
                     failed = dialog.message.isNotEmpty(),
                     errorText = dialog.message.ifEmpty { null },
                     thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                    onExportArchive = if (rowValue("archiveMode") == "true") {
+                        { onAction("exportArchive") }
+                    } else {
+                        null
+                    },
                     onDelete = { onAction("delete") },
                     onSubmit = { draft ->
                         surfaceActions.change("url", draft.url)

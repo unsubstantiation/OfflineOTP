@@ -33,8 +33,12 @@ fun SharedEmailPasswordDialog(
     onDismiss: () -> Unit
 ) {
     var input by remember(inputKey) { mutableStateOf(initial.withoutSecrets()) }
+    fun dismiss() {
+        input = input.withoutSecrets()
+        onDismiss()
+    }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { dismiss() },
         title = { Text("Change email passwords / tokens") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -63,7 +67,7 @@ fun SharedEmailPasswordDialog(
             })
         },
         dismissButton = {
-            ForestTextAction("Cancel", onClick = onDismiss)
+            ForestTextAction("Cancel", onClick = { dismiss() })
         }
     )
 }
@@ -78,6 +82,7 @@ private fun SharedCredentialField(
     OutlinedTextField(
         value = value,
         onValueChange = { if (it.length <= PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS) change(it) },
+        singleLine = true,
         label = { Text(label) },
         visualTransformation = visualTransformation
     )

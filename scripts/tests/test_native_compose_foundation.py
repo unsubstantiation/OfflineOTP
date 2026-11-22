@@ -423,4 +423,41 @@ class NativeComposeFoundationTest(unittest.TestCase):
         for email_key in ('"emailEdit"', '"emailPasswordEdit"', '"emailSettingsEdit"'):
             self.assertIn(email_key, host)
 
+        self.assertIn('private var emailSecretsVisible = false', host)
+        self.assertIn('lastImported = Data()', host)
+        self.assertIn('onViewDetails = { onAction("details") }', ios_vc)
+        self.assertIn('onExportArchive = if (rowValue("archiveMode") == "true")', ios_vc)
+        self.assertIn('command == "archiveExportSelect" || command == "exportArchive"', host)
+        self.assertIn('row("qrImageFromTools", "Import QR image…")', host)
+        self.assertIn('count = rowValue("count").toIntOrNull(),', ios_vc)
+        self.assertIn('dismissOnConfirm = false,', ios_vc)
+        self.assertIn('allowKeyFileSelection = true', ios_vc)
+
+        unlock = (ROOT / 'ios/App/Sources/ComposeUnlockHost.swift').read_text(encoding='utf-8')
+        self.assertIn('store.objectWillChange', unlock)
+        self.assertIn('onDismiss?()', unlock)
+        self.assertIn('self?.dismiss(animated: false)', unlock)
+
+        scanner = (ROOT / 'ios/App/Sources/QrCameraScanner.swift').read_text(encoding='utf-8')
+        self.assertIn('cancel.setTitle("Cancel", for: .normal)', scanner)
+        self.assertIn('self.dismiss(animated: false)', scanner)
+
+        picker = (ROOT / 'ios/App/Sources/NativeFilePicker.swift').read_text(encoding='utf-8')
+        self.assertIn('cleanupPendingExport()', picker)
+
+        self.assertIn('secret: current.secretBase32 ?? ""', host)
+        self.assertIn('VaultStore.vaultFilename', host)
+        self.assertIn('VaultStore.settingsFilename', host)
+        self.assertNotIn('"vault.enc"', host)
+
+        main_kt = (ROOT / 'app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt').read_text(encoding='utf-8')
+        self.assertIn('.filter { current.isEntryRevealed(it) }', main_kt)
+
+        ios_clip = (ROOT / 'ios/App/Sources/Clipboard.swift').read_text(encoding='utf-8')
+        self.assertIn('.localOnly: true', ios_clip)
+
+        prefs_swift = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
+        self.assertIn('number.objCType', prefs_swift)
+        self.assertIn('flag.objCType', prefs_swift)
+
 

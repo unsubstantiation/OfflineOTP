@@ -1301,6 +1301,26 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("detailLabel: detailLabel", ios_host)
         self.assertIn("countLabel: countLabel", ios_host)
 
+    def test_end_to_end_email_details_archive_export_and_desktop_edit_reveal_parity(self):
+        host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("viewEmailDetails = { card ->", host)
+        self.assertIn("emailDetails.open(card.id, presenter.isRevealed(card.id))", host)
+        self.assertIn("plan.contains(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS)", host)
+        self.assertNotIn("presenter.entryRemoved(editRequest.entryId)", host)
+        self.assertIn("archiveExporter.openForEntry(entryId, target, lifetime::checkActive)", host)
+
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        self.assertIn("val viewEmailDetails = actions.onViewEmailDetails", components)
+        self.assertIn("ForestTextAction(text = strings.emailDetails", components)
+
+        email_edit = (UI_FOUNDATION / "vault/SharedEmailEditDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onViewDetails: (() -> Unit)? = null", email_edit)
+        self.assertIn('text = "View details"', email_edit)
+
+        password_edit = (UI_FOUNDATION / "vault/SharedPasswordEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onExportArchive: (() -> Unit)? = null", password_edit)
+        self.assertIn('text = "Export archive"', password_edit)
+
 
 if __name__ == "__main__":
     unittest.main()

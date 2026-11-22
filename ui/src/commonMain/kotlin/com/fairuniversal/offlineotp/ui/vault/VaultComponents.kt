@@ -232,6 +232,10 @@ internal fun VaultEntryCard(
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
+            val viewEmailDetails = actions.onViewEmailDetails
+            if (card.detailsVisible && card.revealed && card.kind == VaultEntryKind.EMAILS && viewEmailDetails != null) {
+                ForestTextAction(text = strings.emailDetails, onClick = { viewEmailDetails(card) })
+            }
             val edit = actions.onEditEntry
             if (card.detailsVisible && card.revealed && edit != null &&
                 (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.EMAILS) ||

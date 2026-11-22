@@ -171,4 +171,33 @@ final class PreferencesExportTests: XCTestCase {
         XCTAssertFalse(secret.description.contains("hunter2"))
         XCTAssertTrue(secret.description.contains("chars"))
     }
+
+    func testNumericAndBooleanTypesNeverCoerceAcrossNSNumberAndInvalidUtf8IsRejected() throws {
+        let intInBooleanBytes = Data("""
+        {"format":"offlineotp.preferences","version":1,"platform":"ios","settings":{"ui_hide_issuer":1}}
+        """.utf8)
+        XCTAssertThrowsError(try PreferencesExport.apply(intInBooleanBytes, into: FakePort())) { error in
+            XCTAssertEqual(error as? PreferencesExport.PreferencesError, .typeMismatch("ui_hide_issuer"))
+        }
+
+        let boolInIntBytes = Data("""
+        {"format":"offlineotp.preferences","version":1,"platform":"ios","settings":{"ui_inactivity_lock_seconds":true}}
+        """.utf8)
+        XCTAssertThrowsError(try PreferencesExport.apply(boolInIntBytes, into: FakePort())) { error in
+            XCTAssertEqual(error as? PreferencesExport.PreferencesError,
+                           .typeMismatch("ui_inactivity_lock_seconds"))
+        }
+
+        let floatInIntBytes = Data("""
+        {"format":"offlineotp.preferences","version":1,"platform":"ios","settings":{"ui_inactivity_lock_seconds":1.5}}
+        """.utf8)
+        XCTAssertThrowsError(try PreferencesExport.apply(floatInIntBytes, into: FakePort())) { error in
+            XCTAssertEqual(error as? PreferencesExport.PreferencesError,
+                           .typeMismatch("ui_inactivity_lock_seconds"))
+        }
+
+        XCTAssertThrowsError(try PreferencesExport.apply(Data([0xFF, 0xFE]), into: FakePort())) { error in
+            XCTAssertEqual(error as? PreferencesExport.PreferencesError, .invalidEncoding)
+        }
+    }
 }

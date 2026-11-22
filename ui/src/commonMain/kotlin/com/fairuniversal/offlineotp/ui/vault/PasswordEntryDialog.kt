@@ -14,6 +14,7 @@ fun PasswordEntryDialog(
     onSubmit: (PasswordEntryInput) -> Unit,
     onDismiss: () -> Unit,
     artwork: VaultArtwork? = null,
+    onExportArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     SharedPasswordEntryDialog(
@@ -39,10 +40,11 @@ fun PasswordEntryDialog(
                 selected = selected.ifEmpty { null },
                 artwork = artwork,
                 unchangedLabel = "Keep current artwork",
-                onSelect = { chosen -> onSelect(chosen.orEmpty()) },
+                onSelect = { chosen -> onSelect(chosen ?: initial.thumbnail.orEmpty()) },
                 onCancel = onCancel
             )
         },
+        onExportArchive = onExportArchive,
         onDelete = onDelete,
         onSubmit = { draft ->
             onSubmit(

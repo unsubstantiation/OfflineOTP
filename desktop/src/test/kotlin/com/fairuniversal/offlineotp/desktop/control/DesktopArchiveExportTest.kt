@@ -103,4 +103,25 @@ class DesktopArchiveExportTest {
             } finally { export.close(); state.lock() }
         }
     }
+    @Test fun openForEntryTargetsExactArchiveAndEnforcesConfirmationAndSessionChecks() {
+        val state = state(); val worker = Queue(); val ui = Queue()
+        val dir = Files.createTempDirectory("archive-single-").toFile()
+        val export = DesktopArchiveExport(state, worker, ui::execute, {})
+        try {
+            val archive = state.snapshot().first { it.isPasswordArchive() }
+            val nonArchive = state.snapshot().first { !it.isPasswordArchive() }
+            val target = File(dir, "single.bin")
+            assertFalse(export.openForEntry(nonArchive.getListId(), target) { true })
+            assertFalse(export.openForEntry(archive.getListId(), target) { false })
+            assertTrue(export.openForEntry(archive.getListId(), target) { true })
+            val request = export.pending!!
+            assertEquals(DesktopArchiveExport.Status.CONFIRM, request.status)
+            assertEquals(0, request.selected)
+            assertFalse(target.exists())
+            assertTrue(export.confirm(request) { true })
+            worker.run(); ui.run()
+            assertEquals(DesktopArchiveExport.Status.SAVED, request.status)
+            assertTrue(content.contentEquals(target.readBytes()))
+        } finally { export.close(); state.lock(); dir.deleteRecursively() }
+    }
 }

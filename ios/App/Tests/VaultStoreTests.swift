@@ -949,4 +949,50 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertEqual(store.tagFunctionality, .and)
         adapter.invalidate()
     }
+
+    @MainActor
+    func testEditorKeepsStoredSecretWhenBlankAndGuardsTypeChangesAndEmptyLinScpExport() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try draft("alice@example.com", issuer: "GitHub")))
+        let originalSecret = store.entries[0].secretBase32
+        store.toggleReveal(at: 0)
+
+        let adapter = vaultAdapter(store)
+        defer { adapter.invalidate() }
+
+        XCTAssertEqual(adapter.action(key: "linScpExport"),
+                       "There are no SSH keys or password entries in this vault.")
+
+        adapter.card(index: 0, action: "edit")
+        adapter.change(key: "issuer", value: "GitHub Enterprise")
+        adapter.change(key: "secret", value: "")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.entries[0].issuer, "GitHub Enterprise")
+        XCTAssertEqual(store.entries[0].secretBase32, originalSecret)
+
+        adapter.card(index: 0, action: "edit")
+        adapter.change(key: "type", value: "HOTP")
+        adapter.change(key: "secret", value: "")
+        XCTAssertEqual(adapter.action(key: "confirm"),
+                       "Re-enter the secret when changing OTP type.")
+        adapter.change(key: "secret", value: "JBSWY3DPEHPK3PXP")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.entries[0].kind, .hotp)
+
+        adapter.card(index: 0, action: "counter")
+        adapter.change(key: "counter", value: "9")
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(store.entries[0].counter, 9)
+
+        adapter.importedQrImagePayload("otpauth://totp/GitHub%20Enterprise:bob@example.com?secret=KRSXG5A=&issuer=GitHub%20Enterprise")
+        XCTAssertNotNil(adapter.action(key: "qrImageImport"))
+        adapter.change(key: "allowAdditional", value: "true")
+        XCTAssertNil(adapter.action(key: "qrImageImport"))
+        XCTAssertEqual(store.entries.count, 2)
+
+        let emptyStore = unlockedStore()
+        let emptyExport = try XCTUnwrap(emptyStore.exportBackup(password: "backup-pass"))
+        XCTAssertNil(store.previewEncryptedBackupCount(encrypted: emptyExport.data, password: "backup-pass"))
+        XCTAssertEqual(store.message, BackupWording.emptyBackup)
+    }
 }

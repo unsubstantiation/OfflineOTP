@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
 
@@ -64,8 +65,48 @@ fun SharedIntroScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            var password by remember { mutableStateOf("") }
+            var confirmation by remember { mutableStateOf("") }
+            val resolvedAuth = if (encryptionType == Constants.EncryptionType.PASSWORD) {
+                Constants.AuthMethod.PASSWORD
+            } else {
+                authMethod
+            }
+            val requiresPassword = resolvedAuth == Constants.AuthMethod.PASSWORD
+
             Text(text = strings.appTitle, style = ForestType.title, color = ForestPalette.textPrimary)
             Text(text = strings.encryptionTitle, style = ForestType.title, color = ForestPalette.textPrimary)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (option in listOf(
+                    Constants.EncryptionType.PASSWORD to "Password",
+                    Constants.EncryptionType.KEYSTORE to "KeyStore"
+                )) {
+                    val selected = encryptionType == option.first
+                    Button(
+                        modifier = Modifier.weight(1f),
+                        enabled = !busy,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selected) ForestPalette.primary else ForestPalette.surfaceVariant,
+                            contentColor = ForestPalette.textPrimary
+                        ),
+                        onClick = {
+                            if (option.first != Constants.EncryptionType.PASSWORD && authMethod != Constants.AuthMethod.PASSWORD) {
+                                password = ""
+                                confirmation = ""
+                            }
+                            onEncryptionChanged(option.first)
+                            if (option.first == Constants.EncryptionType.PASSWORD && authMethod != Constants.AuthMethod.PASSWORD) {
+                                onAuthMethodChanged(Constants.AuthMethod.PASSWORD)
+                            }
+                        }
+                    ) {
+                        Text(text = option.second, style = ForestType.label)
+                    }
+                }
+            }
             Text(
                 text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.encryptionDescPassword else strings.encryptionDescKeystore,
                 style = ForestType.body,
@@ -74,6 +115,40 @@ fun SharedIntroScreen(
             )
 
             Text(text = strings.authTitle, style = ForestType.title, color = ForestPalette.textPrimary, modifier = Modifier.padding(top = 16.dp))
+            if (encryptionType == Constants.EncryptionType.KEYSTORE) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    for (option in listOf(
+                        Constants.AuthMethod.DEVICE to "Device",
+                        Constants.AuthMethod.PASSWORD to "Password",
+                        Constants.AuthMethod.NONE to "None"
+                    )) {
+                        val selected = resolvedAuth == option.first
+                        Button(
+                            modifier = Modifier.weight(1f),
+                            enabled = !busy,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (selected) ForestPalette.primary else ForestPalette.surfaceVariant,
+                                contentColor = ForestPalette.textPrimary
+                            ),
+                            onClick = {
+                                if (option.first != Constants.AuthMethod.PASSWORD) {
+                                    password = ""
+                                    confirmation = ""
+                                }
+                                onAuthMethodChanged(option.first)
+                            }
+                        ) {
+                            Text(text = option.second, style = ForestType.label)
+                        }
+                    }
+                }
+                if (resolvedAuth == Constants.AuthMethod.NONE && strings.authWarnings.isNotEmpty()) {
+                    Text(text = strings.authWarnings, style = ForestType.label, color = ForestPalette.warning)
+                }
+            }
             Text(
                 text = if (encryptionType == Constants.EncryptionType.PASSWORD) strings.authDescPassword else strings.authDescKeystore,
                 style = ForestType.body,
@@ -84,13 +159,15 @@ fun SharedIntroScreen(
                 Text(text = error, style = ForestType.label, color = ForestPalette.warning, modifier = Modifier.padding(top = 8.dp))
             }
 
-            var password by remember { mutableStateOf("") }
-            var confirmation by remember { mutableStateOf("") }
-
-            if (encryptionType == Constants.EncryptionType.PASSWORD) {
+            if (requiresPassword) {
                 OutlinedTextField(
                     value = password,
-                    onValueChange = { password = it; onPasswordInput(it, confirmation) },
+                    onValueChange = {
+                        if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                            password = it
+                            onPasswordInput(it, confirmation)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     singleLine = true,
                     label = { Text(text = strings.passwordLabel, style = ForestType.label) },
@@ -100,7 +177,12 @@ fun SharedIntroScreen(
                 )
                 OutlinedTextField(
                     value = confirmation,
-                    onValueChange = { confirmation = it; onPasswordInput(password, it) },
+                    onValueChange = {
+                        if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                            confirmation = it
+                            onPasswordInput(password, it)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                     singleLine = true,
                     label = { Text(text = strings.confirmPasswordLabel, style = ForestType.label) },
@@ -141,7 +223,7 @@ fun SharedIntroScreen(
                 color = if (error != null) ForestPalette.warning else ForestPalette.textSecondary
             )
 
-            val canSubmit = !busy && (encryptionType != Constants.EncryptionType.PASSWORD || (password.isNotEmpty() && confirmation == password))
+            val canSubmit = !busy && (!requiresPassword || (password.isNotEmpty() && confirmation == password))
             val buttonColors = ButtonDefaults.buttonColors(
                 containerColor = ForestPalette.surfaceVariant,
                 contentColor = ForestPalette.textPrimary,
@@ -154,12 +236,12 @@ fun SharedIntroScreen(
                 colors = buttonColors,
                 enabled = canSubmit && !busy,
                 onClick = {
-                    val submitted = if (encryptionType == Constants.EncryptionType.PASSWORD) password else null
+                    val submitted = if (requiresPassword) password else null
                     password = ""
                     confirmation = ""
                     onSaveSettings(
                         encryptionType,
-                        if (encryptionType == Constants.EncryptionType.PASSWORD) Constants.AuthMethod.PASSWORD else Constants.AuthMethod.NONE,
+                        resolvedAuth,
                         submitted,
                         syncEnabled
                     )

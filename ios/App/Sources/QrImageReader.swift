@@ -17,12 +17,18 @@ enum QrImageReader {
     }
 
     static func payload(in image: UIImage) -> String? {
-        guard let cgImage = image.cgImage else { return nil }
         let request = VNDetectBarcodesRequest()
         // QR only: the same symbology the phone's own scanner accepts for an account, so a
         // QR image that imports here imports there.
         request.symbologies = [.qr]
-        let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        let handler: VNImageRequestHandler
+        if let cgImage = image.cgImage {
+            handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
+        } else if let ciImage = image.ciImage {
+            handler = VNImageRequestHandler(ciImage: ciImage, options: [:])
+        } else {
+            return nil
+        }
         do {
             try handler.perform([request])
         } catch {

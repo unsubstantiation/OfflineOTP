@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 /** Shared biometric-enrolment password confirmation. The host verifies/stores the vault key. */
 @Composable
@@ -29,14 +30,21 @@ fun BiometricEnableDialog(
 ) {
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(initialError) }
+    fun dismiss() { password = ""; onDismiss() }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { dismiss() },
         title = { Text(title) },
         text = {
             Column {
                 Text(detail, modifier = Modifier.padding(bottom = 12.dp))
                 OutlinedTextField(
-                    value = password, onValueChange = { password = it; error = null },
+                    value = password,
+                    onValueChange = {
+                        if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                            password = it
+                            error = null
+                        }
+                    },
                     label = { Text(passwordLabel) }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
@@ -47,9 +55,9 @@ fun BiometricEnableDialog(
         confirmButton = {
             ForestTextAction(text = confirmLabel, onClick = {
                 error = onConfirm(password)
-                if (error == null) password = ""
+                password = ""
             }, enabled = password.isNotEmpty())
         },
-        dismissButton = { ForestTextAction(text = cancelLabel, onClick = onDismiss) }
+        dismissButton = { ForestTextAction(text = cancelLabel, onClick = { dismiss() }) }
     )
 }

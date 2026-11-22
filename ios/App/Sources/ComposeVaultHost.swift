@@ -31,9 +31,17 @@ final class VaultComposeViewController: UIViewController {
     }
 
     func refresh() { coordinator.refresh() }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        if parent == nil { coordinator.invalidate() }
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        coordinator.invalidate()
+        if isMovingFromParent || isBeingDismissed || parent == nil {
+            coordinator.invalidate()
+        }
     }
 }
 
@@ -58,11 +66,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var passwordEditIndex: Int?
     private var openedFields: [String: JSONValue]?
     private var openedGeneration: Int?
-    private var emailSecretsVisible = true
+    private var emailSecretsVisible = false
     private var linScpCandidates: [Entry] = []
     private var linScpSelected: Set<Int> = []
     private var linScpEpoch: Int?
     private var linScpPendingData = Data()
+    private var linScpMasterKeyData = Data()
     private var editorIndex: Int?
     private var editorKind: EntryKind = .totp
     private var active = true
@@ -226,6 +235,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func toggleTag(tag: String) {
         guard active, store.isUnlocked else { return }
+        noteActivity()
         if tag == "Untagged" { store.includeUntagged.toggle() }
         else { store.toggleTag(tag) }
         refresh()
@@ -233,12 +243,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func clearTags() {
         guard active, store.isUnlocked else { return }
+        noteActivity()
         store.clearFilters()
         refresh()
     }
 
     func toggleTagRule() {
         guard active, store.isUnlocked else { return }
+        noteActivity()
         switch store.tagFunctionality {
         case .or: store.setTagFunctionality(.and)
         case .and: store.setTagFunctionality(.single)
@@ -299,6 +311,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 draft = ["counter": String(entry.counter)]
                 openSurface("counterEdit", keepDraft: true)
             }
+        case "details":
+            if store.isRevealed(entry) { openDetails(at: position) }
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
@@ -421,6 +435,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             pendingQrImagePayload = nil
             qrImageFailed = false
         }
+        if surfaceKey == "linScpImport" {
+            linScpPendingData = Data()
+            linScpMasterKeyData = Data()
+            linScpCandidates = []
+            linScpSelected = []
+        }
+        if surfaceKey == "openpgpExportDialog" {
+            openPgpRecipients = []
+            openPgpRecipientNames = []
+        }
+        if surfaceKey == "openpgpRestore" {
+            openPgpSecretKey = Data()
+            pendingImport = Data()
+        }
+        if ["restore", "fairEmailImport", "passwordImportChoice", "thunderbirdConfirm", "prefsConfirm"].contains(surfaceKey) {
+            pendingImport = Data()
+        }
         surfaceKey = ""
         surfaceEpoch = nil
         draft = [:]
@@ -428,6 +459,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         passwordEditIndex = nil
         openedFields = nil
         openedGeneration = nil
+        emailSecretsVisible = false
+        lastImported = Data()
         presentation.updateSurface(state: nil)
     }
 
@@ -906,8 +939,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "storageLocation":
             let rows = [
                 row("directory", "Directory", value: store.folderPath, kind: "info"),
-                row("file:vault", "vault.enc", kind: "info"),
-                row("file:preferences", "preferences.json", kind: "info")
+                row("file:vault", VaultStore.vaultFilename, kind: "info"),
+                row("file:backup", VaultStore.backupFilename, kind: "info"),
+                row("file:preferences", VaultStore.settingsFilename, kind: "info")
             ]
             return surface(key: key, title: "Storage location",
                 sections: [PortableSection(title: "", rows: rows)],
@@ -937,6 +971,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func linScpImportSurface() -> PortableSurfaceState {
         var rows: [PortableRow] = [
             row("linScpPassword", "Backup password or base64 sessions.key", value: draft["linScpPassword"] ?? "", kind: "secure"),
+            row("linScpKey", "Master key file", kind: "info", detail: linScpMasterKeyData.isEmpty ? "" : "Key selected"),
             row("linScpRead", "Read file")]
         if !linScpCandidates.isEmpty {
             rows.append(contentsOf: linScpCandidates.enumerated().map { index, entry in
@@ -1165,7 +1200,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let sections = [
             PortableSection(title: "Quick unlock", rows: quick),
             PortableSection(title: "Security", rows: [
-                row("autoLock", "Auto-lock after inactivity", detail: "Currently \(store.inactivityLockSeconds) seconds"),
+                row("autoLock", "Auto-lock after inactivity",
+                    detail: store.inactivityLockSeconds <= 0
+                        ? "Disabled"
+                        : (store.inactivityLockSeconds == 60
+                            ? "Currently 1 minute"
+                            : (store.inactivityLockSeconds % 60 == 0
+                                ? "Currently \(store.inactivityLockSeconds / 60) minutes"
+                                : "Currently \(store.inactivityLockSeconds) seconds"))),
                 row("passwordChange", "Change vault password")]),
             PortableSection(title: "Vault", rows: [
                 row("cardLayout", "Card layout", detail: "Currently \(store.cardLayout.capitalized)"),
@@ -1196,7 +1238,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("archiveExport", "Export password archive…"),
                 row("importPasswordsCsv", "Import browser passwords…"),
                 row("uriImport", "Import an otpauth:// link…"),
-                row("qrCamera", "Scan an otpauth:// QR code…")]),
+                row("qrCamera", "Scan an otpauth:// QR code…"),
+                row("qrImageFromTools", "Import QR image…")]),
             PortableSection(title: "Email clients", rows: [
                 row("fairEmailExport", "Export FairEmail backup…"),
                 row("fairEmailImport", "Import FairEmail backup…"),
@@ -1515,6 +1558,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     private func openDetails(at index: Int) {
         guard store.entries.indices.contains(index) else { return }
+        emailSecretsVisible = false
         openSurface("details:\(index)")
     }
 
@@ -1687,7 +1731,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     issuer: current.issuer,
                     label: current.label,
                     hiddenLabel: current.hiddenLabel,
-                    secret: current.secretBase32,
+                    secret: current.secretBase32 ?? "",
                     digits: String(current.digits),
                     timing: draft["counter"] ?? "0",
                     algorithm: current.algorithm,
@@ -1763,7 +1807,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let plan = store.importLinScpSelection(chosen) else {
                 return store.message ?? "The LinSCP selection could not be imported."
             }
-            linScpCandidates = []; linScpSelected = []; linScpPendingData = Data()
+            linScpCandidates = []; linScpSelected = []; linScpPendingData = Data(); linScpMasterKeyData = Data()
             message(BackupWording.restoreSummary(plan, replace: false))
             closeSurface()
             return nil
@@ -1812,7 +1856,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if raw.lowercased().hasPrefix("otpauth-migration:") {
                 return applyImportedPayload(raw, allowAdditional: allowAdditional, closeWhenAdded: true)
             }
-            guard store.importUri(raw, allowDuplicateIssuer: allowAdditional).didAdd else {
+            let outcome = store.importUri(raw, allowDuplicateIssuer: allowAdditional)
+            if case .duplicateIssuer = outcome {
+                pendingQrImagePayload = raw
+                qrImageFailed = false
+                return "An account for this issuer already exists. Allow additional accounts above to add another."
+            }
+            guard outcome.didAdd else {
                 return store.message ?? "That link could not be imported."
             }
             message("Entry imported.")
@@ -1949,7 +1999,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 updated["label"] = .string(nextLabel)
                 updated["tags"] = .array(parsedTags.map { .string($0) })
                 replacement = try Entry.parse(.object(updated))
-                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+                replacement.setThumbnail(chosenThumbnail.isEmpty ? entry.thumbnail : chosenThumbnail)
             } else if PasswordCsvExport.supportsCommonEdit(entry) {
                 let url = draft["url"] ?? ""
                 let username = draft["username"] ?? ""
@@ -1989,7 +2039,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     }
                 }
                 replacement.setTags(parsedTags)
-                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+                replacement.setThumbnail(chosenThumbnail.isEmpty ? entry.thumbnail : chosenThumbnail)
             } else {
                 let origFields = try entry.passwordFields()
                 let pwNames: Set<String> = ["password", "pass", "login_password", "passphrase", "pwd", "secret"]
@@ -2021,7 +2071,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 updated["label"] = .string(nextLabel)
                 updated["tags"] = .array(parsedTags.map { .string($0) })
                 replacement = try Entry.parse(.object(updated))
-                if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
+                replacement.setThumbnail(chosenThumbnail.isEmpty ? entry.thumbnail : chosenThumbnail)
             }
             guard store.update(at: index, with: replacement) else {
                 draft["password"] = ""
@@ -2276,18 +2326,40 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         let kind = EntryKind(rawValue: draft["type"] ?? "") ?? editorKind
         do {
             let existing = editorIndex.flatMap { store.entries.indices.contains($0) ? store.entries[$0] : nil }
+            let otpKinds: Set<EntryKind> = [.totp, .hotp, .steam, .motp]
+            let changingType = existing != nil && existing?.kind != kind
+            if changingType {
+                guard let oldKind = existing?.kind, otpKinds.contains(oldKind), otpKinds.contains(kind) else {
+                    return "Only OTP types can be changed."
+                }
+                guard !(draft["secret"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    return "Re-enter the secret when changing OTP type."
+                }
+            }
             let timing = kind == .hotp ? (draft["counter"] ?? "0") : (draft["period"] ?? "30")
             let algorithm = OtpHashAlgorithm(rawValue: draft["algorithm"] ?? "SHA1") ?? .sha1
             let hiddenLabel: String = {
-                if draft["clearHiddenLabel"] == "true" { return "" }
+                if kind == .note || kind == .sshKey || draft["clearHiddenLabel"] == "true" { return "" }
                 let typed = draft["hiddenLabel"] ?? ""
                 if let existing, typed.isEmpty { return existing.hiddenLabel }
                 return typed
             }()
             let pin: String = {
-                if draft["clearPin"] == "true" { return "" }
+                if kind != .motp || draft["clearPin"] == "true" { return "" }
                 let typed = draft["pin"] ?? ""
-                if let existing, typed.isEmpty { return existing.pin }
+                if let existing, !changingType, typed.isEmpty { return existing.pin }
+                return typed
+            }()
+            let resolvedSecret: String = {
+                let typed = draft["secret"] ?? ""
+                if let existing, !changingType, typed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    switch kind {
+                    case .note: return existing.noteText ?? ""
+                    case .motp: return existing.rawSecretText ?? ""
+                    case .sshKey: return ""
+                    default: return existing.secretBase32 ?? ""
+                    }
+                }
                 return typed
             }()
             let privateKey: String = {
@@ -2311,7 +2383,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 issuer: draft["issuer"] ?? "",
                 label: draft["label"] ?? "",
                 hiddenLabel: hiddenLabel,
-                secret: draft["secret"] ?? "",
+                secret: resolvedSecret,
                 digits: draft["digits"] ?? "6",
                 timing: timing,
                 algorithm: kind == .steam ? .sha1 : algorithm,
@@ -2329,7 +2401,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 guard openedFields == nil || store.entries[index].fields == openedFields else {
                     return "The entry changed. Close and reopen the editor."
                 }
-                let explicitOverride: String? = (chosenThumbnail != store.entries[index].thumbnail)
+                let explicitOverride: String? = (!chosenThumbnail.isEmpty && chosenThumbnail != store.entries[index].thumbnail)
                     ? chosenThumbnail : nil
                 built = EntryDraft.preservingMetadata(
                     of: store.entries[index],
@@ -2355,7 +2427,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func surfaceAction(_ key: String) -> String? {
         let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
         guard let command = parts.first else { return nil }
-        let index = parts.count > 1 ? Int(parts[1]) : editorIndex
+        let index = parts.count > 1 ? Int(parts[1]) : (editorIndex ?? passwordEditIndex)
         if command == "linScpSelect", let index {
             if linScpSelected.contains(index) { linScpSelected.remove(index) }
             else { linScpSelected.insert(index) }
@@ -2422,11 +2494,21 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             openEmailPasswordEditor(index: index)
             return nil
         }
-        if command == "archiveExportSelect", let index {
+        if command == "archiveExportSelect" || command == "exportArchive", let index {
             guard let archive = store.exportPasswordArchive(at: index) else {
                 return store.message ?? "The password archive could not be exported."
             }
             onExport(archive.data, archive.name)
+            closeSurface()
+            return nil
+        }
+        if command == "exportPasswordCsv", let index {
+            guard store.entries.indices.contains(index),
+                  case .exportable(let dialect) = PasswordCsvExport.support(store.entries[index]),
+                  let exported = store.exportBrowserPasswordsCsvGroup(indices: [index], dialect: dialect) else {
+                return store.message ?? "The browser password CSV could not be written."
+            }
+            onExport(exported.data, exported.name)
             closeSurface()
             return nil
         }
@@ -2531,20 +2613,46 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return "This build does not include the OpenPGP engine."
         case "linScpImport":
             linScpEpoch = store.generation
-            linScpCandidates = []; linScpSelected = []; draft = [:]
+            linScpCandidates = []; linScpSelected = []; linScpMasterKeyData = Data(); draft = [:]
             closeSurface(); onImport("linScp"); return nil
         case "linScpExport":
+            guard store.entries.contains(where: { $0.kind == .sshKey || $0.kind == .password }) else {
+                return "There are no SSH keys or password entries in this vault."
+            }
             linScpEpoch = store.generation
             linScpSelected = []; draft = [:]
             openSurface("linScpExport", keepDraft: true)
+            return nil
+        case "linScpKey":
+            onImport("linScpKey")
+            return nil
+        case "linScpClearKey":
+            linScpMasterKeyData = Data()
             return nil
         case "linScpRead":
             guard let epoch = linScpEpoch, store.isUnlocked, store.generation == epoch else {
                 return "The vault changed. Close and reopen the import."
             }
             do {
-                linScpCandidates = try LinScpVault.importData(linScpPendingData,
-                    password: draft["linScpPassword"].flatMap({ $0.isEmpty ? nil : $0 }))
+                let typedPassword = draft["linScpPassword"].flatMap({ $0.isEmpty ? nil : $0 })
+                guard linScpMasterKeyData.count <= 4096 else {
+                    return "The selected key file is too large."
+                }
+                let masterKey: Data? = {
+                    guard LinScpVault.needsSessionMasterKey(linScpPendingData) else { return nil }
+                    if !linScpMasterKeyData.isEmpty { return linScpMasterKeyData }
+                    if let typedPassword { return Data(typedPassword.utf8) }
+                    return nil
+                }()
+                let candidates = try LinScpVault.importData(
+                    linScpPendingData,
+                    password: typedPassword,
+                    masterKeyData: masterKey
+                )
+                guard !candidates.isEmpty else {
+                    return "No keys or sessions were found in this LinSCP file."
+                }
+                linScpCandidates = candidates
                 linScpSelected = []
                 draft["linScpPassword"] = ""
                 openSurface("linScpImport", keepDraft: true)
@@ -2601,6 +2709,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard store.openPgpAvailability.canEncrypt else {
                 return "This build does not include the OpenPGP engine."
             }
+            if surfaceKey == "openpgpExportDialog", let epoch = surfaceEpoch, store.generation != epoch {
+                closeSurface()
+                return "The vault session changed. Close and reopen this dialog."
+            }
             if surfaceKey != "openpgpExportDialog" && openPgpRecipients.isEmpty {
                 openSurface("openpgpExportDialog", keepDraft: true)
                 return nil
@@ -2620,6 +2732,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             onImport("openpgpSecret"); return nil
         case "qrCamera":
             closeSurface(); onImport("qrCamera"); return nil
+        case "qrImageFromTools":
+            pendingQrImagePayload = nil
+            qrImageFailed = false
+            openSurface("uriImport")
+            onImport("qrImage")
+            return nil
         case "qrImage":
             pendingQrImagePayload = nil
             qrImageFailed = false
@@ -2633,7 +2751,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let payload = pendingQrImagePayload else {
                 return "Choose a QR image first."
             }
-            pendingQrImagePayload = nil
             let allowAdditional = draft["allowAdditional"] == "true"
             return applyImportedPayload(payload, allowAdditional: allowAdditional, closeWhenAdded: true)
         case "backupImport", "csvImport", "importPasswordsCsv", "prefsImport",
@@ -2848,12 +2965,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func applyImportedPayload(_ text: String, allowAdditional: Bool, closeWhenAdded: Bool) -> String? {
         switch store.importPayload(text, allowDuplicateIssuer: allowAdditional) {
         case .added:
+            pendingQrImagePayload = nil
             message("Scanned code imported. Review the new entry before copying a code.")
             if closeWhenAdded { closeSurface() }
             return nil
         case .duplicateIssuer:
+            pendingQrImagePayload = text
+            qrImageFailed = false
             return "An account for this issuer already exists. Enable the checkbox to add another."
         case .migration(let step):
+            pendingQrImagePayload = nil
             if let entries = step.entries {
                 let result = store.confirmMigrationImport(entries)
                 switch result {
@@ -2867,6 +2988,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             return step.message
         case .duplicateEntry, .rejected:
+            pendingQrImagePayload = nil
             return store.message ?? "That QR code did not contain a supported link."
         }
     }
@@ -2878,7 +3000,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case .added:
             message("Scanned code imported. Review the new entry before copying a code.")
         case .duplicateIssuer:
-            message("An account for this issuer already exists. Review the list before adding another.")
+            pendingQrImagePayload = text
+            qrImageFailed = false
+            openSurface("uriImport", keepDraft: true)
+            message("An account for this issuer already exists. Enable the checkbox to add another.")
         case .migration(let step):
             if let entries = step.entries {
                 message(store.confirmMigrationImport(entries).message)
@@ -2891,17 +3016,33 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         refresh()
     }
 
+    /// Surfaces a safe file-selection error (empty, oversized, or unreadable document).
+    func reportImportFileFailure(_ text: String) {
+        guard active, store.isUnlocked else { return }
+        message(text)
+    }
+
     /// Native document pickers hand bytes to the shared restore dialog. Nothing is applied here.
     func imported(data: Data, kind: String) {
-        guard active, store.isUnlocked, !data.isEmpty, data != lastImported else { return }
+        guard active, store.isUnlocked, !data.isEmpty else { return }
+        if kind == "linScpKey" {
+            guard linScpEpoch == store.generation else { return }
+            noteActivity()
+            linScpMasterKeyData = data
+            openSurface("linScpImport", keepDraft: true)
+            return
+        }
+        guard data != lastImported else { return }
         noteActivity()
         lastImported = data
         pendingImport = data
         if kind == "fairEmail" {
             linScpPendingData = Data()
+            linScpMasterKeyData = Data()
             if !store.needsFairEmailPassword(data),
                let plan = store.importFairEmailBackup(data: data, password: nil) {
                 pendingImport = Data()
+                lastImported = Data()
                 message(BackupWording.restoreSummary(plan, replace: false))
                 return
             }
@@ -2911,14 +3052,17 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         if kind == "passwordsCsv" {
             linScpPendingData = Data()
+            linScpMasterKeyData = Data()
             draft = [:]
             openSurface("passwordImportChoice", keepDraft: true)
             return
         }
         if kind == "thunderbird" {
             linScpPendingData = Data()
+            linScpMasterKeyData = Data()
             guard let count = store.previewThunderbirdBackupCount(data: data) else {
                 pendingImport = Data()
+                lastImported = Data()
                 message(store.message ?? "That file is not a valid Thunderbird CSV export.")
                 return
             }
@@ -2928,6 +3072,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
         if kind == "linScp" {
             linScpPendingData = data
+            linScpMasterKeyData = Data()
             linScpEpoch = store.generation
             linScpCandidates = []
             linScpSelected = []
@@ -2942,6 +3087,17 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func close() {
         active = false
         timer?.invalidate()
+        pendingImport = Data()
+        lastImported = Data()
+        openPgpRecipients = []
+        openPgpRecipientNames = []
+        openPgpSecretKey = Data()
+        pendingQrImagePayload = nil
+        qrImageFailed = false
+        linScpPendingData = Data()
+        linScpMasterKeyData = Data()
+        linScpCandidates = []
+        linScpSelected = []
         presentation.close()
     }
 

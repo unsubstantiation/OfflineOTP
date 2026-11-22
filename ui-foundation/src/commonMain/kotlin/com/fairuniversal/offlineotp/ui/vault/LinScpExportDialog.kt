@@ -38,6 +38,7 @@ fun LinScpExportDialog(inputKey: Any, choices: List<String>, busy: Boolean, erro
     fun dismiss() { password = ""; confirmation = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text("Export LinSCP Key/Sessions") }, text = {
         Column(Modifier.verticalScroll(rememberScrollState())) {
+            if (choices.isEmpty()) Text("No SSH keys or sessions are available to export.")
             LinScpChoices(choices, selected, !busy) { selected = it }
             Row {
                 Checkbox(checked = plainText, enabled = !busy, onCheckedChange = { plainText = it; password = ""; confirmation = "" })

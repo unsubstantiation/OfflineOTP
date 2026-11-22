@@ -250,7 +250,6 @@ public enum EntryDraft {
         } else if overrideThumbnail == nil || overrideThumbnail?.isEmpty == true {
             let previous = existing.thumbnail
             if !previous.isEmpty,
-               previous != ThumbnailCatalog.defaultName,
                previous != ThumbnailCatalog.resolveName(existing.issuer) {
                 result.setThumbnail(previous)
             }

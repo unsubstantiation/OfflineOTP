@@ -611,6 +611,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
         // The screen the user is looking at may now describe settings that changed underneath it.
         fragment?.refreshOpenPgpKeyFileSummaries()
+        if (!isFinishing()) recreate()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

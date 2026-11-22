@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 /** First-run full restore: decrypt a portable backup, then protect the new local vault with a new password. */
 @Composable
@@ -32,8 +33,14 @@ fun NewVaultRestoreDialog(
     var backupPassword by remember { mutableStateOf("") }
     var newPassword by remember { mutableStateOf("") }
     var confirmation by remember { mutableStateOf("") }
+    fun dismiss() {
+        backupPassword = ""
+        newPassword = ""
+        confirmation = ""
+        onDismiss()
+    }
     AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+        onDismissRequest = { if (!busy) dismiss() },
         title = { Text("Restore a vault from backup") },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -42,13 +49,13 @@ fun NewVaultRestoreDialog(
                     Text("Choose encrypted backup…")
                 }
                 Text(backupName ?: "No backup selected", modifier = Modifier.padding(vertical = 6.dp))
-                OutlinedTextField(backupPassword, { backupPassword = it }, enabled = !busy,
+                OutlinedTextField(backupPassword, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) backupPassword = it }, enabled = !busy,
                     label = { Text("Backup password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(newPassword, { newPassword = it }, enabled = !busy,
+                OutlinedTextField(newPassword, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) newPassword = it }, enabled = !busy,
                     label = { Text("New vault password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(confirmation, { confirmation = it }, enabled = !busy,
+                OutlinedTextField(confirmation, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
                     label = { Text("Confirm new vault password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                 if (error != null) Text(error, modifier = Modifier.padding(top = 8.dp))
@@ -60,6 +67,6 @@ fun NewVaultRestoreDialog(
             onRestore(backup, password, confirm)
         }, enabled = !busy && backupName != null && backupPassword.isNotEmpty()
             && newPassword.isNotEmpty() && newPassword == confirmation) { Text("Restore") } },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text(if (busy) "Restoring…" else "Cancel") } }
+        dismissButton = { TextButton(enabled = !busy, onClick = { dismiss() }) { Text(if (busy) "Restoring…" else "Cancel") } }
     )
 }

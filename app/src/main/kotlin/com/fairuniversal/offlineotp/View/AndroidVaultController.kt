@@ -300,6 +300,17 @@ class AndroidVaultController(
         composeEditTarget = target
         view.showEmailEditor(
             initial = initial,
+            onViewDetails = {
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    view.clearEntryEditor()
+                    composeEditTarget = null
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && actual.isEmail() && composeRevealed(actual)) {
+                        openEmailDetailsDialog(target, actual)
+                    }
+                }
+            },
             onDelete = { deleteFromComposeEditor(view, target) }
         ) { input ->
             synchronized(VaultSession.MutationLock) {
@@ -447,6 +458,17 @@ class AndroidVaultController(
         composeEditTarget = target
         view.showPasswordEditor(
             initial = initial,
+            onExportArchive = if (entry.isPasswordArchive()) ({
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    view.clearEntryEditor()
+                    composeEditTarget = null
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && actual.isPasswordArchive() && composeRevealed(actual)) {
+                        (context as? MainActivity)?.requestPasswordArchiveExport(actual)
+                    }
+                }
+            }) else null,
             onDelete = { deleteFromComposeEditor(view, target) }
         ) { input ->
             synchronized(VaultSession.MutationLock) {
@@ -988,10 +1010,17 @@ class AndroidVaultController(
         notifyDataSetChanged()
     }
 
+    fun isEntryRevealed(entry: Entry): Boolean {
+        synchronized(VaultSession.MutationLock) {
+            return encryptionKey != null && VaultSession.getKey() === encryptionKey &&
+                entries.getEntries().any { it === entry } && composeRevealed(entry)
+        }
+    }
+
     fun canExportPasswordArchive(entry: Entry, generation: Long): Boolean {
         synchronized(VaultSession.MutationLock) {
             return VaultSession.isCurrent(generation) && encryptionKey != null && VaultSession.getKey() === encryptionKey &&
-                entries.getEntries().any { it === entry } && entry.areDetailsVisible() && entry.isPasswordArchive()
+                entries.getEntries().any { it === entry } && composeRevealed(entry) && entry.isPasswordArchive()
         }
     }
 
@@ -1780,7 +1809,7 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_password_details) {
                 withTarget(popupTarget, Consumer { actual ->
-                    if (!actual.isPassword()) return@Consumer
+                    if (!actual.isPassword() || !composeRevealed(actual)) return@Consumer
                     val fields = actual.getPasswordFields()
                     val text = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
                     activePasswordDialog?.dismiss()
@@ -1908,7 +1937,7 @@ class AndroidVaultController(
                 removeItem(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_popup_show_qr_code) {
-                showQRCode(presentation.indexOf(popupEntry))
+                if (composeRevealed(popupEntry)) showQRCode(presentation.indexOf(popupEntry))
                 true
             } else if (id == R.id.menu_send_keystrokes) {
                 val currentPos = presentation.indexOf(popupEntry)

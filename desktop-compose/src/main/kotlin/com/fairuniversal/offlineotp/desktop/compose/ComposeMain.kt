@@ -716,6 +716,16 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (request == null) copyNotice = "No copyable password is available for this entry."
             else if (request.fields.size == 1) performCopy(request, request.fields.single())
             revision++
+        }, viewEmailDetails = { card ->
+            autoLock.pending?.let { autoLock.dismiss(it) }
+            creation.pending?.let { creation.dismiss(it) }
+            editing.pending?.let { editing.dismiss(it) }
+            entryActions.pending?.let { entryActions.dismiss(it) }
+            copier.pending?.let { copier.dismiss(it) }
+            dialogs.pending?.let { dialogs.dismiss(it) }
+            copyNotice = null
+            if (lifetime.checkActive()) emailDetails.open(card.id, presenter.isRevealed(card.id))
+            revision++
         }, moveEntry = { card, delta ->
             autoLock.pending?.let { autoLock.dismiss(it) }
             val moved = mover.move(moveFrame, card, delta, lifetime::checkActive)
@@ -734,7 +744,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (lifetime.checkActive()) autoLock.open()
             revision++
         }, exportEncrypted = {
-            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -750,7 +760,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, exportOpenPgp = {
-            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -766,7 +776,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, exportLinScp = {
-            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -774,15 +784,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copyNotice = null; moveFailed = false
-                try {
-                    val target = DesktopSavePicker.linScpExport(window)
-                    // Native modal pickers run a nested event loop: auto-lock may fire while open.
-                    if (target != null && lifetime.checkActive() && !vault.isLocked) { linScpSelectedIds = emptySet(); linScpExporter.open(target) }
-                } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
+                if (vault.snapshot().none { it.isSshKey() || it.isPassword() }) {
+                    copyNotice = "No SSH keys or password entries are available to export as a LinSCP vault."
+                } else {
+                    try {
+                        val target = DesktopSavePicker.linScpExport(window)
+                        // Native modal pickers run a nested event loop: auto-lock may fire while open.
+                        if (target != null && lifetime.checkActive() && !vault.isLocked) { linScpSelectedIds = emptySet(); linScpExporter.open(target) }
+                    } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
+                }
                 revision++
             }
         }, restoreEncrypted = {
-            if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -797,7 +811,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, importUri = {
-            if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -808,7 +822,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 uriImporter.open(); revision++
             }
         }, importPasswords = {
-            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -855,9 +869,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, importLinScp = {
-            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -869,9 +884,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             }
         }, importOpenPgp = {
-            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
+            if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && thunderbirdImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -1224,13 +1240,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 if (plan.contains(PreferencesExport.UI_CARD_LAYOUT) ||
                     plan.contains(PreferencesExport.UI_HIDE_ISSUER) ||
                     plan.contains(PreferencesExport.UI_SHOW_PREV_TOKEN) ||
-                    plan.contains(PreferencesExport.UI_SPLIT_GROUP_SIZE)
+                    plan.contains(PreferencesExport.UI_SPLIT_GROUP_SIZE) ||
+                    plan.contains(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS)
                 ) {
                     presenter.setDisplaySettings(
                         controller.savedCardLayout(),
                         controller.savedHideIssuer(),
                         controller.savedShowPreviousToken(),
-                        controller.savedTokenGroupSize()
+                        controller.savedTokenGroupSize(),
+                        controller.savedShowIndividualTimeouts()
                     )
                 }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
@@ -1550,6 +1568,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onViewDetails = {
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) emailDetails.open(entryId, presenter.isRevealed(entryId))
+                revision++
+            },
             onDelete = {
                 val entryId = editRequest.entryId
                 editing.dismiss(editRequest)
@@ -1569,6 +1593,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onExportArchive = if (initial.archiveMode) ({
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive() && archiveExporter.pending == null) {
+                    try {
+                        val target = DesktopSavePicker.archiveExport(window)
+                        if (target != null && lifetime.checkActive() && !vault.isLocked) {
+                            archiveExporter.openForEntry(entryId, target, lifetime::checkActive)
+                        }
+                    } catch (_: Exception) { copyNotice = "The password export destination could not be selected." }
+                }
+                revision++
+            }) else null,
             onDelete = {
                 val entryId = editRequest.entryId
                 editing.dismiss(editRequest)
@@ -1609,7 +1646,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             onSubmit = { input ->
                 if (editing.submit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
                     entryActions.pending?.let { entryActions.dismiss(it) }
-                    presenter.entryRemoved(editRequest.entryId) // Discard prior reveal state for the replacement.
+                    presenter.applyFilter(presenter.filter)
                 }
                 revision++
             }

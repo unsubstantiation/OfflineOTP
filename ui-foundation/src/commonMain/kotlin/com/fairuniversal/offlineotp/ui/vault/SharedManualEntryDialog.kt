@@ -266,7 +266,7 @@ fun SharedManualEntryDialog(
             catalogNames = thumbnailNames,
             unchangedLabel = unchangedArtworkLabel,
             onSelect = { chosen ->
-                input = input.copy(thumbnail = chosen)
+                input = input.copy(thumbnail = if (editing && chosen.isEmpty()) initial.thumbnail else chosen)
                 pickingThumbnail = false
             },
             onDismiss = { pickingThumbnail = false }
