@@ -1522,6 +1522,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func change(key: String, value: String) {
         guard active else { return }
+        noteActivity()
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
             || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
             || surfaceKey == "passwordPrompt"
@@ -1548,6 +1549,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func action(key: String) -> String? {
         guard active, store.isUnlocked else { return "The vault locked. Close and try again." }
+        noteActivity()
         defer { if active { refresh() } }
         if key == "dismiss" {
             if surfaceKey == "qrFromEdit" {
@@ -2892,6 +2894,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     /// Native document pickers hand bytes to the shared restore dialog. Nothing is applied here.
     func imported(data: Data, kind: String) {
         guard active, store.isUnlocked, !data.isEmpty, data != lastImported else { return }
+        noteActivity()
         lastImported = data
         pendingImport = data
         if kind == "fairEmail" {

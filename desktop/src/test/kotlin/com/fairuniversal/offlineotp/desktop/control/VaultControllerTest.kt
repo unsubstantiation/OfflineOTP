@@ -92,7 +92,7 @@ class VaultControllerTest {
         val session = controller.createVault(password) as VaultController.Session.Loaded
         assertTrue(controller.save(session.key, arrayListOf(entry("GitHub", "alice"))))
 
-        assertEquals(0, controller.savedInactivityLockSeconds())
+        assertEquals(600, controller.savedInactivityLockSeconds())
         controller.saveInactivityLockSeconds(120)
         assertEquals(120, controller.savedInactivityLockSeconds())
 

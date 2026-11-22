@@ -991,7 +991,8 @@ private class SettingsResources(
 ) : Resources() {
 
     override fun getInteger(id: Int): Int = when (id) {
-        // settings.xml: settings_default_tap_to_reveal_timeout / settings_default_label_size
+        // settings.xml: settings_default_auth_inactivity_delay / settings_default_tap_to_reveal_timeout / settings_default_label_size
+        R.integer.settings_default_auth_inactivity_delay -> 600
         R.integer.settings_default_tap_to_reveal_timeout -> 30
         R.integer.settings_default_label_size -> 18
         else -> id
@@ -4592,13 +4593,12 @@ fun main() {
         expect(!settings.isFocusSearchOnStartEnabled(), { "focus search on start" })
         expect(!settings.isHideIssuerEnabled(), { "hide issuer" })
         expect(!settings.isMinimizeAppOnCopyEnabled(), { "minimize on copy" })
-        expect(!settings.getAuthInactivity(), { "auth inactivity" })
-        // The default comes from the preference resource, not a hardcoded zero: the wizard
-        // writes 30 seconds there and the timer must not silently stay disabled.
+        expect(settings.getAuthInactivity(), { "auth inactivity must default to enabled" })
+        // Default inactivity lockdown is 10 minutes (600 seconds) from the preference resource.
         expect(settings.getAuthInactivityDelay() ==
                 fixture.context.resources.getInteger(R.integer.settings_default_auth_inactivity_delay),
                 { "auth inactivity delay must default to the preference resource" })
-        expect(settings.getAuthInactivityDelay() != 0, { "auth inactivity delay must not default to 0" })
+        expect(settings.getAuthInactivityDelay() == 600, { "auth inactivity delay must default to 600 seconds (10 minutes)" })
         expect(!settings.getUsedTokensDialogShown(), { "used tokens dialog" })
         expect(!settings.getFirstTimeWarningShown(), { "first-time warning" })
         expect(!settings.getSpecialFeatures(), { "special features" })
@@ -8605,6 +8605,36 @@ fun main() {
         } finally {
             controller.lockEntries()
             VaultSession.lock()
+        }
+    }
+
+    check("default 10-minute inactivity timeout arms and locks down after 600 seconds without use") {
+        expect(com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.DEFAULT_SECONDS == 600,
+            { "AutoLockOptions.DEFAULT_SECONDS must be 600" })
+        expect(600 in com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.seconds,
+            { "AutoLockOptions.seconds must include 600" })
+        expect(com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.label(600) == "10 minutes",
+            { "AutoLockOptions.label(600) must be 10 minutes" })
+
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_auth, "password")
+        val settings = Settings(fixture.context)
+        expect(settings.getAuthInactivity(), { "inactivity lock must be enabled by default" })
+        expect(settings.getAuthInactivityDelay() == 600, { "inactivity delay must default to 600s" })
+
+        val scheduler = FakeScheduler()
+        var locked = 0
+        val timers = ScreenTimerController(scheduler, Runnable {}, Runnable { locked++ })
+        try {
+            timers.restartInactivity(1000L * settings.getAuthInactivityDelay())
+            scheduler.skip(599_000L)
+            scheduler.advance(0)
+            expect(!timers.hasInactivityExpired() && locked == 0, { "locked before 10 minutes elapsed" })
+            scheduler.skip(1_000L)
+            scheduler.advance(0)
+            expect(locked == 1, { "10-minute inactivity callback did not fire lockdown" })
+        } finally {
+            timers.close()
         }
     }
 

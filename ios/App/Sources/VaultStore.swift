@@ -142,7 +142,9 @@ public final class VaultStore: ObservableObject {
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
 
-    @Published public private(set) var inactivityLockSeconds = 0
+    public static let defaultInactivityLockSeconds = 600
+
+    @Published public private(set) var inactivityLockSeconds = VaultStore.defaultInactivityLockSeconds
     @Published public private(set) var cardLayout = "DEFAULT"
     @Published public private(set) var hideIssuer = false
     @Published public private(set) var showPreviousToken = true
@@ -184,7 +186,8 @@ public final class VaultStore: ObservableObject {
         // A client preference, not vault data: it is written beside the vault, under the same key the
         // desktop client uses, and an unreadable value falls back to the vault order.
         self.sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
-        self.inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
+        self.inactivityLockSeconds = VaultStore.storedInactivityLockSeconds(
+            settings.integer(VaultStore.inactivitySettingKey))
         self.cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
         self.tagFunctionality = VaultStore.storedTagFunctionality(
             settings.string(VaultStore.tagFunctionalitySettingKey))
@@ -444,7 +447,8 @@ public final class VaultStore: ObservableObject {
     /// Re-reads the delay, sort mode and display preferences from the store, for a setting a
     /// preferences import just replaced underneath the UI.
     public func reloadInactivityLock() {
-        inactivityLockSeconds = max(0, settings.integer(VaultStore.inactivitySettingKey) ?? 0)
+        inactivityLockSeconds = VaultStore.storedInactivityLockSeconds(
+            settings.integer(VaultStore.inactivitySettingKey))
         sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
         tagFunctionality = VaultStore.storedTagFunctionality(
@@ -546,15 +550,16 @@ public final class VaultStore: ObservableObject {
         settings.setString(VaultStore.searchIncludesSettingKey, ordered.joined(separator: "\n"))
     }
 
-    /// Persists the idle auto-lock timeout (`0` disables auto-lock).
+    private static func storedInactivityLockSeconds(_ raw: Int?) -> Int {
+        guard let raw else { return defaultInactivityLockSeconds }
+        return max(0, raw)
+    }
+
+    /// Persists the idle auto-lock timeout (defaults to 10 minutes; `0` disables auto-lock).
     public func setInactivityLockSeconds(_ seconds: Int) {
         let clamped = max(0, seconds)
         inactivityLockSeconds = clamped
-        if clamped == 0 {
-            settings.remove(VaultStore.inactivitySettingKey)
-        } else {
-            settings.setInteger(VaultStore.inactivitySettingKey, clamped)
-        }
+        settings.setInteger(VaultStore.inactivitySettingKey, clamped)
         lastActivityDate = Date()
     }
 

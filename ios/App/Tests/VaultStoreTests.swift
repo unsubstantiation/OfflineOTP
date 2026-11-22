@@ -663,8 +663,18 @@ final class VaultStoreTests: XCTestCase {
 
     func testChangePasswordAndAutoLockWorkInPlace() throws {
         let store = unlockedStore()
+        XCTAssertEqual(store.inactivityLockSeconds, 600)
         XCTAssertTrue(store.add(try draft("alice", issuer: "GitHub")))
 
+        let defaultBase = Date()
+        store.noteUserActivity(now: defaultBase)
+        store.checkInactivityAutoLock(now: defaultBase.addingTimeInterval(599))
+        XCTAssertTrue(store.isUnlocked)
+        store.checkInactivityAutoLock(now: defaultBase.addingTimeInterval(600))
+        XCTAssertFalse(store.isUnlocked)
+
+        store.unlock(password: "correct horse")
+        XCTAssertTrue(store.isUnlocked)
         store.setInactivityLockSeconds(60)
         XCTAssertEqual(store.inactivityLockSeconds, 60)
 

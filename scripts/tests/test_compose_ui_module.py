@@ -703,6 +703,20 @@ class ComposeUiWiringTest(unittest.TestCase):
         ios_store = (ROOT / "ios/App/Sources/VaultStore.swift").read_text()
         self.assertIn("_ = setDetailsVisible(at: index, !isRevealed(entries[index]))", ios_store)
 
+    def test_ten_minute_inactivity_lockdown_is_default_across_android_desktop_and_ios(self):
+        options = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt").read_text()
+        self.assertIn("const val DEFAULT_SECONDS = 600", options)
+        desktop_ctrl = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/VaultController.kt").read_text()
+        self.assertIn("AutoLockOptions.DEFAULT_SECONDS", desktop_ctrl)
+        ios_store = (ROOT / "ios/App/Sources/VaultStore.swift").read_text()
+        self.assertIn("public static let defaultInactivityLockSeconds = 600", ios_store)
+        ios_window = (ROOT / "ios/App/Sources/AppDelegate.swift").read_text()
+        self.assertIn("ActivityTrackingWindow", ios_window)
+        android_settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Settings.kt").read_text()
+        self.assertIn("getBoolean(R.string.settings_key_auth_inactivity, true)", android_settings)
+        android_values = (ROOT / "app/src/main/res/values/settings.xml").read_text()
+        self.assertIn('<integer name="settings_default_auth_inactivity_delay">600</integer>', android_values)
+
     def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("getString(R.string.format_custom_period, seconds)", activity)

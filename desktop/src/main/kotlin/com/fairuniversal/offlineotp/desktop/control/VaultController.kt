@@ -110,14 +110,17 @@ class VaultController(private val vault: PasswordVault) {
         }
     }
 
-    /** Configured idle auto-lock timeout in seconds (`0` disables auto-lock). */
+    /** Configured idle auto-lock timeout in seconds (defaults to 10 minutes; `0` disables auto-lock). */
     fun savedInactivityLockSeconds(): Int = try {
-        vault.preferences.getInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, 0).coerceAtLeast(0)
+        vault.preferences.getInt(
+            VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS,
+            com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.DEFAULT_SECONDS
+        ).coerceAtLeast(0)
     } catch (_: RuntimeException) {
-        0
+        com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.DEFAULT_SECONDS
     }
 
-    /** Persists the idle auto-lock timeout (`0` or negative removes the preference). */
+    /** Persists the idle auto-lock timeout (`0` explicitly disables auto-lock). */
     fun saveInactivityLockSeconds(seconds: Int) {
         trySaveInactivityLockSeconds(seconds.coerceAtLeast(0))
     }
@@ -126,8 +129,7 @@ class VaultController(private val vault: PasswordVault) {
     fun trySaveInactivityLockSeconds(seconds: Int): Boolean {
         if (seconds < 0) return false
         return try {
-            if (seconds == 0) vault.preferences.remove(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS)
-            else vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
+            vault.preferences.putInt(VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS, seconds)
             true
         } catch (_: Exception) { false }
     }

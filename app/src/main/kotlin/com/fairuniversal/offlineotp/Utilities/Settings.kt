@@ -798,7 +798,7 @@ open class Settings(private val context: Context) {
     }
 
     open fun getAuthInactivity(): Boolean {
-        return getBoolean(R.string.settings_key_auth_inactivity, false)
+        return getBoolean(R.string.settings_key_auth_inactivity, true)
     }
 
     open fun isMinimizeAppOnCopyEnabled(): Boolean {
