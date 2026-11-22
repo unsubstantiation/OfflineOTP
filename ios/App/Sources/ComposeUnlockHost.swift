@@ -9,6 +9,7 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     let store: VaultStore
     let presentation = UnlockPresentation()
     private let onRestore: () -> Void
+    var onAbout: (() -> Void)?
     private var subscription: AnyCancellable?
     private var attemptedBiometricAutoPrompt = false
     private var active = true
@@ -58,6 +59,11 @@ final class UnlockCoordinator: NSObject, UnlockActions {
         onRestore()
     }
 
+    func about() {
+        guard active, !store.isUnlocked else { return }
+        onAbout?()
+    }
+
     func attemptBiometricUnlockOnce() {
         guard active, !attemptedBiometricAutoPrompt, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
         attemptedBiometricAutoPrompt = true
@@ -67,6 +73,7 @@ final class UnlockCoordinator: NSObject, UnlockActions {
 
     func close() {
         active = false
+        onAbout = nil
         subscription?.cancel()
         subscription = nil
         presentation.close()
@@ -87,6 +94,7 @@ final class UnlockComposeViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = ForestPalette.background
+        coordinator.onAbout = { [weak self] in self?.presentAbout() }
         coordinator.refresh()
         let composed = coordinator.presentation.viewController(
             strings: UnlockStrings(appTitle: "OfflineOTP", passwordLabel: "Vault password",
@@ -106,6 +114,19 @@ final class UnlockComposeViewController: UIViewController {
 
     func refresh() { coordinator.refresh() }
 
+    /// Presents the shared About dialog prior to unlock, matching Desktop's AboutNavigation.
+    func presentAbout() {
+        guard presentedViewController == nil else { return }
+        let buildVersion = (Bundle.main.object(forInfoDictionaryKey: "OfflineOTPBuildVersion") as? String)
+            ?? (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String)
+            ?? "Build version unavailable"
+        let about = AboutComposeViewController(version: buildVersion) { url in
+            UIApplication.shared.open(url, options: [:], completionHandler: nil)
+        }
+        about.modalPresentationStyle = .overFullScreen
+        present(about, animated: true)
+    }
+
     /// Presents the shared full-restore form after the native picker returned bounded bytes.
     func restore(from data: Data, store: VaultStore) {
         let restore = RestoreComposeViewController(store: store, data: data)
@@ -116,6 +137,76 @@ final class UnlockComposeViewController: UIViewController {
     override func didMove(toParent parent: UIViewController?) {
         super.didMove(toParent: parent)
         if parent == nil { coordinator.close() }
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        if isMovingFromParent || isBeingDismissed || parent == nil {
+            coordinator.close()
+        }
+    }
+}
+
+/// Native browser/lifecycle adapter for the shared pre-unlock About dialog.
+final class AboutCoordinator: NSObject, AboutActions {
+    let version: String
+    let presentation = AboutPresentation()
+    private let onOpenLink: (URL) -> Void
+    var onDismiss: (() -> Void)?
+    private var active = true
+
+    init(version: String, onOpenLink: @escaping (URL) -> Void) {
+        self.version = version
+        self.onOpenLink = onOpenLink
+    }
+
+    func openLink(url: String) -> Bool {
+        guard active else { return false }
+        let allowedIds = ["website", "releases", "changelog", "license", "source", "issues",
+                          "author1", "author2", "originalAuthor", "originalApp", "contributors", "support"]
+        guard allowedIds.contains(where: { AboutInfo.url(id: $0) == url }),
+              let target = URL(string: url),
+              ["http", "https"].contains(target.scheme ?? "") else {
+            return false
+        }
+        onOpenLink(target)
+        return true
+    }
+
+    func dismiss() {
+        close()
+        onDismiss?()
+    }
+
+    func close() {
+        active = false
+        onDismiss = nil
+        presentation.close()
+    }
+}
+
+final class AboutComposeViewController: UIViewController {
+    let coordinator: AboutCoordinator
+
+    init(version: String, onOpenLink: @escaping (URL) -> Void) {
+        coordinator = AboutCoordinator(version: version, onOpenLink: onOpenLink)
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) { fatalError("use init(version:onOpenLink:)") }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = ForestPalette.scrim
+        coordinator.onDismiss = { [weak self] in
+            self?.dismiss(animated: false)
+        }
+        let composed = coordinator.presentation.viewController(version: coordinator.version, actions: coordinator)
+        addChild(composed)
+        composed.view.frame = view.bounds
+        composed.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.addSubview(composed.view)
+        composed.didMove(toParent: self)
     }
 
     override func viewWillDisappear(_ animated: Bool) {

@@ -41,6 +41,9 @@ class AndroidSharedDialogTest(unittest.TestCase):
             "EmailDetailsDialog(",
             "EntryDetailsDialog(",
             "EmailImportDialog(",
+            "PasswordImportDialog(",
+            "PasswordExportDialog(",
+            "ArchiveExportDialog(",
             "PreferencesImportDialog(",
         ):
             self.assertIn(form, host)
@@ -103,53 +106,78 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("activeTagsDialog?.dismiss()", controller)
         self.assertIn("activeQrDialog?.dismiss()", controller)
         self.assertNotIn("AlertDialog.Builder", controller)
+        self.assertNotIn("ManualEntryDialog.show(", controller)
 
         main = MAIN.read_text(encoding="utf-8")
         for view_cls in (
             "HideableNoticeComposeView(",
             "EmailImportPasswordComposeView(",
-            "EntryCopyComposeView(",
+            "PasswordImportComposeView(",
+            "PasswordExportComposeView(",
+            "ArchiveExportComposeView(",
             "MultiChoiceSelectionComposeView(",
             "DeleteConfirmationComposeView(",
             "EntryDetailsComposeView(",
+            "UriImportComposeView(",
         ):
             self.assertIn(view_cls, main)
         for dismiss in (
             "passwordImportPrompt?.dismiss()",
+            "thunderbirdImportPrompt?.dismiss()",
             "autoTimePrompt?.dismiss()",
             "emailExportSelectionDialog?.dismiss()",
             "thunderbirdExportSelectionDialog?.dismiss()",
             "passwordExportPrompt?.dismiss()",
             "usedTokensPrompt?.dismiss()",
+            "uriImportPrompt?.dismiss()",
         ):
             self.assertIn(dismiss, main)
+        self.assertIn("private var activeImportDialog: ComposeDialogHost? = null", main)
+        self.assertNotIn("com.fairuniversal.offlineotp.Dialogs.", main)
 
         settings = SETTINGS.read_text(encoding="utf-8")
         self.assertIn("EntryCopyComposeView(", settings)
         self.assertIn("DeleteConfirmationComposeView(", settings)
+        self.assertIn("EntryDetailsComposeView(", settings)
         self.assertIn("PreferencesImportComposeView(", settings)
+        self.assertIn("StorageLocationComposeView(", settings)
         self.assertIn("dismissSettingsPrompts()", settings)
+        self.assertNotIn("UIHelper.showGenericDialog", settings)
 
         backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("private var activePasswordDialog: ComposeDialogHost? = null", backup)
         self.assertIn("private var activeKeyFileDialog: ComposeDialogHost? = null", backup)
         self.assertIn("EntryCopyComposeView(", backup)
+        self.assertIn("OpenPgpExportComposeView(", backup)
+        self.assertIn("EncryptedRestorePasswordComposeView(", backup)
+        self.assertIn("EncryptedExportComposeView(", backup)
+        self.assertIn("BiometricEnableComposeView(", backup)
+        self.assertNotIn("PasswordEntryDialog", backup)
+        self.assertNotIn("AlertDialog", backup)
 
         views = HOST.read_text(encoding="utf-8")
         self.assertIn("class MultiChoiceSelectionComposeView(", views)
         self.assertIn("class QrCodeComposeView(", views)
         self.assertIn("class CheckboxConfirmationComposeView(", views)
         self.assertIn("class EncryptedRestorePasswordComposeView(", views)
+        self.assertIn("class EncryptedExportComposeView(", views)
+        self.assertIn("class UriImportComposeView(", views)
+        self.assertIn("class PasswordImportComposeView(", views)
+        self.assertIn("class PasswordExportComposeView(", views)
+        self.assertIn("class ArchiveExportComposeView(", views)
+        self.assertIn("class HardwareCopyComposeView(", views)
+        self.assertIn("class OpenPgpExportComposeView(", views)
+        self.assertIn("class StorageLocationComposeView(", views)
         self.assertIn("class PreferencesImportComposeView(", views)
         self.assertIn("fun setOnDismissListener(", views)
 
         intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text(encoding="utf-8")
         self.assertIn("EncryptedRestorePasswordComposeView(", intro)
         self.assertIn("firstRunPasswordDialog?.dismiss()", intro)
-        self.assertNotIn("AlertDialog.Builder", intro)
+        self.assertNotIn("AlertDialog", intro)
 
         hardware = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text(encoding="utf-8")
-        self.assertIn("EntryCopyComposeView(", hardware)
-        self.assertIn("CheckboxConfirmationComposeView(", hardware)
+        self.assertIn("HardwareCopyComposeView(", hardware)
         self.assertIn("DeleteConfirmationComposeView(", hardware)
         self.assertIn("dismissComposeDialog()", hardware)
         self.assertEqual(1, hardware.count("AlertDialog.Builder("))

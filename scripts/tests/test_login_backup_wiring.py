@@ -59,7 +59,7 @@ class LoginBackupWiringTest(unittest.TestCase):
         self.assertIn("legacy.isNullOrEmpty() && oldPlain.isNullOrEmpty()", policy)
         backup = source("Activities/BackupActivity.kt")
         restore = backup[backup.index("private fun doRestoreCrypt("):backup.index("private fun doRestoreCryptWithPassword(")]
-        self.assertIn("PasswordEntryDialog.Mode.ENTER", restore)
+        self.assertIn("EncryptedRestorePasswordComposeView(", restore)
         self.assertNotIn("getBackupPasswordEnc()", restore)
         self.assertIn("doBackupCryptWithLoginKey(uri, lease)", backup)
         settings = source("Activities/SettingsActivity.kt")

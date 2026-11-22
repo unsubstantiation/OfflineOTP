@@ -3,7 +3,6 @@ package com.fairuniversal.offlineotp.Activities
 import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.app.KeyguardManager
-import android.app.AlertDialog
 import android.net.Uri
 import android.content.Context
 import android.content.Intent

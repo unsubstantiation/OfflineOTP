@@ -13,7 +13,9 @@ import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
+import com.fairuniversal.offlineotp.ui.vault.ArchiveExportDialog
 import com.fairuniversal.offlineotp.ui.vault.BiometricEnableDialog
 import com.fairuniversal.offlineotp.ui.vault.CheckboxConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
@@ -22,18 +24,25 @@ import com.fairuniversal.offlineotp.ui.vault.EmailPasswordDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailPasswordInput
 import com.fairuniversal.offlineotp.ui.vault.EmailSettingsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailSettingsInput
+import com.fairuniversal.offlineotp.ui.vault.EncryptedExportDialog
 import com.fairuniversal.offlineotp.ui.vault.EncryptedRestoreDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryCounterDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryDetailsDialog
+import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.HideableDialog
 import com.fairuniversal.offlineotp.ui.vault.MultiChoiceSelectionDialog
+import com.fairuniversal.offlineotp.ui.vault.OpenPgpExportDialog
+import com.fairuniversal.offlineotp.ui.vault.PasswordExportDialog
+import com.fairuniversal.offlineotp.ui.vault.PasswordImportDialog
 import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
 import com.fairuniversal.offlineotp.ui.vault.QrCodeDialog
 import com.fairuniversal.offlineotp.ui.vault.SharedEntryPinDialog
+import com.fairuniversal.offlineotp.ui.vault.StorageLocationDialog
 import com.fairuniversal.offlineotp.ui.vault.TagsDialog
 import com.fairuniversal.offlineotp.ui.vault.ThumbnailPickerDialog
+import com.fairuniversal.offlineotp.ui.vault.UriImportDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultArtwork
 
 /**
@@ -52,6 +61,8 @@ abstract class ComposeDialogHost(private val activity: Activity) : AbstractCompo
 
     private var attachedTo: ViewGroup? = null
     private var dismissListener: (() -> Unit)? = null
+    var dismissals: Int = 0
+        private set
 
     /** Registers a callback fired when [dismiss] detaches an open composition. */
     fun setOnDismissListener(listener: () -> Unit) {
@@ -72,6 +83,7 @@ abstract class ComposeDialogHost(private val activity: Activity) : AbstractCompo
 
     /** Removes the composition, which also closes the shared dialog's own window. */
     fun dismiss() {
+        dismissals++
         val hadAttachment = attachedTo != null
         attachedTo?.removeView(this)
         attachedTo = null
@@ -655,3 +667,285 @@ class PreferencesImportComposeView(
         }
     }
 }
+
+/** Shared confirmed-password prompt for encrypted backup export; enforces minimum length and never saves secret state. */
+class EncryptedExportComposeView(
+    activity: Activity,
+    private val minPasswordLength: Int,
+    private val tooShortMessage: String,
+    private val onConfirm: (String) -> String?,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    private var errorMessage by mutableStateOf<String?>(null)
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            EncryptedExportDialog(
+                inputKey = this@EncryptedExportComposeView,
+                busy = false,
+                error = errorMessage,
+                onSubmit = { first, second ->
+                    errorMessage = when {
+                        first.length < minPasswordLength -> tooShortMessage
+                        first != second -> tooShortMessage
+                        else -> onConfirm(first)
+                    }
+                },
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared OTP/migration URI import prompt; masks seed URIs and keeps session validation in the host. */
+class UriImportComposeView(
+    activity: Activity,
+    private val onChooseImage: (() -> Unit)? = null,
+    private val onSubmit: (uri: String, allowAdditional: Boolean) -> String?,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    private var statusMessage by mutableStateOf<String?>(null)
+    var collectingBatch by mutableStateOf(false)
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            UriImportDialog(
+                inputKey = this@UriImportComposeView,
+                message = statusMessage,
+                collecting = collectingBatch,
+                onChooseImage = onChooseImage,
+                onSubmit = { uri, allowAdditional ->
+                    statusMessage = onSubmit(uri, allowAdditional)
+                },
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared browser/password-file import preview and mode chooser; host owns file bytes and install. */
+class PasswordImportComposeView(
+    activity: Activity,
+    private val onRead: (PasswordImport.Mode) -> Int?,
+    private val onConfirm: () -> Boolean,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        var count by remember { mutableStateOf<Int?>(null) }
+        var failed by remember { mutableStateOf(false) }
+        ForestTheme {
+            PasswordImportDialog(
+                inputKey = this@PasswordImportComposeView,
+                busy = false,
+                count = count,
+                failed = failed,
+                onRead = { mode ->
+                    val parsed = onRead(mode)
+                    if (parsed != null) {
+                        count = parsed
+                        failed = false
+                    } else {
+                        count = null
+                        failed = true
+                    }
+                },
+                onConfirm = {
+                    if (!onConfirm()) failed = true
+                },
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared browser-CSV snapshot group chooser; only dialect/column group counts enter the UI. */
+class PasswordExportComposeView(
+    activity: Activity,
+    private val groups: List<String>,
+    private val foreign: Int,
+    private val archives: Int,
+    private val onSelect: (Int) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            PasswordExportDialog(
+                groups = groups,
+                foreign = foreign,
+                archives = archives,
+                onSelect = onSelect,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared stored-archive chooser; labels identify entries while secret bytes remain in the host. */
+class ArchiveExportComposeView(
+    activity: Activity,
+    private val labels: List<String>,
+    private val onSelect: (Int) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            ArchiveExportDialog(
+                labels = labels,
+                onSelect = onSelect,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Shared two-step hardware seed-export chooser and confirmation; owns no vault Entry references. */
+class HardwareCopyComposeView(
+    activity: Activity,
+    val labels: List<String>,
+    private val transportNotice: String,
+    private val requireTouchLabel: String,
+    private val confirmLabel: String,
+    private val dismissLabel: String,
+    private val onConfirm: (index: Int, pin: CharArray, requireTouch: Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    var selectedIndex by mutableStateOf(-1)
+        private set
+    var selecting by mutableStateOf(true)
+        private set
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    fun selectEntry(index: Int) {
+        if (index !in labels.indices) return
+        selectedIndex = index
+        selecting = false
+    }
+
+    fun confirmSelected(pin: CharArray = CharArray(0), requireTouch: Boolean = false) {
+        if (selecting || selectedIndex !in labels.indices) {
+            pin.fill('\u0000')
+            return
+        }
+        onConfirm(selectedIndex, pin, requireTouch)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            HardwareCopyDialog(
+                inputKey = this@HardwareCopyComposeView,
+                labels = labels,
+                selected = selectedIndex,
+                selecting = selecting,
+                confirming = !selecting && selectedIndex in labels.indices,
+                message = null,
+                onSelect = ::selectEntry,
+                onSubmit = { pin -> confirmSelected(pin, requireTouch = false) },
+                onDismiss = onDismiss,
+                transportNotice = transportNotice,
+                requireTouchLabel = requireTouchLabel,
+                confirmLabel = confirmLabel,
+                dismissLabel = dismissLabel,
+                onSubmitWithTouch = { pin, requireTouch -> confirmSelected(pin, requireTouch) }
+            )
+        }
+    }
+}
+
+/** Shared OpenPGP full-vault export confirmation over Android SAF-configured recipient key files. */
+class OpenPgpExportComposeView(
+    activity: Activity,
+    val recipientNames: List<String>,
+    private val maxRecipients: Int,
+    private val onExport: () -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    fun confirmExport() {
+        if (recipientNames.isNotEmpty()) onExport()
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            OpenPgpExportDialog(
+                busy = false,
+                recipientNames = recipientNames,
+                error = null,
+                onChooseKey = {},
+                onClearKeys = {},
+                onExport = ::confirmExport,
+                onDismiss = onDismiss,
+                allowManageKeys = false,
+                maxRecipients = maxRecipients
+            )
+        }
+    }
+}
+
+/** Shared read-only vault storage directory and managed-filenames summary dialog. */
+class StorageLocationComposeView(
+    activity: Activity,
+    val directory: String,
+    val filenames: List<String>,
+    private val title: String,
+    private val guidance: List<String>,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            StorageLocationDialog(
+                directory = directory,
+                filenames = filenames,
+                onDismiss = onDismiss,
+                title = title,
+                guidance = guidance
+            )
+        }
+    }
+}
+

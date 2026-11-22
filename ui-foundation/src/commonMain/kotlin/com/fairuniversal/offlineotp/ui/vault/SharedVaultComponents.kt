@@ -109,6 +109,31 @@ fun SharedVaultTab(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** Shared horizontal category-tab strip across Android, Desktop and iOS vault screens. */
+@Composable
+fun SharedVaultCategoryBar(
+    tabs: List<Pair<String, Boolean>>,
+    onSelect: (Int) -> Unit,
+    horizontalPaddingDp: Int = 8
+) {
+    if (tabs.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = horizontalPaddingDp.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        tabs.forEachIndexed { index, (label, selected) ->
+            SharedVaultTab(
+                label = label,
+                selected = selected,
+                onClick = { onSelect(index) }
+            )
+        }
+    }
+}
+
 /** Shared rounded pill tag filter chip used by Android, Desktop and iOS vault screens. */
 @Composable
 fun SharedVaultTagChip(label: String, selected: Boolean, onClick: () -> Unit) {
@@ -124,6 +149,36 @@ fun SharedVaultTagChip(label: String, selected: Boolean, onClick: () -> Unit) {
             .clickable(onClick = onClick)
             .padding(horizontal = 10.dp, vertical = 6.dp)
     )
+}
+
+/** Shared horizontal tag-filter strip across Android, Desktop and iOS vault screens. */
+@Composable
+fun SharedVaultTagBar(
+    chips: List<Pair<String, Boolean>>,
+    onToggleChip: (Int) -> Unit,
+    horizontalPaddingDp: Int = 16,
+    leadingContent: (@Composable () -> Unit)? = null,
+    trailingContent: (@Composable () -> Unit)? = null
+) {
+    if (chips.isEmpty()) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = horizontalPaddingDp.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        leadingContent?.invoke()
+        chips.forEachIndexed { index, (label, selected) ->
+            SharedVaultTagChip(
+                label = label,
+                selected = selected,
+                onClick = { onToggleChip(index) }
+            )
+        }
+        trailingContent?.invoke()
+    }
 }
 
 /** Shared horizontal sort-mode strip across Compose vault screens. */

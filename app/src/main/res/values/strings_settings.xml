@@ -55,6 +55,10 @@
     <string name="settings_desc_preferences_export">Save the app settings as a portable JSON file for another install.</string>
     <string name="settings_title_preferences_import">Import preferences…</string>
     <string name="settings_desc_preferences_import">Restore settings from a preferences file. Unknown settings are skipped and device-bound ones are refused.</string>
+    <string name="settings_title_storage_location">Storage location</string>
+    <string name="settings_desc_storage_location">View the private vault directory and managed filenames.</string>
+    <string name="storage_location_guidance_private">The app data directory holds the encrypted vault, rollback backup, wrapped key file, and optional hardware-unlock record. External exports may contain plaintext secrets and are not listed here.</string>
+    <string name="storage_location_guidance_backup">Files live inside private Android app storage. Use encrypted or OpenPGP backups in Backup &amp; restore to move accounts to another device.</string>
     <string name="preferences_export_question">Include the backup password in the file?</string>
     <string name="preferences_export_question_detail">The file is not encrypted. With the password, a new install can keep writing backups without it being typed again — but anyone who reads the file can open your backups.</string>
     <string name="preferences_export_with_secrets">Include the backup password</string>

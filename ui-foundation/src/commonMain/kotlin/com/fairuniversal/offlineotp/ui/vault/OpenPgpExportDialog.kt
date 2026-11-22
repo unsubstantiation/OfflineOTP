@@ -11,17 +11,28 @@ import androidx.compose.runtime.Composable
 const val OPENPGP_IN_APP_NOTICE = "OpenPGP runs in this app using key files. No external OpenPGP app is required."
 
 @Composable
-fun OpenPgpExportDialog(busy: Boolean, recipientNames: List<String>, error: String?,
-                        onChooseKey: () -> Unit, onClearKeys: () -> Unit, onExport: () -> Unit, onDismiss: () -> Unit) {
+fun OpenPgpExportDialog(
+    busy: Boolean,
+    recipientNames: List<String>,
+    error: String?,
+    onChooseKey: () -> Unit,
+    onClearKeys: () -> Unit,
+    onExport: () -> Unit,
+    onDismiss: () -> Unit,
+    allowManageKeys: Boolean = true,
+    maxRecipients: Int = 8
+) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Export OpenPGP backup") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
             Text(text = OPENPGP_IN_APP_NOTICE)
             Text(text = "Export the full vault, including concealed entries and regardless of filters, encrypted to ALL selected recipient files. Verify every file belongs to an intended recipient. Anyone with ANY matching secret key can decrypt the entire backup; this is not shared-key or threshold protection.")
             Text(text = "Existing files will not be overwritten. A write already started may finish after cancel or lock; a failed write may leave a partial encrypted file.")
-            Text(text = "Select 1–8 public-key files (16 MiB combined maximum). Filenames are not verified fingerprints.")
+            Text(text = "Select 1–$maxRecipients public-key files (16 MiB combined maximum). Filenames are not verified fingerprints.")
             recipientNames.forEachIndexed { index, name -> Text(text = "${index + 1}. $name") }
-            ForestTextAction(text = "Add recipient public key", enabled = !busy && recipientNames.size < 8, onClick = onChooseKey)
-            ForestTextAction(text = "Clear recipients", enabled = !busy && recipientNames.isNotEmpty(), onClick = onClearKeys)
+            if (allowManageKeys) {
+                ForestTextAction(text = "Add recipient public key", enabled = !busy && recipientNames.size < maxRecipients, onClick = onChooseKey)
+                ForestTextAction(text = "Clear recipients", enabled = !busy && recipientNames.isNotEmpty(), onClick = onClearKeys)
+            }
             if (busy) Text(text = "Encrypting…")
             if (error != null) Text(text = error)
         } },

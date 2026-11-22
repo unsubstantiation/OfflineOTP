@@ -44,6 +44,7 @@ class OpenPgpCrossBuildTest(unittest.TestCase):
         settings = (APP / 'Utilities/Settings.kt').read_text()
         self.assertIn('if (getOpenPGPProvider().isBlank()) OpenPgpMode.KEY_FILE_VALUE', settings)
         backup = (APP / 'Activities/BackupActivity.kt').read_text()
+        self.assertIn('OpenPgpExportComposeView(', backup)
         self.assertIn('OpenPgpKeyFileBackupTask(this, entries, recipients, openPgpPort, uri)', backup)
         self.assertIn('OpenPgpKeyFileRestoreTask(this, uri, secretFile, passphrase, openPgpPort)', backup)
         self.assertIn('bindOpenPgpService(provider)', backup)

@@ -21,6 +21,7 @@ fun ManualEntryDialog(
     editing: Boolean = false,
     artwork: VaultArtwork? = null,
     onEmailSubmit: ((EmailEntryInput) -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null,
     submitNotice: String? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
@@ -51,6 +52,7 @@ fun ManualEntryDialog(
         onSwitchToEmail = if (!editing && onEmailSubmit != null) {
             { email = true }
         } else null,
+        onSwitchToUriImport = if (!editing) onSwitchToUriImport else null,
         onShowQrCode = onShowQrCode,
         onShareKeystrokes = onShareKeystrokes,
         onDelete = onDelete,

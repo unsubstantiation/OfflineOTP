@@ -9,18 +9,20 @@ import com.fairuniversal.offlineotp.ui.vault.VaultActions
 import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
+import com.fairuniversal.offlineotp.ui.host.ArchiveExportComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView
-import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import com.fairuniversal.offlineotp.ui.host.HideableNoticeComposeView
 import com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+import com.fairuniversal.offlineotp.ui.host.PasswordExportComposeView
+import com.fairuniversal.offlineotp.ui.host.PasswordImportComposeView
+import com.fairuniversal.offlineotp.ui.host.UriImportComposeView
 import android.animation.ObjectAnimator
 import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.content.ActivityNotFoundException
-import android.content.DialogInterface
 import android.content.Intent
 import android.content.SharedPreferences
 import android.net.Uri
@@ -58,9 +60,6 @@ import com.leinardi.android.speeddial.FabWithLabelView
 import com.leinardi.android.speeddial.SpeedDialView
 
 import com.fairuniversal.offlineotp.Database.Entry
-import com.fairuniversal.offlineotp.Dialogs.HideableDialog
-import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
-import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
@@ -102,6 +101,7 @@ import com.fairuniversal.offlineotp.View.TagsAdapter
 
 import java.util.Arrays
 import java.util.HashMap
+import java.util.Locale
 
 import javax.crypto.SecretKey
 
@@ -110,7 +110,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     private var adapter: AndroidVaultController? = null
     private var speedDial: SpeedDialView? = null
-    private var passwordImportMode: PasswordImport.Mode? = null
+    private var passwordImportPending = false
+    private var passwordImportBytes: ByteArray? = null
+    private var passwordImportPreview: List<Entry>? = null
     private var passwordExportName: String? = null
     private var passwordExportDigest: String? = null
     private var passwordPendingUri: Uri? = null
@@ -123,11 +125,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var passwordCsvExportPending: ByteArray? = null
     private var passwordCsvExportGeneration: Long = -1L
     private var thunderbirdPendingUri: Uri? = null
+    private var thunderbirdImportPrompt: ComposeDialogHost? = null
+    private var thunderbirdImportPreview: List<Entry>? = null
     private var thunderbirdExportPending: ByteArray? = null
     private var thunderbirdExportGeneration: Long = -1L
     private var thunderbirdExportSelectionDialog: ComposeDialogHost? = null
     private var passwordExportPrompt: ComposeDialogHost? = null
     private var usedTokensPrompt: ComposeDialogHost? = null
+    private var uriImportPrompt: ComposeDialogHost? = null
     private var vaultUnavailablePrompt: ComposeDialogHost? = null
     private var linScpPendingUri: Uri? = null
     private var linScpExportPending: ByteArray? = null
@@ -146,7 +151,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var pendingBackupUri: Uri? = null
     private var pendingBackupReplace = false
     private var pendingImport: PendingEntryImport? = null
-    private var activeImportDialog: AlertDialog? = null
+    private var activeImportDialog: ComposeDialogHost? = null
     private var migrationCollector: MigrationBatchCollector? = null
     private var pendingMigrationImport: PendingMigrationImport? = null
     private var activeMigrationDialog: AlertDialog? = null
@@ -250,12 +255,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdExportPending = null
         thunderbirdExportGeneration = -1L
         thunderbirdPendingUri = null
+        clearThunderbirdImportState()
         thunderbirdExportSelectionDialog?.dismiss()
         thunderbirdExportSelectionDialog = null
         passwordExportPrompt?.dismiss()
         passwordExportPrompt = null
         usedTokensPrompt?.dismiss()
         usedTokensPrompt = null
+        uriImportPrompt?.dismiss()
+        uriImportPrompt = null
         passwordCsvExportPending?.fill(0)
         passwordCsvExportPending = null
         passwordCsvExportGeneration = -1L
@@ -271,6 +279,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         emailImportBytes = null
         emailImportPrompt?.dismiss()
         emailImportPrompt = null
+        clearPasswordImportState()
         passwordImportPrompt?.dismiss()
         passwordImportPrompt = null
         autoTimePrompt?.dismiss()
@@ -433,7 +442,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         super.onCreate(savedInstanceState)
 
         if (savedInstanceState != null) {
-            passwordImportMode = PasswordImport.Mode.entries.getOrNull(savedInstanceState.getInt("password_mode", -1))
+            passwordImportPending = savedInstanceState.getBoolean("password_import_pending", false)
             passwordExportName = savedInstanceState.getString("password_export_name")
             passwordExportDigest = savedInstanceState.getString("password_export_digest")
             passwordPendingUri = savedInstanceState.getParcelable("password_pending_uri")
@@ -761,7 +770,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         super.onSaveInstanceState(outState)
         outState.putString("filterString", filterString)
         outState.putInt("entry_category", findViewById<TabLayout>(R.id.entry_categories)?.selectedTabPosition ?: 0)
-        outState.putInt("password_mode", passwordImportMode?.ordinal ?: -1)
+        outState.putBoolean("password_import_pending", passwordImportPending)
         outState.putString("password_export_name", passwordExportName)
         outState.putString("password_export_digest", passwordExportDigest)
         outState.putParcelable("password_pending_uri", passwordPendingUri)
@@ -890,11 +899,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content") saveEmailExport(intent.data!!)
             else { emailExportPending?.fill(0); emailExportPending = null; emailExportGeneration = -1L }
         } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_IMPORT) {
-            if (resultCode == RESULT_OK && passwordImportMode != null && intent?.data?.getScheme() == "content") {
+            if (resultCode == RESULT_OK && passwordImportPending && intent?.data?.getScheme() == "content") {
                 passwordPendingUri = intent.data
                 resumePasswordOperation()
             } else {
-                passwordImportMode = null
+                passwordImportPending = false
             }
         } else if (requestCode == Constants.INTENT_MAIN_PASSWORD_EXPORT) {
             if (resultCode == RESULT_OK && intent?.data?.getScheme() == "content" &&
@@ -1407,6 +1416,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             composeVaultAppearance = appearance
             container.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        view.onOpenUriImport = { openUriImportDialog() }
         controller.attachComposeEditor(view)
         val anchor = view
         view.render(published.state, VaultActions(
@@ -1584,42 +1594,35 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         Toast.makeText(this, if (saved) R.string.email_export_success else R.string.email_export_failed, Toast.LENGTH_LONG).show()
     }
 
-    private fun choosePasswordImport() {
-        if (VaultSession.getKey() == null) return
-        val generation = VaultSession.generation()
+    private fun clearPasswordImportState() {
+        passwordImportPending = false
+        passwordImportBytes?.fill(0)
+        passwordImportBytes = null
+        passwordImportPreview?.forEach { it.destroy() }
+        passwordImportPreview = null
         passwordImportPrompt?.dismiss()
         passwordImportPrompt = null
-        val pending = object { var host: ComposeDialogHost? = null }
-        val close = {
-            pending.host?.dismiss()
-            if (passwordImportPrompt === pending.host) passwordImportPrompt = null
+    }
+
+    private fun clearThunderbirdImportState() {
+        thunderbirdImportPreview?.forEach { it.destroy() }
+        thunderbirdImportPreview = null
+        thunderbirdImportPrompt?.dismiss()
+        thunderbirdImportPrompt = null
+    }
+
+    private fun choosePasswordImport() {
+        if (VaultSession.getKey() == null) return
+        clearPasswordImportState()
+        passwordExportName = null
+        passwordExportDigest = null
+        passwordImportPending = true
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
+        try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_IMPORT) }
+        catch (_: Exception) {
+            passwordImportPending = false
+            Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
         }
-        val view = EntryCopyComposeView(
-            activity = this,
-            title = getString(R.string.password_import_prompt),
-            cancelLabel = getString(android.R.string.cancel),
-            fields = listOf(
-                getString(R.string.password_import_individual),
-                getString(R.string.password_import_archive)
-            ),
-            onSelect = { index ->
-                close()
-                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@EntryCopyComposeView
-                passwordExportName = null
-                passwordExportDigest = null
-                passwordImportMode = if (index == 0) PasswordImport.Mode.INDIVIDUAL else PasswordImport.Mode.ARCHIVE
-                val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
-                try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_IMPORT) }
-                catch (_: Exception) {
-                    passwordImportMode = null
-                    Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
-                }
-            },
-            onDismiss = close
-        )
-        pending.host = view
-        passwordImportPrompt = view
-        view.show()
     }
 
     /** Starts an explicit user-confirmed export of a revealed stored password archive. */
@@ -1638,7 +1641,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             .setType("application/octet-stream")
             .putExtra(Intent.EXTRA_TITLE, title)
         try {
-            passwordImportMode = null
+            passwordImportPending = false
             passwordExportName = entry.getLabel()
             passwordExportDigest = digest
             startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_EXPORT)
@@ -1656,10 +1659,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (authenticationPending || introPending || VaultSession.getKey() == null ||
             current.encryptionKey !== VaultSession.getKey() || inactivityRelockExpired()) return
         passwordPendingUri = null
-        val mode = passwordImportMode
-        if (mode != null) {
-            passwordImportMode = null
-            importPasswordDocument(uri, mode)
+        if (passwordImportPending) {
+            passwordImportPending = false
+            openPasswordImportDialog(uri)
             return
         }
         val name = passwordExportName
@@ -1678,23 +1680,74 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         Toast.makeText(this, if (saved) R.string.password_export_success else R.string.password_export_failed, Toast.LENGTH_LONG).show()
     }
 
-    private fun importPasswordDocument(uri: Uri?, mode: PasswordImport.Mode) {
-        var bytes: ByteArray? = null
-        try {
-            bytes = getContentResolver().openInputStream(uri!!).use {
+    private fun openPasswordImportDialog(uri: Uri) {
+        val generation = VaultSession.generation()
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
+        val bytes = try {
+            getContentResolver().openInputStream(uri).use {
                 BoundedInputReader.read(it, BrowserPasswordCsv.MAX_FILE_BYTES)
             }
-            val filename = StorageAccessHelper.getContentFileName(this, uri).ifBlank { "passwords.csv" }
-            val incoming = PasswordImport.prepare(bytes, filename, mode)
-            val outcome = adapter?.importEntries(incoming) ?: run {
-                incoming.forEach { it.destroy() }
-                throw IllegalStateException()
-            }
-            Toast.makeText(this, R.string.password_import_success, Toast.LENGTH_LONG).show()
-            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
         } catch (_: Exception) {
             Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
-        } finally { bytes?.fill(0) }
+            return
+        }
+        val filename = StorageAccessHelper.getContentFileName(this, uri).ifBlank { "passwords.csv" }
+        clearPasswordImportState()
+        passwordImportBytes = bytes
+        val pending = object { var host: ComposeDialogHost? = null }
+        val cleanup = {
+            bytes.fill(0)
+            if (passwordImportBytes === bytes) passwordImportBytes = null
+            passwordImportPreview?.forEach { it.destroy() }
+            passwordImportPreview = null
+            pending.host?.dismiss()
+            if (passwordImportPrompt === pending.host) passwordImportPrompt = null
+        }
+        val view = PasswordImportComposeView(
+            activity = this,
+            onRead = { mode ->
+                passwordImportPreview?.forEach { it.destroy() }
+                passwordImportPreview = null
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) null
+                else try {
+                    val incoming = PasswordImport.prepare(bytes, filename, mode)
+                    passwordImportPreview = incoming
+                    incoming.size
+                } catch (_: Exception) {
+                    null
+                }
+            },
+            onConfirm = {
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) {
+                    cleanup()
+                    false
+                } else {
+                    val incoming = passwordImportPreview
+                    passwordImportPreview = null
+                    if (incoming == null) {
+                        false
+                    } else try {
+                        val outcome = adapter?.importEntries(ArrayList(incoming)) ?: run {
+                            incoming.forEach { it.destroy() }
+                            throw IllegalStateException()
+                        }
+                        cleanup()
+                        Toast.makeText(this, R.string.password_import_success, Toast.LENGTH_LONG).show()
+                        findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
+                        outcome != null
+                    } catch (_: Exception) {
+                        Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
+                        false
+                    }
+                }
+            },
+            onDismiss = cleanup
+        ).apply {
+            isSaveEnabled = false
+        }
+        pending.host = view
+        passwordImportPrompt = view
+        view.show()
     }
 
     private fun chooseThunderbirdImport() {
@@ -1714,19 +1767,58 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun importThunderbirdDocument(uri: Uri) {
+        val generation = VaultSession.generation()
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
         var bytes: ByteArray? = null
+        val incoming: List<Entry>
         try {
             bytes = getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, ThunderbirdCsv.MAX_FILE_BYTES) }
-            val incoming = ThunderbirdImport.prepare(bytes)
-            val outcome = adapter?.importEntries(incoming) ?: run {
-                incoming.forEach { it.destroy() }
-                throw IllegalStateException()
-            }
-            Toast.makeText(this, R.string.thunderbird_import_success, Toast.LENGTH_LONG).show()
-            findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
+            incoming = ThunderbirdImport.prepare(bytes)
         } catch (_: Exception) {
             Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
+            return
         } finally { bytes?.fill(0) }
+        clearThunderbirdImportState()
+        thunderbirdImportPreview = incoming
+        val pending = object { var host: ComposeDialogHost? = null }
+        val cleanup = {
+            if (thunderbirdImportPreview === incoming) {
+                incoming.forEach { it.destroy() }
+                thunderbirdImportPreview = null
+            }
+            pending.host?.dismiss()
+            if (thunderbirdImportPrompt === pending.host) thunderbirdImportPrompt = null
+        }
+        val view = DeleteConfirmationComposeView(
+            activity = this,
+            title = getString(R.string.thunderbird_import),
+            message = "${incoming.size} email credentials ready. Import merges them into the current vault; identical entries are skipped.",
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                if (thunderbirdImportPreview === incoming) thunderbirdImportPreview = null
+                pending.host?.dismiss()
+                if (thunderbirdImportPrompt === pending.host) thunderbirdImportPrompt = null
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) {
+                    incoming.forEach { it.destroy() }
+                    return@DeleteConfirmationComposeView
+                }
+                try {
+                    adapter?.importEntries(ArrayList(incoming)) ?: run {
+                        incoming.forEach { it.destroy() }
+                        throw IllegalStateException()
+                    }
+                    Toast.makeText(this, R.string.thunderbird_import_success, Toast.LENGTH_LONG).show()
+                    findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
+                } catch (_: Exception) {
+                    Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
+                }
+            },
+            onDismiss = cleanup
+        )
+        pending.host = view
+        thunderbirdImportPrompt = view
+        view.show()
     }
 
     private fun chooseThunderbirdExport() {
@@ -1977,72 +2069,136 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     /**
-     * Exports every revealed browser-imported password in its agreed dialect. Single-entry exports
-     * are not offered; [entry] must be null.
+     * Exports revealed browser-imported passwords by dialect/column snapshot group (or stored
+     * password archives when only archives are revealed). Single-entry exports are not offered;
+     * [entry] must be null.
      */
     fun requestPasswordCsvExport(entry: Entry?) {
         if (entry != null) return
         val current = adapter ?: return
         val generation = VaultSession.generation()
         if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
-        val candidates = current.getEntries()
-            .filter { current.isEntryRevealed(it) }
-            .map { it to PasswordCsvExport.support(it) }
+        val revealed = current.getEntries().filter { current.isEntryRevealed(it) }
+        val candidates = revealed.map { it to PasswordCsvExport.support(it) }
         val exportable = candidates.filter { it.second is PasswordCsvExport.Support.Exportable }
+        val archives = revealed.filter { it.isPasswordArchive() }
+        val foreignCount = candidates.count { it.second === PasswordCsvExport.Support.Foreign }
         if (exportable.isEmpty()) {
+            if (archives.isNotEmpty()) {
+                passwordExportPrompt?.dismiss()
+                var archiveHost: ArchiveExportComposeView? = null
+                val closeArchiveHost = {
+                    val h = archiveHost
+                    if (passwordExportPrompt === h) passwordExportPrompt = null
+                    h?.dismiss()
+                    Unit
+                }
+                archiveHost = ArchiveExportComposeView(
+                    activity = this,
+                    labels = archives.map { it.getLabel().ifBlank { "passwords.bin" } },
+                    onSelect = { index ->
+                        closeArchiveHost()
+                        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@ArchiveExportComposeView
+                        val chosenArchive = archives.getOrNull(index) ?: return@ArchiveExportComposeView
+                        if (current.isEntryRevealed(chosenArchive)) {
+                            requestPasswordArchiveExport(chosenArchive)
+                        }
+                    },
+                    onDismiss = closeArchiveHost
+                )
+                passwordExportPrompt = archiveHost
+                archiveHost.show()
+                return
+            }
             Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
             return
         }
-        val browsers = exportable.map { (it.second as PasswordCsvExport.Support.Exportable).dialect }
-            .distinct()
-        val dialect = browsers.singleOrNull() ?: PasswordCsvExport.Dialect.FIREFOX
-        val browser = PasswordCsvExport.browserName(dialect)
-        val title = getString(R.string.password_export_csv, browser)
+        val grouped = linkedMapOf<Pair<PasswordCsvExport.Dialect, List<String>>, MutableList<Entry>>()
+        for ((item, support) in exportable) {
+            val dialect = (support as PasswordCsvExport.Support.Exportable).dialect
+            val columns = item.getPasswordFields().columns().map { it.trim().lowercase(Locale.ROOT) }
+            grouped.getOrPut(dialect to columns) { ArrayList() }.add(item)
+        }
+        val groupList = grouped.entries.toList()
+        fun confirmGroupExport(groupEntries: List<Entry>, dialect: PasswordCsvExport.Dialect) {
+            val browser = PasswordCsvExport.browserName(dialect)
+            val title = getString(R.string.password_export_csv, browser)
+            passwordExportPrompt?.dismiss()
+            var host: DeleteConfirmationComposeView? = null
+            val closeHost = {
+                val h = host
+                if (passwordExportPrompt === h) passwordExportPrompt = null
+                h?.dismiss()
+                Unit
+            }
+            host = DeleteConfirmationComposeView(
+                activity = this,
+                title = title,
+                message = getString(R.string.password_export_csv_warning, browser),
+                confirmLabel = getString(android.R.string.ok),
+                dismissLabel = getString(android.R.string.cancel),
+                onConfirm = {
+                    closeHost()
+                    if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@DeleteConfirmationComposeView
+                    val chosen = groupEntries.filter { current.isEntryRevealed(it) }
+                    if (chosen.isEmpty()) {
+                        Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
+                        return@DeleteConfirmationComposeView
+                    }
+                    val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
+                        catch (_: Exception) {
+                            Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                            return@DeleteConfirmationComposeView
+                        }
+                    val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
+                        .setType("text/csv")
+                        .putExtra(Intent.EXTRA_TITLE, if (entry != null) "${entry.getLabel()}.csv" else "passwords.csv")
+                    try {
+                        passwordCsvExportPending = bytes
+                        passwordCsvExportGeneration = generation
+                        startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_CSV_EXPORT)
+                    } catch (_: Exception) {
+                        bytes.fill(0)
+                        passwordCsvExportPending = null
+                        passwordCsvExportGeneration = -1L
+                        Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                    }
+                },
+                onDismiss = closeHost
+            )
+            passwordExportPrompt = host
+            host.show()
+        }
+        if (groupList.size == 1 && foreignCount == 0 && archives.isEmpty()) {
+            val only = groupList[0]
+            confirmGroupExport(only.value, only.key.first)
+            return
+        }
         passwordExportPrompt?.dismiss()
-        var host: DeleteConfirmationComposeView? = null
-        val closeHost = {
-            val h = host
+        var chooser: PasswordExportComposeView? = null
+        val closeChooser = {
+            val h = chooser
             if (passwordExportPrompt === h) passwordExportPrompt = null
             h?.dismiss()
             Unit
         }
-        host = DeleteConfirmationComposeView(
+        chooser = PasswordExportComposeView(
             activity = this,
-            title = title,
-            message = getString(R.string.password_export_csv_warning, browser),
-            confirmLabel = getString(android.R.string.ok),
-            dismissLabel = getString(android.R.string.cancel),
-            onConfirm = {
-                closeHost()
-                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@DeleteConfirmationComposeView
-                val chosen = exportable.map { it.first }.filter { current.isEntryRevealed(it) }
-                if (chosen.isEmpty()) {
-                    Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
-                    return@DeleteConfirmationComposeView
-                }
-                val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
-                    catch (_: Exception) {
-                        Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
-                        return@DeleteConfirmationComposeView
-                    }
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
-                    .setType("text/csv")
-                    .putExtra(Intent.EXTRA_TITLE, if (entry != null) "${entry.getLabel()}.csv" else "passwords.csv")
-                try {
-                    passwordCsvExportPending = bytes
-                    passwordCsvExportGeneration = generation
-                    startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_CSV_EXPORT)
-                } catch (_: Exception) {
-                    bytes.fill(0)
-                    passwordCsvExportPending = null
-                    passwordCsvExportGeneration = -1L
-                    Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
-                }
+            groups = groupList.mapIndexed { index, group ->
+                "Group ${index + 1}: ${PasswordCsvExport.browserName(group.key.first)} — ${group.value.size} records"
             },
-            onDismiss = closeHost
+            foreign = foreignCount,
+            archives = archives.size,
+            onSelect = { index ->
+                closeChooser()
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@PasswordExportComposeView
+                val selected = groupList.getOrNull(index) ?: return@PasswordExportComposeView
+                confirmGroupExport(selected.value, selected.key.first)
+            },
+            onDismiss = closeChooser
         )
-        passwordExportPrompt = host
-        host.show()
+        passwordExportPrompt = chooser
+        chooser.show()
     }
 
     private fun savePasswordCsvExport(uri: Uri) {
@@ -2118,6 +2274,169 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) {
             parsedEntry?.destroy()
             Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Opens the shared Compose OTP/migration URI import dialog from the creation flow. */
+    private fun openUriImportDialog() {
+        if (isFinishing() || VaultSession.getKey() == null || adapter?.encryptionKey !== VaultSession.getKey()) return
+        uriImportPrompt?.dismiss()
+        uriImportPrompt = null
+        var handingOffToMigrationConfirm = false
+        var host: UriImportComposeView? = null
+        val closeHost = {
+            val h = host
+            if (uriImportPrompt === h) uriImportPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        val dialog = UriImportComposeView(
+            activity = this,
+            onChooseImage = {
+                closeHost()
+                showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
+            },
+            onSubmit = { rawUri, allowAdditional ->
+                val trimmed = rawUri.trim()
+                if (trimmed.isEmpty()) {
+                    getString(R.string.toast_invalid_qr_code)
+                } else if (GoogleAuthenticatorMigration.isMigration(trimmed)) {
+                    submitMigrationUriFromDialog(trimmed, host, onCompleted = {
+                        handingOffToMigrationConfirm = true
+                        closeHost()
+                    })
+                } else if (migrationCollector != null) {
+                    getString(R.string.google_import_expected_qr)
+                } else {
+                    var parsedEntry: Entry? = null
+                    val epoch = VaultSession.generation()
+                    try {
+                        val entry = Entry(trimmed)
+                        parsedEntry = entry
+                        synchronized(VaultSession.MutationLock) {
+                            val currentAdapter = adapter
+                            val key = VaultSession.getKey()
+                            if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null ||
+                                currentAdapter == null || currentAdapter.encryptionKey !== key) {
+                                entry.destroy()
+                                parsedEntry = null
+                                closeHost()
+                                null
+                            } else {
+                                val issuer = entry.getIssuer().trim()
+                                if (!allowAdditional && currentAdapter.hasIssuer(issuer)) {
+                                    entry.destroy()
+                                    parsedEntry = null
+                                    getString(R.string.dialog_msg_duplicate_issuer, issuer)
+                                } else {
+                                    saveImportedEntry(entry, epoch, R.string.toast_invalid_qr_code)
+                                    parsedEntry = null
+                                    showEntryCategory(entry)
+                                    closeHost()
+                                    null
+                                }
+                            }
+                        }
+                    } catch (_: Exception) {
+                        parsedEntry?.destroy()
+                        getString(R.string.toast_invalid_qr_code)
+                    }
+                }
+            },
+            onDismiss = closeHost
+        )
+        dialog.collectingBatch = migrationCollector != null
+        dialog.setOnDismissListener {
+            if (uriImportPrompt === dialog) uriImportPrompt = null
+            if (!handingOffToMigrationConfirm && dialog.collectingBatch) {
+                dismissMigrationImport()
+            }
+        }
+        host = dialog
+        uriImportPrompt = dialog
+        dialog.show()
+    }
+
+    private fun submitMigrationUriFromDialog(
+        contents: String,
+        host: UriImportComposeView?,
+        onCompleted: () -> Unit
+    ): String? {
+        val epoch = VaultSession.generation()
+        val parsed = GoogleAuthenticatorMigration.parse(contents)
+        if (parsed is MigrationParseResult.Failure) {
+            val message = if (parsed.error == MigrationError.UNSUPPORTED)
+                R.string.google_import_unsupported else R.string.google_import_invalid
+            return getString(message)
+        }
+        val payload = (parsed as MigrationParseResult.Success).payload
+        synchronized(VaultSession.MutationLock) {
+            val key = VaultSession.getKey()
+            if (isFinishing() || !VaultSession.isCurrent(epoch) || key == null || adapter?.encryptionKey !== key) {
+                payload.close()
+                dismissMigrationImport()
+                onCompleted()
+                return null
+            }
+            var collector = migrationCollector
+            if (collector == null) {
+                dismissPendingImport()
+                dismissMigrationImport()
+                collector = MigrationBatchCollector(epoch)
+                migrationCollector = collector
+            }
+            return when (collector.add(payload, VaultSession.generation(), true)) {
+                MigrationBatchStatus.ADDED -> {
+                    host?.collectingBatch = true
+                    getString(R.string.google_import_progress, collector.received, collector.expected)
+                }
+                MigrationBatchStatus.DUPLICATE -> {
+                    host?.collectingBatch = true
+                    getString(R.string.google_import_already_scanned)
+                }
+                MigrationBatchStatus.DIFFERENT_EXPORT -> {
+                    host?.collectingBatch = true
+                    getString(R.string.google_import_wrong_batch)
+                }
+                MigrationBatchStatus.TOO_MANY -> {
+                    dismissMigrationImport()
+                    host?.collectingBatch = false
+                    getString(R.string.google_import_too_many)
+                }
+                MigrationBatchStatus.STALE -> {
+                    dismissMigrationImport()
+                    onCompleted()
+                    null
+                }
+                MigrationBatchStatus.COMPLETE -> {
+                    val accounts = try {
+                        collector.takeAccounts(VaultSession.generation(), true)
+                    } catch (_: RuntimeException) {
+                        dismissMigrationImport()
+                        host?.collectingBatch = false
+                        return getString(R.string.google_import_invalid)
+                    }
+                    migrationCollector = null
+                    host?.collectingBatch = false
+                    if (accounts == null) {
+                        dismissMigrationImport()
+                        onCompleted()
+                        return null
+                    }
+                    val entries = ArrayList<Entry>()
+                    try {
+                        accounts.forEach { entries.add(Entry(it)) }
+                        onCompleted()
+                        showMigrationConfirmation(entries, epoch)
+                        null
+                    } catch (_: RuntimeException) {
+                        entries.forEach { it.destroy() }
+                        getString(R.string.google_import_invalid)
+                    } finally {
+                        accounts.forEach { it.close() }
+                    }
+                }
+            }
         }
     }
 
@@ -2344,20 +2663,26 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             dismissPendingImport()
             val pending = PendingEntryImport(entry, epoch)
             try {
-                val dialog = AlertDialog.Builder(this)
-                    .setTitle(title)
-                    .setMessage(message)
-                    .setPositiveButton(positiveButton) { _, _ ->
+                var dialogRef: DeleteConfirmationComposeView? = null
+                val dialog = DeleteConfirmationComposeView(
+                    activity = this,
+                    title = getString(title),
+                    message = message,
+                    confirmLabel = getString(positiveButton),
+                    dismissLabel = getString(android.R.string.cancel),
+                    onConfirm = {
                         synchronized(VaultSession.MutationLock) {
                             val currentKey = VaultSession.getKey()
                             val authorized = !isFinishing() && currentKey != null &&
                                     adapter?.encryptionKey === currentKey
                             val confirmed = pending.take(VaultSession.generation(), authorized)
+                            dialogRef?.dismiss()
                             if (confirmed != null) saveImportedEntry(confirmed, epoch, failureMessage)
                         }
-                    }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .create()
+                    },
+                    onDismiss = { dialogRef?.dismiss() }
+                )
+                dialogRef = dialog
                 pendingImport = pending
                 activeImportDialog = dialog
                 dialog.setOnDismissListener {
@@ -2436,6 +2761,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     override fun onDestroy() {
         dismissPendingImport()
         dismissMigrationImport()
+        clearPasswordImportState()
+        clearThunderbirdImportState()
         emailImportBytes?.fill(0)
         emailImportBytes = null
         emailImportPrompt?.dismiss()
@@ -2452,6 +2779,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         passwordExportPrompt = null
         usedTokensPrompt?.dismiss()
         usedTokensPrompt = null
+        uriImportPrompt?.dismiss()
+        uriImportPrompt = null
         vaultUnavailablePrompt?.dismiss()
         vaultUnavailablePrompt = null
         timeoutAnimator?.cancel()
