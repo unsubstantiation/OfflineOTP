@@ -80,8 +80,34 @@ data class PortableVaultState(
     val sortLabel: String,
     val toast: String,
     val hiddenTitleEnabled: Boolean = false,
-    val countLabel: String = ""
+    val countLabel: String = "",
+    val sortOptions: List<PortableChip> = emptyList()
 ) {
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = emptyList()
+    )
+
     val emptyMessage: String
         get() = if (query.isNotEmpty()) "No entries match this search."
                 else "Nothing here yet. Add an entry with +."

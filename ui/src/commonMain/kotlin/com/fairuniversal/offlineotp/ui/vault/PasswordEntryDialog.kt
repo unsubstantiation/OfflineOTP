@@ -14,6 +14,8 @@ fun PasswordEntryDialog(
     onSubmit: (PasswordEntryInput) -> Unit,
     onDismiss: () -> Unit,
     artwork: VaultArtwork? = null,
+    onManageTags: (() -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null,
     onExportArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -44,6 +46,8 @@ fun PasswordEntryDialog(
                 onCancel = onCancel
             )
         },
+        onManageTags = onManageTags,
+        onViewDetails = onViewDetails,
         onExportArchive = onExportArchive,
         onDelete = onDelete,
         onSubmit = { draft ->

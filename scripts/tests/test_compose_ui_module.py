@@ -1321,6 +1321,52 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("onExportArchive: (() -> Unit)? = null", password_edit)
         self.assertIn('text = "Export archive"', password_edit)
 
+    def test_cross_platform_manage_tags_password_details_and_portable_sort_bar_parity(self):
+        shared_screen = (UI_FOUNDATION / "vault/SharedVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("fun sharedVaultViewportScroll(", shared_screen)
+        self.assertIn("fun SharedVaultDraggedItemBox(", shared_screen)
+
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        for screen in (vault_screen, portable_screen):
+            self.assertIn("sharedVaultViewportScroll(", screen)
+            self.assertIn("SharedVaultDraggedItemBox(", screen)
+        self.assertIn("SharedVaultSortBar(", portable_screen)
+        self.assertIn('onTool("sortIndex:$index")', portable_screen)
+
+        for rel in (
+            "vault/SharedManualEntryDialog.kt",
+            "vault/SharedEmailEditDialog.kt",
+            "vault/SharedPasswordEntryDialog.kt",
+        ):
+            src = (UI_FOUNDATION / rel).read_text(encoding="utf-8")
+            self.assertIn("onManageTags: (() -> Unit)? = null", src)
+            self.assertIn('text = "Manage tags"', src)
+
+        password_edit = (UI_FOUNDATION / "vault/SharedPasswordEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onViewDetails: (() -> Unit)? = null", password_edit)
+        self.assertIn('text = "View details"', password_edit)
+
+        desktop_actions = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryActions.kt").read_text(encoding="utf-8")
+        self.assertIn("PASSWORD_DETAILS", desktop_actions)
+        self.assertIn("fun openPasswordDetails(", desktop_actions)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("entryActions.openTags(entryId, lifetime::checkActive)", desktop_host)
+        self.assertIn("entryActions.openPasswordDetails(entryId, presenter.isRevealed(entryId), lifetime::checkActive)", desktop_host)
+        self.assertIn("DesktopEntryActions.Surface.PASSWORD_DETAILS", desktop_host)
+
+        android_controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
+        self.assertIn("manageTagsFromComposeEditor(view, target)", android_controller)
+        self.assertIn("openPasswordDetailsDialog(actual)", android_controller)
+
+        ios_vc = (ROOT / "ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt").read_text(encoding="utf-8")
+        self.assertEqual(ios_vc.count('onAction("tags")'), 3)
+
+        ios_host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn("sortOptions: SortMode.allCases.map", ios_host)
+        self.assertIn('action.hasPrefix("sortIndex:")', ios_host)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1575,6 +1575,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onManageTags = {
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) entryActions.openTags(entryId, lifetime::checkActive)
+                revision++
+            },
             onViewDetails = {
                 val entryId = editRequest.entryId
                 editing.dismiss(editRequest)
@@ -1600,6 +1606,20 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
+            onManageTags = {
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) entryActions.openTags(entryId, lifetime::checkActive)
+                revision++
+            },
+            onViewDetails = if (!initial.archiveMode) ({
+                val entryId = editRequest.entryId
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) {
+                    entryActions.openPasswordDetails(entryId, presenter.isRevealed(entryId), lifetime::checkActive)
+                }
+                revision++
+            }) else null,
             onExportArchive = if (initial.archiveMode) ({
                 val entryId = editRequest.entryId
                 editing.dismiss(editRequest)
@@ -1643,6 +1663,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     revision++
                 }
             }) else null,
+            onManageTags = {
+                val entryId = editRequest.entryId
+                entryActions.pending?.let { entryActions.dismiss(it) }
+                editing.dismiss(editRequest)
+                if (lifetime.checkActive()) entryActions.openTags(entryId, lifetime::checkActive)
+                revision++
+            },
             onDelete = {
                 val entryId = editRequest.entryId
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -1725,6 +1752,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 },
                 onDismiss = { entryActions.dismiss(actionRequest) }
             )
+            DesktopEntryActions.Surface.PASSWORD_DETAILS -> {
+                val details = actionRequest.detailsText
+                if (details != null && presenter.isRevealed(actionRequest.entryId)) {
+                    EntryDetailsDialog(
+                        title = actionRequest.title,
+                        body = details,
+                        confirmLabel = "Close",
+                        onDismiss = { entryActions.dismiss(actionRequest) }
+                    )
+                } else {
+                    entryActions.dismiss(actionRequest)
+                }
+            }
         }
     }
     val request = dialogs.pending

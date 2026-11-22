@@ -232,4 +232,31 @@ class PortablePresentationTest {
         assertTrue(revealed.isNote)
         assertFalse(revealed.toString().contains("secret-note-body"))
     }
+
+    @Test
+    fun portableVaultStateSupportsLegacyTenArgAndSortOptionsProjection() {
+        val tenArg = PortableVaultState(
+            listOf(PortableChip("All", 2, true)),
+            "secret-query",
+            listOf(PortableChip("work", 1, false)),
+            false,
+            "Any",
+            listOf(card(revealed = false)),
+            "Order",
+            "",
+            false,
+            "1 / 2 entries"
+        )
+        assertTrue(tenArg.sortOptions.isEmpty())
+        assertFalse(tenArg.toString().contains("secret-query"))
+
+        val withSort = tenArg.copy(
+            sortOptions = listOf(
+                PortableChip("Order", -1, true),
+                PortableChip("Issuer", -1, false)
+            )
+        )
+        assertEquals(2, withSort.sortOptions.size)
+        assertTrue(withSort.sortOptions.first().selected)
+    }
 }

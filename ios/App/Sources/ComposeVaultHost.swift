@@ -211,7 +211,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             sortLabel: store.sortMode.title,
             toast: toast,
             hiddenTitleEnabled: store.hideIssuer,
-            countLabel: countLabel)
+            countLabel: countLabel,
+            sortOptions: SortMode.allCases.map {
+                PortableChip(label: $0.title, count: -1, selected: $0 == store.sortMode)
+            })
     }
 
     // MARK: - Vault actions
@@ -275,7 +278,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "backups": openSurface("backups")
         case "settings": openSurface("settings")
         case "dismissToast": toast = ""; refresh()
-        default: break
+        default:
+            if action.hasPrefix("sortIndex:"),
+               let sortIdx = Int(action.dropFirst("sortIndex:".count)),
+               SortMode.allCases.indices.contains(sortIdx) {
+                store.setSortMode(SortMode.allCases[sortIdx])
+                refresh()
+            }
         }
     }
 
@@ -1528,6 +1537,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("info:\(name)", name, value: value, kind: "info"))
         }
         if entry.kind == .password, let material = try? entry.passwordFields() {
+            if store.isRevealed(entry) {
+                for (idx, item) in material.items.enumerated() where !item.value.isEmpty {
+                    rows.append(row("pwField:\(idx)", item.name, value: item.value, kind: "info"))
+                }
+            }
             rows.append(row("copyPassword:\(index)", "Copy password", detail: "\(material.items.count) columns"))
             rows.append(row("copyUsername:\(index)", "Copy user name"))
         }
@@ -2847,10 +2861,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "details":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
+            passwordEditIndex = nil
             openDetails(at: index)
             return nil
         case "tags":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
+            passwordEditIndex = nil
             editorIndex = index
             openedFields = store.entries[index].fields
             draft = ["tags": store.entries[index].tags.joined(separator: ", ")]

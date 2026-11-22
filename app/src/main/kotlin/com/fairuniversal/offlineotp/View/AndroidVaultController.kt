@@ -293,6 +293,112 @@ class AndroidVaultController(
         }
     }
 
+    private fun manageTagsFromComposeEditor(
+        view: com.fairuniversal.offlineotp.ui.vault.VaultComposeView,
+        target: EntryActionTarget
+    ) {
+        synchronized(VaultSession.MutationLock) {
+            val actual = target.resolve(entries, VaultSession.generation())
+            view.clearEntryEditor()
+            composeEditTarget = null
+            if (actual != null && encryptionKey != null &&
+                VaultSession.getKey() === encryptionKey && composeRevealed(actual)) {
+                openTagsDialog(target, actual)
+            }
+        }
+    }
+
+    private fun openPasswordDetailsDialog(entry: Entry): Boolean {
+        if (!entry.isPassword() || !composeRevealed(entry)) return false
+        val activity = context as? Activity ?: return false
+        val fields = entry.getPasswordFields()
+        val text = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
+        val pending = object { var host: ComposeDialogHost? = null }
+        val view = EntryDetailsComposeView(
+            activity = activity,
+            title = context.getString(R.string.password_details),
+            body = text,
+            confirmLabel = context.getString(android.R.string.ok),
+            onDismiss = {
+                pending.host?.dismiss()
+                if (activePasswordDialog === pending.host) activePasswordDialog = null
+            }
+        )
+        pending.host = view
+        activePasswordDialog = view
+        view.show()
+        return true
+    }
+
+    private fun openTagsDialog(target: EntryActionTarget, entry: Entry): Boolean {
+        if (!entry.areDetailsVisible()) return false
+        val tagState = HashMap<String, Boolean?>()
+        for (tag in getTags()) tagState[tag] = false
+        for (tag in entry.getTags()) tagState[tag] = true
+        val tagsAdapter = TagsAdapter(context, tagState)
+        val liveCounts = getTagCounts()
+        tagsAdapter.setTagCounts(liveCounts)
+        val saveTags = Callable<Any?> {
+            withTarget(target, Consumer { edited ->
+                val previous = ArrayList(edited.getTags())
+                try {
+                    edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
+                    edited.validate()
+                    saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(),
+                        presentation.indexOf(edited))
+                } catch (_: IllegalArgumentException) {
+                    edited.setTags(previous)
+                }
+            })
+            null
+        }
+        val activity = context as? Activity
+        if (activity != null) {
+            activeTagsDialog?.dismiss()
+            activeTagsDialog = null
+            val pending = object { var host: ComposeDialogHost? = null }
+            val initialStates = LinkedHashMap<String, Boolean>()
+            for ((name, checked) in tagState) {
+                initialStates[name] = checked == true
+            }
+            val view = TagsComposeView(
+                activity = activity,
+                title = context.getString(R.string.label_tags),
+                newTagLabel = context.getString(R.string.button_new_tag),
+                addTagLabel = context.getString(R.string.button_new_tag),
+                confirmLabel = context.getString(android.R.string.ok),
+                dismissLabel = context.getString(android.R.string.cancel),
+                initialStates = initialStates,
+                tagCounts = liveCounts,
+                onTagCreated = { created ->
+                    val allTags = tagsAdapter.getTagsWithState()
+                    allTags[created] = true
+                    tagsAdapter.setTags(allTags)
+                },
+                onSelectionConfirmed = { confirmed ->
+                    val updated = HashMap<String, Boolean?>()
+                    for ((name, checked) in confirmed) {
+                        updated[name] = checked
+                    }
+                    tagsAdapter.setTags(updated)
+                    try { saveTags.call() } catch (_: Exception) { }
+                },
+                onDismiss = {
+                    pending.host?.dismiss()
+                    if (activeTagsDialog === pending.host) activeTagsDialog = null
+                }
+            )
+            pending.host = view
+            activeTagsDialog = view
+            view.show()
+        } else {
+            TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
+        }
+        return true
+    }
+
     private fun openEmailEditor(target: EntryActionTarget, entry: Entry): Boolean {
         val view = composeEditorView ?: return false
         if (!entry.isEmail() || !composeRevealed(entry)) return false
@@ -300,6 +406,7 @@ class AndroidVaultController(
         composeEditTarget = target
         view.showEmailEditor(
             initial = initial,
+            onManageTags = { manageTagsFromComposeEditor(view, target) },
             onViewDetails = {
                 synchronized(VaultSession.MutationLock) {
                     val actual = target.resolve(entries, VaultSession.generation())
@@ -458,6 +565,18 @@ class AndroidVaultController(
         composeEditTarget = target
         view.showPasswordEditor(
             initial = initial,
+            onManageTags = { manageTagsFromComposeEditor(view, target) },
+            onViewDetails = if (!entry.isPasswordArchive()) ({
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    view.clearEntryEditor()
+                    composeEditTarget = null
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && actual.isPassword() && composeRevealed(actual)) {
+                        openPasswordDetailsDialog(actual)
+                    }
+                }
+            }) else null,
             onExportArchive = if (entry.isPasswordArchive()) ({
                 synchronized(VaultSession.MutationLock) {
                     val actual = target.resolve(entries, VaultSession.generation())
@@ -519,6 +638,7 @@ class AndroidVaultController(
                     }
                 }
             }) else null,
+            onManageTags = { manageTagsFromComposeEditor(view, target) },
             onDelete = { deleteFromComposeEditor(view, target) }
         ) { input ->
             synchronized(VaultSession.MutationLock) {
@@ -1809,26 +1929,7 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_password_details) {
                 withTarget(popupTarget, Consumer { actual ->
-                    if (!actual.isPassword() || !composeRevealed(actual)) return@Consumer
-                    val fields = actual.getPasswordFields()
-                    val text = com.fairuniversal.offlineotp.Utilities.LinScpCredentials.formatPasswordDetails(fields)
-                    activePasswordDialog?.dismiss()
-                    activePasswordDialog = null
-                    val activity = context as? Activity ?: return@Consumer
-                    val pending = object { var host: ComposeDialogHost? = null }
-                    val view = EntryDetailsComposeView(
-                        activity = activity,
-                        title = context.getString(R.string.password_details),
-                        body = text,
-                        confirmLabel = context.getString(android.R.string.ok),
-                        onDismiss = {
-                            pending.host?.dismiss()
-                            if (activePasswordDialog === pending.host) activePasswordDialog = null
-                        }
-                    )
-                    pending.host = view
-                    activePasswordDialog = view
-                    view.show()
+                    openPasswordDetailsDialog(actual)
                 })
                 true
             } else if (id == R.id.menu_popup_edit_password) {
@@ -1850,68 +1951,7 @@ class AndroidVaultController(
                 true
             } else if (id == R.id.menu_popup_tags) {
                 withTarget(popupTarget, Consumer { actual ->
-                    val tagState = HashMap<String, Boolean?>()
-                    for (tag in getTags()) tagState[tag] = false
-                    for (tag in actual.getTags()) tagState[tag] = true
-                    val tagsAdapter = TagsAdapter(context, tagState)
-                    val liveCounts = getTagCounts()
-                    tagsAdapter.setTagCounts(liveCounts)
-                    val saveTags = Callable<Any?> {
-                        withTarget(popupTarget, Consumer { edited ->
-                            val previous = ArrayList(edited.getTags())
-                            try {
-                                edited.setTags(ArrayList(tagsAdapter.getActiveTags()))
-                                edited.validate()
-                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(),
-                                    presentation.indexOf(edited))
-                            } catch (_: IllegalArgumentException) {
-                                edited.setTags(previous)
-                            }
-                        })
-                        null
-                    }
-                    val activity = context as? Activity
-                    if (activity != null) {
-                        activeTagsDialog?.dismiss()
-                        activeTagsDialog = null
-                        val pending = object { var host: ComposeDialogHost? = null }
-                        val initialStates = LinkedHashMap<String, Boolean>()
-                        for ((name, checked) in tagState) {
-                            initialStates[name] = checked == true
-                        }
-                        val view = TagsComposeView(
-                            activity = activity,
-                            title = context.getString(R.string.label_tags),
-                            newTagLabel = context.getString(R.string.button_new_tag),
-                            addTagLabel = context.getString(R.string.button_new_tag),
-                            confirmLabel = context.getString(android.R.string.ok),
-                            dismissLabel = context.getString(android.R.string.cancel),
-                            initialStates = initialStates,
-                            tagCounts = liveCounts,
-                            onTagCreated = { created ->
-                                val allTags = tagsAdapter.getTagsWithState()
-                                allTags[created] = true
-                                tagsAdapter.setTags(allTags)
-                            },
-                            onSelectionConfirmed = { confirmed ->
-                                val updated = HashMap<String, Boolean?>()
-                                for ((name, checked) in confirmed) {
-                                    updated[name] = checked
-                                }
-                                tagsAdapter.setTags(updated)
-                                try { saveTags.call() } catch (_: Exception) { }
-                            },
-                            onDismiss = {
-                                pending.host?.dismiss()
-                                if (activeTagsDialog === pending.host) activeTagsDialog = null
-                            }
-                        )
-                        pending.host = view
-                        activeTagsDialog = view
-                        view.show()
-                    } else {
-                        TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
-                    }
+                    openTagsDialog(popupTarget, actual)
                 })
                 true
             } else if (id == R.id.menu_popup_changeImage) {

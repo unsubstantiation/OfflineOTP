@@ -93,12 +93,11 @@ fun VaultScreen(
     LaunchedEffect(draggingId) {
         while (draggingId != null) {
             val info = listState.layoutInfo
-            val edge = 56f
-            val scroll = when {
-                pointerY < info.viewportStartOffset + edge -> -12f
-                pointerY > info.viewportEndOffset - edge -> 12f
-                else -> 0f
-            }
+            val scroll = sharedVaultViewportScroll(
+                pointerY = pointerY,
+                viewportStartOffset = info.viewportStartOffset,
+                viewportEndOffset = info.viewportEndOffset
+            )
             if (awaitingOrder == null && scroll != 0f) listState.scrollBy(scroll)
             moveIfNeeded()
             delay(16)
@@ -190,11 +189,15 @@ fun VaultScreen(
             ) {
                 items(items = state.cards, key = { card -> card.id }) { card ->
                     val held = draggingId == card.id
-                    val offset = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == card.id }?.offset ?: 0
-                    Box(modifier = Modifier.zIndex(if (held) 1f else 0f).graphicsLayer {
-                        translationY = if (held) pointerY - grabOffset - offset else 0f
-                        shadowElevation = if (held) 8f else 0f
-                    }) {
+                    SharedVaultDraggedItemBox(
+                        dragging = held,
+                        pointerY = pointerY,
+                        grabOffset = grabOffset,
+                        itemOffsetPx = {
+                            (listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == card.id }?.offset ?: 0).toFloat()
+                        },
+                        activeShadowElevation = 8f
+                    ) {
                         VaultEntryCard(
                             card = card,
                             strings = strings,

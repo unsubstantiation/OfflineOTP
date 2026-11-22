@@ -8939,6 +8939,91 @@ fun main() {
         }
     }
 
+    check("shared vault viewport drag scroll and Android editor Manage tags / Password details hooks work end-to-end") {
+        expect(com.fairuniversal.offlineotp.ui.vault.sharedVaultViewportScroll(10f, 0, 400) == -12f,
+            { "expected upward viewport scroll near top edge" })
+        expect(com.fairuniversal.offlineotp.ui.vault.sharedVaultViewportScroll(200f, 0, 400) == 0f,
+            { "expected zero viewport scroll in middle" })
+        expect(com.fairuniversal.offlineotp.ui.vault.sharedVaultViewportScroll(390f, 0, 400) == 12f,
+            { "expected downward viewport scroll near bottom edge" })
+
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_tap_single, "reveal")
+        val activity = object : MainActivity() {
+            override val resources: Resources get() = fixture.context.resources
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+        }
+        val adapter = withPoisonedTransaction {
+            EntriesCardAdapter(activity, TagsAdapter(activity, hashMapOf("work" to false)))
+        }
+        val controller = adapter.controller
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val composeView = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(
+            activity, strings, com.fairuniversal.offlineotp.ui.vault.VaultActions()
+        )
+        controller.attachComposeEditor(composeView)
+        val entries = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val pwEntry = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+            "name,url,username,password,note\nGitHub,https://github.com,alice,s3cr3t,prod account\n".toByteArray(Charsets.UTF_8),
+            "chrome.csv",
+            com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.INDIVIDUAL
+        ).single().apply { setDetailsVisible(true) }
+        val key = SecretKeySpec(ByteArray(32) { 31 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        entries.addEntry(pwEntry)
+        controller.updateTagsFilter()
+        controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS)
+        controller.setSearchQuery("")
+        val pwEditorField = com.fairuniversal.offlineotp.ui.vault.VaultComposeView::class.java
+            .getDeclaredField("passwordEditor\$delegate").apply { isAccessible = true }
+        try {
+            val frame1 = controller.composeFrame(60_000L, strings)!!
+            expect(frame1.state.cards.single().canEditPassword, { "expected revealed password card" })
+            expect(frame1.perform(pwEntry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "password EDIT failed" })
+            val pwEditor = (pwEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value
+                ?: throw AssertionError("expected passwordEditor")
+            @Suppress("UNCHECKED_CAST")
+            val onViewDetails = pwEditor.javaClass.getDeclaredField("onViewDetails").apply { isAccessible = true }
+                .get(pwEditor) as? (() -> Unit) ?: throw AssertionError("expected onViewDetails on PasswordEditor")
+            onViewDetails.invoke()
+            val pwDialogField = AndroidVaultController::class.java.getDeclaredField("activePasswordDialog")
+                .apply { isAccessible = true }
+            val detailsDialog = pwDialogField.get(controller) as? com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
+                ?: throw AssertionError("expected EntryDetailsComposeView from PasswordEditor onViewDetails")
+            val body = detailsDialog.javaClass.getDeclaredField("body").apply { isAccessible = true }
+                .get(detailsDialog) as String
+            expect(body.contains("https://github.com") && body.contains("prod account"),
+                { "unexpected password details body: $body" })
+
+            // Reopen password editor and invoke Manage tags -> TagsComposeView
+            val frame2 = controller.composeFrame(60_000L, strings)!!
+            expect(frame2.perform(pwEntry.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "reopen password EDIT failed" })
+            val pwEditor2 = (pwEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value
+                ?: throw AssertionError("expected passwordEditor2")
+            @Suppress("UNCHECKED_CAST")
+            val onManageTags = pwEditor2.javaClass.getDeclaredField("onManageTags").apply { isAccessible = true }
+                .get(pwEditor2) as? (() -> Unit) ?: throw AssertionError("expected onManageTags on PasswordEditor")
+            onManageTags.invoke()
+            val tagsDialogField = AndroidVaultController::class.java.getDeclaredField("activeTagsDialog")
+                .apply { isAccessible = true }
+            val tagsDialog = tagsDialogField.get(controller) as? com.fairuniversal.offlineotp.ui.host.TagsComposeView
+                ?: throw AssertionError("expected TagsComposeView from PasswordEditor onManageTags")
+            adapter.lockEntries()
+            expect(detailsDialog.dismissals > 0 && tagsDialog.dismissals > 0 &&
+                pwDialogField.get(controller) == null && tagsDialogField.get(controller) == null,
+                { "locking did not dismiss EntryDetailsComposeView and TagsComposeView" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+            PreferenceManager.reset()
+        }
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {

@@ -124,6 +124,19 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   platform-accurate private container guidance across Desktop, iOS (`PortableVaultViewController`),
   and Android `SettingsActivity` (`StorageLocationComposeView`).
 
+- **Shared vault drag primitives, iOS inline `SharedVaultSortBar`, and cross-build `Manage tags` /
+  `Password details` editor parity**: Consolidated `sharedVaultViewportScroll` and
+  `SharedVaultDraggedItemBox` in `SharedVaultScreen.kt` (`:ui-foundation`) across both
+  `VaultScreen.kt` (`:ui`) and `PortableVaultScreen.kt` (`:ui-foundation`); extended
+  `PortableVaultState` (`:ui-contract`) with `sortOptions` and wired `SharedVaultSortBar` in
+  `PortableVaultScreen.kt` and `ComposeVaultHost.swift` so iOS renders inline sort chips alongside
+  Desktop; added `onManageTags` (`Manage tags` -> `TagsDialog`) across `SharedManualEntryDialog`,
+  `SharedEmailEditDialog`, and `SharedPasswordEntryDialog` on Android (`VaultComposeView` +
+  `AndroidVaultController`), Desktop (`ComposeMain` + `DesktopEntryActions.openTags`), and iOS
+  (`PortableVaultViewController` + `ComposeVaultHost.swift`); and added `onViewDetails`
+  (`View details` -> `EntryDetailsDialog`) on `SharedPasswordEntryDialog` across Android, Desktop
+  (`DesktopEntryActions.openPasswordDetails`), and iOS.
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

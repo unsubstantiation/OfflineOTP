@@ -36,6 +36,8 @@ fun SharedPasswordEntryDialog(
     errorText: String? = null,
     thumbnailNames: List<String> = emptyList(),
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onManageTags: (() -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null,
     onExportArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -170,6 +172,26 @@ fun SharedPasswordEntryDialog(
                         ForestTextAction(
                             text = "Choose artwork",
                             onClick = { pickingThumbnail = true }
+                        )
+                    }
+                    if (onManageTags != null) {
+                        ForestTextAction(
+                            text = "Manage tags",
+                            onClick = {
+                                input = PortablePasswordEditDraft()
+                                revealPassword = false
+                                onManageTags()
+                            }
+                        )
+                    }
+                    if (!input.archiveMode && onViewDetails != null) {
+                        ForestTextAction(
+                            text = "View details",
+                            onClick = {
+                                input = PortablePasswordEditDraft()
+                                revealPassword = false
+                                onViewDetails()
+                            }
                         )
                     }
                     if (input.archiveMode && onExportArchive != null) {

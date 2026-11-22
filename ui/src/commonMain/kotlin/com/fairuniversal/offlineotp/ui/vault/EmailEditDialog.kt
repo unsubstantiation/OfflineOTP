@@ -15,6 +15,7 @@ fun EmailEditDialog(
     onSubmit: (EmailEditInput) -> Unit,
     onDismiss: () -> Unit,
     artwork: VaultArtwork? = null,
+    onManageTags: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -34,6 +35,7 @@ fun EmailEditDialog(
         },
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss,
+        onManageTags = onManageTags,
         onViewDetails = onViewDetails,
         onDelete = onDelete
     )
