@@ -1,18 +1,11 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -57,21 +50,11 @@ internal fun VaultCategoryTabs(
     strings: VaultStrings,
     onSelect: (EntryListPresentation.Category) -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp)
-    ) {
-        for (tab in tabs) {
-            SharedVaultTab(
-                label = strings.categoryCount(tab.category, tab.count),
-                selected = tab.selected,
-                onClick = { onSelect(tab.category) }
-            )
-        }
-    }
+    SharedVaultCategoryBar(
+        tabs = tabs.map { tab -> strings.categoryCount(tab.category, tab.count) to tab.selected },
+        onSelect = { index -> tabs.getOrNull(index)?.let { onSelect(it.category) } },
+        horizontalPaddingDp = 8
+    )
 }
 
 @Composable
@@ -97,35 +80,30 @@ internal fun VaultTagChips(
     tagRuleLabel: String? = null,
     actions: VaultActions
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        for (chip in chips) {
-            SharedVaultTagChip(
-                label = strings.tagCount(chip.name, chip.count),
-                selected = chip.selected,
-                onClick = {
-                    if (chip.isUntagged) actions.onToggleUntagged() else actions.onToggleTag(chip.name)
+    val cycleTagRule = actions.onCycleTagRule
+    SharedVaultTagBar(
+        chips = chips.map { chip -> strings.tagCount(chip.name, chip.count) to chip.selected },
+        onToggleChip = { index ->
+            chips.getOrNull(index)?.let { chip ->
+                if (chip.isUntagged) actions.onToggleUntagged() else actions.onToggleTag(chip.name)
+            }
+        },
+        horizontalPaddingDp = 16,
+        trailingContent = if ((cycleTagRule != null && tagRuleLabel != null) || showClear) {
+            {
+                if (cycleTagRule != null && tagRuleLabel != null) {
+                    SharedVaultTagChip(
+                        label = tagRuleLabel,
+                        selected = false,
+                        onClick = cycleTagRule
+                    )
                 }
-            )
-        }
-        val cycleTagRule = actions.onCycleTagRule
-        if (cycleTagRule != null && tagRuleLabel != null) {
-            SharedVaultTagChip(
-                label = tagRuleLabel,
-                selected = false,
-                onClick = cycleTagRule
-            )
-        }
-        if (showClear) {
-            ForestTextAction(text = clearLabel, onClick = actions.onClearFilters)
-        }
-    }
+                if (showClear) {
+                    ForestTextAction(text = clearLabel, onClick = actions.onClearFilters)
+                }
+            }
+        } else null
+    )
 }
 
 @Composable

@@ -51,7 +51,6 @@ import com.fairuniversal.offlineotp.Utilities.OpenPgpMode
 import com.fairuniversal.offlineotp.Utilities.SessionCommandResult
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
-import com.fairuniversal.offlineotp.Utilities.UIHelper
 import com.fairuniversal.offlineotp.Utilities.VaultCommitDecision
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
@@ -59,7 +58,9 @@ import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import com.fairuniversal.offlineotp.ui.host.PreferencesImportComposeView
+import com.fairuniversal.offlineotp.ui.host.StorageLocationComposeView
 
 import java.util.Arrays
 import java.util.function.BooleanSupplier
@@ -102,6 +103,24 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         settingsConfirmationPrompt?.dismiss()
         settingsConfirmationPrompt = host
         host.show()
+    }
+
+    internal fun showSettingsNotice(titleId: Int, messageId: Int) {
+        var host: EntryDetailsComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = EntryDetailsComposeView(
+            activity = this,
+            title = getString(titleId),
+            body = getString(messageId),
+            confirmLabel = getString(android.R.string.ok),
+            onDismiss = closeHost
+        )
+        showSettingsPrompt(host)
     }
 
     private companion object {
@@ -204,7 +223,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         } else if (key == getString(R.string.settings_key_encryption)) {
             if (settings!!.getEncryption() != EncryptionType.PASSWORD) {
                 if (settings!!.getAndroidBackupServiceEnabled()) {
-                    UIHelper.showGenericDialog(this,
+                    showSettingsNotice(
                         R.string.settings_dialog_title_android_sync,
                         R.string.settings_dialog_msg_android_sync_disabled_encryption
                     )
@@ -435,6 +454,33 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         if (multiple) settings!!.setOpenPGPRecipientFiles(picked)
         else settings!!.setOpenPGPSecretFile(picked.first())
         fragment?.refreshOpenPgpKeyFileSummaries()
+    }
+
+    /** Shows the read-only private vault directory and managed filenames through the shared Compose dialog. */
+    fun showStorageLocation() {
+        var host: StorageLocationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = StorageLocationComposeView(
+            activity = this,
+            directory = getFilesDir().absolutePath,
+            filenames = listOf(
+                Constants.FILENAME_ENCRYPTED_KEY,
+                Constants.FILENAME_DATABASE,
+                Constants.FILENAME_DATABASE_BACKUP
+            ),
+            title = getString(R.string.settings_title_storage_location),
+            guidance = listOf(
+                getString(R.string.storage_location_guidance_private),
+                getString(R.string.storage_location_guidance_backup)
+            ),
+            onDismiss = closeHost
+        )
+        showSettingsPrompt(host)
     }
 
     /** Pending preferences export; serialised before the picker so a failure is reported first. */
@@ -818,14 +864,19 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
                 if (encryptionType != oldEncryptionType) {
                     if (encryptionType == EncryptionType.PASSWORD) {
+                        val settingsActivity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
                         if (authMethod != AuthMethod.PASSWORD) {
-                            UIHelper.showGenericDialog(getActivity()!!, R.string.settings_dialog_title_error,
-                                R.string.settings_dialog_msg_encryption_invalid_with_auth)
+                            settingsActivity.showSettingsNotice(
+                                R.string.settings_dialog_title_error,
+                                R.string.settings_dialog_msg_encryption_invalid_with_auth
+                            )
                             return@setOnPreferenceChangeListener false
                         } else {
                             if (currentSettings.getAuthCredentials().isEmpty()) {
-                                UIHelper.showGenericDialog(getActivity()!!, R.string.settings_dialog_title_error,
-                                    R.string.settings_dialog_msg_encryption_invalid_without_credentials)
+                                settingsActivity.showSettingsNotice(
+                                    R.string.settings_dialog_title_error,
+                                    R.string.settings_dialog_msg_encryption_invalid_without_credentials
+                                )
                                 return@setOnPreferenceChangeListener false
                             }
                         }
@@ -862,6 +913,11 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
             findPreference(getString(R.string.settings_key_preferences_import))?.setOnPreferenceClickListener {
                 (getActivity()!! as SettingsActivity).requestPreferencesImport()
+                true
+            }
+
+            findPreference(getString(R.string.settings_key_storage_location))?.setOnPreferenceClickListener {
+                (getActivity()!! as SettingsActivity).showStorageLocation()
                 true
             }
 

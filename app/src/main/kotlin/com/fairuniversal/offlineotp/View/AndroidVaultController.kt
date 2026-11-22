@@ -1845,16 +1845,7 @@ class AndroidVaultController(
                     }
                     if (actual.isNote() || actual.isSshKey() || actual.getType() in com.fairuniversal.offlineotp.ui.vault.ManualEntryInput.otpTypes) {
                         openSharedEditor(popupTarget, actual)
-                        return@Consumer
                     }
-                    val hostActivity = context as? MainActivity ?: return@Consumer
-                    ManualEntryDialog.show(hostActivity, settings, this, actual,
-                        ManualEntryDialog.UpdateCallback {
-                            withTarget(popupTarget, Consumer { edited ->
-                                saveAndRefresh(settings.getAutoBackupEncryptedFullEnabled(),
-                                    presentation.indexOf(edited))
-                            })
-                        })
                 })
                 true
             } else if (id == R.id.menu_popup_tags) {

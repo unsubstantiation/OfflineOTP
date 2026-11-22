@@ -100,6 +100,30 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   `ui_show_individual_timeouts` (`Show individual countdown timers`) in `SharedCardLayoutDialog`,
   `PreferencesExport.desktopCatalog`, and iOS `VaultStore` / `PreferencesExport.catalog`.
 
+- **Shared password import/export choosers, Thunderbird import confirmation & iOS lockscreen
+  `About` parity**: Added `PasswordImportComposeView` (`PasswordImportDialog` ->
+  `SharedPasswordImportDialog`), `PasswordExportComposeView` (`PasswordExportDialog`), and
+  `ArchiveExportComposeView` (`ArchiveExportDialog`) in `ComposeDialogViews.kt` and wired
+  `MainActivity` so Android previews browser/archive password imports, selects dialect/column CSV
+  snapshot groups or stored password archives, and confirms Thunderbird CSV credential imports
+  through the same shared `:ui-foundation` dialogs as Desktop and iOS; wrapped iOS
+  `UnlockPresentation` (`UnlockViewController.kt`) in `AboutNavigation` and wired
+  `AboutComposeViewController` (`AboutViewController.kt` + `AboutInfo` link allowlist) in
+  `ComposeUnlockHost.swift` so pre-unlock `About` matches Desktop; and removed dead legacy Android
+  `ManualEntryDialog.show` fallback and unused `AlertDialog` imports.
+
+- **Shared `HardwareCopyDialog`, `OpenPgpExportDialog`, and `StorageLocationDialog` across Android,
+  Desktop, and iOS**: Extended `HardwareCopyDialog` (`:ui-foundation`) with configurable transport
+  warnings and explicit `requireTouch` confirmation so Android `HardwareKeyActivity`
+  (`HardwareCopyComposeView`) shares the same two-stage seed-export selection/confirmation form as
+  Compose desktop while destroying unselected `Entry` secrets and zeroizing OATH PIN buffers on
+  cancel or lock; extended `OpenPgpExportDialog` (`:ui-foundation`) and wired
+  `OpenPgpExportComposeView` in Android `BackupActivity` so Android confirms configured SAF
+  recipient key filenames and multi-recipient security warnings through the same dialog as Desktop
+  and iOS before encrypting; and parameterized `StorageLocationDialog` (`:ui-foundation`) with
+  platform-accurate private container guidance across Desktop, iOS (`PortableVaultViewController`),
+  and Android `SettingsActivity` (`StorageLocationComposeView`).
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

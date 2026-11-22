@@ -266,6 +266,11 @@
             android:title="@string/settings_title_preferences_import"
             android:summary="@string/settings_desc_preferences_import" />
 
+        <Preference
+            android:key="@string/settings_key_storage_location"
+            android:title="@string/settings_title_storage_location"
+            android:summary="@string/settings_desc_storage_location" />
+
         <CheckBoxPreference
             android:key="@string/settings_key_backup_append_date_time"
             android:title="@string/settings_title_backup_append_date"

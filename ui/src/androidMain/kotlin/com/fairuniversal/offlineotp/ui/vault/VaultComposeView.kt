@@ -45,6 +45,9 @@ class VaultComposeView(
         VaultArtwork { name -> loader(name)?.asImageBitmap() }
     }
 
+    /** Optional host callback opening the shared OTP URI import dialog from the creation form. */
+    var onOpenUriImport: (() -> Unit)? = null
+
     // A Compose snapshot state owned by the view: platform code writes frames, the composition reads
     // them. The initial frame is empty, so nothing is disclosed before the host renders once.
     private val host = VaultFrameHost(actions)
@@ -267,6 +270,14 @@ class VaultComposeView(
                 onShowQrCode = request.onShowQrCode,
                 onShareKeystrokes = request.onShareKeystrokes,
                 onDelete = request.onDelete,
+                onSwitchToUriImport = if (!request.editing) onOpenUriImport?.let { open ->
+                    {
+                        if (!ended && editor === request) {
+                            clearEntryEditor()
+                            open()
+                        }
+                    }
+                } else null,
                 onEmailSubmit = request.onEmailSubmit?.let { submitEmail ->
                     { input ->
                         if (!ended && editor === request) {

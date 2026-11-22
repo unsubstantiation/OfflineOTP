@@ -552,9 +552,14 @@ private fun RenderSharedSurface(
         "storageLocation" -> StorageLocationDialog(
             directory = rowValue("directory"),
             filenames = rows.filter { it.key.startsWith("file:") }.map { it.title },
-            onDismiss = onDismiss
+            onDismiss = onDismiss,
+            title = dialog.title,
+            guidance = listOf(
+                "The app container holds the encrypted vault, automatic backup, and portable preferences. Keep device backups encrypted. External exports may contain plaintext secrets and are not listed here.",
+                "Files live inside this app's private iOS sandbox container. Use encrypted or OpenPGP backups to move accounts to another device."
+            )
         )
-        "settings" -> SharedVaultToolsDialog(
+        "settings", "backups" -> SharedVaultToolsDialog(
             title = dialog.title,
             groups = dialog.sections.map { section ->
                 PortableToolGroup(
@@ -782,6 +787,11 @@ private fun RenderSharedSurface(
                 error = dialog.message.ifEmpty { null },
                 onSwitchToEmail = if (dialog.title != "Edit entry") {
                     { onAction("switchToEmailEditor") }
+                } else {
+                    null
+                },
+                onSwitchToUriImport = if (dialog.title != "Edit entry") {
+                    { onAction("switchToUriImport") }
                 } else {
                     null
                 },

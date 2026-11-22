@@ -24,10 +24,9 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
-import com.fairuniversal.offlineotp.ui.host.CheckboxConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
-import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.HardwareCopyComposeView
 
 /** Foreground-only OATH account access and optional FIDO2 vault-unlock enrollment. */
 class HardwareKeyActivity : BaseActivity() {
@@ -39,7 +38,7 @@ class HardwareKeyActivity : BaseActivity() {
     private val handler = Handler(Looper.getMainLooper())
     private var clock: () -> Long = System::currentTimeMillis
     private var dialog: AlertDialog? = null
-    private var composeDialog: ComposeDialogHost? = null
+    internal var composeDialog: ComposeDialogHost? = null
     private var composeCleanup: (() -> Unit)? = null
     private var listed: HardwareOathClient.Accounts? = null
     private var listRevision = 0
@@ -114,15 +113,16 @@ class HardwareKeyActivity : BaseActivity() {
 
     /** The operation owns its PIN and optional entry until completion/cancellation. */
     private fun <T> runOperation(protocol: HardwareKeyDiscovery.Protocol, entry: Entry? = null,
+                                 explicitPin: CharArray? = null,
                                  work: (YubiKeyDevice, CharArray?, () -> Boolean) -> T,
                                  discard: (T) -> Unit = {}, cancelWork: () -> Unit = {},
                                  interruptedMessage: Int? = null, finished: (T?, Boolean) -> Unit) {
-        if (!sessionReady()) { entry?.destroy(); return }
+        if (!sessionReady()) { explicitPin?.fill('\u0000'); entry?.destroy(); return }
         dismissComposeDialog()
         val text = password.text
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         password.setText("")
-        val pin = chars.takeIf { it.isNotEmpty() }
+        val pin = explicitPin?.takeIf { it.isNotEmpty() } ?: chars.takeIf { it.isNotEmpty() }
         val progress = AlertDialog.Builder(this).setTitle(R.string.hardware_title)
             .setMessage(R.string.hardware_connect)
             .setNegativeButton(android.R.string.cancel) { _, _ -> discovery.cancel() }
@@ -140,7 +140,7 @@ class HardwareKeyActivity : BaseActivity() {
         }
         progress.show()
         discovery.start(protocol, { device, permitted -> work(device, pin, permitted) }, discard,
-            { chars.fill('\u0000'); entry?.destroy() }, cancelWork) { result, success ->
+            { chars.fill('\u0000'); explicitPin?.fill('\u0000'); entry?.destroy() }, cancelWork) { result, success ->
             if (dialog === progress) dialog = null
             progress.dismiss()
             if (sessionReady()) finished(result, success) else if (success && result != null) discard(result)
@@ -253,7 +253,10 @@ class HardwareKeyActivity : BaseActivity() {
             DatabaseHelper.readVault(this, key)
         }
         if (loaded !is VaultReadResult.Loaded) { showFailure(); return }
-        val all = loaded.takeEntries()
+        openCopyChooser(loaded.takeEntries())
+    }
+
+    internal fun openCopyChooser(all: List<Entry>) {
         val candidates = all.filter { HardwareOathClient.canCopy(it) }.toMutableList()
         all.filter { !candidates.contains(it) }.forEach { it.destroy() }
         if (candidates.isEmpty()) {
@@ -261,51 +264,41 @@ class HardwareKeyActivity : BaseActivity() {
             return
         }
         val names = candidates.map { displayName(it.getIssuer(), it.getLabel()) }
-        lateinit var selection: EntryCopyComposeView
-        selection = EntryCopyComposeView(
+        lateinit var copyView: HardwareCopyComposeView
+        copyView = HardwareCopyComposeView(
             activity = this,
-            title = getString(R.string.hardware_choose),
-            cancelLabel = getString(android.R.string.cancel),
-            fields = names,
-            onSelect = { index ->
+            labels = names,
+            transportNotice = getString(R.string.hardware_copy_warning),
+            requireTouchLabel = getString(R.string.hardware_require_touch),
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index, typedPin, requireTouch ->
                 val selected = candidates.getOrNull(index)
                 if (selected != null) candidates.removeAt(index)
                 candidates.forEach { it.destroy() }
                 candidates.clear()
-                dismissComposeDialog(selection)
-                if (selected != null) confirmCopy(selected)
+                dismissComposeDialog(copyView)
+                if (selected != null) {
+                    confirmCopy(selected, typedPin, requireTouch)
+                } else {
+                    typedPin.fill('\u0000')
+                }
             },
-            onDismiss = { dismissComposeDialog(selection) }
+            onDismiss = { dismissComposeDialog(copyView) }
         )
-        showComposeDialog(selection) {
+        showComposeDialog(copyView) {
             candidates.forEach { it.destroy() }
             candidates.clear()
         }
     }
 
-    private fun confirmCopy(entry: Entry) {
-        var transferred = false
-        lateinit var confirmation: CheckboxConfirmationComposeView
-        confirmation = CheckboxConfirmationComposeView(
-            activity = this,
-            title = getString(R.string.hardware_copy),
-            message = getString(R.string.hardware_copy_warning),
-            checkboxLabel = getString(R.string.hardware_require_touch),
-            confirmLabel = getString(android.R.string.ok),
-            dismissLabel = getString(android.R.string.cancel),
-            onConfirm = { requireTouch ->
-                transferred = true
-                dismissComposeDialog(confirmation)
-                runOperation(HardwareKeyDiscovery.Protocol.OATH, entry,
-                    work = { device, pin, permitted -> HardwareOathClient.copyToKey(device, pin, entry, requireTouch, permitted); true },
-                    interruptedMessage = R.string.hardware_copy_uncertain) { _, success ->
-                    if (success) Toast.makeText(this, R.string.hardware_copy_done, Toast.LENGTH_LONG).show()
-                    else showUncertain(R.string.hardware_copy_uncertain)
-                }
-            },
-            onDismiss = { dismissComposeDialog(confirmation) }
-        )
-        showComposeDialog(confirmation) { if (!transferred) entry.destroy() }
+    private fun confirmCopy(entry: Entry, typedPin: CharArray? = null, requireTouch: Boolean = false) {
+        runOperation(HardwareKeyDiscovery.Protocol.OATH, entry, explicitPin = typedPin,
+            work = { device, pin, permitted -> HardwareOathClient.copyToKey(device, pin, entry, requireTouch, permitted); true },
+            interruptedMessage = R.string.hardware_copy_uncertain) { _, success ->
+            if (success) Toast.makeText(this, R.string.hardware_copy_done, Toast.LENGTH_LONG).show()
+            else showUncertain(R.string.hardware_copy_uncertain)
+        }
     }
 
     private fun confirmEnrollment() {

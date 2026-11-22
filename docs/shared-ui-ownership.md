@@ -34,11 +34,12 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
   `PortableInputBounds`, and `AutoLockOptions`:
   strings, numbers and booleans only, with no engine, toolkit or host type.
-- `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultComponents`
-  (`SharedVaultSearchField`, `SharedVaultTab`, `SharedVaultTagChip`, `CountdownRing`, and
-  `VaultLetterTile`), and the engine-free shared Compose dialogs/forms consumed across Android,
-  Desktop, and iOS (`AboutDialog`, `AutoLockDialog`, `PasswordChangeDialog`,
-  `BiometricEnableDialog`, `PreferencesImportDialog`, `EntryConfirmationDialog`,
+- `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultScreen`,
+  `SharedVaultToolsDialog`, `SharedVaultComponents`
+  (`SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`, `SharedVaultTab`,
+  `SharedVaultTagChip`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
+  dialogs/forms consumed across Android, Desktop, and iOS (`AboutDialog`, `AutoLockDialog`,
+  `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`, `EntryConfirmationDialog`,
   `CheckboxConfirmationDialog`, `SharedEntryPinDialog`, `EntryCounterDialog`, `EntryDetailsDialog`,
   `TagsDialog`, `HideableDialog`, `MultiChoiceSelectionDialog`, `QrCodeDialog`, `EntryCopyDialog`,
   `EncryptedExportDialog`, `EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`,
@@ -50,12 +51,13 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `SharedManualEntryDialog`, `HardwareEnrollmentDialog`, `HardwareUnlockDialog`,
   `HardwareCopyDialog`, and `HardwareOathDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
-  and `PortableSurfaceActions` to Swift, routing dialog keys directly to the shared `:ui-foundation`
-  composables (`SharedCardLayoutDialog` for card density, token grouping, `Hide issuer`, and
+  and `PortableSurfaceActions` to Swift, routing every reachable dialog key directly to the shared
+  `:ui-foundation` composables (`SharedVaultToolsDialog` for both `Settings` and `Backups and links`;
+  `SharedCardLayoutDialog` for card density, token grouping, `Hide issuer`, and
   `Show previous code`; `MultiChoiceSelectionDialog` for selective FairEmail/Thunderbird exports and
   configurable `Search fields`; `PasswordExportDialog`, `ArchiveExportDialog`, `SharedManualEntryDialog`,
-  `SharedEmailAccountDialog`, `SharedThumbnailPickerDialog`, etc.) while reserving
-  `PortableSurfaceDialog` for host navigation/edit menus. One
+  `SharedEmailAccountDialog`, `SharedThumbnailPickerDialog`, `UriImportDialog`, etc.) while keeping
+  `PortableSurfaceDialog` only as a defensive fallback. One
   main-thread composition survives frame replacement; closing the host revokes every callback.
 - `AppDelegate.swift` installs `AppRootViewController`, which switches between
   `UnlockComposeViewController` and `VaultComposeViewController`, supplies native document
@@ -103,6 +105,14 @@ subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 - `QrCodeComposeView` (`QrCodeDialog`)
 - `CheckboxConfirmationComposeView` (`CheckboxConfirmationDialog`)
 - `EncryptedRestorePasswordComposeView` (`EncryptedRestoreDialog`)
+- `EncryptedExportComposeView` (`EncryptedExportDialog`)
+- `UriImportComposeView` (`UriImportDialog`)
+- `PasswordImportComposeView` (`PasswordImportDialog` -> `SharedPasswordImportDialog`)
+- `PasswordExportComposeView` (`PasswordExportDialog`)
+- `ArchiveExportComposeView` (`ArchiveExportDialog`)
+- `HardwareCopyComposeView` (`HardwareCopyDialog`)
+- `OpenPgpExportComposeView` (`OpenPgpExportDialog`)
+- `StorageLocationComposeView` (`StorageLocationDialog`)
 - `PreferencesImportComposeView` (`PreferencesImportDialog`)
 
 Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
@@ -119,9 +129,14 @@ The native `AlertDialog.Builder` / `EditText` implementations are retired from `
 FairEmail details, password details, tag picker, and password entry editing), `MainActivity`
 (auto-time warning, password import mode chooser, FairEmail encrypted backup password prompt,
 FairEmail/Thunderbird multi-choice account export, password archive/CSV export confirmations,
-used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode, preferences import confirmation with dry-run setting
-counts, encryption-change warning, login-backup old-password removal, and keystore reset
-confirmation), and `BackupActivity` (OpenPGP key-file passphrase mode chooser). The main unlock
+`otpauth://` URI import and duplicate-issuer confirmations, `UriImportDialog` link/QR-image import,
+used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode,
+preferences import confirmation with dry-run setting counts, private vault `Storage location`
+summary, encryption-change warning, login-backup old-password removal, keystore reset confirmation,
+and sync/encryption notices), `HardwareKeyActivity` (`HardwareCopyDialog` seed-export selection and
+confirmation with touch/OATH-password options), and `BackupActivity` (encrypted backup export
+password, encrypted backup restore password, `OpenPgpExportDialog` multi-recipient confirmation,
+OpenPGP key-file passphrase mode chooser, and OpenPGP key-file passphrase prompt). The main unlock
 Activity, onboarding wizard, and About/library screens still retain their native autofill/fragment
 adapters while `:ui-foundation` carries the shared Compose forms (`SharedUnlockScreen`,
 `SharedIntroScreen`, `AboutDialog`).

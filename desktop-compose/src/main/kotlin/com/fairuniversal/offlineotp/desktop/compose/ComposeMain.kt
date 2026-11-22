@@ -1528,6 +1528,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 null -> null
             },
             onDismiss = { creation.dismiss(addRequest); revision++ },
+            onSwitchToUriImport = {
+                creation.dismiss(addRequest)
+                if (lifetime.checkActive() && !vault.isLocked) {
+                    uriImporter.open()
+                }
+                revision++
+            },
             onSubmit = { input ->
                 creation.prepare(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++

@@ -6008,9 +6008,14 @@ fun main() {
         val activity = MainActivity()
         val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
         MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val activeDialogField = MainActivity::class.java.getDeclaredField("activeImportDialog").apply { isAccessible = true }
         val show = MainActivity::class.java.getDeclaredMethod("showDuplicateIssuerConfirmation",
             Entry::class.java, String::class.java).apply { isAccessible = true }
         val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        fun confirmOf(host: com.fairuniversal.offlineotp.ui.host.ComposeDialogHost): () -> Unit {
+            @Suppress("UNCHECKED_CAST")
+            return host.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(host) as () -> Unit
+        }
         val key = SecretKeySpec(ByteArray(32) { 7 }, "AES")
         val firstUnlock = VaultSession.beginUnlock()
         expect(VaultSession.activate(key, firstUnlock.generation) is SessionCommandResult.Applied, { "unlock" })
@@ -6018,22 +6023,24 @@ fun main() {
         try {
             val stale = Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example")
             show.invoke(activity, stale, "Example")
-            val staleDialog = AlertDialog.Builder.lastCreated ?: throw AssertionError("no confirmation")
+            val staleDialog = activeDialogField.get(activity) as? com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+                ?: throw AssertionError("no confirmation")
             VaultSession.lock()
             val reopen = VaultSession.beginUnlock()
             expect(VaultSession.activate(key, reopen.generation) is SessionCommandResult.Applied, { "reopen" })
-            staleDialog.positiveButtonListener!!.onClick(staleDialog, DialogInterface.BUTTON_POSITIVE)
+            confirmOf(staleDialog).invoke()
             expect(stale.getSecret() == null && adapter.getEntries().isEmpty(),
                 { "a confirmation from an older session must not insert an entry" })
-            staleDialog.onDismissListener!!.onDismiss(staleDialog)
+            staleDialog.dismiss()
 
             val pending = Entry("otpauth://totp/bob?secret=JBSWY3DPEHPK3PXP&issuer=Example")
             show.invoke(activity, pending, "Example")
-            val pendingDialog = AlertDialog.Builder.lastCreated ?: throw AssertionError("no second confirmation")
+            val pendingDialog = activeDialogField.get(activity) as? com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+                ?: throw AssertionError("no second confirmation")
             lockUi.invoke(activity)
             expect(pending.getSecret() == null && pendingDialog.dismissals > 0,
                 { "lock cleanup must wipe and dismiss the pending import" })
-            pendingDialog.positiveButtonListener!!.onClick(pendingDialog, DialogInterface.BUTTON_POSITIVE)
+            confirmOf(pendingDialog).invoke()
             expect(adapter.getEntries().isEmpty(), { "a dismissed confirmation must stay inert" })
         } finally {
             adapter.lockEntries()
@@ -8736,6 +8743,199 @@ fun main() {
         } finally {
             controller.lockEntries()
             VaultSession.lock()
+        }
+    }
+
+    check("Android shared URI import dialog enforces duplicate-issuer opt-in and wipes migration batches on lock") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val entries = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(adapter.controller) as EntryList
+        entries.addEntry(Entry("otpauth://totp/alice?secret=JBSWY3DPEHPK3PXP&issuer=Example"))
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val openUri = MainActivity::class.java.getDeclaredMethod("openUriImportDialog").apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val uriField = MainActivity::class.java.getDeclaredField("uriImportPrompt").apply { isAccessible = true }
+        val collectorField = MainActivity::class.java.getDeclaredField("migrationCollector").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 9 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            openUri.invoke(activity)
+            val dialog = uriField.get(activity) as? com.fairuniversal.offlineotp.ui.host.UriImportComposeView
+                ?: throw AssertionError("no UriImportComposeView")
+            @Suppress("UNCHECKED_CAST")
+            val onSubmit = dialog.javaClass.getDeclaredField("onSubmit").apply { isAccessible = true }
+                .get(dialog) as (String, Boolean) -> String?
+            // Duplicate issuer without allowAdditional returns inline error instead of silently overwriting.
+            val dupErr = onSubmit("otpauth://totp/bob?secret=JBSWY3DPEHPK3PXP&issuer=Example", false)
+            expect(dupErr != null && entries.getEntries().size == 1,
+                { "duplicate issuer without allowAdditional should return inline error" })
+            // Partial Google migration part sets collectingBatch and is wiped when the vault locks.
+            val firstPart = "otpauth-migration://offline?data=CiIKCkhlbGxvId6tvu8SBWFsaWNlGgdFeGFtcGxlIAEoATACEAIYAiAAKLlg"
+            val progressMsg = onSubmit(firstPart, false)
+            expect(progressMsg != null && dialog.collectingBatch && collectorField.get(activity) != null,
+                { "first migration part did not stage collector in UriImportComposeView" })
+            lockUi.invoke(activity)
+            expect(dialog.dismissals > 0 && uriField.get(activity) == null && collectorField.get(activity) == null,
+                { "locking did not dismiss UriImportComposeView and wipe staged migration collector" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("Android shared password export and archive export dialogs group dialects and dismiss on lock") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val entries = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(adapter.controller) as EntryList
+        val chromeCsv = "name,url,username,password,note\nExample,https://example.com,alice,s3cr3t,\n".toByteArray(Charsets.UTF_8)
+        val firefoxCsv = "url,username,password,httpRealm,formActionOrigin,guid\nhttps://example.org,bob,p4ss,,,g1\n".toByteArray(Charsets.UTF_8)
+        val chromeEntries = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+            chromeCsv, "chrome.csv", com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.INDIVIDUAL)
+        val firefoxEntries = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+            firefoxCsv, "firefox.csv", com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.INDIVIDUAL)
+        val archiveEntries = com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+            byteArrayOf(1, 2, 3, 4), "vault.bin", com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.ARCHIVE)
+        (chromeEntries + firefoxEntries + archiveEntries).forEach {
+            it.setDetailsVisible(true)
+            entries.addEntry(it)
+        }
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val exportField = MainActivity::class.java.getDeclaredField("passwordExportPrompt").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 11 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            activity.requestPasswordCsvExport(null)
+            val chooser = exportField.get(activity) as? com.fairuniversal.offlineotp.ui.host.PasswordExportComposeView
+                ?: throw AssertionError("expected PasswordExportComposeView for mixed Chrome+Firefox+Archive")
+            @Suppress("UNCHECKED_CAST")
+            val groups = chooser.javaClass.getDeclaredField("groups").apply { isAccessible = true }
+                .get(chooser) as List<String>
+            val archivesCount = chooser.javaClass.getDeclaredField("archives").apply { isAccessible = true }
+                .getInt(chooser)
+            expect(groups.size == 2 && archivesCount == 1,
+                { "expected 2 browser CSV groups and 1 archive, got groups=$groups archives=$archivesCount" })
+            lockUi.invoke(activity)
+            expect(chooser.dismissals > 0 && exportField.get(activity) == null,
+                { "locking did not dismiss PasswordExportComposeView" })
+
+            // Re-unlock with only an archive revealed -> ArchiveExportComposeView
+            val unlock2 = VaultSession.beginUnlock()
+            expect(VaultSession.activate(key, unlock2.generation) is SessionCommandResult.Applied, { "unlock2" })
+            adapter.encryptionKey = key
+            com.fairuniversal.offlineotp.Utilities.PasswordImport.prepare(
+                byteArrayOf(1, 2, 3, 4), "vault.bin", com.fairuniversal.offlineotp.Utilities.PasswordImport.Mode.ARCHIVE
+            ).forEach {
+                it.setDetailsVisible(true)
+                entries.addEntry(it)
+            }
+            activity.requestPasswordCsvExport(null)
+            val archiveDialog = exportField.get(activity) as? com.fairuniversal.offlineotp.ui.host.ArchiveExportComposeView
+                ?: throw AssertionError("expected ArchiveExportComposeView when only archives are revealed")
+            @Suppress("UNCHECKED_CAST")
+            val labels = archiveDialog.javaClass.getDeclaredField("labels").apply { isAccessible = true }
+                .get(archiveDialog) as List<String>
+            expect(labels == listOf("vault.bin"), { "unexpected archive labels: $labels" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
+    check("Android shared HardwareCopy, OpenPgpExport, and StorageLocation dialogs enforce filters and dismiss on lock") {
+        val key = SecretKeySpec(ByteArray(32) { 29 }, "AES")
+        val tempDir = java.io.File(System.getProperty("java.io.tmpdir"), "offlineotp-hw-copy-check-${System.nanoTime()}").apply { mkdirs() }
+        val hwActivity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
+        val totp = Entry(
+            Entry.OTPType.TOTP, ENTRY_SEED, 30, 6, "Example", "alice",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf()
+        )
+        val nonCopyable = Entry(
+            Entry.OTPType.STEAM, ENTRY_SEED, 30, 5, "Steam", "valve",
+            TokenCalculator.HashAlgorithm.SHA1, arrayListOf()
+        )
+        VaultSession.open(key)
+        val generation = VaultSession.generation()
+        val discovery = HardwareKeyDiscovery(hwActivity) { VaultSession.isCurrent(generation) }
+        try {
+            hwActivity.javaClass.getDeclaredField("generation").apply { isAccessible = true }.setLong(hwActivity, generation)
+            hwActivity.javaClass.getDeclaredField("discovery").apply { isAccessible = true }.set(hwActivity, discovery)
+            hwActivity.javaClass.getDeclaredField("password").apply { isAccessible = true }.set(hwActivity, android.widget.EditText(hwActivity))
+            hwActivity.javaClass.getDeclaredField("status").apply { isAccessible = true }.set(hwActivity, android.widget.TextView())
+            hwActivity.javaClass.getDeclaredField("accountsView").apply { isAccessible = true }.set(hwActivity, android.widget.LinearLayout(hwActivity))
+            hwActivity.openCopyChooser(listOf(totp, nonCopyable))
+            expect(nonCopyable.getSecret()?.all { it == 0.toByte() } != false, { "non-copyable candidate secret was not destroyed immediately" })
+            val copyView = hwActivity.composeDialog as? com.fairuniversal.offlineotp.ui.host.HardwareCopyComposeView
+                ?: throw AssertionError("expected HardwareCopyComposeView on HardwareKeyActivity")
+            expect(copyView.labels == listOf("Example / alice") && copyView.selecting,
+                { "HardwareCopyComposeView must list only OATH-copyable entries, got ${copyView.labels}" })
+            copyView.selectEntry(0)
+            expect(!copyView.selecting && copyView.selectedIndex == 0,
+                { "selecting an entry did not advance HardwareCopyComposeView to confirmation" })
+            val hwLock = hwActivity.javaClass.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+            hwLock.invoke(hwActivity)
+            expect(copyView.dismissals > 0 && hwActivity.composeDialog == null,
+                { "locking did not dismiss HardwareCopyComposeView" })
+            expect(totp.getSecret()?.all { it == 0.toByte() } != false, { "locking did not destroy staged hardware copy secret" })
+
+            // OpenPgpExportComposeView on BackupActivity
+            PreferenceManager.reset()
+            VaultSession.open(key)
+            val backupActivity = object : BackupActivity() {
+                override fun getFilesDir(): java.io.File = tempDir
+            }
+            val backupSettings = withPoisonedTransaction { Settings(backupActivity) }
+            backupSettings.setOpenPGPRecipientFiles(
+                setOf("content://keys/document/bob.asc", "content://keys/document/alice.asc")
+            )
+            backupActivity.settings = backupSettings
+            BackupActivity::class.java.getDeclaredField("encryptionKey").apply { isAccessible = true }.set(backupActivity, key)
+            val backupWithKeyFile = BackupActivity::class.java.getDeclaredMethod("backupWithKeyFile", android.net.Uri::class.java)
+                .apply { isAccessible = true }
+            backupWithKeyFile.invoke(backupActivity, android.net.Uri.parse("content://backups/document/out.gpg"))
+            val pgpDialog = backupActivity.currentKeyFileDialog() as? com.fairuniversal.offlineotp.ui.host.OpenPgpExportComposeView
+                ?: throw AssertionError("expected OpenPgpExportComposeView on BackupActivity")
+            expect(pgpDialog.recipientNames == listOf("alice.asc", "bob.asc"),
+                { "unexpected OpenPGP recipient names: ${pgpDialog.recipientNames}" })
+            val backupLock = BackupActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+            backupLock.invoke(backupActivity)
+            expect(pgpDialog.dismissals > 0 && backupActivity.currentKeyFileDialog() == null,
+                { "locking did not dismiss OpenPgpExportComposeView" })
+
+            // StorageLocationComposeView on SettingsActivity
+            VaultSession.open(key)
+            val settingsActivity = object : SettingsActivity() {
+                override fun getFilesDir(): java.io.File = tempDir
+            }
+            settingsActivity.showStorageLocation()
+            val storageDialog = settingsActivity.settingsConfirmationPrompt as? com.fairuniversal.offlineotp.ui.host.StorageLocationComposeView
+                ?: throw AssertionError("expected StorageLocationComposeView on SettingsActivity")
+            expect(
+                storageDialog.directory == tempDir.absolutePath &&
+                    storageDialog.filenames == listOf(
+                        Constants.FILENAME_ENCRYPTED_KEY,
+                        Constants.FILENAME_DATABASE,
+                        Constants.FILENAME_DATABASE_BACKUP
+                    ),
+                { "unexpected StorageLocationComposeView state: ${storageDialog.directory} / ${storageDialog.filenames}" }
+            )
+            val settingsLock = SettingsActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+            settingsLock.invoke(settingsActivity)
+            expect(storageDialog.dismissals > 0 && settingsActivity.settingsConfirmationPrompt == null,
+                { "locking did not dismiss StorageLocationComposeView" })
+        } finally {
+            discovery.close()
+            VaultSession.lock()
+            PreferenceManager.reset()
+            tempDir.deleteRecursively()
         }
     }
 

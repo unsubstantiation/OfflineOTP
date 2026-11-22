@@ -926,7 +926,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Restore OpenPGP backup",
                 sections: [PortableSection(title: "", rows: rows)],
                 confirmLabel: "Restore", dismissLabel: "Cancel")
-        case "passwordPrompt": return passwordPromptSurface()
         case "archiveExport":
             let rows = store.entries.enumerated().compactMap { idx, entry -> PortableRow? in
                 guard entry.kind == .passwordArchive else { return nil }
@@ -1230,7 +1229,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func backupSurface() -> PortableSurfaceState {
         surface(key: "backups", title: "Backups and links", sections: [
             PortableSection(title: "Encrypted backup", rows: [
-                row("backupPassword", "Backup password", value: draft["backupPassword"] ?? "", kind: "secure"),
                 row("backupExport", "Export encrypted backup…", detail: "Argon2id + AES-256-GCM"),
                 row("backupImport", "Import encrypted backup…")]),
             PortableSection(title: "Other formats", rows: [
@@ -1366,13 +1364,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             chars.append(pixels[idx * 4] < 128 ? "1" : "0")
         }
         return (width, chars)
-    }
-
-    private func passwordPromptSurface() -> PortableSurfaceState {
-        surface(key: "passwordPrompt", title: "Backup password",
-            sections: [PortableSection(title: "", rows: [
-                row("password", "Backup password", value: draft["password"] ?? "", kind: "secure")])],
-            confirmLabel: "Continue", dismissLabel: "Cancel")
     }
 
     private func actionSurface(at index: Int) -> PortableSurfaceState {
@@ -1569,7 +1560,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         noteActivity()
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
             || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
-            || surfaceKey == "passwordPrompt"
             || surfaceKey == "backups" || surfaceKey == "backupExportDialog"
             || surfaceKey == "biometricEnable" || surfaceKey == "restore"
             || surfaceKey == "autoLock" || surfaceKey == "passwordChange"
@@ -1937,13 +1927,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message(BackupWording.restoreSummary(plan, replace: false))
             closeSurface()
             return nil
-        case "passwordPrompt":
-            if let password = draft["password"], let backup = store.exportBackup(password: password) {
-                onExport(backup.data, backup.name)
-                closeSurface()
-                return nil
-            }
-            return store.message ?? "Enter a backup password first."
         default: closeSurface(); return nil
         }
     }
@@ -2536,8 +2519,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         }
-        if command == "link", parts.count > 1, let url = URL(string: parts[1]),
-           ["http", "https"].contains(url.scheme ?? "") {
+        if command == "link", parts.count > 1 {
+            let allowedIds = ["website", "releases", "changelog", "license", "source", "issues",
+                              "author1", "author2", "originalAuthor", "originalApp", "contributors", "support"]
+            guard allowedIds.contains(where: { AboutInfo.url(id: $0) == parts[1] }),
+                  let url = URL(string: parts[1]),
+                  ["http", "https"].contains(url.scheme ?? "") else {
+                return "Unsupported link."
+            }
             onOpenLink(url)
             return nil
         }
@@ -2572,6 +2561,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "switchToEmailEditor":
             openEmailEditor(index: nil)
+            return nil
+        case "switchToUriImport":
+            pendingQrImagePayload = nil
+            qrImageFailed = false
+            openSurface("uriImport")
             return nil
         case "type":
             let offerable = EntryDraft.offerableKinds
@@ -2790,17 +2784,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             onExport(backup.data, backup.name)
             return nil
         case "backupExport":
-            if (draft["backupPassword"] ?? "").isEmpty {
-                draft = [:]
-                openSurface("backupExportDialog", keepDraft: true)
-                return nil
-            }
-            guard let password = draft["backupPassword"], !password.isEmpty,
-                  let backup = store.exportBackup(password: password) else {
-                return store.message ?? "Enter a backup password first."
-            }
-            onExport(backup.data, backup.name)
-            closeSurface()
+            draft = [:]
+            openSurface("backupExportDialog", keepDraft: true)
             return nil
         case "csvExport":
             let plan = store.passwordExportPlan()

@@ -37,6 +37,7 @@ fun SharedManualEntryDialog(
     onSubmit: (PortableEntryDraft) -> Unit,
     onDismiss: () -> Unit,
     onSwitchToEmail: (() -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null,
     submitNotice: String? = null,
     thumbnailNames: List<String> = emptyList(),
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
@@ -95,6 +96,12 @@ fun SharedManualEntryDialog(
                         ForestTextAction(text = "Email account", onClick = {
                             input = PortableEntryDraft()
                             onSwitchToEmail()
+                        })
+                    }
+                    if (onSwitchToUriImport != null) {
+                        ForestTextAction(text = "Import otpauth:// link", onClick = {
+                            input = PortableEntryDraft()
+                            onSwitchToUriImport()
                         })
                     }
                 } else if (initial.kind in PORTABLE_OTP_KINDS) {

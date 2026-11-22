@@ -174,4 +174,25 @@ entry count preview), `"cardLayout"`, `"sort"`, `"more:<index>"`, and non-email 
 onto shared `:ui-foundation` dialogs, and migrated Android's `HardwareUnlockActivity` wait prompt
 onto `EntryDetailsComposeView`.
 
+## Follow-up: shared category/tag strips, iOS `Backups and links` tools dialog, and Android backup/import/settings Compose hosts
+
+Extracted `SharedVaultCategoryBar` and `SharedVaultTagBar` into `SharedVaultComponents`
+(`:ui-foundation/src/commonMain`) so Android, Desktop (`VaultComponents`), and iOS
+(`PortableVaultScreen`) share the horizontal category-tab and tag-filter strips alongside the
+shared scaffold, top bar, search field, sort bar, empty state, and entry cards.
+
+Routed iOS `"backups"` (`Backups and links`) onto `SharedVaultToolsDialog` alongside `"settings"`,
+removed the legacy unconfirmed password row from `backupSurface()` so encrypted exports always use
+`EncryptedExportDialog` with password confirmation and minimum-length enforcement, and wired an
+optional `"Import otpauth:// link"` switch on `SharedManualEntryDialog` into `UriImportDialog` across
+Android (`UriImportComposeView` + `MainActivity`), Desktop (`ComposeMain`), and iOS
+(`PortableVaultViewController` + `ComposeVaultHost`).
+
+On Android, replaced all three `BackupActivity` password prompts (`doBackupCrypt`, `doRestoreCrypt`,
+`promptForKeyFilePassphrase`) with `ComposeDialogHost` views (`EncryptedExportComposeView`,
+`EncryptedRestorePasswordComposeView`, `BiometricEnableComposeView`), moved `MainActivity` URI and
+duplicate-issuer import confirmations onto `DeleteConfirmationComposeView`, and migrated the
+remaining `SettingsActivity` `UIHelper.showGenericDialog` notices onto `EntryDetailsComposeView`.
+
+
 

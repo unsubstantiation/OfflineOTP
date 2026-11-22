@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.Activities
 
-import android.app.AlertDialog
 import android.app.PendingIntent
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -28,7 +27,6 @@ import org.openintents.openpgp.util.OpenPgpApi
 import org.openintents.openpgp.util.OpenPgpServiceConnection
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.openpgp.RpgpOpenPgpPort
-import com.fairuniversal.offlineotp.Dialogs.PasswordEntryDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.EncryptedBackupTask
@@ -58,8 +56,12 @@ import com.fairuniversal.offlineotp.Utilities.StorageAccessHelper
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultRestoreOperation
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
+import com.fairuniversal.offlineotp.ui.host.EncryptedExportComposeView
+import com.fairuniversal.offlineotp.ui.host.EncryptedRestorePasswordComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.OpenPgpExportComposeView
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -95,8 +97,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var swReplace: SwitchMaterial? = null
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
-    private var activePasswordDialog: PasswordEntryDialog? = null
+    private var activePasswordDialog: ComposeDialogHost? = null
     private var activeKeyFileDialog: ComposeDialogHost? = null
+    internal fun currentKeyFileDialog(): ComposeDialogHost? = activeKeyFileDialog
     private val openPgpPort by lazy { RpgpOpenPgpPort() }
     private val keyFileBackendAvailable by lazy { openPgpPort.isBackendAvailable() }
 
@@ -909,17 +912,32 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         // Every file may have a different historical password, including after a password change.
         waitingForPassword = true
         activePasswordDialog?.dismiss()
-        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
-            settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-            PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
+        var passwordSubmitted = false
+        var pwDialog: EncryptedRestorePasswordComposeView? = null
+        val closeDialog = {
+            val h = pwDialog
+            if (activePasswordDialog === h) activePasswordDialog = null
+            h?.dismiss()
+            Unit
+        }
+        pwDialog = EncryptedRestorePasswordComposeView(
+            activity = this,
+            decodeDescription = getString(R.string.backup_label_crypt),
+            onDecode = { newPassword ->
+                passwordSubmitted = true
                 waitingForPassword = false
-                activePasswordDialog = null
+                closeDialog()
                 doRestoreCryptWithPassword(uri, newPassword)
-            }, PasswordEntryDialog.PasswordCanceledCallback {
+            },
+            onDismiss = closeDialog
+        )
+        pwDialog.setOnDismissListener {
+            if (!passwordSubmitted) {
                 waitingForPassword = false
-                activePasswordDialog = null
-                discardActiveBackupDocument()
-            })
+                if (activePasswordDialog === pwDialog) activePasswordDialog = null
+                if (canOperate()) discardActiveBackupDocument()
+            }
+        }
         activePasswordDialog = pwDialog
         pwDialog.show()
     }
@@ -948,17 +966,37 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (password.isEmpty()) {
             waitingForPassword = true
             activePasswordDialog?.dismiss()
-            val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.UPDATE,
-                settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-                PasswordEntryDialog.PasswordEnteredCallback { newPassword ->
+            var passwordSubmitted = false
+            var pwDialog: EncryptedExportComposeView? = null
+            val closeDialog = {
+                val h = pwDialog
+                if (activePasswordDialog === h) activePasswordDialog = null
+                h?.dismiss()
+                Unit
+            }
+            pwDialog = EncryptedExportComposeView(
+                activity = this,
+                minPasswordLength = Constants.AUTH_MIN_PASSWORD_LENGTH,
+                tooShortMessage = getString(
+                    R.string.settings_label_short_password,
+                    Constants.AUTH_MIN_PASSWORD_LENGTH
+                ),
+                onConfirm = { newPassword ->
+                    passwordSubmitted = true
                     waitingForPassword = false
-                    activePasswordDialog = null
+                    closeDialog()
                     doBackupCryptWithPassword(uri, newPassword)
-                }, PasswordEntryDialog.PasswordCanceledCallback {
+                    null
+                },
+                onDismiss = closeDialog
+            )
+            pwDialog.setOnDismissListener {
+                if (!passwordSubmitted) {
                     waitingForPassword = false
-                    activePasswordDialog = null
-                    discardActiveBackupDocument()
-                })
+                    if (activePasswordDialog === pwDialog) activePasswordDialog = null
+                    if (canOperate()) discardActiveBackupDocument()
+                }
+            }
             activePasswordDialog = pwDialog
             pwDialog.show()
         } else {
@@ -1000,7 +1038,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         }
     }
 
-    /** Encrypts to the selected recipient documents using the bundled backend. */
+    /** Confirms recipient key files through the shared OpenPGP export dialog, then encrypts. */
     private fun backupWithKeyFile(uri: Uri?) {
         if (!canOperate()) return
         val recipients = settings!!.getOpenPGPRecipientFiles()
@@ -1008,6 +1046,53 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             discardActiveBackupDocument()
             updateKeyFileAvailability()
             notifyBackupState(R.string.backup_toast_openpgp_no_recipients)
+            return
+        }
+        val recipientNames = recipients.map { raw ->
+            val parsed = Uri.parse(raw)
+            val resolved = StorageAccessHelper.getContentFileName(this, parsed)
+            resolved.takeIf { it.isNotBlank() && (it != "backup" || raw.endsWith("/backup")) }
+                ?: raw.substringAfterLast('/').takeIf(String::isNotBlank)
+                ?: getString(R.string.settings_title_openpgp_recipient_files)
+        }
+        waitingForPassword = true
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
+        activeKeyFileDialog?.dismiss()
+        var confirmed = false
+        var exportDialog: OpenPgpExportComposeView? = null
+        val closeExportDialog = {
+            val h = exportDialog
+            if (activeKeyFileDialog === h) activeKeyFileDialog = null
+            h?.dismiss()
+            Unit
+        }
+        exportDialog = OpenPgpExportComposeView(
+            activity = this,
+            recipientNames = recipientNames,
+            maxRecipients = OpenPgpKeyFilePolicy.MAX_RECIPIENTS,
+            onExport = {
+                confirmed = true
+                waitingForPassword = false
+                closeExportDialog()
+                startKeyFileBackup(uri, recipients)
+            },
+            onDismiss = closeExportDialog
+        )
+        exportDialog.setOnDismissListener {
+            if (!confirmed) {
+                waitingForPassword = false
+                if (activeKeyFileDialog === exportDialog) activeKeyFileDialog = null
+                discardActiveBackupDocument()
+            }
+        }
+        activeKeyFileDialog = exportDialog
+        exportDialog.show()
+    }
+
+    private fun startKeyFileBackup(uri: Uri?, recipients: List<String>) {
+        if (!canOperate()) {
+            discardActiveBackupDocument()
             return
         }
         try {
@@ -1084,17 +1169,43 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             waitingForPassword = false
             return
         }
-        val pwDialog = PasswordEntryDialog(this, PasswordEntryDialog.Mode.ENTER,
-            settings!!.getBlockAccessibility(), settings!!.getBlockAutofill(),
-            PasswordEntryDialog.PasswordEnteredCallback { passphrase ->
+        activePasswordDialog?.dismiss()
+        var passphraseSubmitted = false
+        var pwDialog: BiometricEnableComposeView? = null
+        val closeDialog = {
+            val h = pwDialog
+            if (activePasswordDialog === h) activePasswordDialog = null
+            h?.dismiss()
+            Unit
+        }
+        pwDialog = BiometricEnableComposeView(
+            activity = this,
+            title = getString(R.string.dialog_title_enter_password),
+            detail = getString(R.string.backup_dialog_openpgp_passphrase_message),
+            passwordLabel = getString(R.string.settings_hint_password),
+            confirmLabel = getString(android.R.string.ok),
+            cancelLabel = getString(android.R.string.cancel),
+            onConfirm = { passphrase ->
+                if (passphrase.isEmpty()) {
+                    getString(R.string.backup_dialog_openpgp_passphrase_message)
+                } else {
+                    val copied = passphrase.toCharArray()
+                    passphraseSubmitted = true
+                    waitingForPassword = false
+                    closeDialog()
+                    startKeyFileRestore(uri, secretFile, copied)
+                    null
+                }
+            },
+            onDismiss = closeDialog
+        )
+        pwDialog.setOnDismissListener {
+            if (!passphraseSubmitted) {
                 waitingForPassword = false
-                activePasswordDialog = null
-                startKeyFileRestore(uri, secretFile, passphrase.toCharArray())
-            }, PasswordEntryDialog.PasswordCanceledCallback {
-                waitingForPassword = false
-                activePasswordDialog = null
-                clearActiveAction()
-            })
+                if (activePasswordDialog === pwDialog) activePasswordDialog = null
+                if (canOperate()) clearActiveAction()
+            }
+        }
         activePasswordDialog = pwDialog
         pwDialog.show()
     }

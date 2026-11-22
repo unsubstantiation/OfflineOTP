@@ -80,6 +80,12 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('if (active) AboutDialog(', native)
         self.assertIn('active && actions.openLink(url)', native)
         self.assertIn('close(); actions.dismiss()', native)
+        unlock_native = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockViewController.kt').read_text()
+        self.assertIn('AboutNavigation(onAbout = { if (active && !busy) actions.about() })', unlock_native)
+        unlock_swift = (ROOT / 'ios/App/Sources/ComposeUnlockHost.swift').read_text()
+        self.assertIn('AboutPresentation()', unlock_swift)
+        self.assertIn('AboutComposeViewController(', unlock_swift)
+        self.assertIn('AboutInfo.url(id:', unlock_swift)
 
     def test_auto_lock_uses_one_dialog_and_contract_with_guarded_native_save(self):
         self.assertFalse((ROOT / 'ios/Sources/OfflineOTPKit/AutoLockOptions.swift').exists())
@@ -459,5 +465,45 @@ class NativeComposeFoundationTest(unittest.TestCase):
         prefs_swift = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
         self.assertIn('number.objCType', prefs_swift)
         self.assertIn('flag.objCType', prefs_swift)
+
+    def test_shared_vault_bars_ios_backups_tools_dialog_and_cross_platform_uri_import(self):
+        shared_components = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt').read_text(encoding='utf-8')
+        self.assertIn('fun SharedVaultCategoryBar(', shared_components)
+        self.assertIn('fun SharedVaultTagBar(', shared_components)
+
+        ui_components = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComponents.kt').read_text(encoding='utf-8')
+        self.assertIn('SharedVaultCategoryBar(', ui_components)
+        self.assertIn('SharedVaultTagBar(', ui_components)
+        self.assertIn('onCycleTagRule', ui_components)
+
+        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        self.assertIn('SharedVaultCategoryBar(', portable_screen)
+        self.assertIn('SharedVaultTagBar(', portable_screen)
+
+        ios_vc = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')
+        self.assertIn('"settings", "backups" -> SharedVaultToolsDialog(', ios_vc)
+        self.assertIn('onSwitchToUriImport = if (dialog.title != "Edit entry")', ios_vc)
+        self.assertIn("private iOS sandbox container", ios_vc)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        backup_section = host[host.index('private func backupSurface()'):host.index('private func openPgpSection()')]
+        self.assertNotIn('row("backupPassword"', backup_section)
+        self.assertNotIn('passwordPromptSurface', host)
+        self.assertIn('case "switchToUriImport":', host)
+
+        shared_manual = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedManualEntryDialog.kt').read_text(encoding='utf-8')
+        self.assertIn('onSwitchToUriImport: (() -> Unit)? = null', shared_manual)
+        self.assertIn('Import otpauth:// link', shared_manual)
+
+        ui_manual = (ROOT / 'ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryDialog.kt').read_text(encoding='utf-8')
+        self.assertIn('onSwitchToUriImport: (() -> Unit)? = null', ui_manual)
+
+        android_vault = (ROOT / 'ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt').read_text(encoding='utf-8')
+        self.assertIn('var onOpenUriImport: (() -> Unit)? = null', android_vault)
+        self.assertIn('onSwitchToUriImport = if (!request.editing) onOpenUriImport?.let', android_vault)
+
+        desktop_main = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text(encoding='utf-8')
+        self.assertIn('onSwitchToUriImport =', desktop_main)
+
 
 

@@ -133,18 +133,13 @@ fun PortableVaultScreen(
                     ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
                 }
             )
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                state.tabs.forEachIndexed { position, tab ->
-                    SharedVaultTab(
-                        label = if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label,
-                        selected = tab.selected,
-                        onClick = { onTab(position) }
-                    )
-                }
-            }
+            SharedVaultCategoryBar(
+                tabs = state.tabs.map { tab ->
+                    (if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label) to tab.selected
+                },
+                onSelect = onTab,
+                horizontalPaddingDp = 8
+            )
             SharedVaultSearchField(
                 value = state.query,
                 hint = "Search",
@@ -152,29 +147,27 @@ fun PortableVaultScreen(
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
             if (state.tags.isNotEmpty()) {
-                Row(
-                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ForestTextAction(
-                        text = state.tagRule,
-                        onClick = { onTool("tagRule") },
-                        color = ForestPalette.textSecondary,
-                        contentDescription = "How selected tags combine"
-                    )
-                    state.tags.forEach { tag ->
-                        SharedVaultTagChip(
-                            label = if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label,
-                            selected = tag.selected,
-                            onClick = { onTag(tag.label) }
+                SharedVaultTagBar(
+                    chips = state.tags.map { tag ->
+                        (if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label) to tag.selected
+                    },
+                    onToggleChip = { index -> state.tags.getOrNull(index)?.let { onTag(it.label) } },
+                    horizontalPaddingDp = 8,
+                    leadingContent = {
+                        ForestTextAction(
+                            text = state.tagRule,
+                            onClick = { onTool("tagRule") },
+                            color = ForestPalette.textSecondary,
+                            contentDescription = "How selected tags combine"
                         )
-                    }
-                    if (state.includeUntagged || state.tags.any { it.selected }) {
-                        ForestTextAction("Clear", onClick = onClearTags, color = ForestPalette.warning,
-                            contentDescription = "Clear the search and tag filters")
-                    }
-                }
+                    },
+                    trailingContent = if (state.includeUntagged || state.tags.any { it.selected }) {
+                        {
+                            ForestTextAction("Clear", onClick = onClearTags, color = ForestPalette.warning,
+                                contentDescription = "Clear the search and tag filters")
+                        }
+                    } else null
+                )
             }
         },
         emptyContent = {
