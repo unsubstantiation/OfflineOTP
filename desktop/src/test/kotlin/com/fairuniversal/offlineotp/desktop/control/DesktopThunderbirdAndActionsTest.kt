@@ -194,6 +194,15 @@ class DesktopThunderbirdAndActionsTest {
         assertEquals("Team Archive", updatedArch.getIssuer())
         assertEquals(listOf("backup"), updatedArch.getTags())
 
+        // Concealed or binary-archive entries never disclose password details; revealed password entries format columns.
+        assertFalse(actions.openPasswordDetails(updatedPw.getListId(), revealed = false) { true })
+        assertFalse(actions.openPasswordDetails(updatedArch.getListId(), revealed = true) { true })
+        assertTrue(actions.openPasswordDetails(updatedPw.getListId(), revealed = true) { true })
+        assertEquals(DesktopEntryActions.Surface.PASSWORD_DETAILS, actions.pending!!.surface)
+        assertTrue(actions.pending!!.detailsText!!.contains("https://github.com"))
+        assertTrue(actions.pending!!.detailsText!!.contains("updated note"))
+        actions.dismiss(actions.pending!!)
+
         val direct = Executor { it.run() }
         var groupCsv: ByteArray? = null
         val pwExporter = DesktopPasswordExport(state, direct, { it.run() }, {}, write = { _, b -> groupCsv = b.copyOf() })

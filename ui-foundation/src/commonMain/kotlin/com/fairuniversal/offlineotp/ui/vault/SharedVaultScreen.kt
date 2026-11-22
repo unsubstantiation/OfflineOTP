@@ -14,7 +14,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
 
@@ -69,5 +71,42 @@ fun SharedVaultScaffold(
                 )
             }
         }
+    }
+}
+
+/** Shared viewport auto-scroll step used while dragging a vault entry near the top or bottom edge. */
+fun sharedVaultViewportScroll(
+    pointerY: Float,
+    viewportStartOffset: Int,
+    viewportEndOffset: Int,
+    edgePx: Float = 56f,
+    stepPx: Float = 12f
+): Float = when {
+    pointerY < viewportStartOffset + edgePx -> -stepPx
+    pointerY > viewportEndOffset - edgePx -> stepPx
+    else -> 0f
+}
+
+/** Shared lifted-item container used by reorderable vault lists across Android, Desktop and iOS. */
+@Composable
+fun SharedVaultDraggedItemBox(
+    dragging: Boolean,
+    pointerY: Float,
+    grabOffset: Float,
+    itemOffsetPx: () -> Float,
+    activeShadowElevation: Float = 8f,
+    content: @Composable () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .zIndex(if (dragging) 1f else 0f)
+            .graphicsLayer {
+                if (dragging) {
+                    translationY = pointerY - grabOffset - itemOffsetPx()
+                    shadowElevation = activeShadowElevation
+                }
+            }
+    ) {
+        content()
     }
 }

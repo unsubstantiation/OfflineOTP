@@ -628,6 +628,7 @@ private fun RenderSharedSurface(
                     confirm()
                 },
                 onDismiss = onDismiss,
+                onManageTags = { onAction("tags") },
                 onViewDetails = { onAction("details") },
                 onDelete = { onAction("delete") }
             )
@@ -801,6 +802,11 @@ private fun RenderSharedSurface(
                 } else {
                     null
                 },
+                onManageTags = if (dialog.title == "Edit entry") {
+                    { onAction("tags") }
+                } else {
+                    null
+                },
                 onDelete = if (dialog.title == "Edit entry") {
                     { onAction("delete") }
                 } else {
@@ -873,6 +879,12 @@ private fun RenderSharedSurface(
                     failed = dialog.message.isNotEmpty(),
                     errorText = dialog.message.ifEmpty { null },
                     thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                    onManageTags = { onAction("tags") },
+                    onViewDetails = if (rowValue("archiveMode") != "true") {
+                        { onAction("details") }
+                    } else {
+                        null
+                    },
                     onExportArchive = if (rowValue("archiveMode") == "true") {
                         { onAction("exportArchive") }
                     } else {

@@ -64,6 +64,7 @@ class VaultComposeView(
 
     private class EmailEditor(
         val initial: EmailEditInput,
+        val onManageTags: (() -> Unit)?,
         val onViewDetails: (() -> Unit)?,
         val onDelete: (() -> Unit)?,
         val submit: (EmailEditInput) -> String?
@@ -71,18 +72,21 @@ class VaultComposeView(
     private var emailEditor by mutableStateOf<EmailEditor?>(null)
     fun showEmailEditor(
         initial: EmailEditInput,
+        onManageTags: (() -> Unit)? = null,
         onViewDetails: (() -> Unit)? = null,
         onDelete: (() -> Unit)? = null,
         submit: (EmailEditInput) -> String?
     ) {
         if (ended) return
         clearEntryEditor()
-        emailEditor = EmailEditor(initial, onViewDetails, onDelete, submit)
+        emailEditor = EmailEditor(initial, onManageTags, onViewDetails, onDelete, submit)
     }
     fun ownsEmailEditor(initial: EmailEditInput) = !ended && emailEditor?.initial === initial
 
     private class PasswordEditor(
         val initial: PasswordEntryInput,
+        val onManageTags: (() -> Unit)?,
+        val onViewDetails: (() -> Unit)?,
         val onExportArchive: (() -> Unit)?,
         val onDelete: (() -> Unit)?,
         val submit: (PasswordEntryInput) -> String?
@@ -90,13 +94,15 @@ class VaultComposeView(
     private var passwordEditor by mutableStateOf<PasswordEditor?>(null)
     fun showPasswordEditor(
         initial: PasswordEntryInput,
+        onManageTags: (() -> Unit)? = null,
+        onViewDetails: (() -> Unit)? = null,
         onExportArchive: (() -> Unit)? = null,
         onDelete: (() -> Unit)? = null,
         submit: (PasswordEntryInput) -> String?
     ) {
         if (ended) return
         clearEntryEditor()
-        passwordEditor = PasswordEditor(initial, onExportArchive, onDelete, submit)
+        passwordEditor = PasswordEditor(initial, onManageTags, onViewDetails, onExportArchive, onDelete, submit)
     }
     fun ownsPasswordEditor(initial: PasswordEntryInput) = !ended && passwordEditor?.initial === initial
 
@@ -149,6 +155,7 @@ class VaultComposeView(
         val editing: Boolean,
         val onShowQrCode: (() -> Unit)?,
         val onShareKeystrokes: (() -> Unit)?,
+        val onManageTags: (() -> Unit)?,
         val onDelete: (() -> Unit)?,
         val onEmailSubmit: ((EmailEntryInput) -> String?)?,
         val submit: (ManualEntryInput) -> String?
@@ -162,13 +169,14 @@ class VaultComposeView(
         editing: Boolean = true,
         onShowQrCode: (() -> Unit)? = null,
         onShareKeystrokes: (() -> Unit)? = null,
+        onManageTags: (() -> Unit)? = null,
         onDelete: (() -> Unit)? = null,
         onEmailSubmit: ((EmailEntryInput) -> String?)? = null,
         submit: (ManualEntryInput) -> String?
     ) {
         if (ended) return
         clearEntryEditor()
-        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onDelete, onEmailSubmit, submit)
+        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onManageTags, onDelete, onEmailSubmit, submit)
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
@@ -250,7 +258,7 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onViewDetails = email.onViewDetails, onDelete = email.onDelete)
+            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onManageTags = email.onManageTags, onViewDetails = email.onViewDetails, onDelete = email.onDelete)
         }
         val password = passwordEditor
         if (password != null) ForestTheme {
@@ -261,7 +269,7 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onExportArchive = password.onExportArchive, onDelete = password.onDelete)
+            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onManageTags = password.onManageTags, onViewDetails = password.onViewDetails, onExportArchive = password.onExportArchive, onDelete = password.onDelete)
         }
         val request = editor
         if (request != null) ForestTheme {
@@ -269,6 +277,7 @@ class VaultComposeView(
                 artwork = artwork, error = editError, onDismiss = { clearEntryEditor() },
                 onShowQrCode = request.onShowQrCode,
                 onShareKeystrokes = request.onShareKeystrokes,
+                onManageTags = request.onManageTags,
                 onDelete = request.onDelete,
                 onSwitchToUriImport = if (!request.editing) onOpenUriImport?.let { open ->
                     {

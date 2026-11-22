@@ -25,6 +25,7 @@ fun ManualEntryDialog(
     submitNotice: String? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
+    onManageTags: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var email by remember(inputKey) { mutableStateOf(false) }
@@ -55,6 +56,7 @@ fun ManualEntryDialog(
         onSwitchToUriImport = if (!editing) onSwitchToUriImport else null,
         onShowQrCode = onShowQrCode,
         onShareKeystrokes = onShareKeystrokes,
+        onManageTags = if (editing) onManageTags else null,
         onDelete = onDelete,
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss

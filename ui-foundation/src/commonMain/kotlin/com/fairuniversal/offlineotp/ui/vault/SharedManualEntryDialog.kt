@@ -43,6 +43,7 @@ fun SharedManualEntryDialog(
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
+    onManageTags: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
@@ -238,6 +239,15 @@ fun SharedManualEntryDialog(
                     input = input.copy(tags = it)
                 }
                 if (editing) {
+                    onManageTags?.let { manageTags ->
+                        ForestTextAction(
+                            text = "Manage tags",
+                            onClick = {
+                                input = PortableEntryDraft()
+                                manageTags()
+                            }
+                        )
+                    }
                     onShowQrCode?.let { showQr ->
                         ForestTextAction(text = "Show QR code", onClick = showQr)
                     }

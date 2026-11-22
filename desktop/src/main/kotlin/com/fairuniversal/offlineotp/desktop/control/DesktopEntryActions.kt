@@ -2,20 +2,21 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
+import com.fairuniversal.offlineotp.Utilities.LinScpCredentials
 import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
 
 /**
  * Headless entry sub-dialog owner for the desktop Compose client (QR code display from Edit,
- * HOTP counter editor, tag checklist, and artwork selection), enforcing live session and reveal
- * checks before disclosing secrets or persisting mutations.
+ * HOTP counter editor, tag checklist, artwork selection, and password metadata details), enforcing
+ * live session and reveal checks before disclosing secrets or persisting mutations.
  */
 class DesktopEntryActions(
     private val state: DesktopVaultState,
     private val persist: () -> Boolean,
     private val changed: () -> Unit
 ) {
-    enum class Surface { QR, TAGS, THUMBNAIL, COUNTER }
+    enum class Surface { QR, TAGS, THUMBNAIL, COUNTER, PASSWORD_DETAILS }
 
     class Request internal constructor(
         val entryId: Long,
@@ -25,7 +26,8 @@ class DesktopEntryActions(
         val tagStates: LinkedHashMap<String, Boolean> = LinkedHashMap(),
         val tagCounts: Map<String, Int> = emptyMap(),
         val selectedThumbnail: String = ThumbnailCatalog.DEFAULT_NAME,
-        val initialCounter: String = "0"
+        val initialCounter: String = "0",
+        val detailsText: String? = null
     )
 
     var pending: Request? = null
@@ -87,6 +89,24 @@ class DesktopEntryActions(
             title = "Manage tags",
             tagStates = states,
             tagCounts = counts
+        )
+        changed()
+        return true
+    }
+
+    /** Opens formatted password column/connection details for a revealed password entry. */
+    fun openPasswordDetails(entryId: Long, revealed: Boolean, active: () -> Boolean): Boolean {
+        if (closed || state.isLocked || !revealed || !active()) return false
+        val entry = liveEntry(entryId) ?: return false
+        if (!entry.isPassword()) return false
+        val details = runCatching {
+            LinScpCredentials.formatPasswordDetails(entry.getPasswordFields())
+        }.getOrNull()?.takeIf { it.isNotBlank() } ?: return false
+        pending = Request(
+            entryId = entryId,
+            surface = Surface.PASSWORD_DETAILS,
+            title = "Password details — ${displayTitle(entry)}",
+            detailsText = details
         )
         changed()
         return true

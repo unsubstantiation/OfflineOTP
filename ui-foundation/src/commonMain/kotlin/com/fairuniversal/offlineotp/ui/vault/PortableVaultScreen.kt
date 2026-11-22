@@ -92,12 +92,11 @@ fun PortableVaultScreen(
     LaunchedEffect(draggingIndex != null) {
         while (draggingIndex != null) {
             val info = listState.layoutInfo
-            val edge = 56f
-            val scroll = when {
-                pointerY < info.viewportStartOffset + edge -> -12f
-                pointerY > info.viewportEndOffset - edge -> 12f
-                else -> 0f
-            }
+            val scroll = sharedVaultViewportScroll(
+                pointerY = pointerY,
+                viewportStartOffset = info.viewportStartOffset,
+                viewportEndOffset = info.viewportEndOffset
+            )
             if (scroll != 0f) listState.scrollBy(scroll)
             moveIfNeeded()
             delay(16)
@@ -146,6 +145,13 @@ fun PortableVaultScreen(
                 onValueChange = onQuery,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
             )
+            if (state.sortOptions.isNotEmpty()) {
+                SharedVaultSortBar(
+                    label = "Sort",
+                    options = state.sortOptions.map { option -> option.label to option.selected },
+                    onSelect = { index -> onTool("sortIndex:$index") }
+                )
+            }
             if (state.tags.isNotEmpty()) {
                 SharedVaultTagBar(
                     chips = state.tags.map { tag ->
@@ -215,17 +221,15 @@ fun PortableVaultScreen(
             ) {
                 items(state.cards, key = { it.index }) { card ->
                     val dragging = draggingIndex == card.index
-                    Box(
-                        modifier = Modifier
-                            .zIndex(if (dragging) 1f else 0f)
-                            .graphicsLayer {
-                                if (dragging) {
-                                    val top = listState.layoutInfo.visibleItemsInfo
-                                        .firstOrNull { it.key == card.index }?.offset?.toFloat() ?: 0f
-                                    translationY = pointerY - grabOffset - top
-                                    shadowElevation = 12f
-                                }
-                            }
+                    SharedVaultDraggedItemBox(
+                        dragging = dragging,
+                        pointerY = pointerY,
+                        grabOffset = grabOffset,
+                        itemOffsetPx = {
+                            listState.layoutInfo.visibleItemsInfo
+                                .firstOrNull { it.key == card.index }?.offset?.toFloat() ?: 0f
+                        },
+                        activeShadowElevation = 12f
                     ) {
                         PortableCardView(card, state.hiddenTitleEnabled, cardLayout, onCard)
                     }

@@ -34,6 +34,7 @@ fun SharedEmailEditDialog(
     onSubmit: (PortableEmailEditDraft) -> Unit,
     onDismiss: () -> Unit,
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onManageTags: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
@@ -79,6 +80,15 @@ fun SharedEmailEditDialog(
                             }
                         )
                     }
+                }
+                if (onManageTags != null) {
+                    ForestTextAction(
+                        text = "Manage tags",
+                        onClick = {
+                            input = PortableEmailEditDraft()
+                            onManageTags()
+                        }
+                    )
                 }
                 if (onViewDetails != null) {
                     ForestTextAction(
