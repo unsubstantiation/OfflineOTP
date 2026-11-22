@@ -41,4 +41,70 @@ class PasswordEntryInputTest {
             }
         } finally { original.destroy() }
     }
+
+    @Test fun fromAnyEntrySupportsForeignColumnsCustomNamesAndArchives() {
+        val foreignPw = Entry.passwordFields(
+            "alice",
+            "Bastion",
+            listOf(
+                "url" to "ssh://bastion:22",
+                "username" to "alice",
+                "password" to "pw-secret",
+                "host" to "bastion.example.com",
+                "passphrase" to "keep-phrase"
+            )
+        )
+        val linScpPw = Entry.passwordFields(
+            "ops",
+            "Service",
+            listOf(
+                "url" to "ssh://svc:22",
+                "username" to "ops",
+                "password" to "tok-1",
+                "linscp_session_json" to "{\"port\":22}"
+            )
+        )
+        val archive = Entry.passwordArchive("vault.kdbx", "raw-bytes".toByteArray())
+        try {
+            assertFalse(PasswordEntryInput.supports(foreignPw))
+            assertTrue(PasswordEntryInput.supportsAny(foreignPw))
+            assertTrue(PasswordEntryInput.supportsAny(linScpPw))
+            assertTrue(PasswordEntryInput.supportsAny(archive))
+
+            val foreignInit = PasswordEntryInput.fromAnyEntry(foreignPw)
+            assertTrue(foreignInit.customColumnsMode)
+            assertEquals("", foreignInit.extraFields!!.single { it.name == "password" }.value)
+            assertEquals("", foreignInit.extraFields!!.single { it.name == "passphrase" }.value)
+            val foreignSaved = foreignInit.copy(tags = "ssh\nops", thumbnail = "GitHub").build(foreignPw)
+            try {
+                assertEquals("pw-secret", foreignSaved.getPasswordFields().value("password"))
+                assertEquals("keep-phrase", foreignSaved.getPasswordFields().value("passphrase"))
+                assertEquals(listOf("ssh", "ops"), foreignSaved.getTags())
+                assertEquals("GitHub", foreignSaved.getThumbnailName())
+            } finally { foreignSaved.destroy() }
+
+            val customInit = PasswordEntryInput.fromAnyEntry(linScpPw)
+            assertFalse(customInit.customColumnsMode)
+            val customSaved = customInit.copy(tags = "internal", thumbnail = "GitHub").build(linScpPw)
+            try {
+                assertEquals("tok-1", customSaved.getPasswordFields().value("password"))
+                assertEquals("{\"port\":22}", customSaved.getPasswordFields().value("linscp_session_json"))
+                assertEquals(listOf("internal"), customSaved.getTags())
+            } finally { customSaved.destroy() }
+
+            val archInit = PasswordEntryInput.fromAnyEntry(archive)
+            assertTrue(archInit.archiveMode)
+            assertEquals(9, archInit.archiveSizeBytes)
+            val archSaved = archInit.copy(issuer = "Backup Archive", tags = "archive").build(archive)
+            try {
+                assertEquals("Backup Archive", archSaved.getIssuer())
+                assertEquals(listOf("archive"), archSaved.getTags())
+                assertEquals("raw-bytes", String(archSaved.exportPasswordArchive()))
+            } finally { archSaved.destroy() }
+        } finally {
+            foreignPw.destroy()
+            linScpPw.destroy()
+            archive.destroy()
+        }
+    }
 }

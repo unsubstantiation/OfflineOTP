@@ -8525,6 +8525,89 @@ fun main() {
         }
     }
 
+    check("Android revealed and hidden states persist across reloads edits and tap-to-reveal without reverting") {
+        val fixture = SettingsFixture()
+        fixture.seed(R.string.settings_key_tap_single, "reveal")
+        fixture.seed(R.string.settings_key_tap_double, "nothing")
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val controller = adapter.controller
+        val entriesField = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+        val overridesField = AndroidVaultController::class.java.getDeclaredField("composeRevealOverrides").apply { isAccessible = true }
+        val keysField = AndroidVaultController::class.java.getDeclaredField("composeVisibilityKeys").apply { isAccessible = true }
+        val source = entriesField.get(controller) as EntryList
+        val key = SecretKeySpec(ByteArray(32) { 19 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        fun reloadInPlace(target: AndroidVaultController) {
+            val list = entriesField.get(target) as EntryList
+            val snapshots = list.getEntries().map { it.toJSON() }
+            (overridesField.get(target) as MutableMap<*, *>).clear()
+            (keysField.get(target) as MutableMap<*, *>).clear()
+            for (old in list.getEntries()) old.destroy()
+            list.updateEntries(ArrayList(), false)
+            list.updateEntries(ArrayList(snapshots.map { Entry(it) }), true)
+            target.setSearchQuery("")
+        }
+        val totp = Entry("otpauth://totp/GitHub:alice?secret=JBSWY3DPEHPK3PXP&issuer=GitHub").apply { setDetailsVisible(true) }
+        val note = Entry(Entry.OTPType.NOTE, "recovery body", "Ops", "note-one", arrayListOf()).apply { setDetailsVisible(true) }
+        source.addEntry(totp)
+        source.addEntry(note)
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        try {
+            // TOTP starts hidden under tap_single=reveal until explicitly revealed; reveal it via card tap, verify no auto-hide task, and verify reload keeps it revealed.
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+            controller.setSearchQuery("")
+            val otpInitial = controller.composeFrame(60_000L, strings)!!
+            expect(!otpInitial.state.cards.single().revealed, { "TOTP should start hidden under tap_single=reveal" })
+            expect(otpInitial.perform(otpInitial.state.cards.single().id, com.fairuniversal.offlineotp.View.AndroidCardCommand.SINGLE_TAP),
+                { "SINGLE_TAP reveal failed" })
+            val liveTotp = source.getEntries().first { it.isTimeBased() }
+            expect(liveTotp.getHideTask() == null, { "SINGLE_TAP scheduled an auto-hide timer" })
+            expect(controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed, { "TOTP did not reveal" })
+            reloadInPlace(controller)
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+            expect(controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed,
+                { "Revealed TOTP reverted to hidden after reload" })
+
+            // Hide both TOTP and Note and verify neither reverts to revealed across reload (onResume) or fresh controller.
+            val otpBeforeHide = controller.composeFrame(60_000L, strings)!!
+            expect(otpBeforeHide.perform(otpBeforeHide.state.cards.single().id, com.fairuniversal.offlineotp.View.AndroidCardCommand.TOGGLE_REVEAL),
+                { "TOGGLE_REVEAL hide TOTP failed" })
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES)
+            val noteBeforeHide = controller.composeFrame(60_000L, strings)!!
+            expect(noteBeforeHide.state.cards.single().revealed, { "Note initial state" })
+            expect(noteBeforeHide.perform(noteBeforeHide.state.cards.single().id, com.fairuniversal.offlineotp.View.AndroidCardCommand.SINGLE_TAP),
+                { "SINGLE_TAP hide Note failed" })
+            expect(!controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed, { "Note did not hide" })
+
+            reloadInPlace(controller)
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+            expect(!controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed,
+                { "Hidden TOTP reverted to revealed after reload" })
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES)
+            expect(!controller.composeFrame(60_000L, strings)!!.state.cards.single().revealed,
+                { "Hidden Note reverted to revealed after reload" })
+
+            // Fresh controller instance (app restart / activity recreate) also preserves hidden and revealed states.
+            val restarted = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf())).controller
+            restarted.encryptionKey = key
+            val restartedList = entriesField.get(restarted) as EntryList
+            restartedList.updateEntries(ArrayList(source.getEntries().map { Entry(it.toJSON()) }), true)
+            restarted.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES)
+            restarted.setSearchQuery("")
+            expect(!restarted.composeFrame(60_000L, strings)!!.state.cards.single().revealed,
+                { "Hidden Note reverted to revealed on fresh controller" })
+            restarted.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.OTP)
+            expect(!restarted.composeFrame(60_000L, strings)!!.state.cards.single().revealed,
+                { "Hidden TOTP reverted to revealed on fresh controller" })
+            restarted.lockEntries()
+        } finally {
+            controller.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {

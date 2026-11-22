@@ -12,7 +12,13 @@ class ManualEntryInputTest {
     @Test fun noteEditPreloadsBodyAndOtpTypeChangeIsExplicitAndValidated() {
         val note = ManualEntryInput(type = Entry.OTPType.NOTE, secret = "hidden body", label = "Note").build()
         val otp = ManualEntryInput(secret = "JBSWY3DPEHPK3PXP", hiddenLabel = "hidden label").build()
+        val ssh = ManualEntryInput(type = Entry.OTPType.SSH_KEY, label = "Key", secret = "priv-key",
+            publicKey = "ssh-ed25519 AAAAC3NzaC1", sshHost = "bastion.example.com", sshPassword = "ssh-pw").build()
         try {
+            val sshEdit = ManualEntryInput.forEntryEdit(ssh)
+            assertEquals("ssh-ed25519 AAAAC3NzaC1", sshEdit.publicKey)
+            assertEquals("", sshEdit.secret)
+            assertEquals("", sshEdit.sshPassword)
             val noteEdit = ManualEntryInput.forEntryEdit(note)
             assertEquals("hidden body", noteEdit.secret)
             val changed = noteEdit.copy(secret = "edited body").build(note)
@@ -34,7 +40,7 @@ class ManualEntryInputTest {
                 try { invalid.build(otp).destroy() } catch (_: IllegalArgumentException) { rejected = true }
                 assertTrue(rejected)
             }
-        } finally { note.destroy(); otp.destroy() }
+        } finally { note.destroy(); otp.destroy(); ssh.destroy() }
     }
 
     @Test fun steamEditKeepsAndAllowsChangesToSupportedParameters() {

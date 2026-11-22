@@ -270,6 +270,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'com/fairuniversal/offlineotp/ui/vault/SharedCardLayoutDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedThumbnailPickerDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedVaultComponents.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedVaultScreen.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedVaultToolsDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/HardwareCopyDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt',
             'com/fairuniversal/offlineotp/ui/unlock/HardwareEnrollmentDialog.kt',
@@ -317,6 +319,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'SharedCardLayoutDialog(',
             'SharedEmailDetailsDialog(',
             'SharedThumbnailPickerDialog(',
+            'SharedVaultToolsDialog(',
             'PasswordExportDialog(',
         ):
             self.assertIn(shared_call, vc)

@@ -1,149 +1,111 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
 import com.fairuniversal.offlineotp.Database.Entry
-import com.fairuniversal.offlineotp.Database.EntryDraft
-import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
-import com.fairuniversal.offlineotp.ui.theme.ForestPalette
+import com.fairuniversal.offlineotp.ui.portable.PortableEntryDraft
 
-/** Add/edit form. Input stays in composition; the host validates and owns any created entry. */
+/** Thin `:ui` adapter mapping [ManualEntryInput] onto [SharedManualEntryDialog] in `:ui-foundation`. */
 @Composable
-fun ManualEntryDialog(inputKey: Any, error: String?, onSubmit: (ManualEntryInput) -> Unit, onDismiss: () -> Unit,
-                      initial: ManualEntryInput = ManualEntryInput(), editing: Boolean = false, artwork: VaultArtwork? = null,
-                      onEmailSubmit: ((EmailEntryInput) -> Unit)? = null, submitNotice: String? = null,
-                      onShowQrCode: (() -> Unit)? = null, onShareKeystrokes: (() -> Unit)? = null,
-                      onDelete: (() -> Unit)? = null) {
-    var input by remember(inputKey) { mutableStateOf(initial) }
-    var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
+fun ManualEntryDialog(
+    inputKey: Any,
+    error: String?,
+    onSubmit: (ManualEntryInput) -> Unit,
+    onDismiss: () -> Unit,
+    initial: ManualEntryInput = ManualEntryInput(),
+    editing: Boolean = false,
+    artwork: VaultArtwork? = null,
+    onEmailSubmit: ((EmailEntryInput) -> Unit)? = null,
+    submitNotice: String? = null,
+    onShowQrCode: (() -> Unit)? = null,
+    onShareKeystrokes: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
+) {
     var email by remember(inputKey) { mutableStateOf(false) }
     if (email && !editing && onEmailSubmit != null) {
         EmailEntryDialog(inputKey, error, onEmailSubmit, onDismiss, submitNotice)
         return
     }
-    fun dismiss() { input = ManualEntryInput(); onDismiss() }
-    AlertDialog(
-        onDismissRequest = { dismiss() },
-        title = { Text(text = if (editing) "Edit entry" else "Add entry") },
-        text = {
-            if (pickingThumbnail) {
-                ThumbnailPicker(selected = input.thumbnailName, artwork = artwork,
-                    unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer",
-                    onSelect = { input = input.copy(thumbnailName = it); pickingThumbnail = false },
-                    onCancel = { pickingThumbnail = false })
-            } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                submitNotice?.let { Text(text = it) }
-                Text(text = "Type: ${if (input.type == Entry.OTPType.SSH_KEY) "Keys" else input.type.name}")
-                if (editing) Text(text = "Stored note and OTP fields are shown for editing. Changing OTP type clears the secret and timing; re-enter them for the new type. Leave fields blank to keep stored values. Removal choices apply only when you Save.")
-                if (!editing) for (type in EntryDraft.offerableTypes()) {
-                    ForestTextAction(text = if (type == Entry.OTPType.SSH_KEY) "Keys" else type.name, onClick = {
-                        // Switching types must not reinterpret or retain another type's secret.
-                        input = ManualEntryInput(type = type, issuer = input.issuer, label = input.label,
-                            tags = input.tags, thumbnailName = input.thumbnailName, timing = if (type == Entry.OTPType.HOTP) "0" else "30")
-                    })
-                }
-                if (editing && initial.type in ManualEntryInput.otpTypes) {
-                    for (type in ManualEntryInput.otpTypes) ForestTextAction(text = type.name,
-                        enabled = input.type != type, onClick = {
-                            input = input.copy(type = type, secret = "", pin = "", clearPin = false,
-                                digits = if (type == Entry.OTPType.STEAM) "5" else "6",
-                                timing = if (type == Entry.OTPType.HOTP) "0" else "30",
-                                algorithm = TokenCalculator.HashAlgorithm.SHA1)
-                        })
-                }
-                if (!editing && onEmailSubmit != null) ForestTextAction(text = "Email account", onClick = {
-                    input = ManualEntryInput(); email = true
-                })
-                EntryInputField("Issuer", input.issuer, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(issuer = it) }
-                EntryInputField("Account", input.label, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(label = it) }
-                Text(text = "Artwork: ${input.thumbnailName ?: if (editing) "Keep current" else "Automatic from issuer"}")
-                ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
-                val note = input.type == Entry.OTPType.NOTE
-                val ssh = input.type == Entry.OTPType.SSH_KEY
-                EntryInputField(if (note) "Hidden Note" else if (ssh) "Private key" else "Secret", input.secret,
-                    masked = !note && (!editing || ssh), multiline = note || ssh,
-                    limit = if (note) InputPolicy.MAX_NOTE_CHARACTERS else InputPolicy.MAX_URI_CHARS) { input = input.copy(secret = it) }
-                if (input.type == Entry.OTPType.TOTP || input.type == Entry.OTPType.HOTP || (editing && input.type == Entry.OTPType.STEAM)) {
-                    EntryInputField("Digits", input.digits, limit = 2) { input = input.copy(digits = it) }
-                    EntryInputField(if (input.type == Entry.OTPType.HOTP) "Counter" else "Period (seconds)", input.timing, limit = 20) { input = input.copy(timing = it) }
-                    Text(text = "Algorithm: ${input.algorithm}")
-                    for (algorithm in TokenCalculator.HashAlgorithm.values()) {
-                        ForestTextAction(text = algorithm.name, onClick = { input = input.copy(algorithm = algorithm) })
-                    }
-                }
-                if (input.type == Entry.OTPType.MOTP) {
-                    Text(text = "mOTP uses six digits, ten-second steps and MD5; these are protocol-defined.")
-                }
-                if (!note && !ssh) {
-                    if (editing) ForestTextAction(
-                        text = if (input.clearHiddenLabel) "Will remove Password — undo" else "Remove stored Password",
-                        onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) })
-                    if (!input.clearHiddenLabel) EntryInputField("Password", input.hiddenLabel, masked = !editing, limit = InputPolicy.MAX_TEXT_CHARS) { input = input.copy(hiddenLabel = it) }
-                }
-                if (input.type == Entry.OTPType.MOTP) {
-                    if (editing) ForestTextAction(
-                        text = if (input.clearPin) "Will remove PIN — undo" else "Remove stored PIN",
-                        onClick = { input = input.copy(pin = "", clearPin = !input.clearPin) })
-                    if (!input.clearPin) EntryInputField("PIN (optional)", input.pin, masked = !editing, limit = InputPolicy.MAX_TAG_CHARS) { input = input.copy(pin = it) }
-                }
-                if (ssh) {
-                    EntryInputField("Public key", input.publicKey, multiline = true) { input = input.copy(publicKey = it) }
-                    EntryInputField("Host (optional)", input.sshHost) { input = input.copy(sshHost = it) }
-                    EntryInputField("Port (optional)", input.sshPort, limit = 5) { input = input.copy(sshPort = it) }
-                    EntryInputField("Username (optional)", input.sshUser) { input = input.copy(sshUser = it) }
-                    if (editing) ForestTextAction(
-                        text = if (input.clearSshPassword) "Will remove SSH password — undo" else "Remove stored SSH password",
-                        onClick = { input = input.copy(sshPassword = "", clearSshPassword = !input.clearSshPassword) })
-                    if (!input.clearSshPassword) EntryInputField("Password (optional)", input.sshPassword, masked = true) { input = input.copy(sshPassword = it) }
-                }
-                EntryInputField("Tags (one per line)", input.tags, multiline = true,
-                    limit = InputPolicy.MAX_TAGS * (InputPolicy.MAX_TAG_CHARS + 1)) { input = input.copy(tags = it) }
-                if (editing) {
-                    onShowQrCode?.let { showQr ->
-                        ForestTextAction(text = "Show QR code", onClick = showQr)
-                    }
-                    onShareKeystrokes?.let { shareKeys ->
-                        ForestTextAction(text = "Share as keystrokes", onClick = shareKeys)
-                    }
-                    onDelete?.let { deleteEntry ->
-                        ForestTextAction(text = "Delete", color = ForestPalette.warning, onClick = {
-                            input = ManualEntryInput()
-                            deleteEntry()
-                        })
-                    }
-                }
-                if (error != null) Text(text = error)
-            }
+    val unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer"
+    SharedManualEntryDialog(
+        inputKey = inputKey,
+        initial = initial.toPortable(),
+        editing = editing,
+        error = error,
+        submitNotice = submitNotice,
+        thumbnailNames = ThumbnailCatalog.NAMES,
+        artworkPicker = { selected, onSelect, onCancel ->
+            ThumbnailPicker(
+                selected = selected.ifEmpty { null },
+                artwork = artwork,
+                unchangedLabel = unchangedLabel,
+                onSelect = { chosen -> onSelect(chosen.orEmpty()) },
+                onCancel = onCancel
+            )
         },
-        confirmButton = {
-            ForestTextAction(text = "Save", enabled = !pickingThumbnail, onClick = {
-                val submitted = input
-                input = input.withoutSecrets()
-                onSubmit(submitted)
-            })
-        },
-        dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) }
+        onSwitchToEmail = if (!editing && onEmailSubmit != null) {
+            { email = true }
+        } else null,
+        onShowQrCode = onShowQrCode,
+        onShareKeystrokes = onShareKeystrokes,
+        onDelete = onDelete,
+        onSubmit = { draft -> onSubmit(draft.toModel()) },
+        onDismiss = onDismiss
     )
 }
 
-@Composable
-private fun EntryInputField(label: String, value: String, masked: Boolean = false,
-                            multiline: Boolean = false, limit: Int = InputPolicy.MAX_URI_CHARS,
-                            change: (String) -> Unit) {
-    OutlinedTextField(value = value, onValueChange = { if (it.length <= limit) change(it) },
-        singleLine = !multiline, label = { Text(text = label) },
-        visualTransformation = if (masked) PasswordVisualTransformation() else VisualTransformation.None)
+private fun ManualEntryInput.toPortable(): PortableEntryDraft = PortableEntryDraft(
+    kind = type.name,
+    issuer = issuer,
+    label = label,
+    hiddenLabel = hiddenLabel,
+    secret = if (type == Entry.OTPType.SSH_KEY) "" else secret,
+    digits = digits,
+    period = if (type == Entry.OTPType.HOTP) "30" else timing,
+    counter = if (type == Entry.OTPType.HOTP) timing else "0",
+    algorithm = algorithm.name,
+    pin = pin,
+    publicKey = publicKey,
+    privateKey = if (type == Entry.OTPType.SSH_KEY) secret else "",
+    sshHost = sshHost,
+    sshPort = sshPort,
+    sshUsername = sshUser,
+    sshPassword = sshPassword,
+    tags = tags,
+    thumbnail = thumbnailName.orEmpty(),
+    clearHiddenLabel = clearHiddenLabel,
+    clearPin = clearPin,
+    clearSshPassword = clearSshPassword
+)
+
+private fun PortableEntryDraft.toModel(): ManualEntryInput {
+    val resolvedType = Entry.OTPType.values().firstOrNull { it.name == kind } ?: Entry.OTPType.TOTP
+    val resolvedAlgorithm = TokenCalculator.HashAlgorithm.values().firstOrNull { it.name == algorithm }
+        ?: TokenCalculator.HashAlgorithm.SHA1
+    return ManualEntryInput(
+        type = resolvedType,
+        issuer = issuer,
+        label = label,
+        secret = if (resolvedType == Entry.OTPType.SSH_KEY) privateKey else secret,
+        digits = digits,
+        timing = if (resolvedType == Entry.OTPType.HOTP) counter else period,
+        algorithm = resolvedAlgorithm,
+        pin = pin,
+        publicKey = publicKey,
+        hiddenLabel = hiddenLabel,
+        tags = tags,
+        sshHost = sshHost,
+        sshPort = sshPort,
+        sshUser = sshUsername,
+        sshPassword = sshPassword,
+        thumbnailName = thumbnail.ifEmpty { null },
+        clearPin = clearPin,
+        clearSshPassword = clearSshPassword,
+        clearHiddenLabel = clearHiddenLabel
+    )
 }

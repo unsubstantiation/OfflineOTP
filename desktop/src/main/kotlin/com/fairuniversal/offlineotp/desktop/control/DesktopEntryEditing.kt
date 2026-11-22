@@ -87,7 +87,7 @@ class DesktopEntryEditing(private val state: DesktopVaultState, private val repl
 
     fun submitPassword(request: Request, input: PasswordEntryInput, revealed: Boolean, active: () -> Boolean = { true }): Boolean {
         if (!revealed || !current(request) || !active() || !current(request) || !request.isPassword) return false
-        val replacement = try { input.build(request.target) } catch (_: IllegalArgumentException) {
+        val replacement = try { input.build(request.target) } catch (_: Exception) {
             request.failure = Failure.INVALID_INPUT
             return false
         }

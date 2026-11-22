@@ -57,9 +57,14 @@ data class PasswordEntryInput(
                 val nextVal = if (norm in PASSWORD_COLUMN_NAMES && typed.isEmpty()) orig.valueAt(idx) else typed
                 pairs.add(colName to nextVal)
             }
-            val effectivePw = pairs.lastOrNull { it.first.trim().lowercase(Locale.ROOT) == PasswordCsvExport.FIELD_PASSWORD }?.second
-                ?: pairs.firstOrNull { it.first.trim().lowercase(Locale.ROOT) in PASSWORD_COLUMN_NAMES }?.second
-            require(!effectivePw.isNullOrEmpty()) { "A password cannot be empty" }
+            val hasPasswordColumn = pairs.any { it.first.trim().lowercase(Locale.ROOT) in PASSWORD_COLUMN_NAMES }
+            if (hasPasswordColumn) {
+                val effectivePw = pairs.lastOrNull { it.first.trim().lowercase(Locale.ROOT) == PasswordCsvExport.FIELD_PASSWORD }?.second
+                    ?: pairs.firstOrNull { it.first.trim().lowercase(Locale.ROOT) in PASSWORD_COLUMN_NAMES }?.second
+                require(!effectivePw.isNullOrEmpty()) { "A password cannot be empty" }
+            } else {
+                require(pairs.any { it.second.isNotEmpty() }) { "At least one column value is required" }
+            }
             val material = PasswordMaterial.encodeFields(pairs)
             try {
                 val replacement = Entry(existing.toJSON())
@@ -141,7 +146,7 @@ data class PasswordEntryInput(
 
     companion object {
         private val CORE_COMMON_COLUMNS = setOf("url", "username", "password")
-        private val PASSWORD_COLUMN_NAMES = setOf("password", "pass", "login_password")
+        private val PASSWORD_COLUMN_NAMES = setOf("password", "pass", "login_password", "passphrase", "pwd", "secret")
 
         /** Avoid silently rewriting conflicting aliases or inventing missing columns. */
         fun supports(entry: Entry): Boolean = PasswordCsvExport.supportsCommonEdit(entry)

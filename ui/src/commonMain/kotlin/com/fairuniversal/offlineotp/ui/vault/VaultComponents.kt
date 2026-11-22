@@ -1,61 +1,30 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.Image
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.runtime.remember
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.TextUnit
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
-import com.fairuniversal.offlineotp.ui.theme.ForestPalette
-import com.fairuniversal.offlineotp.ui.theme.ForestType
 
 /**
- * The pieces the vault screen is built from.
- *
- * They are deliberately small and stateless: each takes plain values and callbacks, so the same
- * row renders identically whether it was produced by the Android session or by the desktop vault,
- * and a screen-level change is a change here rather than in two toolkits. No component reads the
- * clock, the settings store or the vault — that all arrives in the [VaultUiState].
+ * Thin `:ui` adapters mapping `:ui-model` values ([VaultUiState], [VaultCardState],
+ * [VaultAppearance], [VaultStrings], [VaultActions]) onto the shared Compose components in
+ * `:ui-foundation` (`SharedVaultComponents.kt`).
  */
 
-/** App bar: window title, entry count and the lock action. */
 @Composable
 internal fun VaultTopBar(
     title: String,
@@ -63,24 +32,15 @@ internal fun VaultTopBar(
     lockLabel: String,
     onLock: () -> Unit
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(ForestPalette.appBar)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, style = ForestType.title, color = ForestPalette.textPrimary)
-            if (countLabel.isNotEmpty()) {
-                Text(text = countLabel, style = ForestType.label, color = ForestPalette.accent)
-            }
+    SharedVaultTopBar(
+        title = title,
+        countLabel = countLabel,
+        trailingActions = {
+            ForestTextAction(text = lockLabel, onClick = onLock)
         }
-        ForestTextAction(text = lockLabel, onClick = onLock)
-    }
+    )
 }
 
-/** Search box. The query is host state, so a rebuild after a lock clears the field with it. */
 @Composable
 internal fun VaultSearchField(
     value: String,
@@ -91,7 +51,6 @@ internal fun VaultSearchField(
     SharedVaultSearchField(value = value, hint = hint, onValueChange = onValueChange, modifier = modifier)
 }
 
-/** The five kind tabs, in `EntryListPresentation.Category` order. */
 @Composable
 internal fun VaultCategoryTabs(
     tabs: List<VaultCategoryTab>,
@@ -115,13 +74,6 @@ internal fun VaultCategoryTabs(
     }
 }
 
-/**
- * Order selector: one tappable label per sort mode, the active one highlighted.
- *
- * A dropdown would need a popup surface; a strip keeps the whole menu visible, matches the tag
- * chips beside it, and lets the same list be reached with a keyboard on desktop and a screen reader
- * on Android. The host decides whether the choice is persisted.
- */
 @Composable
 internal fun VaultSortBar(
     options: List<VaultSortOption>,
@@ -129,41 +81,13 @@ internal fun VaultSortBar(
     strings: VaultStrings,
     onSelect: (Constants.SortMode) -> Unit
 ) {
-    if (options.isEmpty()) return
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .horizontalScroll(rememberScrollState())
-            .padding(horizontal = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            style = ForestType.label,
-            color = ForestPalette.textHint,
-            maxLines = 1,
-            modifier = Modifier.padding(horizontal = 6.dp)
-        )
-        for (option in options) {
-            Text(
-                text = strings.sortTitle(option.mode),
-                style = ForestType.label,
-                color = if (option.selected) ForestPalette.accent else ForestPalette.textSecondary,
-                maxLines = 1,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onSelect(option.mode) }
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            )
-        }
-    }
+    SharedVaultSortBar(
+        label = label,
+        options = options.map { option -> strings.sortTitle(option.mode) to option.selected },
+        onSelect = { index -> options.getOrNull(index)?.let { onSelect(it.mode) } }
+    )
 }
 
-/**
- * Tag filter chips. The untagged pseudo chip reports through its own callback, so it can never be
- * confused with a real tag that happens to be called "Untagged".
- */
 @Composable
 internal fun VaultTagChips(
     chips: List<VaultTagChip>,
@@ -204,13 +128,6 @@ internal fun VaultTagChips(
     }
 }
 
-/**
- * One vault row: brand tile, issuer/label, tags, the code area and the row actions.
- *
- * A code is obscured until the row is revealed (`tokenVisible`), which is the privacy default both
- * existing clients already enforce; copying is still available, because the host holds the rows and
- * the user asked to copy this one.
- */
 @Composable
 internal fun VaultEntryCard(
     card: VaultCardState,
@@ -219,94 +136,54 @@ internal fun VaultEntryCard(
     actions: VaultActions,
     artwork: VaultArtwork? = null
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(if (card.revealed) ForestPalette.surfaceElevated else ForestPalette.surface)
-            .border(1.dp, ForestPalette.divider, shape)
-            .combinedClickable(
-                onClick = { (actions.onCardTap ?: actions.onToggleReveal)(card) },
-                onDoubleClick = actions.onCardDoubleTap?.let { action -> { action(card) } }
+    val customPeriod = card.customPeriodSeconds
+    val detailLabel = card.detailLabel
+    val revealedContent = card.revealedContent
+    val showCodeArea = card.detailsVisible &&
+        (card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null)
+    val showThumb = appearance.showThumbnails && card.detailsVisible
+    SharedVaultEntryCard(
+        title = card.title,
+        subtitle = card.subtitle,
+        revealed = card.revealed,
+        showThumbnail = showThumb,
+        thumbnailSizeDp = appearance.thumbnailSizeDp,
+        tileSeed = card.thumbnailName.ifBlank { card.title },
+        artworkSlot = if (showThumb) {
+            { VaultIssuerArtwork(card = card, sizeDp = appearance.thumbnailSizeDp, artwork = artwork) }
+        } else null,
+        scrollLabels = appearance.scrollLabels,
+        labelSizeSp = appearance.labelSizeSp,
+        labelMaxLines = appearance.labelMaxLines,
+        verticalPaddingDp = appearance.cardVerticalPaddingDp,
+        codeBelowIdentity = appearance.codeBelowIdentity,
+        showCodeArea = showCodeArea,
+        inlineTagsSummary = if (card.tags.isNotEmpty()) card.tags.joinToString(" · ") else "",
+        customPeriodLabel = if (card.detailsVisible && customPeriod != null) strings.customPeriod(customPeriod) else null,
+        detailLabel = if (card.detailsVisible && detailLabel != null) detailLabel else null,
+        revealedContent = revealedContent,
+        isNote = card.kind == VaultEntryKind.NOTES,
+        onClick = { (actions.onCardTap ?: actions.onToggleReveal)(card) },
+        onDoubleClick = actions.onCardDoubleTap?.let { action -> { action(card) } },
+        codeAreaContent = {
+            val token = card.token
+            val previousToken = card.previousToken
+            SharedVaultCodeArea(
+                displayedToken = token?.let { if (card.tokenVisible) token else TokenDisplay.mask(token) },
+                tokenVisible = card.tokenVisible,
+                showsExpiry = card.showsExpiry,
+                previousToken = previousToken,
+                showCountdown = card.hasCountdown && card.showCountdown,
+                progress = card.progress ?: 0f,
+                remainingSeconds = card.remainingSeconds ?: 0,
+                showSecondsText = true,
+                pinRequired = card.pinRequired,
+                pinRequiredLabel = strings.pinRequired,
+                counterText = card.counter?.let { "${strings.counterLabel} $it" },
+                noCodeLabel = strings.noCode
             )
-            .padding(horizontal = 14.dp, vertical = appearance.cardVerticalPaddingDp.dp)
-    ) {
-        Row(verticalAlignment = Alignment.Top) {
-            if (appearance.showThumbnails && card.detailsVisible) {
-                VaultIssuerArtwork(card, appearance.thumbnailSizeDp, artwork)
-                Spacer(modifier = Modifier.width(10.dp))
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = card.title,
-                    modifier = labelModifier(appearance),
-                    fontSize = appearance.labelSizeSp?.sp ?: TextUnit.Unspecified,
-                    style = ForestType.title,
-                    color = ForestPalette.textPrimary,
-                    maxLines = appearance.labelMaxLines,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (card.subtitle.isNotEmpty()) {
-                    Text(
-                        text = card.subtitle,
-                        modifier = labelModifier(appearance),
-                        fontSize = appearance.labelSizeSp?.sp ?: TextUnit.Unspecified,
-                        style = ForestType.subtitle,
-                        color = ForestPalette.textSecondary,
-                        maxLines = appearance.labelMaxLines,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                if (card.tags.isNotEmpty()) {
-                    Text(
-                        text = card.tags.joinToString(" · "),
-                        fontSize = appearance.labelSizeSp?.let { (it * 0.75f).sp } ?: TextUnit.Unspecified,
-                        style = ForestType.label,
-                        color = ForestPalette.textHint,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-                val customPeriod = card.customPeriodSeconds
-                if (card.detailsVisible && customPeriod != null) {
-                    Text(text = strings.customPeriod(customPeriod), style = ForestType.label, color = ForestPalette.textHint)
-                }
-                val detailLabel = card.detailLabel
-                if (card.detailsVisible && detailLabel != null) {
-                    Text(text = detailLabel, style = ForestType.label, color = ForestPalette.textSecondary)
-                }
-                // Read once into a local: a property from another module cannot be smart-cast.
-                val revealedContent = card.revealedContent
-                if (revealedContent != null) {
-                    Text(
-                        text = revealedContent,
-                        style = ForestType.mono,
-                        color = ForestPalette.textSecondary,
-                        maxLines = if (card.kind == VaultEntryKind.NOTES) Int.MAX_VALUE else 3,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            val showCodeArea = card.detailsVisible &&
-                (card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null)
-            if (showCodeArea && !appearance.codeBelowIdentity) {
-                Spacer(modifier = Modifier.width(12.dp))
-                VaultCodeArea(card = card, strings = strings)
-            }
-        }
-        val showCodeBelow = card.detailsVisible && appearance.codeBelowIdentity &&
-            (card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null)
-        if (showCodeBelow) {
-            Spacer(modifier = Modifier.height(8.dp))
-            VaultCodeArea(card = card, strings = strings)
-        }
-        Spacer(modifier = Modifier.height(6.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        },
+        actionsContent = {
             val privacy = actions.onTogglePrivacy
             if (privacy != null) {
                 ForestTextAction(
@@ -341,8 +218,11 @@ internal fun VaultEntryCard(
             }
             val nextCounter = actions.onNextCounter
             if (card.detailsVisible && card.counter != null && nextCounter != null) {
-                ForestTextAction(text = strings.nextCode, onClick = { nextCounter(card) },
-                    onLongClick = actions.onEditCounter?.let { action -> { action(card) } })
+                ForestTextAction(
+                    text = strings.nextCode,
+                    onClick = { nextCounter(card) },
+                    onLongClick = actions.onEditCounter?.let { action -> { action(card) } }
+                )
             }
             if ((!card.detailsVisible && actions.onTogglePrivacy == null) ||
                 (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP))) {
@@ -359,73 +239,9 @@ internal fun VaultEntryCard(
                 ForestTextAction(text = strings.editEntry, onClick = { edit(card) })
             }
         }
-    }
+    )
 }
 
-/** Code, previous code, countdown ring, HOTP counter or mOTP PIN prompt. */
-@Composable
-private fun VaultCodeArea(card: VaultCardState, strings: VaultStrings) {
-    val codeColor = if (card.showsExpiry) ForestPalette.warning else ForestPalette.otpAmber
-    // Locals, because these properties come from :ui-model and cannot be smart-cast here.
-    val token = card.token
-    val previousToken = card.previousToken
-    Column(horizontalAlignment = Alignment.End) {
-        when {
-            token != null -> {
-                Text(
-                    text = if (card.tokenVisible) token else TokenDisplay.mask(token),
-                    style = ForestType.code,
-                    color = if (card.tokenVisible) codeColor else ForestPalette.textHint,
-                    maxLines = 1
-                )
-                if (previousToken != null && card.tokenVisible) {
-                    Text(
-                        text = previousToken,
-                        style = ForestType.previousCode,
-                        color = ForestPalette.otpAmberMuted,
-                        maxLines = 1
-                    )
-                }
-                if (card.hasCountdown && card.showCountdown) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CountdownRing(
-                            progress = card.progress ?: 0f,
-                            expiring = card.showsExpiry,
-                            diameter = 16.dp
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "${card.remainingSeconds}s",
-                            style = ForestType.label,
-                            color = ForestPalette.textSecondary,
-                            maxLines = 1
-                        )
-                    }
-                }
-            }
-            card.pinRequired -> Text(
-                text = strings.pinRequired,
-                style = ForestType.label,
-                color = ForestPalette.textHint,
-                maxLines = 1
-            )
-            card.counter != null -> Text(
-                text = "${strings.counterLabel} ${card.counter}",
-                style = ForestType.mono,
-                color = ForestPalette.textSecondary,
-                maxLines = 1
-            )
-            else -> Text(
-                text = strings.noCode,
-                style = ForestType.label,
-                color = ForestPalette.textHint,
-                maxLines = 1
-            )
-        }
-    }
-}
-
-/** Called only for visible rows with thumbnails enabled; image loading is memoized across ticks. */
 @Composable
 private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
     val image = remember(artwork, card.thumbnailName) {
@@ -436,30 +252,14 @@ private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: Vau
     } else {
         Image(
             bitmap = image,
-            contentDescription = null, // Decorative: the adjacent identity text is already announced.
+            contentDescription = null,
             modifier = Modifier.size(sizeDp.coerceAtLeast(0f).dp),
             contentScale = ContentScale.Fit
         )
     }
 }
 
-/** Centred message for an empty vault, a filtered miss or an empty tab. */
 @Composable
 internal fun VaultEmptyState(title: String, description: String) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Text(text = title, style = ForestType.title, color = ForestPalette.textPrimary)
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(text = description, style = ForestType.body, color = ForestPalette.textSecondary)
-    }
+    SharedVaultEmptyState(title = title, description = description)
 }
-
-/** A marquee is a renderer effect; its selection is part of the shared appearance value. */
-@OptIn(ExperimentalFoundationApi::class)
-private fun labelModifier(appearance: VaultAppearance): Modifier =
-    if (appearance.scrollLabels) Modifier.basicMarquee(iterations = Int.MAX_VALUE) else Modifier

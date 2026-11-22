@@ -33,29 +33,36 @@ fun SharedEmailEditDialog(
     error: String?,
     onSubmit: (PortableEmailEditDraft) -> Unit,
     onDismiss: () -> Unit,
+    artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
-    val artworkOptions = remember(thumbnailNames, input.thumbnail) {
-        (listOf(input.thumbnail) + thumbnailNames)
-            .filter { it.isNotEmpty() }
-            .distinct()
-            .map { it to it }
+    var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
+    val canChooseArtwork = artworkPicker != null || thumbnailNames.isNotEmpty()
+    fun dismiss() {
+        pickingThumbnail = false
+        input = PortableEmailEditDraft()
+        onDismiss()
     }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { dismiss() },
         title = { Text("Edit email entry") },
         text = {
-            Column(Modifier.verticalScroll(rememberScrollState())) {
+            if (pickingThumbnail && artworkPicker != null) {
+                artworkPicker(
+                    input.thumbnail,
+                    { chosen -> input = input.copy(thumbnail = chosen); pickingThumbnail = false },
+                    { pickingThumbnail = false }
+                )
+            } else Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text(PortableInputBounds.EMAIL_EDIT_WARNING)
                 SharedEmailEditText("Issuer", input.issuer) { input = input.copy(issuer = it) }
                 SharedEmailEditText("Account", input.label) { input = input.copy(label = it) }
                 SharedEmailEditText("Password", input.hiddenLabel) { input = input.copy(hiddenLabel = it) }
                 SharedEmailEditText("Tags (one per line)", input.tags) { input = input.copy(tags = it) }
-                if (artworkOptions.isNotEmpty()) {
-                    EmailChoiceField("Artwork", input.thumbnail, artworkOptions) {
-                        input = input.copy(thumbnail = it)
-                    }
+                if (canChooseArtwork) {
+                    Text("Artwork: ${input.thumbnail.ifEmpty { "Keep current" }}")
+                    ForestTextAction("Choose artwork", onClick = { pickingThumbnail = true })
                 }
                 SharedEmailRecordFields("Incoming account", input.account) {
                     input = input.copy(account = it)
@@ -73,19 +80,38 @@ fun SharedEmailEditDialog(
                     ForestTextAction(
                         text = "Delete",
                         color = ForestPalette.warning,
-                        onClick = onDelete
+                        onClick = {
+                            input = PortableEmailEditDraft()
+                            onDelete()
+                        }
                     )
                 }
                 error?.let { Text(it) }
             }
         },
         confirmButton = {
-            ForestTextAction("Save", onClick = { onSubmit(input) })
+            ForestTextAction("Save", enabled = !pickingThumbnail, onClick = {
+                val submitted = input
+                input = input.withoutSecrets()
+                onSubmit(submitted)
+            })
         },
         dismissButton = {
-            ForestTextAction("Cancel", onClick = onDismiss)
+            ForestTextAction("Cancel", onClick = { dismiss() })
         }
     )
+    if (pickingThumbnail && artworkPicker == null && thumbnailNames.isNotEmpty()) {
+        SharedThumbnailPickerDialog(
+            selected = input.thumbnail,
+            catalogNames = thumbnailNames,
+            unchangedLabel = "Keep current artwork",
+            onSelect = { chosen ->
+                if (chosen.isNotEmpty()) input = input.copy(thumbnail = chosen)
+                pickingThumbnail = false
+            },
+            onDismiss = { pickingThumbnail = false }
+        )
+    }
 }
 
 @Composable

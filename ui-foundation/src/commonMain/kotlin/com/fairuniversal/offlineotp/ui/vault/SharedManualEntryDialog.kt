@@ -23,7 +23,7 @@ private val PORTABLE_OTP_KINDS = listOf("TOTP", "HOTP", "STEAM", "MOTP")
 private val PORTABLE_HASH_ALGORITHMS = listOf("SHA1", "SHA256", "SHA512")
 
 /**
- * Native-compatible Compose form for adding/editing OTP, Note, and SSH-key entries.
+ * Shared Compose form for adding/editing OTP, Note, and SSH-key entries across Android, Desktop and iOS.
  *
  * Secrets stay inside composition only and are scrubbed from local state before [onSubmit] or
  * [onDismiss] runs.
@@ -37,13 +37,17 @@ fun SharedManualEntryDialog(
     onSubmit: (PortableEntryDraft) -> Unit,
     onDismiss: () -> Unit,
     onSwitchToEmail: (() -> Unit)? = null,
+    submitNotice: String? = null,
     thumbnailNames: List<String> = emptyList(),
+    artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
+    val canChooseArtwork = artworkPicker != null || thumbnailNames.isNotEmpty()
+    val unchangedArtworkLabel = if (editing) "Keep current artwork" else "Automatic from issuer"
     fun dismiss() {
         pickingThumbnail = false
         input = PortableEntryDraft()
@@ -53,20 +57,33 @@ fun SharedManualEntryDialog(
         onDismissRequest = { dismiss() },
         title = { Text(text = if (editing) "Edit entry" else "Add entry") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            if (pickingThumbnail && artworkPicker != null) {
+                artworkPicker(
+                    input.thumbnail,
+                    { chosen -> input = input.copy(thumbnail = chosen); pickingThumbnail = false },
+                    { pickingThumbnail = false }
+                )
+            } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                submitNotice?.let { Text(text = it) }
                 Text(text = "Type: ${if (input.kind == "SSH_KEY") "Keys" else input.kind}")
+                if (editing) {
+                    Text(
+                        text = "Stored note and OTP fields are shown for editing. Changing OTP type clears the secret and timing; re-enter them for the new type. Leave fields blank to keep stored values. Removal choices apply only when you Save."
+                    )
+                }
                 if (!editing) {
-                    for (kind in PORTABLE_OFFERABLE_KINDS) {
+                    for (type in PORTABLE_OFFERABLE_KINDS) {
                         ForestTextAction(
-                            text = if (kind == "SSH_KEY") "Keys" else kind,
-                            enabled = input.kind != kind,
+                            text = if (type == "SSH_KEY") "Keys" else type,
+                            enabled = input.kind != type,
                             onClick = {
                                 input = PortableEntryDraft(
-                                    kind = kind,
+                                    kind = type,
                                     issuer = input.issuer,
                                     label = input.label,
                                     tags = input.tags,
-                                    digits = if (kind == "STEAM") "5" else "6",
+                                    thumbnail = input.thumbnail,
+                                    digits = if (type == "STEAM") "5" else "6",
                                     period = "30",
                                     counter = "0",
                                     algorithm = "SHA1"
@@ -81,110 +98,61 @@ fun SharedManualEntryDialog(
                         })
                     }
                 } else if (initial.kind in PORTABLE_OTP_KINDS) {
-                    for (kind in PORTABLE_OTP_KINDS) {
+                    for (type in PORTABLE_OTP_KINDS) {
                         ForestTextAction(
-                            text = kind,
-                            enabled = input.kind != kind,
+                            text = type,
+                            enabled = input.kind != type,
                             onClick = {
                                 input = input.copy(
-                                    kind = kind,
+                                    kind = type,
                                     secret = "",
                                     pin = "",
-                                    digits = if (kind == "STEAM") "5" else "6",
+                                    digits = if (type == "STEAM") "5" else "6",
                                     period = "30",
                                     counter = "0",
-                                    algorithm = if (kind == "STEAM") "SHA1" else input.algorithm,
+                                    algorithm = "SHA1",
                                     clearPin = false
                                 )
                             }
                         )
                     }
                 }
-                if (editing) Text(text = "Removal choices apply only when you Save.")
-                PortableEntryField("Issuer / title", input.issuer, limit = PortableInputBounds.MAX_TEXT_CHARS) {
+                EntryInputField("Issuer", input.issuer, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                     input = input.copy(issuer = it)
                 }
-                PortableEntryField("Account", input.label, limit = PortableInputBounds.MAX_TEXT_CHARS) {
+                EntryInputField("Account", input.label, limit = PortableInputBounds.MAX_TEXT_CHARS) {
                     input = input.copy(label = it)
+                }
+                if (canChooseArtwork) {
+                    val artworkSummary = input.thumbnail.ifEmpty {
+                        if (editing) "Keep current" else "Automatic from issuer"
+                    }
+                    Text(text = "Artwork: $artworkSummary")
+                    ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
                 }
                 val note = input.kind == "NOTE"
                 val ssh = input.kind == "SSH_KEY"
-                if (ssh) {
-                    PortableEntryField("Public key", input.publicKey, multiline = true) {
-                        input = input.copy(publicKey = it)
-                    }
-                    PortableEntryField(
-                        label = if (editing) "New private key (blank keeps stored)" else "Private key",
-                        value = input.privateKey,
-                        masked = true,
-                        multiline = true
-                    ) {
-                        input = input.copy(privateKey = it)
-                    }
-                    PortableEntryField("SSH host (optional)", input.sshHost, limit = PortableInputBounds.MAX_TEXT_CHARS) {
-                        input = input.copy(sshHost = it)
-                    }
-                    PortableEntryField("SSH port (optional)", input.sshPort, limit = 5) {
-                        input = input.copy(sshPort = it)
-                    }
-                    PortableEntryField("SSH user name (optional)", input.sshUsername, limit = PortableInputBounds.MAX_TEXT_CHARS) {
-                        input = input.copy(sshUsername = it)
-                    }
-                    if (!input.clearSshPassword) {
-                        PortableEntryField(
-                            label = if (editing) "New SSH password (blank keeps stored)" else "SSH password (optional)",
-                            value = input.sshPassword,
-                            masked = true,
-                            limit = PortableInputBounds.MAX_TEXT_CHARS
-                        ) {
-                            input = input.copy(sshPassword = it)
-                        }
-                    }
-                    if (editing) {
-                        ForestTextAction(
-                            text = if (input.clearSshPassword) "Will remove SSH password — undo" else "Remove SSH password on Save",
-                            onClick = { input = input.copy(sshPassword = "", clearSshPassword = !input.clearSshPassword) }
-                        )
-                    }
-                } else {
-                    PortableEntryField(
-                        label = if (note) "Note" else "Secret",
-                        value = input.secret,
-                        masked = !note && !editing,
-                        multiline = note,
-                        limit = if (note) PortableInputBounds.MAX_NOTE_CHARACTERS else PortableInputBounds.MAX_URI_CHARS
-                    ) {
-                        input = input.copy(secret = it)
-                    }
+                EntryInputField(
+                    label = if (note) "Hidden Note" else if (ssh) {
+                        if (editing) "New private key (blank keeps stored)" else "Private key"
+                    } else "Secret",
+                    value = if (ssh) input.privateKey else input.secret,
+                    masked = !note && (!editing || ssh),
+                    multiline = note || ssh,
+                    limit = if (note) PortableInputBounds.MAX_NOTE_CHARACTERS else PortableInputBounds.MAX_URI_CHARS
+                ) { next ->
+                    input = if (ssh) input.copy(privateKey = next) else input.copy(secret = next)
                 }
-                if (!ssh) {
-                    if (!input.clearHiddenLabel) {
-                        PortableEntryField(
-                            label = "Password",
-                            value = input.hiddenLabel,
-                            masked = !editing,
-                            limit = PortableInputBounds.MAX_TEXT_CHARS
-                        ) {
-                            input = input.copy(hiddenLabel = it)
-                        }
-                    }
-                    if (editing) {
-                        ForestTextAction(
-                            text = if (input.clearHiddenLabel) "Will remove Password — undo" else "Remove Password on Save",
-                            onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) }
-                        )
-                    }
-                }
-                if (input.kind == "TOTP" || input.kind == "HOTP" || input.kind == "STEAM") {
-                    PortableEntryField("Digits", input.digits, limit = 2) {
+                if (input.kind == "TOTP" || input.kind == "HOTP" || (editing && input.kind == "STEAM")) {
+                    EntryInputField("Digits", input.digits, limit = 2) {
                         input = input.copy(digits = it)
                     }
                     if (input.kind == "HOTP") {
-                        PortableEntryField("Counter", input.counter, limit = 20) {
+                        EntryInputField("Counter", input.counter, limit = 20) {
                             input = input.copy(counter = it)
                         }
                     } else {
-                        PortableEntryField("Period (seconds)", input.period, limit = 20) {
+                        EntryInputField("Period (seconds)", input.period, limit = 20) {
                             input = input.copy(period = it)
                         }
                     }
@@ -201,40 +169,66 @@ fun SharedManualEntryDialog(
                 }
                 if (input.kind == "MOTP") {
                     Text(text = "mOTP uses six digits, ten-second steps and MD5; these are protocol-defined.")
-                    if (!input.clearPin) {
-                        PortableEntryField(
-                            label = "PIN (optional)",
-                            value = input.pin,
-                            masked = !editing,
-                            limit = PortableInputBounds.MAX_TAG_CHARS
-                        ) {
-                            input = input.copy(pin = it)
-                        }
-                    }
+                }
+                if (!note && !ssh) {
                     if (editing) {
                         ForestTextAction(
-                            text = if (input.clearPin) "Will remove PIN — undo" else "Remove PIN on Save",
+                            text = if (input.clearHiddenLabel) "Will remove Password — undo" else "Remove stored Password",
+                            onClick = { input = input.copy(hiddenLabel = "", clearHiddenLabel = !input.clearHiddenLabel) }
+                        )
+                    }
+                    if (!input.clearHiddenLabel) EntryInputField(
+                        "Password", input.hiddenLabel, masked = !editing, limit = PortableInputBounds.MAX_TEXT_CHARS
+                    ) {
+                        input = input.copy(hiddenLabel = it)
+                    }
+                }
+                if (input.kind == "MOTP") {
+                    if (editing) {
+                        ForestTextAction(
+                            text = if (input.clearPin) "Will remove PIN — undo" else "Remove stored PIN",
                             onClick = { input = input.copy(pin = "", clearPin = !input.clearPin) }
                         )
                     }
+                    if (!input.clearPin) EntryInputField(
+                        "PIN (optional)", input.pin, masked = !editing, limit = PortableInputBounds.MAX_TAG_CHARS
+                    ) {
+                        input = input.copy(pin = it)
+                    }
                 }
-                PortableEntryField(
-                    label = "Tags (comma or newline separated)",
-                    value = input.tags,
+                if (ssh) {
+                    EntryInputField("Public key", input.publicKey, multiline = true) {
+                        input = input.copy(publicKey = it)
+                    }
+                    EntryInputField("Host (optional)", input.sshHost, limit = PortableInputBounds.MAX_TEXT_CHARS) {
+                        input = input.copy(sshHost = it)
+                    }
+                    EntryInputField("Port (optional)", input.sshPort, limit = 5) {
+                        input = input.copy(sshPort = it)
+                    }
+                    EntryInputField("Username (optional)", input.sshUsername, limit = PortableInputBounds.MAX_TEXT_CHARS) {
+                        input = input.copy(sshUsername = it)
+                    }
+                    if (editing) {
+                        ForestTextAction(
+                            text = if (input.clearSshPassword) "Will remove SSH password — undo" else "Remove stored SSH password",
+                            onClick = { input = input.copy(sshPassword = "", clearSshPassword = !input.clearSshPassword) }
+                        )
+                    }
+                    if (!input.clearSshPassword) EntryInputField(
+                        if (editing) "New SSH password (blank keeps stored)" else "Password (optional)",
+                        input.sshPassword, masked = true, limit = PortableInputBounds.MAX_TEXT_CHARS
+                    ) {
+                        input = input.copy(sshPassword = it)
+                    }
+                }
+                EntryInputField(
+                    "Tags (one per line)",
+                    input.tags,
                     multiline = true,
                     limit = PortableInputBounds.MAX_TAGS * (PortableInputBounds.MAX_TAG_CHARS + 1)
                 ) {
                     input = input.copy(tags = it)
-                }
-                if (thumbnailNames.isNotEmpty()) {
-                    val artworkSummary = input.thumbnail.ifEmpty {
-                        if (editing) "Unchanged" else "Automatic (from issuer)"
-                    }
-                    Text(text = "Artwork: $artworkSummary")
-                    ForestTextAction(
-                        text = "Choose artwork…",
-                        onClick = { pickingThumbnail = true }
-                    )
                 }
                 if (editing) {
                     onShowQrCode?.let { showQr ->
@@ -258,7 +252,7 @@ fun SharedManualEntryDialog(
             }
         },
         confirmButton = {
-            ForestTextAction(text = "Save", onClick = {
+            ForestTextAction(text = "Save", enabled = !pickingThumbnail, onClick = {
                 val submitted = input
                 input = input.withoutSecrets()
                 onSubmit(submitted)
@@ -266,11 +260,11 @@ fun SharedManualEntryDialog(
         },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) }
     )
-    if (pickingThumbnail && thumbnailNames.isNotEmpty()) {
+    if (pickingThumbnail && artworkPicker == null && thumbnailNames.isNotEmpty()) {
         SharedThumbnailPickerDialog(
             selected = input.thumbnail,
             catalogNames = thumbnailNames,
-            unchangedLabel = if (editing) "Keep current artwork" else "Automatic (from issuer)",
+            unchangedLabel = unchangedArtworkLabel,
             onSelect = { chosen ->
                 input = input.copy(thumbnail = chosen)
                 pickingThumbnail = false
@@ -281,7 +275,7 @@ fun SharedManualEntryDialog(
 }
 
 @Composable
-private fun PortableEntryField(
+private fun EntryInputField(
     label: String,
     value: String,
     masked: Boolean = false,

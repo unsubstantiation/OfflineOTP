@@ -653,4 +653,46 @@ class VaultPresenterTest {
         )
         assertFalse(harness.presenter.appearance.showIndividualCountdowns)
     }
+
+    @Test
+    fun revealStateSeedsFromInitialIdsPersistsThroughHookAndSyncsAfterRestore() {
+        val list = EntryList()
+        val first = totp("GitHub", "alice")
+        val second = totp("GitLab", "bob")
+        list.addEntry(first)
+        list.addEntry(second)
+        val persisted = LinkedHashMap<Long, Boolean>()
+        var allowSaves = true
+        val presenter = VaultPresenter(
+            projection = VaultProjection(list, EntryListPresentation(list)),
+            initialFilter = VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            initialRevealedIds = setOf(first.getListId()),
+            revealChanged = { id, visible ->
+                if (!allowSaves && visible) false
+                else {
+                    persisted[id] = visible
+                    true
+                }
+            }
+        )
+        assertTrue(presenter.frame(1_000L).cards.first { it.id == first.getListId() }.revealed)
+        assertFalse(presenter.frame(1_000L).cards.first { it.id == second.getListId() }.revealed)
+
+        presenter.toggleReveal(first.getListId())
+        assertFalse(presenter.frame(1_000L).cards.first { it.id == first.getListId() }.revealed)
+        assertEquals(false, persisted[first.getListId()])
+
+        allowSaves = false
+        presenter.toggleReveal(first.getListId())
+        assertFalse("failed reveal save fails closed", presenter.frame(1_000L).cards.first { it.id == first.getListId() }.revealed)
+
+        allowSaves = true
+        presenter.toggleReveal(second.getListId())
+        assertTrue(presenter.frame(1_000L).cards.first { it.id == second.getListId() }.revealed)
+        assertEquals(true, persisted[second.getListId()])
+
+        presenter.syncRevealedIds(setOf(first.getListId()))
+        assertTrue(presenter.frame(1_000L).cards.first { it.id == first.getListId() }.revealed)
+        assertFalse(presenter.frame(1_000L).cards.first { it.id == second.getListId() }.revealed)
+    }
 }

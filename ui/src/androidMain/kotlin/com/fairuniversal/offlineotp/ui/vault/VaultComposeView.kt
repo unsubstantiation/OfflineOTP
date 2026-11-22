@@ -241,7 +241,7 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() }, onDelete = email.onDelete)
+            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onDelete = email.onDelete)
         }
         val password = passwordEditor
         if (password != null) ForestTheme {

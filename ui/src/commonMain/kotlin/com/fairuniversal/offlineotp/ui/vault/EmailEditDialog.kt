@@ -14,6 +14,7 @@ fun EmailEditDialog(
     error: String?,
     onSubmit: (EmailEditInput) -> Unit,
     onDismiss: () -> Unit,
+    artwork: VaultArtwork? = null,
     onDelete: (() -> Unit)? = null
 ) {
     SharedEmailEditDialog(
@@ -21,6 +22,15 @@ fun EmailEditDialog(
         initial = initial.toPortable(),
         thumbnailNames = ThumbnailCatalog.NAMES,
         error = error,
+        artworkPicker = { selected, onSelect, onCancel ->
+            ThumbnailPicker(
+                selected = selected.ifEmpty { null },
+                artwork = artwork,
+                unchangedLabel = "Keep current artwork",
+                onSelect = { chosen -> onSelect(chosen ?: initial.thumbnail) },
+                onCancel = onCancel
+            )
+        },
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss,
         onDelete = onDelete

@@ -42,8 +42,7 @@ public final class VaultStore: ObservableObject {
 
     public func toggleReveal(at index: Int) {
         guard isUnlocked, entries.indices.contains(index) else { return }
-        let entry = entries[index]
-        sessionVisibility[entry] = !isRevealed(entry)
+        _ = setDetailsVisible(at: index, !isRevealed(entries[index]))
     }
 
     /// A sentence for the lock screen or the list: a wrong password, a missing vault, a failed write.
@@ -874,16 +873,21 @@ public final class VaultStore: ObservableObject {
     @discardableResult
     public func setDetailsVisible(at index: Int, _ visible: Bool) -> Bool {
         guard entries.indices.contains(index) else { return false }
+        let current = entries[index]
         if visible {
             var proposed = entries
             proposed[index].setDetailsVisible(true)
-            guard commit(proposed) else { return false }
-            sessionVisibility[entries[index]] = true
+            let previousOverride = sessionVisibility[current]
+            sessionVisibility[current] = true
+            guard commit(proposed) else {
+                sessionVisibility[current] = previousOverride
+                return false
+            }
             return true
         }
         var proposed = entries
         proposed[index].setDetailsVisible(false)
-        sessionVisibility[entries[index]] = false
+        sessionVisibility[current] = false
         if commit(proposed) { return true }
         entries[index].setDetailsVisible(false)
         return false
