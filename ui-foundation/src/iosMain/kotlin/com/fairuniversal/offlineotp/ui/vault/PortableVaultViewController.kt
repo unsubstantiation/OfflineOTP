@@ -554,6 +554,28 @@ private fun RenderSharedSurface(
             filenames = rows.filter { it.key.startsWith("file:") }.map { it.title },
             onDismiss = onDismiss
         )
+        "settings" -> SharedVaultToolsDialog(
+            title = dialog.title,
+            groups = dialog.sections.map { section ->
+                PortableToolGroup(
+                    title = section.title,
+                    items = section.rows.map { row ->
+                        PortableToolItem(
+                            key = row.key,
+                            label = row.title,
+                            detail = row.detail,
+                            value = row.value,
+                            enabled = row.enabled,
+                            interactive = row.kind != PortableRow.KIND_INFO
+                        )
+                    }
+                )
+            },
+            closeLabel = dialog.dismissLabel,
+            message = dialog.message,
+            onSelectTool = { key -> onAction(key) },
+            onDismiss = onDismiss
+        )
         "emailEdit" -> {
             val accountFields = rows.filter { it.key.startsWith("acct:") }.map { row ->
                 val parts = row.key.split(":", limit = 4)
@@ -732,72 +754,87 @@ private fun RenderSharedSurface(
             },
             onDismiss = onDismiss
         )
-        "editor" -> SharedManualEntryDialog(
-            inputKey = dialogKey,
-            initial = PortableEntryDraft(
-                kind = rowValue("type").ifEmpty { "TOTP" },
-                issuer = rowValue("issuer"),
-                label = rowValue("label"),
-                hiddenLabel = rowValue("hiddenLabel"),
-                secret = rowValue("secret"),
-                digits = rowValue("digits").ifEmpty { "6" },
-                period = rowValue("period").ifEmpty { "30" },
-                counter = rowValue("counter").ifEmpty { "0" },
-                algorithm = rowValue("algorithm").ifEmpty { "SHA1" },
-                pin = rowValue("pin"),
-                publicKey = rowValue("publicKey"),
-                privateKey = rowValue("privateKey"),
-                sshHost = rowValue("sshHost"),
-                sshPort = rowValue("sshPort"),
-                sshUsername = rowValue("sshUsername"),
-                sshPassword = rowValue("sshPassword"),
-                tags = rowValue("tags"),
-                thumbnail = rowValue("thumbnail")
-            ),
-            editing = dialog.title == "Edit entry",
-            error = dialog.message.ifEmpty { null },
-            onSwitchToEmail = if (dialog.title != "Edit entry") {
-                { onAction("switchToEmailEditor") }
-            } else {
-                null
-            },
-            thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
-            onShowQrCode = if (dialog.title == "Edit entry" && rowValue("canShowQr") == "true") {
-                { onAction("qrFromEdit") }
-            } else {
-                null
-            },
-            onDelete = if (dialog.title == "Edit entry") {
-                { onAction("delete") }
-            } else {
-                null
-            },
-            onSubmit = { draft ->
-                surfaceActions.change("type", draft.kind)
-                surfaceActions.change("issuer", draft.issuer)
-                surfaceActions.change("label", draft.label)
-                surfaceActions.change("hiddenLabel", draft.hiddenLabel)
-                surfaceActions.change("secret", draft.secret)
-                surfaceActions.change("digits", draft.digits)
-                surfaceActions.change("period", draft.period)
-                surfaceActions.change("counter", draft.counter)
-                surfaceActions.change("algorithm", draft.algorithm)
-                surfaceActions.change("pin", draft.pin)
-                surfaceActions.change("publicKey", draft.publicKey)
-                surfaceActions.change("privateKey", draft.privateKey)
-                surfaceActions.change("sshHost", draft.sshHost)
-                surfaceActions.change("sshPort", draft.sshPort)
-                surfaceActions.change("sshUsername", draft.sshUsername)
-                surfaceActions.change("sshPassword", draft.sshPassword)
-                surfaceActions.change("tags", draft.tags)
-                surfaceActions.change("thumbnail", draft.thumbnail)
-                surfaceActions.change("clearHiddenLabel", if (draft.clearHiddenLabel) "true" else "false")
-                surfaceActions.change("clearPin", if (draft.clearPin) "true" else "false")
-                surfaceActions.change("clearSshPassword", if (draft.clearSshPassword) "true" else "false")
-                confirm()
-            },
-            onDismiss = onDismiss
-        )
+        "editor" -> {
+            SharedManualEntryDialog(
+                inputKey = dialogKey,
+                initial = PortableEntryDraft(
+                    kind = rowValue("type").ifEmpty { "TOTP" },
+                    issuer = rowValue("issuer"),
+                    label = rowValue("label"),
+                    hiddenLabel = rowValue("hiddenLabel"),
+                    secret = rowValue("secret"),
+                    digits = rowValue("digits").ifEmpty { "6" },
+                    period = rowValue("period").ifEmpty { "30" },
+                    counter = rowValue("counter").ifEmpty { "0" },
+                    algorithm = rowValue("algorithm").ifEmpty { "SHA1" },
+                    pin = rowValue("pin"),
+                    publicKey = rowValue("publicKey"),
+                    privateKey = rowValue("privateKey"),
+                    sshHost = rowValue("sshHost"),
+                    sshPort = rowValue("sshPort"),
+                    sshUsername = rowValue("sshUsername"),
+                    sshPassword = rowValue("sshPassword"),
+                    tags = rowValue("tags"),
+                    thumbnail = rowValue("thumbnail")
+                ),
+                editing = dialog.title == "Edit entry",
+                error = dialog.message.ifEmpty { null },
+                onSwitchToEmail = if (dialog.title != "Edit entry") {
+                    { onAction("switchToEmailEditor") }
+                } else {
+                    null
+                },
+                thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                onShowQrCode = if (dialog.title == "Edit entry" && rowValue("canShowQr") == "true") {
+                    { onAction("qrFromEdit") }
+                } else {
+                    null
+                },
+                onDelete = if (dialog.title == "Edit entry") {
+                    { onAction("delete") }
+                } else {
+                    null
+                },
+                onSubmit = { draft ->
+                    surfaceActions.change("type", draft.kind)
+                    surfaceActions.change("issuer", draft.issuer)
+                    surfaceActions.change("label", draft.label)
+                    surfaceActions.change("hiddenLabel", draft.hiddenLabel)
+                    surfaceActions.change("secret", draft.secret)
+                    surfaceActions.change("digits", draft.digits)
+                    surfaceActions.change("period", draft.period)
+                    surfaceActions.change("counter", draft.counter)
+                    surfaceActions.change("algorithm", draft.algorithm)
+                    surfaceActions.change("pin", draft.pin)
+                    surfaceActions.change("publicKey", draft.publicKey)
+                    surfaceActions.change("privateKey", draft.privateKey)
+                    surfaceActions.change("sshHost", draft.sshHost)
+                    surfaceActions.change("sshPort", draft.sshPort)
+                    surfaceActions.change("sshUsername", draft.sshUsername)
+                    surfaceActions.change("sshPassword", draft.sshPassword)
+                    surfaceActions.change("tags", draft.tags)
+                    surfaceActions.change("thumbnail", draft.thumbnail)
+                    surfaceActions.change("clearHiddenLabel", if (draft.clearHiddenLabel) "true" else "false")
+                    surfaceActions.change("clearPin", if (draft.clearPin) "true" else "false")
+                    surfaceActions.change("clearSshPassword", if (draft.clearSshPassword) "true" else "false")
+                    confirm()
+                },
+                onDismiss = onDismiss
+            )
+            if (rowValue("showingQr") == "true") {
+                val qrSize = rowValue("qrMatrixSize").toIntOrNull() ?: 0
+                val qrBits = rowValue("qrMatrixBits")
+                if (qrSize > 0 && qrBits.length >= qrSize * qrSize) {
+                    QrCodeDialog(
+                        title = "QR code",
+                        matrixSize = qrSize,
+                        matrixBits = qrBits,
+                        confirmLabel = "Close",
+                        onDismiss = { onAction("closeQrFromEdit") }
+                    )
+                }
+            }
+        }
         else -> when {
             dialog.key.startsWith("passwordEdit:") && rows.isNotEmpty() -> {
                 val extraRows = rows.filter { it.key.startsWith("pwCol:") }

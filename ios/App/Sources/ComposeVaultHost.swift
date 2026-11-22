@@ -138,6 +138,18 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if entry.kind?.isOtp == true && seconds > 0 { metadata += " · \(seconds)s" }
             if revealed, entry.kind == .hotp { metadata += " · counter \(entry.counter)" }
             if revealed, !entry.tags.isEmpty { metadata += " · " + entry.tags.joined(separator: ", ") }
+            let detailLabel: String = (revealed && entry.kind == .sshKey) ? (entry.sshConnection?.summary ?? "") : ""
+            let revealedContent: String = {
+                guard revealed else { return "" }
+                switch entry.kind {
+                case .note: return entry.noteText ?? ""
+                case .sshKey: return (try? entry.sshKeys().publicKey) ?? ""
+                case .password: return (try? entry.passwordFields().value(PasswordCsvExport.fieldURL)) ?? ""
+                case .passwordArchive: return "Password archive (\(entry.passwordArchiveBytes?.count ?? 0) bytes)"
+                case .email: return (try? entry.emailAccount().address) ?? ""
+                default: return ""
+                }
+            }()
             return PortableCard(
                 index: Int32(index),
                 title: title,
@@ -156,6 +168,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 canCopy: canCopy,
                 canCopyAccount: canCopyAccount,
                 canCopyPassword: canCopyPassword,
+                detailLabel: detailLabel,
+                revealedContent: revealedContent,
+                isNote: entry.kind == .note,
                 pinRequired: pinRequired)
         }
         let chips = store.tags(for: store.category).map { tag in
@@ -169,6 +184,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case .and: rule = "All tags"
         case .single: rule = "One tag"
         }
+        let totalEntries = store.entries.count
+        let countLabel: String = {
+            if totalEntries == 0 { return "" }
+            if cards.count == totalEntries { return "\(cards.count) entries" }
+            return "\(cards.count) / \(totalEntries) entries"
+        }()
         return PortableVaultState(
             tabs: EntryCategory.allCases.map {
                 PortableChip(label: $0.title, count: Int32(store.entryCount(for: $0)), selected: $0 == store.category)
@@ -180,7 +201,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             cards: cards,
             sortLabel: store.sortMode.title,
             toast: toast,
-            hiddenTitleEnabled: store.hideIssuer)
+            hiddenTitleEnabled: store.hideIssuer,
+            countLabel: countLabel)
     }
 
     // MARK: - Vault actions
@@ -270,6 +292,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "step":
             if store.advanceCounter(at: position) { message("Counter stepped. Copy the new code for this step.") }
             else { message(store.message ?? "This entry has no counter to step.") }
+        case "counter":
+            if entry.kind == .hotp, store.isRevealed(entry) {
+                editorIndex = position
+                openedFields = entry.fields
+                draft = ["counter": String(entry.counter)]
+                openSurface("counterEdit", keepDraft: true)
+            }
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
@@ -507,7 +536,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         ]
         if !isArchive, let fields = try? entry.passwordFields() {
             let coreNames: Set<String> = ["url", "username", "password"]
-            let pwNames: Set<String> = ["password", "pass", "login_password"]
+            let pwNames: Set<String> = ["password", "pass", "login_password", "passphrase", "pwd", "secret"]
             var extraIdx = 0
             for item in fields.items {
                 let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -971,7 +1000,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("username", "Username", value: draft["username"] ?? fields.value(PasswordCsvExport.fieldUsername), kind: "text"))
             rows.append(row("password", "New password (blank keeps the stored one)", value: draft["password"] ?? "", kind: "secure"))
             let coreNames: Set<String> = ["url", "username", "password"]
-            let pwNames: Set<String> = ["password", "pass", "login_password"]
+            let pwNames: Set<String> = ["password", "pass", "login_password", "passphrase", "pwd", "secret"]
             var extraIdx = 0
             for item in fields.items {
                 let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -1233,6 +1262,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: ThumbnailCatalog.names.joined(separator: ","), kind: "info"))
         if let index = editorIndex {
             rows.append(row("canShowQr", "QR", value: store.otpUri(for: index) != nil ? "true" : "false", kind: "info"))
+            if draft["showingQr"] == "true", let payload = store.otpUri(for: index), let matrix = qrMatrix(for: payload) {
+                rows.append(row("showingQr", "Showing QR", value: "true", kind: "info"))
+                rows.append(row("qrMatrixSize", "Size", value: String(matrix.size), kind: "info"))
+                rows.append(row("qrMatrixBits", "Bits", value: matrix.bits, kind: "info"))
+            }
         }
         return surface(key: "editor", title: editorIndex == nil ? "Add entry" : "Edit entry",
             sections: [PortableSection(title: "", rows: rows)], confirmLabel: "Save",
@@ -1488,6 +1522,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func change(key: String, value: String) {
         guard active else { return }
+        noteActivity()
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
             || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
             || surfaceKey == "passwordPrompt"
@@ -1514,6 +1549,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     func action(key: String) -> String? {
         guard active, store.isUnlocked else { return "The vault locked. Close and try again." }
+        noteActivity()
         defer { if active { refresh() } }
         if key == "dismiss" {
             if surfaceKey == "qrFromEdit" {
@@ -1956,16 +1992,28 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
             } else {
                 let origFields = try entry.passwordFields()
-                let pwNames: Set<String> = ["password", "pass", "login_password"]
+                let pwNames: Set<String> = ["password", "pass", "login_password", "passphrase", "pwd", "secret"]
                 var pairs: [PasswordMaterial.Field] = []
                 for (idx, item) in origFields.items.enumerated() {
                     let norm = item.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                     let typed = draft["pwColVal:\(idx)"] ?? ""
                     let nextVal = (pwNames.contains(norm) && typed.isEmpty) ? item.value : typed
                     pairs.append(PasswordMaterial.Field(name: item.name, value: nextVal))
+                    if pwNames.contains(norm) { draft["pwColVal:\(idx)"] = "" }
                 }
-                let effectivePw = pairs.last { pwNames.contains($0.name.lowercased()) }?.value ?? ""
-                guard !effectivePw.isEmpty else { throw PasswordCsvExportError.emptyPassword }
+                let hasPwColumn = pairs.contains {
+                    pwNames.contains($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+                }
+                if hasPwColumn {
+                    let effectivePw = pairs.last {
+                        pwNames.contains($0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+                    }?.value ?? ""
+                    guard !effectivePw.isEmpty else { throw PasswordCsvExportError.emptyPassword }
+                } else {
+                    guard pairs.contains(where: { !$0.value.isEmpty }) else {
+                        throw PasswordCsvExportError.emptyPassword
+                    }
+                }
                 var updated = entry.fields
                 updated["secret"] = .string(Base32.encode(try PasswordMaterial.encodeFields(pairs)))
                 updated["issuer"] = .string(draft["issuer"] ?? entry.issuer)
@@ -1976,6 +2024,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 if !chosenThumbnail.isEmpty { replacement.setThumbnail(chosenThumbnail) }
             }
             guard store.update(at: index, with: replacement) else {
+                draft["password"] = ""
                 return store.message ?? "The password entry could not be saved to the vault."
             }
             draft["password"] = ""
@@ -2735,7 +2784,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return nil
         case "qrFromEdit":
             guard let index = editorIndex, store.otpUri(for: index) != nil else { return "This entry has no QR link." }
-            openSurface("qrFromEdit", keepDraft: true)
+            draft["showingQr"] = "true"
+            return nil
+        case "closeQrFromEdit":
+            draft.removeValue(forKey: "showingQr")
             return nil
         case "edit":
             guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
@@ -2842,6 +2894,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     /// Native document pickers hand bytes to the shared restore dialog. Nothing is applied here.
     func imported(data: Data, kind: String) {
         guard active, store.isUnlocked, !data.isEmpty, data != lastImported else { return }
+        noteActivity()
         lastImported = data
         pendingImport = data
         if kind == "fairEmail" {

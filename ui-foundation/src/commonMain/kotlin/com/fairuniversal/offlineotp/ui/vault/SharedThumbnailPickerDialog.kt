@@ -24,19 +24,20 @@ import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 /**
- * Native-compatible searchable brand-logo / thumbnail name selector.
+ * Shared searchable brand-logo / thumbnail picker body across Android, Desktop and iOS.
  *
- * Host adapters pass their platform [catalogNames] so `:ui-foundation` remains free of `:core`.
- * Passing `""` to [onSelect] restores automatic issuer resolution (create) or the default mark.
+ * Host adapters pass their platform [catalogNames] and an optional [iconContent] renderer so
+ * `:ui-foundation` remains free of `:core` and platform bitmap toolkits. Passing `""` to [onSelect]
+ * restores automatic issuer resolution (create) or keeps/resets the default mark.
  */
 @Composable
-fun SharedThumbnailPickerDialog(
-    title: String = "Choose artwork",
+fun SharedThumbnailPickerContent(
     selected: String = "",
     catalogNames: List<String>,
     unchangedLabel: String = "Automatic (from issuer)",
     onSelect: (String) -> Unit,
-    onDismiss: () -> Unit
+    onCancel: (() -> Unit)? = null,
+    iconContent: (@Composable (String) -> Unit)? = null
 ) {
     var query by remember { mutableStateOf("") }
     val trimmed = query.trim()
@@ -44,39 +45,72 @@ fun SharedThumbnailPickerDialog(
         if (trimmed.isEmpty()) catalogNames
         else catalogNames.filter { it.contains(trimmed, ignoreCase = true) }
     }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = query,
+            onValueChange = { if (it.length <= PortableInputBounds.MAX_TAG_CHARS) query = it },
+            singleLine = true,
+            label = { Text(text = "Search artwork") },
+            modifier = Modifier.fillMaxWidth()
+        )
+        ForestTextAction(text = unchangedLabel, onClick = { onSelect("") })
+        Text(text = "Default uses a letter tile.")
+        if (filtered.isEmpty()) {
+            Text(text = "No matching artwork")
+        }
+        // Explicit height avoids nesting an unbounded scrollable inside AlertDialog content.
+        LazyColumn(modifier = Modifier.height(240.dp)) {
+            items(filtered, key = { it }) { name ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(name) }
+                        .padding(vertical = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    if (iconContent != null) {
+                        iconContent(name)
+                    } else {
+                        VaultLetterTile(seed = name, title = name, sizeDp = 28f)
+                    }
+                    Text(
+                        text = if (name == selected) "$name (selected)" else name,
+                        color = if (name == selected) ForestPalette.accent else ForestPalette.textPrimary
+                    )
+                }
+            }
+        }
+        onCancel?.let { cancel ->
+            ForestTextAction(text = "Back without changing artwork", onClick = cancel)
+        }
+    }
+}
+
+/** Standalone dialog wrapper around [SharedThumbnailPickerContent] across Android, Desktop and iOS. */
+@Composable
+fun SharedThumbnailPickerDialog(
+    title: String = "Choose artwork",
+    selected: String = "",
+    catalogNames: List<String>,
+    unchangedLabel: String = "Automatic (from issuer)",
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+    dismissLabel: String = "Close",
+    iconContent: (@Composable (String) -> Unit)? = null
+) {
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { if (it.length <= PortableInputBounds.MAX_TAG_CHARS) query = it },
-                    singleLine = true,
-                    label = { Text(text = "Search brand logos") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                ForestTextAction(text = unchangedLabel, onClick = { onSelect("") })
-                LazyColumn(modifier = Modifier.height(240.dp)) {
-                    items(filtered, key = { it }) { name ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSelect(name) }
-                                .padding(vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            VaultLetterTile(seed = name, title = name, sizeDp = 28f)
-                            Text(
-                                text = if (name == selected) "$name (selected)" else name,
-                                color = if (name == selected) ForestPalette.accent else ForestPalette.textPrimary
-                            )
-                        }
-                    }
-                }
-            }
+            SharedThumbnailPickerContent(
+                selected = selected,
+                catalogNames = catalogNames,
+                unchangedLabel = unchangedLabel,
+                onSelect = onSelect,
+                iconContent = iconContent
+            )
         },
-        confirmButton = { ForestTextAction(text = "Close", onClick = onDismiss) }
+        confirmButton = { ForestTextAction(text = dismissLabel, onClick = onDismiss) }
     )
 }

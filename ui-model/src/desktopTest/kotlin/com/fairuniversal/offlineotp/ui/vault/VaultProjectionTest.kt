@@ -264,4 +264,26 @@ class VaultProjectionTest {
         val state = projectionOf(totp()).snapshot(VaultFilter(), nowMillis = -1_000L)
         assertEquals(1, state.cards.single().remainingSeconds)
     }
+
+    @Test
+    fun aRevealedPasswordArchiveReportsSizeWithoutDecodingPasswordColumns() {
+        val archive = com.fairuniversal.offlineotp.Database.Entry.passwordArchive(
+            "vault.kdbx",
+            "archive-secret-data".toByteArray()
+        )
+        try {
+            val hidden = projectionOf(archive).snapshot(VaultFilter(), nowMillis = 0L)
+            assertEquals(null, hidden.cards.single().revealedContent)
+            val revealed = projectionOf(archive).snapshot(
+                VaultFilter(),
+                nowMillis = 0L,
+                revealedIds = setOf(archive.getListId())
+            )
+            val card = revealed.cards.single()
+            assertEquals(VaultEntryKind.PASSWORDS, card.kind)
+            assertEquals("Password archive (19 bytes)", card.revealedContent)
+        } finally {
+            archive.destroy()
+        }
+    }
 }

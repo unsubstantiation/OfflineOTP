@@ -39,7 +39,9 @@ class VaultPresenter(
     private val onChange: (() -> Unit)? = null,
     private val addEntry: (() -> Unit)? = null,
     private val editEntry: ((VaultCardState) -> Unit)? = null,
-    private val editCounter: ((VaultCardState) -> Unit)? = null
+    private val editCounter: ((VaultCardState) -> Unit)? = null,
+    initialRevealedIds: Set<Long> = emptySet(),
+    private val revealChanged: ((Long, Boolean) -> Boolean)? = null
 ) {
 
     /** The selection currently shown. Change it through the [actions], never by assigning here. */
@@ -101,7 +103,7 @@ class VaultPresenter(
         onChange?.invoke()
     }
 
-    private val revealed = LinkedHashSet<Long>()
+    private val revealed = LinkedHashSet<Long>(initialRevealedIds)
     private var locked = false
 
     init {
@@ -120,10 +122,27 @@ class VaultPresenter(
         onChange?.invoke()
     }
 
-    /** Reveals or hides one row. A revealed row's content lives in the next frame only. */
+    /** Reveals or hides one row and persists the choice when [revealChanged] is supplied. */
     fun toggleReveal(id: Long) {
         if (locked) return
-        if (!revealed.remove(id)) revealed.add(id)
+        if (id in revealed) {
+            revealed.remove(id)
+            revealChanged?.invoke(id, false)
+        } else {
+            if (revealChanged?.invoke(id, true) == false) {
+                onChange?.invoke()
+                return
+            }
+            revealed.add(id)
+        }
+        onChange?.invoke()
+    }
+
+    /** Replaces the revealed set from persisted entry metadata after a vault restore. */
+    fun syncRevealedIds(ids: Set<Long>) {
+        if (locked) return
+        revealed.clear()
+        revealed.addAll(ids)
         onChange?.invoke()
     }
 

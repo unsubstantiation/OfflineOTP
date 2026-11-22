@@ -213,4 +213,23 @@ class PortablePresentationTest {
         assertEquals(-1, portableEntryDragDirection(20L, pointerY = 20f, order = order, visible = visible))
         assertEquals(1, portableEntryDragDirection(20L, pointerY = 175f, order = order, visible = visible))
     }
+
+    @Test
+    fun portableCardDisclosesDetailAndRevealedBodyOnlyWhenRevealed() {
+        val concealed = card(revealed = false).copy(
+            detailLabel = "deploy@bastion.example.com:2222",
+            revealedContent = "secret-note-body",
+            isNote = true
+        )
+        assertEquals("", concealed.visibleDetailLabel())
+        assertEquals("", concealed.visibleRevealedContent())
+        assertFalse(concealed.toString().contains("bastion.example.com"))
+        assertFalse(concealed.toString().contains("secret-note-body"))
+
+        val revealed = concealed.copy(revealed = true)
+        assertEquals("deploy@bastion.example.com:2222", revealed.visibleDetailLabel())
+        assertEquals("secret-note-body", revealed.visibleRevealedContent())
+        assertTrue(revealed.isNote)
+        assertFalse(revealed.toString().contains("secret-note-body"))
+    }
 }

@@ -106,53 +106,58 @@ fun VaultScreen(
     }
     // Filter/sort changes cancel rather than carrying a gesture into another view.
     LaunchedEffect(state.filter) { endDrag() }
-    Column(modifier = modifier.fillMaxSize().background(ForestPalette.backgroundDeep)) {
-        if (appearance.showControls) {
-        VaultTopBar(
-            title = strings.appTitle,
-            countLabel = countLabel(state, strings),
-            lockLabel = strings.lockAction,
-            onLock = actions.onLock
-        )
-        VaultToolsBar(actions = actions, strings = strings)
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            VaultSearchField(
-                value = state.filter.query,
-                hint = strings.searchHint,
-                onValueChange = actions.onQueryChange
-            )
-            VaultCategoryTabs(
-                tabs = state.categories,
-                strings = strings,
-                onSelect = actions.onSelectCategory
-            )
-            if (state.tags.isNotEmpty()) {
-                VaultTagChips(
-                    chips = state.tags,
-                    strings = strings,
-                    clearLabel = strings.clearFilters,
-                    showClear = state.filter.hasTagFilter || state.filter.hasQuery,
-                    tagRuleLabel = strings.tagRuleTitle(state.filter.tagFunctionality),
-                    actions = actions
+    SharedVaultScaffold(
+        isEmpty = state.isEmpty,
+        modifier = modifier,
+        backgroundColor = ForestPalette.backgroundDeep,
+        centerEmpty = true,
+        headerContent = {
+            if (appearance.showControls) {
+                VaultTopBar(
+                    title = strings.appTitle,
+                    countLabel = countLabel(state, strings),
+                    lockLabel = strings.lockAction,
+                    onLock = actions.onLock
                 )
+                VaultToolsBar(actions = actions, strings = strings)
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    VaultSearchField(
+                        value = state.filter.query,
+                        hint = strings.searchHint,
+                        onValueChange = actions.onQueryChange
+                    )
+                    VaultCategoryTabs(
+                        tabs = state.categories,
+                        strings = strings,
+                        onSelect = actions.onSelectCategory
+                    )
+                    if (state.tags.isNotEmpty()) {
+                        VaultTagChips(
+                            chips = state.tags,
+                            strings = strings,
+                            clearLabel = strings.clearFilters,
+                            showClear = state.filter.hasTagFilter || state.filter.hasQuery,
+                            tagRuleLabel = strings.tagRuleTitle(state.filter.tagFunctionality),
+                            actions = actions
+                        )
+                    }
+                    VaultSortBar(
+                        options = state.sortOptions,
+                        label = strings.sortAction,
+                        strings = strings,
+                        onSelect = actions.onSelectSort
+                    )
+                }
             }
-            VaultSortBar(
-                options = state.sortOptions,
-                label = strings.sortAction,
-                strings = strings,
-                onSelect = actions.onSelectSort
-            )
-        }
-        }
-        Spacer(modifier = Modifier.height(2.dp))
-        if (state.isEmpty) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                VaultEmptyState(title = state.emptyTitle, description = state.emptyDescription)
-            }
-        } else {
+            Spacer(modifier = Modifier.height(2.dp))
+        },
+        emptyContent = {
+            VaultEmptyState(title = state.emptyTitle, description = state.emptyDescription)
+        },
+        listContent = {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize().pointerInput(Unit) {
@@ -190,18 +195,18 @@ fun VaultScreen(
                         translationY = if (held) pointerY - grabOffset - offset else 0f
                         shadowElevation = if (held) 8f else 0f
                     }) {
-                    VaultEntryCard(
-                        card = card,
-                        strings = strings,
-                        appearance = appearance,
-                        actions = actions,
-                        artwork = artwork
-                    )
+                        VaultEntryCard(
+                            card = card,
+                            strings = strings,
+                            appearance = appearance,
+                            actions = actions,
+                            artwork = artwork
+                        )
                     }
                 }
             }
         }
-    }
+    )
 }
 
 /** `12 entries` / `3 of 12` in the app bar. */

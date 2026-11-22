@@ -88,7 +88,7 @@
 
     <!-- Default values -->
     <integer name="settings_default_tap_to_reveal_timeout">30</integer>
-    <integer name="settings_default_auth_inactivity_delay">30</integer>
+    <integer name="settings_default_auth_inactivity_delay">600</integer>
     <string name="settings_default_encryption" translatable="false">keystore</string>
     <string name="settings_default_lang" translatable="false">system</string>
     <string name="settings_default_theme_mode" translatable="false">auto</string>
@@ -279,5 +279,5 @@
     <integer name="settings_min_label_size">12</integer>
     <integer name="settings_max_label_size">24</integer>
     <integer name="settings_auth_min_inactivity_delay">10</integer>
-    <integer name="settings_auth_max_inactivity_delay">360</integer>
+    <integer name="settings_auth_max_inactivity_delay">3600</integer>
 </resources>

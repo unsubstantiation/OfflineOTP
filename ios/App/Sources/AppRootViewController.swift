@@ -30,6 +30,10 @@ final class AppRootViewController: UIViewController {
         }
     }
 
+    func noteWindowActivity() {
+        if store.isUnlocked { store.noteUserActivity() }
+    }
+
     override var preferredStatusBarStyle: UIStatusBarStyle { .lightContent }
 
     private func install(unlocked: Bool) {
@@ -135,8 +139,8 @@ final class AppRootViewController: UIViewController {
     }
 
     @objc private func sceneActive() {
-        setCovered(false)
         store.checkInactivityAutoLock()
+        setCovered(false)
     }
 
     @objc private func sceneInactive() {

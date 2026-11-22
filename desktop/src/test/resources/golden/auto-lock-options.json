@@ -5,6 +5,7 @@
     60,
     120,
     300,
+    600,
     900
   ],
   "cases": [
@@ -31,6 +32,10 @@
     {
       "seconds": 300,
       "label": "5 minutes"
+    },
+    {
+      "seconds": 600,
+      "label": "10 minutes"
     },
     {
       "seconds": 900,

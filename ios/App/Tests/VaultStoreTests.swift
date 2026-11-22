@@ -147,21 +147,26 @@ final class VaultStoreTests: XCTestCase {
                                 at: Date(timeIntervalSince1970: 1_700_000_000)))
     }
 
-    func testSessionHideDoesNotPersistAndUsageDoesNotRevealIt() throws {
+    func testToggleRevealPersistsHideAndRevealAndUsageDoesNotRevealHiddenEntry() throws {
         let store = unlockedStore()
         XCTAssertTrue(store.add(try rawEntry("alice")))
         XCTAssertTrue(store.setDetailsVisible(at: 0, true))
         let original = store.entries[0]
         store.toggleReveal(at: 0)
         XCTAssertFalse(store.isRevealed(store.entries[0]))
-        XCTAssertTrue(store.entries[0].detailsVisible)
+        XCTAssertFalse(store.entries[0].detailsVisible)
         XCTAssertNil(store.code(for: store.entries[0], at: Date(timeIntervalSince1970: 1_700_000_000)))
         XCTAssertEqual(try store.entries[0].code(unixTime: 1_700_000_000), "324550")
         XCTAssertTrue(store.recordUse(at: 0))
         XCTAssertFalse(store.isRevealed(store.entries[0]))
-        let reopened = makeStore()
-        reopened.unlock(password: "correct horse")
-        XCTAssertTrue(reopened.isRevealed(reopened.entries[0]))
+        let reopenedHidden = makeStore()
+        reopenedHidden.unlock(password: "correct horse")
+        XCTAssertFalse(reopenedHidden.isRevealed(reopenedHidden.entries[0]))
+        reopenedHidden.toggleReveal(at: 0)
+        XCTAssertTrue(reopenedHidden.isRevealed(reopenedHidden.entries[0]))
+        let reopenedRevealed = makeStore()
+        reopenedRevealed.unlock(password: "correct horse")
+        XCTAssertTrue(reopenedRevealed.isRevealed(reopenedRevealed.entries[0]))
         store.lock()
         XCTAssertFalse(store.isRevealed(original))
     }
@@ -658,8 +663,18 @@ final class VaultStoreTests: XCTestCase {
 
     func testChangePasswordAndAutoLockWorkInPlace() throws {
         let store = unlockedStore()
+        XCTAssertEqual(store.inactivityLockSeconds, 600)
         XCTAssertTrue(store.add(try draft("alice", issuer: "GitHub")))
 
+        let defaultBase = Date()
+        store.noteUserActivity(now: defaultBase)
+        store.checkInactivityAutoLock(now: defaultBase.addingTimeInterval(599))
+        XCTAssertTrue(store.isUnlocked)
+        store.checkInactivityAutoLock(now: defaultBase.addingTimeInterval(600))
+        XCTAssertFalse(store.isUnlocked)
+
+        store.unlock(password: "correct horse")
+        XCTAssertTrue(store.isUnlocked)
         store.setInactivityLockSeconds(60)
         XCTAssertEqual(store.inactivityLockSeconds, 60)
 

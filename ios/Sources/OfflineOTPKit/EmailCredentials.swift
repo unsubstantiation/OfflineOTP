@@ -985,7 +985,7 @@ public struct EmailFieldInput: Equatable, CustomStringConvertible {
                 return EmailFieldInput(name: key, value: flag ? "true" : "false", kind: .boolean)
             case .int(let number):
                 return EmailFieldInput(name: key, value: String(number), kind: .number)
-            case .double(let number):
+            case .double:
                 return EmailFieldInput(name: key, value: val.compact(), kind: .number)
             case .object:
                 return EmailFieldInput(name: key, value: val.compact(), kind: .object)

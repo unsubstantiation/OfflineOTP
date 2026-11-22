@@ -28,8 +28,11 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.MotionEvent
 
+import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.SessionLockReason
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultSession
@@ -39,6 +42,27 @@ abstract class BaseActivity : ThemedActivity() {
     private var screenOffReceiver: ScreenOffReceiver? = null
     private val lockListener = Runnable { runOnUiThread { onVaultLocked() } }
     private var broadcastReceivedCallback: BroadcastReceivedCallback? = null
+    private val inactivityHandler: Handler = Handler(Looper.getMainLooper())
+    private val inactivityLockTask = Runnable {
+        if (requiresVaultSession() && VaultSession.getKey() != null) {
+            VaultSession.lock(SessionLockReason.AUTHENTICATION)
+        }
+    }
+
+    private fun rearmSessionInactivityTimer() {
+        inactivityHandler.removeCallbacks(inactivityLockTask)
+        if (!requiresVaultSession() || VaultSession.getKey() == null) return
+        val delayMillis = try {
+            val current = settings ?: return
+            if (current.getAuthMethod() == Constants.AuthMethod.NONE || !current.getAuthInactivity()) 0L
+            else 1000L * current.getAuthInactivityDelay()
+        } catch (_: RuntimeException) {
+            0L
+        }
+        if (delayMillis > 0L) {
+            inactivityHandler.postDelayed(inactivityLockTask, delayMillis)
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +79,7 @@ abstract class BaseActivity : ThemedActivity() {
     }
 
     override fun onDestroy() {
+        inactivityHandler.removeCallbacks(inactivityLockTask)
         VaultSession.removeLockListener(lockListener)
         screenOffReceiver?.let { unregisterReceiver(it) }
         super.onDestroy()
@@ -93,15 +118,25 @@ abstract class BaseActivity : ThemedActivity() {
         finish()
     }
 
+    public override fun onUserInteraction() {
+        super.onUserInteraction()
+        rearmSessionInactivityTimer()
+    }
+
     public override fun onResume() {
         super.onResume()
         // Coming back from the background re-arms screenshot blocking; the pause below may have
         // released it so the app switcher could show a preview.
         applyScreenshotPolicyForForeground()
-        if (requiresVaultSession() && VaultSession.getKey() == null) finish()
+        if (requiresVaultSession() && VaultSession.getKey() == null) {
+            finish()
+            return
+        }
+        rearmSessionInactivityTimer()
     }
 
     public override fun onPause() {
+        inactivityHandler.removeCallbacks(inactivityLockTask)
         // The system records the app switcher preview as the activity pauses, so the policy for a
         // background window has to be in place before the pause completes.
         Tools.applyAppSwitcherPolicy(getWindow(),

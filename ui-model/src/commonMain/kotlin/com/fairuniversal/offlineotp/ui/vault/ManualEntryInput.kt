@@ -66,9 +66,12 @@ data class ManualEntryInput(
     companion object {
         val otpTypes = listOf(Entry.OTPType.TOTP, Entry.OTPType.HOTP, Entry.OTPType.STEAM, Entry.OTPType.MOTP)
 
-        /** Explicit edit form disclosure for notes as well as OTP entries. */
-        fun forEntryEdit(entry: Entry): ManualEntryInput =
-            if (entry.isNote()) fromEntry(entry).copy(secret = entry.getNote()) else forOtpEdit(entry)
+        /** Explicit edit form disclosure for notes and SSH public keys as well as OTP entries. */
+        fun forEntryEdit(entry: Entry): ManualEntryInput = when {
+            entry.isNote() -> fromEntry(entry).copy(secret = entry.getNote())
+            entry.isSshKey() -> fromEntry(entry).copy(publicKey = entry.getSshKeys().publicKey)
+            else -> forOtpEdit(entry)
+        }
 
         /** Explicit edit-only disclosure of OTP credentials, never used to seed creation forms. */
         fun forOtpEdit(entry: Entry): ManualEntryInput {

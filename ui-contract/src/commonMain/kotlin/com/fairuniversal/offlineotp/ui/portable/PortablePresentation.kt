@@ -27,6 +27,9 @@ data class PortableCard(
     val canCopy: Boolean = hasCode,
     val canCopyAccount: Boolean = false,
     val canCopyPassword: Boolean = false,
+    val detailLabel: String = "",
+    val revealedContent: String = "",
+    val isNote: Boolean = false,
     val pinRequired: Boolean = false
 ) {
     /** The name shown while the row is concealed, never the hidden label. */
@@ -35,6 +38,12 @@ data class PortableCard(
 
     /** A displayed code is never guessed from a hidden entry. */
     fun visibleCode(): String = if (revealed && hasCode) code else ""
+
+    /** Connection/detail summary is disclosed only while the card is revealed. */
+    fun visibleDetailLabel(): String = if (revealed) detailLabel else ""
+
+    /** Revealed body (note text, SSH public key, password URL, email address) is hidden until revealed. */
+    fun visibleRevealedContent(): String = if (revealed) revealedContent else ""
 
     /** Matches `:ui-model`'s 5-second rollover warning window. */
     val isExpiring: Boolean
@@ -70,7 +79,8 @@ data class PortableVaultState(
     val cards: List<PortableCard>,
     val sortLabel: String,
     val toast: String,
-    val hiddenTitleEnabled: Boolean = false
+    val hiddenTitleEnabled: Boolean = false,
+    val countLabel: String = ""
 ) {
     val emptyMessage: String
         get() = if (query.isNotEmpty()) "No entries match this search."
@@ -324,3 +334,20 @@ data class PortableEmailSettingsDraft(
 ) {
     override fun toString(): String = "PortableEmailSettingsDraft(redacted)"
 }
+
+/** One secondary vault tool item in a grouped tools menu across Android, Desktop and iOS. */
+data class PortableToolItem(
+    val key: String,
+    val label: String,
+    val detail: String = "",
+    val value: String = "",
+    val enabled: Boolean = true,
+    val interactive: Boolean = true
+)
+
+/** A titled section of secondary vault tools (Import, Backup & export, Settings). */
+data class PortableToolGroup(
+    val title: String,
+    val items: List<PortableToolItem>
+)
+

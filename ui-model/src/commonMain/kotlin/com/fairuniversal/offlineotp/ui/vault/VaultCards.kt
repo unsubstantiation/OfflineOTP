@@ -96,11 +96,15 @@ object VaultCards {
             account.address.ifBlank { account.name }
         }
         VaultEntryKind.SSH_KEYS -> entry.getSshKeys().publicKey.lineSequence().firstOrNull().orEmpty()
-        VaultEntryKind.PASSWORDS -> entry.getPasswordFields().let { fields ->
-            val site = listOf("url", "host", "site").firstNotNullOfOrNull { name ->
-                fields.value(name).takeIf { it.isNotBlank() }
+        VaultEntryKind.PASSWORDS -> if (entry.isPasswordArchive()) {
+            "Password archive (${entry.getSecretSize()} bytes)"
+        } else {
+            entry.getPasswordFields().let { fields ->
+                val site = listOf("url", "host", "site").firstNotNullOfOrNull { name ->
+                    fields.value(name).takeIf { it.isNotBlank() }
+                }
+                site ?: fields.columns().joinToString(", ")
             }
-            site ?: fields.columns().joinToString(", ")
         }
         VaultEntryKind.OTP -> null
     }

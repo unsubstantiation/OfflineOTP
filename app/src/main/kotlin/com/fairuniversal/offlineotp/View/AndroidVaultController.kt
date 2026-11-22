@@ -74,10 +74,133 @@ class AndroidVaultController(
     private val taskHandler: Handler = Handler(Looper.getMainLooper())
     private var filter: EntryFilter? = null
     private val entries: EntryList = EntryList()
-    // Explicit Compose Hide/Reveal is session-only and independent of the legacy tap preference.
+    // Explicit Compose Hide/Reveal persists across reloads and restarts without advancing HOTP.
     private val composeRevealOverrides = IdentityHashMap<Entry, Boolean>()
+    private val composeVisibilityKeys = IdentityHashMap<Entry, String>()
+
+    private fun composeVisibilityKey(entry: Entry): String {
+        composeVisibilityKeys[entry]?.let { return it }
+        val secretBytes = entry.getSecret()
+        val computed = try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            fun putText(value: String?) {
+                val bytes = (value ?: "").toByteArray(Charsets.UTF_8)
+                digest.update(byteArrayOf(
+                    (bytes.size ushr 24).toByte(),
+                    (bytes.size ushr 16).toByte(),
+                    (bytes.size ushr 8).toByte(),
+                    bytes.size.toByte()
+                ))
+                digest.update(bytes)
+            }
+            putText(entry.getType()?.name)
+            putText(entry.getPeriod().toString())
+            putText(entry.getDigits().toString())
+            putText(entry.getAlgorithm()?.name)
+            putText(entry.getIssuer())
+            putText(entry.getLabel())
+            putText(entry.getHiddenLabel())
+            putText(entry.getSshConnection()?.let { "${it.host}:${it.port}:${it.username}" })
+            if (secretBytes != null) {
+                digest.update(byteArrayOf(
+                    (secretBytes.size ushr 24).toByte(),
+                    (secretBytes.size ushr 16).toByte(),
+                    (secretBytes.size ushr 8).toByte(),
+                    secretBytes.size.toByte()
+                ))
+                digest.update(secretBytes)
+            }
+            digest.digest().joinToString("") { "%02x".format(it.toInt() and 255) }
+        } finally {
+            secretBytes?.fill(0)
+        }
+        composeVisibilityKeys[entry] = computed
+        return computed
+    }
+
+    private fun persistedComposeReveal(entry: Entry): Boolean? {
+        val prefs = try {
+            android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        } catch (_: RuntimeException) {
+            return null
+        }
+        val key = composeVisibilityKey(entry)
+        val hidden = prefs.getStringSet(PREF_COMPOSE_HIDDEN_ENTRIES, null)
+        if (hidden != null && key in hidden) return false
+        val revealed = prefs.getStringSet(PREF_COMPOSE_REVEALED_ENTRIES, null)
+        if (revealed != null && key in revealed) return true
+        return null
+    }
+
+    private fun persistComposeRevealKey(key: String, visible: Boolean, obsoleteKey: String? = null) {
+        val prefs = try {
+            android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        } catch (_: RuntimeException) {
+            return
+        }
+        val hidden = java.util.HashSet(prefs.getStringSet(PREF_COMPOSE_HIDDEN_ENTRIES, null) ?: emptySet())
+        val revealed = java.util.HashSet(prefs.getStringSet(PREF_COMPOSE_REVEALED_ENTRIES, null) ?: emptySet())
+        if (obsoleteKey != null && obsoleteKey != key) {
+            hidden.remove(obsoleteKey)
+            revealed.remove(obsoleteKey)
+        }
+        if (visible) {
+            hidden.remove(key)
+            revealed.add(key)
+        } else {
+            revealed.remove(key)
+            hidden.add(key)
+        }
+        prefs.edit()
+            .putStringSet(PREF_COMPOSE_HIDDEN_ENTRIES, hidden)
+            .putStringSet(PREF_COMPOSE_REVEALED_ENTRIES, revealed)
+            .apply()
+    }
+
+    private fun removePersistedComposeReveal(entry: Entry) {
+        val key = composeVisibilityKey(entry)
+        composeVisibilityKeys.remove(entry)
+        val prefs = try {
+            android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+        } catch (_: RuntimeException) {
+            return
+        }
+        val hidden = java.util.HashSet(prefs.getStringSet(PREF_COMPOSE_HIDDEN_ENTRIES, null) ?: emptySet())
+        val revealed = java.util.HashSet(prefs.getStringSet(PREF_COMPOSE_REVEALED_ENTRIES, null) ?: emptySet())
+        val changedHidden = hidden.remove(key)
+        val changedRevealed = revealed.remove(key)
+        if (changedHidden || changedRevealed) {
+            prefs.edit()
+                .putStringSet(PREF_COMPOSE_HIDDEN_ENTRIES, hidden)
+                .putStringSet(PREF_COMPOSE_REVEALED_ENTRIES, revealed)
+                .apply()
+        }
+    }
+
+    private fun toggleComposeReveal(position: Int, entry: Entry): Boolean {
+        if (!entry.areDetailsVisible()) {
+            // Preserve a way to recover entries concealed by the retired privacy button.
+            cardActions.onPrivacyClicked(position)
+            if (!entry.areDetailsVisible()) return false
+            composeRevealOverrides[entry] = true
+        } else {
+            composeRevealOverrides[entry] = !composeRevealed(entry)
+        }
+        val nowRevealed = composeRevealOverrides[entry] == true
+        persistComposeRevealKey(composeVisibilityKey(entry), nowRevealed)
+        // Retire any old tap-reveal timeout; reveal/hide stays in place until explicitly changed.
+        entry.getHideTask()?.let { taskHandler.removeCallbacks(it) }
+        entry.setHideTask(null)
+        entry.setVisible(nowRevealed)
+        // Normal Hide/Reveal never advances HOTP or writes usage counters.
+        notifyEntryChanged(entry)
+        return true
+    }
+
     private fun composeRevealed(entry: Entry): Boolean = entry.areDetailsVisible() &&
-        (composeRevealOverrides[entry] ?: ((!entry.isTimeBased() && !entry.isCounterBased()) ||
+        (composeRevealOverrides[entry] ?: persistedComposeReveal(entry)?.also {
+            composeRevealOverrides[entry] = it
+        } ?: ((!entry.isTimeBased() && !entry.isCounterBased()) ||
             !settings.getTapToReveal() || entry.isVisible()))
     private val presentation: EntryListPresentation = EntryListPresentation(entries)
     private val persistence: EntryPersistence = EntryPersistence(context)
@@ -492,21 +615,7 @@ class AndroidVaultController(
             when (command) {
                 AndroidCardCommand.PRIVACY -> cardActions.onPrivacyClicked(position)
                 AndroidCardCommand.TOGGLE_REVEAL -> {
-                    if (!entry.areDetailsVisible()) {
-                        // Preserve a way to recover entries concealed by the retired privacy button.
-                        cardActions.onPrivacyClicked(position)
-                        if (!entry.areDetailsVisible()) return false
-                        composeRevealOverrides[entry] = true
-                    } else {
-                        composeRevealOverrides[entry] = !composeRevealed(entry)
-                    }
-                    // Retire any old tap-reveal timeout; this explicit toggle follows desktop's
-                    // session visibility and must not later trigger legacy usage/counter writes.
-                    entry.getHideTask()?.let { taskHandler.removeCallbacks(it) }
-                    entry.setHideTask(null)
-                    entry.setVisible(composeRevealed(entry))
-                    // Normal Hide/Reveal never advances HOTP or writes the vault.
-                    notifyEntryChanged(entry)
+                    if (!toggleComposeReveal(position, entry)) return false
                 }
                 AndroidCardCommand.EDIT -> {
                     val opened = when {
@@ -530,7 +639,7 @@ class AndroidVaultController(
                     if (!copyPasswordValue(position, entry, settings.isMinimizeAppOnCopyEnabled())) return false
                 }
                 AndroidCardCommand.REVEAL_TOKEN -> {
-                    if (!establishPinIfNeeded(position)) cardTapToRevealHandler(position)
+                    if (!establishPinIfNeeded(position) && !toggleComposeReveal(position, entry)) return false
                 }
                 AndroidCardCommand.NEXT_COUNTER -> {
                     if (!entry.isCounterBased()) return false
@@ -560,8 +669,20 @@ class AndroidVaultController(
                     if (!presentation.canDrag() || !validDisplayedPosition(to)) return false
                     onItemMove(position, to)
                 }
-                AndroidCardCommand.SINGLE_TAP -> cardActions.onCardSingleClicked(position, "")
-                AndroidCardCommand.DOUBLE_TAP -> cardActions.onCardDoubleClicked(position, "")
+                AndroidCardCommand.SINGLE_TAP -> {
+                    if (settings.getTapSingle() == Constants.TapMode.REVEAL) {
+                        if (!establishPinIfNeeded(position) && !toggleComposeReveal(position, entry)) return false
+                    } else {
+                        cardActions.onCardSingleClicked(position, "")
+                    }
+                }
+                AndroidCardCommand.DOUBLE_TAP -> {
+                    if (settings.getTapDouble() == Constants.TapMode.REVEAL) {
+                        if (!establishPinIfNeeded(position) && !toggleComposeReveal(position, entry)) return false
+                    } else {
+                        cardActions.onCardDoubleClicked(position, "")
+                    }
+                }
             }
             return true
         }
@@ -641,7 +762,9 @@ class AndroidVaultController(
                 replacement.destroy()
                 return false
             }
-            // Preserve the metadata the form does not edit, like the desktop does.
+            // Preserve the metadata and reveal state the form does not edit, like the desktop does.
+            val wasRevealed = composeRevealed(existing)
+            val oldVisibilityKey = composeVisibilityKey(existing)
             replacement.setDetailsVisible(existing.areDetailsVisible())
             replacement.setLastUsed(existing.getLastUsed())
             replacement.setUsedFrequency(existing.getUsedFrequency())
@@ -663,6 +786,11 @@ class AndroidVaultController(
                 loadEntries()
                 return false
             }
+            composeRevealOverrides.remove(old)
+            composeVisibilityKeys.remove(old)
+            composeRevealOverrides[replacement] = wasRevealed
+            replacement.setVisible(wasRevealed)
+            persistComposeRevealKey(composeVisibilityKey(replacement), wasRevealed, obsoleteKey = oldVisibilityKey)
             old.destroy()
             updateTagsFilter()
             entriesChanged(presentation.indexOf(replacement))
@@ -811,6 +939,7 @@ class AndroidVaultController(
     fun lockEntries() {
         encryptionKey = null
         composeRevealOverrides.clear()
+        composeVisibilityKeys.clear()
         dismissTransientUi()
         taskHandler.removeCallbacksAndMessages(null)
         for (entry in entries.getEntries()) entry.destroy()
@@ -833,6 +962,7 @@ class AndroidVaultController(
             }
             dismissTransientUi()
             composeRevealOverrides.clear()
+            composeVisibilityKeys.clear()
             taskHandler.removeCallbacksAndMessages(null)
             for (entry in entries.getEntries()) entry.destroy()
             entries.updateEntries(ArrayList(), false)
@@ -1524,6 +1654,8 @@ class AndroidVaultController(
                         notifyItemRemoved(displayedIndex)
                     }
                     entries.removeEntry(index)
+                    composeRevealOverrides.remove(actual)
+                    removePersistedComposeReveal(actual)
                     actual.getHideTask()?.let { taskHandler.removeCallbacks(it) }
                     actual.setHideTask(null)
                     try {
@@ -1868,7 +2000,11 @@ class AndroidVaultController(
     private fun notifyItemMoved(from: Int, to: Int) = changes.itemMoved(from, to)
     private fun notifyItemRemoved(position: Int) = changes.itemRemoved(position)
 
-    private companion object { const val NO_POSITION = -1 }
+    private companion object {
+        const val NO_POSITION = -1
+        const val PREF_COMPOSE_HIDDEN_ENTRIES = "pref_compose_hidden_entries"
+        const val PREF_COMPOSE_REVEALED_ENTRIES = "pref_compose_revealed_entries"
+    }
 
     /** Lets the activity react to drag/drop events (pausing the token updater). */
     interface Callback {

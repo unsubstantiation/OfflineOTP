@@ -114,6 +114,15 @@ class DesktopAutoLockSettingsTest {
         val directory = Files.createTempDirectory("compose-timeout-").toFile()
         try {
             val controller = VaultController(DesktopStorage.open(directory))
+            assertEquals(600, controller.savedInactivityLockSeconds())
+            val clock = Clock(); var locks = 0
+            val defaultLifetime = DesktopSessionLifetime(clock, controller.savedInactivityLockSeconds()) { locks++ }
+            clock.now = 599_000
+            assertTrue(defaultLifetime.checkActive())
+            clock.now = 600_000
+            assertFalse(defaultLifetime.checkActive())
+            assertEquals(1, locks)
+            defaultLifetime.close()
             assertTrue(controller.trySaveInactivityLockSeconds(60))
             assertEquals(60, VaultController(DesktopStorage.open(directory)).savedInactivityLockSeconds())
             assertTrue(directory.setWritable(false, false))

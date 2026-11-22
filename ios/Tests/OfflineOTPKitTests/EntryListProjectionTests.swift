@@ -64,7 +64,7 @@ final class EntryListProjectionTests: XCTestCase {
         }
         // The order of the tab strip, and the titles, are the other clients' exactly.
         XCTAssertEqual(EntryCategory.allCases.map(\.title),
-                       ["OTP", "Notes", "SSH Keys", "Passwords", "Email"])
+                       ["OTP", "Notes", "Keys", "Passwords", "Email"])
         XCTAssertEqual(EntryCategory.allCases.map(\.rawValue),
                        ["OTP", "NOTES", "SSH_KEYS", "PASSWORDS", "EMAILS"])
     }

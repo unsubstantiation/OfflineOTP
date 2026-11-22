@@ -558,7 +558,17 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 dialogs.close()
                 onLock()
             },
-            onChange = { revision++ }
+            onChange = { revision++ },
+            initialRevealedIds = vault.snapshot().filter { it.areDetailsVisible() }.map { it.getListId() }.toSet(),
+            revealChanged = { id, visible ->
+                if (vault.isLocked || lifetimeHolder[0]?.checkActive() == false) false
+                else {
+                    val target = vault.snapshot().firstOrNull { it.getListId() == id }
+                    val saved = target != null && EntryEditor(controller, vault).setDetailsVisible(target, visible)
+                    if (!saved && !vault.isLocked) copyNotice = "The visibility change could not be saved."
+                    saved
+                }
+            }
         ).also {
             it.setDisplaySettings(
                 controller.savedCardLayout(),
@@ -677,6 +687,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
             emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            entryActions.pending?.let { entryActions.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null
             val request = copier.open(copyFrame, card, presenter.isRevealed(card.id))
@@ -687,6 +698,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
             emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            entryActions.pending?.let { entryActions.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null
             val request = copier.openAccount(copyFrame, card)
@@ -697,6 +709,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
             emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            entryActions.pending?.let { entryActions.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null
             val request = copier.openPassword(copyFrame, card)
@@ -714,6 +727,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, configureAutoLock = {
             creation.pending?.let { creation.dismiss(it) }
             emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+            entryActions.pending?.let { entryActions.dismiss(it) }
             copier.pending?.let { copier.dismiss(it) }
             dialogs.pending?.let { dialogs.dismiss(it) }
             copyNotice = null; moveFailed = false
@@ -723,6 +737,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -738,6 +753,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -753,6 +769,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (!vault.isLocked && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && restorer.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -768,6 +785,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && uriImporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -782,6 +800,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && passwordImporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -792,6 +811,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             if (passwordImporter.pending == null && uriImporter.pending == null && restorer.pending == null && exporter.pending == null && linScpExporter.pending == null && openPgpExporter.pending == null && emailImporter.pending == null && linScpImporter.pending == null && openPgpImporter.pending == null && lifetime.checkActive()) {
                 creation.pending?.let { creation.dismiss(it) }
                 emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }
+                entryActions.pending?.let { entryActions.dismiss(it) }
                 copier.pending?.let { copier.dismiss(it) }
                 dialogs.pending?.let { dialogs.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -1034,7 +1054,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             }, onClearKey = { keyFile = null },
             onRead = { password -> openPgpImporter.submit(openPgpRequest, DesktopOpenPgpImport.Input(password, keyFile), lifetime::checkActive) },
             onConfirm = { replace ->
-                if (openPgpImporter.confirmRestore(openPgpRequest, replace, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
+                if (openPgpImporter.confirmRestore(openPgpRequest, replace, lifetime::checkActive)) {
+                    presenter.syncRevealedIds(vault.snapshot().filter { it.areDetailsVisible() }.map { it.getListId() }.toSet())
+                    presenter.applyFilter(presenter.filter)
+                }
             }, onDismiss = { keyFile = null; openPgpImporter.dismiss(openPgpRequest) })
     }
     openPgpImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "OpenPGP import",
@@ -1183,6 +1206,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         onDecode = { password -> restorer.submit(restoreRequest, password, lifetime::checkActive) },
         onConfirm = { replace ->
             if (restorer.confirm(restoreRequest, replace, lifetime::checkActive)) {
+                presenter.syncRevealedIds(vault.snapshot().filter { it.areDetailsVisible() }.map { it.getListId() }.toSet())
                 presenter.applyFilter(presenter.filter)
             }
         }, onDismiss = { restorer.dismiss(restoreRequest) })
@@ -1500,7 +1524,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                if (editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
+                    presenter.applyFilter(presenter.filter)
+                }
                 revision++
             })
     }
@@ -1511,7 +1537,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             failed = editRequest.failure != null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
-                editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                if (editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
+                    presenter.applyFilter(presenter.filter)
+                }
                 revision++
             })
     }
@@ -1520,6 +1548,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         if (initial != null) com.fairuniversal.offlineotp.ui.vault.EmailEditDialog(
             inputKey = editRequest, initial = initial,
             error = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
+            artwork = artwork,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onDelete = {
                 val entryId = editRequest.entryId
@@ -1528,7 +1557,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 revision++
             },
             onSubmit = { input ->
-                editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                if (editing.submitEmailEdit(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
+                    presenter.applyFilter(presenter.filter)
+                }
                 revision++
             })
     }

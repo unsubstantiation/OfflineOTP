@@ -111,7 +111,9 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertNotIn("strings.deleteAction", widgets)
         self.assertNotIn("strings.entryActions", widgets)
-        manual = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        manual_adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        manual = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
+        self.assertIn("SharedManualEntryDialog(", manual_adapter)
         self.assertIn('text = "Delete"', manual)
         self.assertIn('text = "Show QR code"', manual)
         self.assertIn('text = "Share as keystrokes"', manual)
@@ -194,6 +196,7 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         adapter = (UI_MAIN / "vault/EmailEntryDialog.kt").read_text()
         dialog = (UI_FOUNDATION / "vault/SharedEmailAccountDialog.kt").read_text()
         manual = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        shared_manual = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         self.assertIn("SharedEmailAccountDialog(", adapter)
         self.assertIn("remember(inputKey)", dialog)
@@ -202,7 +205,9 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         self.assertIn("onSubmit(submitted)", dialog)
         self.assertIn("PasswordVisualTransformation()", dialog)
         self.assertIn("onEmailSubmit: ((EmailEntryInput) -> Unit)? = null", manual)
-        self.assertIn("input = ManualEntryInput(); email = true", manual)
+        self.assertIn("onSwitchToEmail =", manual)
+        self.assertIn("input = PortableEntryDraft()", shared_manual)
+        self.assertIn("onSwitchToEmail()", shared_manual)
         self.assertIn("creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)", host)
 
     def test_plaintext_email_export_warns_and_requires_current_confirmation(self):
@@ -555,7 +560,10 @@ class ComposeUiWiringTest(unittest.TestCase):
         for call in ("settings.getLabelSize()", "settings.getThumbnailSize() / density", "settings.getCardLayout()"):
             self.assertIn(call, controller)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
-        for marker in ("Modifier.basicMarquee", "appearance.labelSizeSp", "appearance.labelMaxLines",
+        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text()
+        self.assertIn("SharedVaultEntryCard(", widgets)
+        self.assertIn("Modifier.basicMarquee", shared_widgets)
+        for marker in ("appearance.scrollLabels", "appearance.labelSizeSp", "appearance.labelMaxLines",
                        "appearance.thumbnailSizeDp", "appearance.codeBelowIdentity"):
             self.assertIn(marker, widgets)
 
@@ -644,11 +652,13 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("card.detailsVisible && card.canCopyAccount && copyAccount != null", widgets)
         self.assertIn("card.detailsVisible && card.canCopyPassword && copyPassword != null", widgets)
         self.assertIn("card.kind == VaultEntryKind.OTP || card.token != null || card.pinRequired || card.counter != null", widgets)
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
+        self.assertIn("SharedManualEntryDialog(", adapter)
         self.assertIn('if (note) "Hidden Note"', form)
         self.assertIn('EntryInputField("Account"', form)
-        self.assertIn('EntryInputField("Password"', form)
-        self.assertIn("for (type in ManualEntryInput.otpTypes)", form)
+        self.assertIn('"Password", input.hiddenLabel', form)
+        self.assertIn("for (type in PORTABLE_OTP_KINDS)", form)
         android = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Dialogs/ManualEntryDialog.kt").read_text()
         self.assertIn("if (type == Entry.OTPType.NOTE) R.string.label_hidden_note", android)
 
@@ -666,7 +676,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn('<string name="button_card_copy">Copy Token</string>', (ROOT / "app/src/main/res/values/strings_main.xml").read_text())
         editor = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
         self.assertIn("ManualEntryInput.forEntryEdit(request.target)", editor)
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
         self.assertIn("masked = !note && (!editing || ssh)", form)
         self.assertIn("input.pin, masked = !editing", form)
 
@@ -680,12 +690,41 @@ class ComposeUiWiringTest(unittest.TestCase):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
         self.assertIn("!card.detailsVisible && actions.onTogglePrivacy == null", widgets)
 
+    def test_reveal_and_hide_choices_persist_across_android_desktop_and_ios(self):
+        presenter = (ROOT / "ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultPresenter.kt").read_text()
+        self.assertIn("initialRevealedIds: Set<Long> = emptySet()", presenter)
+        self.assertIn("revealChanged: ((Long, Boolean) -> Boolean)? = null", presenter)
+        desktop_main = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("initialRevealedIds = vault.snapshot().filter { it.areDetailsVisible() }.map { it.getListId() }.toSet()", desktop_main)
+        self.assertIn("EntryEditor(controller, vault).setDetailsVisible(target, visible)", desktop_main)
+        android_ctrl = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("persistComposeRevealKey(", android_ctrl)
+        self.assertIn("persistedComposeReveal(entry)", android_ctrl)
+        ios_store = (ROOT / "ios/App/Sources/VaultStore.swift").read_text()
+        self.assertIn("_ = setDetailsVisible(at: index, !isRevealed(entries[index]))", ios_store)
+
+    def test_ten_minute_inactivity_lockdown_is_default_across_android_desktop_and_ios(self):
+        options = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockOptions.kt").read_text()
+        self.assertIn("const val DEFAULT_SECONDS = 600", options)
+        desktop_ctrl = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/VaultController.kt").read_text()
+        self.assertIn("AutoLockOptions.DEFAULT_SECONDS", desktop_ctrl)
+        ios_store = (ROOT / "ios/App/Sources/VaultStore.swift").read_text()
+        self.assertIn("public static let defaultInactivityLockSeconds = 600", ios_store)
+        ios_window = (ROOT / "ios/App/Sources/AppDelegate.swift").read_text()
+        self.assertIn("ActivityTrackingWindow", ios_window)
+        android_settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/Settings.kt").read_text()
+        self.assertIn("getBoolean(R.string.settings_key_auth_inactivity, true)", android_settings)
+        android_values = (ROOT / "app/src/main/res/values/settings.xml").read_text()
+        self.assertIn('<integer name="settings_default_auth_inactivity_delay">600</integer>', android_values)
+
     def test_shared_custom_period_uses_android_localization_and_privacy_gating(self):
         activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("getString(R.string.format_custom_period, seconds)", activity)
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        shared_widgets = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text()
         self.assertIn("card.detailsVisible && customPeriod != null", widgets)
-        self.assertIn("text = strings.customPeriod(customPeriod)", widgets)
+        self.assertIn("strings.customPeriod(customPeriod)", widgets)
+        self.assertIn("Text(text = customPeriodLabel", shared_widgets)
         controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
         self.assertIn("customPeriodSeconds = null", controller)
 
@@ -819,12 +858,15 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("VaultToolsBar(actions = actions, strings = strings)", screen)
         self.assertNotIn("actions.onImportLinScp", screen)
         tools = (UI_MAIN / "vault/VaultToolsBar.kt").read_text()
+        shared_tools = (UI_FOUNDATION / "vault/SharedVaultToolsDialog.kt").read_text()
         self.assertIn("VaultTool.available(actions)", tools)
-        self.assertIn("heightIn(max = 400.dp).verticalScroll", tools)
-        self.assertIn("horizontalScroll", tools)
+        self.assertIn("SharedVaultToolsBar(", tools)
         self.assertIn("actions.onAddEntry", tools)
-        self.assertIn("expanded = false\n                        tool.invoke(actions)", tools)
+        self.assertIn("heightIn(max = 400.dp).verticalScroll", shared_tools)
+        self.assertIn("horizontalScroll", shared_tools)
+        self.assertIn("expanded = false\n                onSelectTool(key)", shared_tools)
         self.assertNotIn("rememberSaveable", tools)
+        self.assertNotIn("rememberSaveable", shared_tools)
 
     def test_linscp_import_guards_native_key_selection_and_confirmation(self):
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -918,7 +960,7 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("enabled = !collecting", form)
 
     def test_optional_secret_removal_is_explicit_edit_only_and_undoable(self):
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
         self.assertIn("Removal choices apply only when you Save", form)
         for flag in ("clearPin", "clearHiddenLabel", "clearSshPassword"):
             self.assertIn(f"if (!input.{flag}) EntryInputField", form)
@@ -1017,14 +1059,20 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_manual_thumbnail_picker_uses_catalog_and_host_artwork_without_live_mutation(self):
         picker = (UI_MAIN / "vault/ThumbnailPicker.kt").read_text()
-        self.assertIn("ThumbnailCatalog.NAMES.filter", picker)
-        self.assertIn("ignoreCase = true", picker)
-        self.assertIn("LazyColumn(modifier = Modifier.height(240.dp))", picker)
+        shared_picker = (UI_FOUNDATION / "vault/SharedThumbnailPickerDialog.kt").read_text()
+        self.assertIn("ThumbnailCatalog.NAMES", picker)
+        self.assertIn("SharedThumbnailPickerContent(", picker)
+        self.assertIn("SharedThumbnailPickerDialog(", picker)
         self.assertIn("remember(artwork, name)", picker)
+        self.assertIn("ignoreCase = true", shared_picker)
+        self.assertIn("LazyColumn(modifier = Modifier.height(240.dp))", shared_picker)
         self.assertNotIn("EntryEditor", picker)
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
-        self.assertIn("input = input.copy(thumbnailName = it)", form)
-        self.assertIn("onCancel = { pickingThumbnail = false }", form)
+        self.assertNotIn("EntryEditor", shared_picker)
+        adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
+        self.assertIn("artworkPicker =", adapter)
+        self.assertIn("input = input.copy(thumbnail = chosen); pickingThumbnail = false", form)
+        self.assertIn("{ pickingThumbnail = false }", form)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
         self.assertIn("inputKey = addRequest, artwork = artwork", host)
         self.assertIn("editing = true, artwork = artwork", host)
@@ -1034,8 +1082,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopEntryEditing(vault, EntryEditor(controller, vault)::replace)", host)
         self.assertIn("presenter.isRevealed(editRequest.entryId)", host)
         self.assertIn("editing.close()", host)
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
-        self.assertIn("if (!editing) for (type", form)
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
+        self.assertIn("if (!editing)", form)
+        self.assertIn("for (type in PORTABLE_OFFERABLE_KINDS)", form)
         owner = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryEditing.kt").read_text()
         self.assertIn("it === request.target", owner)
         self.assertIn("replacement.destroy()", owner)
@@ -1045,7 +1094,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("DesktopEntryCreation(vault)", host)
         self.assertIn("creation.close()", host)
         self.assertIn("ManualEntryDialog(", host)
-        form = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
+        form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
+        self.assertIn("SharedManualEntryDialog(", adapter)
         self.assertIn("remember(inputKey)", form)
         self.assertNotIn("rememberSaveable", form)
         self.assertIn("input = input.withoutSecrets()", form)
@@ -1213,6 +1264,42 @@ class ComposeUiWiringTest(unittest.TestCase):
         prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
         self.assertIn('const val UI_SHOW_INDIVIDUAL_TIMEOUTS = "ui_show_individual_timeouts"', prefs)
         self.assertIn("Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN)", prefs)
+
+    def test_all_ui_module_forms_and_components_delegate_to_ui_foundation(self):
+        for adapter_rel, shared_calls in (
+            ("unlock/UnlockScreen.kt", ("SharedUnlockScreen(",)),
+            ("vault/CardLayoutDialog.kt", ("SharedCardLayoutDialog(",)),
+            ("vault/EmailDetailsDialog.kt", ("SharedEmailDetailsDialog(",)),
+            ("vault/EmailEditDialog.kt", ("SharedEmailEditDialog(",)),
+            ("vault/EmailEntryDialog.kt", ("SharedEmailAccountDialog(",)),
+            ("vault/EmailPasswordDialog.kt", ("SharedEmailPasswordDialog(",)),
+            ("vault/EmailSettingsDialog.kt", ("SharedEmailSettingsDialog(",)),
+            ("vault/EntryPinDialog.kt", ("SharedEntryPinDialog(",)),
+            ("vault/ManualEntryDialog.kt", ("SharedManualEntryDialog(",)),
+            ("vault/PasswordEntryDialog.kt", ("SharedPasswordEntryDialog(",)),
+            ("vault/PasswordImportDialog.kt", ("SharedPasswordImportDialog(",)),
+            ("vault/ThumbnailPicker.kt", ("SharedThumbnailPickerContent(", "SharedThumbnailPickerDialog(")),
+            ("vault/VaultToolsBar.kt", ("SharedVaultToolsBar(",)),
+            ("vault/VaultComponents.kt", ("SharedVaultTopBar(", "SharedVaultSortBar(", "SharedVaultEmptyState(", "SharedVaultEntryCard(", "SharedVaultCodeArea(")),
+            ("vault/VaultScreen.kt", ("SharedVaultScaffold(",)),
+        ):
+            adapter_text = (UI_MAIN / adapter_rel).read_text(encoding="utf-8")
+            for call in shared_calls:
+                self.assertIn(call, adapter_text, f"{adapter_rel} must delegate to {call}")
+            self.assertNotIn("AlertDialog(", adapter_text, f"{adapter_rel} should not own a second AlertDialog")
+
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        for call in ("SharedVaultScaffold(", "SharedVaultTopBar(", "SharedVaultEmptyState(", "SharedVaultEntryCard(", "SharedVaultCodeArea("):
+            self.assertIn(call, portable_screen)
+        self.assertIn('onLongClick = { onCard(card.index, "counter") }', portable_screen)
+        self.assertIn("card.visibleRevealedContent()", portable_screen)
+        self.assertIn("card.visibleDetailLabel()", portable_screen)
+
+        ios_host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text(encoding="utf-8")
+        self.assertIn('case "counter":', ios_host)
+        self.assertIn("revealedContent: revealedContent", ios_host)
+        self.assertIn("detailLabel: detailLabel", ios_host)
+        self.assertIn("countLabel: countLabel", ios_host)
 
 
 if __name__ == "__main__":
