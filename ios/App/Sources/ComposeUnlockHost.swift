@@ -1,3 +1,4 @@
+import Combine
 import UIKit
 import OfflineOTPKit
 import OfflineOTPPresentation
@@ -8,19 +9,30 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     let store: VaultStore
     let presentation = UnlockPresentation()
     private let onRestore: () -> Void
+    private var subscription: AnyCancellable?
+    private var attemptedBiometricAutoPrompt = false
     private var active = true
 
     init(store: VaultStore, onRestore: @escaping () -> Void) {
         self.store = store
         self.onRestore = onRestore
+        super.init()
+        subscription = store.objectWillChange
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.render() }
+    }
+
+    private func render() {
+        guard active else { return }
+        presentation.update(busy: false, error: store.message, creating: !store.hasVault,
+                             quickUnlockLabel: store.canUnlockWithBiometrics ? "Unlock with \(store.biometryTitle)" : nil,
+                             hint: store.folderPath)
     }
 
     func refresh() {
         guard active else { return }
         store.refreshBiometry()
-        presentation.update(busy: false, error: store.message, creating: !store.hasVault,
-                             quickUnlockLabel: store.canUnlockWithBiometrics ? "Unlock with \(store.biometryTitle)" : nil,
-                             hint: store.folderPath)
+        render()
     }
 
     func unlock(password: String) {
@@ -47,12 +59,18 @@ final class UnlockCoordinator: NSObject, UnlockActions {
     }
 
     func attemptBiometricUnlockOnce() {
-        guard active, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
+        guard active, !attemptedBiometricAutoPrompt, !store.isUnlocked, store.canUnlockWithBiometrics else { return }
+        attemptedBiometricAutoPrompt = true
         store.unlockWithBiometrics()
         refresh()
     }
 
-    func close() { active = false; presentation.close() }
+    func close() {
+        active = false
+        subscription?.cancel()
+        subscription = nil
+        presentation.close()
+    }
 }
 
 /// UIKit host for the shared unlock/create screen. No SwiftUI view or fallback form exists.
@@ -95,9 +113,16 @@ final class UnlockComposeViewController: UIViewController {
         present(restore, animated: true)
     }
 
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        if parent == nil { coordinator.close() }
+    }
+
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        coordinator.close()
+        if isMovingFromParent || isBeingDismissed || parent == nil {
+            coordinator.close()
+        }
     }
 }
 
@@ -106,6 +131,7 @@ final class RestoreCoordinator: NSObject, NewVaultRestoreActions {
     let store: VaultStore
     let data: Data
     let presentation = NewVaultRestorePresentation(backupName: "Selected encrypted backup")
+    var onDismiss: (() -> Void)?
     private var active = true
 
     init(store: VaultStore, data: Data) {
@@ -120,7 +146,10 @@ final class RestoreCoordinator: NSObject, NewVaultRestoreActions {
             ? nil : (store.message ?? "The backup could not be restored.")
     }
 
-    func dismiss() { close() }
+    func dismiss() {
+        close()
+        onDismiss?()
+    }
     func close() { active = false; presentation.close() }
 }
 
@@ -137,6 +166,9 @@ final class RestoreComposeViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = ForestPalette.scrim
+        coordinator.onDismiss = { [weak self] in
+            self?.dismiss(animated: false)
+        }
         let composed = coordinator.presentation.viewController(actions: coordinator)
         addChild(composed)
         composed.view.frame = view.bounds
@@ -147,6 +179,8 @@ final class RestoreComposeViewController: UIViewController {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        coordinator.close()
+        if isMovingFromParent || isBeingDismissed || parent == nil {
+            coordinator.close()
+        }
     }
 }

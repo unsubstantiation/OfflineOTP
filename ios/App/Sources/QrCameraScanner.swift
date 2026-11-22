@@ -23,9 +23,14 @@ final class QrCaptureViewController: UIViewController {
         guard DataScannerViewController.isSupported, DataScannerViewController.isAvailable else {
             view = UIView(frame: UIScreen.main.bounds)
             view.backgroundColor = ForestPalette.background
-            DispatchQueue.main.async { self.onUnavailable() }
+            DispatchQueue.main.async {
+                self.dismiss(animated: false)
+                self.onUnavailable()
+            }
             return
         }
+        let container = UIView(frame: UIScreen.main.bounds)
+        container.backgroundColor = ForestPalette.background
         let scanner = DataScannerViewController(
             recognizedDataTypes: [.barcode(symbologies: [.qr])],
             qualityLevel: .accurate,
@@ -36,14 +41,41 @@ final class QrCaptureViewController: UIViewController {
             isHighlightingEnabled: true)
         scanner.delegate = self
         self.scanner = scanner
-        view = scanner.view
         addChild(scanner)
+        scanner.view.frame = container.bounds
+        scanner.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        container.addSubview(scanner.view)
         scanner.didMove(toParent: self)
+
+        let cancel = UIButton(type: .system)
+        cancel.setTitle("Cancel", for: .normal)
+        cancel.setTitleColor(.white, for: .normal)
+        cancel.backgroundColor = UIColor.black.withAlphaComponent(0.6)
+        cancel.layer.cornerRadius = 8
+        cancel.translatesAutoresizingMaskIntoConstraints = false
+        cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
+        container.addSubview(cancel)
+        NSLayoutConstraint.activate([
+            cancel.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor, constant: 12),
+            cancel.trailingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            cancel.widthAnchor.constraint(greaterThanOrEqualToConstant: 76),
+            cancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+        ])
+        view = container
+
         do {
             try scanner.startScanning()
         } catch {
-            DispatchQueue.main.async { self.onUnavailable() }
+            DispatchQueue.main.async {
+                self.dismiss(animated: false)
+                self.onUnavailable()
+            }
         }
+    }
+
+    @objc private func cancelTapped() {
+        scanner?.stopScanning()
+        dismiss(animated: true)
     }
 
     override func viewWillDisappear(_ animated: Bool) {

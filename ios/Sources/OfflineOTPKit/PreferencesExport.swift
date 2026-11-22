@@ -221,11 +221,16 @@ public enum PreferencesExport {
         platform: String
     ) throws -> ([(Setting, Value)], Import) {
         guard !bytes.isEmpty, bytes.count <= maxBytes else { throw PreferencesError.invalidSize }
+        guard String(data: bytes, encoding: .utf8) != nil else {
+            throw PreferencesError.invalidEncoding
+        }
         guard let parsed = try? JSONSerialization.jsonObject(with: bytes) as? [String: Any] else {
             throw PreferencesError.invalidDocument
         }
         guard parsed["format"] as? String == format else { throw PreferencesError.invalidDocument }
-        guard (parsed["version"] as? NSNumber)?.intValue == version else {
+        guard let versionNumber = parsed["version"] as? NSNumber,
+              !["c", "B", "d", "f"].contains(String(cString: versionNumber.objCType)),
+              versionNumber.intValue == version else {
             throw PreferencesError.unsupportedVersion
         }
         let source = parsed["platform"] as? String ?? ""
@@ -276,13 +281,20 @@ public enum PreferencesExport {
         switch entry.kind {
         case .integer:
             guard let number = raw as? NSNumber else { throw PreferencesError.typeMismatch(entry.key) }
-            return .integer(number.intValue)
+            let type = String(cString: number.objCType)
+            guard type != "c", type != "B", type != "d", type != "f",
+                  let exact = Int(exactly: number.int64Value) else {
+                throw PreferencesError.typeMismatch(entry.key)
+            }
+            return .integer(exact)
         case .string:
             guard let text = raw as? String else { throw PreferencesError.typeMismatch(entry.key) }
             guard text.count <= maxStringChars else { throw PreferencesError.typeMismatch(entry.key) }
             return .text(text)
         case .boolean:
             guard let flag = raw as? NSNumber else { throw PreferencesError.typeMismatch(entry.key) }
+            let type = String(cString: flag.objCType)
+            guard type == "c" || type == "B" else { throw PreferencesError.typeMismatch(entry.key) }
             return .boolean(flag.boolValue)
         case .stringSet:
             guard let values = raw as? [String] else { throw PreferencesError.typeMismatch(entry.key) }

@@ -76,6 +76,8 @@ class LinScpSupportTest(unittest.TestCase):
         self.assertIn("store.generation == epoch", ios)
         self.assertIn("$0.fields == candidate.fields", ios)
         self.assertIn("store.importLinScpSelection(chosen)", ios)
+        self.assertIn("masterKeyData: masterKey", ios)
+        self.assertIn('case "linScpKey":', ios)
         self.assertIn("Warning: Exported secrets will be accessible by software on your device.", ios)
         main = (APP / "kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
         self.assertIn("composeVaultView?.clearLinScpImport()", main)

@@ -36,6 +36,7 @@ fun SharedPasswordEntryDialog(
     errorText: String? = null,
     thumbnailNames: List<String> = emptyList(),
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onExportArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var revealPassword by remember(inputKey) { mutableStateOf(false) }
@@ -54,7 +55,10 @@ fun SharedPasswordEntryDialog(
             if (pickingThumbnail && artworkPicker != null) {
                 artworkPicker(
                     input.thumbnail,
-                    { chosen -> input = input.copy(thumbnail = chosen); pickingThumbnail = false },
+                    { chosen ->
+                        input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
+                        pickingThumbnail = false
+                    },
                     { pickingThumbnail = false }
                 )
             } else {
@@ -168,6 +172,16 @@ fun SharedPasswordEntryDialog(
                             onClick = { pickingThumbnail = true }
                         )
                     }
+                    if (input.archiveMode && onExportArchive != null) {
+                        ForestTextAction(
+                            text = "Export archive",
+                            onClick = {
+                                input = PortablePasswordEditDraft()
+                                revealPassword = false
+                                onExportArchive()
+                            }
+                        )
+                    }
                     if (onDelete != null) {
                         ForestTextAction(
                             text = "Delete",
@@ -203,7 +217,7 @@ fun SharedPasswordEntryDialog(
             catalogNames = thumbnailNames,
             unchangedLabel = "Keep current artwork",
             onSelect = { chosen ->
-                input = input.copy(thumbnail = chosen)
+                input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
                 pickingThumbnail = false
             },
             onDismiss = { pickingThumbnail = false }

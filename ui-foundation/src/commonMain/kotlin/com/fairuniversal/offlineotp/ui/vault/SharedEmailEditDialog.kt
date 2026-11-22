@@ -34,6 +34,7 @@ fun SharedEmailEditDialog(
     onSubmit: (PortableEmailEditDraft) -> Unit,
     onDismiss: () -> Unit,
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
@@ -51,7 +52,10 @@ fun SharedEmailEditDialog(
             if (pickingThumbnail && artworkPicker != null) {
                 artworkPicker(
                     input.thumbnail,
-                    { chosen -> input = input.copy(thumbnail = chosen); pickingThumbnail = false },
+                    { chosen ->
+                        input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
+                        pickingThumbnail = false
+                    },
                     { pickingThumbnail = false }
                 )
             } else Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -75,6 +79,15 @@ fun SharedEmailEditDialog(
                             }
                         )
                     }
+                }
+                if (onViewDetails != null) {
+                    ForestTextAction(
+                        text = "View details",
+                        onClick = {
+                            input = PortableEmailEditDraft()
+                            onViewDetails()
+                        }
+                    )
                 }
                 if (onDelete != null) {
                     ForestTextAction(
@@ -106,7 +119,7 @@ fun SharedEmailEditDialog(
             catalogNames = thumbnailNames,
             unchangedLabel = "Keep current artwork",
             onSelect = { chosen ->
-                if (chosen.isNotEmpty()) input = input.copy(thumbnail = chosen)
+                input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
                 pickingThumbnail = false
             },
             onDismiss = { pickingThumbnail = false }

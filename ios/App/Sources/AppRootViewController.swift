@@ -40,6 +40,15 @@ final class AppRootViewController: UIViewController {
         if unlocked && current is VaultComposeViewController { return }
         if !unlocked && current is UnlockComposeViewController { return }
 
+        if presentedViewController != nil {
+            dismiss(animated: false)
+        }
+        if current?.presentedViewController != nil {
+            current?.dismiss(animated: false)
+        }
+        (current as? VaultComposeViewController)?.coordinator.invalidate()
+        (current as? UnlockComposeViewController)?.coordinator.close()
+
         let next: UIViewController
         if unlocked {
             next = VaultComposeViewController(
@@ -97,7 +106,9 @@ final class AppRootViewController: UIViewController {
     private func pickQrImage() {
         filePicker.open(types: [.image], from: self) { [weak self] urls in
             guard let self, let url = urls.first else { return }
-            self.readBounded(url) { data in
+            self.readBounded(url, onFailure: { [weak self] _ in
+                (self?.current as? VaultComposeViewController)?.coordinator.importedQrImagePayload(nil)
+            }) { data in
                 guard let vault = self.current as? VaultComposeViewController else { return }
                 let payload = UIImage(data: data).flatMap(QrImageReader.payload(in:))
                 vault.coordinator.importedQrImagePayload(payload)
@@ -110,7 +121,9 @@ final class AppRootViewController: UIViewController {
         filePicker.open(types: types, from: self) { [weak self] urls in
             guard let self, let url = urls.first else { return }
             let filename = url.lastPathComponent
-            self.readBounded(url) { data in
+            self.readBounded(url, onFailure: { [weak self] reason in
+                (self?.current as? VaultComposeViewController)?.coordinator.reportImportFileFailure(reason)
+            }) { data in
                 guard let vault = self.current as? VaultComposeViewController else { return }
                 if kind.hasPrefix("openpgp") {
                     vault.coordinator.setOpenPgpData(data, kind: kind, filename: filename)
@@ -122,19 +135,26 @@ final class AppRootViewController: UIViewController {
     }
 
     /// One bounded read per picked file; the stored size limit is the same on every client.
-    private func readBounded(_ url: URL, then: @escaping (Data) -> Void) {
+    private func readBounded(
+        _ url: URL,
+        onFailure: ((String) -> Void)? = nil,
+        then: @escaping (Data) -> Void
+    ) {
+        let reportFailure = onFailure ?? { [weak self] reason in
+            self?.store.reportRestoreSelectionFailure(reason)
+        }
         let scoped = url.startAccessingSecurityScopedResource()
         defer { if scoped { url.stopAccessingSecurityScopedResource() } }
         do {
             let values = try url.resourceValues(forKeys: [.fileSizeKey])
             let size = values.fileSize ?? 0
             guard size > 0, size <= InputPolicy.maxDocumentBytes else {
-                store.reportRestoreSelectionFailure("The file is too large or empty.")
+                reportFailure("The file is too large or empty.")
                 return
             }
             then(try Data(contentsOf: url))
         } catch {
-            store.reportRestoreSelectionFailure("The file could not be read.")
+            reportFailure("The file could not be read.")
         }
     }
 

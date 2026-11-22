@@ -37,7 +37,9 @@ fun TagsDialog(
     confirmLabel: String = "OK",
     dismissLabel: String = "Cancel",
     maxTagChars: Int = 64,
-    tagCounts: Map<String, Int> = emptyMap()
+    tagCounts: Map<String, Int> = emptyMap(),
+    errorText: String? = null,
+    dismissOnConfirm: Boolean = true
 ) {
     var newTag by remember(inputKey) { mutableStateOf("") }
     var currentStates by remember(inputKey) { mutableStateOf(initialStates) }
@@ -101,6 +103,7 @@ fun TagsDialog(
                         Text(text = label)
                     }
                 }
+                if (errorText != null) Text(text = errorText)
             }
         },
         confirmButton = {
@@ -116,7 +119,7 @@ fun TagsDialog(
                 }
                 newTag = ""
                 onSelectionConfirmed(finalStates)
-                onDismiss()
+                if (dismissOnConfirm) onDismiss()
             })
         },
         dismissButton = {

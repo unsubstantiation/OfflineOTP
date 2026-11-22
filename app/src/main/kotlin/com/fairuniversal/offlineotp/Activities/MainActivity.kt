@@ -787,11 +787,18 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } else if (key == getString(R.string.settings_key_search_includes)) {
             adapter?.clearFilter()
             filterString?.let { setFilterString(it) }
+        } else if (key == getString(R.string.settings_key_sort_mode)) {
+            val mode = settings!!.getSortMode()
+            if (adapter?.getSortMode() != mode) {
+                adapter?.setSortMode(mode)
+                invalidateOptionsMenu()
+            }
         } else if (key == getString(R.string.settings_key_tap_single) ||
                 key == getString(R.string.settings_key_tap_double) ||
                 key == getString(R.string.settings_key_theme) ||
                 key == getString(R.string.settings_key_lang) ||
                 key == getString(R.string.settings_key_enable_screenshot) ||
+                key == getString(R.string.settings_key_hide_in_app_switcher) ||
                 key == getString(R.string.settings_key_tag_functionality) ||
                 key == getString(R.string.settings_key_label_highlight_token) ||
                 key == getString(R.string.settings_key_card_layout) ||
@@ -1615,6 +1622,33 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         view.show()
     }
 
+    /** Starts an explicit user-confirmed export of a revealed stored password archive. */
+    fun requestPasswordArchiveExport(entry: Entry) {
+        val current = adapter ?: return
+        val generation = VaultSession.generation()
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
+        val digest = current.passwordArchiveDigest(entry, generation)
+        if (digest == null) {
+            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        val title = entry.getLabel().ifBlank { "passwords.bin" }
+        val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("application/octet-stream")
+            .putExtra(Intent.EXTRA_TITLE, title)
+        try {
+            passwordImportMode = null
+            passwordExportName = entry.getLabel()
+            passwordExportDigest = digest
+            startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_EXPORT)
+        } catch (_: Exception) {
+            passwordExportName = null
+            passwordExportDigest = null
+            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+        }
+    }
+
     /** A picker may outlive a lock/recreation. Only resume after a fresh vault unlock. */
     private fun resumePasswordOperation() {
         val uri = passwordPendingUri ?: return
@@ -1834,6 +1868,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val dispose = { incoming.forEach { it.destroy() }; incoming.clear() }
         if (view == null || current == null || VaultSession.getKey() == null ||
             current.encryptionKey !== VaultSession.getKey()) { dispose(); return }
+        if (incoming.isEmpty()) {
+            dispose()
+            Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
+            return
+        }
         val request = Any()
         val labels = incoming.map { "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" }
         view.showLinScpImport(request, labels, dispose) { selected ->
@@ -1947,7 +1986,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val generation = VaultSession.generation()
         if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
         val candidates = current.getEntries()
-            .filter { it.areDetailsVisible() }
+            .filter { current.isEntryRevealed(it) }
             .map { it to PasswordCsvExport.support(it) }
         val exportable = candidates.filter { it.second is PasswordCsvExport.Support.Exportable }
         if (exportable.isEmpty()) {
@@ -1976,7 +2015,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onConfirm = {
                 closeHost()
                 if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@DeleteConfirmationComposeView
-                val chosen = exportable.map { it.first }
+                val chosen = exportable.map { it.first }.filter { current.isEntryRevealed(it) }
+                if (chosen.isEmpty()) {
+                    Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
+                    return@DeleteConfirmationComposeView
+                }
                 val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
                     catch (_: Exception) {
                         Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()

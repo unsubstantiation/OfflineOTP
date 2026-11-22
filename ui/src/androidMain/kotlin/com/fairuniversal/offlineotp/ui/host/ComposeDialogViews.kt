@@ -509,7 +509,8 @@ class MultiChoiceSelectionComposeView(
     private val confirmLabel: String,
     private val dismissLabel: String,
     private val onConfirm: (Set<Int>) -> Unit,
-    private val onDismiss: () -> Unit
+    private val onDismiss: () -> Unit,
+    private val initialSelected: Set<Int> = emptySet()
 ) : ComposeDialogHost(activity) {
 
     init {
@@ -527,7 +528,8 @@ class MultiChoiceSelectionComposeView(
                 confirmLabel = confirmLabel,
                 dismissLabel = dismissLabel,
                 onConfirm = onConfirm,
-                onDismiss = onDismiss
+                onDismiss = onDismiss,
+                initialSelected = initialSelected
             )
         }
     }

@@ -15,6 +15,7 @@ fun EmailEditDialog(
     onSubmit: (EmailEditInput) -> Unit,
     onDismiss: () -> Unit,
     artwork: VaultArtwork? = null,
+    onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     SharedEmailEditDialog(
@@ -33,6 +34,7 @@ fun EmailEditDialog(
         },
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss,
+        onViewDetails = onViewDetails,
         onDelete = onDelete
     )
 }

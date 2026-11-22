@@ -184,6 +184,15 @@ final class EntryDraftTests: XCTestCase {
             overrideThumbnail: "GitLab"
         )
         XCTAssertEqual(overridden.thumbnail, "GitLab")
+
+        var explicitDefault = try create(issuer: "GitHub")
+        explicitDefault.setThumbnail(ThumbnailCatalog.defaultName)
+        let keptDefault = EntryDraft.preservingMetadata(
+            of: explicitDefault,
+            in: try create(issuer: "GitHub", label: "work"),
+            overrideThumbnail: nil
+        )
+        XCTAssertEqual(keptDefault.thumbnail, ThumbnailCatalog.defaultName)
     }
 
     func testAnEntryBuiltHereSurvivesADocumentRoundTrip() throws {

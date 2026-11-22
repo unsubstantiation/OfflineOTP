@@ -946,6 +946,9 @@ open class IntroScreenActivity : IntroActivity() {
                     if (password.length < minLength) {
                         updateWarning(lengthWarning)
                         return false
+                    } else if (password.length > com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS) {
+                        updateWarning("Use at most ${com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS} characters.")
+                        return false
                     } else {
                         if (confirm.isNotEmpty()) {
                             if (confirm == password) {

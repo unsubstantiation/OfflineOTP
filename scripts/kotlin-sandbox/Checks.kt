@@ -8638,6 +8638,107 @@ fun main() {
         }
     }
 
+    check("Android email details and stored password archive export are wired from shared Edit dialogs") {
+        val fixture = SettingsFixture()
+        var startedRequestCode = -1
+        val activity = object : MainActivity() {
+            override val resources: Resources get() = fixture.context.resources
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+            override fun startActivityForResult(intent: Intent, requestCode: Int) {
+                startedRequestCode = requestCode
+            }
+        }
+        val controller = withPoisonedTransaction {
+            EntriesCardAdapter(activity, TagsAdapter(activity, hashMapOf())).controller
+        }
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, controller)
+        val source = AndroidVaultController::class.java.getDeclaredField("entries").apply { isAccessible = true }
+            .get(controller) as EntryList
+        val archiveBytes = "url,username,password\nhttps://example.org,bob,s3cr3t\n".toByteArray()
+        val archive = Entry.passwordArchive("vault-export.csv", archiveBytes).apply { setDetailsVisible(true) }
+        val email = com.fairuniversal.offlineotp.ui.vault.EmailEntryInput(
+            address = "ops@example.org",
+            incomingHost = "imap.example.org",
+            incomingPort = "993",
+            incomingUser = "ops@example.org",
+            incomingPassword = "imap-secret",
+            outgoingHost = "smtp.example.org",
+            outgoingPort = "465",
+            outgoingUser = "ops@example.org",
+            outgoingPassword = "smtp-secret"
+        ).build().apply { setDetailsVisible(true) }
+        val key = SecretKeySpec(ByteArray(32) { 9 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = key
+        source.addEntry(archive)
+        source.addEntry(email)
+        controller.updateTagsFilter()
+        val strings = com.fairuniversal.offlineotp.ui.vault.VaultStrings.English
+        val composeView = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(
+            activity, strings, com.fairuniversal.offlineotp.ui.vault.VaultActions()
+        )
+        controller.attachComposeEditor(composeView)
+        val emailEditorField = com.fairuniversal.offlineotp.ui.vault.VaultComposeView::class.java
+            .getDeclaredField("emailEditor\$delegate").apply { isAccessible = true }
+        val pwEditorField = com.fairuniversal.offlineotp.ui.vault.VaultComposeView::class.java
+            .getDeclaredField("passwordEditor\$delegate").apply { isAccessible = true }
+        val activeEmailField = AndroidVaultController::class.java
+            .getDeclaredField("activeEmailDialog").apply { isAccessible = true }
+        val exportNameField = MainActivity::class.java
+            .getDeclaredField("passwordExportName").apply { isAccessible = true }
+        val exportDigestField = MainActivity::class.java
+            .getDeclaredField("passwordExportDigest").apply { isAccessible = true }
+        try {
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.EMAILS)
+            controller.setSearchQuery("")
+            val emailFrame = controller.composeFrame(60_000L, strings)!!
+            expect(emailFrame.perform(email.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "EMAIL EDIT failed" })
+            val emailEditor = (emailEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value!!
+            @Suppress("UNCHECKED_CAST")
+            val viewDetails = emailEditor.javaClass.getDeclaredField("onViewDetails").apply { isAccessible = true }
+                .get(emailEditor) as (() -> Unit)?
+            expect(viewDetails != null, { "Email editor missing onViewDetails" })
+            viewDetails!!.invoke()
+            expect((emailEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value == null,
+                { "Email editor stayed open after onViewDetails" })
+            expect(activeEmailField.get(controller) != null, { "Email details dialog did not open" })
+
+            controller.setCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS)
+            val pwFrame = controller.composeFrame(60_000L, strings)!!
+            expect(pwFrame.perform(archive.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT),
+                { "PASSWORD_ARCHIVE EDIT failed" })
+            val pwEditor = (pwEditorField.get(composeView) as androidx.compose.runtime.MutableState<*>).value!!
+            @Suppress("UNCHECKED_CAST")
+            val exportArchive = pwEditor.javaClass.getDeclaredField("onExportArchive").apply { isAccessible = true }
+                .get(pwEditor) as (() -> Unit)?
+            expect(exportArchive != null, { "Password archive editor missing onExportArchive" })
+            exportArchive!!.invoke()
+            expect(startedRequestCode == Constants.INTENT_MAIN_PASSWORD_EXPORT,
+                { "Password archive export did not launch INTENT_MAIN_PASSWORD_EXPORT" })
+            val stagedName = exportNameField.get(activity) as String?
+            val stagedDigest = exportDigestField.get(activity) as String?
+            expect(stagedName == "vault-export.csv" && !stagedDigest.isNullOrEmpty(),
+                { "Password archive export did not stage name/digest" })
+            val resolved = controller.findPasswordArchive(stagedName!!, stagedDigest!!)
+            expect(resolved === archive, { "findPasswordArchive did not resolve exact archive" })
+            expect(controller.passwordArchiveForExport(resolved!!, VaultSession.generation())!!.contentEquals(archiveBytes),
+                { "Exported archive bytes mismatched" })
+            expect(pwFrame.perform(archive.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.REVEAL_TOKEN),
+                { "PASSWORD_ARCHIVE hide toggle failed" })
+            expect(archive.areDetailsVisible() && !controller.isEntryRevealed(archive),
+                { "Concealing archive in Compose did not update isEntryRevealed" })
+            expect(!controller.canExportPasswordArchive(archive, VaultSession.generation()),
+                { "Concealed password archive remained exportable" })
+            expect(controller.passwordArchiveForExport(archive, VaultSession.generation()) == null,
+                { "Concealed password archive still returned bytes" })
+        } finally {
+            controller.lockEntries()
+            VaultSession.lock()
+        }
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {

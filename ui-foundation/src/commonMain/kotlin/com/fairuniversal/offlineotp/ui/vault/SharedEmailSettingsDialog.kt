@@ -43,7 +43,8 @@ fun SharedEmailSettingsDialog(
                 input.accountName?.let { name ->
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { input = input.copy(accountName = it) },
+                        onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) input = input.copy(accountName = it) },
+                        singleLine = true,
                         label = { Text("Account display name") }
                     )
                 }
@@ -77,23 +78,29 @@ fun SharedEmailSettingsDialog(
                             OutlinedTextField(
                                 value = identity.name,
                                 onValueChange = { next ->
-                                    input = input.copy(
-                                        identities = input.identities?.mapIndexed { i, old ->
-                                            if (i == index) old.copy(name = next) else old
-                                        }
-                                    )
+                                    if (next.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                                        input = input.copy(
+                                            identities = input.identities?.mapIndexed { i, old ->
+                                                if (i == index) old.copy(name = next) else old
+                                            }
+                                        )
+                                    }
                                 },
+                                singleLine = true,
                                 label = { Text("$title sender display name") }
                             )
                             OutlinedTextField(
                                 value = identity.address,
                                 onValueChange = { next ->
-                                    input = input.copy(
-                                        identities = input.identities?.mapIndexed { i, old ->
-                                            if (i == index) old.copy(address = next) else old
-                                        }
-                                    )
+                                    if (next.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                                        input = input.copy(
+                                            identities = input.identities?.mapIndexed { i, old ->
+                                                if (i == index) old.copy(address = next) else old
+                                            }
+                                        )
+                                    }
                                 },
+                                singleLine = true,
                                 label = { Text("$title sender email address") }
                             )
                         }
@@ -129,23 +136,27 @@ private fun SharedConnectionFields(
     Text(title)
     OutlinedTextField(
         value = value.host,
-        onValueChange = { change(value.copy(host = it)) },
+        onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) change(value.copy(host = it)) },
+        singleLine = true,
         label = { Text("$title server") }
     )
     OutlinedTextField(
         value = value.port,
         onValueChange = { change(value.copy(port = it.filter(Char::isDigit).take(5))) },
+        singleLine = true,
         label = { Text("$title port") }
     )
     OutlinedTextField(
         value = value.username,
-        onValueChange = { change(value.copy(username = it)) },
+        onValueChange = { if (it.length <= PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS) change(value.copy(username = it)) },
+        singleLine = true,
         label = { Text("$title username") }
     )
     value.authentication?.let { auth ->
         OutlinedTextField(
             value = auth,
             onValueChange = { change(value.copy(authentication = it.filter(Char::isDigit).take(10))) },
+            singleLine = true,
             label = { Text("$title authentication type ID") }
         )
     }

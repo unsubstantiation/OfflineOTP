@@ -16,7 +16,7 @@ public enum Clipboard {
         let expiry = now.addingTimeInterval(expirySeconds)
         UIPasteboard.general.setItems(
             [[UTType.utf8PlainText.identifier: code]],
-            options: [.expirationDate: expiry])
+            options: [.expirationDate: expiry, .localOnly: true])
         return true
     }
 }

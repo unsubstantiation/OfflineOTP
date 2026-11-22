@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
 
@@ -92,7 +93,7 @@ fun SharedUnlockScreen(
             OutlinedTextField(
                 value = password,
                 enabled = !busy,
-                onValueChange = { password = it },
+                onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) password = it },
                 modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
                     if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
                         if (event.type == KeyEventType.KeyUp) submitPassword()
@@ -109,8 +110,17 @@ fun SharedUnlockScreen(
             if (creating) {
                 Text(text = "Choose a password for a new vault. It cannot be recovered if you forget it.",
                     style = ForestType.body, color = ForestPalette.textSecondary)
-                OutlinedTextField(value = confirmation, onValueChange = { confirmation = it },
-                    enabled = !busy, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                OutlinedTextField(
+                    value = confirmation,
+                    onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it },
+                    enabled = !busy,
+                    modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
+                        if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
+                            if (event.type == KeyEventType.KeyUp) submitPassword()
+                            true
+                        } else false
+                    },
+                    singleLine = true,
                     label = { Text(text = "Confirm password") },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
