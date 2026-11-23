@@ -120,6 +120,8 @@ subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 - `PreferencesImportComposeView` (`PreferencesImportDialog`)
 - `BusyProgressComposeView` (`BusyProgressDialog`)
 - `HardwareEnrollmentComposeView` (`HardwareEnrollmentDialog`)
+- `CardDisplayComposeView` (`CardLayoutDialog` -> `SharedCardLayoutDialog`)
+- `AutoLockComposeView` (`AutoLockDialog` + `AutoLockOptions.seconds`)
 
 Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
 `DisposeOnDetachedFromWindow`. They attach an invisible composition to the Activity decor rather

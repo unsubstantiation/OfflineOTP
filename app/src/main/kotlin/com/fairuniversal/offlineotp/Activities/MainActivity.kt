@@ -10,6 +10,8 @@ import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 import com.fairuniversal.offlineotp.ui.host.ArchiveExportComposeView
+import com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+import com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView
@@ -96,6 +98,11 @@ import com.fairuniversal.offlineotp.Utilities.SessionLockReason
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.Utilities.applyAutoLockSettings
+import com.fairuniversal.offlineotp.Utilities.applyCardDisplaySelection
+import com.fairuniversal.offlineotp.Utilities.currentAutoLockSeconds
+import com.fairuniversal.offlineotp.Utilities.currentCardDisplaySelection
+import com.fairuniversal.offlineotp.Utilities.setSearchValues
 import com.fairuniversal.offlineotp.View.AndroidVaultController
 import com.fairuniversal.offlineotp.View.TagsAdapter
 
@@ -134,6 +141,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var usedTokensPrompt: ComposeDialogHost? = null
     private var uriImportPrompt: ComposeDialogHost? = null
     private var vaultUnavailablePrompt: ComposeDialogHost? = null
+    private var cardDisplayPrompt: ComposeDialogHost? = null
+    private var searchFieldsPrompt: ComposeDialogHost? = null
+    private var autoLockPrompt: ComposeDialogHost? = null
     private var linScpPendingUri: Uri? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
@@ -264,6 +274,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         usedTokensPrompt = null
         uriImportPrompt?.dismiss()
         uriImportPrompt = null
+        cardDisplayPrompt?.dismiss()
+        cardDisplayPrompt = null
+        searchFieldsPrompt?.dismiss()
+        searchFieldsPrompt = null
+        autoLockPrompt?.dismiss()
+        autoLockPrompt = null
         passwordCsvExportPending?.fill(0)
         passwordCsvExportPending = null
         passwordCsvExportGeneration = -1L
@@ -1010,6 +1026,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         getMenuInflater().inflate(R.menu.menu_main, menu)
+        menu.findItem(R.id.action_auto_lock)?.setVisible(settings?.getAuthMethod() != AuthMethod.NONE)
 
         sortMenu = requireNotNull(menu.findItem(R.id.menu_sort))
 
@@ -1101,6 +1118,18 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             if (VaultSession.getKey() == null) return true
             startActivity(Intent(this, HardwareKeyActivity::class.java))
             return true
+        } else if (id == R.id.action_card_display) {
+            if (VaultSession.getKey() == null) return true
+            openCardDisplayDialog()
+            return true
+        } else if (id == R.id.action_search_fields) {
+            if (VaultSession.getKey() == null) return true
+            openSearchFieldsDialog()
+            return true
+        } else if (id == R.id.action_auto_lock) {
+            if (VaultSession.getKey() == null) return true
+            openAutoLockDialog()
+            return true
         } else if (id == R.id.action_settings) {
             val settingsIntent = Intent(this, SettingsActivity::class.java)
             if (VaultSession.getKey() == null) return true
@@ -1153,6 +1182,130 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
 
         return super.onOptionsItemSelected(item)
+    }
+
+    private fun openCardDisplayDialog(failed: Boolean = false) {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        val generation = VaultSession.generation()
+        cardDisplayPrompt?.dismiss()
+        var host: CardDisplayComposeView? = null
+        val closeHost = {
+            val h = host
+            if (cardDisplayPrompt === h) cardDisplayPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = CardDisplayComposeView(
+            activity = this,
+            current = settings!!.currentCardDisplaySelection(this),
+            failed = failed,
+            onSave = { selection ->
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null || isFinishing()) {
+                    closeHost()
+                } else if (!settings!!.applyCardDisplaySelection(this, selection)) {
+                    closeHost()
+                    openCardDisplayDialog(failed = true)
+                } else {
+                    recreateActivity = false
+                    closeHost()
+                    hideProgressBar()
+                    if (settings!!.isHideGlobalTimeoutEnabled()) {
+                        timeoutAnimator?.cancel()
+                    } else {
+                        renderTokenTick()
+                    }
+                    adapter?.notifyDataSetChanged()
+                }
+            },
+            onDismiss = closeHost
+        )
+        cardDisplayPrompt = host
+        host.show()
+    }
+
+    private fun openSearchFieldsDialog() {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        val generation = VaultSession.generation()
+        searchFieldsPrompt?.dismiss()
+        val options = Constants.SearchIncludes.values().toList()
+        val arrayLabels = resources.getStringArray(R.array.settings_entries_search_includes)
+        val labels = if (arrayLabels.size >= options.size) {
+            options.indices.map { arrayLabels[it] }
+        } else {
+            listOf(
+                getString(R.string.label_label),
+                getString(R.string.label_issuer),
+                getString(R.string.label_tags)
+            )
+        }
+        val active = settings!!.getSearchValues().toSet()
+        val initialSelected = options.indices.filter { options[it] in active }.toSet()
+            .ifEmpty { setOf(0) }
+        var host: MultiChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (searchFieldsPrompt === h) searchFieldsPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = MultiChoiceSelectionComposeView(
+            activity = this,
+            title = getString(R.string.menu_main_search_fields),
+            message = getString(R.string.settings_desc_search_includes),
+            items = labels,
+            confirmLabel = getString(android.R.string.ok),
+            dismissLabel = getString(android.R.string.cancel),
+            initialSelected = initialSelected,
+            onConfirm = { indices ->
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null || isFinishing()) {
+                    closeHost()
+                } else {
+                    val chosen = indices.sorted().mapNotNull { options.getOrNull(it) }
+                    if (chosen.isNotEmpty() && settings!!.setSearchValues(this, chosen)) {
+                        closeHost()
+                        adapter?.clearFilter()
+                        setFilterString(filterString ?: "")
+                    }
+                }
+            },
+            onDismiss = closeHost
+        )
+        searchFieldsPrompt = host
+        host.show()
+    }
+
+    private fun openAutoLockDialog(failed: Boolean = false) {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        if (settings!!.getAuthMethod() == AuthMethod.NONE) return
+        val generation = VaultSession.generation()
+        autoLockPrompt?.dismiss()
+        var host: AutoLockComposeView? = null
+        val closeHost = {
+            val h = host
+            if (autoLockPrompt === h) autoLockPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = AutoLockComposeView(
+            activity = this,
+            currentSeconds = settings!!.currentAutoLockSeconds(),
+            relockOnBackground = settings!!.getRelockOnBackground(),
+            failed = failed,
+            onSave = { seconds, relockOnBackground ->
+                if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null || isFinishing()) {
+                    closeHost()
+                } else if (!settings!!.applyAutoLockSettings(this, seconds, relockOnBackground)) {
+                    closeHost()
+                    openAutoLockDialog(failed = true)
+                } else {
+                    closeHost()
+                    restartInactivityTimer()
+                }
+            },
+            onDismiss = closeHost
+        )
+        autoLockPrompt = host
+        host.show()
     }
 
     private fun showUsedTokensDialog() {
@@ -2803,6 +2956,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         usedTokensPrompt = null
         uriImportPrompt?.dismiss()
         uriImportPrompt = null
+        cardDisplayPrompt?.dismiss()
+        cardDisplayPrompt = null
+        searchFieldsPrompt?.dismiss()
+        searchFieldsPrompt = null
+        autoLockPrompt?.dismiss()
+        autoLockPrompt = null
         vaultUnavailablePrompt?.dismiss()
         vaultUnavailablePrompt = null
         timeoutAnimator?.cancel()

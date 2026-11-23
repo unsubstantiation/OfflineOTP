@@ -86,6 +86,9 @@ import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.ScreenTimerController
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.AndroidPreferencesPort
+import com.fairuniversal.offlineotp.Utilities.currentAutoLockSeconds
+import com.fairuniversal.offlineotp.Utilities.currentCardDisplaySelection
+import com.fairuniversal.offlineotp.Utilities.setSearchValues
 import com.fairuniversal.offlineotp.Utilities.PreferencesExport
 import com.fairuniversal.offlineotp.Utilities.SshConnection
 import com.fairuniversal.offlineotp.Utilities.Constants
@@ -995,6 +998,8 @@ private class SettingsResources(
         R.integer.settings_default_auth_inactivity_delay -> 600
         R.integer.settings_default_tap_to_reveal_timeout -> 30
         R.integer.settings_default_label_size -> 18
+        R.integer.settings_auth_min_inactivity_delay -> 10
+        R.integer.settings_auth_max_inactivity_delay -> 3600
         else -> id
     }
 
@@ -9201,6 +9206,144 @@ fun main() {
         } finally {
             adapter.lockEntries()
             VaultSession.lock()
+        }
+    }
+
+    check("Android shared CardDisplay, SearchFields, and AutoLock Compose dialogs persist typed settings and clear on lock") {
+        val fixture = SettingsFixture()
+        val activity = object : MainActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+            override val resources: Resources get() = fixture.context.resources
+        }
+        activity.settings = fixture.settings
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val openCardDisplay = MainActivity::class.java.getDeclaredMethod("openCardDisplayDialog", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        val openSearchFields = MainActivity::class.java.getDeclaredMethod("openSearchFieldsDialog")
+            .apply { isAccessible = true }
+        val openAutoLock = MainActivity::class.java.getDeclaredMethod("openAutoLockDialog", Boolean::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val cardDisplayField = MainActivity::class.java.getDeclaredField("cardDisplayPrompt").apply { isAccessible = true }
+        val searchFieldsField = MainActivity::class.java.getDeclaredField("searchFieldsPrompt").apply { isAccessible = true }
+        val autoLockField = MainActivity::class.java.getDeclaredField("autoLockPrompt").apply { isAccessible = true }
+        val recreateField = MainActivity::class.java.getDeclaredField("recreateActivity").apply { isAccessible = true }
+
+        val key = SecretKeySpec(ByteArray(32) { 41 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            // Seed specialized Android single-tap SEND_KEYSTROKES to verify PortableTapMode.COPY preserves it.
+            fixture.seed(R.string.settings_key_tap_single, "send_keystrokes")
+            val initialDisplay = fixture.settings.currentCardDisplaySelection(fixture.context)
+            expect(initialDisplay.tapSingle == com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+                { "expected SEND_KEYSTROKES to project as COPY in shared dialog: $initialDisplay" })
+
+            openCardDisplay.invoke(activity, false)
+            val cardDialog = cardDisplayField.get(activity) as? com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
+                ?: throw AssertionError("expected CardDisplayComposeView")
+            val updatedSelection = com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection(
+                layout = com.fairuniversal.offlineotp.ui.portable.PortableCardLayout.COMPACT,
+                hideIssuer = true,
+                showPreviousToken = false,
+                tokenGroupSize = 2,
+                showIndividualCountdowns = true,
+                labelDisplay = com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay.MULTILINE,
+                showThumbnails = true,
+                labelSizeSp = 20,
+                highlightExpiringTokens = false,
+                tapSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+                tapDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL,
+                hideGlobalTimeout = true,
+                tapToRevealTimeoutSeconds = 0,
+                thumbnailSizeDp = 64,
+                focusSearchOnStart = true,
+                minimizeOnCopy = true
+            )
+            cardDialog.saveSelection(updatedSelection)
+            expect(cardDialog.dismissals > 0 && cardDisplayField.get(activity) == null,
+                { "saving card display selection did not close CardDisplayComposeView" })
+            expect(!recreateField.getBoolean(activity),
+                { "live card display save should not leave recreateActivity pending" })
+            expect(fixture.settings.getCardLayout() == Constants.CardLayouts.COMPACT &&
+                fixture.settings.isHideIssuerEnabled() &&
+                !fixture.settings.getShowPrevToken() &&
+                fixture.settings.getTokenSplitGroupSize() == 2 &&
+                fixture.settings.isShowIndividualTimeoutsEnabled() &&
+                fixture.settings.getLabelDisplay() == Constants.LabelDisplay.MULTILINE &&
+                fixture.settings.getLabelSize() == 20 &&
+                !fixture.settings.isHighlightTokenOptionEnabled() &&
+                fixture.settings.getTapSingle() == Constants.TapMode.SEND_KEYSTROKES &&
+                fixture.settings.getTapDouble() == Constants.TapMode.REVEAL &&
+                fixture.settings.isHideGlobalTimeoutEnabled() &&
+                fixture.settings.getTapToRevealTimeout() == 0 &&
+                fixture.settings.getThumbnailVisible() &&
+                fixture.settings.isFocusSearchOnStartEnabled() &&
+                fixture.settings.isMinimizeAppOnCopyEnabled(),
+                { "CardDisplayComposeView did not persist all typed Android card preferences" })
+
+            // Search fields dialog updates search_includes and rejects empty selections.
+            expect(!fixture.settings.setSearchValues(fixture.context, emptyList()),
+                { "empty search-field set must be rejected" })
+            openSearchFields.invoke(activity)
+            val searchDialog = searchFieldsField.get(activity) as? com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+                ?: throw AssertionError("expected MultiChoiceSelectionComposeView for search fields")
+            expect(searchDialog.initialSelected == setOf(0, 1),
+                { "expected default LABEL+ISSUER initial selection, got ${searchDialog.initialSelected}" })
+            searchDialog.confirmSelection(setOf(0, 2))
+            expect(searchDialog.dismissals > 0 && searchFieldsField.get(activity) == null,
+                { "confirming search fields did not close MultiChoiceSelectionComposeView" })
+            expect(fixture.settings.getSearchValues().toSet() ==
+                setOf(Constants.SearchIncludes.LABEL, Constants.SearchIncludes.TAGS),
+                { "unexpected stored search fields: ${fixture.settings.getSearchValues()}" })
+
+            // Auto-lock dialog requires non-NONE auth, saves presets, and preserves stored delay when disabled.
+            fixture.settings.setAuthMethod(Constants.AuthMethod.NONE)
+            openAutoLock.invoke(activity, false)
+            expect(autoLockField.get(activity) == null,
+                { "AutoLockComposeView must not open while AuthMethod.NONE is configured" })
+            fixture.settings.setAuthMethod(Constants.AuthMethod.PASSWORD)
+            openAutoLock.invoke(activity, false)
+            val autoLockDialog = autoLockField.get(activity) as? com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+                ?: throw AssertionError("expected AutoLockComposeView")
+            autoLockDialog.saveTimeout(900, backgroundRelock = true)
+            expect(autoLockDialog.dismissals > 0 && autoLockField.get(activity) == null &&
+                fixture.settings.getAuthInactivity() && fixture.settings.getAuthInactivityDelay() == 900 &&
+                fixture.settings.currentAutoLockSeconds() == 900 &&
+                fixture.settings.getRelockOnBackground(),
+                { "AutoLockComposeView failed to persist 900s timeout and background relock" })
+            openAutoLock.invoke(activity, false)
+            val disableDialog = autoLockField.get(activity) as? com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+                ?: throw AssertionError("expected second AutoLockComposeView")
+            disableDialog.saveTimeout(0, backgroundRelock = false)
+            expect(!fixture.settings.getAuthInactivity() &&
+                fixture.settings.getAuthInactivityDelay() == 900 &&
+                fixture.settings.currentAutoLockSeconds() == 0 &&
+                !fixture.settings.getRelockOnBackground(),
+                { "disabling auto-lock should turn off auth_inactivity while preserving stored delay" })
+
+            // Vault lock dismisses all three prompts and ignores stale session callbacks.
+            openCardDisplay.invoke(activity, false)
+            openSearchFields.invoke(activity)
+            openAutoLock.invoke(activity, false)
+            val openCard = cardDisplayField.get(activity) as com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
+            val openSearch = searchFieldsField.get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            val openLock = autoLockField.get(activity) as com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+            lockUi.invoke(activity)
+            expect(openCard.dismissals > 0 && openSearch.dismissals > 0 && openLock.dismissals > 0 &&
+                cardDisplayField.get(activity) == null && searchFieldsField.get(activity) == null &&
+                autoLockField.get(activity) == null,
+                { "onVaultLocked did not dismiss CardDisplay, SearchFields, and AutoLock prompts" })
+            VaultSession.lock()
+            openLock.saveTimeout(120)
+            expect(fixture.settings.currentAutoLockSeconds() == 0,
+                { "stale AutoLockComposeView callback mutated settings after vault lock" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
+            PreferenceManager.reset()
         }
     }
 

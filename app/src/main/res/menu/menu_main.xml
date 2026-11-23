@@ -54,6 +54,24 @@
         app:showAsAction="never" />
 
     <item
+        android:id="@+id/action_card_display"
+        android:orderInCategory="100"
+        android:title="@string/menu_main_card_display"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_search_fields"
+        android:orderInCategory="100"
+        android:title="@string/menu_main_search_fields"
+        app:showAsAction="never" />
+
+    <item
+        android:id="@+id/action_auto_lock"
+        android:orderInCategory="100"
+        android:title="@string/menu_main_auto_lock"
+        app:showAsAction="never" />
+
+    <item
         android:id="@+id/action_settings"
         android:orderInCategory="100"
         android:title="@string/menu_main_settings"

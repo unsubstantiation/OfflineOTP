@@ -11,14 +11,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.AbstractComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.PasswordImport
+import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
+import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
 import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
 import com.fairuniversal.offlineotp.ui.vault.ArchiveExportDialog
+import com.fairuniversal.offlineotp.ui.vault.AutoLockDialog
+import com.fairuniversal.offlineotp.ui.vault.AutoLockOptions
 import com.fairuniversal.offlineotp.ui.vault.BiometricEnableDialog
 import com.fairuniversal.offlineotp.ui.vault.BusyProgressDialog
+import com.fairuniversal.offlineotp.ui.vault.CardLayoutDialog
 import com.fairuniversal.offlineotp.ui.vault.CheckboxConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
@@ -519,16 +525,21 @@ class MultiChoiceSelectionComposeView(
     activity: Activity,
     private val title: String,
     private val message: String,
-    private val items: List<String>,
+    val items: List<String>,
     private val confirmLabel: String,
     private val dismissLabel: String,
     private val onConfirm: (Set<Int>) -> Unit,
     private val onDismiss: () -> Unit,
-    private val initialSelected: Set<Int> = emptySet()
+    val initialSelected: Set<Int> = emptySet()
 ) : ComposeDialogHost(activity) {
 
     init {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    /** Direct entry point for headless host checks while Compose stubs remain inert. */
+    fun confirmSelection(selected: Set<Int>) {
+        onConfirm(selected)
     }
 
     @Composable
@@ -1019,5 +1030,99 @@ class HardwareEnrollmentComposeView(
         }
     }
 }
+
+/** Shared vault card layout, countdown, thumbnail, and tap-gesture configuration dialog. */
+class CardDisplayComposeView(
+    activity: Activity,
+    val current: PortableCardDisplaySelection,
+    private val failed: Boolean = false,
+    private val onSave: (PortableCardDisplaySelection) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    /** Direct entry point for headless host checks while Compose stubs remain inert. */
+    fun saveSelection(selection: PortableCardDisplaySelection) {
+        onSave(selection)
+    }
+
+    @Composable
+    override fun Content() {
+        val currentLayout = when (current.layout) {
+            PortableCardLayout.COMPACT -> Constants.CardLayouts.COMPACT
+            PortableCardLayout.FULL -> Constants.CardLayouts.FULL
+            PortableCardLayout.DEFAULT -> Constants.CardLayouts.DEFAULT
+        }
+        val currentLabelDisplay = Constants.LabelDisplay.values()
+            .firstOrNull { it.name == current.labelDisplay.name }
+            ?: Constants.LabelDisplay.TRUNCATE
+        ForestTheme {
+            CardLayoutDialog(
+                inputKey = this,
+                current = currentLayout,
+                failed = failed,
+                onSave = {},
+                onDismiss = onDismiss,
+                hideIssuer = current.hideIssuer,
+                showPreviousToken = current.showPreviousToken,
+                tokenGroupSize = current.tokenGroupSize,
+                showIndividualCountdowns = current.showIndividualCountdowns,
+                labelDisplay = currentLabelDisplay,
+                showThumbnails = current.showThumbnails,
+                labelSizeSp = current.labelSizeSp,
+                highlightExpiringTokens = current.highlightExpiringTokens,
+                tapSingle = current.tapSingle,
+                tapDouble = current.tapDouble,
+                hideGlobalTimeout = current.hideGlobalTimeout,
+                tapToRevealTimeoutSeconds = current.tapToRevealTimeoutSeconds,
+                thumbnailSizeDp = current.thumbnailSizeDp,
+                focusSearchOnStart = current.focusSearchOnStart,
+                minimizeOnCopy = current.minimizeOnCopy,
+                allowDefaultGrouping = false,
+                onSaveSelection = onSave
+            )
+        }
+    }
+}
+
+/** Shared inactivity auto-lock timeout & background-relock selector backed by [AutoLockOptions.seconds]. */
+class AutoLockComposeView(
+    activity: Activity,
+    val currentSeconds: Int,
+    val relockOnBackground: Boolean = false,
+    private val failed: Boolean = false,
+    private val onSave: (Int, Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    /** Direct entry point for headless host checks while Compose stubs remain inert. */
+    fun saveTimeout(seconds: Int, backgroundRelock: Boolean = relockOnBackground) {
+        onSave(seconds, backgroundRelock)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            AutoLockDialog(
+                inputKey = this,
+                currentSeconds = currentSeconds,
+                options = AutoLockOptions.seconds,
+                failed = failed,
+                onSave = { seconds -> onSave(seconds, relockOnBackground) },
+                onDismiss = onDismiss,
+                relockOnBackground = relockOnBackground,
+                onSaveWithBackground = onSave
+            )
+        }
+    }
+}
+
 
 

@@ -47,6 +47,7 @@ fun CardLayoutDialog(
     thumbnailSizeDp: Int? = null,
     focusSearchOnStart: Boolean? = null,
     minimizeOnCopy: Boolean? = null,
+    allowDefaultGrouping: Boolean = true,
     onSaveSelection: ((PortableCardDisplaySelection) -> Unit)? = null
 ) {
     val layouts = Constants.CardLayouts.values()
@@ -125,6 +126,7 @@ fun CardLayoutDialog(
         tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
         thumbnailSizeDp = thumbnailSizeDp,
         focusSearchOnStart = focusSearchOnStart,
+        allowDefaultGrouping = allowDefaultGrouping,
         minimizeOnCopy = minimizeOnCopy,
         onSaveSelection = onSaveSelection
     )

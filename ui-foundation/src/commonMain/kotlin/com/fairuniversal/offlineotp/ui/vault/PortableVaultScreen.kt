@@ -191,7 +191,7 @@ fun PortableVaultScreen(
                                     contentDescription = "How selected tags combine"
                                 )
                             },
-                            trailingContent = if (state.includeUntagged || state.tags.any { it.selected }) {
+                            trailingContent = if (state.hasActiveFilter) {
                                 {
                                     ForestTextAction("Clear", onClick = onClearTags, color = ForestPalette.warning,
                                         contentDescription = "Clear the search and tag filters")
@@ -213,11 +213,11 @@ fun PortableVaultScreen(
         },
         emptyContent = {
             SharedVaultEmptyState(
-                title = "",
+                title = state.emptyTitle,
                 description = state.emptyMessage,
-                actionLabel = if (state.query.isEmpty()) "Add an entry" else null,
+                actionLabel = if (!state.hasActiveFilter) state.emptyActionLabel else null,
                 actionDescription = "Add an entry",
-                onAction = if (state.query.isEmpty()) {
+                onAction = if (!state.hasActiveFilter) {
                     { onTool("add") }
                 } else null
             )
