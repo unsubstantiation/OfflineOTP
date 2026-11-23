@@ -15,8 +15,10 @@ import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.ui.theme.ForestTheme
+import com.fairuniversal.offlineotp.ui.unlock.HardwareEnrollmentDialog
 import com.fairuniversal.offlineotp.ui.vault.ArchiveExportDialog
 import com.fairuniversal.offlineotp.ui.vault.BiometricEnableDialog
+import com.fairuniversal.offlineotp.ui.vault.BusyProgressDialog
 import com.fairuniversal.offlineotp.ui.vault.CheckboxConfirmationDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailDetailsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailImportDialog
@@ -708,7 +710,8 @@ class UriImportComposeView(
     activity: Activity,
     private val onChooseImage: (() -> Unit)? = null,
     private val onSubmit: (uri: String, allowAdditional: Boolean) -> String?,
-    private val onDismiss: () -> Unit
+    private val onDismiss: () -> Unit,
+    private val onScanCamera: (() -> Unit)? = null
 ) : ComposeDialogHost(activity) {
 
     private var statusMessage by mutableStateOf<String?>(null)
@@ -726,6 +729,7 @@ class UriImportComposeView(
                 message = statusMessage,
                 collecting = collectingBatch,
                 onChooseImage = onChooseImage,
+                onScanCamera = onScanCamera,
                 onSubmit = { uri, allowAdditional ->
                     statusMessage = onSubmit(uri, allowAdditional)
                 },
@@ -948,4 +952,72 @@ class StorageLocationComposeView(
         }
     }
 }
+
+/** Shared modal progress/status dialog (non-dismissible unless [cancelLabel] and [onCancel] are provided). */
+class BusyProgressComposeView(
+    activity: Activity,
+    val title: String,
+    val message: String,
+    val cancelLabel: String? = null,
+    private val onCancel: (() -> Unit)? = null
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            BusyProgressDialog(
+                title = title,
+                message = message,
+                cancelLabel = cancelLabel,
+                onCancel = if (onCancel != null) {
+                    {
+                        onCancel.invoke()
+                        dismiss()
+                    }
+                } else null
+            )
+        }
+    }
+}
+
+/** Shared FIDO2 hardware-unlock enrollment confirmation & optional FIDO PIN dialog. */
+class HardwareEnrollmentComposeView(
+    activity: Activity,
+    val title: String,
+    val warningMessage: String,
+    val pinLabel: String,
+    val confirmLabel: String,
+    val dismissLabel: String,
+    private val onConfirm: (CharArray) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            HardwareEnrollmentDialog(
+                inputKey = this,
+                busy = false,
+                result = null,
+                onSubmit = onConfirm,
+                onDismiss = onDismiss,
+                title = title,
+                primaryWarning = warningMessage,
+                secondaryWarning = null,
+                pinLabel = pinLabel,
+                submitLabel = confirmLabel,
+                cancelLabel = dismissLabel
+            )
+        }
+    }
+}
+
 

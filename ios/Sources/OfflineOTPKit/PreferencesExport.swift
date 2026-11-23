@@ -57,10 +57,16 @@ public enum PreferencesExport {
         Setting(key: sortModeKey, kind: .string),
         Setting(key: inactivityLockKey, kind: .integer),
         Setting(key: cardLayoutKey, kind: .string),
+        Setting(key: labelDisplayKey, kind: .string),
+        Setting(key: labelSizeSpKey, kind: .integer),
         Setting(key: tagFunctionalityKey, kind: .string),
         Setting(key: hideIssuerKey, kind: .boolean),
         Setting(key: showPrevTokenKey, kind: .boolean),
         Setting(key: showIndividualTimeoutsKey, kind: .boolean),
+        Setting(key: showThumbnailsKey, kind: .boolean),
+        Setting(key: highlightTokenKey, kind: .boolean),
+        Setting(key: tapSingleKey, kind: .string),
+        Setting(key: tapDoubleKey, kind: .string),
         Setting(key: splitGroupSizeKey, kind: .integer),
         Setting(key: searchIncludesKey, kind: .stringSet),
     ]
@@ -71,6 +77,10 @@ public enum PreferencesExport {
     public static let inactivityLockKey = "ui_inactivity_lock_seconds"
     /// Mirrors `VaultStore.cardLayoutSettingKey` and `PreferencesExport.UI_CARD_LAYOUT`.
     public static let cardLayoutKey = "ui_card_layout"
+    /// Mirrors `VaultStore.labelDisplaySettingKey` and `PreferencesExport.UI_LABEL_DISPLAY`.
+    public static let labelDisplayKey = "ui_label_display"
+    /// Mirrors `VaultStore.labelSizeSpSettingKey` and `PreferencesExport.UI_LABEL_SIZE_SP`.
+    public static let labelSizeSpKey = "ui_label_size_sp"
     /// Mirrors `VaultStore.tagFunctionalitySettingKey` and `PreferencesExport.UI_TAG_FUNCTIONALITY`.
     public static let tagFunctionalityKey = "ui_tag_functionality"
     /// Mirrors `VaultStore.hideIssuerSettingKey`.
@@ -79,6 +89,14 @@ public enum PreferencesExport {
     public static let showPrevTokenKey = "ui_show_prev_token"
     /// Mirrors `VaultStore.showIndividualTimeoutsSettingKey` and `PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS`.
     public static let showIndividualTimeoutsKey = "ui_show_individual_timeouts"
+    /// Mirrors `VaultStore.showThumbnailsSettingKey` and `PreferencesExport.UI_SHOW_THUMBNAILS`.
+    public static let showThumbnailsKey = "ui_show_thumbnails"
+    /// Mirrors `VaultStore.highlightTokenSettingKey` and `PreferencesExport.UI_HIGHLIGHT_TOKEN`.
+    public static let highlightTokenKey = "ui_highlight_token"
+    /// Mirrors `VaultStore.tapSingleSettingKey` and `PreferencesExport.UI_TAP_SINGLE`.
+    public static let tapSingleKey = "ui_tap_single"
+    /// Mirrors `VaultStore.tapDoubleSettingKey` and `PreferencesExport.UI_TAP_DOUBLE`.
+    public static let tapDoubleKey = "ui_tap_double"
     /// Mirrors `VaultStore.splitGroupSizeSettingKey` and `PreferencesExport.UI_SPLIT_GROUP_SIZE`.
     public static let splitGroupSizeKey = "ui_split_group_size"
     /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.

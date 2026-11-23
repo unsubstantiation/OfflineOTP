@@ -50,26 +50,38 @@ final class PreferencesExportTests: XCTestCase {
     func testCardLayoutAndHideIssuerRoundTripAndInspectPreview() throws {
         let source = FakePort([
             PreferencesExport.cardLayoutKey: .text("COMPACT"),
+            PreferencesExport.labelDisplayKey: .text("SCROLL"),
+            PreferencesExport.labelSizeSpKey: .integer(18),
             PreferencesExport.tagFunctionalityKey: .text("AND"),
             PreferencesExport.hideIssuerKey: .boolean(true),
             PreferencesExport.showPrevTokenKey: .boolean(false),
             PreferencesExport.showIndividualTimeoutsKey: .boolean(false),
+            PreferencesExport.showThumbnailsKey: .boolean(false),
+            PreferencesExport.highlightTokenKey: .boolean(false),
+            PreferencesExport.tapSingleKey: .text("COPY"),
+            PreferencesExport.tapDoubleKey: .text("REVEAL"),
             PreferencesExport.splitGroupSizeKey: .integer(2),
             PreferencesExport.searchIncludesKey: .textSet(["LABEL", "TAGS"]),
         ])
         let exported = try PreferencesExport.export(source)
         let preview = try PreferencesExport.inspect(exported.bytes)
-        XCTAssertEqual(7, preview.applied)
+        XCTAssertEqual(13, preview.applied)
         XCTAssertTrue(preview.unknownKeys.isEmpty)
 
         let target = FakePort()
         let result = try PreferencesExport.apply(exported.bytes, into: target)
-        XCTAssertEqual(7, result.applied)
+        XCTAssertEqual(13, result.applied)
         XCTAssertEqual(.text("COMPACT"), target.writes[PreferencesExport.cardLayoutKey])
+        XCTAssertEqual(.text("SCROLL"), target.writes[PreferencesExport.labelDisplayKey])
+        XCTAssertEqual(.integer(18), target.writes[PreferencesExport.labelSizeSpKey])
         XCTAssertEqual(.text("AND"), target.writes[PreferencesExport.tagFunctionalityKey])
         XCTAssertEqual(.boolean(true), target.writes[PreferencesExport.hideIssuerKey])
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showPrevTokenKey])
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showIndividualTimeoutsKey])
+        XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showThumbnailsKey])
+        XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.highlightTokenKey])
+        XCTAssertEqual(.text("COPY"), target.writes[PreferencesExport.tapSingleKey])
+        XCTAssertEqual(.text("REVEAL"), target.writes[PreferencesExport.tapDoubleKey])
         XCTAssertEqual(.integer(2), target.writes[PreferencesExport.splitGroupSizeKey])
         XCTAssertEqual(.textSet(["LABEL", "TAGS"]), target.writes[PreferencesExport.searchIncludesKey])
     }

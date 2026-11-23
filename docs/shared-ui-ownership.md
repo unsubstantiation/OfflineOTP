@@ -32,12 +32,12 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `PortableEmailPasswordDraft`, `PortableEmailConnectionDraft`, `PortableEmailIdentityDraft`,
   `PortableEmailSettingsDraft`, `PortableEntryDraft`, `PortableEntryDragBounds`,
   `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
-  `PortableInputBounds`, and `AutoLockOptions`:
+  `PortableLabelDisplay`, `PortableInputBounds`, and `AutoLockOptions`:
   strings, numbers and booleans only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultScreen`,
   `SharedVaultToolsDialog`, `SharedVaultComponents`
-  (`SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`, `SharedVaultTab`,
-  `SharedVaultTagChip`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
+  (`SharedVaultFilterHeader`, `SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`,
+  `SharedVaultTab`, `SharedVaultTagChip`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
   dialogs/forms consumed across Android, Desktop, and iOS (`AboutDialog`, `AutoLockDialog`,
   `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`, `EntryConfirmationDialog`,
   `CheckboxConfirmationDialog`, `SharedEntryPinDialog`, `EntryCounterDialog`, `EntryDetailsDialog`,
@@ -49,7 +49,7 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `SharedThumbnailPickerDialog`, `SharedEmailDetailsDialog`, `SharedEmailAccountDialog`,
   `SharedEmailEditDialog`, `SharedEmailPasswordDialog`, `SharedEmailSettingsDialog`,
   `SharedManualEntryDialog`, `HardwareEnrollmentDialog`, `HardwareUnlockDialog`,
-  `HardwareCopyDialog`, and `HardwareOathDialog`).
+  `HardwareCopyDialog`, `HardwareOathDialog`, and `BusyProgressDialog`).
 - `PortableVaultViewController` (`iosMain`) exposes `PortableVaultPresentation`, `PortableVaultActions`
   and `PortableSurfaceActions` to Swift, routing every reachable dialog key directly to the shared
   `:ui-foundation` composables (`SharedVaultToolsDialog` for both `Settings` and `Backups and links`;
@@ -114,6 +114,8 @@ subclasses) for shared forms rendered from `:ui-foundation` and `:ui`:
 - `OpenPgpExportComposeView` (`OpenPgpExportDialog`)
 - `StorageLocationComposeView` (`StorageLocationDialog`)
 - `PreferencesImportComposeView` (`PreferencesImportDialog`)
+- `BusyProgressComposeView` (`BusyProgressDialog`)
+- `HardwareEnrollmentComposeView` (`HardwareEnrollmentDialog`)
 
 Each extends `AbstractComposeView`, wraps the shared form in `ForestTheme`, and uses
 `DisposeOnDetachedFromWindow`. They attach an invisible composition to the Activity decor rather
@@ -129,12 +131,19 @@ The native `AlertDialog.Builder` / `EditText` implementations are retired from `
 FairEmail details, password details, tag picker, and password entry editing), `MainActivity`
 (auto-time warning, password import mode chooser, FairEmail encrypted backup password prompt,
 FairEmail/Thunderbird multi-choice account export, password archive/CSV export confirmations,
-`otpauth://` URI import and duplicate-issuer confirmations, `UriImportDialog` link/QR-image import,
+`otpauth://` URI import and duplicate-issuer confirmations, `UriImportDialog` link/QR-image/QR-camera
+import with staged multi-part migration collector preservation across camera and image handoffs,
 used-tokens notice, and vault-unavailable notice), `SettingsActivity` (preferences export mode,
 preferences import confirmation with dry-run setting counts, private vault `Storage location`
 summary, encryption-change warning, login-backup old-password removal, keystore reset confirmation,
-and sync/encryption notices), `HardwareKeyActivity` (`HardwareCopyDialog` seed-export selection and
-confirmation with touch/OATH-password options), and `BackupActivity` (encrypted backup export
+and sync/encryption notices, plus `BusyProgressComposeView` for background encryption changes so no
+`android.app.AlertDialog` remains in `SettingsActivity`), `HardwareKeyActivity`
+(`HardwareCopyDialog` seed-export selection and confirmation with touch/OATH-password options,
+`HardwareEnrollmentComposeView` FIDO2 enrollment confirmation with dedicated optional FIDO PIN
+input, `DeleteConfirmationComposeView` FIDO2 removal confirmation, and `BusyProgressComposeView`
+security-key connection progress so no `android.app.AlertDialog` remains in
+`HardwareKeyActivity`), `HardwareUnlockActivity` (`BusyProgressComposeView` cancelable security-key
+connection progress), and `BackupActivity` (encrypted backup export
 password, encrypted backup restore password, `OpenPgpExportDialog` multi-recipient confirmation,
 OpenPGP key-file passphrase mode chooser, and OpenPGP key-file passphrase prompt). The main unlock
 Activity, onboarding wizard, and About/library screens still retain their native autofill/fragment

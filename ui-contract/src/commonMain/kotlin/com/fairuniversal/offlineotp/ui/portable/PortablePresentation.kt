@@ -30,8 +30,62 @@ data class PortableCard(
     val detailLabel: String = "",
     val revealedContent: String = "",
     val isNote: Boolean = false,
-    val pinRequired: Boolean = false
+    val pinRequired: Boolean = false,
+    val periodSeconds: Int = 30,
+    val showCountdown: Boolean = true,
+    val counterLabel: String = "",
+    val isEmail: Boolean = false
 ) {
+    constructor(
+        index: Int,
+        title: String,
+        subtitle: String,
+        concealedTitle: String,
+        code: String,
+        previousCode: String,
+        metadata: String,
+        secondsLeft: Int,
+        revealed: Boolean,
+        canStep: Boolean,
+        hasCode: Boolean,
+        mark: String,
+        tags: List<String>,
+        canReorder: Boolean,
+        canCopy: Boolean,
+        canCopyAccount: Boolean,
+        canCopyPassword: Boolean,
+        detailLabel: String,
+        revealedContent: String,
+        isNote: Boolean,
+        pinRequired: Boolean
+    ) : this(
+        index = index,
+        title = title,
+        subtitle = subtitle,
+        concealedTitle = concealedTitle,
+        code = code,
+        previousCode = previousCode,
+        metadata = metadata,
+        secondsLeft = secondsLeft,
+        revealed = revealed,
+        canStep = canStep,
+        hasCode = hasCode,
+        mark = mark,
+        tags = tags,
+        canReorder = canReorder,
+        canCopy = canCopy,
+        canCopyAccount = canCopyAccount,
+        canCopyPassword = canCopyPassword,
+        detailLabel = detailLabel,
+        revealedContent = revealedContent,
+        isNote = isNote,
+        pinRequired = pinRequired,
+        periodSeconds = 30,
+        showCountdown = true,
+        counterLabel = "",
+        isEmail = false
+    )
+
     /** The name shown while the row is concealed, never the hidden label. */
     fun visibleTitle(hideIssuer: Boolean): String =
         if (revealed || !hideIssuer) title else concealedTitle
@@ -53,8 +107,16 @@ data class PortableCard(
     val countdownProgress: Float
         get() {
             if (!hasCode || secondsLeft <= 0) return 0f
-            val step = if (metadata.startsWith("MOTP")) 10 else maxOf(30, secondsLeft)
+            val step = if (metadata.startsWith("MOTP")) 10 else maxOf(periodSeconds.coerceAtLeast(1), secondsLeft)
             return (secondsLeft.toFloat() / step.toFloat()).coerceIn(0f, 1f)
+        }
+
+    /** Non-default rollover interval summary matching `:ui-model`'s custom-period card label. */
+    val customPeriodLabel: String
+        get() = if (revealed && hasCode && periodSeconds > 0 && periodSeconds != 30 && !metadata.startsWith("MOTP")) {
+            "${periodSeconds}s period"
+        } else {
+            ""
         }
 
     /** Redacts secret-bearing strings from diagnostic logs and assertion failures. */
@@ -81,8 +143,24 @@ data class PortableVaultState(
     val toast: String,
     val hiddenTitleEnabled: Boolean = false,
     val countLabel: String = "",
-    val sortOptions: List<PortableChip> = emptyList()
+    val sortOptions: List<PortableChip> = emptyList(),
+    val labelDisplayName: String = "TRUNCATE",
+    val showThumbnails: Boolean = true,
+    val labelSizeSp: Int = 0,
+    val highlightExpiringTokens: Boolean = true,
+    val tapSingleName: String = "REVEAL",
+    val tapDoubleName: String = "NOTHING"
 ) {
+    val labelDisplay: PortableLabelDisplay
+        get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplayName }
+            ?: PortableLabelDisplay.TRUNCATE
+
+    val tapSingle: PortableTapMode
+        get() = PortableTapMode.fromName(tapSingleName, fallback = PortableTapMode.REVEAL)
+
+    val tapDouble: PortableTapMode
+        get() = PortableTapMode.fromName(tapDoubleName, fallback = PortableTapMode.NOTHING)
+
     constructor(
         tabs: List<PortableChip>,
         query: String,
@@ -105,7 +183,79 @@ data class PortableVaultState(
         toast = toast,
         hiddenTitleEnabled = hiddenTitleEnabled,
         countLabel = countLabel,
-        sortOptions = emptyList()
+        sortOptions = emptyList(),
+        labelDisplayName = "TRUNCATE",
+        showThumbnails = true,
+        labelSizeSp = 0,
+        highlightExpiringTokens = true,
+        tapSingleName = "REVEAL",
+        tapDoubleName = "NOTHING"
+    )
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = "TRUNCATE",
+        showThumbnails = true,
+        labelSizeSp = 0,
+        highlightExpiringTokens = true,
+        tapSingleName = "REVEAL",
+        tapDoubleName = "NOTHING"
+    )
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = 0,
+        highlightExpiringTokens = true,
+        tapSingleName = "REVEAL",
+        tapDoubleName = "NOTHING"
     )
 
     val emptyMessage: String
@@ -258,7 +408,58 @@ enum class PortablePasswordImportMode {
 enum class PortableCardLayout {
     COMPACT,
     DEFAULT,
-    FULL
+    FULL;
+
+    val cardVerticalPaddingDp: Int
+        get() = if (this == COMPACT) 8 else 12
+
+    val codeBelowIdentity: Boolean
+        get() = this == FULL
+
+    val truncatedLabelMaxLines: Int
+        get() = if (this == FULL) 2 else 1
+
+    val thumbnailSizeDp: Float
+        get() = when (this) {
+            COMPACT -> 32f
+            DEFAULT -> 40f
+            FULL -> 44f
+        }
+}
+
+/** Toolkit-free mirror of `Constants.LabelDisplay` shared across `:ui-model` and `:ui-foundation`. */
+enum class PortableLabelDisplay {
+    TRUNCATE,
+    SCROLL,
+    MULTILINE;
+
+    val scrollLabels: Boolean
+        get() = this == SCROLL
+
+    fun labelMaxLines(layout: PortableCardLayout): Int = when (this) {
+        MULTILINE -> 10
+        SCROLL -> 1
+        TRUNCATE -> layout.truncatedLabelMaxLines
+    }
+}
+
+/** Toolkit-free mirror of portable card single/double-tap actions across Desktop and iOS. */
+enum class PortableTapMode {
+    NOTHING,
+    REVEAL,
+    COPY;
+
+    companion object {
+        val LABEL_SIZE_OPTIONS: List<Int> = listOf(0, 14, 16, 18, 20, 24)
+
+        fun normalizeLabelSizeSp(value: Int): Int =
+            if (value <= 0) 0 else value.coerceIn(12, 24)
+
+        fun fromName(raw: String?, fallback: PortableTapMode = NOTHING): PortableTapMode {
+            val normalized = raw?.trim()?.uppercase() ?: return fallback
+            return values().firstOrNull { it.name == normalized } ?: fallback
+        }
+    }
 }
 
 /**

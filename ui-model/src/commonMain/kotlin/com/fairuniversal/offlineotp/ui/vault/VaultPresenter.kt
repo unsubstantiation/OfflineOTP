@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
 
 /**
  * The state a vault screen keeps between frames, in one place for every host.
@@ -51,6 +52,12 @@ class VaultPresenter(
     var appearance: VaultAppearance = appearance
         private set
 
+    var tapSingle: PortableTapMode = PortableTapMode.REVEAL
+        private set
+
+    var tapDouble: PortableTapMode = PortableTapMode.NOTHING
+        private set
+
     fun setCardLayout(layout: Constants.CardLayouts) {
         if (locked) return
         appearance = appearance.copy(cardLayout = layout)
@@ -91,15 +98,70 @@ class VaultPresenter(
         tokenGroupSize: Int?,
         showIndividualCountdowns: Boolean
     ) {
+        setDisplaySettings(
+            layout = layout,
+            hideIssuer = hideIssuer,
+            showPreviousToken = showPreviousToken,
+            tokenGroupSize = tokenGroupSize,
+            showIndividualCountdowns = showIndividualCountdowns,
+            labelDisplay = appearance.labelDisplay,
+            showThumbnails = appearance.showThumbnails
+        )
+    }
+
+    fun setDisplaySettings(
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: Constants.LabelDisplay,
+        showThumbnails: Boolean
+    ) {
+        setDisplaySettings(
+            layout = layout,
+            hideIssuer = hideIssuer,
+            showPreviousToken = showPreviousToken,
+            tokenGroupSize = tokenGroupSize,
+            showIndividualCountdowns = showIndividualCountdowns,
+            labelDisplay = labelDisplay,
+            showThumbnails = showThumbnails,
+            labelSizeSp = appearance.labelSizeSp ?: 0,
+            highlightExpiringTokens = appearance.expiringSeconds >= 0,
+            tapSingle = tapSingle,
+            tapDouble = tapDouble
+        )
+    }
+
+    fun setDisplaySettings(
+        layout: Constants.CardLayouts,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: Constants.LabelDisplay,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingle: PortableTapMode,
+        tapDouble: PortableTapMode
+    ) {
         if (locked) return
+        val normalizedSize = PortableTapMode.normalizeLabelSizeSp(labelSizeSp)
         appearance = appearance.copy(
             cardLayout = layout,
             showIssuer = !hideIssuer,
             showPreviousToken = showPreviousToken,
             groupTokens = tokenGroupSize != 0,
             tokenGroupSize = tokenGroupSize?.takeIf { it > 0 },
-            showIndividualCountdowns = showIndividualCountdowns
+            showIndividualCountdowns = showIndividualCountdowns,
+            labelDisplay = labelDisplay,
+            showThumbnails = showThumbnails,
+            labelSizeSp = normalizedSize.takeIf { it > 0 },
+            expiringSeconds = if (highlightExpiringTokens) 8 else -1
         )
+        this.tapSingle = tapSingle
+        this.tapDouble = tapDouble
         onChange?.invoke()
     }
 
@@ -239,6 +301,12 @@ class VaultPresenter(
         onCopyAccount = copyAccount,
         onCopyPassword = copyPassword,
         onToggleReveal = { card -> toggleReveal(card.id) },
+        onCardTap = if (tapSingle == PortableTapMode.REVEAL && tapDouble == PortableTapMode.NOTHING) null else { card ->
+            dispatchTap(tapSingle, card, copyEntry)
+        },
+        onCardDoubleTap = if (tapDouble == PortableTapMode.NOTHING) null else { card ->
+            dispatchTap(tapDouble, card, copyEntry)
+        },
         onNextCounter = advanceCounter,
         onEntryActions = entryActions,
         onEnterPin = enterPin,
@@ -263,6 +331,19 @@ class VaultPresenter(
         },
         onLock = { lock() }
     ).guarded { !locked }
+
+    private fun dispatchTap(
+        mode: PortableTapMode,
+        card: VaultCardState,
+        copyEntry: ((VaultCardState) -> Unit)?
+    ) {
+        if (locked) return
+        when (mode) {
+            PortableTapMode.NOTHING -> Unit
+            PortableTapMode.REVEAL -> toggleReveal(card.id)
+            PortableTapMode.COPY -> if (copyEntry != null) copyEntry(card) else copyToken(card)
+        }
+    }
 
     /**
      * Copies the digits only: the grouping the card shows is a rendering detail, and a pasted

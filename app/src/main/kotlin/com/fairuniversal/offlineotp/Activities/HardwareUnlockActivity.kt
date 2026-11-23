@@ -16,8 +16,8 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.SessionState
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
-import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import javax.crypto.spec.SecretKeySpec
 
 /** One-use FIDO2 unlock; key material is handed to the session, never an Intent. */
@@ -54,24 +54,21 @@ class HardwareUnlockActivity : BaseActivity() {
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         pin.setText("")
         val supplied = chars.takeIf { it.isNotEmpty() }
-        var promptRef: ComposeDialogHost? = null
-        val prompt = EntryDetailsComposeView(
+        val prompt = BusyProgressComposeView(
             activity = this,
             title = getString(R.string.hardware_title),
-            body = getString(R.string.hardware_connect),
-            confirmLabel = getString(android.R.string.cancel),
-            onDismiss = {
-                val active = promptRef
-                if (active != null && progress === active) {
-                    progress = null
-                    discovery.cancel()
-                }
-                active?.dismiss()
-            }
+            message = getString(R.string.hardware_connect),
+            cancelLabel = getString(android.R.string.cancel),
+            onCancel = { discovery.cancel() }
         )
-        promptRef = prompt
         progress?.dismiss()
         progress = prompt
+        prompt.setOnDismissListener {
+            if (progress === prompt) {
+                progress = null
+                discovery.cancel()
+            }
+        }
         prompt.show()
         val state = CommandState()
         discovery.start(HardwareKeyDiscovery.Protocol.FIDO, { device, permitted ->

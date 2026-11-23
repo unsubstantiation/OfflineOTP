@@ -133,10 +133,16 @@ public final class VaultStore: ObservableObject {
 
     public static let inactivitySettingKey = "ui_inactivity_lock_seconds"
     public static let cardLayoutSettingKey = "ui_card_layout"
+    public static let labelDisplaySettingKey = "ui_label_display"
+    public static let labelSizeSpSettingKey = "ui_label_size_sp"
     public static let tagFunctionalitySettingKey = "ui_tag_functionality"
     public static let hideIssuerSettingKey = "ui_hide_issuer"
     public static let showPrevTokenSettingKey = "ui_show_prev_token"
     public static let showIndividualTimeoutsSettingKey = "ui_show_individual_timeouts"
+    public static let showThumbnailsSettingKey = "ui_show_thumbnails"
+    public static let highlightTokenSettingKey = "ui_highlight_token"
+    public static let tapSingleSettingKey = "ui_tap_single"
+    public static let tapDoubleSettingKey = "ui_tap_double"
     public static let splitGroupSizeSettingKey = "ui_split_group_size"
     public static let searchIncludesSettingKey = "ui_search_includes"
     static let biometricEnabled = "enabled"
@@ -146,9 +152,15 @@ public final class VaultStore: ObservableObject {
 
     @Published public private(set) var inactivityLockSeconds = VaultStore.defaultInactivityLockSeconds
     @Published public private(set) var cardLayout = "DEFAULT"
+    @Published public private(set) var labelDisplay = "TRUNCATE"
+    @Published public private(set) var labelSizeSp = 0
     @Published public private(set) var hideIssuer = false
     @Published public private(set) var showPreviousToken = true
     @Published public private(set) var showIndividualTimeouts = true
+    @Published public private(set) var showThumbnails = true
+    @Published public private(set) var highlightToken = true
+    @Published public private(set) var tapSingle = "REVEAL"
+    @Published public private(set) var tapDouble = "NOTHING"
     @Published public private(set) var tokenGroupSize = 3
     private var lastActivityDate = Date()
 
@@ -189,6 +201,8 @@ public final class VaultStore: ObservableObject {
         self.inactivityLockSeconds = VaultStore.storedInactivityLockSeconds(
             settings.integer(VaultStore.inactivitySettingKey))
         self.cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        self.labelDisplay = VaultStore.storedLabelDisplay(settings.string(VaultStore.labelDisplaySettingKey))
+        self.labelSizeSp = VaultStore.storedLabelSizeSp(settings.integer(VaultStore.labelSizeSpSettingKey))
         self.tagFunctionality = VaultStore.storedTagFunctionality(
             settings.string(VaultStore.tagFunctionalitySettingKey))
         self.hideIssuer = settings.string(VaultStore.hideIssuerSettingKey) == "true"
@@ -196,6 +210,14 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.showPrevTokenSettingKey))
         self.showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
             settings.string(VaultStore.showIndividualTimeoutsSettingKey))
+        self.showThumbnails = VaultStore.storedShowThumbnails(
+            settings.string(VaultStore.showThumbnailsSettingKey))
+        self.highlightToken = VaultStore.storedHighlightToken(
+            settings.string(VaultStore.highlightTokenSettingKey))
+        self.tapSingle = VaultStore.storedTapMode(
+            settings.string(VaultStore.tapSingleSettingKey), fallback: "REVEAL")
+        self.tapDouble = VaultStore.storedTapMode(
+            settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
         self.tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         self.searchIncludes = VaultStore.storedSearchIncludes(
@@ -455,6 +477,8 @@ public final class VaultStore: ObservableObject {
             settings.integer(VaultStore.inactivitySettingKey))
         sortMode = SortMode.stored(settings.string(SortMode.settingsKey))
         cardLayout = VaultStore.storedCardLayout(settings.string(VaultStore.cardLayoutSettingKey))
+        labelDisplay = VaultStore.storedLabelDisplay(settings.string(VaultStore.labelDisplaySettingKey))
+        labelSizeSp = VaultStore.storedLabelSizeSp(settings.integer(VaultStore.labelSizeSpSettingKey))
         tagFunctionality = VaultStore.storedTagFunctionality(
             settings.string(VaultStore.tagFunctionalitySettingKey))
         if tagFunctionality == .single, selectedTags.count > 1 {
@@ -465,6 +489,14 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.showPrevTokenSettingKey))
         showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
             settings.string(VaultStore.showIndividualTimeoutsSettingKey))
+        showThumbnails = VaultStore.storedShowThumbnails(
+            settings.string(VaultStore.showThumbnailsSettingKey))
+        highlightToken = VaultStore.storedHighlightToken(
+            settings.string(VaultStore.highlightTokenSettingKey))
+        tapSingle = VaultStore.storedTapMode(
+            settings.string(VaultStore.tapSingleSettingKey), fallback: "REVEAL")
+        tapDouble = VaultStore.storedTapMode(
+            settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
         tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         searchIncludes = VaultStore.storedSearchIncludes(
@@ -476,6 +508,14 @@ public final class VaultStore: ObservableObject {
         guard let candidate = raw?.uppercased(),
               ["DEFAULT", "COMPACT", "FULL"].contains(candidate) else {
             return "DEFAULT"
+        }
+        return candidate
+    }
+
+    private static func storedLabelDisplay(_ raw: String?) -> String {
+        guard let candidate = raw?.uppercased(),
+              ["TRUNCATE", "SCROLL", "MULTILINE"].contains(candidate) else {
+            return "TRUNCATE"
         }
         return candidate
     }
@@ -496,6 +536,29 @@ public final class VaultStore: ObservableObject {
     private static func storedShowIndividualTimeouts(_ raw: String?) -> Bool {
         guard let raw else { return true }
         return raw != "false"
+    }
+
+    private static func storedShowThumbnails(_ raw: String?) -> Bool {
+        guard let raw else { return true }
+        return raw != "false"
+    }
+
+    private static func storedLabelSizeSp(_ raw: Int?) -> Int {
+        guard let raw, raw == 0 || (12...24).contains(raw) else { return 0 }
+        return raw
+    }
+
+    private static func storedHighlightToken(_ raw: String?) -> Bool {
+        guard let raw else { return true }
+        return raw != "false"
+    }
+
+    private static func storedTapMode(_ raw: String?, fallback: String) -> String {
+        guard let candidate = raw?.uppercased(),
+              ["NOTHING", "REVEAL", "COPY"].contains(candidate) else {
+            return fallback
+        }
+        return candidate
     }
 
     private static func storedTokenGroupSize(_ raw: Int?) -> Int {
@@ -519,6 +582,46 @@ public final class VaultStore: ObservableObject {
         let resolved = VaultStore.storedCardLayout(layout)
         cardLayout = resolved
         settings.setString(VaultStore.cardLayoutSettingKey, resolved)
+    }
+
+    /// Persists how card labels overflow (`TRUNCATE`, `SCROLL`, or `MULTILINE`).
+    public func setLabelDisplay(_ mode: String) {
+        let resolved = VaultStore.storedLabelDisplay(mode)
+        labelDisplay = resolved
+        settings.setString(VaultStore.labelDisplaySettingKey, resolved)
+    }
+
+    /// Persists the optional card label font size (`0` = default, or `12...24` sp).
+    public func setLabelSizeSp(_ sizeSp: Int) {
+        let resolved = VaultStore.storedLabelSizeSp(sizeSp)
+        labelSizeSp = resolved
+        settings.setInteger(VaultStore.labelSizeSpSettingKey, resolved)
+    }
+
+    /// Persists whether issuer thumbnails / letter tiles are shown on cards (`ui_show_thumbnails`).
+    public func setShowThumbnails(_ show: Bool) {
+        showThumbnails = show
+        settings.setString(VaultStore.showThumbnailsSettingKey, show ? "true" : "false")
+    }
+
+    /// Persists whether expiring OTP tokens highlight during their final seconds (`ui_highlight_token`).
+    public func setHighlightToken(_ highlight: Bool) {
+        highlightToken = highlight
+        settings.setString(VaultStore.highlightTokenSettingKey, highlight ? "true" : "false")
+    }
+
+    /// Persists the single-tap card action (`NOTHING`, `REVEAL`, or `COPY`).
+    public func setTapSingle(_ mode: String) {
+        let resolved = VaultStore.storedTapMode(mode, fallback: "REVEAL")
+        tapSingle = resolved
+        settings.setString(VaultStore.tapSingleSettingKey, resolved)
+    }
+
+    /// Persists the double-tap card action (`NOTHING`, `REVEAL`, or `COPY`).
+    public func setTapDouble(_ mode: String) {
+        let resolved = VaultStore.storedTapMode(mode, fallback: "NOTHING")
+        tapDouble = resolved
+        settings.setString(VaultStore.tapDoubleSettingKey, resolved)
     }
 
     /// Persists whether issuer titles stay concealed on unrevealed rows (`ui_hide_issuer`).

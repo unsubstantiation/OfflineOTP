@@ -344,7 +344,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('func card(index: Int32, action: String)', host)
         self.assertIn('index: Int32(index)', host)
         self.assertIn('secondsLeft: Int32(seconds)', host)
-        self.assertIn('pinRequired: pinRequired)', host)
+        self.assertIn('pinRequired: pinRequired,', host)
         self.assertIn('openSurface("pinEdit", keepDraft: true)', host)
         self.assertIn('openSurface("counterEdit", keepDraft: true)', host)
         self.assertIn('private func openSurface(_ key: String, keepDraft: Bool = false)', host)
@@ -504,6 +504,67 @@ class NativeComposeFoundationTest(unittest.TestCase):
 
         desktop_main = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text(encoding='utf-8')
         self.assertIn('onSwitchToUriImport =', desktop_main)
+
+    def test_portable_vault_and_busy_progress_share_geometry_countdown_counter_and_email_details(self):
+        busy = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/BusyProgressDialog.kt').read_text(encoding='utf-8')
+        self.assertIn('fun BusyProgressDialog(', busy)
+        self.assertNotIn('rememberSaveable', busy)
+        self.assertNotIn('Clipboard', busy)
+
+        portable = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt').read_text(encoding='utf-8')
+        for prop in ('val cardVerticalPaddingDp: Int', 'val codeBelowIdentity: Boolean',
+                     'val truncatedLabelMaxLines: Int', 'val thumbnailSizeDp: Float',
+                     'enum class PortableLabelDisplay', 'val labelDisplayName: String = "TRUNCATE"',
+                     'val showThumbnails: Boolean = true',
+                     'val periodSeconds: Int = 30', 'val showCountdown: Boolean = true',
+                     'val counterLabel: String = ""', 'val isEmail: Boolean = false'):
+            self.assertIn(prop, portable)
+
+        appearance = (ROOT / 'ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultUiState.kt').read_text(encoding='utf-8')
+        self.assertIn('portableLabelDisplay.labelMaxLines(portableLayout)', appearance)
+        self.assertIn('portableLabelDisplay.scrollLabels', appearance)
+        self.assertIn('portableLayout.codeBelowIdentity', appearance)
+        self.assertIn('portableLayout.cardVerticalPaddingDp', appearance)
+
+        screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        self.assertIn('SharedVaultFilterHeader(', screen)
+        self.assertIn('showThumbnail = showThumbnails', screen)
+        self.assertIn('scrollLabels = labelDisplay.scrollLabels', screen)
+        self.assertIn('thumbnailSizeDp = cardLayout.thumbnailSizeDp', screen)
+        self.assertIn('showCountdown = card.hasCode && card.showCountdown && card.secondsLeft > 0', screen)
+        self.assertIn('showSecondsText = true', screen)
+        self.assertIn('counterText = if (card.revealed) card.counterLabel.ifEmpty { null } else null', screen)
+        self.assertIn('onCard(card.index, "emailDetails")', screen)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('showCountdown: showCountdown', host)
+        self.assertIn('counterLabel: counterLabel', host)
+        self.assertIn('isEmail: entry.kind == .email', host)
+        self.assertIn('case "emailDetails":', host)
+        self.assertIn('labelDisplayName: store.labelDisplay', host)
+        self.assertIn('showThumbnails: store.showThumbnails', host)
+
+        ios_prefs = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
+        self.assertIn('public static let labelDisplayKey = "ui_label_display"', ios_prefs)
+        self.assertIn('public static let showThumbnailsKey = "ui_show_thumbnails"', ios_prefs)
+        self.assertIn('public static let labelSizeSpKey = "ui_label_size_sp"', ios_prefs)
+        self.assertIn('public static let highlightTokenKey = "ui_highlight_token"', ios_prefs)
+        self.assertIn('public static let tapSingleKey = "ui_tap_single"', ios_prefs)
+        self.assertIn('public static let tapDoubleKey = "ui_tap_double"', ios_prefs)
+
+        self.assertIn('periodSeconds: Int32(entry.kind == .motp ? 10 : max(entry.period, 1))', host)
+        self.assertIn('labelSizeSp: Int32(store.labelSizeSp)', host)
+        self.assertIn('highlightExpiringTokens: store.highlightToken', host)
+        self.assertIn('tapSingleName: store.tapSingle', host)
+        self.assertIn('tapDoubleName: store.tapDouble', host)
+        self.assertIn('row("cameraSupported", "Camera", value: "true", kind: "info")', host)
+
+        ios_vc = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')
+        self.assertIn('onScanCamera = if (cameraSupported) { { onAction("qrCamera") } } else null', ios_vc)
+        self.assertIn('onSaveCompleteDisplay =', ios_vc)
+        self.assertIn('customPeriodLabel = card.customPeriodLabel.ifEmpty { null }', screen)
+        self.assertIn('labelSizeSp = state.labelSizeSp.takeIf { it > 0 }', screen)
+
 
 
 

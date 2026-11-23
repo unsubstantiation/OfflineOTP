@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.Activities
 
-import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.SharedPreferences
@@ -55,6 +54,7 @@ import com.fairuniversal.offlineotp.Utilities.VaultCommitDecision
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
 import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
+import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
@@ -83,7 +83,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     private var encryptionChanged = false
     private var clearingKeyStore = false
 
-    private var inProgress: AlertDialog? = null
+    internal var inProgress: ComposeDialogHost? = null
     internal var biometricPrompt: ComposeDialogHost? = null
     internal var settingsConfirmationPrompt: ComposeDialogHost? = null
     private var canGoBack = true
@@ -97,6 +97,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         dismissBiometricPrompt()
         settingsConfirmationPrompt?.dismiss()
         settingsConfirmationPrompt = null
+        inProgress?.dismiss()
+        inProgress = null
     }
 
     internal fun showSettingsPrompt(host: ComposeDialogHost) {
@@ -360,12 +362,11 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         if (taskRunning) {
             canGoBack = false
             if (inProgress == null) {
-                val progressView = getLayoutInflater().inflate(R.layout.dialog_encryption_progress, null, false)
-                val dialog = AlertDialog.Builder(this)
-                    .setTitle(R.string.settings_activity_title)
-                    .setView(progressView)
-                    .setCancelable(false)
-                    .create()
+                val dialog = BusyProgressComposeView(
+                    activity = this,
+                    title = getString(R.string.settings_activity_title),
+                    message = getString(R.string.settings_toast_encryption_changing)
+                )
                 inProgress = dialog
                 dialog.show()
             }

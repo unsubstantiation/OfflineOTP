@@ -2293,8 +2293,29 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val dialog = UriImportComposeView(
             activity = this,
             onChooseImage = {
+                if (migrationCollector != null) {
+                    handingOffToMigrationConfirm = true
+                    awaitingMigrationQr = true
+                }
                 closeHost()
-                showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)
+                if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE) && migrationCollector != null) {
+                    awaitingMigrationQr = false
+                    showMigrationProgress()
+                }
+            },
+            onScanCamera = {
+                if (migrationCollector != null) {
+                    handingOffToMigrationConfirm = true
+                    awaitingMigrationQr = true
+                }
+                closeHost()
+                try {
+                    scanQRCode()
+                } catch (_: RuntimeException) {
+                    awaitingMigrationQr = false
+                    Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
+                    if (migrationCollector != null) showMigrationProgress()
+                }
             },
             onSubmit = { rawUri, allowAdditional ->
                 val trimmed = rawUri.trim()

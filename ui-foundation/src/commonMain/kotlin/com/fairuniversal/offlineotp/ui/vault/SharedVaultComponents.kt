@@ -181,6 +181,33 @@ fun SharedVaultTagBar(
     }
 }
 
+/**
+ * Shared filter/navigation header container across Android, Desktop and iOS vault screens,
+ * keeping search, category tabs, tag filter chips and sort options in one consistent layout.
+ */
+@Composable
+fun SharedVaultFilterHeader(
+    horizontalPaddingDp: Int = 16,
+    verticalPaddingDp: Int = 10,
+    itemSpacingDp: Int = 10,
+    searchContent: @Composable () -> Unit,
+    categoryContent: @Composable () -> Unit,
+    tagContent: (@Composable () -> Unit)? = null,
+    sortContent: (@Composable () -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPaddingDp.dp, vertical = verticalPaddingDp.dp),
+        verticalArrangement = Arrangement.spacedBy(itemSpacingDp.dp)
+    ) {
+        searchContent()
+        categoryContent()
+        tagContent?.invoke()
+        sortContent?.invoke()
+    }
+}
+
 /** Shared horizontal sort-mode strip across Compose vault screens. */
 @Composable
 fun SharedVaultSortBar(

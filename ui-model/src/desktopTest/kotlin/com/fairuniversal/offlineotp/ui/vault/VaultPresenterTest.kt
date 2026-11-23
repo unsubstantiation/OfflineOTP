@@ -695,4 +695,76 @@ class VaultPresenterTest {
         assertTrue(presenter.frame(1_000L).cards.first { it.id == first.getListId() }.revealed)
         assertFalse(presenter.frame(1_000L).cards.first { it.id == second.getListId() }.revealed)
     }
+
+    @Test
+    fun setCompleteDisplaySettingsWiresLabelSizeExpiringHighlightAndTapModes() {
+        val harness = harnessOf(totp("GitHub", "alice"))
+        // At t = 25_000ms on a 30s period, 5s remain: default expiringSeconds=8 marks expiring=true.
+        assertTrue(harness.presenter.frame(25_000L).cards.single().expiring)
+        harness.presenter.setDisplaySettings(
+            layout = Constants.CardLayouts.COMPACT,
+            hideIssuer = false,
+            showPreviousToken = true,
+            tokenGroupSize = 3,
+            showIndividualCountdowns = true,
+            labelDisplay = Constants.LabelDisplay.SCROLL,
+            showThumbnails = false,
+            labelSizeSp = 18,
+            highlightExpiringTokens = false,
+            tapSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+            tapDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL
+        )
+        assertEquals(18, harness.presenter.appearance.labelSizeSp)
+        assertEquals(-1, harness.presenter.appearance.expiringSeconds)
+        assertFalse(harness.presenter.frame(25_000L).cards.single().expiring)
+
+        val actions = harness.presenter.actions()
+        val card = harness.presenter.frame(25_000L).cards.single()
+        assertFalse(card.revealed)
+        // Single tap is COPY -> copies raw digits without revealing.
+        actions.onCardTap?.invoke(card)
+        assertEquals(1, harness.copied.size)
+        assertFalse(harness.presenter.frame(25_000L).cards.single().revealed)
+        // Double tap is REVEAL -> reveals the row.
+        actions.onCardDoubleTap?.invoke(card)
+        assertTrue(harness.presenter.frame(25_000L).cards.single().revealed)
+
+        // NOTHING + NOTHING keeps a non-null no-op onCardTap so the card does not fall back to onToggleReveal.
+        harness.presenter.setDisplaySettings(
+            layout = Constants.CardLayouts.DEFAULT,
+            hideIssuer = false,
+            showPreviousToken = true,
+            tokenGroupSize = 3,
+            showIndividualCountdowns = true,
+            labelDisplay = Constants.LabelDisplay.TRUNCATE,
+            showThumbnails = true,
+            labelSizeSp = 0,
+            highlightExpiringTokens = true,
+            tapSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING,
+            tapDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING
+        )
+        assertNull(harness.presenter.appearance.labelSizeSp)
+        val noTapActions = harness.presenter.actions()
+        assertNull(noTapActions.onCardDoubleTap)
+        noTapActions.onCardTap?.invoke(harness.presenter.frame(25_000L).cards.single())
+        assertTrue("NOTHING single-tap leaves reveal unchanged", harness.presenter.frame(25_000L).cards.single().revealed)
+
+        // Default REVEAL + NOTHING yields null onCardTap/onCardDoubleTap so default clickable reveal path runs.
+        harness.presenter.setDisplaySettings(
+            layout = Constants.CardLayouts.DEFAULT,
+            hideIssuer = false,
+            showPreviousToken = true,
+            tokenGroupSize = 3,
+            showIndividualCountdowns = true,
+            labelDisplay = Constants.LabelDisplay.TRUNCATE,
+            showThumbnails = true,
+            labelSizeSp = 0,
+            highlightExpiringTokens = true,
+            tapSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL,
+            tapDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING
+        )
+        val defaultTapActions = harness.presenter.actions()
+        assertNull(defaultTapActions.onCardTap)
+        assertNull(defaultTapActions.onCardDoubleTap)
+    }
 }

@@ -137,6 +137,52 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   (`View details` -> `EntryDetailsDialog`) on `SharedPasswordEntryDialog` across Android, Desktop
   (`DesktopEntryActions.openPasswordDetails`), and iOS.
 
+- **Shared `PortableCardLayout` geometry, `PortableCard` countdown/counter/email parity,
+  `HardwareOathDialog` clipboard copy, and `BusyProgressDialog` Android cutover**: Consolidated card
+  layout geometry (`cardVerticalPaddingDp`, `codeBelowIdentity`, `truncatedLabelMaxLines`,
+  `thumbnailSizeDp`) on `PortableCardLayout` (`:ui-contract`) and delegated `VaultAppearance`
+  (`:ui-model`) and `PortableVaultScreen` (`:ui-foundation`) to it; extended `PortableCard`
+  (`:ui-contract`) with `periodSeconds`, `showCountdown`, `counterLabel`, and `isEmail` and wired
+  `ComposeVaultHost.swift` + `PortableVaultScreen.kt` so iOS renders accurate custom-period
+  countdown rings, numeric remaining-seconds indicators, expiry highlights when individual timers
+  are hidden, HOTP counter labels in the code area, and inline `Connection details` actions on
+  revealed email cards; added `onCopyCode` on `HardwareOathDialog` (`:ui-foundation`) wired to
+  `ExpiringClipboard` in `ComposeMain.kt`; and introduced `BusyProgressDialog` (`:ui-foundation`) +
+  `BusyProgressComposeView` (`ComposeDialogViews.kt`), retiring the remaining `AlertDialog` builders
+  from Android `SettingsActivity` and `HardwareKeyActivity`.
+
+- **Shared `SharedVaultFilterHeader`, cross-build `PortableLabelDisplay` & `showThumbnails` card
+  appearance parity, and Android `HardwareEnrollmentComposeView` / `HardwareUnlockActivity`
+  unification**: Extracted `SharedVaultFilterHeader` in `SharedVaultComponents.kt` (`:ui-foundation`)
+  and unified filter-header ordering and spacing across both `VaultScreen.kt` (`:ui`, Android and
+  Desktop) and `PortableVaultScreen.kt` (`:ui-foundation`, iOS); added `PortableLabelDisplay`
+  (`TRUNCATE`, `SCROLL`, `MULTILINE`) and `showThumbnails` to `:ui-contract` and delegated
+  `VaultAppearance` (`:ui-model`), `PortableVaultScreen`, `SharedCardLayoutDialog` (`:ui-foundation`),
+  `CardLayoutDialog` (`:ui`), Desktop (`PreferencesExport.kt`, `VaultController.kt`,
+  `DesktopLayoutSettings.kt`, `ComposeMain.kt`), and iOS (`PreferencesExport.swift`,
+  `VaultStore.swift`, `PortableVaultViewController.kt`, `ComposeVaultHost.swift`) so card label
+  overflow and thumbnail visibility are configurable, persisted, and round-tripped in portable
+  preferences across all builds; wired `HardwareEnrollmentComposeView` (`HardwareEnrollmentDialog`)
+  in Android `HardwareKeyActivity` and `BusyProgressComposeView` in `HardwareUnlockActivity`; and
+  retired the remaining `Dialogs.*` imports/fallbacks from `AndroidVaultController`.
+
+- **Cross-build label font size, expiring-token highlight toggle, single/double-tap card actions,
+  custom-period label & `UriImportDialog` camera-scan parity**: Added `PortableTapMode`
+  (`NOTHING`, `REVEAL`, `COPY`, `LABEL_SIZE_OPTIONS`, `normalizeLabelSizeSp`),
+  `PortableCard.customPeriodLabel`, and `PortableVaultState` display/tap fields (`labelSizeSp`,
+  `highlightExpiringTokens`, `tapSingleName`, `tapDoubleName`) in `:ui-contract`; wired custom
+  label sizing, optional expiring-token highlighting, single/double-tap gesture dispatch, and
+  non-default TOTP/Steam `Period: Xs` labels across `PortableVaultScreen`, `SharedCardLayoutDialog`
+  (`:ui-foundation`), `CardLayoutDialog` (`:ui`), `VaultPresenter` (`:ui-model`), Desktop
+  (`PreferencesExport.kt`, `VaultController.kt`, `DesktopLayoutSettings.kt`, `ComposeMain.kt`), and
+  iOS (`PreferencesExport.swift`, `VaultStore.swift`, `PortableVaultViewController.kt`,
+  `ComposeVaultHost.swift`), expanding both Desktop and iOS portable preference catalogs to 15
+  mirrored keys; and added `onScanCamera` (`Scan QR code…`) to `UriImportDialog` across Android
+  (`UriImportComposeView` + `MainActivity.openUriImportDialog()`) and iOS (`ComposeVaultHost.swift`
+  + `PortableVaultViewController.kt`), preserving active multi-part `otpauth-migration://` batches
+  across camera and image handoffs while still canceling staged batches on user dismiss or vault
+  lock.
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

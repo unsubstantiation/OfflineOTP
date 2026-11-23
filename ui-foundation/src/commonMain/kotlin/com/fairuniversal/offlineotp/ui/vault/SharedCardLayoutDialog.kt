@@ -17,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
+import com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay
+import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
 
 /** Shared Compose vault card layout and display selector across Desktop and iOS. */
 @Composable
@@ -33,13 +35,41 @@ fun SharedCardLayoutDialog(
     allowDefaultGrouping: Boolean = true,
     onSaveDisplay: ((PortableCardLayout, Boolean, Boolean, Int?) -> Unit)? = null,
     showIndividualCountdowns: Boolean? = null,
-    onSaveCardDisplay: ((PortableCardLayout, Boolean, Boolean, Int?, Boolean) -> Unit)? = null
+    onSaveCardDisplay: ((PortableCardLayout, Boolean, Boolean, Int?, Boolean) -> Unit)? = null,
+    labelDisplay: PortableLabelDisplay? = null,
+    showThumbnails: Boolean? = null,
+    onSaveFullDisplay: ((PortableCardLayout, Boolean, Boolean, Int?, Boolean, PortableLabelDisplay, Boolean) -> Unit)? = null,
+    labelSizeSp: Int? = null,
+    highlightExpiringTokens: Boolean? = null,
+    tapSingle: PortableTapMode? = null,
+    tapDouble: PortableTapMode? = null,
+    onSaveCompleteDisplay: ((
+        PortableCardLayout,
+        Boolean,
+        Boolean,
+        Int?,
+        Boolean,
+        PortableLabelDisplay,
+        Boolean,
+        Int,
+        Boolean,
+        PortableTapMode,
+        PortableTapMode
+    ) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
     var hideIssuerChecked by remember(inputKey) { mutableStateOf(hideIssuer == true) }
     var showPreviousChecked by remember(inputKey) { mutableStateOf(showPreviousToken != false) }
     var selectedGroupSize by remember(inputKey) { mutableStateOf(tokenGroupSize) }
     var showIndividualChecked by remember(inputKey) { mutableStateOf(showIndividualCountdowns != false) }
+    var selectedLabelDisplay by remember(inputKey) { mutableStateOf(labelDisplay ?: PortableLabelDisplay.TRUNCATE) }
+    var showThumbnailsChecked by remember(inputKey) { mutableStateOf(showThumbnails != false) }
+    var selectedLabelSizeSp by remember(inputKey) {
+        mutableStateOf(PortableTapMode.normalizeLabelSizeSp(labelSizeSp ?: 0))
+    }
+    var highlightExpiringChecked by remember(inputKey) { mutableStateOf(highlightExpiringTokens != false) }
+    var selectedTapSingle by remember(inputKey) { mutableStateOf(tapSingle ?: PortableTapMode.REVEAL) }
+    var selectedTapDouble by remember(inputKey) { mutableStateOf(tapDouble ?: PortableTapMode.NOTHING) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
@@ -57,7 +87,43 @@ fun SharedCardLayoutDialog(
                         onClick = { selected = layout }
                     )
                 }
-                if (onSaveDisplay != null || onSaveCardDisplay != null) {
+                if (labelDisplay != null) {
+                    Text(
+                        text = "Label display",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    for (mode in PortableLabelDisplay.values()) {
+                        val label = when (mode) {
+                            PortableLabelDisplay.TRUNCATE -> "Truncate"
+                            PortableLabelDisplay.SCROLL -> "Scroll"
+                            PortableLabelDisplay.MULTILINE -> "Multiline"
+                        }
+                        ForestTextAction(
+                            text = if (selectedLabelDisplay == mode) "Selected: $label" else label,
+                            onClick = { selectedLabelDisplay = mode }
+                        )
+                    }
+                }
+                if (labelSizeSp != null) {
+                    Text(
+                        text = "Label size",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    val sizeOptions = buildList {
+                        addAll(PortableTapMode.LABEL_SIZE_OPTIONS)
+                        if (selectedLabelSizeSp !in PortableTapMode.LABEL_SIZE_OPTIONS) {
+                            add(selectedLabelSizeSp)
+                        }
+                    }.sorted()
+                    for (size in sizeOptions) {
+                        val label = if (size <= 0) "Default" else "$size sp"
+                        ForestTextAction(
+                            text = if (selectedLabelSizeSp == size) "Selected: $label" else label,
+                            onClick = { selectedLabelSizeSp = size }
+                        )
+                    }
+                }
+                if (onSaveDisplay != null || onSaveCardDisplay != null || onSaveFullDisplay != null || onSaveCompleteDisplay != null) {
                     Text(
                         text = "Token grouping",
                         modifier = Modifier.padding(top = 8.dp)
@@ -72,6 +138,40 @@ fun SharedCardLayoutDialog(
                         ForestTextAction(
                             text = if (selectedGroupSize == size) "Selected: $label" else label,
                             onClick = { selectedGroupSize = size }
+                        )
+                    }
+                }
+                if (tapSingle != null) {
+                    Text(
+                        text = "Single tap on card",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    for (mode in PortableTapMode.values()) {
+                        val label = when (mode) {
+                            PortableTapMode.NOTHING -> "Nothing"
+                            PortableTapMode.REVEAL -> "Reveal or hide"
+                            PortableTapMode.COPY -> "Copy token"
+                        }
+                        ForestTextAction(
+                            text = if (selectedTapSingle == mode) "Selected: $label" else label,
+                            onClick = { selectedTapSingle = mode }
+                        )
+                    }
+                }
+                if (tapDouble != null) {
+                    Text(
+                        text = "Double tap on card",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    for (mode in PortableTapMode.values()) {
+                        val label = when (mode) {
+                            PortableTapMode.NOTHING -> "Nothing"
+                            PortableTapMode.REVEAL -> "Reveal or hide"
+                            PortableTapMode.COPY -> "Copy token"
+                        }
+                        ForestTextAction(
+                            text = if (selectedTapDouble == mode) "Selected: $label" else label,
+                            onClick = { selectedTapDouble = mode }
                         )
                     }
                 }
@@ -123,12 +223,66 @@ fun SharedCardLayoutDialog(
                         Text(text = "Show individual countdown timers")
                     }
                 }
+                if (showThumbnails != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showThumbnailsChecked = !showThumbnailsChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = showThumbnailsChecked,
+                            onCheckedChange = { showThumbnailsChecked = it }
+                        )
+                        Text(text = "Show entry thumbnails")
+                    }
+                }
+                if (highlightExpiringTokens != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { highlightExpiringChecked = !highlightExpiringChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = highlightExpiringChecked,
+                            onCheckedChange = { highlightExpiringChecked = it }
+                        )
+                        Text(text = "Highlight expiring codes")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
         confirmButton = {
             ForestTextAction(text = "Save", onClick = {
                 when {
+                    onSaveCompleteDisplay != null -> onSaveCompleteDisplay(
+                        selected,
+                        hideIssuerChecked,
+                        showPreviousChecked,
+                        selectedGroupSize,
+                        showIndividualChecked,
+                        selectedLabelDisplay,
+                        showThumbnailsChecked,
+                        selectedLabelSizeSp,
+                        highlightExpiringChecked,
+                        selectedTapSingle,
+                        selectedTapDouble
+                    )
+                    onSaveFullDisplay != null -> onSaveFullDisplay(
+                        selected,
+                        hideIssuerChecked,
+                        showPreviousChecked,
+                        selectedGroupSize,
+                        showIndividualChecked,
+                        selectedLabelDisplay,
+                        showThumbnailsChecked
+                    )
                     onSaveCardDisplay != null -> onSaveCardDisplay(
                         selected,
                         hideIssuerChecked,

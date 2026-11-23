@@ -14,20 +14,34 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
-fun HardwareEnrollmentDialog(inputKey: Any, busy: Boolean, result: String?, onSubmit: (CharArray) -> Unit, onDismiss: () -> Unit) {
+fun HardwareEnrollmentDialog(
+    inputKey: Any,
+    busy: Boolean,
+    result: String?,
+    onSubmit: (CharArray) -> Unit,
+    onDismiss: () -> Unit,
+    title: String = "Enroll hardware unlock",
+    primaryWarning: String = "Connect only the intended FIDO2 PRF-capable PC/SC key. This creates a credential on that key and REPLACES this data directory's local unlock record. Keep your vault password and a verified backup. Copies of an old record elsewhere are not revoked.",
+    secondaryWarning: String? = "Submitting locks the vault. Unlock and normal window close are blocked until completion. Do not force-quit. Cancellation or failure cannot undo an authenticator credential already created; inspect the result before retrying. You must unlock again afterwards.",
+    pinLabel: String = "FIDO PIN (optional; not OATH password)",
+    busyLabel: String = "Enrolling… Touch the key when prompted.",
+    submitLabel: String = "Lock and replace local enrollment",
+    cancelLabel: String = "Cancel",
+    doneLabel: String = "Return to unlock"
+) {
     var pin by remember(inputKey) { mutableStateOf("") }
-    AlertDialog(onDismissRequest = { if (!busy) { pin = ""; onDismiss() } }, title = { Text(text = "Enroll hardware unlock") },
+    AlertDialog(onDismissRequest = { if (!busy) { pin = ""; onDismiss() } }, title = { Text(text = title) },
         text = { Column {
-            Text(text = "Connect only the intended FIDO2 PRF-capable PC/SC key. This creates a credential on that key and REPLACES this data directory's local unlock record. Keep your vault password and a verified backup. Copies of an old record elsewhere are not revoked.")
-            Text(text = "Submitting locks the vault. Unlock and normal window close are blocked until completion. Do not force-quit. Cancellation or failure cannot undo an authenticator credential already created; inspect the result before retrying. You must unlock again afterwards.")
-            if (busy) Text(text = "Enrolling… Touch the key when prompted.")
+            Text(text = primaryWarning)
+            if (!secondaryWarning.isNullOrEmpty()) Text(text = secondaryWarning)
+            if (busy) Text(text = busyLabel)
             else if (result != null) Text(text = result)
             else OutlinedTextField(value = pin, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) pin = it },
-                singleLine = true, label = { Text(text = "FIDO PIN (optional; not OATH password)") }, visualTransformation = PasswordVisualTransformation())
+                singleLine = true, label = { Text(text = pinLabel) }, visualTransformation = PasswordVisualTransformation())
         } }, confirmButton = {
-            if (result != null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = "Return to unlock") }
+            if (result != null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = doneLabel) }
             else TextButton(enabled = !busy, onClick = {
                 val submitted = pin.toCharArray(); pin = ""; onSubmit(submitted)
-            }) { Text(text = "Lock and replace local enrollment") }
-        }, dismissButton = { if (!busy && result == null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = "Cancel") } })
+            }) { Text(text = submitLabel) }
+        }, dismissButton = { if (!busy && result == null) TextButton(onClick = { pin = ""; onDismiss() }) { Text(text = cancelLabel) } })
 }

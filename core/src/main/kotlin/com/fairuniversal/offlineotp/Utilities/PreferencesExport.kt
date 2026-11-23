@@ -199,16 +199,26 @@ object PreferencesExport {
         Setting(UI_SORT_MODE, Kind.STRING),
         Setting(UI_INACTIVITY_LOCK_SECONDS, Kind.INTEGER),
         Setting(UI_CARD_LAYOUT, Kind.STRING),
+        Setting(UI_LABEL_DISPLAY, Kind.STRING),
+        Setting(UI_LABEL_SIZE_SP, Kind.INTEGER),
         Setting(UI_TAG_FUNCTIONALITY, Kind.STRING),
         Setting(UI_HIDE_ISSUER, Kind.BOOLEAN),
         Setting(UI_SHOW_PREV_TOKEN, Kind.BOOLEAN),
         Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN),
+        Setting(UI_SHOW_THUMBNAILS, Kind.BOOLEAN),
+        Setting(UI_HIGHLIGHT_TOKEN, Kind.BOOLEAN),
+        Setting(UI_TAP_SINGLE, Kind.STRING),
+        Setting(UI_TAP_DOUBLE, Kind.STRING),
         Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
         Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
     )
 
     /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
     const val UI_CARD_LAYOUT = "ui_card_layout"
+    /** Desktop key for how card labels overflow (`TRUNCATE`, `SCROLL`, `MULTILINE`). */
+    const val UI_LABEL_DISPLAY = "ui_label_display"
+    /** Desktop key for explicit card label font size in SP (`0` = default, `12..24`). */
+    const val UI_LABEL_SIZE_SP = "ui_label_size_sp"
     /** Desktop key for the tag-matching rule (`OR`, `AND`, `SINGLE`). */
     const val UI_TAG_FUNCTIONALITY = "ui_tag_functionality"
     /** Desktop key for hiding issuer prefixes on cards until revealed. */
@@ -217,6 +227,14 @@ object PreferencesExport {
     const val UI_SHOW_PREV_TOKEN = "ui_show_prev_token"
     /** Desktop key for showing standard 30-second countdown rings on individual OTP cards. */
     const val UI_SHOW_INDIVIDUAL_TIMEOUTS = "ui_show_individual_timeouts"
+    /** Desktop key for showing issuer thumbnails / letter tiles on cards. */
+    const val UI_SHOW_THUMBNAILS = "ui_show_thumbnails"
+    /** Desktop key for highlighting OTP codes in their final seconds before rollover. */
+    const val UI_HIGHLIGHT_TOKEN = "ui_highlight_token"
+    /** Desktop key for the single-tap card gesture (`NOTHING`, `REVEAL`, `COPY`). */
+    const val UI_TAP_SINGLE = "ui_tap_single"
+    /** Desktop key for the double-tap card gesture (`NOTHING`, `REVEAL`, `COPY`). */
+    const val UI_TAP_DOUBLE = "ui_tap_double"
     /** Desktop key for explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets). */
     const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
     /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */

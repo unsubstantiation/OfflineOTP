@@ -490,7 +490,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedTokenGroupSize,
             controller::trySaveTokenGroupSize,
             controller::savedShowIndividualTimeouts,
-            controller::trySaveShowIndividualTimeouts
+            controller::trySaveShowIndividualTimeouts,
+            controller::savedLabelDisplay,
+            controller::trySaveLabelDisplay,
+            controller::savedShowThumbnails,
+            controller::trySaveShowThumbnails,
+            controller::savedLabelSizeSp,
+            controller::trySaveLabelSizeSp,
+            controller::savedHighlightToken,
+            controller::trySaveHighlightToken,
+            controller::savedTapSingle,
+            controller::trySaveTapSingle,
+            controller::savedTapDouble,
+            controller::trySaveTapDouble
         )
     }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
@@ -575,7 +587,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.savedHideIssuer(),
                 controller.savedShowPreviousToken(),
                 controller.savedTokenGroupSize(),
-                controller.savedShowIndividualTimeouts()
+                controller.savedShowIndividualTimeouts(),
+                controller.savedLabelDisplay(),
+                controller.savedShowThumbnails(),
+                controller.savedLabelSizeSp(),
+                controller.savedHighlightToken(),
+                controller.savedTapSingle(),
+                controller.savedTapDouble()
             )
         }
     }
@@ -1026,7 +1044,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         HardwareOathDialog(inputKey = request, labels = rows.map { it.label }, codes = rows.map { it.code }, counters = rows.map { it.counter },
             busy = request.busy, message = request.message,
             onSubmit = { pin, index -> hardwareOath.submit(request, pin, index, lifetime::checkActive) },
-            onDismiss = { hardwareOath.dismiss(request) })
+            onDismiss = { hardwareOath.dismiss(request) },
+            onCopyCode = { index ->
+                if (lifetime.checkActive() && !vault.isLocked && hardwareOath.pending === request) {
+                    val liveCode = hardwareOath.rows(request, System.currentTimeMillis()).getOrNull(index)?.code
+                    if (liveCode != null) {
+                        copyNotice = if (clipboard.copy(liveCode)) {
+                            "Security-key code copied — clears in 30s."
+                        } else {
+                            "The system clipboard is unavailable."
+                        }
+                    } else {
+                        copyNotice = "That security-key code expired. Calculate a fresh code."
+                    }
+                    revision++
+                }
+            })
     }
     if (showStorageLocation) StorageLocationDialog(directory = location.dataDirectory,
         filenames = listOf(location.vaultFilename, location.backupFilename, location.settingsFilename, location.hardwareFilename),
@@ -1241,14 +1274,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     plan.contains(PreferencesExport.UI_HIDE_ISSUER) ||
                     plan.contains(PreferencesExport.UI_SHOW_PREV_TOKEN) ||
                     plan.contains(PreferencesExport.UI_SPLIT_GROUP_SIZE) ||
-                    plan.contains(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS)
+                    plan.contains(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS) ||
+                    plan.contains(PreferencesExport.UI_LABEL_DISPLAY) ||
+                    plan.contains(PreferencesExport.UI_SHOW_THUMBNAILS) ||
+                    plan.contains(PreferencesExport.UI_LABEL_SIZE_SP) ||
+                    plan.contains(PreferencesExport.UI_HIGHLIGHT_TOKEN) ||
+                    plan.contains(PreferencesExport.UI_TAP_SINGLE) ||
+                    plan.contains(PreferencesExport.UI_TAP_DOUBLE)
                 ) {
                     presenter.setDisplaySettings(
                         controller.savedCardLayout(),
                         controller.savedHideIssuer(),
                         controller.savedShowPreviousToken(),
                         controller.savedTokenGroupSize(),
-                        controller.savedShowIndividualTimeouts()
+                        controller.savedShowIndividualTimeouts(),
+                        controller.savedLabelDisplay(),
+                        controller.savedShowThumbnails(),
+                        controller.savedLabelSizeSp(),
+                        controller.savedHighlightToken(),
+                        controller.savedTapSingle(),
+                        controller.savedTapDouble()
                     )
                 }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
@@ -1474,6 +1519,46 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 showPreviousToken,
                 tokenGroupSize,
                 showIndividual,
+                lifetime::checkActive,
+                presenter::setDisplaySettings
+            )
+            revision++
+        },
+        labelDisplay = layoutRequest.labelDisplay,
+        showThumbnails = layoutRequest.showThumbnails,
+        onSaveFullDisplay = { layout, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual, labelDisplay, showThumbnails ->
+            layoutSettings.submit(
+                layoutRequest,
+                layout,
+                hideIssuer,
+                showPreviousToken,
+                tokenGroupSize,
+                showIndividual,
+                labelDisplay,
+                showThumbnails,
+                lifetime::checkActive,
+                presenter::setDisplaySettings
+            )
+            revision++
+        },
+        labelSizeSp = layoutRequest.labelSizeSp,
+        highlightExpiringTokens = layoutRequest.highlightToken,
+        tapSingle = layoutRequest.tapSingle,
+        tapDouble = layoutRequest.tapDouble,
+        onSaveCompleteDisplay = { layout, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual, labelDisplay, showThumbnails, labelSizeSp, highlightToken, tapSingle, tapDouble ->
+            layoutSettings.submit(
+                layoutRequest,
+                layout,
+                hideIssuer,
+                showPreviousToken,
+                tokenGroupSize,
+                showIndividual,
+                labelDisplay,
+                showThumbnails,
+                labelSizeSp,
+                highlightToken,
+                tapSingle,
+                tapDouble,
                 lifetime::checkActive,
                 presenter::setDisplaySettings
             )
