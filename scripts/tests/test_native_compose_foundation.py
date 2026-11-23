@@ -562,8 +562,17 @@ class NativeComposeFoundationTest(unittest.TestCase):
         ios_vc = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')
         self.assertIn('onScanCamera = if (cameraSupported) { { onAction("qrCamera") } } else null', ios_vc)
         self.assertIn('onSaveCompleteDisplay =', ios_vc)
+        self.assertIn('onSaveSelection =', ios_vc)
+        self.assertIn('"usedTokensNotice" -> EntryDetailsDialog(', ios_vc)
+        self.assertIn('onViewDetails = if (dialog.title == "Edit entry" && rowValue("type") != "NOTE")', ios_vc)
         self.assertIn('customPeriodLabel = card.customPeriodLabel.ifEmpty { null }', screen)
         self.assertIn('labelSizeSp = state.labelSizeSp.takeIf { it > 0 }', screen)
+        self.assertIn('SharedVaultGlobalProgressBar(', screen)
+        self.assertIn('public static let hideGlobalTimeoutKey = "ui_hide_global_timeout"', ios_prefs)
+        self.assertIn('public static let tapToRevealTimeoutKey = "ui_tap_to_reveal_timeout"', ios_prefs)
+        self.assertIn('hideGlobalTimeout: store.hideGlobalTimeout', host)
+        self.assertIn('store.expireRevealedEntries(now: now)', host)
+        self.assertIn('openSurface("usedTokensNotice")', host)
 
 
 

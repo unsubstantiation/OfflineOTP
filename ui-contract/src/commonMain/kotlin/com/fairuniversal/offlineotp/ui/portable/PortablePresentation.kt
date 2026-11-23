@@ -149,7 +149,10 @@ data class PortableVaultState(
     val labelSizeSp: Int = 0,
     val highlightExpiringTokens: Boolean = true,
     val tapSingleName: String = "REVEAL",
-    val tapDoubleName: String = "NOTHING"
+    val tapDoubleName: String = "NOTHING",
+    val globalProgress: Float = 0f,
+    val globalExpiring: Boolean = false,
+    val hideGlobalTimeout: Boolean = false
 ) {
     val labelDisplay: PortableLabelDisplay
         get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplayName }
@@ -160,6 +163,47 @@ data class PortableVaultState(
 
     val tapDouble: PortableTapMode
         get() = PortableTapMode.fromName(tapDoubleName, fallback = PortableTapMode.NOTHING)
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingleName: String,
+        tapDoubleName: String
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingleName = tapSingleName,
+        tapDoubleName = tapDoubleName,
+        globalProgress = 0f,
+        globalExpiring = false,
+        hideGlobalTimeout = false
+    )
 
     constructor(
         tabs: List<PortableChip>,
@@ -451,9 +495,16 @@ enum class PortableTapMode {
 
     companion object {
         val LABEL_SIZE_OPTIONS: List<Int> = listOf(0, 14, 16, 18, 20, 24)
+        val REVEAL_TIMEOUT_OPTIONS: List<Int> = listOf(0, 15, 30, 60, 120)
 
         fun normalizeLabelSizeSp(value: Int): Int =
             if (value <= 0) 0 else value.coerceIn(12, 24)
+
+        fun normalizeRevealTimeoutSeconds(value: Int): Int =
+            if (value <= 0) 0 else value.coerceIn(5, 600)
+
+        fun revealTimeoutLabel(seconds: Int): String =
+            if (seconds <= 0) "Stay visible until hidden" else "${seconds}s"
 
         fun fromName(raw: String?, fallback: PortableTapMode = NOTHING): PortableTapMode {
             val normalized = raw?.trim()?.uppercase() ?: return fallback
@@ -461,6 +512,23 @@ enum class PortableTapMode {
         }
     }
 }
+
+/** Complete portable card layout and interaction configuration saved from [SharedCardLayoutDialog]. */
+data class PortableCardDisplaySelection(
+    val layout: PortableCardLayout,
+    val hideIssuer: Boolean,
+    val showPreviousToken: Boolean,
+    val tokenGroupSize: Int?,
+    val showIndividualCountdowns: Boolean,
+    val labelDisplay: PortableLabelDisplay,
+    val showThumbnails: Boolean,
+    val labelSizeSp: Int,
+    val highlightExpiringTokens: Boolean,
+    val tapSingle: PortableTapMode,
+    val tapDouble: PortableTapMode,
+    val hideGlobalTimeout: Boolean = false,
+    val tapToRevealTimeoutSeconds: Int = 0
+)
 
 /**
  * Typed, lossless FairEmail account/identity field for shared multi-identity editing across

@@ -94,6 +94,10 @@ class VaultProjection(
         }
         val all = entries.getEntries()
         val empty = emptyMessages(all.size, filter, strings)
+        val remainingMillis = 30_000L - Math.floorMod(nowMillis, 30_000L)
+        val globalProgress = if (all.isEmpty()) 0f else (remainingMillis.toFloat() / 30_000f).coerceIn(0f, 1f)
+        val globalExpiring = all.isNotEmpty() && appearance.expiringSeconds > 0 &&
+            remainingMillis <= appearance.expiringSeconds * 1000L
         return VaultUiState(
             filter = filter,
             categories = EntryListPresentation.Category.entries.map { category ->
@@ -109,7 +113,9 @@ class VaultProjection(
             cards = cards,
             emptyTitle = empty.first,
             emptyDescription = empty.second,
-            totalEntries = all.size
+            totalEntries = all.size,
+            globalProgress = globalProgress,
+            globalExpiring = globalExpiring
         )
     }
 

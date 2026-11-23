@@ -767,4 +767,99 @@ class VaultPresenterTest {
         assertNull(defaultTapActions.onCardTap)
         assertNull(defaultTapActions.onCardDoubleTap)
     }
+
+    @Test
+    fun globalRolloverProgressRevealTimeoutAndEntryMetadataDetailsRespectSecurityBoundaries() {
+        val emptyList = EntryList()
+        val emptyPresenter = VaultPresenter(
+            VaultProjection(emptyList, EntryListPresentation(emptyList)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS)
+        )
+        val emptyFrame = emptyPresenter.frame(10_000L)
+        assertEquals(0f, emptyFrame.globalProgress)
+        assertFalse(emptyFrame.globalExpiring)
+
+        val persisted = HashMap<Long, Boolean>()
+        val totpEntry = totp("GitHub", "alice@example.com").apply {
+            setHiddenLabel("super-secret-hidden-pw")
+            setTags(mutableListOf("work", "2fa"))
+        }
+        val list = EntryList().apply { addEntry(totpEntry) }
+        val presenter = VaultPresenter(
+            VaultProjection(list, EntryListPresentation(list)),
+            VaultFilter(combination = VaultFilterCombination.SEARCH_AND_TAGS),
+            revealChanged = { id, visible -> persisted[id] = visible; true }
+        )
+
+        val earlyFrame = presenter.frame(15_000L)
+        assertEquals(0.5f, earlyFrame.globalProgress)
+        assertFalse(earlyFrame.globalExpiring)
+        val expiringFrame = presenter.frame(25_000L)
+        assertTrue(expiringFrame.globalExpiring)
+
+        presenter.setDisplaySelection(
+            com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection(
+                layout = com.fairuniversal.offlineotp.ui.portable.PortableCardLayout.COMPACT,
+                hideIssuer = false,
+                showPreviousToken = true,
+                tokenGroupSize = 3,
+                showIndividualCountdowns = false,
+                labelDisplay = com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay.TRUNCATE,
+                showThumbnails = true,
+                labelSizeSp = 16,
+                highlightExpiringTokens = true,
+                tapSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL,
+                tapDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+                hideGlobalTimeout = true,
+                tapToRevealTimeoutSeconds = 15
+            )
+        )
+        assertTrue(presenter.appearance.hideGlobalTimeout)
+        assertEquals(15, presenter.tapToRevealTimeoutSeconds)
+
+        val cardId = presenter.frame(1_000L).cards.single().id
+        presenter.toggleReveal(cardId)
+        assertTrue(presenter.frame(15_999L).cards.single().revealed)
+        assertFalse("revealed card auto-hides once timeout elapses", presenter.frame(16_000L).cards.single().revealed)
+        assertEquals(false, persisted[cardId])
+
+        val otpDetails = com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails.format(totpEntry)!!
+        assertTrue(otpDetails.contains("Type: TOTP"))
+        assertTrue(otpDetails.contains("Issuer: GitHub"))
+        assertTrue(otpDetails.contains("Account: alice@example.com"))
+        assertTrue(otpDetails.contains("Algorithm: SHA1"))
+        assertTrue(otpDetails.contains("Digits: 6"))
+        assertTrue(otpDetails.contains("Period: 30s"))
+        assertTrue(otpDetails.contains("Tags: work, 2fa"))
+        assertFalse(otpDetails.contains("super-secret-hidden-pw"))
+
+        val sshEntry = com.fairuniversal.offlineotp.Database.Entry.sshKey(
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITestKey deploy@prod",
+            "-----BEGIN OPENSSH PRIVATE KEY-----\nSECRET_PRIVATE_MATERIAL",
+            "Prod Bastion",
+            "deploy",
+            mutableListOf(),
+            com.fairuniversal.offlineotp.Utilities.SshConnection.of("bastion.example.com", 2222, "ubuntu", "top-secret-ssh-pass")
+        )
+        val sshDetails = com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails.format(sshEntry)!!
+        assertTrue(sshDetails.contains("Type: Keys"))
+        assertTrue(sshDetails.contains("Key type: ssh-ed25519"))
+        assertTrue(sshDetails.contains("Host: bastion.example.com"))
+        assertTrue(sshDetails.contains("Port: 2222"))
+        assertTrue(sshDetails.contains("Username: ubuntu"))
+        assertTrue(sshDetails.contains("Private key: Stored"))
+        assertFalse(sshDetails.contains("SECRET_PRIVATE_MATERIAL"))
+        assertFalse(sshDetails.contains("top-secret-ssh-pass"))
+
+        val noteEntry = com.fairuniversal.offlineotp.Database.Entry().apply {
+            setType(com.fairuniversal.offlineotp.Database.Entry.OTPType.NOTE)
+            setLabel("Vault recovery")
+            setNote("recovery-words")
+        }
+        assertNull(com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails.format(noteEntry))
+
+        totpEntry.destroy()
+        sshEntry.destroy()
+        noteEntry.destroy()
+    }
 }

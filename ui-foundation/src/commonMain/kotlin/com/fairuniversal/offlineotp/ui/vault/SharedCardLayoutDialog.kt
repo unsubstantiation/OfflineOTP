@@ -16,6 +16,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
 import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay
 import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
@@ -55,7 +56,10 @@ fun SharedCardLayoutDialog(
         Boolean,
         PortableTapMode,
         PortableTapMode
-    ) -> Unit)? = null
+    ) -> Unit)? = null,
+    hideGlobalTimeout: Boolean? = null,
+    tapToRevealTimeoutSeconds: Int? = null,
+    onSaveSelection: ((PortableCardDisplaySelection) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
     var hideIssuerChecked by remember(inputKey) { mutableStateOf(hideIssuer == true) }
@@ -70,6 +74,10 @@ fun SharedCardLayoutDialog(
     var highlightExpiringChecked by remember(inputKey) { mutableStateOf(highlightExpiringTokens != false) }
     var selectedTapSingle by remember(inputKey) { mutableStateOf(tapSingle ?: PortableTapMode.REVEAL) }
     var selectedTapDouble by remember(inputKey) { mutableStateOf(tapDouble ?: PortableTapMode.NOTHING) }
+    var hideGlobalTimeoutChecked by remember(inputKey) { mutableStateOf(hideGlobalTimeout == true) }
+    var selectedRevealTimeoutSeconds by remember(inputKey) {
+        mutableStateOf(PortableTapMode.normalizeRevealTimeoutSeconds(tapToRevealTimeoutSeconds ?: 0))
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
@@ -123,7 +131,7 @@ fun SharedCardLayoutDialog(
                         )
                     }
                 }
-                if (onSaveDisplay != null || onSaveCardDisplay != null || onSaveFullDisplay != null || onSaveCompleteDisplay != null) {
+                if (onSaveDisplay != null || onSaveCardDisplay != null || onSaveFullDisplay != null || onSaveCompleteDisplay != null || onSaveSelection != null) {
                     Text(
                         text = "Token grouping",
                         modifier = Modifier.padding(top = 8.dp)
@@ -172,6 +180,25 @@ fun SharedCardLayoutDialog(
                         ForestTextAction(
                             text = if (selectedTapDouble == mode) "Selected: $label" else label,
                             onClick = { selectedTapDouble = mode }
+                        )
+                    }
+                }
+                if (tapToRevealTimeoutSeconds != null) {
+                    Text(
+                        text = "Auto-hide revealed codes",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    val timeoutOptions = buildList {
+                        addAll(PortableTapMode.REVEAL_TIMEOUT_OPTIONS)
+                        if (selectedRevealTimeoutSeconds !in PortableTapMode.REVEAL_TIMEOUT_OPTIONS) {
+                            add(selectedRevealTimeoutSeconds)
+                        }
+                    }.sorted()
+                    for (seconds in timeoutOptions) {
+                        val label = PortableTapMode.revealTimeoutLabel(seconds)
+                        ForestTextAction(
+                            text = if (selectedRevealTimeoutSeconds == seconds) "Selected: $label" else label,
+                            onClick = { selectedRevealTimeoutSeconds = seconds }
                         )
                     }
                 }
@@ -255,12 +282,45 @@ fun SharedCardLayoutDialog(
                         Text(text = "Highlight expiring codes")
                     }
                 }
+                if (hideGlobalTimeout != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { hideGlobalTimeoutChecked = !hideGlobalTimeoutChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = hideGlobalTimeoutChecked,
+                            onCheckedChange = { hideGlobalTimeoutChecked = it }
+                        )
+                        Text(text = "Hide global timeout bar")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
         confirmButton = {
             ForestTextAction(text = "Save", onClick = {
                 when {
+                    onSaveSelection != null -> onSaveSelection(
+                        PortableCardDisplaySelection(
+                            layout = selected,
+                            hideIssuer = hideIssuerChecked,
+                            showPreviousToken = showPreviousChecked,
+                            tokenGroupSize = selectedGroupSize,
+                            showIndividualCountdowns = showIndividualChecked,
+                            labelDisplay = selectedLabelDisplay,
+                            showThumbnails = showThumbnailsChecked,
+                            labelSizeSp = selectedLabelSizeSp,
+                            highlightExpiringTokens = highlightExpiringChecked,
+                            tapSingle = selectedTapSingle,
+                            tapDouble = selectedTapDouble,
+                            hideGlobalTimeout = hideGlobalTimeoutChecked,
+                            tapToRevealTimeoutSeconds = selectedRevealTimeoutSeconds
+                        )
+                    )
                     onSaveCompleteDisplay != null -> onSaveCompleteDisplay(
                         selected,
                         hideIssuerChecked,

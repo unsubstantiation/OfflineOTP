@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
 import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
 
 /** Save before applying to the presenter; stale/expired requests cannot change the current view. */
@@ -27,7 +28,11 @@ class DesktopLayoutSettings(
     private val readTapSingle: () -> PortableTapMode = { PortableTapMode.REVEAL },
     private val writeTapSingle: (PortableTapMode) -> Boolean = { true },
     private val readTapDouble: () -> PortableTapMode = { PortableTapMode.NOTHING },
-    private val writeTapDouble: (PortableTapMode) -> Boolean = { true }
+    private val writeTapDouble: (PortableTapMode) -> Boolean = { true },
+    private val readHideGlobalTimeout: () -> Boolean = { false },
+    private val writeHideGlobalTimeout: (Boolean) -> Boolean = { true },
+    private val readTapToRevealTimeout: () -> Int = { 0 },
+    private val writeTapToRevealTimeout: (Int) -> Boolean = { true }
 ) {
     class Request internal constructor(
         val current: Constants.CardLayouts,
@@ -40,7 +45,9 @@ class DesktopLayoutSettings(
         val labelSizeSp: Int = 0,
         val highlightToken: Boolean = true,
         val tapSingle: PortableTapMode = PortableTapMode.REVEAL,
-        val tapDouble: PortableTapMode = PortableTapMode.NOTHING
+        val tapDouble: PortableTapMode = PortableTapMode.NOTHING,
+        val hideGlobalTimeout: Boolean = false,
+        val tapToRevealTimeoutSeconds: Int = 0
     ) {
         var failed = false
             internal set
@@ -61,7 +68,9 @@ class DesktopLayoutSettings(
                 readLabelSizeSp(),
                 readHighlightToken(),
                 readTapSingle(),
-                readTapDouble()
+                readTapDouble(),
+                readHideGlobalTimeout(),
+                readTapToRevealTimeout()
             )
         }
     }
@@ -213,5 +222,37 @@ class DesktopLayoutSettings(
         )
         return true
     }
+
+    fun submit(
+        request: Request,
+        selection: PortableCardDisplaySelection,
+        active: () -> Boolean,
+        apply: (PortableCardDisplaySelection) -> Unit
+    ): Boolean {
+        if (!valid(request) || !active() || !valid(request)) return false
+        val resolvedLayout = Constants.CardLayouts.values()
+            .firstOrNull { it.name == selection.layout.name } ?: Constants.CardLayouts.DEFAULT
+        val resolvedLabelDisplay = Constants.LabelDisplay.values()
+            .firstOrNull { it.name == selection.labelDisplay.name } ?: Constants.LabelDisplay.TRUNCATE
+        val savedLayout = try { write(resolvedLayout) } catch (_: Exception) { false }
+        val savedHide = if (savedLayout) try { writeHideIssuer(selection.hideIssuer) } catch (_: Exception) { false } else false
+        val savedPrev = if (savedHide) try { writeShowPreviousToken(selection.showPreviousToken) } catch (_: Exception) { false } else false
+        val savedGroup = if (savedPrev) try { writeTokenGroupSize(selection.tokenGroupSize) } catch (_: Exception) { false } else false
+        val savedTimeouts = if (savedGroup) try { writeShowIndividualTimeouts(selection.showIndividualCountdowns) } catch (_: Exception) { false } else false
+        val savedLabel = if (savedTimeouts) try { writeLabelDisplay(resolvedLabelDisplay) } catch (_: Exception) { false } else false
+        val savedThumbs = if (savedLabel) try { writeShowThumbnails(selection.showThumbnails) } catch (_: Exception) { false } else false
+        val savedSize = if (savedThumbs) try { writeLabelSizeSp(selection.labelSizeSp) } catch (_: Exception) { false } else false
+        val savedHighlight = if (savedSize) try { writeHighlightToken(selection.highlightExpiringTokens) } catch (_: Exception) { false } else false
+        val savedSingle = if (savedHighlight) try { writeTapSingle(selection.tapSingle) } catch (_: Exception) { false } else false
+        val savedDouble = if (savedSingle) try { writeTapDouble(selection.tapDouble) } catch (_: Exception) { false } else false
+        val savedGlobal = if (savedDouble) try { writeHideGlobalTimeout(selection.hideGlobalTimeout) } catch (_: Exception) { false } else false
+        val savedRevealTimeout = if (savedGlobal) try { writeTapToRevealTimeout(selection.tapToRevealTimeoutSeconds) } catch (_: Exception) { false } else false
+        if (!active() || !valid(request)) return false
+        if (!savedRevealTimeout) { request.failed = true; return false }
+        pending = null
+        apply(selection)
+        return true
+    }
+
     private fun valid(request: Request) = !closed && !state.isLocked && pending === request
 }

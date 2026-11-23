@@ -543,12 +543,14 @@ class ComposeUiWiringTest(unittest.TestCase):
 
     def test_compose_artwork_uses_host_loaders_and_preserves_privacy(self):
         widgets = (UI_MAIN / "vault/VaultComponents.kt").read_text()
+        shared_artwork = (UI_FOUNDATION / "vault/VaultArtwork.kt").read_text()
         self.assertIn("appearance.showThumbnails && card.detailsVisible", widgets)
-        self.assertIn("remember(artwork, card.thumbnailName)", widgets)
-        self.assertIn("contentScale = ContentScale.Fit", widgets)
-        self.assertIn("contentDescription = null", widgets)
-        self.assertIn("if (image == null)", widgets)
-        self.assertIn("VaultLetterTile(", widgets)
+        self.assertIn("SharedIssuerArtwork(", widgets)
+        self.assertIn("remember(artwork, thumbnailName)", shared_artwork)
+        self.assertIn("contentScale = ContentScale.Fit", shared_artwork)
+        self.assertIn("contentDescription = null", shared_artwork)
+        self.assertIn("if (image == null)", shared_artwork)
+        self.assertIn("VaultLetterTile(", shared_artwork)
         seam = (UI_ANDROID / "vault/VaultComposeView.kt").read_text()
         self.assertIn("loader(name)?.asImageBitmap()", seam)
         desktop = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -1063,17 +1065,20 @@ class ComposeUiWiringTest(unittest.TestCase):
     def test_manual_thumbnail_picker_uses_catalog_and_host_artwork_without_live_mutation(self):
         picker = (UI_MAIN / "vault/ThumbnailPicker.kt").read_text()
         shared_picker = (UI_FOUNDATION / "vault/SharedThumbnailPickerDialog.kt").read_text()
+        shared_artwork = (UI_FOUNDATION / "vault/VaultArtwork.kt").read_text()
         self.assertIn("ThumbnailCatalog.NAMES", picker)
         self.assertIn("SharedThumbnailPickerContent(", picker)
         self.assertIn("SharedThumbnailPickerDialog(", picker)
-        self.assertIn("remember(artwork, name)", picker)
+        self.assertIn("SharedCatalogArtworkIcon(name = name, artwork = artwork)", shared_picker)
+        self.assertIn("remember(artwork, name)", shared_artwork)
         self.assertIn("ignoreCase = true", shared_picker)
         self.assertIn("LazyColumn(modifier = Modifier.height(240.dp))", shared_picker)
         self.assertNotIn("EntryEditor", picker)
         self.assertNotIn("EntryEditor", shared_picker)
         adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text()
         form = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text()
-        self.assertIn("artworkPicker =", adapter)
+        self.assertIn("artwork = artwork", adapter)
+        self.assertIn("artwork = artwork", form)
         self.assertIn("input = input.copy(thumbnail = chosen); pickingThumbnail = false", form)
         self.assertIn("{ pickingThumbnail = false }", form)
         host = (COMPOSE_HOST / "ComposeMain.kt").read_text()
@@ -1431,6 +1436,41 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("controller::savedTapSingle", desktop_host)
         self.assertIn("controller::savedTapDouble", desktop_host)
         self.assertIn("onSaveCompleteDisplay =", desktop_host)
+
+    def test_shared_artwork_global_progress_reveal_timeout_and_entry_details_parity(self):
+        self.assertFalse((UI_MAIN / "vault/VaultArtwork.kt").exists())
+        foundation_artwork = (UI_FOUNDATION / "vault/VaultArtwork.kt").read_text(encoding="utf-8")
+        self.assertIn("fun interface VaultArtwork", foundation_artwork)
+        self.assertIn("fun SharedIssuerArtwork(", foundation_artwork)
+        self.assertIn("fun SharedCatalogArtworkIcon(", foundation_artwork)
+
+        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8")
+        self.assertIn("fun SharedVaultGlobalProgressBar(", shared_components)
+
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("SharedVaultGlobalProgressBar(", vault_screen)
+        self.assertIn("SharedVaultGlobalProgressBar(", portable_screen)
+
+        shared_manual = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onViewDetails: (() -> Unit)? = null", shared_manual)
+        self.assertIn('ForestTextAction(text = "View details", onClick = viewDetails)', shared_manual)
+
+        main_activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("onViewEmailDetails = { published.perform(it.id, AndroidCardCommand.EMAIL_DETAILS) }", main_activity)
+
+        android_controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
+        self.assertIn("openManualEntryDetailsDialog(actual)", android_controller)
+
+        desktop_actions = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryActions.kt").read_text(encoding="utf-8")
+        self.assertIn("ENTRY_DETAILS", desktop_actions)
+        self.assertIn("fun openEntryDetails(", desktop_actions)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("entryActions.openEntryDetails(", desktop_host)
+        self.assertIn("controller::savedHideGlobalTimeout", desktop_host)
+        self.assertIn("controller::savedTapToRevealTimeoutSeconds", desktop_host)
+        self.assertIn("showUsedTokensNotice", desktop_host)
 
 
 if __name__ == "__main__":

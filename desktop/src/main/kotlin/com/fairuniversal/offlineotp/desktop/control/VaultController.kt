@@ -207,6 +207,21 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedHideGlobalTimeout(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_GLOBAL_TIMEOUT,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveHideGlobalTimeout(hideGlobal: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIDE_GLOBAL_TIMEOUT,
+            hideGlobal.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
     fun savedLabelDisplay(): Constants.LabelDisplay = try {
         Constants.LabelDisplay.valueOf(vault.preferences.getString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_DISPLAY,
@@ -303,6 +318,40 @@ class VaultController(private val vault: PasswordVault) {
         vault.preferences.putString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_DOUBLE,
             mode.name
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedTapToRevealTimeoutSeconds(): Int = try {
+        val raw = vault.preferences.getInt(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT,
+            0
+        )
+        com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(raw)
+    } catch (_: RuntimeException) { 0 }
+
+    fun trySaveTapToRevealTimeoutSeconds(seconds: Int): Boolean {
+        if (seconds != 0 && seconds !in 5..600) return false
+        return try {
+            vault.preferences.putInt(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT,
+                seconds
+            )
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedUsedTokensShown(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_USED_TOKENS_SHOWN,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveUsedTokensShown(shown: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_USED_TOKENS_SHOWN,
+            shown.toString()
         )
         true
     } catch (_: Exception) { false }

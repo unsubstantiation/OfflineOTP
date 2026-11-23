@@ -29,6 +29,7 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var hasVault = false
     @Published public private(set) var entries: [Entry] = []
     @Published private var sessionVisibility: [Entry: Bool] = [:]
+    private var revealedAtDates: [Entry: Date] = [:]
 
     public func isRevealed(_ entry: Entry) -> Bool {
         isUnlocked && (sessionVisibility[entry] ?? entry.detailsVisible)
@@ -139,12 +140,15 @@ public final class VaultStore: ObservableObject {
     public static let hideIssuerSettingKey = "ui_hide_issuer"
     public static let showPrevTokenSettingKey = "ui_show_prev_token"
     public static let showIndividualTimeoutsSettingKey = "ui_show_individual_timeouts"
+    public static let hideGlobalTimeoutSettingKey = "ui_hide_global_timeout"
     public static let showThumbnailsSettingKey = "ui_show_thumbnails"
     public static let highlightTokenSettingKey = "ui_highlight_token"
     public static let tapSingleSettingKey = "ui_tap_single"
     public static let tapDoubleSettingKey = "ui_tap_double"
+    public static let tapToRevealTimeoutSettingKey = "ui_tap_to_reveal_timeout"
     public static let splitGroupSizeSettingKey = "ui_split_group_size"
     public static let searchIncludesSettingKey = "ui_search_includes"
+    public static let usedTokensShownSettingKey = "ui_used_tokens_shown"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
 
@@ -157,11 +161,14 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var hideIssuer = false
     @Published public private(set) var showPreviousToken = true
     @Published public private(set) var showIndividualTimeouts = true
+    @Published public private(set) var hideGlobalTimeout = false
     @Published public private(set) var showThumbnails = true
     @Published public private(set) var highlightToken = true
     @Published public private(set) var tapSingle = "REVEAL"
     @Published public private(set) var tapDouble = "NOTHING"
+    @Published public private(set) var tapToRevealTimeoutSeconds = 0
     @Published public private(set) var tokenGroupSize = 3
+    @Published public private(set) var usedTokensDialogShown = false
     private var lastActivityDate = Date()
 
     private let vault: PasswordVault
@@ -210,6 +217,7 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.showPrevTokenSettingKey))
         self.showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
             settings.string(VaultStore.showIndividualTimeoutsSettingKey))
+        self.hideGlobalTimeout = settings.string(VaultStore.hideGlobalTimeoutSettingKey) == "true"
         self.showThumbnails = VaultStore.storedShowThumbnails(
             settings.string(VaultStore.showThumbnailsSettingKey))
         self.highlightToken = VaultStore.storedHighlightToken(
@@ -218,10 +226,13 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.tapSingleSettingKey), fallback: "REVEAL")
         self.tapDouble = VaultStore.storedTapMode(
             settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
+        self.tapToRevealTimeoutSeconds = VaultStore.storedRevealTimeoutSeconds(
+            settings.integer(VaultStore.tapToRevealTimeoutSettingKey))
         self.tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         self.searchIncludes = VaultStore.storedSearchIncludes(
             settings.string(VaultStore.searchIncludesSettingKey))
+        self.usedTokensDialogShown = settings.string(VaultStore.usedTokensShownSettingKey) == "true"
         // Both are read before the first unlock: the lock screen has to know whether to offer the
         // quick unlock.
         self.biometricUnlockEnabled =
@@ -326,6 +337,7 @@ public final class VaultStore: ObservableObject {
     /// setting across a lock too).
     public func lock() {
         sessionVisibility.removeAll()
+        revealedAtDates.removeAll()
         if isUnlocked, !key.isEmpty {
             save()
         }
@@ -489,6 +501,7 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.showPrevTokenSettingKey))
         showIndividualTimeouts = VaultStore.storedShowIndividualTimeouts(
             settings.string(VaultStore.showIndividualTimeoutsSettingKey))
+        hideGlobalTimeout = settings.string(VaultStore.hideGlobalTimeoutSettingKey) == "true"
         showThumbnails = VaultStore.storedShowThumbnails(
             settings.string(VaultStore.showThumbnailsSettingKey))
         highlightToken = VaultStore.storedHighlightToken(
@@ -497,10 +510,13 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.tapSingleSettingKey), fallback: "REVEAL")
         tapDouble = VaultStore.storedTapMode(
             settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
+        tapToRevealTimeoutSeconds = VaultStore.storedRevealTimeoutSeconds(
+            settings.integer(VaultStore.tapToRevealTimeoutSettingKey))
         tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         searchIncludes = VaultStore.storedSearchIncludes(
             settings.string(VaultStore.searchIncludesSettingKey))
+        usedTokensDialogShown = settings.string(VaultStore.usedTokensShownSettingKey) == "true"
         lastActivityDate = Date()
     }
 
@@ -564,6 +580,11 @@ public final class VaultStore: ObservableObject {
     private static func storedTokenGroupSize(_ raw: Int?) -> Int {
         guard let raw, [0, 2, 3].contains(raw) else { return 3 }
         return raw
+    }
+
+    private static func storedRevealTimeoutSeconds(_ raw: Int?) -> Int {
+        guard let raw, raw > 0 else { return 0 }
+        return min(max(raw, 5), 600)
     }
 
     private static func storedSearchIncludes(_ raw: String?) -> Set<SearchInclude> {
@@ -640,6 +661,28 @@ public final class VaultStore: ObservableObject {
     public func setShowIndividualTimeouts(_ show: Bool) {
         showIndividualTimeouts = show
         settings.setString(VaultStore.showIndividualTimeoutsSettingKey, show ? "true" : "false")
+    }
+
+    /// Persists whether the global 30-second rollover progress bar is hidden (`ui_hide_global_timeout`).
+    public func setHideGlobalTimeout(_ hidden: Bool) {
+        hideGlobalTimeout = hidden
+        settings.setString(VaultStore.hideGlobalTimeoutSettingKey, hidden ? "true" : "false")
+    }
+
+    /// Persists the auto-hide delay for revealed cards (`0` = stay visible until hidden).
+    public func setTapToRevealTimeoutSeconds(_ seconds: Int) {
+        let resolved = VaultStore.storedRevealTimeoutSeconds(seconds)
+        tapToRevealTimeoutSeconds = resolved
+        if resolved == 0 {
+            revealedAtDates.removeAll()
+        }
+        settings.setInteger(VaultStore.tapToRevealTimeoutSettingKey, resolved)
+    }
+
+    /// Persists whether the one-time token-usage sort notice has been shown (`ui_used_tokens_shown`).
+    public func setUsedTokensDialogShown(_ shown: Bool) {
+        usedTokensDialogShown = shown
+        settings.setString(VaultStore.usedTokensShownSettingKey, shown ? "true" : "false")
     }
 
     /// Persists explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets).
@@ -877,13 +920,19 @@ public final class VaultStore: ObservableObject {
         }
         message = nil
         var visibility: [Entry: Bool] = [:]
+        var nextRevealedDates: [Entry: Date] = [:]
         for (index, entry) in proposed.enumerated() {
-            if entries.contains(entry) { visibility[entry] = isRevealed(entry) }
-            else if proposed.count == entries.count, entries.indices.contains(index), !proposed.contains(entries[index]) {
-                visibility[entry] = isRevealed(entries[index])
+            if entries.contains(entry) {
+                visibility[entry] = isRevealed(entry)
+                if let openedAt = revealedAtDates[entry] { nextRevealedDates[entry] = openedAt }
+            } else if proposed.count == entries.count, entries.indices.contains(index), !proposed.contains(entries[index]) {
+                let previous = entries[index]
+                visibility[entry] = isRevealed(previous)
+                if let openedAt = revealedAtDates[previous] { nextRevealedDates[entry] = openedAt }
             }
         }
         sessionVisibility = visibility
+        revealedAtDates = nextRevealedDates
         entries = proposed
         return true
     }
@@ -994,9 +1043,12 @@ public final class VaultStore: ObservableObject {
             var proposed = entries
             proposed[index].setDetailsVisible(true)
             let previousOverride = sessionVisibility[current]
+            let previousDate = revealedAtDates[current]
             sessionVisibility[current] = true
+            revealedAtDates[current] = Date()
             guard commit(proposed) else {
                 sessionVisibility[current] = previousOverride
+                revealedAtDates[current] = previousDate
                 return false
             }
             return true
@@ -1004,9 +1056,34 @@ public final class VaultStore: ObservableObject {
         var proposed = entries
         proposed[index].setDetailsVisible(false)
         sessionVisibility[current] = false
+        revealedAtDates.removeValue(forKey: current)
         if commit(proposed) { return true }
         entries[index].setDetailsVisible(false)
         return false
+    }
+
+    /// Re-masks revealed entries whose configured reveal timeout (`ui_tap_to_reveal_timeout`) elapsed.
+    @discardableResult
+    public func expireRevealedEntries(now: Date = Date()) -> Bool {
+        guard isUnlocked, tapToRevealTimeoutSeconds > 0, !entries.isEmpty else { return false }
+        let timeout = TimeInterval(tapToRevealTimeoutSeconds)
+        var changed = false
+        for index in entries.indices {
+            let entry = entries[index]
+            guard isRevealed(entry) else {
+                revealedAtDates.removeValue(forKey: entry)
+                continue
+            }
+            guard let openedAt = revealedAtDates[entry] else {
+                revealedAtDates[entry] = now
+                continue
+            }
+            if now.timeIntervalSince(openedAt) >= timeout {
+                _ = setDetailsVisible(at: index, false)
+                changed = true
+            }
+        }
+        return changed
     }
 
     // MARK: - Backups, restores and links

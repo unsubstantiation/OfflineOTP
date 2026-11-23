@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.runtime.Composable
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
 import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay
 import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
@@ -40,7 +41,10 @@ fun CardLayoutDialog(
         Boolean,
         PortableTapMode,
         PortableTapMode
-    ) -> Unit)? = null
+    ) -> Unit)? = null,
+    hideGlobalTimeout: Boolean? = null,
+    tapToRevealTimeoutSeconds: Int? = null,
+    onSaveSelection: ((PortableCardDisplaySelection) -> Unit)? = null
 ) {
     val layouts = Constants.CardLayouts.values()
     val labelModes = Constants.LabelDisplay.values()
@@ -113,6 +117,9 @@ fun CardLayoutDialog(
                     doubleTap
                 )
             }
-        } else null
+        } else null,
+        hideGlobalTimeout = hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
+        onSaveSelection = onSaveSelection
     )
 }

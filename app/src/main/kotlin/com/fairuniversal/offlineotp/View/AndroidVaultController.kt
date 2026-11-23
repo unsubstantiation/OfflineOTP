@@ -307,6 +307,31 @@ class AndroidVaultController(
         }
     }
 
+    private fun openManualEntryDetailsDialog(entry: Entry): Boolean {
+        if (!composeRevealed(entry)) return false
+        val text = com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails.format(entry) ?: return false
+        val activity = context as? Activity ?: return false
+        activePasswordDialog?.dismiss()
+        activePasswordDialog = null
+        val titleSuffix = entry.getIssuer().ifBlank { entry.getLabel() }
+        val title = if (titleSuffix.isNotBlank()) "Details — $titleSuffix" else "Details"
+        val pending = object { var host: ComposeDialogHost? = null }
+        val view = EntryDetailsComposeView(
+            activity = activity,
+            title = title,
+            body = text,
+            confirmLabel = context.getString(android.R.string.ok),
+            onDismiss = {
+                pending.host?.dismiss()
+                if (activePasswordDialog === pending.host) activePasswordDialog = null
+            }
+        )
+        pending.host = view
+        activePasswordDialog = view
+        view.show()
+        return true
+    }
+
     private fun openPasswordDetailsDialog(entry: Entry): Boolean {
         if (!entry.isPassword() || !composeRevealed(entry)) return false
         val activity = context as? Activity ?: return false
@@ -637,6 +662,15 @@ class AndroidVaultController(
                 }
             }) else null,
             onManageTags = { manageTagsFromComposeEditor(view, target) },
+            onViewDetails = if (com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails.supports(entry)) ({
+                synchronized(VaultSession.MutationLock) {
+                    val actual = target.resolve(entries, VaultSession.generation())
+                    if (actual != null && encryptionKey != null &&
+                        VaultSession.getKey() === encryptionKey && composeRevealed(actual)) {
+                        openManualEntryDetailsDialog(actual)
+                    }
+                }
+            }) else null,
             onDelete = { deleteFromComposeEditor(view, target) }
         ) { input ->
             synchronized(VaultSession.MutationLock) {

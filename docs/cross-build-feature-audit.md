@@ -183,6 +183,21 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   across camera and image handoffs while still canceling staged batches on user dismiss or vault
   lock.
 
+- **Shared `:ui-foundation` artwork contract, global 30s rollover bar, reveal auto-hide timeout,
+  OTP/SSH `View details`, Android inline `Connection details`, and token-usage sort notice parity**:
+  Consolidated `VaultArtwork`, `SharedIssuerArtwork`, and `SharedCatalogArtworkIcon` into
+  `:ui-foundation`; added `SharedVaultGlobalProgressBar`, `PortableCardDisplaySelection`,
+  `ui_hide_global_timeout`, and `ui_tap_to_reveal_timeout` across `:ui-contract`, `:ui-foundation`,
+  `:ui-model`, `:ui`, Desktop (`PreferencesExport.kt`, `VaultController.kt`, `DesktopLayoutSettings.kt`,
+  `ComposeMain.kt`), and iOS (`PreferencesExport.swift`, `VaultStore.swift`,
+  `PortableVaultViewController.kt`, `ComposeVaultHost.swift`), expanding both Desktop and iOS
+  portable preference catalogs to 17 mirrored keys; added `EntryMetadataDetails` (`:core`) and
+  `onViewDetails` (`View details` -> `EntryDetailsDialog`) to `SharedManualEntryDialog` /
+  `ManualEntryDialog` for revealed OTP and SSH-key entries across Android, Desktop, and iOS; wired
+  inline `onViewEmailDetails` on Android `VaultComposeView`; and added one-time `Token usage`
+  sort notices (`ui_used_tokens_shown`) on Desktop and iOS when selecting `Last used` or `Most used`
+  sort.
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

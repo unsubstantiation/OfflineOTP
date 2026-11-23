@@ -550,6 +550,24 @@ fun CountdownRing(progress: Float, expiring: Boolean, diameter: Dp) {
     }
 }
 
+/** Shared 30-second vault rollover progress bar across Android, Desktop and iOS. */
+@Composable
+fun SharedVaultGlobalProgressBar(
+    progress: Float,
+    expiring: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val clamped = progress.coerceIn(0f, 1f)
+    val barColor = if (expiring) ForestPalette.warning else ForestPalette.otpAmber
+    Canvas(modifier = modifier.fillMaxWidth().height(3.dp)) {
+        drawRect(color = ForestPalette.otpAmberMuted, size = size)
+        drawRect(
+            color = barColor,
+            size = Size(size.width * clamped, size.height)
+        )
+    }
+}
+
 /** Shared circular initial tile used when an entry has no resolved brand mark. */
 @Composable
 fun VaultLetterTile(seed: String, title: String, sizeDp: Float) {

@@ -9091,9 +9091,11 @@ fun main() {
             expect(collectorField.get(activity) == null && !awaitingField.getBoolean(activity),
                 { "onVaultLocked did not clear migrationCollector and awaitingMigrationQr" })
 
-            // Verify PortableTapMode and 15-key desktop preferences catalog parity.
-            expect(PreferencesExport.desktopCatalog.size == 15,
-                { "expected 15 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            // Verify PortableTapMode, reveal-timeout normalization, and 17-key desktop preferences catalog parity.
+            expect(PreferencesExport.desktopCatalog.size == 17,
+                { "expected 17 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            expect(PreferencesExport.isDeviceBound(PreferencesExport.UI_USED_TOKENS_SHOWN),
+                { "UI_USED_TOKENS_SHOWN must be listed in neverExported" })
             expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName("copy") ==
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
                 { "expected COPY tap mode" })
@@ -9102,6 +9104,11 @@ fun main() {
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(7) == 12 &&
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(99) == 24,
                 { "unexpected label size normalization" })
+            expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(0) == 0 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(30) == 30 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(2) == 5 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(999) == 600,
+                { "unexpected reveal timeout normalization" })
         } finally {
             adapter.lockEntries()
             VaultSession.lock()

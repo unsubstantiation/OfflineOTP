@@ -32,12 +32,14 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `PortableEmailPasswordDraft`, `PortableEmailConnectionDraft`, `PortableEmailIdentityDraft`,
   `PortableEmailSettingsDraft`, `PortableEntryDraft`, `PortableEntryDragBounds`,
   `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
-  `PortableLabelDisplay`, `PortableInputBounds`, and `AutoLockOptions`:
+  `PortableLabelDisplay`, `PortableTapMode`, `PortableCardDisplaySelection`, `PortableInputBounds`,
+  and `AutoLockOptions`:
   strings, numbers and booleans only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultScreen`,
-  `SharedVaultToolsDialog`, `SharedVaultComponents`
+  `SharedVaultToolsDialog`, `VaultArtwork` (`SharedIssuerArtwork`, `SharedCatalogArtworkIcon`),
+  `SharedVaultComponents`
   (`SharedVaultFilterHeader`, `SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`,
-  `SharedVaultTab`, `SharedVaultTagChip`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
+  `SharedVaultTab`, `SharedVaultTagChip`, `SharedVaultGlobalProgressBar`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
   dialogs/forms consumed across Android, Desktop, and iOS (`AboutDialog`, `AutoLockDialog`,
   `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`, `EntryConfirmationDialog`,
   `CheckboxConfirmationDialog`, `SharedEntryPinDialog`, `EntryCounterDialog`, `EntryDetailsDialog`,

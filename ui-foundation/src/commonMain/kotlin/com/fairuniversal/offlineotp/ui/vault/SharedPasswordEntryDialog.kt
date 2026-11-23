@@ -35,6 +35,7 @@ fun SharedPasswordEntryDialog(
     maxFieldChars: Int = PortableInputBounds.MAX_PASSWORD_FIELD_CHARS,
     errorText: String? = null,
     thumbnailNames: List<String> = emptyList(),
+    artwork: VaultArtwork? = null,
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
     onManageTags: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null,
@@ -238,6 +239,7 @@ fun SharedPasswordEntryDialog(
             selected = input.thumbnail,
             catalogNames = thumbnailNames,
             unchangedLabel = "Keep current artwork",
+            artwork = artwork,
             onSelect = { chosen ->
                 input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
                 pickingThumbnail = false
