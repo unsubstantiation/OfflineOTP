@@ -210,7 +210,20 @@ private fun RenderSharedSurface(
             onConfirm = ::confirm,
             onDismiss = onDismiss
         )
-        "delete", "thunderbirdConfirm" -> EntryConfirmationDialog(
+        "delete" -> SharedVaultEntryDialog(
+            kind = PortableEntryDialogKind.DELETE,
+            entryId = rowValue("entryId").toLongOrNull() ?: 0L,
+            inputKey = dialogKey,
+            failed = false,
+            onDismiss = onDismiss,
+            onConfirm = ::confirm,
+            onPinSubmit = {},
+            deleteTitle = dialog.title,
+            deleteMessage = row("info")?.title ?: dialog.message,
+            deleteConfirmLabel = dialog.confirmLabel,
+            cancelLabel = dialog.dismissLabel
+        )
+        "thunderbirdConfirm" -> EntryConfirmationDialog(
             title = dialog.title,
             message = row("info")?.title ?: dialog.message,
             confirmLabel = dialog.confirmLabel,
@@ -385,11 +398,19 @@ private fun RenderSharedSurface(
                 }
             )
         }
-        "usedTokensNotice" -> EntryDetailsDialog(
+        "usedTokensNotice" -> HideableDialog(
+            inputKey = dialogKey,
             title = dialog.title,
-            body = dialog.message,
-            confirmLabel = dialog.dismissLabel.ifEmpty { "OK" },
-            onDismiss = onDismiss
+            message = dialog.message,
+            dontShowAgainLabel = row("dontShowAgain")?.title ?: "Don't show this message again",
+            confirmLabel = dialog.confirmLabel.ifEmpty { dialog.dismissLabel.ifEmpty { "OK" } },
+            initialHidden = rowValue("dontShowAgain") == "true" || row("dontShowAgain")?.checked == true,
+            onHiddenChanged = { hidden ->
+                surfaceActions.change("dontShowAgain", if (hidden) "true" else "false")
+            },
+            onDismiss = {
+                if (dialog.showConfirm) confirm() else onDismiss()
+            }
         )
         "passwordImportChoice" -> {
             val count = rowValue("previewCount").toIntOrNull()

@@ -230,6 +230,7 @@ APP_SOURCES=(
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryDetailsDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/HideableDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedEntryPinDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedVaultEntryDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/TagsDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EntryPinDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt"

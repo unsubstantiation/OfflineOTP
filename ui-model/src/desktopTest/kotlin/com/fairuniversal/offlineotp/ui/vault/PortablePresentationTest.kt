@@ -402,4 +402,52 @@ class PortablePresentationTest {
         assertEquals(null, com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse("<!DOCTYPE foo><vector/>"))
         assertEquals(null, com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse("<svg/>"))
     }
+
+    @Test
+    fun portableVaultStateCarriesUnifiedToolGroupsAndSharedDialogContracts() {
+        val state22 = PortableVaultState(
+            listOf(PortableChip("OTP", 1, true)),
+            "",
+            emptyList(),
+            false,
+            "Any tag",
+            listOf(card(revealed = false)),
+            "Order",
+            "",
+            false,
+            "1 entries",
+            emptyList(),
+            "TRUNCATE",
+            true,
+            0,
+            true,
+            "REVEAL",
+            "NOTHING",
+            0.5f,
+            false,
+            false,
+            0,
+            false
+        )
+        assertTrue(state22.toolGroups.isEmpty())
+
+        val item = com.fairuniversal.offlineotp.ui.portable.PortableToolItem("about", "About OfflineOTP")
+        assertTrue(item.enabled && item.interactive)
+        assertEquals("", item.detail)
+        val grouped = state22.copy(
+            toolGroups = listOf(
+                com.fairuniversal.offlineotp.ui.portable.PortableToolGroup("About", listOf(item))
+            )
+        )
+        assertEquals(1, grouped.toolGroups.size)
+        assertEquals("about", grouped.toolGroups.single().items.single().key)
+
+        assertEquals(
+            listOf("PIN", "COUNTER", "DELETE"),
+            com.fairuniversal.offlineotp.ui.portable.PortableEntryDialogKind.values().map { it.name }
+        )
+        val libs = com.fairuniversal.offlineotp.ui.portable.PortableLibraryCatalog.bundled
+        assertTrue(libs.size >= 6)
+        assertTrue(libs.all { it.name.isNotBlank() && it.license.isNotBlank() })
+    }
 }

@@ -33,17 +33,18 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `PortableEmailSettingsDraft`, `PortableEntryDraft`, `PortableEntryDragBounds`,
   `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
   `PortableLabelDisplay`, `PortableTapMode`, `PortableCardDisplaySelection`, `PortableInputBounds`,
-  `PortableThumbnailAssets`, `PortableVectorDocument`, and `AutoLockOptions`:
+  `PortableThumbnailAssets`, `PortableVectorDocument`, `PortableToolItem`, `PortableToolGroup`,
+  `PortableEntryDialogKind`, `PortableLibraryNotice`, `PortableLibraryCatalog`, and `AutoLockOptions`:
   strings, numbers, booleans, and toolkit-free vector geometry only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultScreen`,
-  `SharedVaultToolsDialog`, `VaultArtwork` (`SharedIssuerArtwork`, `SharedCatalogArtworkIcon`),
+  `SharedVaultToolsBar`, `SharedVaultToolsDialog`, `SharedVaultEntryDialog`, `VaultArtwork` (`SharedIssuerArtwork`, `SharedCatalogArtworkIcon`),
   `SharedVectorArtwork` (`BundledVectorVaultArtwork`, `SharedVectorBadge`, `SharedVectorCanvas`),
   `SharedVaultComponents`
   (`SharedVaultFilterHeader`, `SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`,
   `SharedVaultTab`, `SharedVaultTagChip`, `SharedVaultGlobalProgressBar`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose
   dialogs/forms consumed across Android, Desktop, and iOS (`AboutDialog`, `AutoLockDialog`,
   `PasswordChangeDialog`, `BiometricEnableDialog`, `PreferencesImportDialog`, `EntryConfirmationDialog`,
-  `CheckboxConfirmationDialog`, `SharedEntryPinDialog`, `EntryCounterDialog`, `EntryDetailsDialog`,
+  `CheckboxConfirmationDialog`, `SharedEntryPinDialog`, `SharedVaultEntryDialog`, `EntryCounterDialog`, `EntryDetailsDialog`,
   `TagsDialog`, `HideableDialog`, `MultiChoiceSelectionDialog`, `QrCodeDialog`, `EntryCopyDialog`,
   `EncryptedExportDialog`, `EncryptedRestoreDialog`, `OpenPgpExportDialog`, `OpenPgpImportDialog`,
   `EmailImportDialog`, `LinScpExportDialog`, `LinScpImportDialog`, `UriImportDialog`,

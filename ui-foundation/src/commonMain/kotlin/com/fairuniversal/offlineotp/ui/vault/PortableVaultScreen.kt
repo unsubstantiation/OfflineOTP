@@ -126,10 +126,12 @@ fun PortableVaultScreen(
                 horizontalPaddingDp = 12,
                 verticalPaddingDp = 8,
                 trailingActions = {
-                    ForestTextAction("Add", onClick = { onTool("add") }, contentDescription = "Add an entry")
-                    ForestTextAction("Sort", onClick = { onTool("sort") }, contentDescription = "Sort entries")
-                    ForestTextAction("Import", onClick = { onTool("backups") }, contentDescription = "Backups and links")
-                    ForestTextAction("Settings", onClick = { onTool("settings") }, contentDescription = "Settings")
+                    if (state.toolGroups.isEmpty()) {
+                        ForestTextAction("Add", onClick = { onTool("add") }, contentDescription = "Add an entry")
+                        ForestTextAction("Sort", onClick = { onTool("sort") }, contentDescription = "Sort entries")
+                        ForestTextAction("Import", onClick = { onTool("backups") }, contentDescription = "Backups and links")
+                        ForestTextAction("Settings", onClick = { onTool("settings") }, contentDescription = "Settings")
+                    }
                     ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
                 }
             )
@@ -137,6 +139,19 @@ fun PortableVaultScreen(
                 SharedVaultGlobalProgressBar(
                     progress = state.globalProgress,
                     expiring = state.highlightExpiringTokens && state.globalExpiring
+                )
+            }
+            if (state.toolGroups.isNotEmpty()) {
+                SharedVaultToolsBar(
+                    addLabel = "+ Add",
+                    onAdd = { onTool("add") },
+                    toolsLabel = "Tools",
+                    closeLabel = "Close",
+                    groups = state.toolGroups,
+                    onSelectTool = onTool,
+                    horizontalPaddingDp = 12,
+                    addContentDescription = "Add an entry",
+                    toolsContentDescription = "Tools and settings"
                 )
             }
             SharedVaultFilterHeader(

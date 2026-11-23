@@ -39,19 +39,30 @@ fun SharedVaultToolsBar(
     toolsLabel: String,
     closeLabel: String,
     groups: List<PortableToolGroup>,
-    onSelectTool: (String) -> Unit
+    onSelectTool: (String) -> Unit,
+    horizontalPaddingDp: Int = 16,
+    addContentDescription: String? = null,
+    toolsContentDescription: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     val nonEmptyGroups = remember(groups) { groups.filter { it.items.isNotEmpty() } }
-    Row(modifier = Modifier.padding(horizontal = 16.dp).horizontalScroll(rememberScrollState())) {
+    Row(modifier = Modifier.padding(horizontal = horizontalPaddingDp.dp).horizontalScroll(rememberScrollState())) {
         onAdd?.let { add ->
-            ForestTextAction(text = addLabel, onClick = {
-                expanded = false
-                add()
-            })
+            ForestTextAction(
+                text = addLabel,
+                onClick = {
+                    expanded = false
+                    add()
+                },
+                contentDescription = addContentDescription
+            )
         }
         if (nonEmptyGroups.isNotEmpty()) {
-            ForestTextAction(text = toolsLabel, onClick = { expanded = true })
+            ForestTextAction(
+                text = toolsLabel,
+                onClick = { expanded = true },
+                contentDescription = toolsContentDescription
+            )
         }
     }
     if (expanded && nonEmptyGroups.isNotEmpty()) {

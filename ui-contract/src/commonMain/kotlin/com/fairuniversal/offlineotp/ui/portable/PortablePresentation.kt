@@ -158,7 +158,8 @@ data class PortableVaultState(
     val globalExpiring: Boolean = false,
     val hideGlobalTimeout: Boolean = false,
     val customThumbnailSizeDp: Int = 0,
-    val focusSearchOnStart: Boolean = false
+    val focusSearchOnStart: Boolean = false,
+    val toolGroups: List<PortableToolGroup> = emptyList()
 ) {
     val labelDisplay: PortableLabelDisplay
         get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplayName }
@@ -169,6 +170,55 @@ data class PortableVaultState(
 
     val tapDouble: PortableTapMode
         get() = PortableTapMode.fromName(tapDoubleName, fallback = PortableTapMode.NOTHING)
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingleName: String,
+        tapDoubleName: String,
+        globalProgress: Float,
+        globalExpiring: Boolean,
+        hideGlobalTimeout: Boolean,
+        customThumbnailSizeDp: Int,
+        focusSearchOnStart: Boolean
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingleName = tapSingleName,
+        tapDoubleName = tapDoubleName,
+        globalProgress = globalProgress,
+        globalExpiring = globalExpiring,
+        hideGlobalTimeout = hideGlobalTimeout,
+        customThumbnailSizeDp = customThumbnailSizeDp,
+        focusSearchOnStart = focusSearchOnStart,
+        toolGroups = emptyList()
+    )
 
     constructor(
         tabs: List<PortableChip>,
@@ -818,11 +868,81 @@ data class PortableToolItem(
     val value: String = "",
     val enabled: Boolean = true,
     val interactive: Boolean = true
-)
+) {
+    constructor(key: String, label: String) : this(
+        key = key,
+        label = label,
+        detail = "",
+        value = "",
+        enabled = true,
+        interactive = true
+    )
+}
 
 /** A titled section of secondary vault tools (Import, Backup & export, Settings). */
 data class PortableToolGroup(
     val title: String,
     val items: List<PortableToolItem>
 )
+
+/** Portable entry-action dialog kind shared across Android, Desktop and iOS. */
+enum class PortableEntryDialogKind {
+    PIN,
+    COUNTER,
+    DELETE
+}
+
+/** Open-source component and license notice rendered in the shared About dialog's Libraries tab. */
+data class PortableLibraryNotice(
+    val name: String,
+    val license: String,
+    val scope: String = ""
+)
+
+/** Toolkit-free catalog of third-party open-source dependencies across OfflineOTP's shared and native layers. */
+object PortableLibraryCatalog {
+    val bundled: List<PortableLibraryNotice> = listOf(
+        PortableLibraryNotice(
+            name = "Kotlin Standard Library & kotlinx-coroutines",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS"
+        ),
+        PortableLibraryNotice(
+            name = "JetBrains Compose Multiplatform & AndroidX Compose",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS"
+        ),
+        PortableLibraryNotice(
+            name = "Bouncy Castle Cryptographic APIs",
+            license = "MIT License",
+            scope = "Android, Desktop (Argon2id, AES-GCM, PBKDF2)"
+        ),
+        PortableLibraryNotice(
+            name = "rPGP & Rust Crypto crates",
+            license = "MIT OR Apache License 2.0",
+            scope = "Android, Desktop, iOS (in-app OpenPGP)"
+        ),
+        PortableLibraryNotice(
+            name = "Mozilla UniFFI",
+            license = "MPL 2.0",
+            scope = "Android, Desktop, iOS (OpenPGP FFI bindings)"
+        ),
+        PortableLibraryNotice(
+            name = "ZXing (Zebra Crossing)",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS (QR matrix encoding & decoding)"
+        ),
+        PortableLibraryNotice(
+            name = "Yubico YubiKit",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop (OATH & FIDO2 hardware keys)"
+        ),
+        PortableLibraryNotice(
+            name = "usb4java & Java Native Access (JNA)",
+            license = "MIT License / Apache License 2.0",
+            scope = "Desktop (USB CCID/CTAP & native bindings)"
+        )
+    )
+}
+
 

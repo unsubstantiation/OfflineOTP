@@ -81,6 +81,7 @@ import com.fairuniversal.offlineotp.desktop.control.DesktopEntryCopy
 import com.fairuniversal.offlineotp.desktop.control.ExpiringClipboard
 import com.fairuniversal.offlineotp.ui.vault.EntryCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.EntryConfirmationDialog
+import com.fairuniversal.offlineotp.ui.vault.HideableDialog
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import com.fairuniversal.offlineotp.ui.vault.EmailSettingsDialog
@@ -482,6 +483,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var showSearchFields by remember(vault) { mutableStateOf(false) }
     var showUsedTokensNotice by remember(vault) { mutableStateOf(false) }
+    var usedTokensHideForever by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault) }
@@ -574,7 +576,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                         mode == com.fairuniversal.offlineotp.Utilities.Constants.SortMode.MOST_USED) &&
                     !controller.savedUsedTokensShown()
                 ) {
-                    controller.trySaveUsedTokensShown(true)
+                    usedTokensHideForever = false
                     showUsedTokensNotice = true
                 }
             },
@@ -587,6 +589,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 showStorageLocation = false
                 showSearchFields = false
                 showUsedTokensNotice = false
+                usedTokensHideForever = false
                 transactionHolder[0]?.close()
                 entryActions.close()
                 emailDetails.close()
@@ -657,6 +660,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     fun quiesceForTransaction() {
         showSearchFields = false
         showUsedTokensNotice = false
+        usedTokensHideForever = false
         layoutSettings.close(); autoLock.close(); copier.close(); mover.close(); entryActions.close()
         creation.close(); editing.close(); emailDetails.close(); dialogs.close()
         openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close()
@@ -1677,11 +1681,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             revision++
         })
     if (showUsedTokensNotice) {
-        EntryDetailsDialog(
+        HideableDialog(
+            inputKey = "usedTokensNotice",
             title = "Token usage",
-            body = "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".\n\nThis message will not be shown again.",
+            message = "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".",
+            dontShowAgainLabel = "Don't show this message again",
             confirmLabel = "OK",
-            onDismiss = { showUsedTokensNotice = false; revision++ }
+            initialHidden = usedTokensHideForever,
+            onHiddenChanged = { hidden -> usedTokensHideForever = hidden },
+            onDismiss = {
+                if (usedTokensHideForever && lifetime.checkActive()) {
+                    controller.trySaveUsedTokensShown(true)
+                }
+                usedTokensHideForever = false
+                showUsedTokensNotice = false
+                revision++
+            }
         )
     }
     val timeoutRequest = autoLock.pending

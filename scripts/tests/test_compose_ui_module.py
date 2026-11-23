@@ -1287,6 +1287,7 @@ class ComposeUiWiringTest(unittest.TestCase):
             ("vault/PasswordEntryDialog.kt", ("SharedPasswordEntryDialog(",)),
             ("vault/PasswordImportDialog.kt", ("SharedPasswordImportDialog(",)),
             ("vault/ThumbnailPicker.kt", ("SharedThumbnailPickerContent(", "SharedThumbnailPickerDialog(")),
+            ("vault/VaultEntryDialog.kt", ("SharedVaultEntryDialog(",)),
             ("vault/VaultToolsBar.kt", ("SharedVaultToolsBar(",)),
             ("vault/VaultComponents.kt", ("SharedVaultTopBar(", "SharedVaultSortBar(", "SharedVaultEmptyState(", "SharedVaultEntryCard(", "SharedVaultCodeArea(")),
             ("vault/VaultScreen.kt", ("SharedVaultScaffold(",)),

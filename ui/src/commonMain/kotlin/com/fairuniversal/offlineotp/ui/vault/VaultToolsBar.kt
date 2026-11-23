@@ -29,6 +29,8 @@ fun VaultToolsBar(actions: VaultActions, strings: VaultStrings) {
         groups = groups,
         onSelectTool = { key ->
             tools.firstOrNull { it.name == key }?.invoke(actions)
-        }
+        },
+        addContentDescription = strings.addEntry,
+        toolsContentDescription = strings.tools
     )
 }

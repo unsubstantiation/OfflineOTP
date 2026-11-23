@@ -242,7 +242,26 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             globalExpiring: globalExpiring,
             hideGlobalTimeout: store.hideGlobalTimeout,
             customThumbnailSizeDp: Int32(store.thumbnailSizeDp),
-            focusSearchOnStart: store.focusSearchOnStart)
+            focusSearchOnStart: store.focusSearchOnStart,
+            toolGroups: unifiedToolGroups())
+    }
+
+    private func unifiedToolGroups() -> [PortableToolGroup] {
+        let combinedSections = backupSurface().sections + settingsSurface().sections
+        return combinedSections.compactMap { section in
+            guard !section.rows.isEmpty else { return nil }
+            let items = section.rows.map { itemRow in
+                PortableToolItem(
+                    key: itemRow.key,
+                    label: itemRow.title,
+                    detail: itemRow.detail,
+                    value: itemRow.value,
+                    enabled: itemRow.enabled,
+                    interactive: itemRow.kind != "info"
+                )
+            }
+            return PortableToolGroup(title: section.title, items: items)
+        }
     }
 
     // MARK: - Vault actions
@@ -312,6 +331,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                SortMode.allCases.indices.contains(sortIdx) {
                 applySortMode(SortMode.allCases[sortIdx], announce: false)
                 refresh()
+            } else {
+                _ = surfaceAction(action)
             }
         }
     }
@@ -322,7 +343,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message("Sorted by \(mode.title.lowercased())")
         }
         if (mode == .lastUsed || mode == .mostUsed) && !store.usedTokensDialogShown {
-            store.setUsedTokensDialogShown(true)
             openSurface("usedTokensNotice")
         } else if surfaceKey == "sort" {
             closeSurface()
@@ -796,14 +816,18 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: draft["focusSearchOnStart"] ?? (store.focusSearchOnStart ? "true" : "false"), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "usedTokensNotice":
+            let hideChecked = draft["dontShowAgain"] == "true"
             return surface(
                 key: key,
                 title: "Token usage",
-                sections: [],
+                sections: [PortableSection(title: "", rows: [
+                    row("dontShowAgain", "Don't show this message again",
+                        value: hideChecked ? "true" : "false", kind: "toggle", checked: hideChecked)
+                ])],
                 confirmLabel: "OK",
                 dismissLabel: "OK",
-                showConfirm: false,
-                message: "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".\n\nThis message will not be shown again."
+                showConfirm: true,
+                message: "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\"."
             )
         case "searchIncludes":
             let rows = [
@@ -2062,6 +2086,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             store.setSearchIncludes(chosen)
             message("Search fields updated.")
+            closeSurface()
+            return nil
+        case "usedTokensNotice":
+            if draft["dontShowAgain"] == "true" {
+                store.setUsedTokensDialogShown(true)
+            }
             closeSurface()
             return nil
         case "passwordImportChoice":

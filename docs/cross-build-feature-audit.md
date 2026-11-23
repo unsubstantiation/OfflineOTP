@@ -235,6 +235,22 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   `Minimize window after copying` (`ui_minimize_on_copy` in `SharedCardLayoutDialog`,
   `DesktopLayoutSettings`, `VaultController`, `ComposeMain`, and `PreferencesExport.desktopCatalog`).
 
+- **Unified `SharedVaultToolsBar` on iOS, `SharedVaultEntryDialog` delegation, cross-build
+  `HideableDialog` used-tokens notice parity, Dark Forest two-tab `AboutDialog` (`About` |
+  `Libraries`), and per-card accessible action descriptions**: Extended `PortableVaultState`
+  (`:ui-contract`) with `toolGroups` and wired `SharedVaultToolsBar` (`+ Add` + `Tools` ->
+  `SharedVaultToolsDialog`) in `PortableVaultScreen.kt` (`:ui-foundation`) and
+  `ComposeVaultHost.swift` so iOS and Desktop share the same top-bar chrome (`Lock` in
+  `SharedVaultTopBar` + grouped secondary tools modal closed before dispatch); migrated
+  `VaultEntryDialog` (`:ui`) onto `SharedVaultEntryDialog` (`:ui-foundation`) over
+  `PortableEntryDialogKind` (`:ui-contract`); unified Desktop (`ComposeMain.kt`) and iOS
+  (`PortableVaultViewController.kt` + `ComposeVaultHost.swift`) token-usage sort notices onto
+  `HideableDialog` (`:ui-foundation`) so `usedTokensDialogShown` is persisted only when `"Don't
+  show this message again"` is checked (matching Android); upgraded `AboutDialog` (`:ui-foundation`)
+  with Dark Forest styling and two-tab `About` / `Libraries` open-source license notices over
+  `PortableLibraryCatalog.bundled` (`:ui-contract`); and added privacy-preserving per-entry
+  `contentDescription` labels across `VaultComponents.kt` (`:ui`) and `VaultToolsBar.kt`.
+
 
 ## Required acceptance gates
 
