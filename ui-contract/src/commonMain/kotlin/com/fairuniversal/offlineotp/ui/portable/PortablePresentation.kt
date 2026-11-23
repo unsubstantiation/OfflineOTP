@@ -90,6 +90,10 @@ data class PortableCard(
     fun visibleTitle(hideIssuer: Boolean): String =
         if (revealed || !hideIssuer) title else concealedTitle
 
+    /** Brand thumbnail name or tile seed while visible; falls back to [concealedTitle] when issuer hiding is active. */
+    fun visibleMark(hideIssuer: Boolean): String =
+        if (revealed || !hideIssuer) mark else concealedTitle
+
     /** A displayed code is never guessed from a hidden entry. */
     fun visibleCode(): String = if (revealed && hasCode) code else ""
 
@@ -152,7 +156,9 @@ data class PortableVaultState(
     val tapDoubleName: String = "NOTHING",
     val globalProgress: Float = 0f,
     val globalExpiring: Boolean = false,
-    val hideGlobalTimeout: Boolean = false
+    val hideGlobalTimeout: Boolean = false,
+    val customThumbnailSizeDp: Int = 0,
+    val focusSearchOnStart: Boolean = false
 ) {
     val labelDisplay: PortableLabelDisplay
         get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplayName }
@@ -163,6 +169,52 @@ data class PortableVaultState(
 
     val tapDouble: PortableTapMode
         get() = PortableTapMode.fromName(tapDoubleName, fallback = PortableTapMode.NOTHING)
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingleName: String,
+        tapDoubleName: String,
+        globalProgress: Float,
+        globalExpiring: Boolean,
+        hideGlobalTimeout: Boolean
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingleName = tapSingleName,
+        tapDoubleName = tapDoubleName,
+        globalProgress = globalProgress,
+        globalExpiring = globalExpiring,
+        hideGlobalTimeout = hideGlobalTimeout,
+        customThumbnailSizeDp = 0,
+        focusSearchOnStart = false
+    )
 
     constructor(
         tabs: List<PortableChip>,
@@ -469,6 +521,23 @@ enum class PortableCardLayout {
             DEFAULT -> 40f
             FULL -> 44f
         }
+
+    fun effectiveThumbnailSizeDp(customSizeDp: Int): Float {
+        val normalized = normalizeThumbnailSizeDp(customSizeDp)
+        return if (normalized > 0) normalized.toFloat() else thumbnailSizeDp
+    }
+
+    companion object {
+        val THUMBNAIL_SIZE_OPTIONS: List<Int> = listOf(0, 24, 32, 40, 48, 64)
+
+        fun normalizeThumbnailSizeDp(value: Int): Int =
+            if (value <= 0) 0 else value.coerceIn(20, 96)
+
+        fun thumbnailSizeLabel(value: Int): String {
+            val normalized = normalizeThumbnailSizeDp(value)
+            return if (normalized <= 0) "Default" else "$normalized dp"
+        }
+    }
 }
 
 /** Toolkit-free mirror of `Constants.LabelDisplay` shared across `:ui-model` and `:ui-foundation`. */
@@ -527,8 +596,42 @@ data class PortableCardDisplaySelection(
     val tapSingle: PortableTapMode,
     val tapDouble: PortableTapMode,
     val hideGlobalTimeout: Boolean = false,
-    val tapToRevealTimeoutSeconds: Int = 0
-)
+    val tapToRevealTimeoutSeconds: Int = 0,
+    val thumbnailSizeDp: Int = 0,
+    val focusSearchOnStart: Boolean = false
+) {
+    constructor(
+        layout: PortableCardLayout,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: PortableLabelDisplay,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingle: PortableTapMode,
+        tapDouble: PortableTapMode,
+        hideGlobalTimeout: Boolean,
+        tapToRevealTimeoutSeconds: Int
+    ) : this(
+        layout = layout,
+        hideIssuer = hideIssuer,
+        showPreviousToken = showPreviousToken,
+        tokenGroupSize = tokenGroupSize,
+        showIndividualCountdowns = showIndividualCountdowns,
+        labelDisplay = labelDisplay,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingle = tapSingle,
+        tapDouble = tapDouble,
+        hideGlobalTimeout = hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
+        thumbnailSizeDp = 0,
+        focusSearchOnStart = false
+    )
+}
 
 /**
  * Typed, lossless FairEmail account/identity field for shared multi-identity editing across

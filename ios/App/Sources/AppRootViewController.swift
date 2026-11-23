@@ -25,6 +25,8 @@ final class AppRootViewController: UIViewController {
                                                name: UIScene.didActivateNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(sceneInactive),
                                                name: UIScene.willDeactivateNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(sceneBackgrounded),
+                                               name: UIScene.didEnterBackgroundNotification, object: nil)
         inactivityTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.store.checkInactivityAutoLock() }
         }
@@ -165,6 +167,13 @@ final class AppRootViewController: UIViewController {
 
     @objc private func sceneInactive() {
         setCovered(true)
+    }
+
+    @objc private func sceneBackgrounded() {
+        setCovered(true)
+        if store.isUnlocked && store.relockOnBackground {
+            store.lock()
+        }
     }
 
     /// iOS cannot block screenshots; covering the window keeps a revealed code out of the snapshot.

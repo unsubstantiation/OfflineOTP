@@ -341,6 +341,70 @@ class VaultController(private val vault: PasswordVault) {
         } catch (_: Exception) { false }
     }
 
+    fun savedThumbnailSizeDp(): Int = try {
+        val raw = vault.preferences.getInt(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_THUMBNAIL_SIZE_DP,
+            0
+        )
+        if (raw == 0 || raw in 20..96) raw else 0
+    } catch (_: RuntimeException) { 0 }
+
+    fun trySaveThumbnailSizeDp(sizeDp: Int): Boolean {
+        if (sizeDp != 0 && sizeDp !in 20..96) return false
+        return try {
+            vault.preferences.putInt(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_THUMBNAIL_SIZE_DP,
+                sizeDp
+            )
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedFocusSearchOnStart(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_FOCUS_SEARCH_ON_START,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveFocusSearchOnStart(enabled: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_FOCUS_SEARCH_ON_START,
+            enabled.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedRelockOnBackground(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_RELOCK_BACKGROUND,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveRelockOnBackground(enabled: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_RELOCK_BACKGROUND,
+            enabled.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedBackupAppendDateTime(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_BACKUP_APPEND_DATE_TIME,
+            "true"
+        ).toBooleanStrictOrNull() ?: true
+    } catch (_: RuntimeException) { true }
+
+    fun trySaveBackupAppendDateTime(enabled: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_BACKUP_APPEND_DATE_TIME,
+            enabled.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
     fun savedUsedTokensShown(): Boolean = try {
         vault.preferences.getString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_USED_TOKENS_SHOWN,

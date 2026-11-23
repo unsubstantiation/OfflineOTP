@@ -32,6 +32,10 @@ fun LaunchedEffect(key1: Any?, block: suspend kotlinx.coroutines.CoroutineScope.
     // The real effect starts a coroutine; the stub does nothing.
 }
 
+fun LaunchedEffect(key1: Any?, key2: Any?, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
+    // The real effect starts a coroutine; the stub does nothing.
+}
+
 fun DisposableEffect(key1: Any?, effect: DisposableEffectScope.() -> DisposableEffectResult) {
     // No-op in the gate.
 }

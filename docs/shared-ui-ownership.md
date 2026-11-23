@@ -33,10 +33,11 @@ The last SwiftUI production screen was replaced by one shared Compose compositio
   `PortableEmailSettingsDraft`, `PortableEntryDraft`, `PortableEntryDragBounds`,
   `portableEntryDragDirection`, `PortablePasswordImportMode`, `PortableCardLayout`,
   `PortableLabelDisplay`, `PortableTapMode`, `PortableCardDisplaySelection`, `PortableInputBounds`,
-  and `AutoLockOptions`:
-  strings, numbers and booleans only, with no engine, toolkit or host type.
+  `PortableThumbnailAssets`, `PortableVectorDocument`, and `AutoLockOptions`:
+  strings, numbers, booleans, and toolkit-free vector geometry only, with no engine, toolkit or host type.
 - `:ui-foundation` owns `PortableVaultScreen`, `PortableSurfaceDialog`, `SharedVaultScreen`,
   `SharedVaultToolsDialog`, `VaultArtwork` (`SharedIssuerArtwork`, `SharedCatalogArtworkIcon`),
+  `SharedVectorArtwork` (`BundledVectorVaultArtwork`, `SharedVectorBadge`, `SharedVectorCanvas`),
   `SharedVaultComponents`
   (`SharedVaultFilterHeader`, `SharedVaultCategoryBar`, `SharedVaultTagBar`, `SharedVaultSearchField`,
   `SharedVaultTab`, `SharedVaultTagChip`, `SharedVaultGlobalProgressBar`, `CountdownRing`, and `VaultLetterTile`), and the engine-free shared Compose

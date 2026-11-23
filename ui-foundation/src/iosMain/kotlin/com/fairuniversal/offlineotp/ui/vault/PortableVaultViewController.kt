@@ -39,8 +39,14 @@ class PortableVaultPresentation {
     private var active by mutableStateOf(true)
     private var vault by mutableStateOf(PortableVaultState.EMPTY)
     private var cardLayout by mutableStateOf(PortableCardLayout.DEFAULT)
+    private var artwork by mutableStateOf<VaultArtwork?>(null)
     private var surface by mutableStateOf<PortableSurfaceState?>(null)
     private var surfaceEpoch by mutableStateOf(0)
+
+    /** Registers a read-only bundle XML loader for shared `thumb_*.xml` vector artwork. */
+    fun registerArtworkXmlLoader(loader: (String) -> String?) {
+        artwork = BundledVectorVaultArtwork(loader)
+    }
 
     /** Replaces the frame without replacing the composition. */
     fun updateVault(state: PortableVaultState) {
@@ -69,6 +75,7 @@ class PortableVaultPresentation {
 
     fun close() {
         active = false
+        artwork = null
         surface = null
         surfaceEpoch++
     }
@@ -100,13 +107,15 @@ class PortableVaultPresentation {
                     onTool = { action -> vaultActions.tool(action) },
                     onCard = { index, action -> vaultActions.card(index, action) },
                     onDismissToast = { vaultActions.tool("dismissToast") },
-                    cardLayout = cardLayout
+                    cardLayout = cardLayout,
+                    artwork = artwork
                 )
                 val dialog = surface
                 if (dialog != null) {
                     RenderSharedSurface(
                         dialog = dialog,
                         dialogKey = "${dialog.key}:$surfaceEpoch",
+                        artwork = artwork,
                         surfaceActions = surfaceActions,
                         onAction = { key -> invokeSurfaceAction(surfaceActions, key) },
                         onDismiss = { invokeSurfaceAction(surfaceActions, "dismiss") }
@@ -121,6 +130,7 @@ class PortableVaultPresentation {
 private fun RenderSharedSurface(
     dialog: PortableSurfaceState,
     dialogKey: String,
+    artwork: VaultArtwork?,
     surfaceActions: PortableSurfaceActions,
     onAction: (String) -> String?,
     onDismiss: () -> Unit
@@ -146,7 +156,18 @@ private fun RenderSharedSurface(
                 surfaceActions.change("seconds", seconds.toString())
                 confirm()
             },
-            onDismiss = onDismiss
+            onDismiss = onDismiss,
+            relockOnBackground = row("relockOnBackground")?.let { it.value == "true" || it.checked },
+            relockOnBackgroundLabel = "Lock immediately when app enters background",
+            onSaveWithBackground = if (row("relockOnBackground") != null) {
+                { seconds, relockBackground ->
+                    surfaceActions.change("seconds", seconds.toString())
+                    surfaceActions.change("relockOnBackground", if (relockBackground) "true" else "false")
+                    confirm()
+                }
+            } else {
+                null
+            }
         )
         "passwordChange" -> PasswordChangeDialog(
             inputKey = dialogKey,
@@ -340,6 +361,10 @@ private fun RenderSharedSurface(
                 tapToRevealTimeoutSeconds = PortableTapMode.normalizeRevealTimeoutSeconds(
                     rowValue("tapToRevealTimeoutSeconds").toIntOrNull() ?: 0
                 ),
+                thumbnailSizeDp = PortableCardLayout.normalizeThumbnailSizeDp(
+                    rowValue("thumbnailSizeDp").toIntOrNull() ?: 0
+                ),
+                focusSearchOnStart = rowValue("focusSearchOnStart") == "true",
                 onSaveSelection = { selection ->
                     surfaceActions.change("layout", selection.layout.name)
                     surfaceActions.change("hideIssuer", if (selection.hideIssuer) "true" else "false")
@@ -354,6 +379,8 @@ private fun RenderSharedSurface(
                     surfaceActions.change("tapDouble", selection.tapDouble.name)
                     surfaceActions.change("hideGlobalTimeout", if (selection.hideGlobalTimeout) "true" else "false")
                     surfaceActions.change("tapToRevealTimeoutSeconds", selection.tapToRevealTimeoutSeconds.toString())
+                    surfaceActions.change("thumbnailSizeDp", selection.thumbnailSizeDp.toString())
+                    surfaceActions.change("focusSearchOnStart", if (selection.focusSearchOnStart) "true" else "false")
                     confirm()
                 }
             )
@@ -601,6 +628,7 @@ private fun RenderSharedSurface(
                 title = dialog.title,
                 selected = rowValue("selected"),
                 catalogNames = names,
+                artwork = artwork,
                 unchangedLabel = rowValue("unchangedLabel").ifEmpty { "Reset to Default" },
                 onSelect = { chosen ->
                     surfaceActions.change("thumbnail", chosen)
@@ -670,6 +698,7 @@ private fun RenderSharedSurface(
                     identities = orderedIdentities
                 ),
                 thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                artwork = artwork,
                 error = dialog.message.ifEmpty { null },
                 onSubmit = { draft ->
                     surfaceActions.change("issuer", draft.issuer)
@@ -857,6 +886,7 @@ private fun RenderSharedSurface(
                     null
                 },
                 thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                artwork = artwork,
                 onShowQrCode = if (dialog.title == "Edit entry" && rowValue("canShowQr") == "true") {
                     { onAction("qrFromEdit") }
                 } else {
@@ -944,6 +974,7 @@ private fun RenderSharedSurface(
                     failed = dialog.message.isNotEmpty(),
                     errorText = dialog.message.ifEmpty { null },
                     thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                    artwork = artwork,
                     onManageTags = { onAction("tags") },
                     onViewDetails = if (rowValue("archiveMode") != "true") {
                         { onAction("details") }

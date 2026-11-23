@@ -90,6 +90,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             store.setCardLayout(legacyLayout)
             UserDefaults.standard.removeObject(forKey: "offlineotp.card_layout")
         }
+        presentation.registerArtworkXmlLoader { drawableFile in
+            let url = Bundle.main.url(forResource: drawableFile, withExtension: "xml")
+                ?? Bundle.main.url(forResource: drawableFile, withExtension: "xml", subdirectory: "drawable")
+            guard let url else { return nil }
+            return try? String(contentsOf: url, encoding: .utf8)
+        }
         presentation.updateCardLayout(layout: store.cardLayout)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }
@@ -234,7 +240,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             tapDoubleName: store.tapDouble,
             globalProgress: globalProgress,
             globalExpiring: globalExpiring,
-            hideGlobalTimeout: store.hideGlobalTimeout)
+            hideGlobalTimeout: store.hideGlobalTimeout,
+            customThumbnailSizeDp: Int32(store.thumbnailSizeDp),
+            focusSearchOnStart: store.focusSearchOnStart)
     }
 
     // MARK: - Vault actions
@@ -770,6 +778,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: draft["showIndividualTimeouts"] ?? (store.showIndividualTimeouts ? "true" : "false"), kind: "info"),
                     row("showThumbnails", "Show entry thumbnails",
                         value: draft["showThumbnails"] ?? (store.showThumbnails ? "true" : "false"), kind: "info"),
+                    row("thumbnailSizeDp", "Thumbnail size",
+                        value: draft["thumbnailSizeDp"] ?? String(store.thumbnailSizeDp), kind: "info"),
                     row("highlightToken", "Highlight expiring tokens",
                         value: draft["highlightToken"] ?? (store.highlightToken ? "true" : "false"), kind: "info"),
                     row("tapSingle", "Single-tap action",
@@ -781,7 +791,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     row("tapToRevealTimeoutSeconds", "Auto-hide revealed codes",
                         value: draft["tapToRevealTimeoutSeconds"] ?? String(store.tapToRevealTimeoutSeconds), kind: "info"),
                     row("tokenGroupSize", "Token grouping",
-                        value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
+                        value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info"),
+                    row("focusSearchOnStart", "Focus search on start",
+                        value: draft["focusSearchOnStart"] ?? (store.focusSearchOnStart ? "true" : "false"), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "usedTokensNotice":
             return surface(
@@ -818,7 +830,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Auto-lock after inactivity",
                 sections: [PortableSection(title: "Seconds (0 disables auto-lock)", rows: [
                     row("seconds", "Inactivity delay",
-                        value: draft["seconds"] ?? String(store.inactivityLockSeconds), kind: "text")])],
+                        value: draft["seconds"] ?? String(store.inactivityLockSeconds), kind: "text"),
+                    row("relockOnBackground", "Lock immediately when backgrounded",
+                        value: draft["relockOnBackground"] ?? (store.relockOnBackground ? "true" : "false"),
+                        kind: "toggle",
+                        checked: (draft["relockOnBackground"] ?? (store.relockOnBackground ? "true" : "false")) == "true")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "passwordChange":
             return surface(key: key, title: "Change vault password",
@@ -1299,7 +1315,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         surface(key: "backups", title: "Backups and links", sections: [
             PortableSection(title: "Encrypted backup", rows: [
                 row("backupExport", "Export encrypted backup…", detail: "Argon2id + AES-256-GCM"),
-                row("backupImport", "Import encrypted backup…")]),
+                row("backupImport", "Import encrypted backup…"),
+                row("backupTimestamp",
+                    store.backupAppendDateTime
+                        ? "Timestamp backup filenames: On"
+                        : "Timestamp backup filenames: Off",
+                    detail: store.backupAppendDateTime
+                        ? "Appends YYYY-MM-DD_HH-mm-ss to exported backup filenames"
+                        : "Uses fixed otp_accounts.json.aes / otp_accounts.json.gpg filenames")]),
             PortableSection(title: "Other formats", rows: [
                 row("csvExport", "Export passwords as browser CSV…"),
                 row("archiveExport", "Export password archive…"),
@@ -1823,7 +1846,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 return "Enter a delay of zero or more seconds."
             }
             store.setInactivityLockSeconds(seconds)
-            message("Auto-lock delay updated.")
+            if let relockRaw = draft["relockOnBackground"] {
+                store.setRelockOnBackground(relockRaw == "true")
+            }
+            message("Auto-lock settings updated.")
             closeSurface()
             return nil
         case "passwordChange":
@@ -1975,6 +2001,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if let thumbRaw = draft["showThumbnails"] {
                 store.setShowThumbnails(thumbRaw != "false")
             }
+            if let thumbSizeRaw = draft["thumbnailSizeDp"], let parsedThumbSize = Int(thumbSizeRaw),
+               parsedThumbSize == 0 || (20...96).contains(parsedThumbSize) {
+                store.setThumbnailSizeDp(parsedThumbSize)
+            }
             if let sizeRaw = draft["labelSizeSp"], let parsedSize = Int(sizeRaw),
                parsedSize == 0 || (12...24).contains(parsedSize) {
                 store.setLabelSizeSp(parsedSize)
@@ -2001,6 +2031,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
                [0, 2, 3].contains(parsedGroup) {
                 store.setTokenGroupSize(parsedGroup)
+            }
+            if let focusSearchRaw = draft["focusSearchOnStart"] {
+                store.setFocusSearchOnStart(focusSearchRaw == "true")
             }
             presentation.updateCardLayout(layout: store.cardLayout)
             message("Card layout updated.")
@@ -2646,6 +2679,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "hideIssuer":
             store.setHideIssuer(!store.hideIssuer)
             message(store.hideIssuer ? "Issuer titles hidden while concealed." : "Issuer titles shown while concealed.")
+            return nil
+        case "backupTimestamp":
+            store.setBackupAppendDateTime(!store.backupAppendDateTime)
+            message(store.backupAppendDateTime ? "Backup filenames will include timestamps." : "Backup filenames will omit timestamps.")
             return nil
         case "passwordImportPreview":
             let mode: PasswordImport.Mode = draft["passwordImportMode"] == "archive" ? .archive : .individual

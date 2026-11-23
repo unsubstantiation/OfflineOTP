@@ -25,9 +25,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -75,12 +79,20 @@ fun SharedVaultSearchField(
     value: String,
     hint: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusOnStart: Boolean = false,
+    focusKey: Any = Unit
 ) {
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(focusOnStart, focusKey) {
+        if (focusOnStart) {
+            runCatching { focusRequester.requestFocus() }
+        }
+    }
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().focusRequester(focusRequester),
         singleLine = true,
         placeholder = { Text(text = hint, style = ForestType.body, color = ForestPalette.textHint) },
         shape = RoundedCornerShape(12.dp)

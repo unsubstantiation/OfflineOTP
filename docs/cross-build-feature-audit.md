@@ -198,6 +198,26 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   sort notices (`ui_used_tokens_shown`) on Desktop and iOS when selecting `Last used` or `Most used`
   sort.
 
+- **Shared iOS vector brand artwork (`thumb_*.xml`), Desktop unlocked `About`, custom thumbnail
+  sizing, `Focus search on start`, background/minimize relock, and optional backup filename
+  timestamps**: Added generated `PortableThumbnailAssets` (`scripts/branding/generate_thumbnail_assets.py`)
+  and pure-Kotlin `PortableVectorDocument` in `:ui-contract`, plus `BundledVectorVaultArtwork` /
+  `SharedVectorBadge` / `SharedVectorCanvas` in `:ui-foundation`, and bundled `../app/src/main/res/drawable`
+  (`thumb_*.xml`) into `ios/project.yml` so iOS renders all 466 shared brand vector logos on vault
+  cards and thumbnail-bearing dialogs (`PortableVaultViewController` + `ComposeVaultHost.swift`
+  `registerArtworkXmlLoader`) while concealing brand hints when `Hide issuer` is enabled on
+  unrevealed cards (`PortableCard.visibleMark`); wired unlocked `About` (`VaultTool.ABOUT` ->
+  `AboutDialog`) on Compose desktop (`ComposeMain.kt`); and added `ui_thumbnail_size_dp`
+  (`Thumbnail size`: `Default` or `24..64 dp`), `ui_focus_search_on_start` (`Focus search on start`),
+  `ui_relock_background` (`Lock immediately when backgrounded or minimized`), and
+  `ui_backup_append_date_time` (`Timestamp backup filenames`) across `:ui-contract`, `:ui-foundation`,
+  `:ui-model`, `:ui`, `:core` (`BackupFileNames.appendTimestamp`), `:app` (`AndroidVaultController`),
+  Desktop (`VaultController`, `DesktopLayoutSettings`, `DesktopAutoLockSettings`, `DesktopSavePicker`,
+  `ComposeMain` `windowIconified`), and iOS (`VaultStore`, `ComposeVaultHost`,
+  `AppRootViewController` `UIScene.didEnterBackgroundNotification`), expanding both Desktop and iOS
+  portable preference catalogs to 21 mirrored keys.
+
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

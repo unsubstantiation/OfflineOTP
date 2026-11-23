@@ -43,6 +43,12 @@ targets:
       # scripts/ios/generate-app-icon.py (like the macOS .icns) and is not committed; the
       # Contents.json beside it is, so the catalog is reviewable and XcodeGen can wire it up.
       - path: App/Resources
+      # Shared brand vector artwork (`thumb_*.xml`), parsed and drawn by `:ui-contract` and
+      # `:ui-foundation` (`BundledVectorVaultArtwork`) without copying the 466 XML files into `ios/`.
+      - path: ../app/src/main/res/drawable
+        includes:
+          - "thumb_*.xml"
+        buildPhase: resources
     dependencies:
       # Required: scripts/ios/build-compose-framework.sh must run before XcodeGen/build.
       # No SwiftUI authentication fallback when the framework is absent.

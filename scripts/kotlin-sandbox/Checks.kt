@@ -9091,9 +9091,9 @@ fun main() {
             expect(collectorField.get(activity) == null && !awaitingField.getBoolean(activity),
                 { "onVaultLocked did not clear migrationCollector and awaitingMigrationQr" })
 
-            // Verify PortableTapMode, reveal-timeout normalization, and 17-key desktop preferences catalog parity.
-            expect(PreferencesExport.desktopCatalog.size == 17,
-                { "expected 17 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            // Verify PortableTapMode, reveal-timeout normalization, and 21-key desktop preferences catalog parity.
+            expect(PreferencesExport.desktopCatalog.size == 21,
+                { "expected 21 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
             expect(PreferencesExport.isDeviceBound(PreferencesExport.UI_USED_TOKENS_SHOWN),
                 { "UI_USED_TOKENS_SHOWN must be listed in neverExported" })
             expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName("copy") ==
@@ -9109,6 +9109,22 @@ fun main() {
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(2) == 5 &&
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(999) == 600,
                 { "unexpected reveal timeout normalization" })
+            expect(com.fairuniversal.offlineotp.Utilities.BackupFileNames.encrypted(java.util.Date(0L), false) == "otp_accounts.json.aes" &&
+                com.fairuniversal.offlineotp.Utilities.BackupFileNames.openPgp(java.util.Date(0L), false) == "otp_accounts.json.gpg",
+                { "BackupFileNames appendTimestamp=false should emit undated backup names" })
+
+            val drawableDir = java.io.File("app/src/main/res/drawable")
+            val thumbXmlFiles = drawableDir.listFiles { _, name ->
+                name.startsWith("thumb_") && name.endsWith(".xml")
+            }?.sortedBy { it.name } ?: emptyList()
+            expect(thumbXmlFiles.size >= 460, { "expected bundled thumb_*.xml vector drawables, got ${thumbXmlFiles.size}" })
+            for (xmlFile in thumbXmlFiles) {
+                val parsedDoc = com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse(
+                    xmlFile.readText(Charsets.UTF_8)
+                )
+                expect(parsedDoc != null && parsedDoc.nodes.isNotEmpty(),
+                    { "PortableVectorDocument failed to parse ${xmlFile.name}" })
+            }
         } finally {
             adapter.lockEntries()
             VaultSession.lock()

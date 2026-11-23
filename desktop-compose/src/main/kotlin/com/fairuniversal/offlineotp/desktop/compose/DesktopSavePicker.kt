@@ -173,11 +173,11 @@ internal object DesktopSavePicker {
             File(picker.directory, name)
         } finally { picker.dispose(); parent.dispose() }
     }
-    fun openPgpExport(owner: Window): File? {
+    fun openPgpExport(owner: Window, appendTimestamp: Boolean = true): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Save OpenPGP backup (choose a new filename)", FileDialog.SAVE)
         return try {
-            picker.file = BackupFileNames.openPgp(Date())
+            picker.file = BackupFileNames.openPgp(Date(), appendTimestamp)
             picker.isVisible = true
             val name = picker.file ?: return null
             File(picker.directory, name)
@@ -193,11 +193,11 @@ internal object DesktopSavePicker {
             File(picker.directory, name)
         } finally { picker.dispose(); parent.dispose() }
     }
-    fun encryptedBackup(owner: Window): File? {
+    fun encryptedBackup(owner: Window, appendTimestamp: Boolean = true): File? {
         val parent = Dialog(owner)
         val picker = FileDialog(parent, "Save encrypted backup (choose a new filename)", FileDialog.SAVE)
         return try {
-            picker.file = BackupFileNames.encrypted(Date())
+            picker.file = BackupFileNames.encrypted(Date(), appendTimestamp)
             picker.isVisible = true
             val name = picker.file ?: return null
             File(picker.directory, name)

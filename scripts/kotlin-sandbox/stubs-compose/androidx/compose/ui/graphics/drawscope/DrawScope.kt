@@ -4,7 +4,10 @@ package androidx.compose.ui.graphics.drawscope
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 
 sealed interface DrawStyle
 
@@ -68,4 +71,44 @@ interface DrawScope {
         style: DrawStyle = Fill.Default,
         alpha: Float = 1f
     )
+
+    fun drawPath(
+        path: Path,
+        color: Color,
+        alpha: Float = 1f,
+        style: DrawStyle = Fill.Default
+    )
+
+    fun drawPath(
+        path: Path,
+        brush: Brush,
+        alpha: Float = 1f,
+        style: DrawStyle = Fill.Default
+    )
+}
+
+interface DrawTransform {
+    val size: Size
+    val center: Offset
+        get() = Offset(size.width / 2f, size.height / 2f)
+
+    fun translate(left: Float = 0f, top: Float = 0f)
+    fun rotate(degrees: Float, pivot: Offset = center)
+    fun scale(scaleX: Float, scaleY: Float = scaleX, pivot: Offset = center)
+    fun clipPath(path: Path, clipOp: ClipOp = ClipOp.Intersect)
+}
+
+inline fun DrawScope.withTransform(
+    transformBlock: DrawTransform.() -> Unit,
+    drawBlock: DrawScope.() -> Unit
+) {
+    val noop = object : DrawTransform {
+        override val size: Size get() = this@withTransform.size
+        override fun translate(left: Float, top: Float) {}
+        override fun rotate(degrees: Float, pivot: Offset) {}
+        override fun scale(scaleX: Float, scaleY: Float, pivot: Offset) {}
+        override fun clipPath(path: Path, clipOp: ClipOp) {}
+    }
+    noop.transformBlock()
+    drawBlock()
 }

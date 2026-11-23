@@ -35,9 +35,16 @@ internal fun VaultSearchField(
     value: String,
     hint: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusOnStart: Boolean = false
 ) {
-    SharedVaultSearchField(value = value, hint = hint, onValueChange = onValueChange, modifier = modifier)
+    SharedVaultSearchField(
+        value = value,
+        hint = hint,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        focusOnStart = focusOnStart
+    )
 }
 
 @Composable
@@ -124,7 +131,7 @@ internal fun VaultEntryCard(
         thumbnailSizeDp = appearance.thumbnailSizeDp,
         tileSeed = card.thumbnailName.ifBlank { card.title },
         artworkSlot = if (showThumb) {
-            { VaultIssuerArtwork(card = card, sizeDp = appearance.thumbnailSizeDp, artwork = artwork) }
+            { VaultIssuerArtwork(card = card, showIssuer = appearance.showIssuer, sizeDp = appearance.thumbnailSizeDp, artwork = artwork) }
         } else null,
         scrollLabels = appearance.scrollLabels,
         labelSizeSp = appearance.labelSizeSp,
@@ -221,9 +228,9 @@ internal fun VaultEntryCard(
 }
 
 @Composable
-private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
+private fun VaultIssuerArtwork(card: VaultCardState, showIssuer: Boolean, sizeDp: Float, artwork: VaultArtwork?) {
     SharedIssuerArtwork(
-        thumbnailName = card.thumbnailName,
+        thumbnailName = if (showIssuer || card.revealed) card.thumbnailName else "",
         title = card.title,
         sizeDp = sizeDp,
         artwork = artwork

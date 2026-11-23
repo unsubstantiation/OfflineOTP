@@ -147,7 +147,8 @@ fun PortableVaultScreen(
                     SharedVaultSearchField(
                         value = state.query,
                         hint = "Search",
-                        onValueChange = onQuery
+                        onValueChange = onQuery,
+                        focusOnStart = state.focusSearchOnStart
                     )
                 },
                 categoryContent = {
@@ -256,6 +257,7 @@ fun PortableVaultScreen(
                             cardLayout = cardLayout,
                             labelDisplay = state.labelDisplay,
                             showThumbnails = state.showThumbnails,
+                            customThumbnailSizeDp = state.customThumbnailSizeDp,
                             labelSizeSp = state.labelSizeSp.takeIf { it > 0 },
                             highlightExpiringTokens = state.highlightExpiringTokens,
                             tapSingle = state.tapSingle,
@@ -277,6 +279,7 @@ private fun PortableCardView(
     cardLayout: PortableCardLayout,
     labelDisplay: PortableLabelDisplay,
     showThumbnails: Boolean,
+    customThumbnailSizeDp: Int,
     labelSizeSp: Int?,
     highlightExpiringTokens: Boolean,
     tapSingle: PortableTapMode,
@@ -285,6 +288,8 @@ private fun PortableCardView(
     onCard: (Int, String) -> Unit
 ) {
     val displayTitle = card.visibleTitle(hideIssuer)
+    val displayMark = card.visibleMark(hideIssuer)
+    val resolvedThumbSizeDp = cardLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)
     val verticalPad = cardLayout.cardVerticalPaddingDp
     val maxLines = labelDisplay.labelMaxLines(cardLayout)
     val stackCodeBelow = cardLayout.codeBelowIdentity
@@ -306,16 +311,16 @@ private fun PortableCardView(
         subtitle = card.subtitle,
         revealed = card.revealed,
         showThumbnail = showThumbnails,
-        thumbnailSizeDp = cardLayout.thumbnailSizeDp,
-        tileSeed = card.mark,
+        thumbnailSizeDp = resolvedThumbSizeDp,
+        tileSeed = displayMark,
         artworkSlot = if (artwork != null) {
             {
                 SharedIssuerArtwork(
-                    thumbnailName = card.mark,
+                    thumbnailName = if (card.revealed || !hideIssuer) card.mark else "",
                     title = displayTitle,
-                    sizeDp = cardLayout.thumbnailSizeDp,
+                    sizeDp = resolvedThumbSizeDp,
                     artwork = artwork,
-                    seed = card.mark
+                    seed = displayMark
                 )
             }
         } else null,

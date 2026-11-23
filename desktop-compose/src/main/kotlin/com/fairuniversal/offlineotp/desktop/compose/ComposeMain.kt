@@ -246,7 +246,8 @@ private fun ApplicationScope.ComposeVaultApp(controller: VaultController, locati
                             if (enrollment?.status == DesktopHardwareEnrollment.Status.INPUT) {
                                 enrollment?.close(); enrollment = null; enrollmentActive = null
                             }
-                        }
+                        },
+                        onOpenAbout = { showAbout = true }
                     )
                 }
                 enrollment?.let { owner ->
@@ -396,7 +397,7 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
 }
 
 @Composable
-private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onEnrollHardware: (() -> Boolean, () -> Unit, java.util.concurrent.Executor) -> Unit, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit) {
+private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onEnrollHardware: (() -> Boolean, () -> Unit, java.util.concurrent.Executor) -> Unit, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit, onOpenAbout: () -> Unit = {}) {
     val strings = VaultStrings.English
     val initialFilter = remember(vault) {
         VaultFilter(
@@ -507,10 +508,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedHideGlobalTimeout,
             controller::trySaveHideGlobalTimeout,
             controller::savedTapToRevealTimeoutSeconds,
-            controller::trySaveTapToRevealTimeoutSeconds
+            controller::trySaveTapToRevealTimeoutSeconds,
+            controller::savedThumbnailSizeDp,
+            controller::trySaveThumbnailSizeDp,
+            controller::savedFocusSearchOnStart,
+            controller::trySaveFocusSearchOnStart
         )
     }
-    val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
+    val autoLock = remember(vault) {
+        DesktopAutoLockSettings(
+            vault,
+            controller::savedInactivityLockSeconds,
+            controller::trySaveInactivityLockSeconds,
+            controller::savedRelockOnBackground,
+            controller::trySaveRelockOnBackground
+        )
+    }
     val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
     val lifetimeHolder = remember(vault) { arrayOfNulls<DesktopSessionLifetime>(1) }
     var transactionMode by remember(vault) { mutableStateOf(false) }
@@ -610,7 +623,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.savedTapSingle(),
                 controller.savedTapDouble(),
                 controller.savedHideGlobalTimeout(),
-                controller.savedTapToRevealTimeoutSeconds()
+                controller.savedTapToRevealTimeoutSeconds(),
+                controller.savedThumbnailSizeDp(),
+                controller.savedFocusSearchOnStart()
             )
         }
     }
@@ -658,7 +673,16 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         toolkit.addAWTEventListener(listener,
             AWTEvent.KEY_EVENT_MASK or AWTEvent.MOUSE_EVENT_MASK or
                 AWTEvent.MOUSE_MOTION_EVENT_MASK or AWTEvent.MOUSE_WHEEL_EVENT_MASK)
+        val windowListener = object : java.awt.event.WindowAdapter() {
+            override fun windowIconified(e: java.awt.event.WindowEvent?) {
+                if (controller.savedRelockOnBackground() && !vault.isLocked) {
+                    presenter.lock()
+                }
+            }
+        }
+        window.addWindowListener(windowListener)
         onDispose {
+            window.removeWindowListener(windowListener)
             transaction.close()
             entryActions.close(); layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); thunderbirdExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
@@ -716,9 +740,19 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         reportCopyOutcome(copier.copy(request, field, presenter.isRevealed(request.entryId), lifetime::checkActive))
     }
 
+    val effectiveStrings = remember(revision, strings) {
+        strings.copy(
+            backupTimestamp = if (controller.savedBackupAppendDateTime()) {
+                "Timestamp backup filenames: On"
+            } else {
+                "Timestamp backup filenames: Off"
+            }
+        )
+    }
+
     VaultScreen(
         state = state,
-        strings = strings,
+        strings = effectiveStrings,
         actions = presenter.actions(copyEntry = { card ->
             autoLock.pending?.let { autoLock.dismiss(it) }
             creation.pending?.let { creation.dismiss(it) }
@@ -789,7 +823,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copyNotice = null; moveFailed = false
                 try {
-                    val target = DesktopSavePicker.encryptedBackup(window)
+                    val target = DesktopSavePicker.encryptedBackup(window, controller.savedBackupAppendDateTime())
                     // Native modal pickers run a nested event loop: auto-lock may fire while open.
                     if (target != null && lifetime.checkActive() && !vault.isLocked) exporter.open(target)
                 } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
@@ -805,7 +839,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 autoLock.pending?.let { autoLock.dismiss(it) }
                 copyNotice = null; moveFailed = false
                 try {
-                    val target = DesktopSavePicker.openPgpExport(window)
+                    val target = DesktopSavePicker.openPgpExport(window, controller.savedBackupAppendDateTime())
                     // Native modal pickers run a nested event loop: auto-lock may fire while open.
                     if (target != null && lifetime.checkActive() && !vault.isLocked) openPgpExporter.open(target)
                 } catch (_: Exception) { copyNotice = "The backup destination could not be selected." }
@@ -1026,6 +1060,18 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     val source = DesktopSavePicker.openPreferences(window)
                     if (source != null && lifetime.checkActive() && !vault.isLocked) preferencesImporter.open(source, lifetime::checkActive)
                 } catch (_: Exception) { copyNotice = "The preferences file could not be selected." }
+            }
+        }, toggleBackupTimestamp = {
+            if (lifetime.checkActive() && !vault.isLocked) {
+                val next = !controller.savedBackupAppendDateTime()
+                if (!controller.trySaveBackupAppendDateTime(next)) {
+                    copyNotice = "Could not save backup filename setting."
+                }
+                revision++
+            }
+        }, openAbout = {
+            if (lifetime.checkActive() && !vault.isLocked) {
+                onOpenAbout()
             }
         }),
         appearance = presenter.appearance,
@@ -1300,7 +1346,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     plan.contains(PreferencesExport.UI_HIGHLIGHT_TOKEN) ||
                     plan.contains(PreferencesExport.UI_TAP_SINGLE) ||
                     plan.contains(PreferencesExport.UI_TAP_DOUBLE) ||
-                    plan.contains(PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT)
+                    plan.contains(PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT) ||
+                    plan.contains(PreferencesExport.UI_THUMBNAIL_SIZE_DP) ||
+                    plan.contains(PreferencesExport.UI_FOCUS_SEARCH_ON_START)
                 ) {
                     presenter.setDisplaySettings(
                         controller.savedCardLayout(),
@@ -1315,7 +1363,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                         controller.savedTapSingle(),
                         controller.savedTapDouble(),
                         controller.savedHideGlobalTimeout(),
-                        controller.savedTapToRevealTimeoutSeconds()
+                        controller.savedTapToRevealTimeoutSeconds(),
+                        controller.savedThumbnailSizeDp(),
+                        controller.savedFocusSearchOnStart()
                     )
                 }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
@@ -1588,6 +1638,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         },
         hideGlobalTimeout = layoutRequest.hideGlobalTimeout,
         tapToRevealTimeoutSeconds = layoutRequest.tapToRevealTimeoutSeconds,
+        thumbnailSizeDp = layoutRequest.thumbnailSizeDp,
+        focusSearchOnStart = layoutRequest.focusSearchOnStart,
         onSaveSelection = { selection ->
             layoutSettings.submit(
                 layoutRequest,
@@ -1610,7 +1662,13 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,
         failed = timeoutRequest.failed,
         onSave = { seconds -> autoLock.submit(timeoutRequest, seconds, lifetime); revision++ },
-        onDismiss = { autoLock.dismiss(timeoutRequest); revision++ })
+        onDismiss = { autoLock.dismiss(timeoutRequest); revision++ },
+        relockOnBackground = timeoutRequest.relockOnBackground,
+        relockOnBackgroundLabel = "Lock immediately when window is minimized",
+        onSaveWithBackground = { seconds, relockBackground ->
+            autoLock.submit(timeoutRequest, seconds, relockBackground, lifetime)
+            revision++
+        })
     if (moveFailed) EntryConfirmationDialog(title = "Move entry",
         message = "Could not move the entry. Its position or filter changed, or the vault could not be saved.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { moveFailed = false }, onDismiss = { moveFailed = false })

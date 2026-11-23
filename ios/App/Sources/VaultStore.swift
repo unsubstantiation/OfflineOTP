@@ -142,10 +142,14 @@ public final class VaultStore: ObservableObject {
     public static let showIndividualTimeoutsSettingKey = "ui_show_individual_timeouts"
     public static let hideGlobalTimeoutSettingKey = "ui_hide_global_timeout"
     public static let showThumbnailsSettingKey = "ui_show_thumbnails"
+    public static let thumbnailSizeDpSettingKey = "ui_thumbnail_size_dp"
     public static let highlightTokenSettingKey = "ui_highlight_token"
     public static let tapSingleSettingKey = "ui_tap_single"
     public static let tapDoubleSettingKey = "ui_tap_double"
     public static let tapToRevealTimeoutSettingKey = "ui_tap_to_reveal_timeout"
+    public static let focusSearchOnStartSettingKey = "ui_focus_search_on_start"
+    public static let relockBackgroundSettingKey = "ui_relock_background"
+    public static let backupAppendDateTimeSettingKey = "ui_backup_append_date_time"
     public static let splitGroupSizeSettingKey = "ui_split_group_size"
     public static let searchIncludesSettingKey = "ui_search_includes"
     public static let usedTokensShownSettingKey = "ui_used_tokens_shown"
@@ -163,10 +167,14 @@ public final class VaultStore: ObservableObject {
     @Published public private(set) var showIndividualTimeouts = true
     @Published public private(set) var hideGlobalTimeout = false
     @Published public private(set) var showThumbnails = true
+    @Published public private(set) var thumbnailSizeDp = 0
     @Published public private(set) var highlightToken = true
     @Published public private(set) var tapSingle = "REVEAL"
     @Published public private(set) var tapDouble = "NOTHING"
     @Published public private(set) var tapToRevealTimeoutSeconds = 0
+    @Published public private(set) var focusSearchOnStart = false
+    @Published public private(set) var relockOnBackground = false
+    @Published public private(set) var backupAppendDateTime = true
     @Published public private(set) var tokenGroupSize = 3
     @Published public private(set) var usedTokensDialogShown = false
     private var lastActivityDate = Date()
@@ -220,6 +228,8 @@ public final class VaultStore: ObservableObject {
         self.hideGlobalTimeout = settings.string(VaultStore.hideGlobalTimeoutSettingKey) == "true"
         self.showThumbnails = VaultStore.storedShowThumbnails(
             settings.string(VaultStore.showThumbnailsSettingKey))
+        self.thumbnailSizeDp = VaultStore.storedThumbnailSizeDp(
+            settings.integer(VaultStore.thumbnailSizeDpSettingKey))
         self.highlightToken = VaultStore.storedHighlightToken(
             settings.string(VaultStore.highlightTokenSettingKey))
         self.tapSingle = VaultStore.storedTapMode(
@@ -228,6 +238,10 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
         self.tapToRevealTimeoutSeconds = VaultStore.storedRevealTimeoutSeconds(
             settings.integer(VaultStore.tapToRevealTimeoutSettingKey))
+        self.focusSearchOnStart = settings.string(VaultStore.focusSearchOnStartSettingKey) == "true"
+        self.relockOnBackground = settings.string(VaultStore.relockBackgroundSettingKey) == "true"
+        self.backupAppendDateTime = VaultStore.storedBackupAppendDateTime(
+            settings.string(VaultStore.backupAppendDateTimeSettingKey))
         self.tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         self.searchIncludes = VaultStore.storedSearchIncludes(
@@ -504,6 +518,8 @@ public final class VaultStore: ObservableObject {
         hideGlobalTimeout = settings.string(VaultStore.hideGlobalTimeoutSettingKey) == "true"
         showThumbnails = VaultStore.storedShowThumbnails(
             settings.string(VaultStore.showThumbnailsSettingKey))
+        thumbnailSizeDp = VaultStore.storedThumbnailSizeDp(
+            settings.integer(VaultStore.thumbnailSizeDpSettingKey))
         highlightToken = VaultStore.storedHighlightToken(
             settings.string(VaultStore.highlightTokenSettingKey))
         tapSingle = VaultStore.storedTapMode(
@@ -512,6 +528,10 @@ public final class VaultStore: ObservableObject {
             settings.string(VaultStore.tapDoubleSettingKey), fallback: "NOTHING")
         tapToRevealTimeoutSeconds = VaultStore.storedRevealTimeoutSeconds(
             settings.integer(VaultStore.tapToRevealTimeoutSettingKey))
+        focusSearchOnStart = settings.string(VaultStore.focusSearchOnStartSettingKey) == "true"
+        relockOnBackground = settings.string(VaultStore.relockBackgroundSettingKey) == "true"
+        backupAppendDateTime = VaultStore.storedBackupAppendDateTime(
+            settings.string(VaultStore.backupAppendDateTimeSettingKey))
         tokenGroupSize = VaultStore.storedTokenGroupSize(
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         searchIncludes = VaultStore.storedSearchIncludes(
@@ -562,6 +582,16 @@ public final class VaultStore: ObservableObject {
     private static func storedLabelSizeSp(_ raw: Int?) -> Int {
         guard let raw, raw == 0 || (12...24).contains(raw) else { return 0 }
         return raw
+    }
+
+    private static func storedThumbnailSizeDp(_ raw: Int?) -> Int {
+        guard let raw, raw > 0 else { return 0 }
+        return min(max(raw, 20), 96)
+    }
+
+    private static func storedBackupAppendDateTime(_ raw: String?) -> Bool {
+        guard let raw else { return true }
+        return raw != "false"
     }
 
     private static func storedHighlightToken(_ raw: String?) -> Bool {
@@ -623,6 +653,31 @@ public final class VaultStore: ObservableObject {
     public func setShowThumbnails(_ show: Bool) {
         showThumbnails = show
         settings.setString(VaultStore.showThumbnailsSettingKey, show ? "true" : "false")
+    }
+
+    /// Persists the optional card thumbnail size (`0` = layout default, or `20...96` dp).
+    public func setThumbnailSizeDp(_ sizeDp: Int) {
+        let resolved = VaultStore.storedThumbnailSizeDp(sizeDp)
+        thumbnailSizeDp = resolved
+        settings.setInteger(VaultStore.thumbnailSizeDpSettingKey, resolved)
+    }
+
+    /// Persists whether search receives focus when the vault opens (`ui_focus_search_on_start`).
+    public func setFocusSearchOnStart(_ focus: Bool) {
+        focusSearchOnStart = focus
+        settings.setString(VaultStore.focusSearchOnStartSettingKey, focus ? "true" : "false")
+    }
+
+    /// Persists whether entering the background locks the vault immediately (`ui_relock_background`).
+    public func setRelockOnBackground(_ relock: Bool) {
+        relockOnBackground = relock
+        settings.setString(VaultStore.relockBackgroundSettingKey, relock ? "true" : "false")
+    }
+
+    /// Persists whether backup filenames append a timestamp (`ui_backup_append_date_time`).
+    public func setBackupAppendDateTime(_ append: Bool) {
+        backupAppendDateTime = append
+        settings.setString(VaultStore.backupAppendDateTimeSettingKey, append ? "true" : "false")
     }
 
     /// Persists whether expiring OTP tokens highlight during their final seconds (`ui_highlight_token`).
@@ -1108,7 +1163,9 @@ public final class VaultStore: ObservableObject {
             let document = try VaultDocument.encode(entries)
             let data = try EncryptedBackup.sealWithFreshParameters(password: password,
                                                                   plain: document)
-            return ExportedBackup(name: BackupFileNames.encrypted(now), data: data)
+            return ExportedBackup(
+                name: BackupFileNames.encrypted(now, appendTimestamp: backupAppendDateTime),
+                data: data)
         } catch {
             message = "The backup could not be written."
             return nil
@@ -1244,7 +1301,9 @@ public final class VaultStore: ObservableObject {
         do {
             let document = try VaultDocument.encode(entries)
             let data = try OpenPgpBackupCodec.seal(port: openPgp, plain: document, recipientKeyBlocks: recipientKeyBlocks)
-            return ExportedBackup(name: BackupFileNames.openPgp(now), data: data)
+            return ExportedBackup(
+                name: BackupFileNames.openPgp(now, appendTimestamp: backupAppendDateTime),
+                data: data)
         } catch let error as OpenPgpError {
             message = error.errorDescription ?? "The OpenPGP backup could not be created."
             return nil
