@@ -42,6 +42,7 @@ import com.fairuniversal.offlineotp.ui.vault.HardwareCopyDialog
 import com.fairuniversal.offlineotp.ui.vault.HideableDialog
 import com.fairuniversal.offlineotp.ui.vault.MultiChoiceSelectionDialog
 import com.fairuniversal.offlineotp.ui.vault.OpenPgpExportDialog
+import com.fairuniversal.offlineotp.ui.vault.PasswordChangeDialog
 import com.fairuniversal.offlineotp.ui.vault.PasswordExportDialog
 import com.fairuniversal.offlineotp.ui.vault.PasswordImportDialog
 import com.fairuniversal.offlineotp.ui.vault.PreferencesImportDialog
@@ -1119,6 +1120,68 @@ class AutoLockComposeView(
                 onDismiss = onDismiss,
                 relockOnBackground = relockOnBackground,
                 onSaveWithBackground = onSave
+            )
+        }
+    }
+}
+
+/** Shared vault password rekey dialog backed by [PasswordChangeDialog]. */
+class PasswordChangeComposeView(
+    activity: Activity,
+    private val maxFieldChars: Int = InputPolicy.MAX_TEXT_CHARS,
+    private val requiresUnlock: Boolean = false,
+    private val onSubmit: (String, String, String) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+
+    var busy: Boolean by mutableStateOf(false)
+        private set
+    var result: String? by mutableStateOf(null)
+        private set
+    var invalid: Boolean by mutableStateOf(false)
+        private set
+    var errorText: String? by mutableStateOf(null)
+        private set
+    private var revision: Int by mutableStateOf(0)
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    fun updateState(
+        busy: Boolean = this.busy,
+        result: String? = this.result,
+        invalid: Boolean = this.invalid,
+        errorText: String? = this.errorText,
+        resetFields: Boolean = false
+    ) {
+        this.busy = busy
+        this.result = result
+        this.invalid = invalid
+        this.errorText = errorText
+        if (resetFields) revision++
+    }
+
+    /** Direct entry point for headless host checks while Compose stubs remain inert. */
+    fun submitPasswordChange(current: String, next: String, confirmation: String) {
+        if (!busy && result == null) {
+            onSubmit(current, next, confirmation)
+        }
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            PasswordChangeDialog(
+                inputKey = this to revision,
+                busy = busy,
+                result = result,
+                invalid = invalid,
+                maxFieldChars = maxFieldChars,
+                requiresUnlock = requiresUnlock,
+                errorText = errorText,
+                onSubmit = onSubmit,
+                onDismiss = { if (!busy) onDismiss() }
             )
         }
     }

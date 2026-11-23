@@ -69,6 +69,7 @@
     <string name="menu_main_auto_lock">Auto-lock</string>
     <string name="menu_main_backup">Backup</string>
     <string name="menu_main_card_display">Card display</string>
+    <string name="menu_main_change_password">Change vault password</string>
     <string name="menu_main_hardware">Hardware keys</string>
     <string name="menu_main_search">Search</string>
     <string name="menu_main_search_fields">Search fields</string>

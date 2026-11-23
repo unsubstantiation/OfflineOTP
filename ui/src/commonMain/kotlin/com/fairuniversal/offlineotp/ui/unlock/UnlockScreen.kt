@@ -9,8 +9,11 @@ import com.fairuniversal.offlineotp.ui.vault.VaultStrings
 fun UnlockScreen(strings: VaultStrings, onSubmit: (String) -> Unit, modifier: Modifier = Modifier,
                  error: String? = null, busy: Boolean = false, hint: String? = null,
                  onHardwareUnlock: (() -> Unit)? = null,
-                 onRestore: (() -> Unit)? = null) {
+                 onRestore: (() -> Unit)? = null,
+                 creating: Boolean = false,
+                 onCreate: (String, String) -> Unit = { _, _ -> }) {
     SharedUnlockScreen(
         UnlockStrings(strings.appTitle, strings.passwordLabel, strings.unlockAction, strings.unlocking),
-        onSubmit, modifier, error, busy, hint, onHardwareUnlock, onRestore = onRestore)
+        onSubmit, modifier, error, busy, hint, onHardwareUnlock,
+        creating = creating, onCreate = onCreate, onRestore = onRestore)
 }

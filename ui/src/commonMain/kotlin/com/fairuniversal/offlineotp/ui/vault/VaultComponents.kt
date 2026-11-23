@@ -4,9 +4,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
+import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 /**
  * Thin `:ui` adapters mapping `:ui-model` values ([VaultUiState], [VaultCardState],
@@ -92,18 +95,24 @@ internal fun VaultTagChips(
             }
         },
         horizontalPaddingDp = 16,
-        trailingContent = if ((cycleTagRule != null && tagRuleLabel != null) || showClear) {
+        leadingContent = if (cycleTagRule != null && tagRuleLabel != null) {
             {
-                if (cycleTagRule != null && tagRuleLabel != null) {
-                    SharedVaultTagChip(
-                        label = tagRuleLabel,
-                        selected = false,
-                        onClick = cycleTagRule
-                    )
-                }
-                if (showClear) {
-                    ForestTextAction(text = clearLabel, onClick = actions.onClearFilters)
-                }
+                ForestTextAction(
+                    text = tagRuleLabel,
+                    onClick = cycleTagRule,
+                    color = ForestPalette.textSecondary,
+                    contentDescription = "How selected tags combine"
+                )
+            }
+        } else null,
+        trailingContent = if (showClear) {
+            {
+                ForestTextAction(
+                    text = clearLabel,
+                    onClick = actions.onClearFilters,
+                    color = ForestPalette.warning,
+                    contentDescription = "Clear the search and tag filters"
+                )
             }
         } else null
     )
@@ -139,7 +148,7 @@ internal fun VaultEntryCard(
         verticalPaddingDp = appearance.cardVerticalPaddingDp,
         codeBelowIdentity = appearance.codeBelowIdentity,
         showCodeArea = showCodeArea,
-        inlineTagsSummary = if (card.tags.isNotEmpty()) card.tags.joinToString(" · ") else "",
+        pillTags = if (card.detailsVisible) card.tags else emptyList(),
         customPeriodLabel = if (card.detailsVisible && customPeriod != null) strings.customPeriod(customPeriod) else null,
         detailLabel = if (card.detailsVisible && detailLabel != null) detailLabel else null,
         revealedContent = revealedContent,
@@ -161,7 +170,15 @@ internal fun VaultEntryCard(
                 pinRequired = card.pinRequired,
                 pinRequiredLabel = strings.pinRequired,
                 counterText = card.counter?.let { "${strings.counterLabel} $it" },
-                noCodeLabel = strings.noCode
+                noCodeLabel = strings.noCode,
+                contentDescription = if (card.tokenVisible && token != null) {
+                    "Code " + token.toCharArray().joinToString(" ")
+                } else null,
+                previousSemanticsModifier = if (card.tokenVisible && previousToken != null) {
+                    Modifier.semantics {
+                        contentDescription = "Previous token " + previousToken.toCharArray().joinToString(" ")
+                    }
+                } else Modifier
             )
         },
         actionsContent = {

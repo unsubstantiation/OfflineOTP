@@ -19,6 +19,8 @@ data class VaultStrings(
     val settingsTools: String = "Display and security",
     val closeTools: String = "Close",
     val addEntry: String = "Add entry",
+    val addEmailEntry: String = "Add email account",
+    val addPasswordEntry: String = "Add password",
     val cardLayout: String = "Card layout",
     val searchFields: String = "Search fields",
     val autoLock: String = "Auto-lock",
@@ -127,6 +129,13 @@ data class VaultStrings(
     /** `Codes (12)` in a tab label. */
     fun categoryCount(category: EntryListPresentation.Category, count: Int): String =
         if (count <= 0) categoryTitle(category) else "${categoryTitle(category)} ($count)"
+
+    /** Category-specific primary creation CTA label shown in empty tabs across Android, Desktop and iOS. */
+    fun addEntryTitle(category: EntryListPresentation.Category?): String = when (category) {
+        EntryListPresentation.Category.EMAILS -> addEmailEntry
+        EntryListPresentation.Category.PASSWORDS -> addPasswordEntry
+        else -> addEntry
+    }
 
     companion object {
         /** The default wording, used by the desktop preview, previews and unit tests. */

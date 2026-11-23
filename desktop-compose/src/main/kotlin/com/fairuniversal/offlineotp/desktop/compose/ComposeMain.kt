@@ -334,13 +334,28 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
     DisposableEffect(operation) {
         onDispose { restoreActive.set(false); hardwareUnlock.close(); operation.close(); worker.shutdown() }
     }
-    UnlockScreen(strings = VaultStrings.English, error = if (hardwareDialog) null else failure, busy = busy || hardwareDialog,
+    UnlockScreen(
+        strings = VaultStrings.English,
+        error = if (hardwareDialog) null else failure,
+        busy = busy || hardwareDialog,
+        creating = !controller.isInitialized(),
+        onCreate = { password, confirmation ->
+            if (!busy && !hardwareDialog && storageAvailable()) {
+                if (password != confirmation) {
+                    failure = "The new vault passwords do not match."
+                } else {
+                    failure = null
+                    operation.submit(password)
+                }
+            }
+        },
         onRestore = if (!controller.isInitialized()) ({ if (!busy && !restoreBusy && storageAvailable()) {
             restoreError = null; restoreFile = null; restoreOpen = true
         } }) else null,
         onHardwareUnlock = if (controller.isInitialized() && hardwareEnrolled) ({ if (!busy && storageAvailable()) { failure = null; hardwareDialog = true } }) else null,
         hint = if (controller.isInitialized()) null else "There is no vault in this folder yet. Choose a password to create one.",
-        onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit })
+        onSubmit = { password -> if (!busy && !hardwareDialog && storageAvailable()) { failure = null; operation.submit(password) }; Unit }
+    )
     if (restoreOpen) NewVaultRestoreDialog(
         backupName = restoreFile?.name,
         busy = restoreBusy,

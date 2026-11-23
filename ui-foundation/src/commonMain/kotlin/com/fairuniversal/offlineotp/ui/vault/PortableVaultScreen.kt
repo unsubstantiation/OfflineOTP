@@ -392,10 +392,10 @@ private fun PortableCardView(
                 ForestTextAction("Move down", onClick = { onCard(card.index, "moveDown") },
                     contentDescription = "Move " + displayTitle + " down")
             }
-            if (card.canStep) ForestTextAction("Step",
+            if (card.canStep) ForestTextAction("Next code",
                 onClick = { onCard(card.index, "step") },
                 onLongClick = { onCard(card.index, "counter") },
-                contentDescription = "Step the counter")
+                contentDescription = "Next code for " + displayTitle)
             if (card.isEmail && card.revealed) {
                 ForestTextAction("Connection details",
                     onClick = { onCard(card.index, "emailDetails") },
