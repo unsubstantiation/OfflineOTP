@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.runtime.Composable
 import com.fairuniversal.offlineotp.Utilities.EmailIdentityInput
+import com.fairuniversal.offlineotp.ui.portable.PortableAddedEmailIdentityDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailConnectionDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailIdentityDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailSettingsDraft
@@ -47,7 +48,18 @@ private fun EmailSettingsInput.toPortable(): PortableEmailSettingsDraft = Portab
     identities = identities?.map { PortableEmailIdentityDraft(name = it.name, address = it.address) },
     accountName = accountName,
     removedIdentities = removedIdentities,
-    removableIdentities = removableIdentities
+    removableIdentities = removableIdentities,
+    primaryIdentityIndex = primaryIdentityIndex,
+    addedIdentities = addedIdentities.map { added ->
+        PortableAddedEmailIdentityDraft(
+            identity = PortableEmailIdentityDraft(
+                name = added.identity.name,
+                address = added.identity.address
+            ),
+            connection = added.connection.toPortable(),
+            password = ""
+        )
+    }
 )
 
 private fun PortableEmailSettingsDraft.toModel(): EmailSettingsInput = EmailSettingsInput(
@@ -57,5 +69,16 @@ private fun PortableEmailSettingsDraft.toModel(): EmailSettingsInput = EmailSett
     identities = identities?.map { EmailIdentityInput(name = it.name, address = it.address) },
     accountName = accountName,
     removedIdentities = removedIdentities,
-    removableIdentities = removableIdentities
+    removableIdentities = removableIdentities,
+    primaryIdentityIndex = primaryIdentityIndex,
+    addedIdentities = addedIdentities.map { added ->
+        AddedEmailIdentityInput(
+            identity = EmailIdentityInput(
+                name = added.identity.name,
+                address = added.identity.address
+            ),
+            connection = added.connection.toModel(),
+            password = added.password
+        )
+    }
 )

@@ -1,8 +1,10 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import androidx.compose.runtime.Composable
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.ui.portable.PortableEntryDialogKind
 
-/** Shared dialog routing and wording; the host only executes and validates commands. */
+/** Thin `:ui` adapter delegating entry-action dialog routing to [SharedVaultEntryDialog] in `:ui-foundation`. */
 @Composable
 fun VaultEntryDialog(
     request: VaultDialogRequest,
@@ -11,35 +13,32 @@ fun VaultEntryDialog(
     onPinSubmit: (String) -> Unit,
     strings: VaultDialogStrings = VaultDialogStrings()
 ) {
-    when (request.kind) {
-        VaultDialogKind.PIN -> EntryPinDialog(
-            entryId = request.entryId,
-            inputKey = request,
-            title = strings.pinTitle,
-            inputLabel = strings.pinLabel,
-            confirmLabel = strings.save,
-            dismissLabel = strings.cancel,
-            onSubmit = onPinSubmit,
-            onDismiss = onDismiss,
-            error = if (request.failed) strings.pinFailure else null
-        )
-        VaultDialogKind.COUNTER -> EntryConfirmationDialog(
-            title = strings.counterTitle,
-            message = strings.counterMessage,
-            confirmLabel = strings.counterConfirm,
-            dismissLabel = strings.cancel,
-            onConfirm = onConfirm,
-            onDismiss = onDismiss,
-            error = if (request.failed) strings.counterFailure else null
-        )
-        VaultDialogKind.DELETE -> EntryConfirmationDialog(
-            title = strings.deleteTitle,
-            message = strings.deleteMessage,
-            confirmLabel = strings.deleteConfirm,
-            dismissLabel = strings.cancel,
-            onConfirm = onConfirm,
-            onDismiss = onDismiss,
-            error = if (request.failed) strings.deleteFailure else null
-        )
+    val portableKind = when (request.kind) {
+        VaultDialogKind.PIN -> PortableEntryDialogKind.PIN
+        VaultDialogKind.COUNTER -> PortableEntryDialogKind.COUNTER
+        VaultDialogKind.DELETE -> PortableEntryDialogKind.DELETE
     }
+    SharedVaultEntryDialog(
+        kind = portableKind,
+        entryId = request.entryId,
+        inputKey = request,
+        failed = request.failed,
+        onDismiss = onDismiss,
+        onConfirm = onConfirm,
+        onPinSubmit = onPinSubmit,
+        pinTitle = strings.pinTitle,
+        pinLabel = strings.pinLabel,
+        pinConfirmLabel = strings.save,
+        pinFailure = strings.pinFailure,
+        pinMaxLength = InputPolicy.MAX_TAG_CHARS,
+        counterTitle = strings.counterTitle,
+        counterMessage = strings.counterMessage,
+        counterConfirmLabel = strings.counterConfirm,
+        counterFailure = strings.counterFailure,
+        deleteTitle = strings.deleteTitle,
+        deleteMessage = strings.deleteMessage,
+        deleteConfirmLabel = strings.deleteConfirm,
+        deleteFailure = strings.deleteFailure,
+        cancelLabel = strings.cancel
+    )
 }

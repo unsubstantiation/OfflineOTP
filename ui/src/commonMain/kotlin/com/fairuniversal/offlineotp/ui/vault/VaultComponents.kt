@@ -35,9 +35,16 @@ internal fun VaultSearchField(
     value: String,
     hint: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusOnStart: Boolean = false
 ) {
-    SharedVaultSearchField(value = value, hint = hint, onValueChange = onValueChange, modifier = modifier)
+    SharedVaultSearchField(
+        value = value,
+        hint = hint,
+        onValueChange = onValueChange,
+        modifier = modifier,
+        focusOnStart = focusOnStart
+    )
 }
 
 @Composable
@@ -124,7 +131,7 @@ internal fun VaultEntryCard(
         thumbnailSizeDp = appearance.thumbnailSizeDp,
         tileSeed = card.thumbnailName.ifBlank { card.title },
         artworkSlot = if (showThumb) {
-            { VaultIssuerArtwork(card = card, sizeDp = appearance.thumbnailSizeDp, artwork = artwork) }
+            { VaultIssuerArtwork(card = card, showIssuer = appearance.showIssuer, sizeDp = appearance.thumbnailSizeDp, artwork = artwork) }
         } else null,
         scrollLabels = appearance.scrollLabels,
         labelSizeSp = appearance.labelSizeSp,
@@ -158,72 +165,90 @@ internal fun VaultEntryCard(
             )
         },
         actionsContent = {
+            val subject = card.title
             val privacy = actions.onTogglePrivacy
             if (privacy != null) {
                 ForestTextAction(
                     text = if (card.detailsVisible) strings.privacyHide else strings.privacyReveal,
-                    onClick = { privacy(card) }
+                    onClick = { privacy(card) },
+                    contentDescription = "${if (card.detailsVisible) strings.privacyHide else strings.privacyReveal} for $subject"
                 )
             }
             if (card.detailsVisible && (card.hasToken || card.copyable)) {
+                val copyLabel = if (card.hasToken) strings.copyAction else strings.copyContent
                 ForestTextAction(
-                    text = if (card.hasToken) strings.copyAction else strings.copyContent,
+                    text = copyLabel,
                     enabled = card.copyable,
-                    onClick = { actions.onCopyToken(card) }
+                    onClick = { actions.onCopyToken(card) },
+                    contentDescription = "$copyLabel for $subject"
                 )
             }
             val copyAccount = actions.onCopyAccount
             if (card.detailsVisible && card.canCopyAccount && copyAccount != null) {
                 ForestTextAction(
                     text = strings.copyAccount,
-                    onClick = { copyAccount(card) }
+                    onClick = { copyAccount(card) },
+                    contentDescription = "${strings.copyAccount} for $subject"
                 )
             }
             val copyPassword = actions.onCopyPassword
             if (card.detailsVisible && card.canCopyPassword && copyPassword != null) {
                 ForestTextAction(
                     text = strings.copyPassword,
-                    onClick = { copyPassword(card) }
+                    onClick = { copyPassword(card) },
+                    contentDescription = "${strings.copyPassword} for $subject"
                 )
             }
             val enterPin = actions.onEnterPin
             if (card.detailsVisible && card.pinRequired && enterPin != null) {
-                ForestTextAction(text = strings.enterPin, onClick = { enterPin(card) })
+                ForestTextAction(
+                    text = strings.enterPin,
+                    onClick = { enterPin(card) },
+                    contentDescription = "${strings.enterPin} for $subject"
+                )
             }
             val nextCounter = actions.onNextCounter
             if (card.detailsVisible && card.counter != null && nextCounter != null) {
                 ForestTextAction(
                     text = strings.nextCode,
                     onClick = { nextCounter(card) },
-                    onLongClick = actions.onEditCounter?.let { action -> { action(card) } }
+                    onLongClick = actions.onEditCounter?.let { action -> { action(card) } },
+                    contentDescription = "${strings.nextCode} for $subject"
                 )
             }
             if ((!card.detailsVisible && actions.onTogglePrivacy == null) ||
                 (card.detailsVisible && (card.hasToken || card.kind != VaultEntryKind.OTP))) {
+                val revealLabel = if (card.revealed) strings.hideAction else strings.revealAction
                 ForestTextAction(
-                    text = if (card.revealed) strings.hideAction else strings.revealAction,
-                    onClick = { actions.onToggleReveal(card) }
+                    text = revealLabel,
+                    onClick = { actions.onToggleReveal(card) },
+                    contentDescription = "$revealLabel for $subject"
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
             val viewEmailDetails = actions.onViewEmailDetails
             if (card.detailsVisible && card.revealed && card.kind == VaultEntryKind.EMAILS && viewEmailDetails != null) {
-                ForestTextAction(text = strings.emailDetails, onClick = { viewEmailDetails(card) })
+                ForestTextAction(text = strings.emailDetails, onClick = { viewEmailDetails(card) },
+                    contentDescription = "${strings.emailDetails} for $subject")
             }
             val edit = actions.onEditEntry
             if (card.detailsVisible && card.revealed && edit != null &&
                 (card.kind in listOf(VaultEntryKind.OTP, VaultEntryKind.NOTES, VaultEntryKind.SSH_KEYS, VaultEntryKind.EMAILS) ||
                     (card.kind == VaultEntryKind.PASSWORDS && card.canEditPassword))) {
-                ForestTextAction(text = strings.editEntry, onClick = { edit(card) })
+                ForestTextAction(
+                    text = strings.editEntry,
+                    onClick = { edit(card) },
+                    contentDescription = "${strings.editEntry} for $subject"
+                )
             }
         }
     )
 }
 
 @Composable
-private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
+private fun VaultIssuerArtwork(card: VaultCardState, showIssuer: Boolean, sizeDp: Float, artwork: VaultArtwork?) {
     SharedIssuerArtwork(
-        thumbnailName = card.thumbnailName,
+        thumbnailName = if (showIssuer || card.revealed) card.thumbnailName else "",
         title = card.title,
         sizeDp = sizeDp,
         artwork = artwork

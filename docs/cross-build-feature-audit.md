@@ -23,7 +23,7 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
 | P1 | Entry-edit completeness | Common password form deliberately edits URL/username/password only; it preserves additional columns and declines conflicting aliases. OTP/note/key and email editors have separate Swift implementations. | Field-by-field view/edit/support matrix and shared roundtrip fixtures, including metadata and failed-write behavior. Do not call preservation alone “fully editable.” |
 | P2 | Navigation | Android `AndroidVaultController` publishes `showControls = false`, retaining Activity controls. Desktop uses shared Compose controls. iOS uses SwiftUI navigation/list/toolbars. | Same action names, ordering, categories and confirmation rules in responsive phone/window layouts; preserve native back/keyboard/accessibility behavior. |
 | P2 | Dialog sizing | Five shared import dialogs used non-scrollable columns, unlike LinSCP import/export and SwiftUI Form-based restore. | Shared scrollable body and small-window/large-text device checks. Source fix included in this increment. |
-| P2 | OpenPGP recipient limits | Desktop `DesktopOpenPgpExport.MAX_RECIPIENT_FILES` is 8; Android `OpenPgpKeyFilePolicy.MAX_RECIPIENTS` is 64. | Decide a common user-facing limit and aggregate byte budget, then test it on all clients. Do not simply raise limits without reviewing memory/crypto bounds. |
+| P2 | OpenPGP recipient limits | Unified across Android, Desktop, iOS and the Rust `rpgp` backend at `64` distinct recipients (`OpenPgpKeyFilePolicy.MAX_RECIPIENTS` / `PortableInputBounds.MAX_OPENPGP_RECIPIENTS` / `OpenPgpBackupCodec.maxRecipients`) and a `16 MiB` (`BoundedInputReader.MAX_DOCUMENT_BYTES`) aggregate recipient-key byte budget. | Retain shared `64`-recipient and `16 MiB` aggregate key-block bounds across all clients and codecs; exercise multi-recipient encrypt/decrypt on native toolchains. |
 | P2 | About | Shared content is generated, but Android Activity/library notices, desktop dialog and iOS settings section differ. | Equivalent sections/version/links/notices with native link handling. |
 | P2 | Hardware/quick unlock | Android hardware integration, desktop PC/SC FIDO PRF, and iOS Keychain/biometrics are different adapters/capabilities. Desktop explicitly lacks OpenPGP hardware/agent integration. | Consistent capability-driven controls and recovery wording. Add missing adapters where feasible; never remove working platform features merely to make the menus identical. |
 
@@ -197,6 +197,60 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   inline `onViewEmailDetails` on Android `VaultComposeView`; and added one-time `Token usage`
   sort notices (`ui_used_tokens_shown`) on Desktop and iOS when selecting `Last used` or `Most used`
   sort.
+
+- **Shared iOS vector brand artwork (`thumb_*.xml`), Desktop unlocked `About`, custom thumbnail
+  sizing, `Focus search on start`, background/minimize relock, and optional backup filename
+  timestamps**: Added generated `PortableThumbnailAssets` (`scripts/branding/generate_thumbnail_assets.py`)
+  and pure-Kotlin `PortableVectorDocument` in `:ui-contract`, plus `BundledVectorVaultArtwork` /
+  `SharedVectorBadge` / `SharedVectorCanvas` in `:ui-foundation`, and bundled `../app/src/main/res/drawable`
+  (`thumb_*.xml`) into `ios/project.yml` so iOS renders all 466 shared brand vector logos on vault
+  cards and thumbnail-bearing dialogs (`PortableVaultViewController` + `ComposeVaultHost.swift`
+  `registerArtworkXmlLoader`) while concealing brand hints when `Hide issuer` is enabled on
+  unrevealed cards (`PortableCard.visibleMark`); wired unlocked `About` (`VaultTool.ABOUT` ->
+  `AboutDialog`) on Compose desktop (`ComposeMain.kt`); and added `ui_thumbnail_size_dp`
+  (`Thumbnail size`: `Default` or `24..64 dp`), `ui_focus_search_on_start` (`Focus search on start`),
+  `ui_relock_background` (`Lock immediately when backgrounded or minimized`), and
+  `ui_backup_append_date_time` (`Timestamp backup filenames`) across `:ui-contract`, `:ui-foundation`,
+  `:ui-model`, `:ui`, `:core` (`BackupFileNames.appendTimestamp`), `:app` (`AndroidVaultController`),
+  Desktop (`VaultController`, `DesktopLayoutSettings`, `DesktopAutoLockSettings`, `DesktopSavePicker`,
+  `ComposeMain` `windowIconified`), and iOS (`VaultStore`, `ComposeVaultHost`,
+  `AppRootViewController` `UIScene.didEnterBackgroundNotification`), expanding both Desktop and iOS
+  portable preference catalogs to 21 mirrored keys.
+
+- **Unified 64-recipient / 16 MiB OpenPGP ceiling, multi-identity SMTP creation & primary
+  reassignment, persisted tag selections, and Desktop `Minimize window after copying`**: Unified the
+  OpenPGP recipient limit (`64`) and aggregate `16 MiB` recipient-key byte budget across
+  `PortableInputBounds.MAX_OPENPGP_RECIPIENTS`, `OpenPgpExportDialog` (`:ui-foundation`),
+  `OpenPgpBackupCodec.seal` (`:core`), Android `OpenPgpKeyFileBackupTask`, Desktop
+  `DesktopOpenPgpExport.MAX_RECIPIENT_FILES`, and iOS `OpenPgpBackupCodec` / `ComposeVaultHost`;
+  extended `PortableEmailSettingsDraft` (`PortableAddedEmailIdentityDraft`, `primaryIdentityIndex`,
+  `withoutSecrets()`), `SharedEmailSettingsDialog`, `EmailSettingsInput` (`AddedEmailIdentityInput`),
+  `PortableVaultViewController`, and Swift `EmailSettingsInput` / `ComposeVaultHost` so Android,
+  Desktop, and iOS can create additional SMTP identities with masked credentials and reassign the
+  primary sender identity (promoting the chosen primary to `identities[0]` and scrubbing added
+  passwords from UI/draft state on submit); persisted active tag chip selections
+  (`ui_selected_tags`, `ui_untagged_selected`) reconciled against live vault tags across Desktop
+  (`VaultPresenter`, `VaultController`, `ComposeMain`, `PreferencesExport.desktopCatalog`) and iOS
+  (`VaultStore`, `ComposeVaultHost`, `PreferencesExport.catalog`); and added Desktop
+  `Minimize window after copying` (`ui_minimize_on_copy` in `SharedCardLayoutDialog`,
+  `DesktopLayoutSettings`, `VaultController`, `ComposeMain`, and `PreferencesExport.desktopCatalog`).
+
+- **Unified `SharedVaultToolsBar` on iOS, `SharedVaultEntryDialog` delegation, cross-build
+  `HideableDialog` used-tokens notice parity, Dark Forest two-tab `AboutDialog` (`About` |
+  `Libraries`), and per-card accessible action descriptions**: Extended `PortableVaultState`
+  (`:ui-contract`) with `toolGroups` and wired `SharedVaultToolsBar` (`+ Add` + `Tools` ->
+  `SharedVaultToolsDialog`) in `PortableVaultScreen.kt` (`:ui-foundation`) and
+  `ComposeVaultHost.swift` so iOS and Desktop share the same top-bar chrome (`Lock` in
+  `SharedVaultTopBar` + grouped secondary tools modal closed before dispatch); migrated
+  `VaultEntryDialog` (`:ui`) onto `SharedVaultEntryDialog` (`:ui-foundation`) over
+  `PortableEntryDialogKind` (`:ui-contract`); unified Desktop (`ComposeMain.kt`) and iOS
+  (`PortableVaultViewController.kt` + `ComposeVaultHost.swift`) token-usage sort notices onto
+  `HideableDialog` (`:ui-foundation`) so `usedTokensDialogShown` is persisted only when `"Don't
+  show this message again"` is checked (matching Android); upgraded `AboutDialog` (`:ui-foundation`)
+  with Dark Forest styling and two-tab `About` / `Libraries` open-source license notices over
+  `PortableLibraryCatalog.bundled` (`:ui-contract`); and added privacy-preserving per-entry
+  `contentDescription` labels across `VaultComponents.kt` (`:ui`) and `VaultToolsBar.kt`.
+
 
 ## Required acceptance gates
 

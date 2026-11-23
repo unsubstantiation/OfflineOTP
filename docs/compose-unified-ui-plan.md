@@ -37,7 +37,7 @@ coverage. Completing the migration does not require another Swing cutover.
 | Background final persistence | Detached save component and shared write gate implemented/tested, not yet wired into production. Controller-level save/rekey/unlock admission is implemented; window admission checks are implemented; Compose creation, deletion, HOTP counter advance and mOTP PIN updates use background transactions with a fresh-unlock requirement; remaining save paths are synchronous. |
 | Desktop camera QR capture | Add capture with cancellation, bounded decoding and device testing; image-file and URI import already exist. |
 | OpenPGP hardware/agent integration | Add those key sources and verify actual device/agent interoperability; file-key workflows already exist. |
-| Email identity creation / primary reassignment | Extend existing metadata editing and staged removal with explicit credential and primary-identity rules. |
+| Email identity creation / primary reassignment | Implemented across `:ui-contract` (`PortableAddedEmailIdentityDraft`, `primaryIdentityIndex`), `:ui-foundation` (`SharedEmailSettingsDialog`), `:core` (`AddedEmailIdentityInput`, `EmailSettingsInput`), and iOS (`EmailCredentials.swift`, `ComposeVaultHost.swift`); native device verification remains part of the release matrix. |
 | Android legacy renderer cleanup | Retire remaining old renderer fixtures/XML only after preserving necessary regression coverage; complete visual/accessibility checks. |
 | Remaining preferences/shared-UI parity | Audit the supported settings and platform chrome against the intended release scope rather than assuming complete parity. |
 

@@ -90,6 +90,10 @@ data class PortableCard(
     fun visibleTitle(hideIssuer: Boolean): String =
         if (revealed || !hideIssuer) title else concealedTitle
 
+    /** Brand thumbnail name or tile seed while visible; falls back to [concealedTitle] when issuer hiding is active. */
+    fun visibleMark(hideIssuer: Boolean): String =
+        if (revealed || !hideIssuer) mark else concealedTitle
+
     /** A displayed code is never guessed from a hidden entry. */
     fun visibleCode(): String = if (revealed && hasCode) code else ""
 
@@ -152,7 +156,10 @@ data class PortableVaultState(
     val tapDoubleName: String = "NOTHING",
     val globalProgress: Float = 0f,
     val globalExpiring: Boolean = false,
-    val hideGlobalTimeout: Boolean = false
+    val hideGlobalTimeout: Boolean = false,
+    val customThumbnailSizeDp: Int = 0,
+    val focusSearchOnStart: Boolean = false,
+    val toolGroups: List<PortableToolGroup> = emptyList()
 ) {
     val labelDisplay: PortableLabelDisplay
         get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplayName }
@@ -163,6 +170,101 @@ data class PortableVaultState(
 
     val tapDouble: PortableTapMode
         get() = PortableTapMode.fromName(tapDoubleName, fallback = PortableTapMode.NOTHING)
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingleName: String,
+        tapDoubleName: String,
+        globalProgress: Float,
+        globalExpiring: Boolean,
+        hideGlobalTimeout: Boolean,
+        customThumbnailSizeDp: Int,
+        focusSearchOnStart: Boolean
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingleName = tapSingleName,
+        tapDoubleName = tapDoubleName,
+        globalProgress = globalProgress,
+        globalExpiring = globalExpiring,
+        hideGlobalTimeout = hideGlobalTimeout,
+        customThumbnailSizeDp = customThumbnailSizeDp,
+        focusSearchOnStart = focusSearchOnStart,
+        toolGroups = emptyList()
+    )
+
+    constructor(
+        tabs: List<PortableChip>,
+        query: String,
+        tags: List<PortableChip>,
+        includeUntagged: Boolean,
+        tagRule: String,
+        cards: List<PortableCard>,
+        sortLabel: String,
+        toast: String,
+        hiddenTitleEnabled: Boolean,
+        countLabel: String,
+        sortOptions: List<PortableChip>,
+        labelDisplayName: String,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingleName: String,
+        tapDoubleName: String,
+        globalProgress: Float,
+        globalExpiring: Boolean,
+        hideGlobalTimeout: Boolean
+    ) : this(
+        tabs = tabs,
+        query = query,
+        tags = tags,
+        includeUntagged = includeUntagged,
+        tagRule = tagRule,
+        cards = cards,
+        sortLabel = sortLabel,
+        toast = toast,
+        hiddenTitleEnabled = hiddenTitleEnabled,
+        countLabel = countLabel,
+        sortOptions = sortOptions,
+        labelDisplayName = labelDisplayName,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingleName = tapSingleName,
+        tapDoubleName = tapDoubleName,
+        globalProgress = globalProgress,
+        globalExpiring = globalExpiring,
+        hideGlobalTimeout = hideGlobalTimeout,
+        customThumbnailSizeDp = 0,
+        focusSearchOnStart = false
+    )
 
     constructor(
         tabs: List<PortableChip>,
@@ -469,6 +571,23 @@ enum class PortableCardLayout {
             DEFAULT -> 40f
             FULL -> 44f
         }
+
+    fun effectiveThumbnailSizeDp(customSizeDp: Int): Float {
+        val normalized = normalizeThumbnailSizeDp(customSizeDp)
+        return if (normalized > 0) normalized.toFloat() else thumbnailSizeDp
+    }
+
+    companion object {
+        val THUMBNAIL_SIZE_OPTIONS: List<Int> = listOf(0, 24, 32, 40, 48, 64)
+
+        fun normalizeThumbnailSizeDp(value: Int): Int =
+            if (value <= 0) 0 else value.coerceIn(20, 96)
+
+        fun thumbnailSizeLabel(value: Int): String {
+            val normalized = normalizeThumbnailSizeDp(value)
+            return if (normalized <= 0) "Default" else "$normalized dp"
+        }
+    }
 }
 
 /** Toolkit-free mirror of `Constants.LabelDisplay` shared across `:ui-model` and `:ui-foundation`. */
@@ -527,8 +646,79 @@ data class PortableCardDisplaySelection(
     val tapSingle: PortableTapMode,
     val tapDouble: PortableTapMode,
     val hideGlobalTimeout: Boolean = false,
-    val tapToRevealTimeoutSeconds: Int = 0
-)
+    val tapToRevealTimeoutSeconds: Int = 0,
+    val thumbnailSizeDp: Int = 0,
+    val focusSearchOnStart: Boolean = false,
+    val minimizeOnCopy: Boolean = false
+) {
+    constructor(
+        layout: PortableCardLayout,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: PortableLabelDisplay,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingle: PortableTapMode,
+        tapDouble: PortableTapMode,
+        hideGlobalTimeout: Boolean,
+        tapToRevealTimeoutSeconds: Int
+    ) : this(
+        layout = layout,
+        hideIssuer = hideIssuer,
+        showPreviousToken = showPreviousToken,
+        tokenGroupSize = tokenGroupSize,
+        showIndividualCountdowns = showIndividualCountdowns,
+        labelDisplay = labelDisplay,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingle = tapSingle,
+        tapDouble = tapDouble,
+        hideGlobalTimeout = hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
+        thumbnailSizeDp = 0,
+        focusSearchOnStart = false,
+        minimizeOnCopy = false
+    )
+
+    constructor(
+        layout: PortableCardLayout,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: PortableLabelDisplay,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingle: PortableTapMode,
+        tapDouble: PortableTapMode,
+        hideGlobalTimeout: Boolean,
+        tapToRevealTimeoutSeconds: Int,
+        thumbnailSizeDp: Int,
+        focusSearchOnStart: Boolean
+    ) : this(
+        layout = layout,
+        hideIssuer = hideIssuer,
+        showPreviousToken = showPreviousToken,
+        tokenGroupSize = tokenGroupSize,
+        showIndividualCountdowns = showIndividualCountdowns,
+        labelDisplay = labelDisplay,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingle = tapSingle,
+        tapDouble = tapDouble,
+        hideGlobalTimeout = hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
+        thumbnailSizeDp = thumbnailSizeDp,
+        focusSearchOnStart = focusSearchOnStart,
+        minimizeOnCopy = false
+    )
+}
 
 /**
  * Typed, lossless FairEmail account/identity field for shared multi-identity editing across
@@ -617,7 +807,22 @@ data class PortableEmailIdentityDraft(
     override fun toString(): String = "PortableEmailIdentityDraft(redacted)"
 }
 
-/** Multi-identity email connection & sender settings draft, including staged SMTP removals. */
+/** Newly created additional SMTP identity staged inside [PortableEmailSettingsDraft]. */
+data class PortableAddedEmailIdentityDraft(
+    val identity: PortableEmailIdentityDraft = PortableEmailIdentityDraft(),
+    val connection: PortableEmailConnectionDraft = PortableEmailConnectionDraft(
+        port = "587",
+        encryption = 1,
+        authentication = "1"
+    ),
+    val password: String = ""
+) {
+    fun withoutSecret(): PortableAddedEmailIdentityDraft = copy(password = "")
+
+    override fun toString(): String = "PortableAddedEmailIdentityDraft(redacted)"
+}
+
+/** Multi-identity email connection & sender settings draft, including staged SMTP additions, primary reassignment, and removals. */
 data class PortableEmailSettingsDraft(
     val protocol: Int = 0,
     val incoming: PortableEmailConnectionDraft = PortableEmailConnectionDraft(),
@@ -625,8 +830,33 @@ data class PortableEmailSettingsDraft(
     val identities: List<PortableEmailIdentityDraft>? = null,
     val accountName: String? = null,
     val removedIdentities: Set<Int> = emptySet(),
-    val removableIdentities: Set<Int> = emptySet()
+    val removableIdentities: Set<Int> = emptySet(),
+    val primaryIdentityIndex: Int? = null,
+    val addedIdentities: List<PortableAddedEmailIdentityDraft> = emptyList()
 ) {
+    constructor(
+        protocol: Int,
+        incoming: PortableEmailConnectionDraft,
+        outgoing: List<PortableEmailConnectionDraft>,
+        identities: List<PortableEmailIdentityDraft>?,
+        accountName: String?,
+        removedIdentities: Set<Int>,
+        removableIdentities: Set<Int>
+    ) : this(
+        protocol = protocol,
+        incoming = incoming,
+        outgoing = outgoing,
+        identities = identities,
+        accountName = accountName,
+        removedIdentities = removedIdentities,
+        removableIdentities = removableIdentities,
+        primaryIdentityIndex = null,
+        addedIdentities = emptyList()
+    )
+
+    fun withoutSecrets(): PortableEmailSettingsDraft =
+        copy(addedIdentities = addedIdentities.map { it.withoutSecret() })
+
     override fun toString(): String = "PortableEmailSettingsDraft(redacted)"
 }
 
@@ -638,11 +868,81 @@ data class PortableToolItem(
     val value: String = "",
     val enabled: Boolean = true,
     val interactive: Boolean = true
-)
+) {
+    constructor(key: String, label: String) : this(
+        key = key,
+        label = label,
+        detail = "",
+        value = "",
+        enabled = true,
+        interactive = true
+    )
+}
 
 /** A titled section of secondary vault tools (Import, Backup & export, Settings). */
 data class PortableToolGroup(
     val title: String,
     val items: List<PortableToolItem>
 )
+
+/** Portable entry-action dialog kind shared across Android, Desktop and iOS. */
+enum class PortableEntryDialogKind {
+    PIN,
+    COUNTER,
+    DELETE
+}
+
+/** Open-source component and license notice rendered in the shared About dialog's Libraries tab. */
+data class PortableLibraryNotice(
+    val name: String,
+    val license: String,
+    val scope: String = ""
+)
+
+/** Toolkit-free catalog of third-party open-source dependencies across OfflineOTP's shared and native layers. */
+object PortableLibraryCatalog {
+    val bundled: List<PortableLibraryNotice> = listOf(
+        PortableLibraryNotice(
+            name = "Kotlin Standard Library & kotlinx-coroutines",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS"
+        ),
+        PortableLibraryNotice(
+            name = "JetBrains Compose Multiplatform & AndroidX Compose",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS"
+        ),
+        PortableLibraryNotice(
+            name = "Bouncy Castle Cryptographic APIs",
+            license = "MIT License",
+            scope = "Android, Desktop (Argon2id, AES-GCM, PBKDF2)"
+        ),
+        PortableLibraryNotice(
+            name = "rPGP & Rust Crypto crates",
+            license = "MIT OR Apache License 2.0",
+            scope = "Android, Desktop, iOS (in-app OpenPGP)"
+        ),
+        PortableLibraryNotice(
+            name = "Mozilla UniFFI",
+            license = "MPL 2.0",
+            scope = "Android, Desktop, iOS (OpenPGP FFI bindings)"
+        ),
+        PortableLibraryNotice(
+            name = "ZXing (Zebra Crossing)",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop, iOS (QR matrix encoding & decoding)"
+        ),
+        PortableLibraryNotice(
+            name = "Yubico YubiKit",
+            license = "Apache License 2.0",
+            scope = "Android, Desktop (OATH & FIDO2 hardware keys)"
+        ),
+        PortableLibraryNotice(
+            name = "usb4java & Java Native Access (JNA)",
+            license = "MIT License / Apache License 2.0",
+            scope = "Desktop (USB CCID/CTAP & native bindings)"
+        )
+    )
+}
+
 

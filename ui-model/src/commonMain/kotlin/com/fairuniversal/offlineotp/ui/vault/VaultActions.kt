@@ -76,7 +76,9 @@ class VaultActions(
     val onExportEmail: (() -> Unit)? = null,
     val onExportThunderbird: (() -> Unit)? = null,
     val onExportPreferences: (() -> Unit)? = null,
-    val onImportPreferences: (() -> Unit)? = null
+    val onImportPreferences: (() -> Unit)? = null,
+    val onToggleBackupTimestamp: (() -> Unit)? = null,
+    val onOpenAbout: (() -> Unit)? = null
 ) {
     /**
      * Check host liveness at invocation time, not when callbacks are captured by a frame.
@@ -84,6 +86,8 @@ class VaultActions(
      */
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
         onImportPreferences = onImportPreferences?.let { action -> { if (isActive()) action() } },
+        onToggleBackupTimestamp = onToggleBackupTimestamp?.let { action -> { if (isActive()) action() } },
+        onOpenAbout = onOpenAbout?.let { action -> { if (isActive()) action() } },
         onEnrollHardwareUnlock = onEnrollHardwareUnlock?.let { action -> { if (isActive()) action() } },
         onRemoveHardwareUnlock = onRemoveHardwareUnlock?.let { action -> { if (isActive()) action() } },
         onHardwareCopy = onHardwareCopy?.let { action -> { if (isActive()) action() } },

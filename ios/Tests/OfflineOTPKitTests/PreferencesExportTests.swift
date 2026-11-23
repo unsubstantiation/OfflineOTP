@@ -57,20 +57,24 @@ final class PreferencesExportTests: XCTestCase {
             PreferencesExport.showPrevTokenKey: .boolean(false),
             PreferencesExport.showIndividualTimeoutsKey: .boolean(false),
             PreferencesExport.showThumbnailsKey: .boolean(false),
+            PreferencesExport.thumbnailSizeDpKey: .integer(44),
             PreferencesExport.highlightTokenKey: .boolean(false),
             PreferencesExport.tapSingleKey: .text("COPY"),
             PreferencesExport.tapDoubleKey: .text("REVEAL"),
+            PreferencesExport.focusSearchOnStartKey: .boolean(true),
+            PreferencesExport.relockBackgroundKey: .boolean(true),
+            PreferencesExport.backupAppendDateTimeKey: .boolean(false),
             PreferencesExport.splitGroupSizeKey: .integer(2),
             PreferencesExport.searchIncludesKey: .textSet(["LABEL", "TAGS"]),
         ])
         let exported = try PreferencesExport.export(source)
         let preview = try PreferencesExport.inspect(exported.bytes)
-        XCTAssertEqual(13, preview.applied)
+        XCTAssertEqual(17, preview.applied)
         XCTAssertTrue(preview.unknownKeys.isEmpty)
 
         let target = FakePort()
         let result = try PreferencesExport.apply(exported.bytes, into: target)
-        XCTAssertEqual(13, result.applied)
+        XCTAssertEqual(17, result.applied)
         XCTAssertEqual(.text("COMPACT"), target.writes[PreferencesExport.cardLayoutKey])
         XCTAssertEqual(.text("SCROLL"), target.writes[PreferencesExport.labelDisplayKey])
         XCTAssertEqual(.integer(18), target.writes[PreferencesExport.labelSizeSpKey])
@@ -79,11 +83,17 @@ final class PreferencesExportTests: XCTestCase {
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showPrevTokenKey])
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showIndividualTimeoutsKey])
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.showThumbnailsKey])
+        XCTAssertEqual(.integer(44), target.writes[PreferencesExport.thumbnailSizeDpKey])
         XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.highlightTokenKey])
         XCTAssertEqual(.text("COPY"), target.writes[PreferencesExport.tapSingleKey])
         XCTAssertEqual(.text("REVEAL"), target.writes[PreferencesExport.tapDoubleKey])
+        XCTAssertEqual(.boolean(true), target.writes[PreferencesExport.focusSearchOnStartKey])
+        XCTAssertEqual(.boolean(true), target.writes[PreferencesExport.relockBackgroundKey])
+        XCTAssertEqual(.boolean(false), target.writes[PreferencesExport.backupAppendDateTimeKey])
         XCTAssertEqual(.integer(2), target.writes[PreferencesExport.splitGroupSizeKey])
         XCTAssertEqual(.textSet(["LABEL", "TAGS"]), target.writes[PreferencesExport.searchIncludesKey])
+        XCTAssertEqual("otp_accounts.json.aes", BackupFileNames.encrypted(appendTimestamp: false))
+        XCTAssertEqual("otp_accounts.json.gpg", BackupFileNames.openPgp(appendTimestamp: false))
     }
 
     func testAbsentSettingIsNotWrittenAsItsDefault() throws {
@@ -211,5 +221,17 @@ final class PreferencesExportTests: XCTestCase {
         XCTAssertThrowsError(try PreferencesExport.apply(Data([0xFF, 0xFE]), into: FakePort())) { error in
             XCTAssertEqual(error as? PreferencesExport.PreferencesError, .invalidEncoding)
         }
+    }
+
+    func testPersistedTagSelectionRoundTripsAcrossIosCatalog() throws {
+        let source = FakePort()
+        source.values[PreferencesExport.selectedTagsKey] = .textSet(["work", "infra"])
+        source.values[PreferencesExport.untaggedSelectedKey] = .boolean(true)
+        let exported = try PreferencesExport.export(source)
+        let target = FakePort()
+        let result = try PreferencesExport.apply(exported.bytes, into: target)
+        XCTAssertEqual(2, result.applied)
+        XCTAssertEqual(target.writes[PreferencesExport.selectedTagsKey], .textSet(["work", "infra"]))
+        XCTAssertEqual(target.writes[PreferencesExport.untaggedSelectedKey], .boolean(true))
     }
 }

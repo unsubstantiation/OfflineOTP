@@ -126,10 +126,12 @@ fun PortableVaultScreen(
                 horizontalPaddingDp = 12,
                 verticalPaddingDp = 8,
                 trailingActions = {
-                    ForestTextAction("Add", onClick = { onTool("add") }, contentDescription = "Add an entry")
-                    ForestTextAction("Sort", onClick = { onTool("sort") }, contentDescription = "Sort entries")
-                    ForestTextAction("Import", onClick = { onTool("backups") }, contentDescription = "Backups and links")
-                    ForestTextAction("Settings", onClick = { onTool("settings") }, contentDescription = "Settings")
+                    if (state.toolGroups.isEmpty()) {
+                        ForestTextAction("Add", onClick = { onTool("add") }, contentDescription = "Add an entry")
+                        ForestTextAction("Sort", onClick = { onTool("sort") }, contentDescription = "Sort entries")
+                        ForestTextAction("Import", onClick = { onTool("backups") }, contentDescription = "Backups and links")
+                        ForestTextAction("Settings", onClick = { onTool("settings") }, contentDescription = "Settings")
+                    }
                     ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
                 }
             )
@@ -137,6 +139,19 @@ fun PortableVaultScreen(
                 SharedVaultGlobalProgressBar(
                     progress = state.globalProgress,
                     expiring = state.highlightExpiringTokens && state.globalExpiring
+                )
+            }
+            if (state.toolGroups.isNotEmpty()) {
+                SharedVaultToolsBar(
+                    addLabel = "+ Add",
+                    onAdd = { onTool("add") },
+                    toolsLabel = "Tools",
+                    closeLabel = "Close",
+                    groups = state.toolGroups,
+                    onSelectTool = onTool,
+                    horizontalPaddingDp = 12,
+                    addContentDescription = "Add an entry",
+                    toolsContentDescription = "Tools and settings"
                 )
             }
             SharedVaultFilterHeader(
@@ -147,7 +162,8 @@ fun PortableVaultScreen(
                     SharedVaultSearchField(
                         value = state.query,
                         hint = "Search",
-                        onValueChange = onQuery
+                        onValueChange = onQuery,
+                        focusOnStart = state.focusSearchOnStart
                     )
                 },
                 categoryContent = {
@@ -256,6 +272,7 @@ fun PortableVaultScreen(
                             cardLayout = cardLayout,
                             labelDisplay = state.labelDisplay,
                             showThumbnails = state.showThumbnails,
+                            customThumbnailSizeDp = state.customThumbnailSizeDp,
                             labelSizeSp = state.labelSizeSp.takeIf { it > 0 },
                             highlightExpiringTokens = state.highlightExpiringTokens,
                             tapSingle = state.tapSingle,
@@ -277,6 +294,7 @@ private fun PortableCardView(
     cardLayout: PortableCardLayout,
     labelDisplay: PortableLabelDisplay,
     showThumbnails: Boolean,
+    customThumbnailSizeDp: Int,
     labelSizeSp: Int?,
     highlightExpiringTokens: Boolean,
     tapSingle: PortableTapMode,
@@ -285,6 +303,8 @@ private fun PortableCardView(
     onCard: (Int, String) -> Unit
 ) {
     val displayTitle = card.visibleTitle(hideIssuer)
+    val displayMark = card.visibleMark(hideIssuer)
+    val resolvedThumbSizeDp = cardLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)
     val verticalPad = cardLayout.cardVerticalPaddingDp
     val maxLines = labelDisplay.labelMaxLines(cardLayout)
     val stackCodeBelow = cardLayout.codeBelowIdentity
@@ -306,16 +326,16 @@ private fun PortableCardView(
         subtitle = card.subtitle,
         revealed = card.revealed,
         showThumbnail = showThumbnails,
-        thumbnailSizeDp = cardLayout.thumbnailSizeDp,
-        tileSeed = card.mark,
+        thumbnailSizeDp = resolvedThumbSizeDp,
+        tileSeed = displayMark,
         artworkSlot = if (artwork != null) {
             {
                 SharedIssuerArtwork(
-                    thumbnailName = card.mark,
+                    thumbnailName = if (card.revealed || !hideIssuer) card.mark else "",
                     title = displayTitle,
-                    sizeDp = cardLayout.thumbnailSizeDp,
+                    sizeDp = resolvedThumbSizeDp,
                     artwork = artwork,
-                    seed = card.mark
+                    seed = displayMark
                 )
             }
         } else null,

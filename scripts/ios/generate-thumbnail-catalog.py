@@ -35,10 +35,9 @@ HEADER = '''import Foundation
 
 /// The persisted logo names and the issuer matching rules of `ThumbnailCatalog` in `:core`.
 ///
-/// The iOS client draws no logos, but it still stores the *name* an entry's issuer resolves to,
-/// because that name is what the Android app and the desktop client read back. An account added or
-/// imported here therefore keeps the same logo on the other clients as if they had added it
-/// themselves, instead of resetting to the generic mark.
+/// Android, Desktop and iOS share both the persisted thumbnail *names* here and the bundled
+/// `thumb_*.xml` vector brand artwork (`PortableThumbnailAssets` + `BundledVectorVaultArtwork`),
+/// so an account created or imported on any client resolves to and renders the same brand mark.
 public enum ThumbnailCatalog {
     /// The fallback for an issuer no name matches — `ThumbnailCatalog.DEFAULT_NAME`.
     public static let defaultName = "Default"

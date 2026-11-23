@@ -19,15 +19,25 @@ object BackupFileNames {
      */
     const val TIMESTAMP_PATTERN = "yyyy-MM-dd_HH-mm-ss"
 
-    /** Dated encrypted-backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.aes`. */
+    /** Dated (or fixed when [appendTimestamp] is false) encrypted-backup name. */
     @JvmStatic
-    fun encrypted(date: Date): String = String.format(
-        Locale.ROOT, Constants.BACKUP_FILENAME_CRYPT_FORMAT, timestamp(date))
+    @JvmOverloads
+    fun encrypted(date: Date, appendTimestamp: Boolean = true): String =
+        if (appendTimestamp) {
+            String.format(Locale.ROOT, Constants.BACKUP_FILENAME_CRYPT_FORMAT, timestamp(date))
+        } else {
+            Constants.BACKUP_FILENAME_CRYPT
+        }
 
-    /** Dated OpenPGP-backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.gpg`. */
+    /** Dated (or fixed when [appendTimestamp] is false) OpenPGP-backup name. */
     @JvmStatic
-    fun openPgp(date: Date): String = String.format(
-        Locale.ROOT, Constants.BACKUP_FILENAME_PGP_FORMAT, timestamp(date))
+    @JvmOverloads
+    fun openPgp(date: Date, appendTimestamp: Boolean = true): String =
+        if (appendTimestamp) {
+            String.format(Locale.ROOT, Constants.BACKUP_FILENAME_PGP_FORMAT, timestamp(date))
+        } else {
+            Constants.BACKUP_FILENAME_PGP
+        }
 
     /** [date] in [TIMESTAMP_PATTERN]; a fixed [Locale.ENGLISH] keeps the digits ASCII everywhere. */
     @JvmStatic

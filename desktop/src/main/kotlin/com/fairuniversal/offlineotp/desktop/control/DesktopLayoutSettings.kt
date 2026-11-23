@@ -32,7 +32,13 @@ class DesktopLayoutSettings(
     private val readHideGlobalTimeout: () -> Boolean = { false },
     private val writeHideGlobalTimeout: (Boolean) -> Boolean = { true },
     private val readTapToRevealTimeout: () -> Int = { 0 },
-    private val writeTapToRevealTimeout: (Int) -> Boolean = { true }
+    private val writeTapToRevealTimeout: (Int) -> Boolean = { true },
+    private val readThumbnailSizeDp: () -> Int = { 0 },
+    private val writeThumbnailSizeDp: (Int) -> Boolean = { true },
+    private val readFocusSearchOnStart: () -> Boolean = { false },
+    private val writeFocusSearchOnStart: (Boolean) -> Boolean = { true },
+    private val readMinimizeOnCopy: () -> Boolean = { false },
+    private val writeMinimizeOnCopy: (Boolean) -> Boolean = { true }
 ) {
     class Request internal constructor(
         val current: Constants.CardLayouts,
@@ -47,7 +53,10 @@ class DesktopLayoutSettings(
         val tapSingle: PortableTapMode = PortableTapMode.REVEAL,
         val tapDouble: PortableTapMode = PortableTapMode.NOTHING,
         val hideGlobalTimeout: Boolean = false,
-        val tapToRevealTimeoutSeconds: Int = 0
+        val tapToRevealTimeoutSeconds: Int = 0,
+        val thumbnailSizeDp: Int = 0,
+        val focusSearchOnStart: Boolean = false,
+        val minimizeOnCopy: Boolean = false
     ) {
         var failed = false
             internal set
@@ -70,7 +79,10 @@ class DesktopLayoutSettings(
                 readTapSingle(),
                 readTapDouble(),
                 readHideGlobalTimeout(),
-                readTapToRevealTimeout()
+                readTapToRevealTimeout(),
+                readThumbnailSizeDp(),
+                readFocusSearchOnStart(),
+                readMinimizeOnCopy()
             )
         }
     }
@@ -247,8 +259,11 @@ class DesktopLayoutSettings(
         val savedDouble = if (savedSingle) try { writeTapDouble(selection.tapDouble) } catch (_: Exception) { false } else false
         val savedGlobal = if (savedDouble) try { writeHideGlobalTimeout(selection.hideGlobalTimeout) } catch (_: Exception) { false } else false
         val savedRevealTimeout = if (savedGlobal) try { writeTapToRevealTimeout(selection.tapToRevealTimeoutSeconds) } catch (_: Exception) { false } else false
+        val savedThumbSize = if (savedRevealTimeout) try { writeThumbnailSizeDp(selection.thumbnailSizeDp) } catch (_: Exception) { false } else false
+        val savedFocusSearch = if (savedThumbSize) try { writeFocusSearchOnStart(selection.focusSearchOnStart) } catch (_: Exception) { false } else false
+        val savedMinimize = if (savedFocusSearch) try { writeMinimizeOnCopy(selection.minimizeOnCopy) } catch (_: Exception) { false } else false
         if (!active() || !valid(request)) return false
-        if (!savedRevealTimeout) { request.failed = true; return false }
+        if (!savedMinimize) { request.failed = true; return false }
         pending = null
         apply(selection)
         return true

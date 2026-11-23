@@ -16,6 +16,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.fairuniversal.offlineotp.ui.theme.ForestPalette
+import com.fairuniversal.offlineotp.ui.theme.ForestType
 
 /**
  * Shared Compose notice dialog with a "don't show again" toggle.
@@ -42,10 +44,10 @@ fun HideableDialog(
 
     AlertDialog(
         onDismissRequest = { finish() },
-        title = { Text(text = title) },
+        title = { Text(text = title, style = ForestType.title, color = ForestPalette.textPrimary) },
         text = {
             ScrollableDialogBody {
-                Text(text = message)
+                Text(text = message, style = ForestType.body, color = ForestPalette.textSecondary)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -65,7 +67,7 @@ fun HideableDialog(
                             onHiddenChanged(next)
                         }
                     )
-                    Text(text = dontShowAgainLabel)
+                    Text(text = dontShowAgainLabel, style = ForestType.body, color = ForestPalette.textPrimary)
                 }
             }
         },

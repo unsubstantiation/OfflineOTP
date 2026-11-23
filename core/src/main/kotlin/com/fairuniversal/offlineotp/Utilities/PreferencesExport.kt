@@ -208,12 +208,19 @@ object PreferencesExport {
         Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN),
         Setting(UI_HIDE_GLOBAL_TIMEOUT, Kind.BOOLEAN),
         Setting(UI_SHOW_THUMBNAILS, Kind.BOOLEAN),
+        Setting(UI_THUMBNAIL_SIZE_DP, Kind.INTEGER),
         Setting(UI_HIGHLIGHT_TOKEN, Kind.BOOLEAN),
         Setting(UI_TAP_SINGLE, Kind.STRING),
         Setting(UI_TAP_DOUBLE, Kind.STRING),
         Setting(UI_TAP_TO_REVEAL_TIMEOUT, Kind.INTEGER),
+        Setting(UI_FOCUS_SEARCH_ON_START, Kind.BOOLEAN),
+        Setting(UI_MINIMIZE_ON_COPY, Kind.BOOLEAN),
+        Setting(UI_RELOCK_BACKGROUND, Kind.BOOLEAN),
+        Setting(UI_BACKUP_APPEND_DATE_TIME, Kind.BOOLEAN),
         Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
-        Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
+        Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET),
+        Setting(UI_SELECTED_TAGS, Kind.STRING_SET),
+        Setting(UI_UNTAGGED_SELECTED, Kind.BOOLEAN)
     )
 
     /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
@@ -234,6 +241,8 @@ object PreferencesExport {
     const val UI_HIDE_GLOBAL_TIMEOUT = "ui_hide_global_timeout"
     /** Desktop key for showing issuer thumbnails / letter tiles on cards. */
     const val UI_SHOW_THUMBNAILS = "ui_show_thumbnails"
+    /** Desktop key for explicit card thumbnail size in DP (`0` = layout default, `20..96`). */
+    const val UI_THUMBNAIL_SIZE_DP = "ui_thumbnail_size_dp"
     /** Desktop key for highlighting OTP codes in their final seconds before rollover. */
     const val UI_HIGHLIGHT_TOKEN = "ui_highlight_token"
     /** Desktop key for the single-tap card gesture (`NOTHING`, `REVEAL`, `COPY`). */
@@ -242,12 +251,24 @@ object PreferencesExport {
     const val UI_TAP_DOUBLE = "ui_tap_double"
     /** Desktop key for auto-hiding revealed cards after `N` seconds (`0` = stay visible until hidden). */
     const val UI_TAP_TO_REVEAL_TIMEOUT = "ui_tap_to_reveal_timeout"
+    /** Desktop key for automatically focusing the search field when the vault unlocks. */
+    const val UI_FOCUS_SEARCH_ON_START = "ui_focus_search_on_start"
+    /** Desktop key for minimizing the window after copying an OTP code or credential. */
+    const val UI_MINIMIZE_ON_COPY = "ui_minimize_on_copy"
+    /** Desktop key for locking the vault immediately when the window is minimized. */
+    const val UI_RELOCK_BACKGROUND = "ui_relock_background"
+    /** Desktop key for appending date and time to default exported backup filenames. */
+    const val UI_BACKUP_APPEND_DATE_TIME = "ui_backup_append_date_time"
     /** Desktop key for the one-time token-usage sort notice acknowledgement (not exported). */
     const val UI_USED_TOKENS_SHOWN = "ui_used_tokens_shown"
     /** Desktop key for explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets). */
     const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
     /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */
     const val UI_SEARCH_INCLUDES = "ui_search_includes"
+    /** Desktop & iOS key for remembered tag filter chip selections. */
+    const val UI_SELECTED_TAGS = "ui_selected_tags"
+    /** Desktop & iOS key for remembered `Untagged` filter chip selection. */
+    const val UI_UNTAGGED_SELECTED = "ui_untagged_selected"
     /** Desktop key for the saved list order. Mirrors `VaultController.SORT_MODE_KEY`. */
     const val UI_SORT_MODE = "ui_sort_mode"
     /** Desktop key for the inactivity lock delay. Mirrors `VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS`. */

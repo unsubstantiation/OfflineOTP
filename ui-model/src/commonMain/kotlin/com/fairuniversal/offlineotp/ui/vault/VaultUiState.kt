@@ -164,6 +164,8 @@ data class VaultAppearance(
     val showIndividualCountdowns: Boolean = true,
     /** Hides the global 30-second rollover progress bar at the top of the vault when true. */
     val hideGlobalTimeout: Boolean = false,
+    /** Requests focus on the vault search box when the unlocked screen opens. */
+    val focusSearchOnStart: Boolean = false,
     val hideCountdownWhenMasked: Boolean = false,
     /**
      * How many seconds before rollover a code is flagged as expiring. 8 matches the Android card's

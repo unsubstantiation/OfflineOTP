@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
+import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
 
 /**
@@ -36,6 +37,8 @@ class VaultPresenter(
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Remembers the chosen tag-matching rule after cycling. */
     private val tagRuleSelected: ((Constants.TagFunctionality) -> Unit)? = null,
+    /** Remembers the active tag chips and untagged selection after toggling or clearing. */
+    private val tagSelectionChanged: ((List<String>, Boolean) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
     private val lockVault: (() -> Unit)? = null,
     private val onChange: (() -> Unit)? = null,
@@ -150,11 +153,20 @@ class VaultPresenter(
         tapSingle: PortableTapMode,
         tapDouble: PortableTapMode,
         hideGlobalTimeout: Boolean = appearance.hideGlobalTimeout,
-        tapToRevealTimeoutSeconds: Int = this.tapToRevealTimeoutSeconds
+        tapToRevealTimeoutSeconds: Int = this.tapToRevealTimeoutSeconds,
+        customThumbnailSizeDp: Int? = null,
+        focusSearchOnStart: Boolean = appearance.focusSearchOnStart
     ) {
         if (locked) return
         val normalizedSize = PortableTapMode.normalizeLabelSizeSp(labelSizeSp)
         val normalizedRevealTimeout = PortableTapMode.normalizeRevealTimeoutSeconds(tapToRevealTimeoutSeconds)
+        val portableLayout = PortableCardLayout.values().firstOrNull { it.name == layout.name }
+            ?: PortableCardLayout.DEFAULT
+        val resolvedThumbnailSizeDp = if (customThumbnailSizeDp != null) {
+            portableLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)
+        } else {
+            appearance.thumbnailSizeDp
+        }
         appearance = appearance.copy(
             cardLayout = layout,
             showIssuer = !hideIssuer,
@@ -163,8 +175,10 @@ class VaultPresenter(
             tokenGroupSize = tokenGroupSize?.takeIf { it > 0 },
             showIndividualCountdowns = showIndividualCountdowns,
             hideGlobalTimeout = hideGlobalTimeout,
+            focusSearchOnStart = focusSearchOnStart,
             labelDisplay = labelDisplay,
             showThumbnails = showThumbnails,
+            thumbnailSizeDp = resolvedThumbnailSizeDp,
             labelSizeSp = normalizedSize.takeIf { it > 0 },
             expiringSeconds = if (highlightExpiringTokens) 8 else -1
         )
@@ -199,7 +213,9 @@ class VaultPresenter(
             tapSingle = selection.tapSingle,
             tapDouble = selection.tapDouble,
             hideGlobalTimeout = selection.hideGlobalTimeout,
-            tapToRevealTimeoutSeconds = selection.tapToRevealTimeoutSeconds
+            tapToRevealTimeoutSeconds = selection.tapToRevealTimeoutSeconds,
+            customThumbnailSizeDp = selection.thumbnailSizeDp,
+            focusSearchOnStart = selection.focusSearchOnStart
         )
     }
 
@@ -343,8 +359,12 @@ class VaultPresenter(
                 exportEmail: (() -> Unit)? = null,
                 exportThunderbird: (() -> Unit)? = null,
                 exportPreferences: (() -> Unit)? = null,
-                importPreferences: (() -> Unit)? = null): VaultActions = VaultActions(
+                importPreferences: (() -> Unit)? = null,
+                toggleBackupTimestamp: (() -> Unit)? = null,
+                openAbout: (() -> Unit)? = null): VaultActions = VaultActions(
         onImportPreferences = importPreferences,
+        onToggleBackupTimestamp = toggleBackupTimestamp,
+        onOpenAbout = openAbout,
         onEnrollHardwareUnlock = enrollHardwareUnlock,
         onRemoveHardwareUnlock = removeHardwareUnlock,
         onHardwareCopy = hardwareCopy,
@@ -391,16 +411,38 @@ class VaultPresenter(
         onDelete = deleteEntry,
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
-        onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
-        onToggleUntagged = { applyFilter(filter.withUntaggedToggled()) },
+        onToggleTag = { tag ->
+            if (!locked) {
+                val next = filter.withTagToggled(tag)
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
+        onToggleUntagged = {
+            if (!locked) {
+                val next = filter.withUntaggedToggled()
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
         onCycleTagRule = {
             if (!locked) {
+                val prevTags = filter.selectedTags
                 val next = filter.withCycledTagFunctionality()
                 applyFilter(next)
                 tagRuleSelected?.invoke(next.tagFunctionality)
+                if (next.selectedTags != prevTags) {
+                    tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+                }
             }
         },
-        onClearFilters = { applyFilter(filter.clearedFilters()) },
+        onClearFilters = {
+            if (!locked) {
+                val next = filter.clearedFilters()
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
         onSelectSort = { mode ->
             if (!locked) {
                 applyFilter(filter.withSortMode(mode))

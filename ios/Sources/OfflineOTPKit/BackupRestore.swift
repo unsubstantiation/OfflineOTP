@@ -25,14 +25,26 @@ public enum BackupFileNames {
         return formatter.string(from: date)
     }
 
-    /// Dated encrypted-backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.aes`.
-    public static func encrypted(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
-        encryptedPrefix + timestamp(date, timeZone: timeZone) + encryptedSuffix
+    /// Dated (or fixed when `appendTimestamp` is false) encrypted-backup name.
+    public static func encrypted(
+        _ date: Date = Date(),
+        timeZone: TimeZone = .current,
+        appendTimestamp: Bool = true
+    ) -> String {
+        appendTimestamp
+            ? encryptedPrefix + timestamp(date, timeZone: timeZone) + encryptedSuffix
+            : "otp_accounts" + encryptedSuffix
     }
 
-    /// Dated OpenPGP backup name, e.g. `otp_accounts_2026-10-30_12-34-56.json.gpg`.
-    public static func openPgp(_ date: Date = Date(), timeZone: TimeZone = .current) -> String {
-        encryptedPrefix + timestamp(date, timeZone: timeZone) + openPgpSuffix
+    /// Dated (or fixed when `appendTimestamp` is false) OpenPGP backup name.
+    public static func openPgp(
+        _ date: Date = Date(),
+        timeZone: TimeZone = .current,
+        appendTimestamp: Bool = true
+    ) -> String {
+        appendTimestamp
+            ? encryptedPrefix + timestamp(date, timeZone: timeZone) + openPgpSuffix
+            : "otp_accounts" + openPgpSuffix
     }
 
     /// Dated FairEmail JSON backup name.

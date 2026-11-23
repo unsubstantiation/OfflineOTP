@@ -59,6 +59,9 @@ fun SharedCardLayoutDialog(
     ) -> Unit)? = null,
     hideGlobalTimeout: Boolean? = null,
     tapToRevealTimeoutSeconds: Int? = null,
+    thumbnailSizeDp: Int? = null,
+    focusSearchOnStart: Boolean? = null,
+    minimizeOnCopy: Boolean? = null,
     onSaveSelection: ((PortableCardDisplaySelection) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
@@ -78,6 +81,11 @@ fun SharedCardLayoutDialog(
     var selectedRevealTimeoutSeconds by remember(inputKey) {
         mutableStateOf(PortableTapMode.normalizeRevealTimeoutSeconds(tapToRevealTimeoutSeconds ?: 0))
     }
+    var selectedThumbnailSizeDp by remember(inputKey) {
+        mutableStateOf(PortableCardLayout.normalizeThumbnailSizeDp(thumbnailSizeDp ?: 0))
+    }
+    var focusSearchChecked by remember(inputKey) { mutableStateOf(focusSearchOnStart == true) }
+    var minimizeOnCopyChecked by remember(inputKey) { mutableStateOf(minimizeOnCopy == true) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
@@ -266,6 +274,25 @@ fun SharedCardLayoutDialog(
                         Text(text = "Show entry thumbnails")
                     }
                 }
+                if (thumbnailSizeDp != null && showThumbnailsChecked) {
+                    Text(
+                        text = "Thumbnail size",
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                    val thumbSizeOptions = buildList {
+                        addAll(PortableCardLayout.THUMBNAIL_SIZE_OPTIONS)
+                        if (selectedThumbnailSizeDp !in PortableCardLayout.THUMBNAIL_SIZE_OPTIONS) {
+                            add(selectedThumbnailSizeDp)
+                        }
+                    }.sorted()
+                    for (dpValue in thumbSizeOptions) {
+                        val label = PortableCardLayout.thumbnailSizeLabel(dpValue)
+                        ForestTextAction(
+                            text = if (selectedThumbnailSizeDp == dpValue) "Selected: $label" else label,
+                            onClick = { selectedThumbnailSizeDp = dpValue }
+                        )
+                    }
+                }
                 if (highlightExpiringTokens != null) {
                     Row(
                         modifier = Modifier
@@ -298,6 +325,38 @@ fun SharedCardLayoutDialog(
                         Text(text = "Hide global timeout bar")
                     }
                 }
+                if (focusSearchOnStart != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { focusSearchChecked = !focusSearchChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = focusSearchChecked,
+                            onCheckedChange = { focusSearchChecked = it }
+                        )
+                        Text(text = "Focus search on unlock")
+                    }
+                }
+                if (minimizeOnCopy != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { minimizeOnCopyChecked = !minimizeOnCopyChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = minimizeOnCopyChecked,
+                            onCheckedChange = { minimizeOnCopyChecked = it }
+                        )
+                        Text(text = "Minimize window after copying")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
@@ -318,7 +377,10 @@ fun SharedCardLayoutDialog(
                             tapSingle = selectedTapSingle,
                             tapDouble = selectedTapDouble,
                             hideGlobalTimeout = hideGlobalTimeoutChecked,
-                            tapToRevealTimeoutSeconds = selectedRevealTimeoutSeconds
+                            tapToRevealTimeoutSeconds = selectedRevealTimeoutSeconds,
+                            thumbnailSizeDp = selectedThumbnailSizeDp,
+                            focusSearchOnStart = focusSearchChecked,
+                            minimizeOnCopy = minimizeOnCopyChecked
                         )
                     )
                     onSaveCompleteDisplay != null -> onSaveCompleteDisplay(

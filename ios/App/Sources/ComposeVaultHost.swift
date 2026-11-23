@@ -90,6 +90,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             store.setCardLayout(legacyLayout)
             UserDefaults.standard.removeObject(forKey: "offlineotp.card_layout")
         }
+        presentation.registerArtworkXmlLoader { drawableFile in
+            let url = Bundle.main.url(forResource: drawableFile, withExtension: "xml")
+                ?? Bundle.main.url(forResource: drawableFile, withExtension: "xml", subdirectory: "drawable")
+            guard let url else { return nil }
+            return try? String(contentsOf: url, encoding: .utf8)
+        }
         presentation.updateCardLayout(layout: store.cardLayout)
         timer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             DispatchQueue.main.async { self?.refresh() }
@@ -234,7 +240,28 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             tapDoubleName: store.tapDouble,
             globalProgress: globalProgress,
             globalExpiring: globalExpiring,
-            hideGlobalTimeout: store.hideGlobalTimeout)
+            hideGlobalTimeout: store.hideGlobalTimeout,
+            customThumbnailSizeDp: Int32(store.thumbnailSizeDp),
+            focusSearchOnStart: store.focusSearchOnStart,
+            toolGroups: unifiedToolGroups())
+    }
+
+    private func unifiedToolGroups() -> [PortableToolGroup] {
+        let combinedSections = backupSurface().sections + settingsSurface().sections
+        return combinedSections.compactMap { section in
+            guard !section.rows.isEmpty else { return nil }
+            let items = section.rows.map { itemRow in
+                PortableToolItem(
+                    key: itemRow.key,
+                    label: itemRow.title,
+                    detail: itemRow.detail,
+                    value: itemRow.value,
+                    enabled: itemRow.enabled,
+                    interactive: itemRow.kind != "info"
+                )
+            }
+            return PortableToolGroup(title: section.title, items: items)
+        }
     }
 
     // MARK: - Vault actions
@@ -259,7 +286,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func toggleTag(tag: String) {
         guard active, store.isUnlocked else { return }
         noteActivity()
-        if tag == "Untagged" { store.includeUntagged.toggle() }
+        if tag == "Untagged" { store.toggleUntagged() }
         else { store.toggleTag(tag) }
         refresh()
     }
@@ -304,6 +331,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                SortMode.allCases.indices.contains(sortIdx) {
                 applySortMode(SortMode.allCases[sortIdx], announce: false)
                 refresh()
+            } else {
+                _ = surfaceAction(action)
             }
         }
     }
@@ -314,7 +343,6 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message("Sorted by \(mode.title.lowercased())")
         }
         if (mode == .lastUsed || mode == .mostUsed) && !store.usedTokensDialogShown {
-            store.setUsedTokensDialogShown(true)
             openSurface("usedTokensNotice")
         } else if surfaceKey == "sort" {
             closeSurface()
@@ -770,6 +798,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: draft["showIndividualTimeouts"] ?? (store.showIndividualTimeouts ? "true" : "false"), kind: "info"),
                     row("showThumbnails", "Show entry thumbnails",
                         value: draft["showThumbnails"] ?? (store.showThumbnails ? "true" : "false"), kind: "info"),
+                    row("thumbnailSizeDp", "Thumbnail size",
+                        value: draft["thumbnailSizeDp"] ?? String(store.thumbnailSizeDp), kind: "info"),
                     row("highlightToken", "Highlight expiring tokens",
                         value: draft["highlightToken"] ?? (store.highlightToken ? "true" : "false"), kind: "info"),
                     row("tapSingle", "Single-tap action",
@@ -781,17 +811,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     row("tapToRevealTimeoutSeconds", "Auto-hide revealed codes",
                         value: draft["tapToRevealTimeoutSeconds"] ?? String(store.tapToRevealTimeoutSeconds), kind: "info"),
                     row("tokenGroupSize", "Token grouping",
-                        value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
+                        value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info"),
+                    row("focusSearchOnStart", "Focus search on start",
+                        value: draft["focusSearchOnStart"] ?? (store.focusSearchOnStart ? "true" : "false"), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "usedTokensNotice":
+            let hideChecked = draft["dontShowAgain"] == "true"
             return surface(
                 key: key,
                 title: "Token usage",
-                sections: [],
+                sections: [PortableSection(title: "", rows: [
+                    row("dontShowAgain", "Don't show this message again",
+                        value: hideChecked ? "true" : "false", kind: "toggle", checked: hideChecked)
+                ])],
                 confirmLabel: "OK",
                 dismissLabel: "OK",
-                showConfirm: false,
-                message: "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".\n\nThis message will not be shown again."
+                showConfirm: true,
+                message: "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\"."
             )
         case "searchIncludes":
             let rows = [
@@ -818,7 +854,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Auto-lock after inactivity",
                 sections: [PortableSection(title: "Seconds (0 disables auto-lock)", rows: [
                     row("seconds", "Inactivity delay",
-                        value: draft["seconds"] ?? String(store.inactivityLockSeconds), kind: "text")])],
+                        value: draft["seconds"] ?? String(store.inactivityLockSeconds), kind: "text"),
+                    row("relockOnBackground", "Lock immediately when backgrounded",
+                        value: draft["relockOnBackground"] ?? (store.relockOnBackground ? "true" : "false"),
+                        kind: "toggle",
+                        checked: (draft["relockOnBackground"] ?? (store.relockOnBackground ? "true" : "false")) == "true")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
         case "passwordChange":
             return surface(key: key, title: "Change vault password",
@@ -1222,6 +1262,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     private func emailSettingsEditSurface() -> PortableSurfaceState {
         let count = Int(draft["identityCount"] ?? "1") ?? 1
+        let addedCount = max(0, min(EmailSettingsInput.maxIdentities, Int(draft["addedCount"] ?? "0") ?? 0))
         var rows: [PortableRow] = [
             row("accountName", "Account display name", value: draft["accountName"] ?? "", kind: "text"),
             row("protocol", "Protocol", value: draft["protocol"] ?? "0", kind: "info"),
@@ -1231,7 +1272,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             row("inUser", "Incoming username", value: draft["inUser"] ?? "", kind: "text"),
             row("inAuth", "Incoming auth", value: draft["inAuth"] ?? "0", kind: "text"),
             row("identityCount", "Identities", value: String(count), kind: "info"),
-            row("removableIndices", "Removable", value: draft["removableIndices"] ?? "", kind: "info")
+            row("removableIndices", "Removable", value: draft["removableIndices"] ?? "", kind: "info"),
+            row("primaryIndex", "Primary", value: draft["primaryIndex"] ?? "", kind: "info"),
+            row("addedCount", "Added", value: String(addedCount), kind: "info")
         ]
         for idx in 0..<max(1, count) {
             rows.append(row("outName:\(idx)", "Sender name", value: draft["outName:\(idx)"] ?? "", kind: "text"))
@@ -1241,6 +1284,15 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("outEnc:\(idx)", "Outgoing encryption", value: draft["outEnc:\(idx)"] ?? "0", kind: "info"))
             rows.append(row("outUser:\(idx)", "Outgoing username", value: draft["outUser:\(idx)"] ?? "", kind: "text"))
             rows.append(row("outAuth:\(idx)", "Outgoing auth", value: draft["outAuth:\(idx)"] ?? "0", kind: "text"))
+        }
+        for addedIdx in 0..<addedCount {
+            rows.append(row("addName:\(addedIdx)", "Added sender name", value: draft["addName:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addAddr:\(addedIdx)", "Added sender email", value: draft["addAddr:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addHost:\(addedIdx)", "Added outgoing server", value: draft["addHost:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addPort:\(addedIdx)", "Added outgoing port", value: draft["addPort:\(addedIdx)"] ?? "587", kind: "text"))
+            rows.append(row("addEnc:\(addedIdx)", "Added outgoing encryption", value: draft["addEnc:\(addedIdx)"] ?? "1", kind: "info"))
+            rows.append(row("addUser:\(addedIdx)", "Added outgoing username", value: draft["addUser:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addAuth:\(addedIdx)", "Added outgoing auth", value: draft["addAuth:\(addedIdx)"] ?? "1", kind: "text"))
         }
         return surface(
             key: "emailSettingsEdit",
@@ -1299,7 +1351,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         surface(key: "backups", title: "Backups and links", sections: [
             PortableSection(title: "Encrypted backup", rows: [
                 row("backupExport", "Export encrypted backup…", detail: "Argon2id + AES-256-GCM"),
-                row("backupImport", "Import encrypted backup…")]),
+                row("backupImport", "Import encrypted backup…"),
+                row("backupTimestamp",
+                    store.backupAppendDateTime
+                        ? "Timestamp backup filenames: On"
+                        : "Timestamp backup filenames: Off",
+                    detail: store.backupAppendDateTime
+                        ? "Appends YYYY-MM-DD_HH-mm-ss to exported backup filenames"
+                        : "Uses fixed otp_accounts.json.aes / otp_accounts.json.gpg filenames")]),
             PortableSection(title: "Other formats", rows: [
                 row("csvExport", "Export passwords as browser CSV…"),
                 row("archiveExport", "Export password archive…"),
@@ -1823,7 +1882,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 return "Enter a delay of zero or more seconds."
             }
             store.setInactivityLockSeconds(seconds)
-            message("Auto-lock delay updated.")
+            if let relockRaw = draft["relockOnBackground"] {
+                store.setRelockOnBackground(relockRaw == "true")
+            }
+            message("Auto-lock settings updated.")
             closeSurface()
             return nil
         case "passwordChange":
@@ -1975,6 +2037,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if let thumbRaw = draft["showThumbnails"] {
                 store.setShowThumbnails(thumbRaw != "false")
             }
+            if let thumbSizeRaw = draft["thumbnailSizeDp"], let parsedThumbSize = Int(thumbSizeRaw),
+               parsedThumbSize == 0 || (20...96).contains(parsedThumbSize) {
+                store.setThumbnailSizeDp(parsedThumbSize)
+            }
             if let sizeRaw = draft["labelSizeSp"], let parsedSize = Int(sizeRaw),
                parsedSize == 0 || (12...24).contains(parsedSize) {
                 store.setLabelSizeSp(parsedSize)
@@ -2002,6 +2068,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                [0, 2, 3].contains(parsedGroup) {
                 store.setTokenGroupSize(parsedGroup)
             }
+            if let focusSearchRaw = draft["focusSearchOnStart"] {
+                store.setFocusSearchOnStart(focusSearchRaw == "true")
+            }
             presentation.updateCardLayout(layout: store.cardLayout)
             message("Card layout updated.")
             closeSurface()
@@ -2017,6 +2086,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             store.setSearchIncludes(chosen)
             message("Search fields updated.")
+            closeSurface()
+            return nil
+        case "usedTokensNotice":
+            if draft["dontShowAgain"] == "true" {
+                store.setUsedTokensDialogShown(true)
+            }
             closeSurface()
             return nil
         case "passwordImportChoice":
@@ -2258,12 +2333,18 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     private func saveEmailSettingsEditor() -> String? {
+        let clearAddedPasswords = {
+            for key in self.draft.keys where key.hasPrefix("addPass:") {
+                self.draft[key] = ""
+            }
+        }
         guard let index = editorIndex, store.isUnlocked,
               openedGeneration.map({ store.generation == $0 }) != false,
               store.entries.indices.contains(index),
               store.entries[index].fields == openedFields,
               store.isRevealed(store.entries[index]),
               var input = try? EmailSettingsInput.fromEntry(store.entries[index]) else {
+            clearAddedPasswords()
             return "The email entry or session changed. Close and reopen the editor."
         }
         input.accountName = draft["accountName"] ?? input.accountName
@@ -2299,6 +2380,26 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 .split(separator: ",")
                 .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         )
+        let rawPrimary = (draft["primaryIndex"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        input.primaryIdentityIndex = rawPrimary.isEmpty ? nil : Int(rawPrimary)
+        let addedCount = max(0, min(EmailSettingsInput.maxIdentities, Int(draft["addedCount"] ?? "0") ?? 0))
+        input.addedIdentities = (0..<addedCount).map { addedIdx in
+            AddedEmailIdentityInput(
+                identity: EmailIdentityInput(
+                    name: draft["addName:\(addedIdx)"] ?? "",
+                    address: draft["addAddr:\(addedIdx)"] ?? ""
+                ),
+                connection: EmailConnectionInput(
+                    host: draft["addHost:\(addedIdx)"] ?? "",
+                    port: draft["addPort:\(addedIdx)"] ?? "587",
+                    encryption: Int(draft["addEnc:\(addedIdx)"] ?? "1") ?? 1,
+                    username: draft["addUser:\(addedIdx)"] ?? "",
+                    authentication: draft["addAuth:\(addedIdx)"] ?? "1"
+                ),
+                password: draft["addPass:\(addedIdx)"] ?? ""
+            )
+        }
+        clearAddedPasswords()
         do {
             let replacement = try input.build(existing: store.entries[index])
             guard store.update(at: index, with: replacement) else {
@@ -2647,6 +2748,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             store.setHideIssuer(!store.hideIssuer)
             message(store.hideIssuer ? "Issuer titles hidden while concealed." : "Issuer titles shown while concealed.")
             return nil
+        case "backupTimestamp":
+            store.setBackupAppendDateTime(!store.backupAppendDateTime)
+            message(store.backupAppendDateTime ? "Backup filenames will include timestamps." : "Backup filenames will omit timestamps.")
+            return nil
         case "passwordImportPreview":
             let mode: PasswordImport.Mode = draft["passwordImportMode"] == "archive" ? .archive : .individual
             guard let count = store.previewBrowserPasswordsCount(
@@ -2797,8 +2902,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft.removeValue(forKey: "previewCount")
             return nil
         case "openpgpRecipient":
-            guard openPgpRecipients.count < 8 else {
-                return "Up to 8 recipient key files can be selected."
+            guard openPgpRecipients.count < OpenPgpBackupCodec.maxRecipients else {
+                return "Up to \(OpenPgpBackupCodec.maxRecipients) recipient key files can be selected."
             }
             onImport("openpgpRecipient"); return nil
         case "openpgpExport":
@@ -3020,7 +3125,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func setOpenPgpData(_ data: Data, kind: String, filename: String = "") {
         switch kind {
         case "openpgpRecipient":
-            guard openPgpRecipients.count < 8 else { return }
+            let totalBytes = openPgpRecipients.reduce(0, { $0 + $1.count })
+            guard !data.isEmpty,
+                  openPgpRecipients.count < OpenPgpBackupCodec.maxRecipients,
+                  !openPgpRecipients.contains(data),
+                  totalBytes + data.count <= OpenPgpBackupCodec.maxDocumentBytes else {
+                return
+            }
             openPgpRecipients.append(data)
             let label = filename.isEmpty ? "Recipient key #\(openPgpRecipients.count)" : filename
             openPgpRecipientNames.append(label)

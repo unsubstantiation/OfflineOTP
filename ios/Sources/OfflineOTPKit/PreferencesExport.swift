@@ -65,12 +65,18 @@ public enum PreferencesExport {
         Setting(key: showIndividualTimeoutsKey, kind: .boolean),
         Setting(key: hideGlobalTimeoutKey, kind: .boolean),
         Setting(key: showThumbnailsKey, kind: .boolean),
+        Setting(key: thumbnailSizeDpKey, kind: .integer),
         Setting(key: highlightTokenKey, kind: .boolean),
         Setting(key: tapSingleKey, kind: .string),
         Setting(key: tapDoubleKey, kind: .string),
         Setting(key: tapToRevealTimeoutKey, kind: .integer),
+        Setting(key: focusSearchOnStartKey, kind: .boolean),
+        Setting(key: relockBackgroundKey, kind: .boolean),
+        Setting(key: backupAppendDateTimeKey, kind: .boolean),
         Setting(key: splitGroupSizeKey, kind: .integer),
         Setting(key: searchIncludesKey, kind: .stringSet),
+        Setting(key: selectedTagsKey, kind: .stringSet),
+        Setting(key: untaggedSelectedKey, kind: .boolean),
     ]
 
     /// Mirrors `SortMode.settingsKey` and the desktop client's `PreferencesExport.UI_SORT_MODE`.
@@ -95,6 +101,8 @@ public enum PreferencesExport {
     public static let hideGlobalTimeoutKey = "ui_hide_global_timeout"
     /// Mirrors `VaultStore.showThumbnailsSettingKey` and `PreferencesExport.UI_SHOW_THUMBNAILS`.
     public static let showThumbnailsKey = "ui_show_thumbnails"
+    /// Mirrors `VaultStore.thumbnailSizeDpSettingKey` and `PreferencesExport.UI_THUMBNAIL_SIZE_DP`.
+    public static let thumbnailSizeDpKey = "ui_thumbnail_size_dp"
     /// Mirrors `VaultStore.highlightTokenSettingKey` and `PreferencesExport.UI_HIGHLIGHT_TOKEN`.
     public static let highlightTokenKey = "ui_highlight_token"
     /// Mirrors `VaultStore.tapSingleSettingKey` and `PreferencesExport.UI_TAP_SINGLE`.
@@ -103,10 +111,20 @@ public enum PreferencesExport {
     public static let tapDoubleKey = "ui_tap_double"
     /// Mirrors `VaultStore.tapToRevealTimeoutSettingKey` and `PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT`.
     public static let tapToRevealTimeoutKey = "ui_tap_to_reveal_timeout"
+    /// Mirrors `VaultStore.focusSearchOnStartSettingKey` and `PreferencesExport.UI_FOCUS_SEARCH_ON_START`.
+    public static let focusSearchOnStartKey = "ui_focus_search_on_start"
+    /// Mirrors `VaultStore.relockBackgroundSettingKey` and `PreferencesExport.UI_RELOCK_BACKGROUND`.
+    public static let relockBackgroundKey = "ui_relock_background"
+    /// Mirrors `VaultStore.backupAppendDateTimeSettingKey` and `PreferencesExport.UI_BACKUP_APPEND_DATE_TIME`.
+    public static let backupAppendDateTimeKey = "ui_backup_append_date_time"
     /// Mirrors `VaultStore.splitGroupSizeSettingKey` and `PreferencesExport.UI_SPLIT_GROUP_SIZE`.
     public static let splitGroupSizeKey = "ui_split_group_size"
     /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.
     public static let searchIncludesKey = "ui_search_includes"
+    /// Mirrors `VaultStore.selectedTagsSettingKey` and `PreferencesExport.UI_SELECTED_TAGS`.
+    public static let selectedTagsKey = "ui_selected_tags"
+    /// Mirrors `VaultStore.untaggedSelectedSettingKey` and `PreferencesExport.UI_UNTAGGED_SELECTED`.
+    public static let untaggedSelectedKey = "ui_untagged_selected"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.
     public static let quickUnlockKey = "biometric_unlock"
     /// Mirrors `VaultStore.usedTokensShownSettingKey`; one-install dialog acknowledgement.

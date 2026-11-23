@@ -68,14 +68,21 @@ public extension OpenPgpPort {
 /// Bounded, policy-enforcing OpenPGP backup codec shared by all platforms.
 /// Mirrors `OpenPgpBackupCodec` in `:core`.
 public enum OpenPgpBackupCodec {
-    static let maxDocumentBytes = 16 * 1024 * 1024
+    public static let maxRecipients = 64
+    public static let maxDocumentBytes = 16 * 1024 * 1024
 
     public static func seal(port: OpenPgpPort, plain: String, recipientKeyBlocks: [Data]) throws -> Data {
         guard !recipientKeyBlocks.isEmpty else {
             throw OpenPgpError.invalidRecipientKey(reason: "At least one OpenPGP recipient is required")
         }
+        guard recipientKeyBlocks.count <= maxRecipients else {
+            throw OpenPgpError.invalidRecipientKey(reason: "Too many OpenPGP recipients")
+        }
         guard !recipientKeyBlocks.contains(where: { $0.isEmpty }) else {
             throw OpenPgpError.invalidRecipientKey(reason: "An OpenPGP recipient key block is empty")
+        }
+        guard recipientKeyBlocks.reduce(0, { $0 + $1.count }) <= maxDocumentBytes else {
+            throw OpenPgpError.tooLarge
         }
         let plainBytes = Data(plain.utf8)
         guard plainBytes.count <= maxDocumentBytes - 64 else { throw OpenPgpError.tooLarge }

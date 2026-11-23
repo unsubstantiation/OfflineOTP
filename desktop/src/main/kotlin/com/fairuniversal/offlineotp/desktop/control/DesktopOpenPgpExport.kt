@@ -2,6 +2,7 @@ package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.VaultJson
 import com.fairuniversal.offlineotp.Utilities.OpenPgpBackupCodec
+import com.fairuniversal.offlineotp.Utilities.OpenPgpKeyFilePolicy
 import com.fairuniversal.offlineotp.Utilities.OpenPgpPort
 import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.desktop.openpgp.RpgpOpenPgpPort
@@ -115,6 +116,6 @@ class DesktopOpenPgpExport(
         if (failure == null) { pending = null; saved = true }
         changed()
     }
-    companion object { const val MAX_RECIPIENT_FILES = 8 }
+    companion object { const val MAX_RECIPIENT_FILES = OpenPgpKeyFilePolicy.MAX_RECIPIENTS }
 
 }

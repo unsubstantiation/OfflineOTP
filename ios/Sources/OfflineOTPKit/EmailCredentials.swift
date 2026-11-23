@@ -1233,8 +1233,66 @@ public struct EmailIdentityInput: Equatable, CustomStringConvertible {
     }
 }
 
+/// Newly created outgoing SMTP identity staged inside `EmailSettingsInput`.
+public struct AddedEmailIdentityInput: Equatable, CustomStringConvertible {
+    public var identity: EmailIdentityInput
+    public var connection: EmailConnectionInput
+    public var password: String
+
+    public init(
+        identity: EmailIdentityInput,
+        connection: EmailConnectionInput,
+        password: String = ""
+    ) {
+        self.identity = identity
+        self.connection = connection
+        self.password = password
+    }
+
+    public func withoutSecret() -> AddedEmailIdentityInput {
+        AddedEmailIdentityInput(identity: identity, connection: connection, password: "")
+    }
+
+    public var description: String { "AddedEmailIdentityInput(redacted)" }
+
+    func buildJson(account: [String: JSONValue], nextId: Int64) throws -> [String: JSONValue] {
+        try InputPolicy.validateText(password, limit: EmailMaterial.maxCredentialChars)
+        var json: [String: JSONValue] = [
+            "id": .int(nextId),
+            "uuid": .string(UUID().uuidString.lowercased()),
+            "name": .string(""),
+            "email": .string(""),
+            "display": .string(""),
+            "insecure": .bool(false),
+            "auth_type": .int(1),
+            "password": .string(password),
+            "login": .bool(true),
+            "use_ip": .bool(true),
+            "synchronize": .bool(true),
+            "primary": .bool(false),
+            "self": .bool(true),
+            "sender_extra": .bool(false),
+            "sender_extra_name": .bool(false),
+            "reply_extra_name": .bool(false),
+            "unicode": .bool(false),
+            "octetmime": .bool(false),
+            "sign_default": .bool(false),
+            "encrypt_default": .bool(false),
+            "sensitivity": .int(0),
+        ]
+        if let accountId = account["id"]?.intValue {
+            json["account"] = .int(accountId)
+        }
+        try identity.apply(to: &json)
+        try connection.apply(to: &json)
+        return json
+    }
+}
+
 /// Multi-identity connection & sender settings editor model mirroring `EmailSettingsInput.kt` in `:core`.
 public struct EmailSettingsInput: Equatable, CustomStringConvertible {
+    public static let maxIdentities = 16
+
     public var protocolMode: Int
     public var incoming: EmailConnectionInput
     public var outgoing: [EmailConnectionInput]
@@ -1242,6 +1300,8 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
     public var accountName: String?
     public var removedIdentities: Set<Int>
     public var removableIdentities: Set<Int>
+    public var primaryIdentityIndex: Int?
+    public var addedIdentities: [AddedEmailIdentityInput]
 
     public init(
         protocolMode: Int,
@@ -1250,7 +1310,9 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
         identities: [EmailIdentityInput]? = nil,
         accountName: String? = nil,
         removedIdentities: Set<Int> = [],
-        removableIdentities: Set<Int> = []
+        removableIdentities: Set<Int> = [],
+        primaryIdentityIndex: Int? = nil,
+        addedIdentities: [AddedEmailIdentityInput] = []
     ) {
         self.protocolMode = protocolMode
         self.incoming = incoming
@@ -1259,6 +1321,14 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
         self.accountName = accountName
         self.removedIdentities = removedIdentities
         self.removableIdentities = removableIdentities
+        self.primaryIdentityIndex = primaryIdentityIndex
+        self.addedIdentities = addedIdentities
+    }
+
+    public func withoutSecrets() -> EmailSettingsInput {
+        var copy = self
+        copy.addedIdentities = addedIdentities.map { $0.withoutSecret() }
+        return copy
     }
 
     public var description: String { "EmailSettingsInput(redacted)" }
@@ -1300,8 +1370,26 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
             throw EmailCredentialError.invalidAccount
         }
         let email = try existing.emailAccount()
-        guard outgoing.count == email.identities.count,
-              removedIdentities.allSatisfy({ $0 > 0 && $0 < email.identities.count && email.identities[$0]["primary"]?.boolValue != true }) else {
+        guard outgoing.count == email.identities.count else {
+            throw EmailCredentialError.invalidAccount
+        }
+        let totalSlots = email.identities.count + addedIdentities.count
+        if let chosenPrimary = primaryIdentityIndex {
+            guard (0..<totalSlots).contains(chosenPrimary),
+                  !removedIdentities.contains(chosenPrimary),
+                  removedIdentities.allSatisfy({ $0 >= 0 && $0 < email.identities.count && $0 != chosenPrimary }) else {
+                throw EmailCredentialError.invalidAccount
+            }
+        } else {
+            guard removedIdentities.allSatisfy({ $0 > 0 && $0 < email.identities.count && email.identities[$0]["primary"]?.boolValue != true }) else {
+                throw EmailCredentialError.invalidAccount
+            }
+        }
+        let survivingCount = (email.identities.count - removedIdentities.count) + addedIdentities.count
+        guard survivingCount >= 1 else {
+            throw EmailCredentialError.invalidAccount
+        }
+        if !addedIdentities.isEmpty && survivingCount > EmailSettingsInput.maxIdentities {
             throw EmailCredentialError.invalidAccount
         }
         var accountJson = email.account
@@ -1339,10 +1427,37 @@ public struct EmailSettingsInput: Equatable, CustomStringConvertible {
                 try sender.apply(to: &identityJson[idx])
             }
         }
-        let keptIdentities = identityJson.enumerated()
-            .filter { !removedIdentities.contains($0.offset) }
-            .map(\.element)
-        let bytes = try EmailMaterial.encode(account: accountJson, identities: keptIdentities)
+        let maxExistingId = max(0, identityJson.compactMap { $0["id"]?.intValue }.max() ?? 0)
+        var builtAdded: [[String: JSONValue]] = []
+        builtAdded.reserveCapacity(addedIdentities.count)
+        for (addedIndex, added) in addedIdentities.enumerated() {
+            let nextId = maxExistingId + Int64(addedIndex) + 1
+            builtAdded.append(try added.buildJson(account: accountJson, nextId: nextId))
+        }
+        var indexedSurviving: [(slot: Int, json: [String: JSONValue])] = []
+        indexedSurviving.reserveCapacity(survivingCount)
+        for (idx, item) in identityJson.enumerated() where !removedIdentities.contains(idx) {
+            indexedSurviving.append((idx, item))
+        }
+        for (addedIndex, item) in builtAdded.enumerated() {
+            indexedSurviving.append((email.identities.count + addedIndex, item))
+        }
+        let finalIdentities: [[String: JSONValue]]
+        if let chosenPrimary = primaryIdentityIndex {
+            var rewritten = indexedSurviving.map { item -> (slot: Int, json: [String: JSONValue]) in
+                var updated = item.json
+                updated["primary"] = .bool(item.slot == chosenPrimary)
+                return (item.slot, updated)
+            }
+            guard let primaryPos = rewritten.firstIndex(where: { $0.slot == chosenPrimary }) else {
+                throw EmailCredentialError.invalidAccount
+            }
+            let primaryEntry = rewritten.remove(at: primaryPos)
+            finalIdentities = [primaryEntry.json] + rewritten.map(\.json)
+        } else {
+            finalIdentities = indexedSurviving.map(\.json)
+        }
+        let bytes = try EmailMaterial.encode(account: accountJson, identities: finalIdentities)
         var fields = existing.fields
         fields["secret"] = .string(Base32.encode(bytes))
         return try Entry.parse(.object(fields))

@@ -351,4 +351,103 @@ class PortablePresentationTest {
         assertEquals(12, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(7))
         assertEquals(24, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(99))
     }
+
+    @Test
+    fun portableBrandArtworkAndVectorParserMatchCoreCatalogAndEnforcePrivacy() {
+        val concealed = card(revealed = false).copy(mark = "GitHub", concealedTitle = "alice@example.com")
+        assertEquals("alice@example.com", concealed.visibleMark(hideIssuer = true))
+        assertEquals("GitHub", concealed.visibleMark(hideIssuer = false))
+        assertEquals("GitHub", concealed.copy(revealed = true).visibleMark(hideIssuer = true))
+
+        assertEquals(0, PortableCardLayout.normalizeThumbnailSizeDp(0))
+        assertEquals(20, PortableCardLayout.normalizeThumbnailSizeDp(12))
+        assertEquals(42, PortableCardLayout.normalizeThumbnailSizeDp(42))
+        assertEquals(96, PortableCardLayout.normalizeThumbnailSizeDp(120))
+        assertEquals(40f, PortableCardLayout.DEFAULT.effectiveThumbnailSizeDp(0))
+        assertEquals(48f, PortableCardLayout.DEFAULT.effectiveThumbnailSizeDp(48))
+
+        for (name in com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog.NAMES) {
+            assertEquals(
+                com.fairuniversal.offlineotp.Utilities.ThumbnailAssets.drawableFile(name),
+                com.fairuniversal.offlineotp.ui.portable.PortableThumbnailAssets.drawableFile(name)
+            )
+        }
+        assertEquals(
+            null,
+            com.fairuniversal.offlineotp.ui.portable.PortableThumbnailAssets.drawableFile("UnknownBrandXYZ")
+        )
+
+        val sampleXml = """
+            <vector xmlns:android="http://schemas.android.com/apk/res/android"
+                xmlns:aapt="http://schemas.android.com/aapt"
+                android:width="24dp" android:height="24dp"
+                android:viewportWidth="24" android:viewportHeight="24">
+                <group android:translateX="2" android:scaleX="0.9" android:scaleY="0.9">
+                    <clip-path android:pathData="M0,0h24v24h-24z"/>
+                    <path android:fillType="evenOdd" android:strokeWidth="1.5" android:strokeColor="#FF112233"
+                        android:pathData="M2 2 L10 2 A4 4 0 0114 6 c1,1 2,2 3,0 q1,-1 2,0 z">
+                        <aapt:attr name="android:fillColor">
+                            <gradient android:type="linear" android:startX="0" android:startY="0"
+                                android:endX="24" android:endY="24">
+                                <item android:offset="0" android:color="#FF336699"/>
+                                <item android:offset="1" android:color="#FF66CC99"/>
+                            </gradient>
+                        </aapt:attr>
+                    </path>
+                </group>
+            </vector>
+        """.trimIndent()
+        val parsed = com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse(sampleXml)
+        assertTrue(parsed != null && parsed.nodes.size == 1)
+        assertEquals(null, com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse("<!DOCTYPE foo><vector/>"))
+        assertEquals(null, com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse("<svg/>"))
+    }
+
+    @Test
+    fun portableVaultStateCarriesUnifiedToolGroupsAndSharedDialogContracts() {
+        val state22 = PortableVaultState(
+            listOf(PortableChip("OTP", 1, true)),
+            "",
+            emptyList(),
+            false,
+            "Any tag",
+            listOf(card(revealed = false)),
+            "Order",
+            "",
+            false,
+            "1 entries",
+            emptyList(),
+            "TRUNCATE",
+            true,
+            0,
+            true,
+            "REVEAL",
+            "NOTHING",
+            0.5f,
+            false,
+            false,
+            0,
+            false
+        )
+        assertTrue(state22.toolGroups.isEmpty())
+
+        val item = com.fairuniversal.offlineotp.ui.portable.PortableToolItem("about", "About OfflineOTP")
+        assertTrue(item.enabled && item.interactive)
+        assertEquals("", item.detail)
+        val grouped = state22.copy(
+            toolGroups = listOf(
+                com.fairuniversal.offlineotp.ui.portable.PortableToolGroup("About", listOf(item))
+            )
+        )
+        assertEquals(1, grouped.toolGroups.size)
+        assertEquals("about", grouped.toolGroups.single().items.single().key)
+
+        assertEquals(
+            listOf("PIN", "COUNTER", "DELETE"),
+            com.fairuniversal.offlineotp.ui.portable.PortableEntryDialogKind.values().map { it.name }
+        )
+        val libs = com.fairuniversal.offlineotp.ui.portable.PortableLibraryCatalog.bundled
+        assertTrue(libs.size >= 6)
+        assertTrue(libs.all { it.name.isNotBlank() && it.license.isNotBlank() })
+    }
 }

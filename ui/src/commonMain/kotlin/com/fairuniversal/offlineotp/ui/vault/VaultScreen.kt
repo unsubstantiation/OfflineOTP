@@ -133,7 +133,8 @@ fun VaultScreen(
                         VaultSearchField(
                             value = state.filter.query,
                             hint = strings.searchHint,
-                            onValueChange = actions.onQueryChange
+                            onValueChange = actions.onQueryChange,
+                            focusOnStart = appearance.focusSearchOnStart
                         )
                     },
                     categoryContent = {

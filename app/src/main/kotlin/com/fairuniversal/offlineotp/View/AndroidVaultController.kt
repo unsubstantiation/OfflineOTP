@@ -713,6 +713,7 @@ class AndroidVaultController(
             showIssuer = !settings.isHideIssuerEnabled(),
             showPreviousToken = settings.getShowPrevToken(),
             showIndividualCountdowns = settings.isShowIndividualTimeoutsEnabled(),
+            focusSearchOnStart = settings.isFocusSearchOnStartEnabled(),
             hideCountdownWhenMasked = settings.getTapToReveal(),
             expiringSeconds = if (settings.isHighlightTokenOptionEnabled()) 8 else -1
         )

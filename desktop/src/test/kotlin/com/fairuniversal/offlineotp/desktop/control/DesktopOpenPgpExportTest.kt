@@ -59,9 +59,18 @@ class DesktopOpenPgpExportTest {
         exporter.open(File(dir, "out.gpg")); val request = exporter.pending!!
         assertFalse(exporter.submitRecipients(request, emptyList()))
         assertFalse(exporter.submitRecipients(request, listOf(key, key)))
-        assertFalse(exporter.submitRecipients(request, (0..8).map { File(dir, "$it.asc") }))
+        assertFalse(exporter.submitRecipients(request, (0..64).map { File(dir, "$it.asc") }))
         assertFalse(exporter.submitRecipients(request, listOf(key)) { false })
         assertEquals(0, worker.tasks.size); assertEquals(0, port.calls)
+    }
+    @Test fun acceptsUpToSixtyFourDistinctRecipientFiles() = harness { dir, _, worker, ui, port, exporter ->
+        val keys = (1..64).map { idx -> File(dir, "recipient-$idx.asc").apply { writeText("recipient-$idx") } }
+        val target = File(dir, "sixty-four.gpg")
+        exporter.open(target); val request = exporter.pending!!
+        assertTrue(exporter.submitRecipients(request, keys))
+        worker.run(); ui.run()
+        assertEquals(64, port.received.size)
+        assertTrue(exporter.saved); assertTrue(target.exists()); port.wiped()
     }
     @Test fun oneUnreadableOrEmptyRecipientFailsTheWholeExport() = harness { dir, _, worker, ui, port, exporter ->
         val first = File(dir, "first.asc").apply { writeText("first") }

@@ -249,6 +249,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         for rel in (
             'com/fairuniversal/offlineotp/ui/intro/SharedIntroScreen.kt',
             'com/fairuniversal/offlineotp/ui/vault/SharedEntryPinDialog.kt',
+            'com/fairuniversal/offlineotp/ui/vault/SharedVaultEntryDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/EntryCounterDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/EntryDetailsDialog.kt',
             'com/fairuniversal/offlineotp/ui/vault/TagsDialog.kt',
@@ -302,6 +303,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
             'PreferencesImportDialog(',
             'EntryConfirmationDialog(',
             'SharedEntryPinDialog(',
+            'SharedVaultEntryDialog(',
+            'HideableDialog(',
             'EntryCounterDialog(',
             'TagsDialog(',
             'EntryCopyDialog(',
@@ -530,7 +533,9 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('SharedVaultFilterHeader(', screen)
         self.assertIn('showThumbnail = showThumbnails', screen)
         self.assertIn('scrollLabels = labelDisplay.scrollLabels', screen)
-        self.assertIn('thumbnailSizeDp = cardLayout.thumbnailSizeDp', screen)
+        self.assertIn('cardLayout.effectiveThumbnailSizeDp(customThumbnailSizeDp)', screen)
+        self.assertIn('val displayMark = card.visibleMark(hideIssuer)', screen)
+        self.assertIn('focusOnStart = state.focusSearchOnStart', screen)
         self.assertIn('showCountdown = card.hasCode && card.showCountdown && card.secondsLeft > 0', screen)
         self.assertIn('showSecondsText = true', screen)
         self.assertIn('counterText = if (card.revealed) card.counterLabel.ifEmpty { null } else null', screen)
@@ -563,7 +568,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('onScanCamera = if (cameraSupported) { { onAction("qrCamera") } } else null', ios_vc)
         self.assertIn('onSaveCompleteDisplay =', ios_vc)
         self.assertIn('onSaveSelection =', ios_vc)
-        self.assertIn('"usedTokensNotice" -> EntryDetailsDialog(', ios_vc)
+        self.assertIn('"usedTokensNotice" -> HideableDialog(', ios_vc)
         self.assertIn('onViewDetails = if (dialog.title == "Edit entry" && rowValue("type") != "NOTE")', ios_vc)
         self.assertIn('customPeriodLabel = card.customPeriodLabel.ifEmpty { null }', screen)
         self.assertIn('labelSizeSp = state.labelSizeSp.takeIf { it > 0 }', screen)
@@ -573,6 +578,68 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('hideGlobalTimeout: store.hideGlobalTimeout', host)
         self.assertIn('store.expireRevealedEntries(now: now)', host)
         self.assertIn('openSurface("usedTokensNotice")', host)
+
+    def test_shared_vector_brand_artwork_and_portable_preferences_parity(self):
+        project_yml = (ROOT / 'ios/project.yml').read_text(encoding='utf-8')
+        self.assertIn('path: ../app/src/main/res/drawable', project_yml)
+        self.assertIn('"thumb_*.xml"', project_yml)
+
+        vector_doc = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableVectorDocument.kt').read_text(encoding='utf-8')
+        self.assertIn('class PortableVectorDocument(', vector_doc)
+        self.assertIn('fun parse(xml: String): PortableVectorDocument?', vector_doc)
+
+        shared_vec = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/SharedVectorArtwork.kt').read_text(encoding='utf-8')
+        self.assertIn('class BundledVectorVaultArtwork', shared_vec)
+        self.assertIn('fun SharedVectorBadge(', shared_vec)
+
+        ios_vc = (ROOT / 'ui-foundation/src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')
+        self.assertIn('fun registerArtworkXmlLoader(', ios_vc)
+        self.assertIn('BundledVectorVaultArtwork(loader)', ios_vc)
+        self.assertIn('artwork = artwork', ios_vc)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('presentation.registerArtworkXmlLoader', host)
+        self.assertIn('customThumbnailSizeDp: Int32(store.thumbnailSizeDp)', host)
+        self.assertIn('focusSearchOnStart: store.focusSearchOnStart', host)
+        self.assertIn('relockOnBackground', host)
+        self.assertIn('case "backupTimestamp":', host)
+
+        app_root = (ROOT / 'ios/App/Sources/AppRootViewController.swift').read_text(encoding='utf-8')
+        self.assertIn('UIScene.didEnterBackgroundNotification', app_root)
+        self.assertIn('store.relockOnBackground', app_root)
+
+        compose_main = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text(encoding='utf-8')
+        self.assertIn('onOpenAbout = { showAbout = true }', compose_main)
+        self.assertIn('windowIconified', compose_main)
+        self.assertIn('toggleBackupTimestamp', compose_main)
+
+        core_prefs = (ROOT / 'core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt').read_text(encoding='utf-8')
+        ios_prefs = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text(encoding='utf-8')
+        for key in ('"ui_thumbnail_size_dp"', '"ui_focus_search_on_start"',
+                    '"ui_relock_background"', '"ui_backup_append_date_time"'):
+            self.assertIn(key, core_prefs)
+            self.assertIn(key, ios_prefs)
+
+    def test_unified_vault_tools_bar_hideable_notice_and_tabbed_about_libraries_parity(self):
+        portable_screen = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/PortableVaultScreen.kt').read_text(encoding='utf-8')
+        self.assertIn('SharedVaultToolsBar(', portable_screen)
+        self.assertIn('state.toolGroups.isNotEmpty()', portable_screen)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('toolGroups: unifiedToolGroups()', host)
+        self.assertIn('_ = surfaceAction(action)', host)
+        self.assertIn('if draft["dontShowAgain"] == "true" {\n                store.setUsedTokensDialogShown(true)\n            }', host)
+
+        desktop_main = (ROOT / 'desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt').read_text(encoding='utf-8')
+        self.assertIn('HideableDialog(', desktop_main)
+        self.assertIn('if (usedTokensHideForever && lifetime.checkActive())', desktop_main)
+
+        about_dialog = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt').read_text(encoding='utf-8')
+        self.assertIn('SharedVaultTab(label = "About"', about_dialog)
+        self.assertIn('SharedVaultTab(label = "Libraries"', about_dialog)
+        self.assertIn('PortableLibraryCatalog.bundled', about_dialog)
+
+
 
 
 

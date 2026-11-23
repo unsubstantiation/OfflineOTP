@@ -9091,9 +9091,59 @@ fun main() {
             expect(collectorField.get(activity) == null && !awaitingField.getBoolean(activity),
                 { "onVaultLocked did not clear migrationCollector and awaitingMigrationQr" })
 
-            // Verify PortableTapMode, reveal-timeout normalization, and 17-key desktop preferences catalog parity.
-            expect(PreferencesExport.desktopCatalog.size == 17,
-                { "expected 17 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            // Verify PortableTapMode, reveal-timeout normalization, and 24-key desktop preferences catalog parity.
+            expect(PreferencesExport.desktopCatalog.size == 24,
+                { "expected 24 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            expect(PreferencesExport.setting(PreferencesExport.UI_MINIMIZE_ON_COPY, PreferencesExport.PLATFORM_DESKTOP) != null &&
+                PreferencesExport.setting(PreferencesExport.UI_SELECTED_TAGS, PreferencesExport.PLATFORM_DESKTOP) != null &&
+                PreferencesExport.setting(PreferencesExport.UI_UNTAGGED_SELECTED, PreferencesExport.PLATFORM_DESKTOP) != null,
+                { "expected minimize-on-copy and persisted tag selection keys in desktopCatalog" })
+            val noopPort = object : com.fairuniversal.offlineotp.Utilities.OpenPgpPort {
+                override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>): ByteArray =
+                    plaintext.copyOf()
+                override fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): ByteArray =
+                    message.copyOf()
+            }
+            val sixtyFourKeys = (1..64).map { idx -> "k$idx".toByteArray(Charsets.UTF_8) }
+            expect(com.fairuniversal.offlineotp.Utilities.OpenPgpBackupCodec.seal(noopPort, "[]", sixtyFourKeys).isNotEmpty(),
+                { "OpenPgpBackupCodec.seal should accept 64 recipient key blocks" })
+            expectThrows(IllegalArgumentException::class.java) {
+                com.fairuniversal.offlineotp.Utilities.OpenPgpBackupCodec.seal(
+                    noopPort,
+                    "[]",
+                    (0..64).map { idx -> "k$idx".toByteArray(Charsets.UTF_8) }
+                )
+            }
+            val seedMail = com.fairuniversal.offlineotp.Utilities.EmailMaterial.create(
+                "Personal", "alice@example.com",
+                "imap.example.com", 993, 0, 0, "alice", "in-pw", 1,
+                "smtp.example.com", 465, 0, "alice", "out-pw", 1
+            )
+            val mailEntry = Entry.email(seedMail.account, seedMail.identity, seedMail.identities, arrayListOf("work"))
+            try {
+                val baseSettings = com.fairuniversal.offlineotp.Utilities.EmailSettingsInput.fromEntry(mailEntry)
+                val addedSmtp = com.fairuniversal.offlineotp.Utilities.AddedEmailIdentityInput(
+                    identity = com.fairuniversal.offlineotp.Utilities.EmailIdentityInput("Support", "support@example.com"),
+                    connection = com.fairuniversal.offlineotp.Utilities.EmailConnectionInput("smtp2.example.com", "587", 1, "support", "1"),
+                    password = "added-secret"
+                )
+                val stagedSettings = baseSettings.copy(primaryIdentityIndex = 1, addedIdentities = listOf(addedSmtp))
+                expect(stagedSettings.withoutSecrets().addedIdentities.single().password.isEmpty(),
+                    { "withoutSecrets must scrub added SMTP password" })
+                val promotedMail = stagedSettings.build(mailEntry)
+                try {
+                    val decoded = promotedMail.getEmailAccount()
+                    expect(decoded.identities.size == 2 &&
+                        decoded.identity.getString("email") == "support@example.com" &&
+                        decoded.identity.getBoolean("primary") &&
+                        !decoded.identities[1].getBoolean("primary"),
+                        { "EmailSettingsInput failed to add and promote primary SMTP identity" })
+                } finally {
+                    promotedMail.destroy()
+                }
+            } finally {
+                mailEntry.destroy()
+            }
             expect(PreferencesExport.isDeviceBound(PreferencesExport.UI_USED_TOKENS_SHOWN),
                 { "UI_USED_TOKENS_SHOWN must be listed in neverExported" })
             expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName("copy") ==
@@ -9109,6 +9159,22 @@ fun main() {
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(2) == 5 &&
                 com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeRevealTimeoutSeconds(999) == 600,
                 { "unexpected reveal timeout normalization" })
+            expect(com.fairuniversal.offlineotp.Utilities.BackupFileNames.encrypted(java.util.Date(0L), false) == "otp_accounts.json.aes" &&
+                com.fairuniversal.offlineotp.Utilities.BackupFileNames.openPgp(java.util.Date(0L), false) == "otp_accounts.json.gpg",
+                { "BackupFileNames appendTimestamp=false should emit undated backup names" })
+
+            val drawableDir = java.io.File("app/src/main/res/drawable")
+            val thumbXmlFiles = drawableDir.listFiles { _, name ->
+                name.startsWith("thumb_") && name.endsWith(".xml")
+            }?.sortedBy { it.name } ?: emptyList()
+            expect(thumbXmlFiles.size >= 460, { "expected bundled thumb_*.xml vector drawables, got ${thumbXmlFiles.size}" })
+            for (xmlFile in thumbXmlFiles) {
+                val parsedDoc = com.fairuniversal.offlineotp.ui.portable.PortableVectorDocument.parse(
+                    xmlFile.readText(Charsets.UTF_8)
+                )
+                expect(parsedDoc != null && parsedDoc.nodes.isNotEmpty(),
+                    { "PortableVectorDocument failed to parse ${xmlFile.name}" })
+            }
         } finally {
             adapter.lockEntries()
             VaultSession.lock()

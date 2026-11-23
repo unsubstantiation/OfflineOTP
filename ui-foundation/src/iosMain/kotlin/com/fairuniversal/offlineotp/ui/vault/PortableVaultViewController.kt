@@ -39,8 +39,14 @@ class PortableVaultPresentation {
     private var active by mutableStateOf(true)
     private var vault by mutableStateOf(PortableVaultState.EMPTY)
     private var cardLayout by mutableStateOf(PortableCardLayout.DEFAULT)
+    private var artwork by mutableStateOf<VaultArtwork?>(null)
     private var surface by mutableStateOf<PortableSurfaceState?>(null)
     private var surfaceEpoch by mutableStateOf(0)
+
+    /** Registers a read-only bundle XML loader for shared `thumb_*.xml` vector artwork. */
+    fun registerArtworkXmlLoader(loader: (String) -> String?) {
+        artwork = BundledVectorVaultArtwork(loader)
+    }
 
     /** Replaces the frame without replacing the composition. */
     fun updateVault(state: PortableVaultState) {
@@ -69,6 +75,7 @@ class PortableVaultPresentation {
 
     fun close() {
         active = false
+        artwork = null
         surface = null
         surfaceEpoch++
     }
@@ -100,13 +107,15 @@ class PortableVaultPresentation {
                     onTool = { action -> vaultActions.tool(action) },
                     onCard = { index, action -> vaultActions.card(index, action) },
                     onDismissToast = { vaultActions.tool("dismissToast") },
-                    cardLayout = cardLayout
+                    cardLayout = cardLayout,
+                    artwork = artwork
                 )
                 val dialog = surface
                 if (dialog != null) {
                     RenderSharedSurface(
                         dialog = dialog,
                         dialogKey = "${dialog.key}:$surfaceEpoch",
+                        artwork = artwork,
                         surfaceActions = surfaceActions,
                         onAction = { key -> invokeSurfaceAction(surfaceActions, key) },
                         onDismiss = { invokeSurfaceAction(surfaceActions, "dismiss") }
@@ -121,6 +130,7 @@ class PortableVaultPresentation {
 private fun RenderSharedSurface(
     dialog: PortableSurfaceState,
     dialogKey: String,
+    artwork: VaultArtwork?,
     surfaceActions: PortableSurfaceActions,
     onAction: (String) -> String?,
     onDismiss: () -> Unit
@@ -146,7 +156,18 @@ private fun RenderSharedSurface(
                 surfaceActions.change("seconds", seconds.toString())
                 confirm()
             },
-            onDismiss = onDismiss
+            onDismiss = onDismiss,
+            relockOnBackground = row("relockOnBackground")?.let { it.value == "true" || it.checked },
+            relockOnBackgroundLabel = "Lock immediately when app enters background",
+            onSaveWithBackground = if (row("relockOnBackground") != null) {
+                { seconds, relockBackground ->
+                    surfaceActions.change("seconds", seconds.toString())
+                    surfaceActions.change("relockOnBackground", if (relockBackground) "true" else "false")
+                    confirm()
+                }
+            } else {
+                null
+            }
         )
         "passwordChange" -> PasswordChangeDialog(
             inputKey = dialogKey,
@@ -189,7 +210,20 @@ private fun RenderSharedSurface(
             onConfirm = ::confirm,
             onDismiss = onDismiss
         )
-        "delete", "thunderbirdConfirm" -> EntryConfirmationDialog(
+        "delete" -> SharedVaultEntryDialog(
+            kind = PortableEntryDialogKind.DELETE,
+            entryId = rowValue("entryId").toLongOrNull() ?: 0L,
+            inputKey = dialogKey,
+            failed = false,
+            onDismiss = onDismiss,
+            onConfirm = ::confirm,
+            onPinSubmit = {},
+            deleteTitle = dialog.title,
+            deleteMessage = row("info")?.title ?: dialog.message,
+            deleteConfirmLabel = dialog.confirmLabel,
+            cancelLabel = dialog.dismissLabel
+        )
+        "thunderbirdConfirm" -> EntryConfirmationDialog(
             title = dialog.title,
             message = row("info")?.title ?: dialog.message,
             confirmLabel = dialog.confirmLabel,
@@ -340,6 +374,10 @@ private fun RenderSharedSurface(
                 tapToRevealTimeoutSeconds = PortableTapMode.normalizeRevealTimeoutSeconds(
                     rowValue("tapToRevealTimeoutSeconds").toIntOrNull() ?: 0
                 ),
+                thumbnailSizeDp = PortableCardLayout.normalizeThumbnailSizeDp(
+                    rowValue("thumbnailSizeDp").toIntOrNull() ?: 0
+                ),
+                focusSearchOnStart = rowValue("focusSearchOnStart") == "true",
                 onSaveSelection = { selection ->
                     surfaceActions.change("layout", selection.layout.name)
                     surfaceActions.change("hideIssuer", if (selection.hideIssuer) "true" else "false")
@@ -354,15 +392,25 @@ private fun RenderSharedSurface(
                     surfaceActions.change("tapDouble", selection.tapDouble.name)
                     surfaceActions.change("hideGlobalTimeout", if (selection.hideGlobalTimeout) "true" else "false")
                     surfaceActions.change("tapToRevealTimeoutSeconds", selection.tapToRevealTimeoutSeconds.toString())
+                    surfaceActions.change("thumbnailSizeDp", selection.thumbnailSizeDp.toString())
+                    surfaceActions.change("focusSearchOnStart", if (selection.focusSearchOnStart) "true" else "false")
                     confirm()
                 }
             )
         }
-        "usedTokensNotice" -> EntryDetailsDialog(
+        "usedTokensNotice" -> HideableDialog(
+            inputKey = dialogKey,
             title = dialog.title,
-            body = dialog.message,
-            confirmLabel = dialog.dismissLabel.ifEmpty { "OK" },
-            onDismiss = onDismiss
+            message = dialog.message,
+            dontShowAgainLabel = row("dontShowAgain")?.title ?: "Don't show this message again",
+            confirmLabel = dialog.confirmLabel.ifEmpty { dialog.dismissLabel.ifEmpty { "OK" } },
+            initialHidden = rowValue("dontShowAgain") == "true" || row("dontShowAgain")?.checked == true,
+            onHiddenChanged = { hidden ->
+                surfaceActions.change("dontShowAgain", if (hidden) "true" else "false")
+            },
+            onDismiss = {
+                if (dialog.showConfirm) confirm() else onDismiss()
+            }
         )
         "passwordImportChoice" -> {
             val count = rowValue("previewCount").toIntOrNull()
@@ -601,6 +649,7 @@ private fun RenderSharedSurface(
                 title = dialog.title,
                 selected = rowValue("selected"),
                 catalogNames = names,
+                artwork = artwork,
                 unchangedLabel = rowValue("unchangedLabel").ifEmpty { "Reset to Default" },
                 onSelect = { chosen ->
                     surfaceActions.change("thumbnail", chosen)
@@ -670,6 +719,7 @@ private fun RenderSharedSurface(
                     identities = orderedIdentities
                 ),
                 thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                artwork = artwork,
                 error = dialog.message.ifEmpty { null },
                 onSubmit = { draft ->
                     surfaceActions.change("issuer", draft.issuer)
@@ -734,6 +784,24 @@ private fun RenderSharedSurface(
                     address = rowValue("outAddr:$idx")
                 )
             }
+            val addedCount = (rowValue("addedCount").toIntOrNull() ?: 0)
+                .coerceIn(0, PortableInputBounds.MAX_EMAIL_IDENTITIES)
+            val addedIdentities = (0 until addedCount).map { addedIdx ->
+                PortableAddedEmailIdentityDraft(
+                    identity = PortableEmailIdentityDraft(
+                        name = rowValue("addName:$addedIdx"),
+                        address = rowValue("addAddr:$addedIdx")
+                    ),
+                    connection = PortableEmailConnectionDraft(
+                        host = rowValue("addHost:$addedIdx"),
+                        port = rowValue("addPort:$addedIdx").ifEmpty { "587" },
+                        encryption = rowValue("addEnc:$addedIdx").toIntOrNull() ?: 1,
+                        username = rowValue("addUser:$addedIdx"),
+                        authentication = rowValue("addAuth:$addedIdx").ifEmpty { "1" }
+                    ),
+                    password = ""
+                )
+            }
             SharedEmailSettingsDialog(
                 inputKey = dialogKey,
                 initial = PortableEmailSettingsDraft(
@@ -749,7 +817,9 @@ private fun RenderSharedSurface(
                     identities = identities,
                     accountName = rowValue("accountName"),
                     removedIdentities = emptySet(),
-                    removableIdentities = removable
+                    removableIdentities = removable,
+                    primaryIdentityIndex = rowValue("primaryIndex").toIntOrNull(),
+                    addedIdentities = addedIdentities
                 ),
                 failed = dialog.message.isNotEmpty(),
                 errorText = dialog.message.ifEmpty { null },
@@ -762,6 +832,8 @@ private fun RenderSharedSurface(
                     surfaceActions.change("inUser", draft.incoming.username)
                     draft.incoming.authentication?.let { surfaceActions.change("inAuth", it) }
                     surfaceActions.change("removedIndices", draft.removedIdentities.sorted().joinToString(","))
+                    surfaceActions.change("primaryIndex", draft.primaryIdentityIndex?.toString().orEmpty())
+                    surfaceActions.change("addedCount", draft.addedIdentities.size.toString())
                     draft.outgoing.forEachIndexed { idx, conn ->
                         surfaceActions.change("outHost:$idx", conn.host)
                         surfaceActions.change("outPort:$idx", conn.port)
@@ -772,6 +844,16 @@ private fun RenderSharedSurface(
                     draft.identities?.forEachIndexed { idx, sender ->
                         surfaceActions.change("outName:$idx", sender.name)
                         surfaceActions.change("outAddr:$idx", sender.address)
+                    }
+                    draft.addedIdentities.forEachIndexed { addedIdx, added ->
+                        surfaceActions.change("addName:$addedIdx", added.identity.name)
+                        surfaceActions.change("addAddr:$addedIdx", added.identity.address)
+                        surfaceActions.change("addHost:$addedIdx", added.connection.host)
+                        surfaceActions.change("addPort:$addedIdx", added.connection.port)
+                        surfaceActions.change("addEnc:$addedIdx", added.connection.encryption.toString())
+                        surfaceActions.change("addUser:$addedIdx", added.connection.username)
+                        surfaceActions.change("addAuth:$addedIdx", added.connection.authentication ?: "1")
+                        surfaceActions.change("addPass:$addedIdx", added.password)
                     }
                     confirm()
                 },
@@ -857,6 +939,7 @@ private fun RenderSharedSurface(
                     null
                 },
                 thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                artwork = artwork,
                 onShowQrCode = if (dialog.title == "Edit entry" && rowValue("canShowQr") == "true") {
                     { onAction("qrFromEdit") }
                 } else {
@@ -944,6 +1027,7 @@ private fun RenderSharedSurface(
                     failed = dialog.message.isNotEmpty(),
                     errorText = dialog.message.ifEmpty { null },
                     thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+                    artwork = artwork,
                     onManageTags = { onAction("tags") },
                     onViewDetails = if (rowValue("archiveMode") != "true") {
                         { onAction("details") }
