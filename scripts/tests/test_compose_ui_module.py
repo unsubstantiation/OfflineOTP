@@ -1494,7 +1494,8 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("onPasswordSubmit: ((PasswordEntryInput) -> Unit)? = null", manual_adapter)
 
         vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
-        self.assertIn("actionLabel = if (addAction != null) strings.addEntry else null", vault_screen)
+        self.assertIn("val addLabel = strings.addEntryTitle(state.filter.category)", vault_screen)
+        self.assertIn("actionLabel = if (addAction != null) addLabel else null", vault_screen)
 
         desktop_creation = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryCreation.kt").read_text(encoding="utf-8")
         self.assertIn("fun preparePassword(", desktop_creation)
@@ -1507,6 +1508,41 @@ class ComposeUiWiringTest(unittest.TestCase):
         android_controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
         self.assertIn("fun openPasswordCreation(): Boolean", android_controller)
         self.assertIn("onPasswordSubmit = { input ->", android_controller)
+
+    def test_unlock_creation_password_change_and_vault_card_tag_parity(self):
+        unlock_adapter = (UI_MAIN / "unlock/UnlockScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("creating: Boolean = false", unlock_adapter)
+        self.assertIn("onCreate: (String, String) -> Unit", unlock_adapter)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("creating = !controller.isInitialized()", desktop_host)
+        self.assertIn("onCreate = { password, confirmation ->", desktop_host)
+
+        components = (UI_MAIN / "vault/VaultComponents.kt").read_text(encoding="utf-8")
+        self.assertIn('contentDescription = "How selected tags combine"', components)
+        self.assertIn('contentDescription = "Clear the search and tag filters"', components)
+        self.assertIn("pillTags = if (card.detailsVisible) card.tags else emptyList()", components)
+        self.assertIn('"Code " + token.toCharArray().joinToString(" ")', components)
+        self.assertIn('"Previous token " + previousToken.toCharArray().joinToString(" ")', components)
+
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn('if (card.canStep) ForestTextAction("Next code"', portable_screen)
+
+        compose_views = (UI_ANDROID / "host/ComposeDialogViews.kt").read_text(encoding="utf-8")
+        self.assertIn("class PasswordChangeComposeView(", compose_views)
+        self.assertIn("PasswordChangeDialog(", compose_views)
+
+        android_vault = (UI_ANDROID / "vault/VaultComposeView.kt").read_text(encoding="utf-8")
+        self.assertIn("onSwitchToManual = creatingEmail.onSwitchToManual", android_vault)
+        self.assertIn("onSwitchToPassword = creatingEmail.onSwitchToPassword", android_vault)
+        self.assertIn("onSwitchToManual = creatingPassword.onSwitchToManual", android_vault)
+        self.assertIn("onSwitchToEmail = creatingPassword.onSwitchToEmail", android_vault)
+
+        main_activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("onAddEntry = { controller.openCreationForCategory() }", main_activity)
+        self.assertIn("private fun openPasswordChangeDialog()", main_activity)
+        self.assertIn("PasswordChangeComposeView(", main_activity)
+        self.assertIn("passwordChangePrompt?.dismiss()", main_activity)
 
 
 if __name__ == "__main__":

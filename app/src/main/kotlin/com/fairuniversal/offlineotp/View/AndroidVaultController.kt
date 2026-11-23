@@ -287,13 +287,35 @@ class AndroidVaultController(
         return true
     }
 
+    fun openCreationForCategory(
+        category: EntryListPresentation.Category? = presentation.selection().category
+    ): Boolean = when (category ?: EntryListPresentation.Category.OTP) {
+        EntryListPresentation.Category.PASSWORDS -> openPasswordCreation()
+        EntryListPresentation.Category.EMAILS -> openEmailCreation()
+        EntryListPresentation.Category.NOTES -> openSharedCreation(Entry.OTPType.NOTE)
+        EntryListPresentation.Category.SSH_KEYS -> openSharedCreation(Entry.OTPType.SSH_KEY)
+        EntryListPresentation.Category.OTP -> openSharedCreation(Entry.OTPType.TOTP)
+    }
+
     fun openPasswordCreation(): Boolean {
         val view = composeEditorView ?: return false
         if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return false
         val generation = VaultSession.generation()
         val key = Any()
         composeEditTarget = null
-        view.showPasswordCreation(key) { input ->
+        view.showPasswordCreation(
+            key = key,
+            onSwitchToManual = {
+                if (view.ownsPasswordCreation(key) && VaultSession.isCurrent(generation)) {
+                    openSharedCreation(Entry.OTPType.TOTP)
+                }
+            },
+            onSwitchToEmail = {
+                if (view.ownsPasswordCreation(key) && VaultSession.isCurrent(generation)) {
+                    openEmailCreation()
+                }
+            }
+        ) { input ->
             synchronized(VaultSession.MutationLock) {
                 if (!view.ownsPasswordCreation(key) || !VaultSession.isCurrent(generation) ||
                     encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
@@ -319,7 +341,19 @@ class AndroidVaultController(
         val generation = VaultSession.generation()
         val key = Any()
         composeEditTarget = null
-        view.showEmailCreation(key) { input ->
+        view.showEmailCreation(
+            key = key,
+            onSwitchToManual = {
+                if (view.ownsEmailCreation(key) && VaultSession.isCurrent(generation)) {
+                    openSharedCreation(Entry.OTPType.TOTP)
+                }
+            },
+            onSwitchToPassword = {
+                if (view.ownsEmailCreation(key) && VaultSession.isCurrent(generation)) {
+                    openPasswordCreation()
+                }
+            }
+        ) { input ->
             synchronized(VaultSession.MutationLock) {
                 if (!view.ownsEmailCreation(key) || !VaultSession.isCurrent(generation) ||
                     encryptionKey == null || VaultSession.getKey() !== encryptionKey) {

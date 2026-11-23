@@ -337,4 +337,24 @@ class VaultProjectionTest {
         assertEquals("No matches", tagFilteredMiss.emptyTitle)
         assertEquals("No entry matches the current search and tag filter.", tagFilteredMiss.emptyMessage)
     }
+
+    @Test
+    fun `empty tab primary action label adapts to email and password categories`() {
+        val defaults = VaultStrings.English
+        assertEquals("Add entry", defaults.addEntryTitle(null))
+        assertEquals("Add entry", defaults.addEntryTitle(EntryListPresentation.Category.OTP))
+        assertEquals("Add entry", defaults.addEntryTitle(EntryListPresentation.Category.NOTES))
+        assertEquals("Add entry", defaults.addEntryTitle(EntryListPresentation.Category.SSH_KEYS))
+        assertEquals("Add password", defaults.addEntryTitle(EntryListPresentation.Category.PASSWORDS))
+        assertEquals("Add email account", defaults.addEntryTitle(EntryListPresentation.Category.EMAILS))
+
+        val custom = defaults.copy(
+            addEntry = "Add",
+            addEmailEntry = "New email",
+            addPasswordEntry = "New password"
+        )
+        assertEquals("Add", custom.addEntryTitle(EntryListPresentation.Category.OTP))
+        assertEquals("New password", custom.addEntryTitle(EntryListPresentation.Category.PASSWORDS))
+        assertEquals("New email", custom.addEntryTitle(EntryListPresentation.Category.EMAILS))
+    }
 }

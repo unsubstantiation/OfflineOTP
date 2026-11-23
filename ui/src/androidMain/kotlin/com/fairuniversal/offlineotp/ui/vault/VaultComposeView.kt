@@ -54,19 +54,41 @@ class VaultComposeView(
     private var frame by mutableStateOf(host.frame)
     private var renderedActions by mutableStateOf(host.actions)
 
-    private class EmailCreation(val key: Any, val submit: (EmailEntryInput) -> String?)
+    private class EmailCreation(
+        val key: Any,
+        val onSwitchToManual: (() -> Unit)?,
+        val onSwitchToPassword: (() -> Unit)?,
+        val submit: (EmailEntryInput) -> String?
+    )
     private var emailCreation by mutableStateOf<EmailCreation?>(null)
-    fun showEmailCreation(key: Any, submit: (EmailEntryInput) -> String?) {
+    fun showEmailCreation(
+        key: Any,
+        onSwitchToManual: (() -> Unit)? = null,
+        onSwitchToPassword: (() -> Unit)? = null,
+        submit: (EmailEntryInput) -> String?
+    ) {
         if (ended) return
-        clearEntryEditor(); emailCreation = EmailCreation(key, submit)
+        clearEntryEditor()
+        emailCreation = EmailCreation(key, onSwitchToManual, onSwitchToPassword, submit)
     }
     fun ownsEmailCreation(key: Any) = !ended && emailCreation?.key === key
 
-    private class PasswordCreation(val key: Any, val submit: (PasswordEntryInput) -> String?)
+    private class PasswordCreation(
+        val key: Any,
+        val onSwitchToManual: (() -> Unit)?,
+        val onSwitchToEmail: (() -> Unit)?,
+        val submit: (PasswordEntryInput) -> String?
+    )
     private var passwordCreation by mutableStateOf<PasswordCreation?>(null)
-    fun showPasswordCreation(key: Any, submit: (PasswordEntryInput) -> String?) {
+    fun showPasswordCreation(
+        key: Any,
+        onSwitchToManual: (() -> Unit)? = null,
+        onSwitchToEmail: (() -> Unit)? = null,
+        submit: (PasswordEntryInput) -> String?
+    ) {
         if (ended) return
-        clearEntryEditor(); passwordCreation = PasswordCreation(key, submit)
+        clearEntryEditor()
+        passwordCreation = PasswordCreation(key, onSwitchToManual, onSwitchToEmail, submit)
     }
     fun ownsPasswordCreation(key: Any) = !ended && passwordCreation?.key === key
 
@@ -265,14 +287,44 @@ class VaultComposeView(
         }
         val creatingEmail = emailCreation
         if (creatingEmail != null) ForestTheme {
-            EmailEntryDialog(creatingEmail.key, editError, onSubmit = { input ->
-                if (ownsEmailCreation(creatingEmail.key)) {
-                    val failure = creatingEmail.submit(input)
-                    if (emailCreation === creatingEmail) {
-                        if (failure == null) clearEntryEditor() else editError = failure
+            EmailEntryDialog(
+                inputKey = creatingEmail.key,
+                error = editError,
+                artwork = artwork,
+                onSwitchToManual = creatingEmail.onSwitchToManual?.let { switchToManual ->
+                    {
+                        if (ownsEmailCreation(creatingEmail.key)) {
+                            editError = null
+                            switchToManual()
+                        }
                     }
-                }
-            }, onDismiss = { clearEntryEditor() }, artwork = artwork)
+                },
+                onSwitchToPassword = creatingEmail.onSwitchToPassword?.let { switchToPassword ->
+                    {
+                        if (ownsEmailCreation(creatingEmail.key)) {
+                            editError = null
+                            switchToPassword()
+                        }
+                    }
+                },
+                onSwitchToUriImport = onOpenUriImport?.let { open ->
+                    {
+                        if (ownsEmailCreation(creatingEmail.key)) {
+                            clearEntryEditor()
+                            open()
+                        }
+                    }
+                },
+                onSubmit = { input ->
+                    if (ownsEmailCreation(creatingEmail.key)) {
+                        val failure = creatingEmail.submit(input)
+                        if (emailCreation === creatingEmail) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                },
+                onDismiss = { clearEntryEditor() }
+            )
         }
         val creatingPassword = passwordCreation
         if (creatingPassword != null) ForestTheme {
@@ -283,6 +335,30 @@ class VaultComposeView(
                 editing = false,
                 errorText = editError,
                 artwork = artwork,
+                onSwitchToManual = creatingPassword.onSwitchToManual?.let { switchToManual ->
+                    {
+                        if (ownsPasswordCreation(creatingPassword.key)) {
+                            editError = null
+                            switchToManual()
+                        }
+                    }
+                },
+                onSwitchToEmail = creatingPassword.onSwitchToEmail?.let { switchToEmail ->
+                    {
+                        if (ownsPasswordCreation(creatingPassword.key)) {
+                            editError = null
+                            switchToEmail()
+                        }
+                    }
+                },
+                onSwitchToUriImport = onOpenUriImport?.let { open ->
+                    {
+                        if (ownsPasswordCreation(creatingPassword.key)) {
+                            clearEntryEditor()
+                            open()
+                        }
+                    }
+                },
                 onSubmit = { input ->
                     if (ownsPasswordCreation(creatingPassword.key)) {
                         val failure = creatingPassword.submit(input)

@@ -170,11 +170,12 @@ fun VaultScreen(
         },
         emptyContent = {
             val addAction = if (!state.filter.hasQuery && !state.filter.hasTagFilter) actions.onAddEntry else null
+            val addLabel = strings.addEntryTitle(state.filter.category)
             VaultEmptyState(
                 title = state.emptyTitle,
                 description = state.emptyDescription,
-                actionLabel = if (addAction != null) strings.addEntry else null,
-                actionDescription = strings.addEntry,
+                actionLabel = if (addAction != null) addLabel else null,
+                actionDescription = addLabel,
                 onAction = addAction
             )
         },

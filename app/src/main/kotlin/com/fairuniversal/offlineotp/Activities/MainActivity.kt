@@ -18,6 +18,7 @@ import com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import com.fairuniversal.offlineotp.ui.host.HideableNoticeComposeView
 import com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+import com.fairuniversal.offlineotp.ui.host.PasswordChangeComposeView
 import com.fairuniversal.offlineotp.ui.host.PasswordExportComposeView
 import com.fairuniversal.offlineotp.ui.host.PasswordImportComposeView
 import com.fairuniversal.offlineotp.ui.host.UriImportComposeView
@@ -63,7 +64,13 @@ import com.leinardi.android.speeddial.SpeedDialView
 
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.R
+import com.fairuniversal.offlineotp.Tasks.AuthenticationOutcome
+import com.fairuniversal.offlineotp.Tasks.AuthenticationTask
+import com.fairuniversal.offlineotp.Tasks.ChangeCredentialsTask
+import com.fairuniversal.offlineotp.Tasks.TaskOutcome
+import com.fairuniversal.offlineotp.Tasks.UiBasedBackgroundTask
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.Constants.AuthMethod
 import com.fairuniversal.offlineotp.Utilities.Constants.EncryptionType
@@ -144,6 +151,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var cardDisplayPrompt: ComposeDialogHost? = null
     private var searchFieldsPrompt: ComposeDialogHost? = null
     private var autoLockPrompt: ComposeDialogHost? = null
+    private var passwordChangePrompt: ComposeDialogHost? = null
+    private var activePasswordChangeTask: UiBasedBackgroundTask<*>? = null
     private var linScpPendingUri: Uri? = null
     private var linScpExportPending: ByteArray? = null
     private var linScpExportGeneration: Long = -1L
@@ -280,6 +289,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         searchFieldsPrompt = null
         autoLockPrompt?.dismiss()
         autoLockPrompt = null
+        cancelActivePasswordChangeTask()
+        passwordChangePrompt?.dismiss()
+        passwordChangePrompt = null
         passwordCsvExportPending?.fill(0)
         passwordCsvExportPending = null
         passwordCsvExportGeneration = -1L
@@ -877,6 +889,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 if (key != null) adapter?.encryptionKey = key
                 else requireAuthentication = true
             }
+            invalidateOptionsMenu()
 
             if (recreateActivity) {
                 recreate()
@@ -1024,9 +1037,18 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
+    private fun updateDynamicMenuItems(menu: Menu) {
+        val currentSettings = settings
+        menu.findItem(R.id.action_auto_lock)?.setVisible(currentSettings?.getAuthMethod() != AuthMethod.NONE)
+        menu.findItem(R.id.action_change_password)?.setVisible(
+            currentSettings?.getEncryption() == EncryptionType.PASSWORD &&
+                currentSettings.getAuthMethod() == AuthMethod.PASSWORD
+        )
+    }
+
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         getMenuInflater().inflate(R.menu.menu_main, menu)
-        menu.findItem(R.id.action_auto_lock)?.setVisible(settings?.getAuthMethod() != AuthMethod.NONE)
+        updateDynamicMenuItems(menu)
 
         sortMenu = requireNotNull(menu.findItem(R.id.menu_sort))
 
@@ -1129,6 +1151,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } else if (id == R.id.action_auto_lock) {
             if (VaultSession.getKey() == null) return true
             openAutoLockDialog()
+            return true
+        } else if (id == R.id.action_change_password) {
+            if (VaultSession.getKey() == null) return true
+            openPasswordChangeDialog()
             return true
         } else if (id == R.id.action_settings) {
             val settingsIntent = Intent(this, SettingsActivity::class.java)
@@ -1305,6 +1331,169 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onDismiss = closeHost
         )
         autoLockPrompt = host
+        host.show()
+    }
+
+    private fun cancelActivePasswordChangeTask() {
+        val running = activePasswordChangeTask
+        activePasswordChangeTask = null
+        if (running != null) {
+            running.setOutcomeCallback(null)
+            running.cancel()
+        }
+    }
+
+    private fun openPasswordChangeDialog() {
+        val currentSettings = settings ?: return
+        if (VaultSession.getKey() == null || isFinishing()) return
+        if (currentSettings.getEncryption() != EncryptionType.PASSWORD ||
+            currentSettings.getAuthMethod() != AuthMethod.PASSWORD) return
+        if ((passwordChangePrompt as? PasswordChangeComposeView)?.busy == true) return
+        cancelActivePasswordChangeTask()
+        passwordChangePrompt?.dismiss()
+        var host: PasswordChangeComposeView? = null
+        val closeHost = {
+            val h = host
+            if (h?.busy != true) {
+                cancelActivePasswordChangeTask()
+                if (passwordChangePrompt === h) passwordChangePrompt = null
+                h?.dismiss()
+            }
+            Unit
+        }
+        host = PasswordChangeComposeView(
+            activity = this,
+            maxFieldChars = InputPolicy.MAX_TEXT_CHARS,
+            requiresUnlock = false,
+            onSubmit = { current, next, confirmation ->
+                val dialog = host
+                val activeKey = VaultSession.getKey()
+                val generation = VaultSession.generation()
+                if (dialog == null || passwordChangePrompt !== dialog || activeKey == null || isFinishing() ||
+                    currentSettings.getEncryption() != EncryptionType.PASSWORD ||
+                    currentSettings.getAuthMethod() != AuthMethod.PASSWORD) {
+                    closeHost()
+                } else if (current.isEmpty() || next.isEmpty() || next == current || next != confirmation ||
+                    current.length > InputPolicy.MAX_TEXT_CHARS || next.length > InputPolicy.MAX_TEXT_CHARS) {
+                    dialog.updateState(busy = false, invalid = true, errorText = null, resetFields = true)
+                } else {
+                    var existingAuth = currentSettings.getAuthCredentials()
+                    var isUpgrade = false
+                    if (existingAuth.isEmpty()) {
+                        existingAuth = currentSettings.getOldCredentials(AuthMethod.PASSWORD)
+                        isUpgrade = true
+                    }
+                    if (existingAuth.isEmpty()) {
+                        dialog.updateState(
+                            busy = false,
+                            invalid = false,
+                            errorText = getString(R.string.auth_toast_password_missing),
+                            resetFields = true
+                        )
+                    } else {
+                        dialog.updateState(busy = true, invalid = false, errorText = null, result = null)
+                        cancelActivePasswordChangeTask()
+                        val verifyTask = AuthenticationTask(this, isUpgrade, existingAuth, current)
+                        activePasswordChangeTask = verifyTask
+                        verifyTask.setOutcomeCallback { verifyOutcome ->
+                            if (activePasswordChangeTask !== verifyTask) {
+                                verifyTask.disposeOutcome(verifyOutcome)
+                                return@setOutcomeCallback
+                            }
+                            activePasswordChangeTask = null
+                            if (verifyOutcome !is TaskOutcome.Value) {
+                                verifyTask.disposeOutcome(verifyOutcome)
+                                if (passwordChangePrompt === dialog && !isFinishing()) {
+                                    dialog.updateState(
+                                        busy = false,
+                                        invalid = false,
+                                        errorText = getString(R.string.settings_toast_encryption_change_failed),
+                                        resetFields = true
+                                    )
+                                }
+                                return@setOutcomeCallback
+                            }
+                            val authResult = verifyOutcome.value
+                            if (authResult !is AuthenticationOutcome.Verified) {
+                                if (passwordChangePrompt === dialog && !isFinishing()) {
+                                    dialog.updateState(
+                                        busy = false,
+                                        invalid = false,
+                                        errorText = getString(R.string.settings_toast_biometric_wrong_password),
+                                        resetFields = true
+                                    )
+                                }
+                                return@setOutcomeCallback
+                            }
+                            try {
+                                if (passwordChangePrompt !== dialog || isFinishing() ||
+                                    !VaultSession.isCurrent(generation) || VaultSession.getKey() !== activeKey) {
+                                    closeHost()
+                                    return@setOutcomeCallback
+                                }
+                                val rekeyTask = ChangeCredentialsTask(
+                                    this,
+                                    EncryptionType.PASSWORD,
+                                    activeKey,
+                                    AuthMethod.PASSWORD,
+                                    next
+                                )
+                                activePasswordChangeTask = rekeyTask
+                                rekeyTask.setOutcomeCallback { rekeyOutcome ->
+                                    if (activePasswordChangeTask !== rekeyTask) {
+                                        rekeyTask.disposeOutcome(rekeyOutcome)
+                                        return@setOutcomeCallback
+                                    }
+                                    activePasswordChangeTask = null
+                                    val changed = (rekeyOutcome as? TaskOutcome.Value)?.value
+                                    val nextKey = changed?.newEncryptionKey
+                                    if (changed != null && changed.success && nextKey != null) {
+                                        val activated = synchronized(VaultSession.MutationLock) {
+                                            if (VaultSession.isCurrent(generation) &&
+                                                VaultSession.activate(nextKey, generation) is SessionCommandResult.Applied) {
+                                                adapter?.encryptionKey = nextKey
+                                                true
+                                            } else {
+                                                false
+                                            }
+                                        }
+                                        if (activated) {
+                                            publishComposeVault()
+                                            if (passwordChangePrompt === dialog && !isFinishing()) {
+                                                dialog.updateState(
+                                                    busy = false,
+                                                    invalid = false,
+                                                    errorText = null,
+                                                    result = getString(R.string.settings_toast_encryption_change_success)
+                                                )
+                                            }
+                                        } else {
+                                            VaultSession.lock()
+                                        }
+                                    } else {
+                                        rekeyTask.disposeOutcome(rekeyOutcome)
+                                        if (passwordChangePrompt === dialog && !isFinishing()) {
+                                            dialog.updateState(
+                                                busy = false,
+                                                invalid = false,
+                                                errorText = getString(R.string.settings_toast_encryption_change_failed),
+                                                resetFields = true
+                                            )
+                                        }
+                                    }
+                                }
+                                rekeyTask.execute()
+                            } finally {
+                                authResult.close()
+                            }
+                        }
+                        verifyTask.execute()
+                    }
+                }
+            },
+            onDismiss = closeHost
+        )
+        passwordChangePrompt = host
         host.show()
     }
 
@@ -1531,6 +1720,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val container = findViewById<FrameLayout>(R.id.cardList) ?: return
         val controller = adapter ?: return
         val strings = VaultStrings.English.copy(
+            addEntry = getString(R.string.button_add),
+            addEmailEntry = getString(R.string.email_add_title),
             customPeriod = { seconds -> getString(R.string.format_custom_period, seconds) },
             copyAction = getString(R.string.button_card_copy),
             copyContent = getString(R.string.compose_copy_content),
@@ -1544,10 +1735,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             hideAction = getString(R.string.compose_hide_token),
             enterPin = getString(R.string.menu_popup_establish_pin),
             entryActions = getString(R.string.compose_account_actions),
-            nextCode = getString(R.string.compose_next_code),
-            emptyTitle = getString(R.string.empty_list_view_text), emptyDescription = "",
-            emptyTabTitle = getString(R.string.empty_list_view_text), emptyTabDescription = "",
-            noMatchesTitle = getString(R.string.empty_list_view_text), noMatchesDescription = ""
+            nextCode = getString(R.string.compose_next_code)
         )
         val published = controller.composeFrame(System.currentTimeMillis(), strings)
         if (published == null) {
@@ -1571,8 +1759,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
         view.onOpenUriImport = { openUriImportDialog() }
         controller.attachComposeEditor(view)
-        val anchor = view
         view.render(published.state, VaultActions(
+            onAddEntry = { controller.openCreationForCategory() },
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
             onCopyAccount = { published.perform(it.id, AndroidCardCommand.COPY_ACCOUNT) },
             onCopyPassword = { published.perform(it.id, AndroidCardCommand.COPY_PASSWORD) },
@@ -2962,6 +3150,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         searchFieldsPrompt = null
         autoLockPrompt?.dismiss()
         autoLockPrompt = null
+        cancelActivePasswordChangeTask()
+        passwordChangePrompt?.dismiss()
+        passwordChangePrompt = null
         vaultUnavailablePrompt?.dismiss()
         vaultUnavailablePrompt = null
         timeoutAnimator?.cancel()

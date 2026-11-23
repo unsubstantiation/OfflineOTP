@@ -9347,6 +9347,143 @@ fun main() {
         }
     }
 
+    check("Android creation mode switcher and PasswordChangeComposeView enforce parity and session guards") {
+        val fixture = SettingsFixture()
+        val activity = object : MainActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+            override val resources: Resources get() = fixture.context.resources
+            override fun getApplicationContext(): Context = fixture.context
+        }
+        activity.settings = fixture.settings
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        val controller = adapter.controller
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, controller)
+
+        val composeView = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(
+            fixture.context,
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English,
+            com.fairuniversal.offlineotp.ui.vault.VaultActions()
+        )
+        var uriImportOpened = 0
+        composeView.onOpenUriImport = { uriImportOpened++ }
+        controller.attachComposeEditor(composeView)
+
+        val editorGetter = composeView.javaClass.getDeclaredMethod("getEditor").apply { isAccessible = true }
+        val pwCreateGetter = composeView.javaClass.getDeclaredMethod("getPasswordCreation").apply { isAccessible = true }
+        val emailCreateGetter = composeView.javaClass.getDeclaredMethod("getEmailCreation").apply { isAccessible = true }
+
+        val openPasswordChange = MainActivity::class.java.getDeclaredMethod("openPasswordChangeDialog")
+            .apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val pwChangeField = MainActivity::class.java.getDeclaredField("passwordChangePrompt")
+            .apply { isAccessible = true }
+
+        val prepared = fixture.settings.prepareAuthCredentials("correct-horse-battery")
+            ?: throw AssertionError("prepareAuthCredentials returned null")
+        val initialKey = SecretKeySpec(prepared.key.clone(), "AES")
+        try {
+            fixture.seed(R.string.settings_key_auth_credentials, prepared.verifier)
+            fixture.seed(R.string.settings_key_auth_salt, prepared.salt)
+            fixture.seed(R.string.settings_key_auth_kdf, prepared.kdf)
+            fixture.store.edit()
+                .putInt(settingsKey(R.string.settings_key_auth_memory_kib), prepared.memoryKiB)
+                .putInt(settingsKey(R.string.settings_key_auth_iterations), prepared.iterations)
+                .putInt(settingsKey(R.string.settings_key_auth_parallelism), prepared.parallelism)
+                .commit()
+        } finally {
+            prepared.destroy()
+        }
+
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(initialKey, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        controller.encryptionKey = initialKey
+        try {
+            // 1. Category-aware creation opens the matching form and supports bidirectional mode switching.
+            expect(controller.openCreationForCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES),
+                { "openCreationForCategory(NOTES) rejected" })
+            val noteEditor = editorGetter.invoke(composeView) ?: throw AssertionError("expected ManualEntryDialog state")
+            val noteInitial = noteEditor.javaClass.getDeclaredField("initial").apply { isAccessible = true }
+                .get(noteEditor) as com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+            expect(noteInitial.type == Entry.OTPType.NOTE, { "NOTES category did not preload NOTE type" })
+
+            expect(controller.openCreationForCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.SSH_KEYS),
+                { "openCreationForCategory(SSH_KEYS) rejected" })
+            val sshEditor = editorGetter.invoke(composeView) ?: throw AssertionError("expected SSH editor state")
+            val sshInitial = sshEditor.javaClass.getDeclaredField("initial").apply { isAccessible = true }
+                .get(sshEditor) as com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+            expect(sshInitial.type == Entry.OTPType.SSH_KEY, { "SSH_KEYS category did not preload SSH_KEY type" })
+
+            expect(controller.openCreationForCategory(com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS),
+                { "openCreationForCategory(PASSWORDS) rejected" })
+            val pwCreate = pwCreateGetter.invoke(composeView) ?: throw AssertionError("expected PasswordCreation")
+            expect(editorGetter.invoke(composeView) == null && emailCreateGetter.invoke(composeView) == null,
+                { "PasswordCreation left another creation slot populated" })
+            @Suppress("UNCHECKED_CAST")
+            val pwToEmail = pwCreate.javaClass.getDeclaredField("onSwitchToEmail").apply { isAccessible = true }
+                .get(pwCreate) as? (() -> Unit) ?: throw AssertionError("PasswordCreation missing onSwitchToEmail")
+            pwToEmail.invoke()
+            val emailCreate = emailCreateGetter.invoke(composeView) ?: throw AssertionError("expected EmailCreation after switch")
+            expect(pwCreateGetter.invoke(composeView) == null,
+                { "switching from PasswordCreation to EmailCreation retained PasswordCreation" })
+            // Stale switch callback from the superseded PasswordCreation must be a no-op.
+            pwToEmail.invoke()
+            expect(emailCreateGetter.invoke(composeView) === emailCreate,
+                { "stale PasswordCreation switcher mutated active EmailCreation" })
+
+            @Suppress("UNCHECKED_CAST")
+            val emailToManual = emailCreate.javaClass.getDeclaredField("onSwitchToManual").apply { isAccessible = true }
+                .get(emailCreate) as? (() -> Unit) ?: throw AssertionError("EmailCreation missing onSwitchToManual")
+            emailToManual.invoke()
+            expect(editorGetter.invoke(composeView) != null && emailCreateGetter.invoke(composeView) == null,
+                { "EmailCreation onSwitchToManual did not open ManualEntryDialog" })
+            composeView.clearEntryEditor()
+            expect(uriImportOpened == 0, { "unexpected URI import trigger" })
+
+            // 2. PasswordChangeComposeView requires PASSWORD encryption + PASSWORD auth.
+            fixture.settings.setEncryption(Constants.EncryptionType.KEYSTORE)
+            fixture.settings.setAuthMethod(Constants.AuthMethod.PASSWORD)
+            openPasswordChange.invoke(activity)
+            expect(pwChangeField.get(activity) == null,
+                { "PasswordChangeComposeView must not open when EncryptionType is KEYSTORE" })
+
+            fixture.settings.setEncryption(Constants.EncryptionType.PASSWORD)
+            fixture.settings.setAuthMethod(Constants.AuthMethod.NONE)
+            openPasswordChange.invoke(activity)
+            expect(pwChangeField.get(activity) == null,
+                { "PasswordChangeComposeView must not open when AuthMethod is NONE" })
+
+            fixture.settings.setAuthMethod(Constants.AuthMethod.PASSWORD)
+            openPasswordChange.invoke(activity)
+            val pwDialog = pwChangeField.get(activity) as? com.fairuniversal.offlineotp.ui.host.PasswordChangeComposeView
+                ?: throw AssertionError("expected PasswordChangeComposeView")
+
+            // Invalid inputs (same password or mismatched confirmation) flag invalid without starting background work.
+            pwDialog.submitPasswordChange("correct-horse-battery", "correct-horse-battery", "correct-horse-battery")
+            expect(pwDialog.invalid && !pwDialog.busy, { "identical current/new password must set invalid = true" })
+            pwDialog.submitPasswordChange("correct-horse-battery", "new-pass-1", "new-pass-2")
+            expect(pwDialog.invalid && !pwDialog.busy, { "mismatched confirmation must set invalid = true" })
+
+            // Wrong current password runs AuthenticationTask and reports error without changing session key.
+            Handler.posted.clear()
+            pwDialog.submitPasswordChange("wrong-current-password", "new-vault-password", "new-vault-password")
+            expect(pwDialog.busy, { "expected busy while verifying current password" })
+            awaitQueuedDelivery()
+            drainMainThreadDeliveries()
+            expect(!pwDialog.busy && pwDialog.errorText != null && VaultSession.getKey() === initialKey,
+                { "wrong current password did not surface error or mutated session key" })
+
+            // Vault lock cancels and dismisses PasswordChangeComposeView cleanly.
+            lockUi.invoke(activity)
+            expect(pwDialog.dismissals > 0 && pwChangeField.get(activity) == null,
+                { "onVaultLocked did not dismiss PasswordChangeComposeView" })
+        } finally {
+            composeView.clear()
+            adapter.lockEntries()
+            VaultSession.lock()
+            PreferenceManager.reset()
+        }
+    }
+
     if (failures == 0) {
         println("\nAll sandbox checks passed.")
     } else {
