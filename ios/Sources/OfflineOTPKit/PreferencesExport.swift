@@ -63,10 +63,12 @@ public enum PreferencesExport {
         Setting(key: hideIssuerKey, kind: .boolean),
         Setting(key: showPrevTokenKey, kind: .boolean),
         Setting(key: showIndividualTimeoutsKey, kind: .boolean),
+        Setting(key: hideGlobalTimeoutKey, kind: .boolean),
         Setting(key: showThumbnailsKey, kind: .boolean),
         Setting(key: highlightTokenKey, kind: .boolean),
         Setting(key: tapSingleKey, kind: .string),
         Setting(key: tapDoubleKey, kind: .string),
+        Setting(key: tapToRevealTimeoutKey, kind: .integer),
         Setting(key: splitGroupSizeKey, kind: .integer),
         Setting(key: searchIncludesKey, kind: .stringSet),
     ]
@@ -89,6 +91,8 @@ public enum PreferencesExport {
     public static let showPrevTokenKey = "ui_show_prev_token"
     /// Mirrors `VaultStore.showIndividualTimeoutsSettingKey` and `PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS`.
     public static let showIndividualTimeoutsKey = "ui_show_individual_timeouts"
+    /// Mirrors `VaultStore.hideGlobalTimeoutSettingKey` and `PreferencesExport.UI_HIDE_GLOBAL_TIMEOUT`.
+    public static let hideGlobalTimeoutKey = "ui_hide_global_timeout"
     /// Mirrors `VaultStore.showThumbnailsSettingKey` and `PreferencesExport.UI_SHOW_THUMBNAILS`.
     public static let showThumbnailsKey = "ui_show_thumbnails"
     /// Mirrors `VaultStore.highlightTokenSettingKey` and `PreferencesExport.UI_HIGHLIGHT_TOKEN`.
@@ -97,16 +101,21 @@ public enum PreferencesExport {
     public static let tapSingleKey = "ui_tap_single"
     /// Mirrors `VaultStore.tapDoubleSettingKey` and `PreferencesExport.UI_TAP_DOUBLE`.
     public static let tapDoubleKey = "ui_tap_double"
+    /// Mirrors `VaultStore.tapToRevealTimeoutSettingKey` and `PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT`.
+    public static let tapToRevealTimeoutKey = "ui_tap_to_reveal_timeout"
     /// Mirrors `VaultStore.splitGroupSizeSettingKey` and `PreferencesExport.UI_SPLIT_GROUP_SIZE`.
     public static let splitGroupSizeKey = "ui_split_group_size"
     /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.
     public static let searchIncludesKey = "ui_search_includes"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.
     public static let quickUnlockKey = "biometric_unlock"
+    /// Mirrors `VaultStore.usedTokensShownSettingKey`; one-install dialog acknowledgement.
+    public static let usedTokensShownKey = "ui_used_tokens_shown"
 
     /// Keys that exist on this client but cannot leave it, with the reason.
     public static let neverExported: [(key: String, reason: String)] = [
         (quickUnlockKey, "quick-unlock enrolment is a Keychain item for this device's biometry"),
+        (usedTokensShownKey, "a one-install dialog acknowledgement"),
         (VaultSettingsKeys.authMethod, "the vault's unlock method belongs to the vault"),
         (VaultSettingsKeys.encryption, "the vault's encryption mode belongs to the vault"),
         (VaultSettingsKeys.authKdf, "the vault's KDF belongs to the vault"),

@@ -335,9 +335,35 @@ private fun RenderSharedSurface(
                     surfaceActions.change("tapSingle", chosenTapSingle.name)
                     surfaceActions.change("tapDouble", chosenTapDouble.name)
                     confirm()
+                },
+                hideGlobalTimeout = rowValue("hideGlobalTimeout") == "true",
+                tapToRevealTimeoutSeconds = PortableTapMode.normalizeRevealTimeoutSeconds(
+                    rowValue("tapToRevealTimeoutSeconds").toIntOrNull() ?: 0
+                ),
+                onSaveSelection = { selection ->
+                    surfaceActions.change("layout", selection.layout.name)
+                    surfaceActions.change("hideIssuer", if (selection.hideIssuer) "true" else "false")
+                    surfaceActions.change("showPreviousToken", if (selection.showPreviousToken) "true" else "false")
+                    surfaceActions.change("tokenGroupSize", (selection.tokenGroupSize ?: 3).toString())
+                    surfaceActions.change("showIndividualTimeouts", if (selection.showIndividualCountdowns) "true" else "false")
+                    surfaceActions.change("labelDisplay", selection.labelDisplay.name)
+                    surfaceActions.change("showThumbnails", if (selection.showThumbnails) "true" else "false")
+                    surfaceActions.change("labelSizeSp", selection.labelSizeSp.toString())
+                    surfaceActions.change("highlightToken", if (selection.highlightExpiringTokens) "true" else "false")
+                    surfaceActions.change("tapSingle", selection.tapSingle.name)
+                    surfaceActions.change("tapDouble", selection.tapDouble.name)
+                    surfaceActions.change("hideGlobalTimeout", if (selection.hideGlobalTimeout) "true" else "false")
+                    surfaceActions.change("tapToRevealTimeoutSeconds", selection.tapToRevealTimeoutSeconds.toString())
+                    confirm()
                 }
             )
         }
+        "usedTokensNotice" -> EntryDetailsDialog(
+            title = dialog.title,
+            body = dialog.message,
+            confirmLabel = dialog.dismissLabel.ifEmpty { "OK" },
+            onDismiss = onDismiss
+        )
         "passwordImportChoice" -> {
             val count = rowValue("previewCount").toIntOrNull()
             SharedPasswordImportDialog(
@@ -838,6 +864,11 @@ private fun RenderSharedSurface(
                 },
                 onManageTags = if (dialog.title == "Edit entry") {
                     { onAction("tags") }
+                } else {
+                    null
+                },
+                onViewDetails = if (dialog.title == "Edit entry" && rowValue("type") != "NOTE") {
+                    { onAction("details") }
                 } else {
                     null
                 },

@@ -1,13 +1,9 @@
 package com.fairuniversal.offlineotp.ui.vault
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
@@ -226,19 +222,12 @@ internal fun VaultEntryCard(
 
 @Composable
 private fun VaultIssuerArtwork(card: VaultCardState, sizeDp: Float, artwork: VaultArtwork?) {
-    val image = remember(artwork, card.thumbnailName) {
-        try { artwork?.load(card.thumbnailName) } catch (_: Exception) { null }
-    }
-    if (image == null) {
-        VaultLetterTile(seed = card.thumbnailName.ifBlank { card.title }, title = card.title, sizeDp = sizeDp)
-    } else {
-        Image(
-            bitmap = image,
-            contentDescription = null,
-            modifier = Modifier.size(sizeDp.coerceAtLeast(0f).dp),
-            contentScale = ContentScale.Fit
-        )
-    }
+    SharedIssuerArtwork(
+        thumbnailName = card.thumbnailName,
+        title = card.title,
+        sizeDp = sizeDp,
+        artwork = artwork
+    )
 }
 
 @Composable

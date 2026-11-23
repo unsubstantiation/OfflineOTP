@@ -109,7 +109,8 @@ object PreferencesExport {
         "auth_salt" to "the vault's salt belongs to the vault",
         "auth_iterations" to "the vault's KDF parameters belong to the vault",
         "auth_memory_kib" to "the vault's KDF parameters belong to the vault",
-        "auth_parallelism" to "the vault's KDF parameters belong to the vault"
+        "auth_parallelism" to "the vault's KDF parameters belong to the vault",
+        UI_USED_TOKENS_SHOWN to "a one-install dialog acknowledgement"
     )
 
     /**
@@ -205,10 +206,12 @@ object PreferencesExport {
         Setting(UI_HIDE_ISSUER, Kind.BOOLEAN),
         Setting(UI_SHOW_PREV_TOKEN, Kind.BOOLEAN),
         Setting(UI_SHOW_INDIVIDUAL_TIMEOUTS, Kind.BOOLEAN),
+        Setting(UI_HIDE_GLOBAL_TIMEOUT, Kind.BOOLEAN),
         Setting(UI_SHOW_THUMBNAILS, Kind.BOOLEAN),
         Setting(UI_HIGHLIGHT_TOKEN, Kind.BOOLEAN),
         Setting(UI_TAP_SINGLE, Kind.STRING),
         Setting(UI_TAP_DOUBLE, Kind.STRING),
+        Setting(UI_TAP_TO_REVEAL_TIMEOUT, Kind.INTEGER),
         Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
         Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
     )
@@ -227,6 +230,8 @@ object PreferencesExport {
     const val UI_SHOW_PREV_TOKEN = "ui_show_prev_token"
     /** Desktop key for showing standard 30-second countdown rings on individual OTP cards. */
     const val UI_SHOW_INDIVIDUAL_TIMEOUTS = "ui_show_individual_timeouts"
+    /** Desktop key for hiding the global 30-second rollover progress bar at the top of the vault. */
+    const val UI_HIDE_GLOBAL_TIMEOUT = "ui_hide_global_timeout"
     /** Desktop key for showing issuer thumbnails / letter tiles on cards. */
     const val UI_SHOW_THUMBNAILS = "ui_show_thumbnails"
     /** Desktop key for highlighting OTP codes in their final seconds before rollover. */
@@ -235,6 +240,10 @@ object PreferencesExport {
     const val UI_TAP_SINGLE = "ui_tap_single"
     /** Desktop key for the double-tap card gesture (`NOTHING`, `REVEAL`, `COPY`). */
     const val UI_TAP_DOUBLE = "ui_tap_double"
+    /** Desktop key for auto-hiding revealed cards after `N` seconds (`0` = stay visible until hidden). */
+    const val UI_TAP_TO_REVEAL_TIMEOUT = "ui_tap_to_reveal_timeout"
+    /** Desktop key for the one-time token-usage sort notice acknowledgement (not exported). */
+    const val UI_USED_TOKENS_SHOWN = "ui_used_tokens_shown"
     /** Desktop key for explicit OTP digit grouping (`0` ungrouped, `2` pairs, `3` triplets). */
     const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
     /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */

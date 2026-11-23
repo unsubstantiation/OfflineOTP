@@ -40,10 +40,12 @@ fun SharedManualEntryDialog(
     onSwitchToUriImport: (() -> Unit)? = null,
     submitNotice: String? = null,
     thumbnailNames: List<String> = emptyList(),
+    artwork: VaultArtwork? = null,
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
     onManageTags: (() -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
@@ -254,6 +256,9 @@ fun SharedManualEntryDialog(
                     onShareKeystrokes?.let { shareKeys ->
                         ForestTextAction(text = "Share as keystrokes", onClick = shareKeys)
                     }
+                    onViewDetails?.let { viewDetails ->
+                        ForestTextAction(text = "View details", onClick = viewDetails)
+                    }
                     onDelete?.let { deleteEntry ->
                         ForestTextAction(
                             text = "Delete",
@@ -282,6 +287,7 @@ fun SharedManualEntryDialog(
             selected = input.thumbnail,
             catalogNames = thumbnailNames,
             unchangedLabel = unchangedArtworkLabel,
+            artwork = artwork,
             onSelect = { chosen ->
                 input = input.copy(thumbnail = if (editing && chosen.isEmpty()) initial.thumbnail else chosen)
                 pickingThumbnail = false

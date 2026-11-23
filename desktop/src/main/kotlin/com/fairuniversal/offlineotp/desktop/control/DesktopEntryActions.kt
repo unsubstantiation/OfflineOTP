@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Utilities.EntryMetadataDetails
 import com.fairuniversal.offlineotp.Utilities.EntryUsage
 import com.fairuniversal.offlineotp.Utilities.LinScpCredentials
 import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
@@ -8,15 +9,15 @@ import com.fairuniversal.offlineotp.desktop.qr.QrCodeImage
 
 /**
  * Headless entry sub-dialog owner for the desktop Compose client (QR code display from Edit,
- * HOTP counter editor, tag checklist, artwork selection, and password metadata details), enforcing
- * live session and reveal checks before disclosing secrets or persisting mutations.
+ * HOTP counter editor, tag checklist, artwork selection, and OTP/SSH/password metadata details),
+ * enforcing live session and reveal checks before disclosing secrets or persisting mutations.
  */
 class DesktopEntryActions(
     private val state: DesktopVaultState,
     private val persist: () -> Boolean,
     private val changed: () -> Unit
 ) {
-    enum class Surface { QR, TAGS, THUMBNAIL, COUNTER, PASSWORD_DETAILS }
+    enum class Surface { QR, TAGS, THUMBNAIL, COUNTER, PASSWORD_DETAILS, ENTRY_DETAILS }
 
     class Request internal constructor(
         val entryId: Long,
@@ -106,6 +107,21 @@ class DesktopEntryActions(
             entryId = entryId,
             surface = Surface.PASSWORD_DETAILS,
             title = "Password details — ${displayTitle(entry)}",
+            detailsText = details
+        )
+        changed()
+        return true
+    }
+
+    /** Opens non-secret metadata details for a revealed OTP or SSH-key entry. */
+    fun openEntryDetails(entryId: Long, revealed: Boolean, active: () -> Boolean): Boolean {
+        if (closed || state.isLocked || !revealed || !active()) return false
+        val entry = liveEntry(entryId) ?: return false
+        val details = EntryMetadataDetails.format(entry) ?: return false
+        pending = Request(
+            entryId = entryId,
+            surface = Surface.ENTRY_DETAILS,
+            title = "Details — ${displayTitle(entry)}",
             detailsText = details
         )
         changed()

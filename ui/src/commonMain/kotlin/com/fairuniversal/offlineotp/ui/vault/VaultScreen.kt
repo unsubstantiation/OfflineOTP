@@ -118,6 +118,12 @@ fun VaultScreen(
                     lockLabel = strings.lockAction,
                     onLock = actions.onLock
                 )
+                if (!appearance.hideGlobalTimeout && state.totalEntries > 0 && state.globalProgress > 0f) {
+                    SharedVaultGlobalProgressBar(
+                        progress = state.globalProgress,
+                        expiring = state.globalExpiring
+                    )
+                }
                 VaultToolsBar(actions = actions, strings = strings)
                 SharedVaultFilterHeader(
                     horizontalPaddingDp = 16,

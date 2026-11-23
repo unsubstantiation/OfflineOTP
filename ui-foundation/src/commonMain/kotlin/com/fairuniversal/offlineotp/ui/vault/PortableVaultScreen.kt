@@ -60,7 +60,8 @@ fun PortableVaultScreen(
     onTool: (String) -> Unit,
     onCard: (Int, String) -> Unit,
     onDismissToast: () -> Unit,
-    cardLayout: PortableCardLayout = PortableCardLayout.DEFAULT
+    cardLayout: PortableCardLayout = PortableCardLayout.DEFAULT,
+    artwork: VaultArtwork? = null
 ) {
     val listState = rememberLazyListState()
     val latestCards by rememberUpdatedState(state.cards)
@@ -132,6 +133,12 @@ fun PortableVaultScreen(
                     ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
                 }
             )
+            if (!state.hideGlobalTimeout && state.cards.isNotEmpty() && state.globalProgress > 0f) {
+                SharedVaultGlobalProgressBar(
+                    progress = state.globalProgress,
+                    expiring = state.highlightExpiringTokens && state.globalExpiring
+                )
+            }
             SharedVaultFilterHeader(
                 horizontalPaddingDp = 12,
                 verticalPaddingDp = 6,
@@ -253,6 +260,7 @@ fun PortableVaultScreen(
                             highlightExpiringTokens = state.highlightExpiringTokens,
                             tapSingle = state.tapSingle,
                             tapDouble = state.tapDouble,
+                            artwork = artwork,
                             onCard = onCard
                         )
                     }
@@ -273,6 +281,7 @@ private fun PortableCardView(
     highlightExpiringTokens: Boolean,
     tapSingle: PortableTapMode,
     tapDouble: PortableTapMode,
+    artwork: VaultArtwork?,
     onCard: (Int, String) -> Unit
 ) {
     val displayTitle = card.visibleTitle(hideIssuer)
@@ -299,6 +308,17 @@ private fun PortableCardView(
         showThumbnail = showThumbnails,
         thumbnailSizeDp = cardLayout.thumbnailSizeDp,
         tileSeed = card.mark,
+        artworkSlot = if (artwork != null) {
+            {
+                SharedIssuerArtwork(
+                    thumbnailName = card.mark,
+                    title = displayTitle,
+                    sizeDp = cardLayout.thumbnailSizeDp,
+                    artwork = artwork,
+                    seed = card.mark
+                )
+            }
+        } else null,
         scrollLabels = labelDisplay.scrollLabels,
         labelSizeSp = labelSizeSp,
         labelMaxLines = maxLines,

@@ -1423,6 +1423,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
             onCopyAccount = { published.perform(it.id, AndroidCardCommand.COPY_ACCOUNT) },
             onCopyPassword = { published.perform(it.id, AndroidCardCommand.COPY_PASSWORD) },
+            onViewEmailDetails = { published.perform(it.id, AndroidCardCommand.EMAIL_DETAILS) },
             onEditEntry = { published.perform(it.id, AndroidCardCommand.EDIT) },
             onDelete = { published.perform(it.id, AndroidCardCommand.DELETE) },
             onToggleReveal = { published.perform(it.id, AndroidCardCommand.TOGGLE_REVEAL) },

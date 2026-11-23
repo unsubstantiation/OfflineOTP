@@ -103,15 +103,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func refresh() {
         guard active else { return }
         guard store.isUnlocked else { return }
-        if toastExpiry < Date() { toast = "" }
+        let now = Date()
+        if toastExpiry < now { toast = "" }
+        _ = store.expireRevealedEntries(now: now)
         presentation.updateVault(state: vaultState())
         if !surfaceKey.isEmpty {
             presentation.updateSurface(state: surfaceState(surfaceKey))
         }
     }
 
-    private func vaultState() -> PortableVaultState {
-        let now = Date()
+    private func vaultState(at now: Date = Date()) -> PortableVaultState {
         let indices = store.visibleIndices
         let cards: [PortableCard] = indices.compactMap { index in
             guard store.entries.indices.contains(index) else { return nil }
@@ -204,6 +205,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if cards.count == totalEntries { return "\(cards.count) entries" }
             return "\(cards.count) / \(totalEntries) entries"
         }()
+        let nowMillis = Int64((now.timeIntervalSince1970 * 1000.0).rounded())
+        let modMillis = ((nowMillis % 30_000) + 30_000) % 30_000
+        let remainingMillis = 30_000 - modMillis
+        let globalProgress: Float = totalEntries == 0 ? 0 : Float(remainingMillis) / 30_000.0
+        let globalExpiring = totalEntries > 0 && remainingMillis <= 8_000
         return PortableVaultState(
             tabs: EntryCategory.allCases.map {
                 PortableChip(label: $0.title, count: Int32(store.entryCount(for: $0)), selected: $0 == store.category)
@@ -225,7 +231,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             labelSizeSp: Int32(store.labelSizeSp),
             highlightExpiringTokens: store.highlightToken,
             tapSingleName: store.tapSingle,
-            tapDoubleName: store.tapDouble)
+            tapDoubleName: store.tapDouble,
+            globalProgress: globalProgress,
+            globalExpiring: globalExpiring,
+            hideGlobalTimeout: store.hideGlobalTimeout)
     }
 
     // MARK: - Vault actions
@@ -293,9 +302,22 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if action.hasPrefix("sortIndex:"),
                let sortIdx = Int(action.dropFirst("sortIndex:".count)),
                SortMode.allCases.indices.contains(sortIdx) {
-                store.setSortMode(SortMode.allCases[sortIdx])
+                applySortMode(SortMode.allCases[sortIdx], announce: false)
                 refresh()
             }
+        }
+    }
+
+    private func applySortMode(_ mode: SortMode, announce: Bool) {
+        store.setSortMode(mode)
+        if announce {
+            message("Sorted by \(mode.title.lowercased())")
+        }
+        if (mode == .lastUsed || mode == .mostUsed) && !store.usedTokensDialogShown {
+            store.setUsedTokensDialogShown(true)
+            openSurface("usedTokensNotice")
+        } else if surfaceKey == "sort" {
+            closeSurface()
         }
     }
 
@@ -754,9 +776,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                         value: draft["tapSingle"] ?? store.tapSingle, kind: "info"),
                     row("tapDouble", "Double-tap action",
                         value: draft["tapDouble"] ?? store.tapDouble, kind: "info"),
+                    row("hideGlobalTimeout", "Hide global timeout bar",
+                        value: draft["hideGlobalTimeout"] ?? (store.hideGlobalTimeout ? "true" : "false"), kind: "info"),
+                    row("tapToRevealTimeoutSeconds", "Auto-hide revealed codes",
+                        value: draft["tapToRevealTimeoutSeconds"] ?? String(store.tapToRevealTimeoutSeconds), kind: "info"),
                     row("tokenGroupSize", "Token grouping",
                         value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
+        case "usedTokensNotice":
+            return surface(
+                key: key,
+                title: "Token usage",
+                sections: [],
+                confirmLabel: "OK",
+                dismissLabel: "OK",
+                showConfirm: false,
+                message: "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".\n\nThis message will not be shown again."
+            )
         case "searchIncludes":
             let rows = [
                 row("choice:LABEL", "Account", kind: "toggle", checked: store.searchIncludes.contains(.label)),
@@ -1650,9 +1686,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if key.hasPrefix("sort:") {
             let raw = String(key.dropFirst("sort:".count))
             if let mode = SortMode(rawValue: raw) {
-                store.setSortMode(mode)
-                message("Sorted by \(mode.title.lowercased())")
-                closeSurface()
+                applySortMode(mode, announce: true)
             }
             return nil
         }
@@ -1955,6 +1989,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             if let doubleRaw = draft["tapDouble"],
                ["NOTHING", "REVEAL", "COPY"].contains(doubleRaw.uppercased()) {
                 store.setTapDouble(doubleRaw.uppercased())
+            }
+            if let hideGlobalRaw = draft["hideGlobalTimeout"] {
+                store.setHideGlobalTimeout(hideGlobalRaw == "true")
+            }
+            if let revealTimeoutRaw = draft["tapToRevealTimeoutSeconds"],
+               let parsedTimeout = Int(revealTimeoutRaw),
+               parsedTimeout == 0 || (5...600).contains(parsedTimeout) {
+                store.setTapToRevealTimeoutSeconds(parsedTimeout)
             }
             if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
                [0, 2, 3].contains(parsedGroup) {
@@ -2910,7 +2952,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         case "details":
-            guard let index, store.entries.indices.contains(index) else { return "The entry changed." }
+            guard let index, store.entries.indices.contains(index),
+                  store.isRevealed(store.entries[index]) else {
+                return "The entry changed."
+            }
             passwordEditIndex = nil
             openDetails(at: index)
             return nil

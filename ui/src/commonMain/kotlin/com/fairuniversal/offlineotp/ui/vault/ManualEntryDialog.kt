@@ -26,6 +26,7 @@ fun ManualEntryDialog(
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
     onManageTags: (() -> Unit)? = null,
+    onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var email by remember(inputKey) { mutableStateOf(false) }
@@ -41,6 +42,7 @@ fun ManualEntryDialog(
         error = error,
         submitNotice = submitNotice,
         thumbnailNames = ThumbnailCatalog.NAMES,
+        artwork = artwork,
         artworkPicker = { selected, onSelect, onCancel ->
             ThumbnailPicker(
                 selected = selected.ifEmpty { null },
@@ -57,6 +59,7 @@ fun ManualEntryDialog(
         onShowQrCode = onShowQrCode,
         onShareKeystrokes = onShareKeystrokes,
         onManageTags = if (editing) onManageTags else null,
+        onViewDetails = if (editing) onViewDetails else null,
         onDelete = onDelete,
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss

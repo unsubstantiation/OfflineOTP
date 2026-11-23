@@ -472,6 +472,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var showSearchFields by remember(vault) { mutableStateOf(false) }
+    var showUsedTokensNotice by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
     var copyNotice by remember(vault) { mutableStateOf<String?>(null) }
     val creation = remember(vault) { DesktopEntryCreation(vault) }
@@ -502,7 +503,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedTapSingle,
             controller::trySaveTapSingle,
             controller::savedTapDouble,
-            controller::trySaveTapDouble
+            controller::trySaveTapDouble,
+            controller::savedHideGlobalTimeout,
+            controller::trySaveHideGlobalTimeout,
+            controller::savedTapToRevealTimeoutSeconds,
+            controller::trySaveTapToRevealTimeoutSeconds
         )
     }
     val autoLock = remember(vault) { DesktopAutoLockSettings(vault, controller::savedInactivityLockSeconds, controller::trySaveInactivityLockSeconds) }
@@ -540,11 +545,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             advanceCounter = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.COUNTER, card.id) },
             enterPin = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.PIN, card.id) },
             deleteEntry = { card -> entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; creation.pending?.let { creation.dismiss(it) }; dialogs.open(VaultDialogKind.DELETE, card.id) },
-            sortSelected = { mode -> controller.saveSortMode(mode) },
+            sortSelected = { mode ->
+                controller.saveSortMode(mode)
+                if ((mode == com.fairuniversal.offlineotp.Utilities.Constants.SortMode.LAST_USED ||
+                        mode == com.fairuniversal.offlineotp.Utilities.Constants.SortMode.MOST_USED) &&
+                    !controller.savedUsedTokensShown()
+                ) {
+                    controller.trySaveUsedTokensShown(true)
+                    showUsedTokensNotice = true
+                }
+            },
             tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) },
             lockVault = {
                 showStorageLocation = false
                 showSearchFields = false
+                showUsedTokensNotice = false
                 transactionHolder[0]?.close()
                 entryActions.close()
                 emailDetails.close()
@@ -593,7 +608,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.savedLabelSizeSp(),
                 controller.savedHighlightToken(),
                 controller.savedTapSingle(),
-                controller.savedTapDouble()
+                controller.savedTapDouble(),
+                controller.savedHideGlobalTimeout(),
+                controller.savedTapToRevealTimeoutSeconds()
             )
         }
     }
@@ -610,6 +627,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     // unlock is required afterwards; none of these terminal owners is reused for editing.
     fun quiesceForTransaction() {
         showSearchFields = false
+        showUsedTokensNotice = false
         layoutSettings.close(); autoLock.close(); copier.close(); mover.close(); entryActions.close()
         creation.close(); editing.close(); emailDetails.close(); dialogs.close()
         openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close()
@@ -1275,12 +1293,14 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     plan.contains(PreferencesExport.UI_SHOW_PREV_TOKEN) ||
                     plan.contains(PreferencesExport.UI_SPLIT_GROUP_SIZE) ||
                     plan.contains(PreferencesExport.UI_SHOW_INDIVIDUAL_TIMEOUTS) ||
+                    plan.contains(PreferencesExport.UI_HIDE_GLOBAL_TIMEOUT) ||
                     plan.contains(PreferencesExport.UI_LABEL_DISPLAY) ||
                     plan.contains(PreferencesExport.UI_SHOW_THUMBNAILS) ||
                     plan.contains(PreferencesExport.UI_LABEL_SIZE_SP) ||
                     plan.contains(PreferencesExport.UI_HIGHLIGHT_TOKEN) ||
                     plan.contains(PreferencesExport.UI_TAP_SINGLE) ||
-                    plan.contains(PreferencesExport.UI_TAP_DOUBLE)
+                    plan.contains(PreferencesExport.UI_TAP_DOUBLE) ||
+                    plan.contains(PreferencesExport.UI_TAP_TO_REVEAL_TIMEOUT)
                 ) {
                     presenter.setDisplaySettings(
                         controller.savedCardLayout(),
@@ -1293,7 +1313,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                         controller.savedLabelSizeSp(),
                         controller.savedHighlightToken(),
                         controller.savedTapSingle(),
-                        controller.savedTapDouble()
+                        controller.savedTapDouble(),
+                        controller.savedHideGlobalTimeout(),
+                        controller.savedTapToRevealTimeoutSeconds()
                     )
                 }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
@@ -1563,7 +1585,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 presenter::setDisplaySettings
             )
             revision++
+        },
+        hideGlobalTimeout = layoutRequest.hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = layoutRequest.tapToRevealTimeoutSeconds,
+        onSaveSelection = { selection ->
+            layoutSettings.submit(
+                layoutRequest,
+                selection,
+                lifetime::checkActive,
+                presenter::setDisplaySelection
+            )
+            revision++
         })
+    if (showUsedTokensNotice) {
+        EntryDetailsDialog(
+            title = "Token usage",
+            body = "OfflineOTP records token usage (revealing or copying a token) so entries can be sorted by \"Most used\" or \"Last used\".\n\nThis message will not be shown again.",
+            confirmLabel = "OK",
+            onDismiss = { showUsedTokensNotice = false; revision++ }
+        )
+    }
     val timeoutRequest = autoLock.pending
     if (timeoutRequest != null) AutoLockDialog(inputKey = timeoutRequest,
         currentSeconds = timeoutRequest.currentSeconds, options = DesktopAutoLockSettings.OPTIONS,
@@ -1755,6 +1796,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 if (lifetime.checkActive()) entryActions.openTags(entryId, lifetime::checkActive)
                 revision++
             },
+            onViewDetails = if (initial.type != com.fairuniversal.offlineotp.Database.Entry.OTPType.NOTE) ({
+                if (lifetime.checkActive()) {
+                    entryActions.openEntryDetails(editRequest.entryId, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)
+                    revision++
+                }
+            }) else null,
             onDelete = {
                 val entryId = editRequest.entryId
                 entryActions.pending?.let { entryActions.dismiss(it) }
@@ -1837,7 +1884,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 },
                 onDismiss = { entryActions.dismiss(actionRequest) }
             )
-            DesktopEntryActions.Surface.PASSWORD_DETAILS -> {
+            DesktopEntryActions.Surface.PASSWORD_DETAILS,
+            DesktopEntryActions.Surface.ENTRY_DETAILS -> {
                 val details = actionRequest.detailsText
                 if (details != null && presenter.isRevealed(actionRequest.entryId)) {
                     EntryDetailsDialog(

@@ -156,6 +156,7 @@ class VaultComposeView(
         val onShowQrCode: (() -> Unit)?,
         val onShareKeystrokes: (() -> Unit)?,
         val onManageTags: (() -> Unit)?,
+        val onViewDetails: (() -> Unit)?,
         val onDelete: (() -> Unit)?,
         val onEmailSubmit: ((EmailEntryInput) -> String?)?,
         val submit: (ManualEntryInput) -> String?
@@ -170,13 +171,14 @@ class VaultComposeView(
         onShowQrCode: (() -> Unit)? = null,
         onShareKeystrokes: (() -> Unit)? = null,
         onManageTags: (() -> Unit)? = null,
+        onViewDetails: (() -> Unit)? = null,
         onDelete: (() -> Unit)? = null,
         onEmailSubmit: ((EmailEntryInput) -> String?)? = null,
         submit: (ManualEntryInput) -> String?
     ) {
         if (ended) return
         clearEntryEditor()
-        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onManageTags, onDelete, onEmailSubmit, submit)
+        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onManageTags, onViewDetails, onDelete, onEmailSubmit, submit)
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
@@ -278,6 +280,7 @@ class VaultComposeView(
                 onShowQrCode = request.onShowQrCode,
                 onShareKeystrokes = request.onShareKeystrokes,
                 onManageTags = request.onManageTags,
+                onViewDetails = request.onViewDetails,
                 onDelete = request.onDelete,
                 onSwitchToUriImport = if (!request.editing) onOpenUriImport?.let { open ->
                     {

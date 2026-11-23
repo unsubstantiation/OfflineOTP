@@ -162,6 +162,8 @@ data class VaultAppearance(
     val showPreviousToken: Boolean = true,
     /** Non-default token steps always keep a countdown even when the standard-step one is off. */
     val showIndividualCountdowns: Boolean = true,
+    /** Hides the global 30-second rollover progress bar at the top of the vault when true. */
+    val hideGlobalTimeout: Boolean = false,
     val hideCountdownWhenMasked: Boolean = false,
     /**
      * How many seconds before rollover a code is flagged as expiring. 8 matches the Android card's
@@ -197,7 +199,11 @@ data class VaultUiState(
     val emptyTitle: String = "",
     val emptyDescription: String = "",
     /** Total entries in the vault, used for the header count. */
-    val totalEntries: Int = 0
+    val totalEntries: Int = 0,
+    /** Standard 30-second TOTP window fraction (`0f..1f`), or `0f` when the vault is empty. */
+    val globalProgress: Float = 0f,
+    /** True during the final rollover warning window of the global 30-second step. */
+    val globalExpiring: Boolean = false
 ) {
     val isEmpty: Boolean get() = cards.isEmpty()
 

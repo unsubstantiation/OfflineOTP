@@ -1,6 +1,7 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import com.fairuniversal.offlineotp.Utilities.Constants
+import com.fairuniversal.offlineotp.ui.portable.PortableCardDisplaySelection
 import com.fairuniversal.offlineotp.ui.portable.PortableTapMode
 
 /**
@@ -56,6 +57,9 @@ class VaultPresenter(
         private set
 
     var tapDouble: PortableTapMode = PortableTapMode.NOTHING
+        private set
+
+    var tapToRevealTimeoutSeconds: Int = 0
         private set
 
     fun setCardLayout(layout: Constants.CardLayouts) {
@@ -144,10 +148,13 @@ class VaultPresenter(
         labelSizeSp: Int,
         highlightExpiringTokens: Boolean,
         tapSingle: PortableTapMode,
-        tapDouble: PortableTapMode
+        tapDouble: PortableTapMode,
+        hideGlobalTimeout: Boolean = appearance.hideGlobalTimeout,
+        tapToRevealTimeoutSeconds: Int = this.tapToRevealTimeoutSeconds
     ) {
         if (locked) return
         val normalizedSize = PortableTapMode.normalizeLabelSizeSp(labelSizeSp)
+        val normalizedRevealTimeout = PortableTapMode.normalizeRevealTimeoutSeconds(tapToRevealTimeoutSeconds)
         appearance = appearance.copy(
             cardLayout = layout,
             showIssuer = !hideIssuer,
@@ -155,6 +162,7 @@ class VaultPresenter(
             groupTokens = tokenGroupSize != 0,
             tokenGroupSize = tokenGroupSize?.takeIf { it > 0 },
             showIndividualCountdowns = showIndividualCountdowns,
+            hideGlobalTimeout = hideGlobalTimeout,
             labelDisplay = labelDisplay,
             showThumbnails = showThumbnails,
             labelSizeSp = normalizedSize.takeIf { it > 0 },
@@ -162,19 +170,75 @@ class VaultPresenter(
         )
         this.tapSingle = tapSingle
         this.tapDouble = tapDouble
+        this.tapToRevealTimeoutSeconds = normalizedRevealTimeout
+        if (normalizedRevealTimeout <= 0) {
+            revealedAtMillis.clear()
+        } else if (lastClockMillis != Long.MIN_VALUE) {
+            for (id in revealed) {
+                revealedAtMillis.putIfAbsent(id, lastClockMillis)
+            }
+        }
         onChange?.invoke()
     }
 
+    fun setDisplaySelection(selection: PortableCardDisplaySelection) {
+        val resolvedLayout = Constants.CardLayouts.values()
+            .firstOrNull { it.name == selection.layout.name } ?: Constants.CardLayouts.DEFAULT
+        val resolvedLabelDisplay = Constants.LabelDisplay.values()
+            .firstOrNull { it.name == selection.labelDisplay.name } ?: Constants.LabelDisplay.TRUNCATE
+        setDisplaySettings(
+            layout = resolvedLayout,
+            hideIssuer = selection.hideIssuer,
+            showPreviousToken = selection.showPreviousToken,
+            tokenGroupSize = selection.tokenGroupSize,
+            showIndividualCountdowns = selection.showIndividualCountdowns,
+            labelDisplay = resolvedLabelDisplay,
+            showThumbnails = selection.showThumbnails,
+            labelSizeSp = selection.labelSizeSp,
+            highlightExpiringTokens = selection.highlightExpiringTokens,
+            tapSingle = selection.tapSingle,
+            tapDouble = selection.tapDouble,
+            hideGlobalTimeout = selection.hideGlobalTimeout,
+            tapToRevealTimeoutSeconds = selection.tapToRevealTimeoutSeconds
+        )
+    }
+
     private val revealed = LinkedHashSet<Long>(initialRevealedIds)
+    private val revealedAtMillis = HashMap<Long, Long>()
+    private var lastClockMillis: Long = Long.MIN_VALUE
     private var locked = false
 
     init {
         projection.applyFilter(initialFilter)
     }
 
+    private fun expireRevealedIfNeeded(nowMillis: Long) {
+        lastClockMillis = nowMillis
+        val timeoutSeconds = tapToRevealTimeoutSeconds
+        if (timeoutSeconds <= 0 || revealed.isEmpty()) return
+        val timeoutMillis = timeoutSeconds * 1000L
+        val expired = ArrayList<Long>()
+        for (id in revealed) {
+            val openedAt = revealedAtMillis[id]
+            if (openedAt == null) {
+                revealedAtMillis[id] = nowMillis
+            } else if (nowMillis > openedAt && nowMillis - openedAt >= timeoutMillis) {
+                expired.add(id)
+            }
+        }
+        for (id in expired) {
+            revealed.remove(id)
+            revealedAtMillis.remove(id)
+            revealChanged?.invoke(id, false)
+        }
+    }
+
     /** One frame at [nowMillis]: the selection applied, revealed content only for revealed ids. */
-    fun frame(nowMillis: Long): VaultUiState =
-        if (locked) VaultUiState() else projection.snapshot(filter, nowMillis, revealed, appearance, strings)
+    fun frame(nowMillis: Long): VaultUiState {
+        if (locked) return VaultUiState()
+        expireRevealedIfNeeded(nowMillis)
+        return projection.snapshot(filter, nowMillis, revealed, appearance, strings)
+    }
 
     /** Applies [next] to the shared projection and remembers it as the current selection. */
     fun applyFilter(next: VaultFilter) {
@@ -189,6 +253,7 @@ class VaultPresenter(
         if (locked) return
         if (id in revealed) {
             revealed.remove(id)
+            revealedAtMillis.remove(id)
             revealChanged?.invoke(id, false)
         } else {
             if (revealChanged?.invoke(id, true) == false) {
@@ -196,6 +261,11 @@ class VaultPresenter(
                 return
             }
             revealed.add(id)
+            if (tapToRevealTimeoutSeconds > 0 && lastClockMillis != Long.MIN_VALUE) {
+                revealedAtMillis[id] = lastClockMillis
+            } else {
+                revealedAtMillis.remove(id)
+            }
         }
         onChange?.invoke()
     }
@@ -204,7 +274,13 @@ class VaultPresenter(
     fun syncRevealedIds(ids: Set<Long>) {
         if (locked) return
         revealed.clear()
+        revealedAtMillis.clear()
         revealed.addAll(ids)
+        if (tapToRevealTimeoutSeconds > 0 && lastClockMillis != Long.MIN_VALUE) {
+            for (id in ids) {
+                revealedAtMillis[id] = lastClockMillis
+            }
+        }
         onChange?.invoke()
     }
 
@@ -212,6 +288,7 @@ class VaultPresenter(
     fun entryRemoved(id: Long) {
         if (locked) return
         revealed.remove(id)
+        revealedAtMillis.remove(id)
         applyFilter(filter)
     }
 
@@ -227,6 +304,7 @@ class VaultPresenter(
         if (locked) return
         locked = true
         revealed.clear()
+        revealedAtMillis.clear()
         filter = VaultFilter(combination = filter.combination)
         try {
             lockVault?.invoke()

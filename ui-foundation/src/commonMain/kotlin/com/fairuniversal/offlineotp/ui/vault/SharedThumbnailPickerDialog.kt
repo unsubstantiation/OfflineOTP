@@ -37,6 +37,7 @@ fun SharedThumbnailPickerContent(
     unchangedLabel: String = "Automatic (from issuer)",
     onSelect: (String) -> Unit,
     onCancel: (() -> Unit)? = null,
+    artwork: VaultArtwork? = null,
     iconContent: (@Composable (String) -> Unit)? = null
 ) {
     var query by remember { mutableStateOf("") }
@@ -72,7 +73,7 @@ fun SharedThumbnailPickerContent(
                     if (iconContent != null) {
                         iconContent(name)
                     } else {
-                        VaultLetterTile(seed = name, title = name, sizeDp = 28f)
+                        SharedCatalogArtworkIcon(name = name, artwork = artwork)
                     }
                     Text(
                         text = if (name == selected) "$name (selected)" else name,
@@ -97,6 +98,7 @@ fun SharedThumbnailPickerDialog(
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
     dismissLabel: String = "Close",
+    artwork: VaultArtwork? = null,
     iconContent: (@Composable (String) -> Unit)? = null
 ) {
     AlertDialog(
@@ -108,6 +110,7 @@ fun SharedThumbnailPickerDialog(
                 catalogNames = catalogNames,
                 unchangedLabel = unchangedLabel,
                 onSelect = onSelect,
+                artwork = artwork,
                 iconContent = iconContent
             )
         },
