@@ -61,6 +61,7 @@ fun SharedCardLayoutDialog(
     tapToRevealTimeoutSeconds: Int? = null,
     thumbnailSizeDp: Int? = null,
     focusSearchOnStart: Boolean? = null,
+    minimizeOnCopy: Boolean? = null,
     onSaveSelection: ((PortableCardDisplaySelection) -> Unit)? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(current) }
@@ -84,6 +85,7 @@ fun SharedCardLayoutDialog(
         mutableStateOf(PortableCardLayout.normalizeThumbnailSizeDp(thumbnailSizeDp ?: 0))
     }
     var focusSearchChecked by remember(inputKey) { mutableStateOf(focusSearchOnStart == true) }
+    var minimizeOnCopyChecked by remember(inputKey) { mutableStateOf(minimizeOnCopy == true) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "Card layout") },
@@ -339,6 +341,22 @@ fun SharedCardLayoutDialog(
                         Text(text = "Focus search on unlock")
                     }
                 }
+                if (minimizeOnCopy != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { minimizeOnCopyChecked = !minimizeOnCopyChecked }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Checkbox(
+                            checked = minimizeOnCopyChecked,
+                            onCheckedChange = { minimizeOnCopyChecked = it }
+                        )
+                        Text(text = "Minimize window after copying")
+                    }
+                }
                 if (failed) Text(text = "Could not save the layout. The current layout has not changed.")
             }
         },
@@ -361,7 +379,8 @@ fun SharedCardLayoutDialog(
                             hideGlobalTimeout = hideGlobalTimeoutChecked,
                             tapToRevealTimeoutSeconds = selectedRevealTimeoutSeconds,
                             thumbnailSizeDp = selectedThumbnailSizeDp,
-                            focusSearchOnStart = focusSearchChecked
+                            focusSearchOnStart = focusSearchChecked,
+                            minimizeOnCopy = minimizeOnCopyChecked
                         )
                     )
                     onSaveCompleteDisplay != null -> onSaveCompleteDisplay(

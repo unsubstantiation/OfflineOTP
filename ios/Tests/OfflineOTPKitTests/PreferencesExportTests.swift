@@ -222,4 +222,16 @@ final class PreferencesExportTests: XCTestCase {
             XCTAssertEqual(error as? PreferencesExport.PreferencesError, .invalidEncoding)
         }
     }
+
+    func testPersistedTagSelectionRoundTripsAcrossIosCatalog() throws {
+        let source = FakePort()
+        source.values[PreferencesExport.selectedTagsKey] = .textSet(["work", "infra"])
+        source.values[PreferencesExport.untaggedSelectedKey] = .boolean(true)
+        let exported = try PreferencesExport.export(source)
+        let target = FakePort()
+        let result = try PreferencesExport.apply(exported.bytes, into: target)
+        XCTAssertEqual(2, result.applied)
+        XCTAssertEqual(target.writes[PreferencesExport.selectedTagsKey], .textSet(["work", "infra"]))
+        XCTAssertEqual(target.writes[PreferencesExport.untaggedSelectedKey], .boolean(true))
+    }
 }

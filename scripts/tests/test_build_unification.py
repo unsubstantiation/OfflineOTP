@@ -91,3 +91,31 @@ class BuildUnificationTest(unittest.TestCase):
         self.assertIn('allowKeyFileSelection: Boolean = true', form)
         self.assertIn('val submitted = password; password = ""; onRead(submitted)', form)
         self.assertNotIn('rememberSaveable', form)
+
+    def test_openpgp_recipient_bounds_email_identity_creation_and_persisted_tag_filters_are_aligned(self):
+        bounds = (ROOT / 'ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableInputBounds.kt').read_text()
+        self.assertIn('const val MAX_OPENPGP_RECIPIENTS: Int = 64', bounds)
+        self.assertIn('const val MAX_EMAIL_IDENTITIES: Int = 16', bounds)
+
+        pgp_dialog = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/OpenPgpExportDialog.kt').read_text()
+        self.assertIn('maxRecipients: Int = PortableInputBounds.MAX_OPENPGP_RECIPIENTS', pgp_dialog)
+        desktop_pgp = (ROOT / 'desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopOpenPgpExport.kt').read_text()
+        self.assertIn('MAX_RECIPIENT_FILES = OpenPgpKeyFilePolicy.MAX_RECIPIENTS', desktop_pgp)
+        swift_pgp = (ROOT / 'ios/Sources/OfflineOTPKit/OpenPgp.swift').read_text()
+        self.assertIn('public static let maxRecipients = 64', swift_pgp)
+        swift_host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
+        self.assertIn('OpenPgpBackupCodec.maxRecipients', swift_host)
+        self.assertIn('!openPgpRecipients.contains(data)', swift_host)
+
+        email_dialog = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/SharedEmailSettingsDialog.kt').read_text()
+        self.assertIn('Add SMTP identity', email_dialog)
+        self.assertIn('PasswordVisualTransformation()', email_dialog)
+        self.assertIn('input = input.withoutSecrets()', email_dialog)
+        self.assertIn('clearAddedPasswords()', swift_host)
+
+        prefs_kt = (ROOT / 'core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt').read_text()
+        prefs_swift = (ROOT / 'ios/Sources/OfflineOTPKit/PreferencesExport.swift').read_text()
+        for key in ('ui_selected_tags', 'ui_untagged_selected'):
+            self.assertIn(f'"{key}"', prefs_kt)
+            self.assertIn(f'"{key}"', prefs_swift)
+        self.assertIn('"ui_minimize_on_copy"', prefs_kt)

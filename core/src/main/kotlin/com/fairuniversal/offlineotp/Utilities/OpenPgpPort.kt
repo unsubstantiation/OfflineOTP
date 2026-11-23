@@ -45,7 +45,11 @@ object OpenPgpBackupCodec {
     @Throws(GeneralSecurityException::class, IOException::class)
     fun seal(port: OpenPgpPort, plain: String, recipientKeyBlocks: List<ByteArray>): ByteArray {
         require(recipientKeyBlocks.isNotEmpty()) { "At least one OpenPGP recipient is required" }
+        require(recipientKeyBlocks.size <= OpenPgpKeyFilePolicy.MAX_RECIPIENTS) { "Too many OpenPGP recipients" }
         require(recipientKeyBlocks.none { it.isEmpty() }) { "An OpenPGP recipient key block is empty" }
+        require(recipientKeyBlocks.sumOf { it.size.toLong() } <= BoundedInputReader.MAX_DOCUMENT_BYTES.toLong()) {
+            "OpenPGP recipient keys exceed size limit"
+        }
 
         val plainBytes = plain.toByteArray(Charsets.UTF_8)
         try {

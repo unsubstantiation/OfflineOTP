@@ -75,6 +75,8 @@ public enum PreferencesExport {
         Setting(key: backupAppendDateTimeKey, kind: .boolean),
         Setting(key: splitGroupSizeKey, kind: .integer),
         Setting(key: searchIncludesKey, kind: .stringSet),
+        Setting(key: selectedTagsKey, kind: .stringSet),
+        Setting(key: untaggedSelectedKey, kind: .boolean),
     ]
 
     /// Mirrors `SortMode.settingsKey` and the desktop client's `PreferencesExport.UI_SORT_MODE`.
@@ -119,6 +121,10 @@ public enum PreferencesExport {
     public static let splitGroupSizeKey = "ui_split_group_size"
     /// Mirrors `VaultStore.searchIncludesSettingKey` and `PreferencesExport.UI_SEARCH_INCLUDES`.
     public static let searchIncludesKey = "ui_search_includes"
+    /// Mirrors `VaultStore.selectedTagsSettingKey` and `PreferencesExport.UI_SELECTED_TAGS`.
+    public static let selectedTagsKey = "ui_selected_tags"
+    /// Mirrors `VaultStore.untaggedSelectedSettingKey` and `PreferencesExport.UI_UNTAGGED_SELECTED`.
+    public static let untaggedSelectedKey = "ui_untagged_selected"
     /// Mirrors `VaultStore.biometricSettingKey`; device-bound, listed so the reason is visible.
     public static let quickUnlockKey = "biometric_unlock"
     /// Mirrors `VaultStore.usedTokensShownSettingKey`; one-install dialog acknowledgement.

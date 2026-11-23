@@ -763,6 +763,24 @@ private fun RenderSharedSurface(
                     address = rowValue("outAddr:$idx")
                 )
             }
+            val addedCount = (rowValue("addedCount").toIntOrNull() ?: 0)
+                .coerceIn(0, PortableInputBounds.MAX_EMAIL_IDENTITIES)
+            val addedIdentities = (0 until addedCount).map { addedIdx ->
+                PortableAddedEmailIdentityDraft(
+                    identity = PortableEmailIdentityDraft(
+                        name = rowValue("addName:$addedIdx"),
+                        address = rowValue("addAddr:$addedIdx")
+                    ),
+                    connection = PortableEmailConnectionDraft(
+                        host = rowValue("addHost:$addedIdx"),
+                        port = rowValue("addPort:$addedIdx").ifEmpty { "587" },
+                        encryption = rowValue("addEnc:$addedIdx").toIntOrNull() ?: 1,
+                        username = rowValue("addUser:$addedIdx"),
+                        authentication = rowValue("addAuth:$addedIdx").ifEmpty { "1" }
+                    ),
+                    password = ""
+                )
+            }
             SharedEmailSettingsDialog(
                 inputKey = dialogKey,
                 initial = PortableEmailSettingsDraft(
@@ -778,7 +796,9 @@ private fun RenderSharedSurface(
                     identities = identities,
                     accountName = rowValue("accountName"),
                     removedIdentities = emptySet(),
-                    removableIdentities = removable
+                    removableIdentities = removable,
+                    primaryIdentityIndex = rowValue("primaryIndex").toIntOrNull(),
+                    addedIdentities = addedIdentities
                 ),
                 failed = dialog.message.isNotEmpty(),
                 errorText = dialog.message.ifEmpty { null },
@@ -791,6 +811,8 @@ private fun RenderSharedSurface(
                     surfaceActions.change("inUser", draft.incoming.username)
                     draft.incoming.authentication?.let { surfaceActions.change("inAuth", it) }
                     surfaceActions.change("removedIndices", draft.removedIdentities.sorted().joinToString(","))
+                    surfaceActions.change("primaryIndex", draft.primaryIdentityIndex?.toString().orEmpty())
+                    surfaceActions.change("addedCount", draft.addedIdentities.size.toString())
                     draft.outgoing.forEachIndexed { idx, conn ->
                         surfaceActions.change("outHost:$idx", conn.host)
                         surfaceActions.change("outPort:$idx", conn.port)
@@ -801,6 +823,16 @@ private fun RenderSharedSurface(
                     draft.identities?.forEachIndexed { idx, sender ->
                         surfaceActions.change("outName:$idx", sender.name)
                         surfaceActions.change("outAddr:$idx", sender.address)
+                    }
+                    draft.addedIdentities.forEachIndexed { addedIdx, added ->
+                        surfaceActions.change("addName:$addedIdx", added.identity.name)
+                        surfaceActions.change("addAddr:$addedIdx", added.identity.address)
+                        surfaceActions.change("addHost:$addedIdx", added.connection.host)
+                        surfaceActions.change("addPort:$addedIdx", added.connection.port)
+                        surfaceActions.change("addEnc:$addedIdx", added.connection.encryption.toString())
+                        surfaceActions.change("addUser:$addedIdx", added.connection.username)
+                        surfaceActions.change("addAuth:$addedIdx", added.connection.authentication ?: "1")
+                        surfaceActions.change("addPass:$addedIdx", added.password)
                     }
                     confirm()
                 },

@@ -182,4 +182,43 @@ class EmailSettingsInputTest {
             assertEquals("incoming-token", original.getEmailAccount().account.getString("password"))
         } finally { original.destroy() }
     }
+    @Test fun addsNewSmtpIdentitiesReassignsPrimaryAndScrubsAddedSecrets() {
+        val original = entry()
+        try {
+            val base = EmailSettingsInput.fromEntry(original)
+            val added = AddedEmailIdentityInput(
+                identity = com.fairuniversal.offlineotp.Utilities.EmailIdentityInput("Support Desk", "support@example.com"),
+                connection = EmailConnectionInput("smtp-support.example.com", "587", 1, "support-user", "1"),
+                password = "support-secret"
+            )
+            assertEquals("AddedEmailIdentityInput(redacted)", added.toString())
+            val staged = base.copy(
+                primaryIdentityIndex = 2,
+                removedIdentities = setOf(0),
+                addedIdentities = listOf(added)
+            )
+            assertEquals("", staged.withoutSecrets().addedIdentities.single().password)
+            val updated = staged.build(original)
+            try {
+                val account = updated.getEmailAccount()
+                assertEquals(2, account.identities.size)
+                assertEquals("support@example.com", account.identity.getString("email"))
+                assertEquals("support-secret", account.identity.getString("password"))
+                assertTrue(account.identities[0].getBoolean("primary"))
+                assertEquals(false, account.identities[1].getBoolean("primary"))
+                assertEquals("alias@example.com", account.identities[1].getString("email"))
+                assertEquals("alias-token", account.identities[1].getString("password"))
+            } finally { updated.destroy() }
+            // Reject primary index pointing to a removed slot or out-of-range slot.
+            for (bad in listOf(
+                base.copy(primaryIdentityIndex = 1, removedIdentities = setOf(1)),
+                base.copy(primaryIdentityIndex = 5),
+                base.copy(primaryIdentityIndex = -1)
+            )) {
+                var rejected = false
+                try { bad.build(original).destroy() } catch (_: IllegalArgumentException) { rejected = true }
+                assertTrue(rejected)
+            }
+        } finally { original.destroy() }
+    }
 }

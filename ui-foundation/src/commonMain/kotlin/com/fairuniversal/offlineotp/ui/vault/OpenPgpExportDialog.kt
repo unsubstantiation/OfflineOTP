@@ -7,6 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 const val OPENPGP_IN_APP_NOTICE = "OpenPGP runs in this app using key files. No external OpenPGP app is required."
 
@@ -20,7 +21,7 @@ fun OpenPgpExportDialog(
     onExport: () -> Unit,
     onDismiss: () -> Unit,
     allowManageKeys: Boolean = true,
-    maxRecipients: Int = 8
+    maxRecipients: Int = PortableInputBounds.MAX_OPENPGP_RECIPIENTS
 ) {
     AlertDialog(onDismissRequest = onDismiss, title = { Text(text = "Export OpenPGP backup") },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) {

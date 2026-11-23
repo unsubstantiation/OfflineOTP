@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Utilities.BoundedInputReader
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.Utilities.DatabaseHelper
 import com.fairuniversal.offlineotp.Utilities.OpenPgpBackupCodec
@@ -65,12 +66,18 @@ internal class OpenPgpKeyFileBackupTask(
         if (!canWrite()) return false
         val keyBlocks = ArrayList<ByteArray>()
         try {
+            var remaining = BoundedInputReader.MAX_DOCUMENT_BYTES
             for (recipient in recipients) {
-                if (!canWrite()) return false
+                if (!canWrite() || remaining <= 0) return false
                 val block = StorageAccessHelper.loadFile(applicationContext, Uri.parse(recipient))
-                // An empty or unreadable certificate must fail the backup, not silently drop a
-                // recipient the user believes the backup was encrypted to.
+                // An empty, unreadable or oversized certificate set must fail the backup, not
+                // silently drop a recipient the user believes the backup was encrypted to.
                 if (block.isEmpty()) return false
+                if (block.size > remaining) {
+                    block.fill(0)
+                    return false
+                }
+                remaining -= block.size
                 keyBlocks.add(block)
             }
             if (!canWrite()) return false

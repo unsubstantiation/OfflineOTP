@@ -36,7 +36,9 @@ class DesktopLayoutSettings(
     private val readThumbnailSizeDp: () -> Int = { 0 },
     private val writeThumbnailSizeDp: (Int) -> Boolean = { true },
     private val readFocusSearchOnStart: () -> Boolean = { false },
-    private val writeFocusSearchOnStart: (Boolean) -> Boolean = { true }
+    private val writeFocusSearchOnStart: (Boolean) -> Boolean = { true },
+    private val readMinimizeOnCopy: () -> Boolean = { false },
+    private val writeMinimizeOnCopy: (Boolean) -> Boolean = { true }
 ) {
     class Request internal constructor(
         val current: Constants.CardLayouts,
@@ -53,7 +55,8 @@ class DesktopLayoutSettings(
         val hideGlobalTimeout: Boolean = false,
         val tapToRevealTimeoutSeconds: Int = 0,
         val thumbnailSizeDp: Int = 0,
-        val focusSearchOnStart: Boolean = false
+        val focusSearchOnStart: Boolean = false,
+        val minimizeOnCopy: Boolean = false
     ) {
         var failed = false
             internal set
@@ -78,7 +81,8 @@ class DesktopLayoutSettings(
                 readHideGlobalTimeout(),
                 readTapToRevealTimeout(),
                 readThumbnailSizeDp(),
-                readFocusSearchOnStart()
+                readFocusSearchOnStart(),
+                readMinimizeOnCopy()
             )
         }
     }
@@ -257,8 +261,9 @@ class DesktopLayoutSettings(
         val savedRevealTimeout = if (savedGlobal) try { writeTapToRevealTimeout(selection.tapToRevealTimeoutSeconds) } catch (_: Exception) { false } else false
         val savedThumbSize = if (savedRevealTimeout) try { writeThumbnailSizeDp(selection.thumbnailSizeDp) } catch (_: Exception) { false } else false
         val savedFocusSearch = if (savedThumbSize) try { writeFocusSearchOnStart(selection.focusSearchOnStart) } catch (_: Exception) { false } else false
+        val savedMinimize = if (savedFocusSearch) try { writeMinimizeOnCopy(selection.minimizeOnCopy) } catch (_: Exception) { false } else false
         if (!active() || !valid(request)) return false
-        if (!savedFocusSearch) { request.failed = true; return false }
+        if (!savedMinimize) { request.failed = true; return false }
         pending = null
         apply(selection)
         return true

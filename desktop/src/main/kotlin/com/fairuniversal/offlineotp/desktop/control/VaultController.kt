@@ -375,6 +375,64 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedMinimizeOnCopy(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_MINIMIZE_ON_COPY,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveMinimizeOnCopy(enabled: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_MINIMIZE_ON_COPY,
+            enabled.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedSelectedTags(): List<String> = try {
+        val raw = vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SELECTED_TAGS,
+            ""
+        )
+        if (raw.isBlank()) {
+            emptyList()
+        } else {
+            raw.split('\n')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .distinct()
+        }
+    } catch (_: RuntimeException) { emptyList() }
+
+    fun trySaveSelectedTags(tags: List<String>): Boolean = try {
+        val cleaned = tags.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+        if (cleaned.isEmpty()) {
+            vault.preferences.remove(com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SELECTED_TAGS)
+        } else {
+            vault.preferences.putString(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SELECTED_TAGS,
+                cleaned.joinToString("\n")
+            )
+        }
+        true
+    } catch (_: Exception) { false }
+
+    fun savedUntaggedSelected(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_UNTAGGED_SELECTED,
+            "false"
+        ).toBooleanStrictOrNull() ?: false
+    } catch (_: RuntimeException) { false }
+
+    fun trySaveUntaggedSelected(selected: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_UNTAGGED_SELECTED,
+            selected.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
     fun savedRelockOnBackground(): Boolean = try {
         vault.preferences.getString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_RELOCK_BACKGROUND,

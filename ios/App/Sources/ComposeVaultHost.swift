@@ -267,7 +267,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func toggleTag(tag: String) {
         guard active, store.isUnlocked else { return }
         noteActivity()
-        if tag == "Untagged" { store.includeUntagged.toggle() }
+        if tag == "Untagged" { store.toggleUntagged() }
         else { store.toggleTag(tag) }
         refresh()
     }
@@ -1238,6 +1238,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     private func emailSettingsEditSurface() -> PortableSurfaceState {
         let count = Int(draft["identityCount"] ?? "1") ?? 1
+        let addedCount = max(0, min(EmailSettingsInput.maxIdentities, Int(draft["addedCount"] ?? "0") ?? 0))
         var rows: [PortableRow] = [
             row("accountName", "Account display name", value: draft["accountName"] ?? "", kind: "text"),
             row("protocol", "Protocol", value: draft["protocol"] ?? "0", kind: "info"),
@@ -1247,7 +1248,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             row("inUser", "Incoming username", value: draft["inUser"] ?? "", kind: "text"),
             row("inAuth", "Incoming auth", value: draft["inAuth"] ?? "0", kind: "text"),
             row("identityCount", "Identities", value: String(count), kind: "info"),
-            row("removableIndices", "Removable", value: draft["removableIndices"] ?? "", kind: "info")
+            row("removableIndices", "Removable", value: draft["removableIndices"] ?? "", kind: "info"),
+            row("primaryIndex", "Primary", value: draft["primaryIndex"] ?? "", kind: "info"),
+            row("addedCount", "Added", value: String(addedCount), kind: "info")
         ]
         for idx in 0..<max(1, count) {
             rows.append(row("outName:\(idx)", "Sender name", value: draft["outName:\(idx)"] ?? "", kind: "text"))
@@ -1257,6 +1260,15 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             rows.append(row("outEnc:\(idx)", "Outgoing encryption", value: draft["outEnc:\(idx)"] ?? "0", kind: "info"))
             rows.append(row("outUser:\(idx)", "Outgoing username", value: draft["outUser:\(idx)"] ?? "", kind: "text"))
             rows.append(row("outAuth:\(idx)", "Outgoing auth", value: draft["outAuth:\(idx)"] ?? "0", kind: "text"))
+        }
+        for addedIdx in 0..<addedCount {
+            rows.append(row("addName:\(addedIdx)", "Added sender name", value: draft["addName:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addAddr:\(addedIdx)", "Added sender email", value: draft["addAddr:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addHost:\(addedIdx)", "Added outgoing server", value: draft["addHost:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addPort:\(addedIdx)", "Added outgoing port", value: draft["addPort:\(addedIdx)"] ?? "587", kind: "text"))
+            rows.append(row("addEnc:\(addedIdx)", "Added outgoing encryption", value: draft["addEnc:\(addedIdx)"] ?? "1", kind: "info"))
+            rows.append(row("addUser:\(addedIdx)", "Added outgoing username", value: draft["addUser:\(addedIdx)"] ?? "", kind: "text"))
+            rows.append(row("addAuth:\(addedIdx)", "Added outgoing auth", value: draft["addAuth:\(addedIdx)"] ?? "1", kind: "text"))
         }
         return surface(
             key: "emailSettingsEdit",
@@ -2291,12 +2303,18 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     private func saveEmailSettingsEditor() -> String? {
+        let clearAddedPasswords = {
+            for key in self.draft.keys where key.hasPrefix("addPass:") {
+                self.draft[key] = ""
+            }
+        }
         guard let index = editorIndex, store.isUnlocked,
               openedGeneration.map({ store.generation == $0 }) != false,
               store.entries.indices.contains(index),
               store.entries[index].fields == openedFields,
               store.isRevealed(store.entries[index]),
               var input = try? EmailSettingsInput.fromEntry(store.entries[index]) else {
+            clearAddedPasswords()
             return "The email entry or session changed. Close and reopen the editor."
         }
         input.accountName = draft["accountName"] ?? input.accountName
@@ -2332,6 +2350,26 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 .split(separator: ",")
                 .compactMap { Int($0.trimmingCharacters(in: .whitespaces)) }
         )
+        let rawPrimary = (draft["primaryIndex"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        input.primaryIdentityIndex = rawPrimary.isEmpty ? nil : Int(rawPrimary)
+        let addedCount = max(0, min(EmailSettingsInput.maxIdentities, Int(draft["addedCount"] ?? "0") ?? 0))
+        input.addedIdentities = (0..<addedCount).map { addedIdx in
+            AddedEmailIdentityInput(
+                identity: EmailIdentityInput(
+                    name: draft["addName:\(addedIdx)"] ?? "",
+                    address: draft["addAddr:\(addedIdx)"] ?? ""
+                ),
+                connection: EmailConnectionInput(
+                    host: draft["addHost:\(addedIdx)"] ?? "",
+                    port: draft["addPort:\(addedIdx)"] ?? "587",
+                    encryption: Int(draft["addEnc:\(addedIdx)"] ?? "1") ?? 1,
+                    username: draft["addUser:\(addedIdx)"] ?? "",
+                    authentication: draft["addAuth:\(addedIdx)"] ?? "1"
+                ),
+                password: draft["addPass:\(addedIdx)"] ?? ""
+            )
+        }
+        clearAddedPasswords()
         do {
             let replacement = try input.build(existing: store.entries[index])
             guard store.update(at: index, with: replacement) else {
@@ -2834,8 +2872,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft.removeValue(forKey: "previewCount")
             return nil
         case "openpgpRecipient":
-            guard openPgpRecipients.count < 8 else {
-                return "Up to 8 recipient key files can be selected."
+            guard openPgpRecipients.count < OpenPgpBackupCodec.maxRecipients else {
+                return "Up to \(OpenPgpBackupCodec.maxRecipients) recipient key files can be selected."
             }
             onImport("openpgpRecipient"); return nil
         case "openpgpExport":
@@ -3057,7 +3095,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func setOpenPgpData(_ data: Data, kind: String, filename: String = "") {
         switch kind {
         case "openpgpRecipient":
-            guard openPgpRecipients.count < 8 else { return }
+            let totalBytes = openPgpRecipients.reduce(0, { $0 + $1.count })
+            guard !data.isEmpty,
+                  openPgpRecipients.count < OpenPgpBackupCodec.maxRecipients,
+                  !openPgpRecipients.contains(data),
+                  totalBytes + data.count <= OpenPgpBackupCodec.maxDocumentBytes else {
+                return
+            }
             openPgpRecipients.append(data)
             let label = filename.isEmpty ? "Recipient key #\(openPgpRecipients.count)" : filename
             openPgpRecipientNames.append(label)

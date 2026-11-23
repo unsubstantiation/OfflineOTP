@@ -152,6 +152,8 @@ public final class VaultStore: ObservableObject {
     public static let backupAppendDateTimeSettingKey = "ui_backup_append_date_time"
     public static let splitGroupSizeSettingKey = "ui_split_group_size"
     public static let searchIncludesSettingKey = "ui_search_includes"
+    public static let selectedTagsSettingKey = "ui_selected_tags"
+    public static let untaggedSelectedSettingKey = "ui_untagged_selected"
     public static let usedTokensShownSettingKey = "ui_used_tokens_shown"
     static let biometricEnabled = "enabled"
     static let biometricDisabled = "disabled"
@@ -246,6 +248,7 @@ public final class VaultStore: ObservableObject {
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         self.searchIncludes = VaultStore.storedSearchIncludes(
             settings.string(VaultStore.searchIncludesSettingKey))
+        self.includeUntagged = settings.string(VaultStore.untaggedSelectedSettingKey) == "true"
         self.usedTokensDialogShown = settings.string(VaultStore.usedTokensShownSettingKey) == "true"
         // Both are read before the first unlock: the lock screen has to know whether to offer the
         // quick unlock.
@@ -493,7 +496,40 @@ public final class VaultStore: ObservableObject {
         generation += 1
         migration?.cancel()
         migration = nil
+        reconcileStoredTagSelection()
         lastActivityDate = Date()
+    }
+
+    private func reconcileStoredTagSelection() {
+        if let rawTags = settings.string(VaultStore.selectedTagsSettingKey) {
+            let available = Set(entries.flatMap(\.tags))
+            var parsed: [String] = []
+            for item in rawTags.split(separator: "\n") {
+                let tag = item.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !tag.isEmpty && available.contains(tag) && !parsed.contains(tag) {
+                    parsed.append(tag)
+                }
+            }
+            if tagFunctionality == .single && parsed.count > 1 {
+                parsed = Array(parsed.prefix(1))
+            }
+            selectedTags = parsed
+        } else if !selectedTags.isEmpty {
+            let available = Set(entries.flatMap(\.tags))
+            var filtered = selectedTags.filter { available.contains($0) }
+            if tagFunctionality == .single && filtered.count > 1 {
+                filtered = Array(filtered.prefix(1))
+            }
+            selectedTags = filtered
+        }
+        if let rawUntagged = settings.string(VaultStore.untaggedSelectedSettingKey) {
+            includeUntagged = rawUntagged == "true"
+        }
+    }
+
+    private func persistTagSelection() {
+        settings.setString(VaultStore.selectedTagsSettingKey, selectedTags.joined(separator: "\n"))
+        settings.setString(VaultStore.untaggedSelectedSettingKey, includeUntagged ? "true" : "false")
     }
 
     /// Re-reads the delay, sort mode and display preferences from the store, for a setting a
@@ -536,6 +572,7 @@ public final class VaultStore: ObservableObject {
             settings.integer(VaultStore.splitGroupSizeSettingKey))
         searchIncludes = VaultStore.storedSearchIncludes(
             settings.string(VaultStore.searchIncludesSettingKey))
+        reconcileStoredTagSelection()
         usedTokensDialogShown = settings.string(VaultStore.usedTokensShownSettingKey) == "true"
         lastActivityDate = Date()
     }
@@ -893,6 +930,12 @@ public final class VaultStore: ObservableObject {
                 selectedTags.append(tag)
             }
         }
+        persistTagSelection()
+    }
+
+    public func toggleUntagged() {
+        includeUntagged.toggle()
+        persistTagSelection()
     }
 
     /// Switches how tags combine. `single` collapses the selection to one tag, as Android's
@@ -901,6 +944,7 @@ public final class VaultStore: ObservableObject {
         tagFunctionality = functionality
         if functionality == .single, selectedTags.count > 1 {
             selectedTags = Array(selectedTags.prefix(1))
+            persistTagSelection()
         }
         settings.setString(VaultStore.tagFunctionalitySettingKey, functionality.rawValue)
     }
@@ -910,6 +954,7 @@ public final class VaultStore: ObservableObject {
         query = ""
         selectedTags = []
         includeUntagged = false
+        persistTagSelection()
     }
 
     // MARK: - Codes

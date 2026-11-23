@@ -214,10 +214,13 @@ object PreferencesExport {
         Setting(UI_TAP_DOUBLE, Kind.STRING),
         Setting(UI_TAP_TO_REVEAL_TIMEOUT, Kind.INTEGER),
         Setting(UI_FOCUS_SEARCH_ON_START, Kind.BOOLEAN),
+        Setting(UI_MINIMIZE_ON_COPY, Kind.BOOLEAN),
         Setting(UI_RELOCK_BACKGROUND, Kind.BOOLEAN),
         Setting(UI_BACKUP_APPEND_DATE_TIME, Kind.BOOLEAN),
         Setting(UI_SPLIT_GROUP_SIZE, Kind.INTEGER),
-        Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET)
+        Setting(UI_SEARCH_INCLUDES, Kind.STRING_SET),
+        Setting(UI_SELECTED_TAGS, Kind.STRING_SET),
+        Setting(UI_UNTAGGED_SELECTED, Kind.BOOLEAN)
     )
 
     /** Desktop key for the Compose card layout; ignored by the shipping Swing renderer. */
@@ -250,6 +253,8 @@ object PreferencesExport {
     const val UI_TAP_TO_REVEAL_TIMEOUT = "ui_tap_to_reveal_timeout"
     /** Desktop key for automatically focusing the search field when the vault unlocks. */
     const val UI_FOCUS_SEARCH_ON_START = "ui_focus_search_on_start"
+    /** Desktop key for minimizing the window after copying an OTP code or credential. */
+    const val UI_MINIMIZE_ON_COPY = "ui_minimize_on_copy"
     /** Desktop key for locking the vault immediately when the window is minimized. */
     const val UI_RELOCK_BACKGROUND = "ui_relock_background"
     /** Desktop key for appending date and time to default exported backup filenames. */
@@ -260,6 +265,10 @@ object PreferencesExport {
     const val UI_SPLIT_GROUP_SIZE = "ui_split_group_size"
     /** Desktop key for which fields (`LABEL`, `ISSUER`, `TAGS`) search matches. */
     const val UI_SEARCH_INCLUDES = "ui_search_includes"
+    /** Desktop & iOS key for remembered tag filter chip selections. */
+    const val UI_SELECTED_TAGS = "ui_selected_tags"
+    /** Desktop & iOS key for remembered `Untagged` filter chip selection. */
+    const val UI_UNTAGGED_SELECTED = "ui_untagged_selected"
     /** Desktop key for the saved list order. Mirrors `VaultController.SORT_MODE_KEY`. */
     const val UI_SORT_MODE = "ui_sort_mode"
     /** Desktop key for the inactivity lock delay. Mirrors `VaultSettingsKeys.UI_INACTIVITY_LOCK_SECONDS`. */

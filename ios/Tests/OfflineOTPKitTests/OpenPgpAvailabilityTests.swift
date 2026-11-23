@@ -84,4 +84,19 @@ final class OpenPgpAvailabilityTests: XCTestCase {
             }
         }
     }
+
+    func testSealEnforcesSixtyFourRecipientCeilingAndAggregateKeyBudget() throws {
+        let port = EchoPort()
+        let maxKeys = (1...OpenPgpBackupCodec.maxRecipients).map { Data("key-\($0)".utf8) }
+        let sealed = try OpenPgpBackupCodec.seal(port: port, plain: "[]", recipientKeyBlocks: maxKeys)
+        XCTAssertEqual(try OpenPgpBackupCodec.open(port: port, message: sealed, secretKeyBlock: Data("sec".utf8), passphrase: nil), "[]")
+
+        let tooMany = (0...OpenPgpBackupCodec.maxRecipients).map { Data("key-\($0)".utf8) }
+        XCTAssertThrowsError(try OpenPgpBackupCodec.seal(port: port, plain: "[]", recipientKeyBlocks: tooMany))
+
+        let halfBudget = Data(count: (OpenPgpBackupCodec.maxDocumentBytes / 2) + 1)
+        XCTAssertThrowsError(try OpenPgpBackupCodec.seal(port: port, plain: "[]", recipientKeyBlocks: [halfBudget, halfBudget])) { error in
+            XCTAssertEqual(error as? OpenPgpError, .tooLarge)
+        }
+    }
 }

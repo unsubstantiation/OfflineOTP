@@ -76,6 +76,9 @@ class PreferencesExportDesktopTest {
         settings.putString(PreferencesExport.UI_TAP_DOUBLE, "REVEAL")
         settings.putInt(PreferencesExport.UI_SPLIT_GROUP_SIZE, 2)
         settings.putString(PreferencesExport.UI_SEARCH_INCLUDES, "LABEL\nTAGS")
+        settings.putString(PreferencesExport.UI_MINIMIZE_ON_COPY, "true")
+        settings.putString(PreferencesExport.UI_SELECTED_TAGS, "work\npersonal")
+        settings.putString(PreferencesExport.UI_UNTAGGED_SELECTED, "true")
         val roundTripTarget = newSettings()
         val fullExport = PreferencesExport.export(
             DesktopPreferencesPort(settings), includeSecrets = false,
@@ -83,7 +86,7 @@ class PreferencesExportDesktopTest {
         try {
             val imported = PreferencesExport.import(
                 fullExport.bytes, DesktopPreferencesPort(roundTripTarget), PreferencesExport.PLATFORM_DESKTOP)
-            assertEquals(14, imported.applied)
+            assertEquals(17, imported.applied)
             assertEquals("COMPACT", roundTripTarget.getString(PreferencesExport.UI_CARD_LAYOUT, ""))
             assertEquals("SCROLL", roundTripTarget.getString(PreferencesExport.UI_LABEL_DISPLAY, ""))
             assertEquals(18, roundTripTarget.getInt(PreferencesExport.UI_LABEL_SIZE_SP, -1))
@@ -97,6 +100,9 @@ class PreferencesExportDesktopTest {
             assertEquals("REVEAL", roundTripTarget.getString(PreferencesExport.UI_TAP_DOUBLE, ""))
             assertEquals(2, roundTripTarget.getInt(PreferencesExport.UI_SPLIT_GROUP_SIZE, -1))
             assertEquals("LABEL\nTAGS", roundTripTarget.getString(PreferencesExport.UI_SEARCH_INCLUDES, ""))
+            assertEquals("true", roundTripTarget.getString(PreferencesExport.UI_MINIMIZE_ON_COPY, ""))
+            assertEquals("work\npersonal", roundTripTarget.getString(PreferencesExport.UI_SELECTED_TAGS, ""))
+            assertEquals("true", roundTripTarget.getString(PreferencesExport.UI_UNTAGGED_SELECTED, ""))
         } finally {
             fullExport.zero()
         }

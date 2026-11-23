@@ -37,6 +37,8 @@ class VaultPresenter(
     private val sortSelected: ((Constants.SortMode) -> Unit)? = null,
     /** Remembers the chosen tag-matching rule after cycling. */
     private val tagRuleSelected: ((Constants.TagFunctionality) -> Unit)? = null,
+    /** Remembers the active tag chips and untagged selection after toggling or clearing. */
+    private val tagSelectionChanged: ((List<String>, Boolean) -> Unit)? = null,
     /** Locks the vault, after the revealed rows have already been forgotten. */
     private val lockVault: (() -> Unit)? = null,
     private val onChange: (() -> Unit)? = null,
@@ -409,16 +411,38 @@ class VaultPresenter(
         onDelete = deleteEntry,
         onQueryChange = { query -> applyFilter(filter.withQuery(query)) },
         onSelectCategory = { category -> applyFilter(filter.withCategory(category)) },
-        onToggleTag = { tag -> applyFilter(filter.withTagToggled(tag)) },
-        onToggleUntagged = { applyFilter(filter.withUntaggedToggled()) },
+        onToggleTag = { tag ->
+            if (!locked) {
+                val next = filter.withTagToggled(tag)
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
+        onToggleUntagged = {
+            if (!locked) {
+                val next = filter.withUntaggedToggled()
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
         onCycleTagRule = {
             if (!locked) {
+                val prevTags = filter.selectedTags
                 val next = filter.withCycledTagFunctionality()
                 applyFilter(next)
                 tagRuleSelected?.invoke(next.tagFunctionality)
+                if (next.selectedTags != prevTags) {
+                    tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+                }
             }
         },
-        onClearFilters = { applyFilter(filter.clearedFilters()) },
+        onClearFilters = {
+            if (!locked) {
+                val next = filter.clearedFilters()
+                applyFilter(next)
+                tagSelectionChanged?.invoke(next.selectedTags, next.untaggedSelected)
+            }
+        },
         onSelectSort = { mode ->
             if (!locked) {
                 applyFilter(filter.withSortMode(mode))

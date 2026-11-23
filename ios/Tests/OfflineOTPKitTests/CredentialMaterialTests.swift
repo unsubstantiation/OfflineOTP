@@ -152,5 +152,24 @@ final class CredentialMaterialTests: XCTestCase {
         XCTAssertTrue(noteEntry.passwordChoicesToCopy.isEmpty)
         XCTAssertEqual(decodedTrimmed.account["name"]?.stringValue, "Updated Account Name")
         XCTAssertEqual(decodedTrimmed.identities[0]["password"]?.stringValue, "smtp1-rotated")
+
+        // 5. EmailSettingsInput adds new SMTP identities, reassigns primary, and scrubs added passwords.
+        var addAndPromote = try EmailSettingsInput.fromEntry(trimmedEntry)
+        let added = AddedEmailIdentityInput(
+            identity: EmailIdentityInput(name: "Support Desk", address: "support@example.com"),
+            connection: EmailConnectionInput(host: "smtp-support.example.com", port: "587", encryption: 1, username: "support", authentication: "1"),
+            password: "support-password"
+        )
+        XCTAssertEqual(added.description, "AddedEmailIdentityInput(redacted)")
+        addAndPromote.addedIdentities = [added]
+        addAndPromote.primaryIdentityIndex = 1
+        XCTAssertEqual(addAndPromote.withoutSecrets().addedIdentities[0].password, "")
+        let promotedEntry = try addAndPromote.build(existing: trimmedEntry)
+        let promotedAccount = try promotedEntry.emailAccount()
+        XCTAssertEqual(promotedAccount.identities.count, 2)
+        XCTAssertEqual(promotedAccount.identities[0]["email"]?.stringValue, "support@example.com")
+        XCTAssertEqual(promotedAccount.identities[0]["password"]?.stringValue, "support-password")
+        XCTAssertEqual(promotedAccount.identities[0]["primary"]?.boolValue, true)
+        XCTAssertEqual(promotedAccount.identities[1]["primary"]?.boolValue, false)
     }
 }

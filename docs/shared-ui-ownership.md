@@ -320,3 +320,25 @@ Create or Restore, decrypts the backup asynchronously, then initializes the new 
 entries in the same journaled write while preserving the selected Android auth/encryption mode. The
 backup password is separate from the selected local authentication credentials. Native file-picker
 adapters remain platform-specific.
+
+## Multi-identity SMTP creation, OpenPGP 64-recipient bounds & persisted tag filters
+
+- `SharedEmailSettingsDialog` (`:ui-foundation`) and `PortableEmailSettingsDraft` (`:ui-contract`)
+  now own multi-identity SMTP creation (`Add SMTP identity` -> `PortableAddedEmailIdentityDraft`
+  with masked password input, up to `PortableInputBounds.MAX_EMAIL_IDENTITIES = 16`), primary
+  identity promotion (`Make SMTP #N primary` -> `primaryIdentityIndex`), and staged secondary
+  removal across Android (`VaultComposeView` -> `EmailSettingsDialog`), Desktop (`ComposeMain` ->
+  `EmailSettingsDialog`), and iOS (`PortableVaultViewController` + `ComposeVaultHost`). Both Kotlin
+  and Swift `EmailSettingsInput.build` validate credentials/ports/addresses, scrub added passwords
+  on UI submit (`withoutSecrets()`), rewrite `"primary"` flags when reassigned, and place the
+  chosen primary at `identities[0]`.
+- `OpenPgpExportDialog` (`:ui-foundation`) defaults `maxRecipients` to
+  `PortableInputBounds.MAX_OPENPGP_RECIPIENTS` (`64`), matching `OpenPgpKeyFilePolicy.MAX_RECIPIENTS`
+  (`:core`), `DesktopOpenPgpExport.MAX_RECIPIENT_FILES`, iOS `OpenPgpBackupCodec.maxRecipients`, and
+  the Rust `rpgp` backend, while `OpenPgpBackupCodec.seal` (Kotlin & Swift), Android
+  `OpenPgpKeyFileBackupTask`, Desktop `DesktopOpenPgpExport`, and iOS `ComposeVaultHost` all enforce
+  the `16 MiB` aggregate recipient-key byte budget (`BoundedInputReader.MAX_DOCUMENT_BYTES`).
+- `SharedCardLayoutDialog` (`:ui-foundation`) exposes `minimizeOnCopy` when supplied by the Desktop
+  host (`ui_minimize_on_copy` iconifying `java.awt.Frame` after copying), and both Desktop and iOS
+  persist reconciled tag selections (`ui_selected_tags`, `ui_untagged_selected`) across sessions and
+  portable preference exports.

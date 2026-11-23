@@ -13,16 +13,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import com.fairuniversal.offlineotp.ui.portable.PortableAddedEmailIdentityDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailConnectionDraft
+import com.fairuniversal.offlineotp.ui.portable.PortableEmailIdentityDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailSettingsDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 /**
- * Shared non-secret email connection & sender identity settings editor across Android, Desktop and iOS.
+ * Shared email connection & sender identity settings editor across Android, Desktop and iOS.
  *
  * Supports editing account display name, incoming protocol/server/port/username/authentication/encryption,
- * per-identity sender display name/email/server/port/username/authentication/encryption, and staged
- * removal of non-primary SMTP identities (`#2..#N`) with undo before saving.
+ * per-identity sender display name/email/server/port/username/authentication/encryption, primary-identity
+ * reassignment, staged creation of additional SMTP identities with masked credentials, and staged
+ * removal of non-primary SMTP identities with undo before saving.
  */
 @Composable
 fun SharedEmailSettingsDialog(
@@ -33,7 +37,9 @@ fun SharedEmailSettingsDialog(
     onSubmit: (PortableEmailSettingsDraft) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var input by remember(inputKey) { mutableStateOf(initial) }
+    var input by remember(inputKey) { mutableStateOf(initial.withoutSecrets()) }
+    val effectivePrimary = input.primaryIdentityIndex ?: 0
+    val survivingCount = (input.outgoing.size - input.removedIdentities.size) + input.addedIdentities.size
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Edit email settings") },
@@ -63,16 +69,28 @@ fun SharedEmailSettingsDialog(
                 input.outgoing.forEachIndexed { index, connection ->
                     val title = if (index == 0) "Outgoing" else "Outgoing #${index + 1}"
                     val removed = index in input.removedIdentities
+                    val isPrimary = effectivePrimary == index
                     if (removed) {
                         Text("$title marked for removal; Save deletes this identity and its credential.")
                         ForestTextAction("Undo removal", onClick = {
                             input = input.copy(removedIdentities = input.removedIdentities - index)
                         })
                     } else {
-                        if (index in input.removableIdentities) {
-                            ForestTextAction("Remove SMTP #${index + 1} on Save", onClick = {
-                                input = input.copy(removedIdentities = input.removedIdentities + index)
-                            })
+                        Row {
+                            if (isPrimary) {
+                                Text("$title [Primary]")
+                            } else {
+                                ForestTextAction("Make SMTP #${index + 1} primary", onClick = {
+                                    input = input.copy(primaryIdentityIndex = index)
+                                })
+                            }
+                            val canRemove = !isPrimary && survivingCount > 1 &&
+                                (index in input.removableIdentities || input.primaryIdentityIndex != null)
+                            if (canRemove) {
+                                ForestTextAction("Remove SMTP #${index + 1} on Save", onClick = {
+                                    input = input.copy(removedIdentities = input.removedIdentities + index)
+                                })
+                            }
                         }
                         input.identities?.getOrNull(index)?.let { identity ->
                             OutlinedTextField(
@@ -113,13 +131,118 @@ fun SharedEmailSettingsDialog(
                         }
                     }
                 }
+                input.addedIdentities.forEachIndexed { addedIndex, added ->
+                    val combinedIndex = input.outgoing.size + addedIndex
+                    val title = "New outgoing #${combinedIndex + 1}"
+                    val isPrimary = effectivePrimary == combinedIndex
+                    Row {
+                        if (isPrimary) {
+                            Text("$title [Primary]")
+                        } else {
+                            ForestTextAction("Make new SMTP #${addedIndex + 1} primary", onClick = {
+                                input = input.copy(primaryIdentityIndex = combinedIndex)
+                            })
+                        }
+                        if (survivingCount > 1 || !isPrimary) {
+                            ForestTextAction("Discard new SMTP #${addedIndex + 1}", onClick = {
+                                val nextAdded = input.addedIdentities.filterIndexed { i, _ -> i != addedIndex }
+                                val currentPrimary = input.primaryIdentityIndex
+                                val nextPrimary = when {
+                                    currentPrimary == null -> null
+                                    currentPrimary == combinedIndex ->
+                                        (0 until input.outgoing.size).firstOrNull { it !in input.removedIdentities }
+                                            ?.takeIf { it != 0 }
+                                    currentPrimary > combinedIndex -> currentPrimary - 1
+                                    else -> currentPrimary
+                                }
+                                input = input.copy(
+                                    addedIdentities = nextAdded,
+                                    primaryIdentityIndex = nextPrimary
+                                )
+                            })
+                        }
+                    }
+                    OutlinedTextField(
+                        value = added.identity.name,
+                        onValueChange = { next ->
+                            if (next.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                                input = input.copy(
+                                    addedIdentities = input.addedIdentities.mapIndexed { i, old ->
+                                        if (i == addedIndex) old.copy(identity = old.identity.copy(name = next)) else old
+                                    }
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        label = { Text("$title sender display name") }
+                    )
+                    OutlinedTextField(
+                        value = added.identity.address,
+                        onValueChange = { next ->
+                            if (next.length <= PortableInputBounds.MAX_TEXT_CHARS) {
+                                input = input.copy(
+                                    addedIdentities = input.addedIdentities.mapIndexed { i, old ->
+                                        if (i == addedIndex) old.copy(identity = old.identity.copy(address = next)) else old
+                                    }
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        label = { Text("$title sender email address") }
+                    )
+                    SharedConnectionFields(title, added.connection) { nextConn ->
+                        input = input.copy(
+                            addedIdentities = input.addedIdentities.mapIndexed { i, old ->
+                                if (i == addedIndex) old.copy(connection = nextConn) else old
+                            }
+                        )
+                    }
+                    OutlinedTextField(
+                        value = added.password,
+                        onValueChange = { next ->
+                            if (next.length <= PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS) {
+                                input = input.copy(
+                                    addedIdentities = input.addedIdentities.mapIndexed { i, old ->
+                                        if (i == addedIndex) old.copy(password = next) else old
+                                    }
+                                )
+                            }
+                        },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        label = { Text("$title password") }
+                    )
+                }
+                if (survivingCount < PortableInputBounds.MAX_EMAIL_IDENTITIES) {
+                    ForestTextAction("Add SMTP identity", onClick = {
+                        val template = input.outgoing.firstOrNull()
+                        val seedConnection = PortableEmailConnectionDraft(
+                            host = template?.host.orEmpty(),
+                            port = template?.port?.ifBlank { "587" } ?: "587",
+                            encryption = template?.encryption ?: 1,
+                            username = "",
+                            authentication = template?.authentication?.ifBlank { "1" } ?: "1"
+                        )
+                        input = input.copy(
+                            addedIdentities = input.addedIdentities + PortableAddedEmailIdentityDraft(
+                                identity = PortableEmailIdentityDraft(),
+                                connection = seedConnection,
+                                password = ""
+                            )
+                        )
+                    })
+                }
                 val failureMessage = errorText
                     ?: if (failed) "Could not save email settings. Check server, port and storage; original retained." else null
                 failureMessage?.let { Text(it) }
             }
         },
         confirmButton = {
-            ForestTextAction("Save", onClick = { onSubmit(input) })
+            ForestTextAction("Save", onClick = {
+                val submitted = input
+                input = input.withoutSecrets()
+                onSubmit(submitted)
+            })
         },
         dismissButton = {
             ForestTextAction("Cancel", onClick = onDismiss)

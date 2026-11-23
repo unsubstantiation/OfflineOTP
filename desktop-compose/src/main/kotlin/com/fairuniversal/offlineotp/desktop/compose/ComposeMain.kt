@@ -399,12 +399,20 @@ private fun DesktopUnlockContent(controller: VaultController, location: DesktopS
 @Composable
 private fun VaultContent(controller: VaultController, vault: DesktopVaultState, window: java.awt.Window, location: DesktopStorageLocation, onEnrollHardware: (() -> Boolean, () -> Unit, java.util.concurrent.Executor) -> Unit, onChangePassword: (() -> Boolean, () -> Unit) -> Unit, onLock: () -> Unit, onOpenAbout: () -> Unit = {}) {
     val strings = VaultStrings.English
+    fun reconciledSelectedTags(rule: Constants.TagFunctionality = controller.savedTagFunctionality()): List<String> {
+        val available = vault.snapshot().flatMapTo(LinkedHashSet()) { it.getTags() }
+        val stored = controller.savedSelectedTags().filter { it in available }
+        return if (rule == Constants.TagFunctionality.SINGLE && stored.size > 1) stored.take(1) else stored
+    }
     val initialFilter = remember(vault) {
+        val rule = controller.savedTagFunctionality()
         VaultFilter(
             searchIncludes = controller.savedSearchIncludes(),
+            selectedTags = reconciledSelectedTags(rule),
+            untaggedSelected = controller.savedUntaggedSelected(),
             sortMode = controller.savedSortMode(),
             category = EntryListPresentation.Category.OTP,
-            tagFunctionality = controller.savedTagFunctionality(),
+            tagFunctionality = rule,
             // The desktop client has always let a search and a tag selection narrow the list
             // together; the projection carries that policy as a value.
             combination = VaultFilterCombination.SEARCH_AND_TAGS
@@ -512,7 +520,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedThumbnailSizeDp,
             controller::trySaveThumbnailSizeDp,
             controller::savedFocusSearchOnStart,
-            controller::trySaveFocusSearchOnStart
+            controller::trySaveFocusSearchOnStart,
+            controller::savedMinimizeOnCopy,
+            controller::trySaveMinimizeOnCopy
         )
     }
     val autoLock = remember(vault) {
@@ -569,6 +579,10 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
             },
             tagRuleSelected = { mode -> controller.saveTagFunctionality(mode) },
+            tagSelectionChanged = { tags, untagged ->
+                controller.trySaveSelectedTags(tags)
+                controller.trySaveUntaggedSelected(untagged)
+            },
             lockVault = {
                 showStorageLocation = false
                 showSearchFields = false
@@ -735,6 +749,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }
         presenter.applyFilter(presenter.filter)
         revision++
+        if (result == DesktopEntryCopy.Result.COPIED && controller.savedMinimizeOnCopy() && window is java.awt.Frame) {
+            window.extendedState = window.extendedState or java.awt.Frame.ICONIFIED
+        }
     }
     fun performCopy(request: DesktopEntryCopy.Request, field: EntryEditor.CopyField) {
         reportCopyOutcome(copier.copy(request, field, presenter.isRevealed(request.entryId), lifetime::checkActive))
@@ -1369,6 +1386,15 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     )
                 }
                 if (plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) presenter.applyFilter(presenter.filter.copy(tagFunctionality = controller.savedTagFunctionality()))
+                if (plan.contains(PreferencesExport.UI_SELECTED_TAGS) || plan.contains(PreferencesExport.UI_UNTAGGED_SELECTED) || plan.contains(PreferencesExport.UI_TAG_FUNCTIONALITY)) {
+                    val rule = presenter.filter.tagFunctionality
+                    presenter.applyFilter(
+                        presenter.filter.copy(
+                            selectedTags = reconciledSelectedTags(rule),
+                            untaggedSelected = controller.savedUntaggedSelected()
+                        )
+                    )
+                }
                 if (plan.contains(PreferencesExport.UI_SORT_MODE)) presenter.applyFilter(presenter.filter.copy(sortMode = controller.savedSortMode()))
                 if (plan.contains(PreferencesExport.UI_SEARCH_INCLUDES)) presenter.applyFilter(presenter.filter.copy(searchIncludes = controller.savedSearchIncludes()))
             }
@@ -1477,7 +1503,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         var recipientFiles by remember(pgpExportRequest) { mutableStateOf<List<java.io.File>>(emptyList()) }
         OpenPgpExportDialog(busy = pgpExportRequest.busy, recipientNames = recipientFiles.map { it.name },
             error = when (pgpExportRequest.failure) {
-                DesktopOpenPgpExport.Failure.KEY -> "Select 1–8 distinct recipient public-key files."
+                DesktopOpenPgpExport.Failure.KEY -> "Select 1–${DesktopOpenPgpExport.MAX_RECIPIENT_FILES} distinct recipient public-key files."
                 DesktopOpenPgpExport.Failure.EXISTS -> "That filename exists. Cancel and choose a new filename."
                 DesktopOpenPgpExport.Failure.EXPORT -> "Could not export. Check the recipient key and destination. A partial encrypted file may remain; choose a new filename to retry."
                 null -> null
@@ -1640,6 +1666,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         tapToRevealTimeoutSeconds = layoutRequest.tapToRevealTimeoutSeconds,
         thumbnailSizeDp = layoutRequest.thumbnailSizeDp,
         focusSearchOnStart = layoutRequest.focusSearchOnStart,
+        minimizeOnCopy = layoutRequest.minimizeOnCopy,
         onSaveSelection = { selection ->
             layoutSettings.submit(
                 layoutRequest,

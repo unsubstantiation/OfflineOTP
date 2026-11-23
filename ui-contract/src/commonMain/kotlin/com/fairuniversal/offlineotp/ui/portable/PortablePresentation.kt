@@ -598,7 +598,8 @@ data class PortableCardDisplaySelection(
     val hideGlobalTimeout: Boolean = false,
     val tapToRevealTimeoutSeconds: Int = 0,
     val thumbnailSizeDp: Int = 0,
-    val focusSearchOnStart: Boolean = false
+    val focusSearchOnStart: Boolean = false,
+    val minimizeOnCopy: Boolean = false
 ) {
     constructor(
         layout: PortableCardLayout,
@@ -629,7 +630,43 @@ data class PortableCardDisplaySelection(
         hideGlobalTimeout = hideGlobalTimeout,
         tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
         thumbnailSizeDp = 0,
-        focusSearchOnStart = false
+        focusSearchOnStart = false,
+        minimizeOnCopy = false
+    )
+
+    constructor(
+        layout: PortableCardLayout,
+        hideIssuer: Boolean,
+        showPreviousToken: Boolean,
+        tokenGroupSize: Int?,
+        showIndividualCountdowns: Boolean,
+        labelDisplay: PortableLabelDisplay,
+        showThumbnails: Boolean,
+        labelSizeSp: Int,
+        highlightExpiringTokens: Boolean,
+        tapSingle: PortableTapMode,
+        tapDouble: PortableTapMode,
+        hideGlobalTimeout: Boolean,
+        tapToRevealTimeoutSeconds: Int,
+        thumbnailSizeDp: Int,
+        focusSearchOnStart: Boolean
+    ) : this(
+        layout = layout,
+        hideIssuer = hideIssuer,
+        showPreviousToken = showPreviousToken,
+        tokenGroupSize = tokenGroupSize,
+        showIndividualCountdowns = showIndividualCountdowns,
+        labelDisplay = labelDisplay,
+        showThumbnails = showThumbnails,
+        labelSizeSp = labelSizeSp,
+        highlightExpiringTokens = highlightExpiringTokens,
+        tapSingle = tapSingle,
+        tapDouble = tapDouble,
+        hideGlobalTimeout = hideGlobalTimeout,
+        tapToRevealTimeoutSeconds = tapToRevealTimeoutSeconds,
+        thumbnailSizeDp = thumbnailSizeDp,
+        focusSearchOnStart = focusSearchOnStart,
+        minimizeOnCopy = false
     )
 }
 
@@ -720,7 +757,22 @@ data class PortableEmailIdentityDraft(
     override fun toString(): String = "PortableEmailIdentityDraft(redacted)"
 }
 
-/** Multi-identity email connection & sender settings draft, including staged SMTP removals. */
+/** Newly created additional SMTP identity staged inside [PortableEmailSettingsDraft]. */
+data class PortableAddedEmailIdentityDraft(
+    val identity: PortableEmailIdentityDraft = PortableEmailIdentityDraft(),
+    val connection: PortableEmailConnectionDraft = PortableEmailConnectionDraft(
+        port = "587",
+        encryption = 1,
+        authentication = "1"
+    ),
+    val password: String = ""
+) {
+    fun withoutSecret(): PortableAddedEmailIdentityDraft = copy(password = "")
+
+    override fun toString(): String = "PortableAddedEmailIdentityDraft(redacted)"
+}
+
+/** Multi-identity email connection & sender settings draft, including staged SMTP additions, primary reassignment, and removals. */
 data class PortableEmailSettingsDraft(
     val protocol: Int = 0,
     val incoming: PortableEmailConnectionDraft = PortableEmailConnectionDraft(),
@@ -728,8 +780,33 @@ data class PortableEmailSettingsDraft(
     val identities: List<PortableEmailIdentityDraft>? = null,
     val accountName: String? = null,
     val removedIdentities: Set<Int> = emptySet(),
-    val removableIdentities: Set<Int> = emptySet()
+    val removableIdentities: Set<Int> = emptySet(),
+    val primaryIdentityIndex: Int? = null,
+    val addedIdentities: List<PortableAddedEmailIdentityDraft> = emptyList()
 ) {
+    constructor(
+        protocol: Int,
+        incoming: PortableEmailConnectionDraft,
+        outgoing: List<PortableEmailConnectionDraft>,
+        identities: List<PortableEmailIdentityDraft>?,
+        accountName: String?,
+        removedIdentities: Set<Int>,
+        removableIdentities: Set<Int>
+    ) : this(
+        protocol = protocol,
+        incoming = incoming,
+        outgoing = outgoing,
+        identities = identities,
+        accountName = accountName,
+        removedIdentities = removedIdentities,
+        removableIdentities = removableIdentities,
+        primaryIdentityIndex = null,
+        addedIdentities = emptyList()
+    )
+
+    fun withoutSecrets(): PortableEmailSettingsDraft =
+        copy(addedIdentities = addedIdentities.map { it.withoutSecret() })
+
     override fun toString(): String = "PortableEmailSettingsDraft(redacted)"
 }
 

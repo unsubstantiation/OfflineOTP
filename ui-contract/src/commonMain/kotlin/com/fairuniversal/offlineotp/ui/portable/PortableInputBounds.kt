@@ -15,6 +15,8 @@ object PortableInputBounds {
     const val MAX_PASSWORD_FIELD_CHARS: Int = 64 * 1024
     const val MAX_EMAIL_CREDENTIAL_CHARS: Int = 16 * 1024
     const val MAX_EMAIL_BYTES: Int = 128 * 1024
+    const val MAX_EMAIL_IDENTITIES: Int = 16
+    const val MAX_OPENPGP_RECIPIENTS: Int = 64
 
     const val EMAIL_EDIT_WARNING: String =
         "Warning: You should only make edits if you know what you are doing and that it will work. " +
