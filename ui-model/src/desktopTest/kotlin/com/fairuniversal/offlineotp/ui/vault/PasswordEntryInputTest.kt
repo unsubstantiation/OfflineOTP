@@ -107,4 +107,58 @@ class PasswordEntryInputTest {
             archive.destroy()
         }
     }
+
+    @Test fun buildNewCreatesBrowserExportablePasswordEntryAndRejectsInvalidInputs() {
+        val created = PasswordEntryInput(
+            issuer = "GitHub",
+            url = "https://github.com/login",
+            username = "octocat",
+            password = "super-secret-password",
+            note = "primary account",
+            tags = "work\ndev",
+            thumbnail = "GitHub"
+        ).buildNew()
+        try {
+            assertTrue(created.isPassword())
+            assertTrue(PasswordEntryInput.supports(created))
+            val support = com.fairuniversal.offlineotp.Utilities.PasswordCsvExport.support(created)
+            assertTrue(support is com.fairuniversal.offlineotp.Utilities.PasswordCsvExport.Support.Exportable)
+            assertEquals(
+                com.fairuniversal.offlineotp.Utilities.PasswordCsvExport.Dialect.CHROME,
+                (support as com.fairuniversal.offlineotp.Utilities.PasswordCsvExport.Support.Exportable).dialect
+            )
+            assertEquals("GitHub", created.getIssuer())
+            assertEquals("octocat", created.getLabel())
+            assertEquals("GitHub", created.getThumbnailName())
+            assertEquals(listOf("work", "dev"), created.getTags())
+            val fields = created.getPasswordFields()
+            assertEquals("GitHub", fields.value("name"))
+            assertEquals("https://github.com/login", fields.value("url"))
+            assertEquals("octocat", fields.value("username"))
+            assertEquals("super-secret-password", fields.value("password"))
+            assertEquals("primary account", fields.value("note"))
+        } finally {
+            created.destroy()
+        }
+
+        val urlOnly = PasswordEntryInput(url = "https://example.org", password = "pw").buildNew()
+        try {
+            assertEquals("https://example.org", urlOnly.getIssuer())
+            assertEquals("Password", urlOnly.getLabel())
+        } finally {
+            urlOnly.destroy()
+        }
+
+        for (bad in listOf(
+            PasswordEntryInput(issuer = "Site", password = ""),
+            PasswordEntryInput(issuer = " ", url = " ", username = " ", password = "pw"),
+            PasswordEntryInput(issuer = "Site", password = "pw\u0000bad"),
+            PasswordEntryInput(issuer = "Site", password = "pw", thumbnail = "NoSuchLogo"),
+            PasswordEntryInput(issuer = "Site", password = "pw", archiveMode = true)
+        )) {
+            var rejected = false
+            try { bad.buildNew().destroy() } catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue(rejected)
+        }
+    }
 }

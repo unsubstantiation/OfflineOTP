@@ -317,6 +317,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "add":
             if store.category == .emails {
                 openEmailEditor(index: nil)
+            } else if store.category == .passwords {
+                openPasswordCreator()
             } else {
                 openEditor(index: nil, kind: categoryKind())
             }
@@ -654,6 +656,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         openSurface("passwordEdit:\(index)", keepDraft: true)
     }
 
+    private func openPasswordCreator() {
+        editorIndex = nil
+        passwordEditIndex = nil
+        openedFields = nil
+        openedGeneration = nil
+        draft = [
+            "issuer": "",
+            "url": "",
+            "username": "",
+            "password": "",
+            "note": "",
+            "tags": "",
+            "thumbnail": ""
+        ]
+        openSurface("passwordCreate", keepDraft: true)
+    }
+
     private func openEmailEditor(index: Int?) {
         editorIndex = index
         draft = [:]
@@ -678,6 +697,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft["outUser"] = primary["user"]?.stringValue ?? ""
             draft["outPass"] = ""
             draft["tags"] = entry.tags.joined(separator: ", ")
+            draft["thumbnail"] = entry.thumbnail
         } else {
             draft["name"] = ""
             draft["address"] = ""
@@ -695,6 +715,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             draft["outUser"] = ""
             draft["outPass"] = ""
             draft["tags"] = ""
+            draft["thumbnail"] = ""
         }
         openSurface("emailEditor", keepDraft: true)
     }
@@ -757,6 +778,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         if key.hasPrefix("passwordEdit:") {
             let position = Int(String(key.dropFirst("passwordEdit:".count))) ?? -1
             return passwordEditSurface(at: position)
+        }
+        if key == "passwordCreate" {
+            return passwordCreateSurface()
         }
         if key == "emailEditor" {
             return emailEditorSurface()
@@ -1162,6 +1186,27 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message: draft["surfaceError"] ?? "")
     }
 
+    private func passwordCreateSurface() -> PortableSurfaceState {
+        let rows: [PortableRow] = [
+            row("issuer", "Title / Issuer", value: draft["issuer"] ?? "", kind: "text"),
+            row("url", "URL", value: draft["url"] ?? "", kind: "text"),
+            row("username", "Username", value: draft["username"] ?? "", kind: "text"),
+            row("password", "Password", value: draft["password"] ?? "", kind: "secure"),
+            row("note", "Note", value: draft["note"] ?? "", kind: "text"),
+            row("tags", "Tags", value: draft["tags"] ?? "", kind: "text"),
+            row("thumbnail", "Artwork", value: draft["thumbnail"] ?? "", kind: "text"),
+            row("thumbnailCatalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info")
+        ]
+        return surface(
+            key: "passwordCreate",
+            title: "Add password",
+            sections: [PortableSection(title: "Website login", rows: rows)],
+            confirmLabel: "Add",
+            dismissLabel: "Cancel",
+            message: draft["surfaceError"] ?? ""
+        )
+    }
+
     private func emailEncryptionLabel(_ raw: String?) -> String {
         switch Int(raw ?? "0") ?? 0 {
         case 0: return "SSL"
@@ -1179,7 +1224,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             PortableSection(title: "Account", rows: [
                 row("name", "Display name", value: draft["name"] ?? "", kind: "text"),
                 row("address", "Email address", value: draft["address"] ?? "", kind: "text"),
-                row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text")]),
+                row("tags", "Tags (comma separated)", value: draft["tags"] ?? "", kind: "text"),
+                row("thumbnail", "Artwork", value: draft["thumbnail"] ?? "", kind: "text"),
+                row("thumbnailCatalog", "Catalog", value: ThumbnailCatalog.names.joined(separator: ","), kind: "info")]),
             PortableSection(title: "Incoming server", rows: [
                 row("emailCycleProto", "Protocol", value: inProto, kind: "action"),
                 row("inProtoNum", "Incoming protocol code", value: draft["inProto"] ?? "0", kind: "info"),
@@ -1692,6 +1739,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         guard active else { return }
         noteActivity()
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
+            || surfaceKey == "passwordCreate"
             || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
             || surfaceKey == "backups" || surfaceKey == "backupExportDialog"
             || surfaceKey == "biometricEnable" || surfaceKey == "restore"
@@ -1731,7 +1779,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             // surfaces keep their own epoch when they stage files or candidate lists.
             if let epoch = surfaceEpoch,
                ["passwordChange", "autoLock", "prefsConfirm", "restore", "backupExportDialog",
-                "editor", "emailEditor", "emailEdit", "emailPasswordEdit", "emailSettingsEdit",
+                "editor", "passwordCreate", "emailEditor", "emailEdit", "emailPasswordEdit", "emailSettingsEdit",
                 "delete", "tagEdit", "pinEdit", "counterEdit",
                 "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
                 "fairEmailExportSelect", "thunderbirdExportSelect", "thunderbirdConfirm",
@@ -1755,6 +1803,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private func confirmSurface() -> String? {
         switch surfaceKey {
         case "editor": return saveEditor()
+        case "passwordCreate": return savePasswordCreate()
         case "emailEditor": return saveEmailEditor()
         case "emailEdit": return saveEmailFullEditor()
         case "emailPasswordEdit": return saveEmailPasswordEditor()
@@ -2135,6 +2184,52 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         return nil
     }
 
+    private func savePasswordCreate() -> String? {
+        guard store.isUnlocked else {
+            draft["password"] = ""
+            return "The vault locked. Close and try again."
+        }
+        let issuer = draft["issuer"] ?? ""
+        let url = draft["url"] ?? ""
+        let username = draft["username"] ?? ""
+        let password = draft["password"] ?? ""
+        let note = draft["note"] ?? ""
+        let chosenThumbnail = (draft["thumbnail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let parsedTags = (draft["tags"] ?? "")
+            .split(whereSeparator: { $0 == "," || $0.isNewline })
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        draft["password"] = ""
+        guard !password.isEmpty else {
+            let err = "Enter a password to add."
+            draft["surfaceError"] = err
+            return err
+        }
+        guard !issuer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let err = "Enter a title, URL, or username."
+            draft["surfaceError"] = err
+            return err
+        }
+        guard store.addPasswordEntry(
+            issuer: issuer,
+            url: url,
+            username: username,
+            password: password,
+            note: note,
+            tags: parsedTags,
+            thumbnail: chosenThumbnail
+        ) else {
+            let err = store.message ?? "The password entry could not be added."
+            draft["surfaceError"] = err
+            return err
+        }
+        message("Password added.")
+        closeSurface()
+        return nil
+    }
+
     private func savePasswordEdit() -> String? {
         guard let index = passwordEditIndex, store.isUnlocked,
               openedGeneration.map { store.generation == $0 } == true,
@@ -2474,6 +2569,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 }
                 var built = try Entry.email(account: account, tags: tags)
                 built = EntryDraft.preservingMetadata(of: store.entries[index], in: built)
+                let chosenThumbnail = (draft["thumbnail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if !chosenThumbnail.isEmpty {
+                    built.setThumbnail(chosenThumbnail)
+                }
                 guard store.update(at: index, with: built) else {
                     return store.message ?? "The email account could not be saved."
                 }
@@ -2494,7 +2593,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                     outgoingUser: draft["outUser"] ?? "",
                     outgoingPassword: typedOutPass,
                     outgoingAuth: outAuth)
-                guard store.addEmailAccount(account, tags: tags) else {
+                let chosenThumbnail = (draft["thumbnail"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard store.addEmailAccount(account, tags: tags, thumbnail: chosenThumbnail) else {
                     return store.message ?? "The email account could not be saved."
                 }
             }
@@ -2765,6 +2865,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 return "There are no stored password archives in this vault."
             }
             openSurface("archiveExport")
+            return nil
+        case "switchToManualEditor":
+            openEditor(index: nil, kind: .totp)
+            return nil
+        case "switchToPasswordEditor":
+            openPasswordCreator()
             return nil
         case "switchToEmailEditor":
             openEmailEditor(index: nil)

@@ -1,9 +1,11 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.desktop.storage.DesktopStorage
 import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import java.nio.file.Files
 import javax.crypto.spec.SecretKeySpec
 import org.junit.Assert.assertEquals
@@ -186,5 +188,52 @@ class DesktopEntryCreationTest {
             assertEquals(0, rejected!!.getSecretSize())
             assertTrue(state.snapshot().isEmpty())
         } finally { creation.close(); state.lock() }
+    }
+
+    @Test
+    fun passwordCreationPreservesInitialCategoryClearsFailureAndHandsOffOnce() {
+        val dir = Files.createTempDirectory("prepared-password-").toFile()
+        val controller = VaultController(DesktopStorage.open(dir))
+        val loaded = controller.createVault("password") as VaultController.Session.Loaded
+        val state = DesktopVaultState(loaded.key)
+        val editor = EntryEditor(controller, state)
+        val creation = DesktopEntryCreation(state, editor::add)
+        try {
+            creation.open(EntryListPresentation.Category.PASSWORDS)
+            val request = creation.pending!!
+            assertEquals(EntryListPresentation.Category.PASSWORDS, request.initialCategory)
+            assertFalse(creation.submitPassword(request, PasswordEntryInput(issuer = "GitHub", password = "")))
+            assertEquals(DesktopEntryCreation.Failure.INVALID_INPUT, request.failure)
+            creation.clearFailure(request)
+            assertEquals(null, request.failure)
+
+            var handedOff: Entry? = null
+            val valid = PasswordEntryInput(
+                issuer = "GitHub",
+                url = "https://github.com/login",
+                username = "octocat",
+                password = "secret-password",
+                note = "ssh fallback"
+            )
+            assertTrue(creation.preparePassword(request, valid, { true }) { draft ->
+                handedOff = Entry(draft.toJSON())
+            })
+            assertEquals(null, creation.pending)
+            assertFalse(creation.preparePassword(request, valid, { true }) { })
+            val copy = handedOff!!
+            try {
+                assertTrue(copy.isPassword())
+                assertEquals("GitHub", copy.getIssuer())
+                assertEquals("octocat", copy.getLabel())
+                assertEquals("secret-password", copy.getPasswordFields().value("password"))
+                assertEquals("ssh fallback", copy.getPasswordFields().value("note"))
+            } finally {
+                copy.destroy()
+            }
+        } finally {
+            creation.close()
+            state.lock()
+            dir.deleteRecursively()
+        }
     }
 }

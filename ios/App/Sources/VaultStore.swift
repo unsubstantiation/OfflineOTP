@@ -1556,11 +1556,53 @@ public final class VaultStore: ObservableObject {
         return ExportedBackup(name: "password-archive.bin", data: bytes)
     }
 
+    /// Adds a manually entered website password entry using the shared Chrome-compatible column schema.
+    @discardableResult
+    public func addPasswordEntry(
+        issuer: String = "",
+        url: String = "",
+        username: String = "",
+        password: String,
+        note: String = "",
+        tags: [String] = [],
+        thumbnail: String = "",
+        now: Date = Date()
+    ) -> Bool {
+        do {
+            let entry = try PasswordCsvExport.create(
+                issuer: issuer,
+                url: url,
+                username: username,
+                password: password,
+                note: note,
+                tags: tags,
+                thumbnail: thumbnail,
+                now: EntryUsage.nowMillis(now)
+            )
+            return add(entry)
+        } catch {
+            message = "The password entry fields are incomplete or invalid."
+            return false
+        }
+    }
+
     /// Adds a manually entered FairEmail-compatible email account to the vault.
     @discardableResult
-    public func addEmailAccount(_ account: EmailMaterial.Account, tags: [String] = [], now: Date = Date()) -> Bool {
+    public func addEmailAccount(
+        _ account: EmailMaterial.Account,
+        tags: [String] = [],
+        thumbnail: String = "",
+        now: Date = Date()
+    ) -> Bool {
         do {
-            let entry = try Entry.email(account: account, tags: tags, now: EntryUsage.nowMillis(now))
+            var entry = try Entry.email(account: account, tags: tags, now: EntryUsage.nowMillis(now))
+            if !thumbnail.isEmpty {
+                guard ThumbnailCatalog.names.contains(thumbnail) else {
+                    message = "The email account settings are incomplete or invalid."
+                    return false
+                }
+                entry.setThumbnail(thumbnail)
+            }
             return add(entry)
         } catch {
             message = "The email account settings are incomplete or invalid."

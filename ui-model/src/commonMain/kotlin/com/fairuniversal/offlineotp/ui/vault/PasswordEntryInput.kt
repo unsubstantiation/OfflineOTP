@@ -1,13 +1,15 @@
 package com.fairuniversal.offlineotp.ui.vault
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.Utilities.BrowserPasswordCsv
+import com.fairuniversal.offlineotp.Utilities.InputPolicy
 import com.fairuniversal.offlineotp.Utilities.PasswordCsvExport
 import com.fairuniversal.offlineotp.Utilities.PasswordMaterial
 import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailField
 import java.util.Locale
 
-/** Edit-only password / archive fields; never preload a stored password. */
+/** Password / archive creation and edit fields; never preload a stored password. */
 data class PasswordEntryInput(
     val url: String = "",
     val username: String = "",
@@ -19,8 +21,56 @@ data class PasswordEntryInput(
     val extraFields: List<PortableEmailField>? = null,
     val customColumnsMode: Boolean = false,
     val archiveMode: Boolean = false,
-    val archiveSizeBytes: Int = 0
+    val archiveSizeBytes: Int = 0,
+    val note: String = ""
 ) {
+    /** Builds a new browser-CSV-exportable `PASSWORD` entry using the canonical Chrome column schema. */
+    fun buildNew(): Entry {
+        require(!archiveMode && !customColumnsMode) { "Unsupported password creation mode" }
+        require(password.isNotEmpty()) { "A password cannot be empty" }
+        val trimmedIssuer = issuer.trim()
+        val trimmedUrl = url.trim()
+        val trimmedUser = username.trim()
+        require(trimmedIssuer.isNotEmpty() || trimmedUrl.isNotEmpty() || trimmedUser.isNotEmpty()) {
+            "Enter a title, URL, or username"
+        }
+        InputPolicy.text(trimmedIssuer, InputPolicy.MAX_TEXT_CHARS)
+        listOf(url, username, password, note).forEach { value ->
+            require(value.length <= BrowserPasswordCsv.MAX_FIELD_CHARS) { "Password field exceeds limit" }
+            require('\u0000' !in value) { "Password field contains NUL" }
+        }
+        require(thumbnail.isNullOrEmpty() || thumbnail in ThumbnailCatalog.NAMES) { "Unknown thumbnail" }
+        val parsedTags = tags?.let { raw ->
+            ArrayList(raw.split('\n', ',').map { it.trim() }.filter { it.isNotEmpty() }.distinct())
+        } ?: ArrayList()
+        require(parsedTags.size <= InputPolicy.MAX_TAGS) { "Too many tags" }
+        parsedTags.forEach { InputPolicy.text(it, InputPolicy.MAX_TAG_CHARS) }
+        val resolvedName = trimmedIssuer.ifEmpty { trimmedUrl }
+        val resolvedLabel = trimmedUser.ifEmpty { "Password" }
+        val entry = Entry.passwordFields(
+            label = resolvedLabel,
+            issuer = resolvedName,
+            fields = listOf(
+                "name" to resolvedName,
+                PasswordCsvExport.FIELD_URL to url,
+                PasswordCsvExport.FIELD_USERNAME to username,
+                PasswordCsvExport.FIELD_PASSWORD to password,
+                "note" to note
+            ),
+            tags = parsedTags
+        )
+        try {
+            if (!thumbnail.isNullOrEmpty()) {
+                entry.setThumbnailName(thumbnail)
+            }
+            entry.validate()
+            return entry
+        } catch (error: Exception) {
+            entry.destroy()
+            throw error
+        }
+    }
+
     fun build(existing: Entry): Entry {
         require(thumbnail.isNullOrEmpty() || thumbnail in ThumbnailCatalog.NAMES || thumbnail == existing.getThumbnailName()) {
             "Unknown thumbnail"

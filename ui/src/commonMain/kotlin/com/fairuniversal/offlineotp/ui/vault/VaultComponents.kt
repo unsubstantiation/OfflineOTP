@@ -256,6 +256,18 @@ private fun VaultIssuerArtwork(card: VaultCardState, showIssuer: Boolean, sizeDp
 }
 
 @Composable
-internal fun VaultEmptyState(title: String, description: String) {
-    SharedVaultEmptyState(title = title, description = description)
+internal fun VaultEmptyState(
+    title: String,
+    description: String,
+    actionLabel: String? = null,
+    actionDescription: String = "",
+    onAction: (() -> Unit)? = null
+) {
+    SharedVaultEmptyState(
+        title = title,
+        description = description,
+        actionLabel = actionLabel,
+        actionDescription = actionDescription,
+        onAction = onAction
+    )
 }

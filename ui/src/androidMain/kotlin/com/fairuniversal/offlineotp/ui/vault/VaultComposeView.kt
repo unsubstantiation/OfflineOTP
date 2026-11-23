@@ -62,6 +62,14 @@ class VaultComposeView(
     }
     fun ownsEmailCreation(key: Any) = !ended && emailCreation?.key === key
 
+    private class PasswordCreation(val key: Any, val submit: (PasswordEntryInput) -> String?)
+    private var passwordCreation by mutableStateOf<PasswordCreation?>(null)
+    fun showPasswordCreation(key: Any, submit: (PasswordEntryInput) -> String?) {
+        if (ended) return
+        clearEntryEditor(); passwordCreation = PasswordCreation(key, submit)
+    }
+    fun ownsPasswordCreation(key: Any) = !ended && passwordCreation?.key === key
+
     private class EmailEditor(
         val initial: EmailEditInput,
         val onManageTags: (() -> Unit)?,
@@ -158,7 +166,8 @@ class VaultComposeView(
         val onManageTags: (() -> Unit)?,
         val onViewDetails: (() -> Unit)?,
         val onDelete: (() -> Unit)?,
-        val onEmailSubmit: ((EmailEntryInput) -> String?)?,
+        var onPasswordSubmit: ((PasswordEntryInput) -> String?)?,
+        var onEmailSubmit: ((EmailEntryInput) -> String?)?,
         val submit: (ManualEntryInput) -> String?
     )
     private var editor by mutableStateOf<Editor?>(null)
@@ -173,17 +182,31 @@ class VaultComposeView(
         onManageTags: (() -> Unit)? = null,
         onViewDetails: (() -> Unit)? = null,
         onDelete: (() -> Unit)? = null,
+        onPasswordSubmit: ((PasswordEntryInput) -> String?)? = null,
         onEmailSubmit: ((EmailEntryInput) -> String?)? = null,
         submit: (ManualEntryInput) -> String?
     ) {
         if (ended) return
         clearEntryEditor()
-        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onManageTags, onViewDetails, onDelete, onEmailSubmit, submit)
+        editor = Editor(initial, editing, onShowQrCode, onShareKeystrokes, onManageTags, onViewDetails, onDelete, onPasswordSubmit, onEmailSubmit, submit)
+    }
+
+    /** Attaches password and email creation switchers to the currently owned [initial] creation form. */
+    fun setSharedCreationHandlers(
+        initial: ManualEntryInput,
+        onPasswordSubmit: ((PasswordEntryInput) -> String?)? = null,
+        onEmailSubmit: ((EmailEntryInput) -> String?)? = null
+    ) {
+        val current = editor ?: return
+        if (!ended && !current.editing && current.initial === initial) {
+            current.onPasswordSubmit = onPasswordSubmit
+            current.onEmailSubmit = onEmailSubmit
+        }
     }
 
     fun ownsEntryEditor(initial: ManualEntryInput): Boolean = !ended && editor?.initial === initial
 
-    fun clearEntryEditor() { clearLinScpImport(); editor = null; emailEditor = null; emailCreation = null; passwordEditor = null; linScpExport = null; editError = null }
+    fun clearEntryEditor() { clearLinScpImport(); editor = null; emailEditor = null; emailCreation = null; passwordCreation = null; passwordEditor = null; linScpExport = null; editError = null }
 
     init {
         // The Activity's lifecycle destroys the composition; a view left in a detached hierarchy
@@ -249,7 +272,27 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() })
+            }, onDismiss = { clearEntryEditor() }, artwork = artwork)
+        }
+        val creatingPassword = passwordCreation
+        if (creatingPassword != null) ForestTheme {
+            PasswordEntryDialog(
+                inputKey = creatingPassword.key,
+                initial = PasswordEntryInput(),
+                failed = editError != null,
+                editing = false,
+                errorText = editError,
+                artwork = artwork,
+                onSubmit = { input ->
+                    if (ownsPasswordCreation(creatingPassword.key)) {
+                        val failure = creatingPassword.submit(input)
+                        if (passwordCreation === creatingPassword) {
+                            if (failure == null) clearEntryEditor() else editError = failure
+                        }
+                    }
+                },
+                onDismiss = { clearEntryEditor() }
+            )
         }
         val email = emailEditor
         if (email != null) ForestTheme {
@@ -271,12 +314,13 @@ class VaultComposeView(
                         if (failure == null) clearEntryEditor() else editError = failure
                     }
                 }
-            }, onDismiss = { clearEntryEditor() }, artwork = artwork, onManageTags = password.onManageTags, onViewDetails = password.onViewDetails, onExportArchive = password.onExportArchive, onDelete = password.onDelete)
+            }, onDismiss = { clearEntryEditor() }, errorText = editError, artwork = artwork, onManageTags = password.onManageTags, onViewDetails = password.onViewDetails, onExportArchive = password.onExportArchive, onDelete = password.onDelete)
         }
         val request = editor
         if (request != null) ForestTheme {
             ManualEntryDialog(inputKey = request, initial = request.initial, editing = request.editing,
                 artwork = artwork, error = editError, onDismiss = { clearEntryEditor() },
+                onModeChanged = { editError = null },
                 onShowQrCode = request.onShowQrCode,
                 onShareKeystrokes = request.onShareKeystrokes,
                 onManageTags = request.onManageTags,
@@ -290,6 +334,16 @@ class VaultComposeView(
                         }
                     }
                 } else null,
+                onPasswordSubmit = request.onPasswordSubmit?.let { submitPassword ->
+                    { input ->
+                        if (!ended && editor === request) {
+                            val failure = submitPassword(input)
+                            if (editor === request) {
+                                if (failure == null) clearEntryEditor() else editError = failure
+                            }
+                        }
+                    }
+                },
                 onEmailSubmit = request.onEmailSubmit?.let { submitEmail ->
                     { input ->
                         if (!ended && editor === request) {

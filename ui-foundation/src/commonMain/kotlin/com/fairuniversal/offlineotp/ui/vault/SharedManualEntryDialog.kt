@@ -36,6 +36,7 @@ fun SharedManualEntryDialog(
     error: String?,
     onSubmit: (PortableEntryDraft) -> Unit,
     onDismiss: () -> Unit,
+    onSwitchToPassword: (() -> Unit)? = null,
     onSwitchToEmail: (() -> Unit)? = null,
     onSwitchToUriImport: (() -> Unit)? = null,
     submitNotice: String? = null,
@@ -94,6 +95,12 @@ fun SharedManualEntryDialog(
                                 )
                             }
                         )
+                    }
+                    if (onSwitchToPassword != null) {
+                        ForestTextAction(text = "Website password", onClick = {
+                            input = PortableEntryDraft()
+                            onSwitchToPassword()
+                        })
                     }
                     if (onSwitchToEmail != null) {
                         ForestTextAction(text = "Email account", onClick = {

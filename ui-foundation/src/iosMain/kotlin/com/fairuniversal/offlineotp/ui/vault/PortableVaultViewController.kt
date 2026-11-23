@@ -878,10 +878,28 @@ private fun RenderSharedSurface(
                 outgoingAuth = rowValue("outAuth").ifEmpty { "1" },
                 outgoingUser = rowValue("outUser"),
                 outgoingPassword = "",
-                tags = rowValue("tags")
+                tags = rowValue("tags"),
+                thumbnail = rowValue("thumbnail")
             ),
             editing = dialog.title == "Edit email account",
             error = dialog.message.ifEmpty { null },
+            thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+            artwork = artwork,
+            onSwitchToManual = if (dialog.title != "Edit email account") {
+                { onAction("switchToManualEditor") }
+            } else {
+                null
+            },
+            onSwitchToPassword = if (dialog.title != "Edit email account") {
+                { onAction("switchToPasswordEditor") }
+            } else {
+                null
+            },
+            onSwitchToUriImport = if (dialog.title != "Edit email account") {
+                { onAction("switchToUriImport") }
+            } else {
+                null
+            },
             onSubmit = { draft ->
                 surfaceActions.change("name", draft.name)
                 surfaceActions.change("address", draft.address)
@@ -899,6 +917,38 @@ private fun RenderSharedSurface(
                 surfaceActions.change("outUser", draft.outgoingUser)
                 surfaceActions.change("outPass", draft.outgoingPassword)
                 surfaceActions.change("tags", draft.tags)
+                surfaceActions.change("thumbnail", draft.thumbnail)
+                confirm()
+            },
+            onDismiss = onDismiss
+        )
+        "passwordCreate" -> SharedPasswordEntryDialog(
+            inputKey = dialogKey,
+            initial = PortablePasswordEditDraft(
+                url = rowValue("url"),
+                username = rowValue("username"),
+                password = "",
+                issuer = rowValue("issuer"),
+                tags = rowValue("tags"),
+                thumbnail = rowValue("thumbnail"),
+                note = rowValue("note")
+            ),
+            failed = dialog.message.isNotEmpty(),
+            editing = false,
+            errorText = dialog.message.ifEmpty { null },
+            thumbnailNames = rowValue("thumbnailCatalog").split(",").filter { it.isNotEmpty() },
+            artwork = artwork,
+            onSwitchToManual = { onAction("switchToManualEditor") },
+            onSwitchToEmail = { onAction("switchToEmailEditor") },
+            onSwitchToUriImport = { onAction("switchToUriImport") },
+            onSubmit = { draft ->
+                surfaceActions.change("issuer", draft.issuer)
+                surfaceActions.change("url", draft.url)
+                surfaceActions.change("username", draft.username)
+                surfaceActions.change("password", draft.password)
+                surfaceActions.change("note", draft.note)
+                surfaceActions.change("tags", draft.tags)
+                surfaceActions.change("thumbnail", draft.thumbnail)
                 confirm()
             },
             onDismiss = onDismiss
@@ -928,6 +978,11 @@ private fun RenderSharedSurface(
                 ),
                 editing = dialog.title == "Edit entry",
                 error = dialog.message.ifEmpty { null },
+                onSwitchToPassword = if (dialog.title != "Edit entry") {
+                    { onAction("switchToPasswordEditor") }
+                } else {
+                    null
+                },
                 onSwitchToEmail = if (dialog.title != "Edit entry") {
                     { onAction("switchToEmailEditor") }
                 } else {

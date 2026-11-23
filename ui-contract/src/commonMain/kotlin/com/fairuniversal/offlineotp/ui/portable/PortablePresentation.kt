@@ -468,7 +468,7 @@ data class PortableDetailRow(val label: String, val value: String) {
     override fun toString(): String = "PortableDetailRow($label=<redacted>)"
 }
 
-/** Ephemeral password / archive edit fields; never exposes credentials in diagnostics. */
+/** Ephemeral password / archive creation and edit fields; never exposes credentials in diagnostics. */
 data class PortablePasswordEditDraft(
     val url: String = "",
     val username: String = "",
@@ -480,8 +480,36 @@ data class PortablePasswordEditDraft(
     val extraFields: List<PortableEmailField> = emptyList(),
     val customColumnsMode: Boolean = false,
     val archiveMode: Boolean = false,
-    val archiveSizeBytes: Int = 0
+    val archiveSizeBytes: Int = 0,
+    val note: String = ""
 ) {
+    constructor(
+        url: String,
+        username: String,
+        password: String,
+        issuer: String,
+        label: String,
+        tags: String,
+        thumbnail: String,
+        extraFields: List<PortableEmailField>,
+        customColumnsMode: Boolean,
+        archiveMode: Boolean,
+        archiveSizeBytes: Int
+    ) : this(
+        url = url,
+        username = username,
+        password = password,
+        issuer = issuer,
+        label = label,
+        tags = tags,
+        thumbnail = thumbnail,
+        extraFields = extraFields,
+        customColumnsMode = customColumnsMode,
+        archiveMode = archiveMode,
+        archiveSizeBytes = archiveSizeBytes,
+        note = ""
+    )
+
     fun withoutPassword(): PortablePasswordEditDraft = copy(
         password = "",
         extraFields = extraFields.map { field ->
@@ -508,8 +536,46 @@ data class PortableEmailAccountDraft(
     val outgoingAuth: String = "1",
     val outgoingUser: String = "",
     val outgoingPassword: String = "",
-    val tags: String = ""
+    val tags: String = "",
+    val thumbnail: String = ""
 ) {
+    constructor(
+        name: String,
+        address: String,
+        protocol: Int,
+        incomingHost: String,
+        incomingPort: String,
+        incomingEncryption: Int,
+        incomingAuth: String,
+        incomingUser: String,
+        incomingPassword: String,
+        outgoingHost: String,
+        outgoingPort: String,
+        outgoingEncryption: Int,
+        outgoingAuth: String,
+        outgoingUser: String,
+        outgoingPassword: String,
+        tags: String
+    ) : this(
+        name = name,
+        address = address,
+        protocol = protocol,
+        incomingHost = incomingHost,
+        incomingPort = incomingPort,
+        incomingEncryption = incomingEncryption,
+        incomingAuth = incomingAuth,
+        incomingUser = incomingUser,
+        incomingPassword = incomingPassword,
+        outgoingHost = outgoingHost,
+        outgoingPort = outgoingPort,
+        outgoingEncryption = outgoingEncryption,
+        outgoingAuth = outgoingAuth,
+        outgoingUser = outgoingUser,
+        outgoingPassword = outgoingPassword,
+        tags = tags,
+        thumbnail = ""
+    )
+
     fun withoutSecrets(): PortableEmailAccountDraft = copy(incomingPassword = "", outgoingPassword = "")
     override fun toString(): String = "PortableEmailAccountDraft(redacted)"
 }

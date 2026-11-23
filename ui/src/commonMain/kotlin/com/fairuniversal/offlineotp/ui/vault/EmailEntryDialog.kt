@@ -3,6 +3,7 @@ package com.fairuniversal.offlineotp.ui.vault
 import androidx.compose.runtime.Composable
 import com.fairuniversal.offlineotp.Utilities.EmailMaterial
 import com.fairuniversal.offlineotp.Utilities.InputPolicy
+import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailAccountDraft
 
 /** Thin `:ui` adapter mapping [EmailEntryInput] onto [SharedEmailAccountDialog] in `:ui-foundation`. */
@@ -12,7 +13,11 @@ fun EmailEntryDialog(
     error: String?,
     onSubmit: (EmailEntryInput) -> Unit,
     onDismiss: () -> Unit,
-    submitNotice: String? = null
+    submitNotice: String? = null,
+    artwork: VaultArtwork? = null,
+    onSwitchToManual: (() -> Unit)? = null,
+    onSwitchToPassword: (() -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null
 ) {
     SharedEmailAccountDialog(
         inputKey = inputKey,
@@ -20,6 +25,20 @@ fun EmailEntryDialog(
         submitNotice = submitNotice,
         maxTextChars = InputPolicy.MAX_TEXT_CHARS,
         maxCredentialChars = EmailMaterial.MAX_CREDENTIAL_CHARS,
+        thumbnailNames = ThumbnailCatalog.NAMES,
+        artwork = artwork,
+        artworkPicker = { selected, onSelect, onCancel ->
+            ThumbnailPicker(
+                selected = selected.ifEmpty { null },
+                artwork = artwork,
+                unchangedLabel = "Automatic from issuer",
+                onSelect = { chosen -> onSelect(chosen.orEmpty()) },
+                onCancel = onCancel
+            )
+        },
+        onSwitchToManual = onSwitchToManual,
+        onSwitchToPassword = onSwitchToPassword,
+        onSwitchToUriImport = onSwitchToUriImport,
         onSubmit = { draft ->
             onSubmit(
                 EmailEntryInput(
@@ -38,7 +57,8 @@ fun EmailEntryDialog(
                     outgoingAuth = draft.outgoingAuth,
                     outgoingUser = draft.outgoingUser,
                     outgoingPassword = draft.outgoingPassword,
-                    tags = draft.tags
+                    tags = draft.tags,
+                    thumbnailName = draft.thumbnail.ifEmpty { null }
                 )
             )
         },

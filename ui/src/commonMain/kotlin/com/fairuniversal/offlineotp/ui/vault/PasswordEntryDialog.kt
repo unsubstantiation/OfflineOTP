@@ -13,12 +13,19 @@ fun PasswordEntryDialog(
     failed: Boolean,
     onSubmit: (PasswordEntryInput) -> Unit,
     onDismiss: () -> Unit,
+    editing: Boolean = true,
+    errorText: String? = null,
+    submitNotice: String? = null,
     artwork: VaultArtwork? = null,
+    onSwitchToManual: (() -> Unit)? = null,
+    onSwitchToEmail: (() -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null,
     onManageTags: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null,
     onExportArchive: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
+    val unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer"
     SharedPasswordEntryDialog(
         inputKey = inputKey,
         initial = PortablePasswordEditDraft(
@@ -32,24 +39,34 @@ fun PasswordEntryDialog(
             extraFields = initial.extraFields.orEmpty(),
             customColumnsMode = initial.customColumnsMode,
             archiveMode = initial.archiveMode,
-            archiveSizeBytes = initial.archiveSizeBytes
+            archiveSizeBytes = initial.archiveSizeBytes,
+            note = initial.note
         ),
         failed = failed,
+        editing = editing,
+        submitNotice = submitNotice,
         maxFieldChars = BrowserPasswordCsv.MAX_FIELD_CHARS,
+        errorText = errorText,
         thumbnailNames = ThumbnailCatalog.NAMES,
+        artwork = artwork,
         artworkPicker = { selected, onSelect, onCancel ->
             ThumbnailPicker(
                 selected = selected.ifEmpty { null },
                 artwork = artwork,
-                unchangedLabel = "Keep current artwork",
-                onSelect = { chosen -> onSelect(chosen ?: initial.thumbnail.orEmpty()) },
+                unchangedLabel = unchangedLabel,
+                onSelect = { chosen ->
+                    onSelect(if (editing) chosen ?: initial.thumbnail.orEmpty() else chosen.orEmpty())
+                },
                 onCancel = onCancel
             )
         },
-        onManageTags = onManageTags,
-        onViewDetails = onViewDetails,
-        onExportArchive = onExportArchive,
-        onDelete = onDelete,
+        onSwitchToManual = if (!editing) onSwitchToManual else null,
+        onSwitchToEmail = if (!editing) onSwitchToEmail else null,
+        onSwitchToUriImport = if (!editing) onSwitchToUriImport else null,
+        onManageTags = if (editing) onManageTags else null,
+        onViewDetails = if (editing) onViewDetails else null,
+        onExportArchive = if (editing) onExportArchive else null,
+        onDelete = if (editing) onDelete else null,
         onSubmit = { draft ->
             onSubmit(
                 PasswordEntryInput(
@@ -63,7 +80,8 @@ fun PasswordEntryDialog(
                     extraFields = draft.extraFields,
                     customColumnsMode = draft.customColumnsMode,
                     archiveMode = draft.archiveMode,
-                    archiveSizeBytes = draft.archiveSizeBytes
+                    archiveSizeBytes = draft.archiveSizeBytes,
+                    note = draft.note
                 )
             )
         },

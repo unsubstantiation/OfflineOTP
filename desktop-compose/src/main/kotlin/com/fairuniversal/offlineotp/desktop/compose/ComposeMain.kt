@@ -87,7 +87,9 @@ import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 import com.fairuniversal.offlineotp.ui.vault.EmailSettingsDialog
 import com.fairuniversal.offlineotp.ui.vault.EmailPasswordDialog
 import com.fairuniversal.offlineotp.ui.vault.PasswordEntryDialog
+import com.fairuniversal.offlineotp.ui.vault.EntryCreationMode
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryDialog
+import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -538,6 +540,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     }
     val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
     val lifetimeHolder = remember(vault) { arrayOfNulls<DesktopSessionLifetime>(1) }
+    val presenterHolder = remember(vault) { arrayOfNulls<VaultPresenter>(1) }
     var transactionMode by remember(vault) { mutableStateOf(false) }
     var transactionResult by remember(vault) { mutableStateOf<DesktopEntryTransaction.Result?>(null) }
     val dialogs = remember(vault) { VaultDialogs { revision++ } }
@@ -546,7 +549,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             projection = VaultProjection(vault.entryList, vault.presentation),
             initialFilter = initialFilter,
             appearance = VaultAppearance(cardLayout = controller.savedCardLayout()),
-            addEntry = { entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(); revision++ },
+            addEntry = { entryActions.pending?.let { entryActions.dismiss(it) }; autoLock.pending?.let { autoLock.dismiss(it) }; copier.pending?.let { copier.dismiss(it) }; copyNotice = null; emailDetails.pending?.let { emailDetails.dismiss(it) }; editing.pending?.let { editing.dismiss(it) }; dialogs.pending?.let { dialogs.dismiss(it) }; creation.open(presenterHolder[0]?.filter?.category); revision++ },
             editEntry = { card ->
                 entryActions.pending?.let { entryActions.dismiss(it) }
                 autoLock.pending?.let { autoLock.dismiss(it) }
@@ -644,6 +647,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.savedThumbnailSizeDp(),
                 controller.savedFocusSearchOnStart()
             )
+            presenterHolder[0] = it
         }
     }
     val lifetime = remember(presenter) {
@@ -1741,9 +1745,26 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { copyNotice = null }, onDismiss = { copyNotice = null }) }
     val addRequest = creation.pending
     if (addRequest != null) {
+        val addMode = when (addRequest.initialCategory) {
+            com.fairuniversal.offlineotp.View.EntryListPresentation.Category.PASSWORDS -> EntryCreationMode.PASSWORD
+            com.fairuniversal.offlineotp.View.EntryListPresentation.Category.EMAILS -> EntryCreationMode.EMAIL
+            else -> EntryCreationMode.MANUAL
+        }
+        val addInitialType = when (addRequest.initialCategory) {
+            com.fairuniversal.offlineotp.View.EntryListPresentation.Category.NOTES -> com.fairuniversal.offlineotp.Database.Entry.OTPType.NOTE
+            com.fairuniversal.offlineotp.View.EntryListPresentation.Category.SSH_KEYS -> com.fairuniversal.offlineotp.Database.Entry.OTPType.SSH_KEY
+            else -> com.fairuniversal.offlineotp.Database.Entry.OTPType.TOTP
+        }
         ManualEntryDialog(
             inputKey = addRequest, artwork = artwork,
+            initial = ManualEntryInput(type = addInitialType),
+            initialCreationMode = addMode,
             submitNotice = "Saving pauses other edits and runs in the background. Unlock again afterwards to continue.",
+            onModeChanged = { creation.clearFailure(addRequest); revision++ },
+            onPasswordSubmit = { input ->
+                creation.preparePassword(addRequest, input, lifetime::checkActive, ::beginCreation)
+                revision++
+            },
             onEmailSubmit = { input ->
                 creation.prepareEmail(addRequest, input, lifetime::checkActive, ::beginCreation)
                 revision++

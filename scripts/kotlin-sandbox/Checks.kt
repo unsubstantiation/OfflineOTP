@@ -6439,11 +6439,34 @@ fun main() {
             @Suppress("UNCHECKED_CAST")
             val add = creation.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(creation)
                 as (com.fairuniversal.offlineotp.ui.vault.ManualEntryInput) -> String?
+            @Suppress("UNCHECKED_CAST")
+            val addPasswordFromShared = creation.javaClass.getDeclaredField("onPasswordSubmit").apply { isAccessible = true }.get(creation)
+                as? (com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput) -> String?
+            expect(addPasswordFromShared != null, { "shared creation missing password switcher callback" })
+            @Suppress("UNCHECKED_CAST")
+            val addEmailFromShared = creation.javaClass.getDeclaredField("onEmailSubmit").apply { isAccessible = true }.get(creation)
+                as? (com.fairuniversal.offlineotp.ui.vault.EmailEntryInput) -> String?
+            expect(addEmailFromShared != null, { "shared creation missing email switcher callback" })
+            expect(addPasswordFromShared!!(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput(issuer = "Site", password = "")) != null,
+                { "blank password accepted in shared creation" })
             val draft = com.fairuniversal.offlineotp.ui.vault.ManualEntryInput(type = Entry.OTPType.NOTE, label = "new", secret = "new body")
             expect(add(draft) != null, { "missing vault reported creation success" })
             expect(source.getEntries().size == 1, { "failed creation adopted a draft" })
             view.clearEntryEditor()
             expect(add(draft) != null, { "dismissed creation retained authority" })
+            expect(addPasswordFromShared(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput(issuer = "Site", password = "pw")) != null,
+                { "dismissed creation retained password authority" })
+            val pwCreateGetter = view.javaClass.getDeclaredMethod("getPasswordCreation").apply { isAccessible = true }
+            expect(controller.openPasswordCreation(), { "direct password creation rejected" })
+            val pwCreate = pwCreateGetter.invoke(view)!!
+            @Suppress("UNCHECKED_CAST")
+            val submitPwCreate = pwCreate.javaClass.getDeclaredField("submit").apply { isAccessible = true }.get(pwCreate)
+                as (com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput) -> String?
+            expect(submitPwCreate(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput(issuer = "Site", password = "")) != null,
+                { "direct password creation accepted blank password" })
+            view.clearEntryEditor()
+            expect(submitPwCreate(com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput(issuer = "Site", password = "pw")) != null,
+                { "dismissed direct password creation retained authority" })
             expect(frame.perform(note.getListId(), com.fairuniversal.offlineotp.View.AndroidCardCommand.EDIT), { "shared edit rejected" })
             val editor = getter.invoke(view)!!
             val initial = editor.javaClass.getDeclaredField("initial").apply { isAccessible = true }.get(editor)

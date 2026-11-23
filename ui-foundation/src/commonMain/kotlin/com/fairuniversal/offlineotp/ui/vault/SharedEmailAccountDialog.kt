@@ -34,11 +34,22 @@ fun SharedEmailAccountDialog(
     showAuthFields: Boolean = true,
     submitNotice: String? = null,
     maxTextChars: Int = PortableInputBounds.MAX_TEXT_CHARS,
-    maxCredentialChars: Int = PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS
+    maxCredentialChars: Int = PortableInputBounds.MAX_EMAIL_CREDENTIAL_CHARS,
+    thumbnailNames: List<String> = emptyList(),
+    artwork: VaultArtwork? = null,
+    artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onSwitchToManual: (() -> Unit)? = null,
+    onSwitchToPassword: (() -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial) }
-    fun dismiss() {
+    var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
+    fun clearState() {
+        pickingThumbnail = false
         input = PortableEmailAccountDraft()
+    }
+    fun dismiss() {
+        clearState()
         onDismiss()
     }
     val passHint = if (editing) " (blank keeps stored)" else ""
@@ -46,8 +57,28 @@ fun SharedEmailAccountDialog(
         onDismissRequest = { dismiss() },
         title = { Text(text = if (editing) "Edit email account" else "Add email account") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            if (pickingThumbnail && artworkPicker != null) {
+                artworkPicker(
+                    input.thumbnail,
+                    { chosen ->
+                        input = input.copy(thumbnail = if (editing) chosen.ifEmpty { initial.thumbnail } else chosen)
+                        pickingThumbnail = false
+                    },
+                    { pickingThumbnail = false }
+                )
+            } else Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 submitNotice?.let { Text(text = it) }
+                if (!editing) {
+                    if (onSwitchToManual != null) {
+                        ForestTextAction(text = "OTP, note, or key", onClick = { clearState(); onSwitchToManual() })
+                    }
+                    if (onSwitchToPassword != null) {
+                        ForestTextAction(text = "Website password", onClick = { clearState(); onSwitchToPassword() })
+                    }
+                    if (onSwitchToUriImport != null) {
+                        ForestTextAction(text = "Import otpauth:// link", onClick = { clearState(); onSwitchToUriImport() })
+                    }
+                }
                 Text(text = PortableInputBounds.EMAIL_EDIT_WARNING)
                 SharedEmailField("Account name (optional)", input.name, limit = maxTextChars) {
                     input = input.copy(name = it)
@@ -106,11 +137,18 @@ fun SharedEmailAccountDialog(
                 ) {
                     input = input.copy(tags = it)
                 }
+                if (thumbnailNames.isNotEmpty() || artworkPicker != null) {
+                    val artworkSummary = input.thumbnail.ifEmpty {
+                        if (editing) "Keep current" else "Automatic from issuer"
+                    }
+                    Text(text = "Artwork: $artworkSummary")
+                    ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
+                }
                 if (error != null) Text(text = error)
             }
         },
         confirmButton = {
-            ForestTextAction(text = "Save", onClick = {
+            ForestTextAction(text = "Save", enabled = !pickingThumbnail, onClick = {
                 val submitted = input
                 input = input.withoutSecrets()
                 onSubmit(submitted)
@@ -118,6 +156,19 @@ fun SharedEmailAccountDialog(
         },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) }
     )
+    if (pickingThumbnail && artworkPicker == null && thumbnailNames.isNotEmpty()) {
+        SharedThumbnailPickerDialog(
+            selected = input.thumbnail,
+            catalogNames = thumbnailNames,
+            unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer",
+            artwork = artwork,
+            onSelect = { chosen ->
+                input = input.copy(thumbnail = if (editing) chosen.ifEmpty { initial.thumbnail } else chosen)
+                pickingThumbnail = false
+            },
+            onDismiss = { pickingThumbnail = false }
+        )
+    }
 }
 
 @Composable
