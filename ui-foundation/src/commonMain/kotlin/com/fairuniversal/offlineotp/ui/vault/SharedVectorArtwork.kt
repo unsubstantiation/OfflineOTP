@@ -146,10 +146,11 @@ private fun DrawScope.drawNodes(nodes: List<PortableVectorNode>) {
                         alpha = node.fillAlpha
                     )
                 }
-                if (node.stroke != null && node.strokeWidth > 0f) {
+                val strokeBrush = node.stroke
+                if (strokeBrush != null && node.strokeWidth > 0f) {
                     drawPath(
                         path = path,
-                        brush = node.stroke.toComposeBrush(),
+                        brush = strokeBrush.toComposeBrush(),
                         alpha = node.strokeAlpha,
                         style = Stroke(
                             width = node.strokeWidth,

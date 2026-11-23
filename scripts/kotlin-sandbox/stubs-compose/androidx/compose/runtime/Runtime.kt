@@ -32,6 +32,7 @@ fun LaunchedEffect(key1: Any?, block: suspend kotlinx.coroutines.CoroutineScope.
     // The real effect starts a coroutine; the stub does nothing.
 }
 
+@Composable
 fun LaunchedEffect(key1: Any?, key2: Any?, block: suspend kotlinx.coroutines.CoroutineScope.() -> Unit) {
     // The real effect starts a coroutine; the stub does nothing.
 }
