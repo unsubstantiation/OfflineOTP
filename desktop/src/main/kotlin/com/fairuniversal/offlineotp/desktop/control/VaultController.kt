@@ -207,6 +207,106 @@ class VaultController(private val vault: PasswordVault) {
         true
     } catch (_: Exception) { false }
 
+    fun savedLabelDisplay(): Constants.LabelDisplay = try {
+        Constants.LabelDisplay.valueOf(vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_DISPLAY,
+            Constants.LabelDisplay.TRUNCATE.name
+        ))
+    } catch (_: RuntimeException) { Constants.LabelDisplay.TRUNCATE }
+
+    fun trySaveLabelDisplay(labelDisplay: Constants.LabelDisplay): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_DISPLAY,
+            labelDisplay.name
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedShowThumbnails(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_THUMBNAILS,
+            "true"
+        ).toBooleanStrictOrNull() ?: true
+    } catch (_: RuntimeException) { true }
+
+    fun trySaveShowThumbnails(showThumbnails: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SHOW_THUMBNAILS,
+            showThumbnails.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedLabelSizeSp(): Int = try {
+        val raw = vault.preferences.getInt(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_SIZE_SP,
+            0
+        )
+        if (raw == 0 || raw in 12..24) raw else 0
+    } catch (_: RuntimeException) { 0 }
+
+    fun trySaveLabelSizeSp(sizeSp: Int): Boolean {
+        if (sizeSp != 0 && sizeSp !in 12..24) return false
+        return try {
+            vault.preferences.putInt(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_LABEL_SIZE_SP,
+                sizeSp
+            )
+            true
+        } catch (_: Exception) { false }
+    }
+
+    fun savedHighlightToken(): Boolean = try {
+        vault.preferences.getString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIGHLIGHT_TOKEN,
+            "true"
+        ).toBooleanStrictOrNull() ?: true
+    } catch (_: RuntimeException) { true }
+
+    fun trySaveHighlightToken(highlight: Boolean): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_HIGHLIGHT_TOKEN,
+            highlight.toString()
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedTapSingle(): com.fairuniversal.offlineotp.ui.portable.PortableTapMode = try {
+        com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName(
+            vault.preferences.getString(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_SINGLE,
+                "REVEAL"
+            ),
+            fallback = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL
+        )
+    } catch (_: RuntimeException) { com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL }
+
+    fun trySaveTapSingle(mode: com.fairuniversal.offlineotp.ui.portable.PortableTapMode): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_SINGLE,
+            mode.name
+        )
+        true
+    } catch (_: Exception) { false }
+
+    fun savedTapDouble(): com.fairuniversal.offlineotp.ui.portable.PortableTapMode = try {
+        com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName(
+            vault.preferences.getString(
+                com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_DOUBLE,
+                "NOTHING"
+            ),
+            fallback = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING
+        )
+    } catch (_: RuntimeException) { com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING }
+
+    fun trySaveTapDouble(mode: com.fairuniversal.offlineotp.ui.portable.PortableTapMode): Boolean = try {
+        vault.preferences.putString(
+            com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_TAP_DOUBLE,
+            mode.name
+        )
+        true
+    } catch (_: Exception) { false }
+
     fun savedTokenGroupSize(): Int? = try {
         val raw = vault.preferences.getString(
             com.fairuniversal.offlineotp.Utilities.PreferencesExport.UI_SPLIT_GROUP_SIZE,

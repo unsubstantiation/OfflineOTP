@@ -2,6 +2,8 @@ package com.fairuniversal.offlineotp.ui.vault
 
 import com.fairuniversal.offlineotp.Utilities.Constants
 import com.fairuniversal.offlineotp.View.EntryListPresentation
+import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
+import com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay
 
 /**
  * How a search box and a tag selection combine when both are active.
@@ -167,14 +169,16 @@ data class VaultAppearance(
      */
     val expiringSeconds: Int = 8
 ) {
-    val labelMaxLines: Int get() = when (labelDisplay) {
-        Constants.LabelDisplay.MULTILINE -> 10
-        Constants.LabelDisplay.SCROLL -> 1
-        Constants.LabelDisplay.TRUNCATE -> if (cardLayout == Constants.CardLayouts.FULL) 2 else 1
-    }
-    val scrollLabels: Boolean get() = labelDisplay == Constants.LabelDisplay.SCROLL
-    val codeBelowIdentity: Boolean get() = cardLayout == Constants.CardLayouts.FULL
-    val cardVerticalPaddingDp: Int get() = if (cardLayout == Constants.CardLayouts.COMPACT) 8 else 12
+    private val portableLayout: PortableCardLayout
+        get() = PortableCardLayout.values().firstOrNull { it.name == cardLayout.name } ?: PortableCardLayout.DEFAULT
+
+    private val portableLabelDisplay: PortableLabelDisplay
+        get() = PortableLabelDisplay.values().firstOrNull { it.name == labelDisplay.name } ?: PortableLabelDisplay.TRUNCATE
+
+    val labelMaxLines: Int get() = portableLabelDisplay.labelMaxLines(portableLayout)
+    val scrollLabels: Boolean get() = portableLabelDisplay.scrollLabels
+    val codeBelowIdentity: Boolean get() = portableLayout.codeBelowIdentity
+    val cardVerticalPaddingDp: Int get() = portableLayout.cardVerticalPaddingDp
 }
 
 /**

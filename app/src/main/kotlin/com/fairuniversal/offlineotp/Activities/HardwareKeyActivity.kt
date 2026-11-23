@@ -1,6 +1,5 @@
 package com.fairuniversal.offlineotp.Activities
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -24,9 +23,11 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
 import com.fairuniversal.offlineotp.ui.host.HardwareCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.HardwareEnrollmentComposeView
 
 /** Foreground-only OATH account access and optional FIDO2 vault-unlock enrollment. */
 class HardwareKeyActivity : BaseActivity() {
@@ -37,7 +38,7 @@ class HardwareKeyActivity : BaseActivity() {
     private lateinit var accountsView: LinearLayout
     private val handler = Handler(Looper.getMainLooper())
     private var clock: () -> Long = System::currentTimeMillis
-    private var dialog: AlertDialog? = null
+    internal var dialog: ComposeDialogHost? = null
     internal var composeDialog: ComposeDialogHost? = null
     private var composeCleanup: (() -> Unit)? = null
     private var listed: HardwareOathClient.Accounts? = null
@@ -123,13 +124,15 @@ class HardwareKeyActivity : BaseActivity() {
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         password.setText("")
         val pin = explicitPin?.takeIf { it.isNotEmpty() } ?: chars.takeIf { it.isNotEmpty() }
-        val progress = AlertDialog.Builder(this).setTitle(R.string.hardware_title)
-            .setMessage(R.string.hardware_connect)
-            .setNegativeButton(android.R.string.cancel) { _, _ -> discovery.cancel() }
-            .create()
+        val progress = BusyProgressComposeView(
+            activity = this,
+            title = getString(R.string.hardware_title),
+            message = getString(R.string.hardware_connect),
+            cancelLabel = getString(android.R.string.cancel),
+            onCancel = { discovery.cancel() }
+        )
         dialog?.dismiss()
         dialog = progress
-        progress.setOnCancelListener { discovery.cancel() }
         progress.setOnDismissListener {
             if (dialog === progress) {
                 dialog = null
@@ -307,26 +310,27 @@ class HardwareKeyActivity : BaseActivity() {
             Toast.makeText(this, R.string.hardware_enroll_password_only, Toast.LENGTH_LONG).show()
             return
         }
-        lateinit var view: DeleteConfirmationComposeView
-        view = DeleteConfirmationComposeView(
+        lateinit var view: HardwareEnrollmentComposeView
+        view = HardwareEnrollmentComposeView(
             activity = this,
             title = getString(R.string.hardware_enroll),
-            message = getString(R.string.hardware_enroll_warning),
+            warningMessage = getString(R.string.hardware_enroll_warning),
+            pinLabel = getString(R.string.hardware_password_hint),
             confirmLabel = getString(android.R.string.ok),
             dismissLabel = getString(android.R.string.cancel),
-            onConfirm = {
+            onConfirm = { typedPin ->
                 dismissComposeDialog(view)
-                enroll()
+                enroll(typedPin)
             },
             onDismiss = { dismissComposeDialog(view) }
         )
         showComposeDialog(view)
     }
 
-    private fun enroll() {
-        val key = VaultSession.getKey() ?: return
+    private fun enroll(typedPin: CharArray? = null) {
+        val key = VaultSession.getKey() ?: run { typedPin?.fill('\u0000'); return }
         val state = CommandState()
-        runOperation(HardwareKeyDiscovery.Protocol.FIDO,
+        runOperation(HardwareKeyDiscovery.Protocol.FIDO, explicitPin = typedPin,
             work = { device, pin, permitted ->
                 HardwareFidoClient.enroll(device, pin, state, permitted).use { enrollment ->
                     if (!permitted()) throw IllegalStateException("Canceled")

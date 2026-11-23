@@ -119,37 +119,45 @@ fun VaultScreen(
                     onLock = actions.onLock
                 )
                 VaultToolsBar(actions = actions, strings = strings)
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    VaultSearchField(
-                        value = state.filter.query,
-                        hint = strings.searchHint,
-                        onValueChange = actions.onQueryChange
-                    )
-                    VaultCategoryTabs(
-                        tabs = state.categories,
-                        strings = strings,
-                        onSelect = actions.onSelectCategory
-                    )
-                    if (state.tags.isNotEmpty()) {
-                        VaultTagChips(
-                            chips = state.tags,
+                SharedVaultFilterHeader(
+                    horizontalPaddingDp = 16,
+                    verticalPaddingDp = 10,
+                    itemSpacingDp = 10,
+                    searchContent = {
+                        VaultSearchField(
+                            value = state.filter.query,
+                            hint = strings.searchHint,
+                            onValueChange = actions.onQueryChange
+                        )
+                    },
+                    categoryContent = {
+                        VaultCategoryTabs(
+                            tabs = state.categories,
                             strings = strings,
-                            clearLabel = strings.clearFilters,
-                            showClear = state.filter.hasTagFilter || state.filter.hasQuery,
-                            tagRuleLabel = strings.tagRuleTitle(state.filter.tagFunctionality),
-                            actions = actions
+                            onSelect = actions.onSelectCategory
+                        )
+                    },
+                    tagContent = if (state.tags.isNotEmpty()) {
+                        {
+                            VaultTagChips(
+                                chips = state.tags,
+                                strings = strings,
+                                clearLabel = strings.clearFilters,
+                                showClear = state.filter.hasTagFilter || state.filter.hasQuery,
+                                tagRuleLabel = strings.tagRuleTitle(state.filter.tagFunctionality),
+                                actions = actions
+                            )
+                        }
+                    } else null,
+                    sortContent = {
+                        VaultSortBar(
+                            options = state.sortOptions,
+                            label = strings.sortAction,
+                            strings = strings,
+                            onSelect = actions.onSelectSort
                         )
                     }
-                    VaultSortBar(
-                        options = state.sortOptions,
-                        label = strings.sortAction,
-                        strings = strings,
-                        onSelect = actions.onSelectSort
-                    )
-                }
+                )
             }
             Spacer(modifier = Modifier.height(2.dp))
         },

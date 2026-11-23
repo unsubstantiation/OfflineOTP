@@ -8,6 +8,7 @@ import com.fairuniversal.offlineotp.Utilities.PasswordImport
 import com.fairuniversal.offlineotp.ui.portable.PortableCard
 import com.fairuniversal.offlineotp.ui.portable.PortableCardLayout
 import com.fairuniversal.offlineotp.ui.portable.PortableChip
+import com.fairuniversal.offlineotp.ui.portable.PortableLabelDisplay
 import com.fairuniversal.offlineotp.ui.portable.PortableDetailRow
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailAccountDraft
 import com.fairuniversal.offlineotp.ui.portable.PortableEmailConnectionDraft
@@ -258,5 +259,96 @@ class PortablePresentationTest {
         )
         assertEquals(2, withSort.sortOptions.size)
         assertTrue(withSort.sortOptions.first().selected)
+    }
+
+    @Test
+    fun portableCardSupportsCustomPeriodCountdownCounterEmailAnd21ArgCompatibility() {
+        val legacy21 = PortableCard(
+            0, "Example", "alice", "alice", "654 321", "", "TOTP",
+            15, true, false, true, "Example", emptyList(), false,
+            true, true, false, "", "", false, false
+        )
+        assertEquals(30, legacy21.periodSeconds)
+        assertTrue(legacy21.showCountdown)
+        assertEquals("", legacy21.counterLabel)
+        assertFalse(legacy21.isEmail)
+        assertEquals(0.5f, legacy21.countdownProgress)
+
+        val sixtySec = legacy21.copy(periodSeconds = 60, secondsLeft = 15, showCountdown = false)
+        assertEquals(0.25f, sixtySec.countdownProgress)
+        assertFalse(sixtySec.showCountdown)
+
+        val hotpEmail = legacy21.copy(counterLabel = "Counter: 42", isEmail = true, secondsLeft = 0)
+        assertEquals("Counter: 42", hotpEmail.counterLabel)
+        assertTrue(hotpEmail.isEmail)
+        assertEquals(0f, hotpEmail.countdownProgress)
+
+        assertEquals(32f, PortableCardLayout.COMPACT.thumbnailSizeDp)
+        assertEquals(40f, PortableCardLayout.DEFAULT.thumbnailSizeDp)
+        assertEquals(44f, PortableCardLayout.FULL.thumbnailSizeDp)
+
+        val elevenArg = PortableVaultState(
+            listOf(PortableChip("All", 1, true)),
+            "",
+            emptyList(),
+            false,
+            "Any",
+            listOf(legacy21),
+            "Order",
+            "",
+            false,
+            "1 entries",
+            listOf(PortableChip("Order", -1, true))
+        )
+        assertEquals(PortableLabelDisplay.TRUNCATE, elevenArg.labelDisplay)
+        assertTrue(elevenArg.showThumbnails)
+
+        val scrollHiddenThumbs = elevenArg.copy(labelDisplayName = "SCROLL", showThumbnails = false)
+        assertEquals(PortableLabelDisplay.SCROLL, scrollHiddenThumbs.labelDisplay)
+        assertTrue(scrollHiddenThumbs.labelDisplay.scrollLabels)
+        assertEquals(1, scrollHiddenThumbs.labelDisplay.labelMaxLines(PortableCardLayout.FULL))
+        assertFalse(scrollHiddenThumbs.showThumbnails)
+
+        val multiline = elevenArg.copy(labelDisplayName = "MULTILINE")
+        assertEquals(10, multiline.labelDisplay.labelMaxLines(PortableCardLayout.COMPACT))
+
+        val legacy25 = PortableCard(
+            0, "Example", "alice", "alice", "654 321", "", "TOTP",
+            15, true, false, true, "Example", emptyList(), false,
+            true, true, false, "", "", false, false,
+            60, true, "", false
+        )
+        assertEquals("", legacy21.customPeriodLabel)
+        assertEquals("60s period", legacy25.customPeriodLabel)
+
+        val thirteenArg = PortableVaultState(
+            listOf(PortableChip("All", 1, true)),
+            "",
+            emptyList(),
+            false,
+            "Any",
+            listOf(legacy25),
+            "Order",
+            "",
+            false,
+            "1 entries",
+            listOf(PortableChip("Order", -1, true)),
+            "SCROLL",
+            false
+        )
+        assertEquals(0, thirteenArg.labelSizeSp)
+        assertTrue(thirteenArg.highlightExpiringTokens)
+        assertEquals(
+            com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL,
+            thirteenArg.tapSingle
+        )
+        assertEquals(
+            com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING,
+            thirteenArg.tapDouble
+        )
+        assertEquals(18, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(18))
+        assertEquals(0, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(0))
+        assertEquals(12, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(7))
+        assertEquals(24, com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(99))
     }
 }

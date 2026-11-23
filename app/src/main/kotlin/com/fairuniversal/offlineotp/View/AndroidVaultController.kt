@@ -23,7 +23,6 @@ import com.fairuniversal.offlineotp.Activities.MainActivity
 import com.fairuniversal.offlineotp.Database.Entry
 import com.fairuniversal.offlineotp.Database.EntryList
 import com.fairuniversal.offlineotp.Dialogs.ManualEntryDialog
-import com.fairuniversal.offlineotp.Dialogs.TagsDialog
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.BackupTaskResult
 import com.fairuniversal.offlineotp.Tasks.TaskOutcome
@@ -393,10 +392,9 @@ class AndroidVaultController(
             pending.host = view
             activeTagsDialog = view
             view.show()
-        } else {
-            TagsDialog.show(context, tagsAdapter, saveTags, saveTags)
+            return true
         }
-        return true
+        return false
     }
 
     private fun openEmailEditor(target: EntryActionTarget, entry: Entry): Boolean {

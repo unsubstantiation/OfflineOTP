@@ -139,15 +139,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             } else {
                 previous = ""
             }
-            let rawSeconds = CodeFormat.secondsRemaining(kind: kind, period: entry.period, now: now) ?? 0
+            let seconds = CodeFormat.secondsRemaining(kind: kind, period: entry.period, now: now) ?? 0
             let nonDefaultPeriod = entry.kind == .motp || entry.period != 30
-            let seconds = (store.showIndividualTimeouts || nonDefaultPeriod) ? rawSeconds : 0
+            let showCountdown = store.showIndividualTimeouts || nonDefaultPeriod
             let title = entry.issuer.isEmpty ? (entry.label.isEmpty ? "Untitled entry" : entry.label) : entry.issuer
             var metadata = kind
-            if entry.kind?.isOtp == true && seconds > 0 { metadata += " · \(seconds)s" }
+            if entry.kind?.isOtp == true && showCountdown && seconds > 0 { metadata += " · \(seconds)s" }
             if revealed, entry.kind == .hotp { metadata += " · counter \(entry.counter)" }
             if revealed, !entry.tags.isEmpty { metadata += " · " + entry.tags.joined(separator: ", ") }
             let detailLabel: String = (revealed && entry.kind == .sshKey) ? (entry.sshConnection?.summary ?? "") : ""
+            let counterLabel: String = (revealed && entry.kind == .hotp) ? "Counter: \(entry.counter)" : ""
             let revealedContent: String = {
                 guard revealed else { return "" }
                 switch entry.kind {
@@ -180,7 +181,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 detailLabel: detailLabel,
                 revealedContent: revealedContent,
                 isNote: entry.kind == .note,
-                pinRequired: pinRequired)
+                pinRequired: pinRequired,
+                periodSeconds: Int32(entry.kind == .motp ? 10 : max(entry.period, 1)),
+                showCountdown: showCountdown,
+                counterLabel: counterLabel,
+                isEmail: entry.kind == .email)
         }
         let chips = store.tags(for: store.category).map { tag in
             PortableChip(label: tag, count: Int32(store.tagCounts(for: store.category)[tag] ?? 0),
@@ -214,7 +219,13 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             countLabel: countLabel,
             sortOptions: SortMode.allCases.map {
                 PortableChip(label: $0.title, count: -1, selected: $0 == store.sortMode)
-            })
+            },
+            labelDisplayName: store.labelDisplay,
+            showThumbnails: store.showThumbnails,
+            labelSizeSp: Int32(store.labelSizeSp),
+            highlightExpiringTokens: store.highlightToken,
+            tapSingleName: store.tapSingle,
+            tapDoubleName: store.tapDouble)
     }
 
     // MARK: - Vault actions
@@ -322,6 +333,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
         case "details":
             if store.isRevealed(entry) { openDetails(at: position) }
+        case "emailDetails":
+            if entry.kind == .email, store.isRevealed(entry) { openDetails(at: position) }
         case "edit":
             if store.isRevealed(entry) { openEntryEdit(at: position) }
         case "delete":
@@ -725,12 +738,22 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Card layout",
                 sections: [PortableSection(title: "", rows: [
                     row("layout", "Card layout", value: draft["layout"] ?? store.cardLayout, kind: "info"),
+                    row("labelDisplay", "Label display", value: draft["labelDisplay"] ?? store.labelDisplay, kind: "info"),
+                    row("labelSizeSp", "Label size", value: draft["labelSizeSp"] ?? String(store.labelSizeSp), kind: "info"),
                     row("hideIssuer", "Hide issuer",
                         value: draft["hideIssuer"] ?? (store.hideIssuer ? "true" : "false"), kind: "info"),
                     row("showPreviousToken", "Show previous code",
                         value: draft["showPreviousToken"] ?? (store.showPreviousToken ? "true" : "false"), kind: "info"),
                     row("showIndividualTimeouts", "Show individual countdown timers",
                         value: draft["showIndividualTimeouts"] ?? (store.showIndividualTimeouts ? "true" : "false"), kind: "info"),
+                    row("showThumbnails", "Show entry thumbnails",
+                        value: draft["showThumbnails"] ?? (store.showThumbnails ? "true" : "false"), kind: "info"),
+                    row("highlightToken", "Highlight expiring tokens",
+                        value: draft["highlightToken"] ?? (store.highlightToken ? "true" : "false"), kind: "info"),
+                    row("tapSingle", "Single-tap action",
+                        value: draft["tapSingle"] ?? store.tapSingle, kind: "info"),
+                    row("tapDouble", "Double-tap action",
+                        value: draft["tapDouble"] ?? store.tapDouble, kind: "info"),
                     row("tokenGroupSize", "Token grouping",
                         value: draft["tokenGroupSize"] ?? String(store.tokenGroupSize), kind: "info")])],
                 confirmLabel: "Save", dismissLabel: "Cancel")
@@ -792,7 +815,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("uri", "Link", value: draft["uri"] ?? "", kind: "text"),
                 row("collecting", "Collecting", value: migrationStep != nil ? "true" : "false", kind: "info"),
                 row("imageReady", "Image ready", value: pendingQrImagePayload != nil ? "true" : "false", kind: "info"),
-                row("imageFailed", "Image failed", value: qrImageFailed ? "true" : "false", kind: "info")
+                row("imageFailed", "Image failed", value: qrImageFailed ? "true" : "false", kind: "info"),
+                row("cameraSupported", "Camera", value: "true", kind: "info")
             ]
             if let notice = migrationStep?.message {
                 rows.append(row("migrationNotice", "Migration", value: notice, kind: "info"))
@@ -1901,6 +1925,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 return "Choose a valid card layout."
             }
             store.setCardLayout(chosen)
+            if let labelRaw = draft["labelDisplay"],
+               ["TRUNCATE", "SCROLL", "MULTILINE"].contains(labelRaw.uppercased()) {
+                store.setLabelDisplay(labelRaw.uppercased())
+            }
             if let hideRaw = draft["hideIssuer"] {
                 store.setHideIssuer(hideRaw == "true")
             }
@@ -1909,6 +1937,24 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             if let indRaw = draft["showIndividualTimeouts"] {
                 store.setShowIndividualTimeouts(indRaw != "false")
+            }
+            if let thumbRaw = draft["showThumbnails"] {
+                store.setShowThumbnails(thumbRaw != "false")
+            }
+            if let sizeRaw = draft["labelSizeSp"], let parsedSize = Int(sizeRaw),
+               parsedSize == 0 || (12...24).contains(parsedSize) {
+                store.setLabelSizeSp(parsedSize)
+            }
+            if let highlightRaw = draft["highlightToken"] {
+                store.setHighlightToken(highlightRaw != "false")
+            }
+            if let singleRaw = draft["tapSingle"],
+               ["NOTHING", "REVEAL", "COPY"].contains(singleRaw.uppercased()) {
+                store.setTapSingle(singleRaw.uppercased())
+            }
+            if let doubleRaw = draft["tapDouble"],
+               ["NOTHING", "REVEAL", "COPY"].contains(doubleRaw.uppercased()) {
+                store.setTapDouble(doubleRaw.uppercased())
             }
             if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
                [0, 2, 3].contains(parsedGroup) {
@@ -2739,7 +2785,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "openpgpSecret":
             onImport("openpgpSecret"); return nil
         case "qrCamera":
-            closeSurface(); onImport("qrCamera"); return nil
+            if surfaceKey != "uriImport" {
+                closeSurface()
+            }
+            onImport("qrCamera")
+            return nil
         case "qrImageFromTools":
             pendingQrImagePayload = nil
             qrImageFailed = false
@@ -3000,6 +3050,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         switch store.importPayload(text) {
         case .added:
             message("Scanned code imported. Review the new entry before copying a code.")
+            if surfaceKey == "uriImport" { closeSurface() }
         case .duplicateIssuer:
             pendingQrImagePayload = text
             qrImageFailed = false
@@ -3007,7 +3058,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message("An account for this issuer already exists. Enable the checkbox to add another.")
         case .migration(let step):
             if let entries = step.entries {
-                message(store.confirmMigrationImport(entries).message)
+                let result = store.confirmMigrationImport(entries)
+                message(result.message)
+                if case .imported = result, surfaceKey == "uriImport" {
+                    closeSurface()
+                }
             } else {
                 message(step.message ?? "Migration code scanned. Scan the remaining codes.")
             }

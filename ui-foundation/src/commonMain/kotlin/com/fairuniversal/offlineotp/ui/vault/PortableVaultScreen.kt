@@ -132,49 +132,61 @@ fun PortableVaultScreen(
                     ForestTextAction("Lock", onClick = { onTool("lock") }, contentDescription = "Lock the vault")
                 }
             )
-            SharedVaultCategoryBar(
-                tabs = state.tabs.map { tab ->
-                    (if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label) to tab.selected
+            SharedVaultFilterHeader(
+                horizontalPaddingDp = 12,
+                verticalPaddingDp = 6,
+                itemSpacingDp = 8,
+                searchContent = {
+                    SharedVaultSearchField(
+                        value = state.query,
+                        hint = "Search",
+                        onValueChange = onQuery
+                    )
                 },
-                onSelect = onTab,
-                horizontalPaddingDp = 8
-            )
-            SharedVaultSearchField(
-                value = state.query,
-                hint = "Search",
-                onValueChange = onQuery,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-            )
-            if (state.sortOptions.isNotEmpty()) {
-                SharedVaultSortBar(
-                    label = "Sort",
-                    options = state.sortOptions.map { option -> option.label to option.selected },
-                    onSelect = { index -> onTool("sortIndex:$index") }
-                )
-            }
-            if (state.tags.isNotEmpty()) {
-                SharedVaultTagBar(
-                    chips = state.tags.map { tag ->
-                        (if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label) to tag.selected
-                    },
-                    onToggleChip = { index -> state.tags.getOrNull(index)?.let { onTag(it.label) } },
-                    horizontalPaddingDp = 8,
-                    leadingContent = {
-                        ForestTextAction(
-                            text = state.tagRule,
-                            onClick = { onTool("tagRule") },
-                            color = ForestPalette.textSecondary,
-                            contentDescription = "How selected tags combine"
+                categoryContent = {
+                    SharedVaultCategoryBar(
+                        tabs = state.tabs.map { tab ->
+                            (if (tab.count >= 0) "${tab.label} (${tab.count})" else tab.label) to tab.selected
+                        },
+                        onSelect = onTab,
+                        horizontalPaddingDp = 0
+                    )
+                },
+                tagContent = if (state.tags.isNotEmpty()) {
+                    {
+                        SharedVaultTagBar(
+                            chips = state.tags.map { tag ->
+                                (if (tag.count >= 0) "${tag.label} (${tag.count})" else tag.label) to tag.selected
+                            },
+                            onToggleChip = { index -> state.tags.getOrNull(index)?.let { onTag(it.label) } },
+                            horizontalPaddingDp = 0,
+                            leadingContent = {
+                                ForestTextAction(
+                                    text = state.tagRule,
+                                    onClick = { onTool("tagRule") },
+                                    color = ForestPalette.textSecondary,
+                                    contentDescription = "How selected tags combine"
+                                )
+                            },
+                            trailingContent = if (state.includeUntagged || state.tags.any { it.selected }) {
+                                {
+                                    ForestTextAction("Clear", onClick = onClearTags, color = ForestPalette.warning,
+                                        contentDescription = "Clear the search and tag filters")
+                                }
+                            } else null
                         )
-                    },
-                    trailingContent = if (state.includeUntagged || state.tags.any { it.selected }) {
-                        {
-                            ForestTextAction("Clear", onClick = onClearTags, color = ForestPalette.warning,
-                                contentDescription = "Clear the search and tag filters")
-                        }
-                    } else null
-                )
-            }
+                    }
+                } else null,
+                sortContent = if (state.sortOptions.isNotEmpty()) {
+                    {
+                        SharedVaultSortBar(
+                            label = "Sort",
+                            options = state.sortOptions.map { option -> option.label to option.selected },
+                            onSelect = { index -> onTool("sortIndex:$index") }
+                        )
+                    }
+                } else null
+            )
         },
         emptyContent = {
             SharedVaultEmptyState(
@@ -231,7 +243,18 @@ fun PortableVaultScreen(
                         },
                         activeShadowElevation = 12f
                     ) {
-                        PortableCardView(card, state.hiddenTitleEnabled, cardLayout, onCard)
+                        PortableCardView(
+                            card = card,
+                            hideIssuer = state.hiddenTitleEnabled,
+                            cardLayout = cardLayout,
+                            labelDisplay = state.labelDisplay,
+                            showThumbnails = state.showThumbnails,
+                            labelSizeSp = state.labelSizeSp.takeIf { it > 0 },
+                            highlightExpiringTokens = state.highlightExpiringTokens,
+                            tapSingle = state.tapSingle,
+                            tapDouble = state.tapDouble,
+                            onCard = onCard
+                        )
                     }
                 }
             }
@@ -244,35 +267,61 @@ private fun PortableCardView(
     card: PortableCard,
     hideIssuer: Boolean,
     cardLayout: PortableCardLayout,
+    labelDisplay: PortableLabelDisplay,
+    showThumbnails: Boolean,
+    labelSizeSp: Int?,
+    highlightExpiringTokens: Boolean,
+    tapSingle: PortableTapMode,
+    tapDouble: PortableTapMode,
     onCard: (Int, String) -> Unit
 ) {
     val displayTitle = card.visibleTitle(hideIssuer)
-    val verticalPad = if (cardLayout == PortableCardLayout.COMPACT) 8 else 12
-    val maxLines = if (cardLayout == PortableCardLayout.FULL) 3 else 1
-    val stackCodeBelow = cardLayout == PortableCardLayout.FULL
-    val showCodeArea = card.hasCode || (card.pinRequired && card.revealed)
+    val verticalPad = cardLayout.cardVerticalPaddingDp
+    val maxLines = labelDisplay.labelMaxLines(cardLayout)
+    val stackCodeBelow = cardLayout.codeBelowIdentity
+    val showCodeArea = card.hasCode || (card.pinRequired && card.revealed) || (card.counterLabel.isNotEmpty() && card.revealed)
+    fun dispatchTap(mode: PortableTapMode) {
+        when (mode) {
+            PortableTapMode.NOTHING -> Unit
+            PortableTapMode.REVEAL -> onCard(card.index, "reveal")
+            PortableTapMode.COPY -> if (card.canCopy) onCard(card.index, "copy")
+        }
+    }
+    val defaultRevealClick = if (tapSingle == PortableTapMode.REVEAL && tapDouble == PortableTapMode.NOTHING) {
+        Modifier.clickable { onCard(card.index, "reveal") }
+    } else {
+        null
+    }
     SharedVaultEntryCard(
         title = displayTitle,
         subtitle = card.subtitle,
         revealed = card.revealed,
-        showThumbnail = true,
-        thumbnailSizeDp = 38f,
+        showThumbnail = showThumbnails,
+        thumbnailSizeDp = cardLayout.thumbnailSizeDp,
         tileSeed = card.mark,
-        scrollLabels = cardLayout == PortableCardLayout.DEFAULT,
+        scrollLabels = labelDisplay.scrollLabels,
+        labelSizeSp = labelSizeSp,
         labelMaxLines = maxLines,
         verticalPaddingDp = verticalPad,
         outerVerticalPaddingDp = 4,
         codeBelowIdentity = stackCodeBelow,
         showCodeArea = showCodeArea,
         pillTags = if (card.revealed) card.tags else emptyList(),
+        customPeriodLabel = card.customPeriodLabel.ifEmpty { null },
         detailLabel = card.visibleDetailLabel().ifEmpty { null },
         metadataLabel = card.metadata,
-        metadataWarning = card.isExpiring && card.revealed,
+        metadataWarning = highlightExpiringTokens && card.isExpiring && card.revealed,
         revealedContent = card.visibleRevealedContent().ifEmpty { null },
         isNote = card.isNote,
-        interactionModifier = Modifier.clickable { onCard(card.index, "reveal") },
+        interactionModifier = defaultRevealClick,
+        onClick = if (defaultRevealClick == null && (tapSingle != PortableTapMode.NOTHING || tapDouble != PortableTapMode.NOTHING)) {
+            { dispatchTap(tapSingle) }
+        } else null,
+        onDoubleClick = if (defaultRevealClick == null && tapDouble != PortableTapMode.NOTHING) {
+            { dispatchTap(tapDouble) }
+        } else null,
         codeAreaContent = {
-            PortableCardCodeArea(card = card)
+            PortableCardCodeArea(card = card, highlightExpiringTokens = highlightExpiringTokens)
         },
         actionsContent = {
             ForestTextAction(if (card.revealed) "Hide" else "Reveal",
@@ -307,6 +356,11 @@ private fun PortableCardView(
                 onClick = { onCard(card.index, "step") },
                 onLongClick = { onCard(card.index, "counter") },
                 contentDescription = "Step the counter")
+            if (card.isEmail && card.revealed) {
+                ForestTextAction("Connection details",
+                    onClick = { onCard(card.index, "emailDetails") },
+                    contentDescription = "Connection details for " + displayTitle)
+            }
             if (card.revealed) {
                 ForestTextAction("Edit", onClick = { onCard(card.index, "edit") },
                     contentDescription = "Edit " + displayTitle)
@@ -316,21 +370,22 @@ private fun PortableCardView(
 }
 
 @Composable
-private fun PortableCardCodeArea(card: PortableCard) {
+private fun PortableCardCodeArea(card: PortableCard, highlightExpiringTokens: Boolean = true) {
     val visibleCode = card.visibleCode()
     SharedVaultCodeArea(
         displayedToken = if (card.hasCode) {
             if (card.revealed) visibleCode else "••• •••"
         } else null,
         tokenVisible = card.revealed && card.hasCode,
-        showsExpiry = card.isExpiring,
+        showsExpiry = highlightExpiringTokens && card.isExpiring,
         previousToken = card.previousCode.ifEmpty { null },
-        showCountdown = card.hasCode && card.secondsLeft > 0,
+        showCountdown = card.hasCode && card.showCountdown && card.secondsLeft > 0,
         progress = card.countdownProgress,
         remainingSeconds = card.secondsLeft,
-        showSecondsText = false,
+        showSecondsText = true,
         pinRequired = card.pinRequired && card.revealed,
         pinRequiredLabel = "PIN required",
+        counterText = if (card.revealed) card.counterLabel.ifEmpty { null } else null,
         contentDescription = "Code " + card.visibleCode().toCharArray().joinToString(" "),
         previousSemanticsModifier = Modifier.semantics {
             contentDescription = "Previous token " + card.previousCode.toCharArray().joinToString(" ")

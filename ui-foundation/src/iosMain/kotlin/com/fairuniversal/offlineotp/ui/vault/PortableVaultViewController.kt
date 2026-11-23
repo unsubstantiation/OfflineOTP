@@ -275,6 +275,8 @@ private fun RenderSharedSurface(
         "cardLayout" -> {
             val current = PortableCardLayout.values().firstOrNull { it.name == rowValue("layout") }
                 ?: PortableCardLayout.DEFAULT
+            val currentLabelDisplay = PortableLabelDisplay.values().firstOrNull { it.name == rowValue("labelDisplay") }
+                ?: PortableLabelDisplay.TRUNCATE
             SharedCardLayoutDialog(
                 inputKey = dialogKey,
                 current = current,
@@ -302,6 +304,36 @@ private fun RenderSharedSurface(
                     surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
                     surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
                     surfaceActions.change("showIndividualTimeouts", if (showIndividual) "true" else "false")
+                    confirm()
+                },
+                labelDisplay = currentLabelDisplay,
+                showThumbnails = rowValue("showThumbnails") != "false",
+                onSaveFullDisplay = { selected, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual, chosenLabelDisplay, showThumbnails ->
+                    surfaceActions.change("layout", selected.name)
+                    surfaceActions.change("hideIssuer", if (hideIssuer) "true" else "false")
+                    surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
+                    surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
+                    surfaceActions.change("showIndividualTimeouts", if (showIndividual) "true" else "false")
+                    surfaceActions.change("labelDisplay", chosenLabelDisplay.name)
+                    surfaceActions.change("showThumbnails", if (showThumbnails) "true" else "false")
+                    confirm()
+                },
+                labelSizeSp = PortableTapMode.normalizeLabelSizeSp(rowValue("labelSizeSp").toIntOrNull() ?: 0),
+                highlightExpiringTokens = rowValue("highlightToken") != "false",
+                tapSingle = PortableTapMode.fromName(rowValue("tapSingle"), PortableTapMode.REVEAL),
+                tapDouble = PortableTapMode.fromName(rowValue("tapDouble"), PortableTapMode.NOTHING),
+                onSaveCompleteDisplay = { selected, hideIssuer, showPreviousToken, tokenGroupSize, showIndividual, chosenLabelDisplay, showThumbnails, chosenLabelSize, highlightToken, chosenTapSingle, chosenTapDouble ->
+                    surfaceActions.change("layout", selected.name)
+                    surfaceActions.change("hideIssuer", if (hideIssuer) "true" else "false")
+                    surfaceActions.change("showPreviousToken", if (showPreviousToken) "true" else "false")
+                    surfaceActions.change("tokenGroupSize", (tokenGroupSize ?: 3).toString())
+                    surfaceActions.change("showIndividualTimeouts", if (showIndividual) "true" else "false")
+                    surfaceActions.change("labelDisplay", chosenLabelDisplay.name)
+                    surfaceActions.change("showThumbnails", if (showThumbnails) "true" else "false")
+                    surfaceActions.change("labelSizeSp", chosenLabelSize.toString())
+                    surfaceActions.change("highlightToken", if (highlightToken) "true" else "false")
+                    surfaceActions.change("tapSingle", chosenTapSingle.name)
+                    surfaceActions.change("tapDouble", chosenTapDouble.name)
                     confirm()
                 }
             )
@@ -472,6 +504,7 @@ private fun RenderSharedSurface(
             val imageBusy = rowValue("imageBusy") == "true"
             val imageReady = rowValue("imageReady") == "true"
             val imageFailed = rowValue("imageFailed") == "true"
+            val cameraSupported = rowValue("cameraSupported") == "true"
             UriImportDialog(
                 inputKey = dialogKey,
                 message = dialog.message.ifEmpty { rowValue("migrationNotice").ifEmpty { null } },
@@ -480,6 +513,7 @@ private fun RenderSharedSurface(
                 imageReady = imageReady,
                 imageFailed = imageFailed,
                 onChooseImage = { onAction("qrImage") },
+                onScanCamera = if (cameraSupported) { { onAction("qrCamera") } } else null,
                 onDiscardImage = { onAction("qrImageDiscard") },
                 onImportImage = { allowAdditional ->
                     surfaceActions.change("allowAdditional", if (allowAdditional) "true" else "false")

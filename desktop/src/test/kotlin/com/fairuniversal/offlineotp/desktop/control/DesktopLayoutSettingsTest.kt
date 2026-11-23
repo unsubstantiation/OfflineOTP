@@ -127,31 +127,94 @@ class DesktopLayoutSettingsTest {
                 controller::savedTokenGroupSize,
                 controller::trySaveTokenGroupSize,
                 controller::savedShowIndividualTimeouts,
-                controller::trySaveShowIndividualTimeouts
+                controller::trySaveShowIndividualTimeouts,
+                controller::savedLabelDisplay,
+                controller::trySaveLabelDisplay,
+                controller::savedShowThumbnails,
+                controller::trySaveShowThumbnails,
+                controller::savedLabelSizeSp,
+                controller::trySaveLabelSizeSp,
+                controller::savedHighlightToken,
+                controller::trySaveHighlightToken,
+                controller::savedTapSingle,
+                controller::trySaveTapSingle,
+                controller::savedTapDouble,
+                controller::trySaveTapDouble
             )
             assertTrue(controller.savedShowIndividualTimeouts())
+            assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.TRUNCATE, controller.savedLabelDisplay())
+            assertTrue(controller.savedShowThumbnails())
+            assertEquals(0, controller.savedLabelSizeSp())
+            assertTrue(controller.savedHighlightToken())
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL, controller.savedTapSingle())
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING, controller.savedTapDouble())
+            assertFalse(controller.trySaveLabelSizeSp(99))
             settings.open()
             val req = settings.pending!!
             assertTrue(req.showIndividualTimeouts)
+            assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.TRUNCATE, req.labelDisplay)
+            assertTrue(req.showThumbnails)
+            assertEquals(0, req.labelSizeSp)
+            assertTrue(req.highlightToken)
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL, req.tapSingle)
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING, req.tapDouble)
             var appliedPrev = true
             var appliedGroup: Int? = 99
             var appliedIndividual = true
+            var appliedLabel = com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.TRUNCATE
+            var appliedThumbs = true
+            var appliedSize = 0
+            var appliedHighlight = true
+            var appliedSingle = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL
+            var appliedDouble = com.fairuniversal.offlineotp.ui.portable.PortableTapMode.NOTHING
             assertTrue(
-                settings.submit(req, CardLayouts.FULL, true, false, 2, false, { true }) { _, _, showPrev, groupSize, showInd ->
+                settings.submit(
+                    req,
+                    CardLayouts.FULL,
+                    true,
+                    false,
+                    2,
+                    false,
+                    com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.SCROLL,
+                    false,
+                    18,
+                    false,
+                    com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+                    com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL,
+                    { true }
+                ) { _, _, showPrev, groupSize, showInd, labelMode, showThumbs, sizeSp, highlight, tapSingle, tapDouble ->
                     appliedPrev = showPrev
                     appliedGroup = groupSize
                     appliedIndividual = showInd
+                    appliedLabel = labelMode
+                    appliedThumbs = showThumbs
+                    appliedSize = sizeSp
+                    appliedHighlight = highlight
+                    appliedSingle = tapSingle
+                    appliedDouble = tapDouble
                 }
             )
             assertFalse(appliedPrev)
             assertEquals(2, appliedGroup)
             assertFalse(appliedIndividual)
+            assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.SCROLL, appliedLabel)
+            assertFalse(appliedThumbs)
+            assertEquals(18, appliedSize)
+            assertFalse(appliedHighlight)
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY, appliedSingle)
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL, appliedDouble)
 
             val reopened = VaultController(DesktopStorage.open(dir))
             assertEquals(CardLayouts.FULL, reopened.savedCardLayout())
             assertTrue(reopened.savedHideIssuer())
             assertFalse(reopened.savedShowPreviousToken())
             assertFalse(reopened.savedShowIndividualTimeouts())
+            assertEquals(com.fairuniversal.offlineotp.Utilities.Constants.LabelDisplay.SCROLL, reopened.savedLabelDisplay())
+            assertFalse(reopened.savedShowThumbnails())
+            assertEquals(18, reopened.savedLabelSizeSp())
+            assertFalse(reopened.savedHighlightToken())
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY, reopened.savedTapSingle())
+            assertEquals(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.REVEAL, reopened.savedTapDouble())
             assertEquals(2, reopened.savedTokenGroupSize())
             assertEquals(
                 listOf(

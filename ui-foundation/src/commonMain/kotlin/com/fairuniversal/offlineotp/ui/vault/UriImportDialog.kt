@@ -17,13 +17,16 @@ fun UriImportDialog(inputKey: Any, message: String?, collecting: Boolean,
                     onSubmit: (String, Boolean) -> Unit, onDismiss: () -> Unit,
                     imageBusy: Boolean = false, imageReady: Boolean = false, imageFailed: Boolean = false,
                     onChooseImage: (() -> Unit)? = null, onDiscardImage: () -> Unit = {},
-                    onImportImage: (Boolean) -> Unit = {}) {
+                    onImportImage: (Boolean) -> Unit = {},
+                    onScanCamera: (() -> Unit)? = null) {
     var uri by remember(inputKey) { mutableStateOf("") }
     var allowAdditional by remember(inputKey) { mutableStateOf(false) }
     fun dismiss() { uri = ""; onDismiss() }
     AlertDialog(onDismissRequest = { dismiss() }, title = { Text(text = "Import OTP URI") },
         text = { ScrollableDialogBody {
             Text(text = "Paste an otpauth:// URI or each part of an otpauth-migration:// export. Import saves accounts to this vault.")
+            onScanCamera?.let { scan -> ForestTextAction(text = "Scan QR code…", enabled = !imageBusy,
+                onClick = { uri = ""; scan() }) }
             onChooseImage?.let { choose -> ForestTextAction(text = "Import QR code image…", enabled = !imageBusy,
                 onClick = { uri = ""; choose() }) }
             if (imageBusy) Text(text = "Reading QR image…")

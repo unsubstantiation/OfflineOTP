@@ -107,6 +107,8 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("activeQrDialog?.dismiss()", controller)
         self.assertNotIn("AlertDialog.Builder", controller)
         self.assertNotIn("ManualEntryDialog.show(", controller)
+        self.assertNotIn("Dialogs.TagsDialog", controller)
+        self.assertNotIn("TagsDialog.show(", controller)
 
         main = MAIN.read_text(encoding="utf-8")
         for view_cls in (
@@ -169,6 +171,8 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("class OpenPgpExportComposeView(", views)
         self.assertIn("class StorageLocationComposeView(", views)
         self.assertIn("class PreferencesImportComposeView(", views)
+        self.assertIn("class BusyProgressComposeView(", views)
+        self.assertIn("class HardwareEnrollmentComposeView(", views)
         self.assertIn("fun setOnDismissListener(", views)
 
         intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text(encoding="utf-8")
@@ -178,13 +182,19 @@ class AndroidSharedDialogTest(unittest.TestCase):
 
         hardware = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text(encoding="utf-8")
         self.assertIn("HardwareCopyComposeView(", hardware)
+        self.assertIn("HardwareEnrollmentComposeView(", hardware)
         self.assertIn("DeleteConfirmationComposeView(", hardware)
+        self.assertIn("BusyProgressComposeView(", hardware)
         self.assertIn("dismissComposeDialog()", hardware)
-        self.assertEqual(1, hardware.count("AlertDialog.Builder("))
+        self.assertNotIn("AlertDialog", hardware)
+
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("BusyProgressComposeView(", settings)
+        self.assertNotIn("AlertDialog", settings)
 
         hardware_unlock = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareUnlockActivity.kt").read_text(encoding="utf-8")
-        self.assertIn("EntryDetailsComposeView(", hardware_unlock)
-        self.assertNotIn("AlertDialog.Builder", hardware_unlock)
+        self.assertIn("BusyProgressComposeView(", hardware_unlock)
+        self.assertNotIn("AlertDialog", hardware_unlock)
 
     def test_shared_ui_module_comment_matches_the_current_platform_boundary(self):
         gradle = UI_GRADLE.read_text(encoding="utf-8")

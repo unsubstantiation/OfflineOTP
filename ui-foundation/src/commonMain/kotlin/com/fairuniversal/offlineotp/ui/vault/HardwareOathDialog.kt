@@ -16,8 +16,17 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import com.fairuniversal.offlineotp.ui.portable.PortableInputBounds
 
 @Composable
-fun HardwareOathDialog(inputKey: Any, labels: List<String>, codes: List<String?>, counters: List<Boolean>, busy: Boolean,
-                       message: String?, onSubmit: (CharArray, Int?) -> Unit, onDismiss: () -> Unit) {
+fun HardwareOathDialog(
+    inputKey: Any,
+    labels: List<String>,
+    codes: List<String?>,
+    counters: List<Boolean>,
+    busy: Boolean,
+    message: String?,
+    onSubmit: (CharArray, Int?) -> Unit,
+    onDismiss: () -> Unit,
+    onCopyCode: ((Int) -> Unit)? = null
+) {
     var pin by remember(inputKey) { mutableStateOf("") }
     fun submit(index: Int?) { val value = pin.toCharArray(); pin = ""; onSubmit(value, index) }
     AlertDialog(onDismissRequest = { pin = ""; onDismiss() }, title = { Text(text = "OATH security key") },
@@ -28,8 +37,12 @@ fun HardwareOathDialog(inputKey: Any, labels: List<String>, codes: List<String?>
             if (busy) Text(text = "Waiting for security key…")
             if (message != null) Text(text = message)
             labels.forEachIndexed { index, label ->
+                val currentCode = codes.getOrNull(index)
                 Text(text = label)
-                Text(text = codes.getOrNull(index) ?: "Hidden or expired")
+                Text(text = currentCode ?: "Hidden or expired")
+                if (currentCode != null && onCopyCode != null) {
+                    ForestTextAction(text = "Copy code", enabled = !busy, onClick = { onCopyCode(index) })
+                }
                 ForestTextAction(text = if (counters.getOrNull(index) == true) "Advance HOTP counter and show code" else "Calculate and show code",
                     enabled = !busy, onClick = { submit(index) })
             }

@@ -7851,9 +7851,11 @@ fun main() {
             calculate.invoke(activity, "fake-device", account)
             expect(accountsView.childCount == 1 && !(accountsView.getChildAt(0) as android.widget.Button).text.toString().contains("123456"),
                 { "an old HOTP remained available after a new calculation started" })
-            val progress = requireNotNull(AlertDialog.Builder.lastCreated)
-            // The stand-in records dismissal listeners but does not simulate Android dialog events.
-            progress.onDismissListener!!.onDismiss(progress)
+            val progress = activity.dialog as? com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
+                ?: throw AssertionError("expected BusyProgressComposeView on HardwareKeyActivity")
+            expect(progress.cancelLabel != null, { "hardware progress dialog lost its cancel action" })
+            progress.dismiss()
+            expect(activity.dialog == null, { "dismissal did not clear hardware progress dialog" })
             expect(status.textResource == R.string.hardware_hotp_uncertain, { "interruption did not warn about the counter" })
             expect(com.yubico.yubikit.android.YubiKitManager.usbCallback == null, { "cancel left discovery running" })
         } finally {
@@ -8886,6 +8888,18 @@ fun main() {
                 { "locking did not dismiss HardwareCopyComposeView" })
             expect(totp.getSecret()?.all { it == 0.toByte() } != false, { "locking did not destroy staged hardware copy secret" })
 
+            val hwFixture = SettingsFixture()
+            hwFixture.seed(R.string.settings_key_auth, "password")
+            hwFixture.seed(R.string.settings_key_encryption, "password")
+            hwActivity.settings = withPoisonedTransaction { Settings(hwFixture.context) }
+            val confirmEnrollment = hwActivity.javaClass.getDeclaredMethod("confirmEnrollment").apply { isAccessible = true }
+            confirmEnrollment.invoke(hwActivity)
+            val enrollmentView = hwActivity.composeDialog as? com.fairuniversal.offlineotp.ui.host.HardwareEnrollmentComposeView
+                ?: throw AssertionError("expected HardwareEnrollmentComposeView on HardwareKeyActivity")
+            hwLock.invoke(hwActivity)
+            expect(enrollmentView.dismissals > 0 && hwActivity.composeDialog == null,
+                { "locking did not dismiss HardwareEnrollmentComposeView" })
+
             // OpenPgpExportComposeView on BackupActivity
             PreferenceManager.reset()
             VaultSession.open(key)
@@ -8931,6 +8945,24 @@ fun main() {
             settingsLock.invoke(settingsActivity)
             expect(storageDialog.dismissals > 0 && settingsActivity.settingsConfirmationPrompt == null,
                 { "locking did not dismiss StorageLocationComposeView" })
+
+            val setupTaskUi = SettingsActivity::class.java.getDeclaredMethod("setupUiForTaskState", Boolean::class.javaPrimitiveType)
+                .apply { isAccessible = true }
+            VaultSession.open(key)
+            setupTaskUi.invoke(settingsActivity, true)
+            val encryptionProgress = settingsActivity.inProgress as? com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
+                ?: throw AssertionError("expected BusyProgressComposeView on SettingsActivity")
+            expect(encryptionProgress.cancelLabel == null,
+                { "encryption progress dialog must be non-cancelable" })
+            setupTaskUi.invoke(settingsActivity, false)
+            expect(encryptionProgress.dismissals > 0 && settingsActivity.inProgress == null,
+                { "completing encryption task did not dismiss BusyProgressComposeView" })
+            setupTaskUi.invoke(settingsActivity, true)
+            val lockProgress = settingsActivity.inProgress as? com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
+                ?: throw AssertionError("expected BusyProgressComposeView before lock")
+            settingsLock.invoke(settingsActivity)
+            expect(lockProgress.dismissals > 0 && settingsActivity.inProgress == null,
+                { "locking did not dismiss SettingsActivity inProgress dialog" })
         } finally {
             discovery.close()
             VaultSession.lock()
@@ -9021,6 +9053,58 @@ fun main() {
             adapter.lockEntries()
             VaultSession.lock()
             PreferenceManager.reset()
+        }
+    }
+
+    check("Shared URI import camera action preserves staged migration batch until scan returns or vault locks") {
+        val fixture = SettingsFixture()
+        val activity = MainActivity()
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        MainActivity::class.java.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val openUri = MainActivity::class.java.getDeclaredMethod("openUriImportDialog").apply { isAccessible = true }
+        val lockUi = MainActivity::class.java.getDeclaredMethod("onVaultLocked").apply { isAccessible = true }
+        val uriField = MainActivity::class.java.getDeclaredField("uriImportPrompt").apply { isAccessible = true }
+        val collectorField = MainActivity::class.java.getDeclaredField("migrationCollector").apply { isAccessible = true }
+        val awaitingField = MainActivity::class.java.getDeclaredField("awaitingMigrationQr").apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 33 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        try {
+            openUri.invoke(activity)
+            val dialog = uriField.get(activity) as? com.fairuniversal.offlineotp.ui.host.UriImportComposeView
+                ?: throw AssertionError("no UriImportComposeView")
+            @Suppress("UNCHECKED_CAST")
+            val onSubmit = dialog.javaClass.getDeclaredField("onSubmit").apply { isAccessible = true }
+                .get(dialog) as (String, Boolean) -> String?
+            @Suppress("UNCHECKED_CAST")
+            val onScanCamera = dialog.javaClass.getDeclaredField("onScanCamera").apply { isAccessible = true }
+                .get(dialog) as? (() -> Unit) ?: throw AssertionError("expected onScanCamera on UriImportComposeView")
+            val firstPart = "otpauth-migration://offline?data=CiIKCkhlbGxvId6tvu8SBWFsaWNlGgdFeGFtcGxlIAEoATACEAIYAiAAKLlg"
+            val progressMsg = onSubmit(firstPart, false)
+            expect(progressMsg != null && dialog.collectingBatch && collectorField.get(activity) != null,
+                { "expected staged migration collector" })
+            onScanCamera.invoke()
+            expect(dialog.dismissals > 0 && collectorField.get(activity) != null && awaitingField.getBoolean(activity),
+                { "onScanCamera should preserve migrationCollector and set awaitingMigrationQr across host close" })
+            lockUi.invoke(activity)
+            expect(collectorField.get(activity) == null && !awaitingField.getBoolean(activity),
+                { "onVaultLocked did not clear migrationCollector and awaitingMigrationQr" })
+
+            // Verify PortableTapMode and 15-key desktop preferences catalog parity.
+            expect(PreferencesExport.desktopCatalog.size == 15,
+                { "expected 15 desktop preferences keys, got ${PreferencesExport.desktopCatalog.size}" })
+            expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.fromName("copy") ==
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.COPY,
+                { "expected COPY tap mode" })
+            expect(com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(18) == 18 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(0) == 0 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(7) == 12 &&
+                com.fairuniversal.offlineotp.ui.portable.PortableTapMode.normalizeLabelSizeSp(99) == 24,
+                { "unexpected label size normalization" })
+        } finally {
+            adapter.lockEntries()
+            VaultSession.lock()
         }
     }
 

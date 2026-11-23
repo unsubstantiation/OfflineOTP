@@ -291,10 +291,13 @@ class FrameLayerBoundaryTest(unittest.TestCase):
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
         dialog = (UI_FOUNDATION / "vault/HardwareOathDialog.kt").read_text()
         self.assertIn("hardwareOath.submit(request, pin, index, lifetime::checkActive)", host)
+        self.assertIn("onCopyCode = { index ->", host)
+        self.assertIn("clipboard.copy(liveCode)", host)
         self.assertGreaterEqual(host.count("hardwareOath.close()"), 2)
         self.assertIn("Advance HOTP counter and show code", dialog)
         self.assertIn("not the FIDO PIN", dialog)
         self.assertIn("pin.toCharArray(); pin =", dialog)
+        self.assertIn('text = "Copy code"', dialog)
         self.assertNotIn("rememberSaveable", dialog)
 
     def test_hardware_copy_requires_explicit_seed_export_and_touch(self):
@@ -1366,6 +1369,68 @@ class ComposeUiWiringTest(unittest.TestCase):
         ios_host = (ROOT / "ios/App/Sources/ComposeVaultHost.swift").read_text(encoding="utf-8")
         self.assertIn("sortOptions: SortMode.allCases.map", ios_host)
         self.assertIn('action.hasPrefix("sortIndex:")', ios_host)
+
+    def test_shared_filter_header_and_card_label_thumbnail_display_parity(self):
+        shared_components = (UI_FOUNDATION / "vault/SharedVaultComponents.kt").read_text(encoding="utf-8")
+        self.assertIn("fun SharedVaultFilterHeader(", shared_components)
+
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
+        portable_screen = (UI_FOUNDATION / "vault/PortableVaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("SharedVaultFilterHeader(", vault_screen)
+        self.assertIn("SharedVaultFilterHeader(", portable_screen)
+
+        prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
+        self.assertIn('const val UI_LABEL_DISPLAY = "ui_label_display"', prefs)
+        self.assertIn('const val UI_SHOW_THUMBNAILS = "ui_show_thumbnails"', prefs)
+        self.assertIn("Setting(UI_LABEL_DISPLAY, Kind.STRING)", prefs)
+        self.assertIn("Setting(UI_SHOW_THUMBNAILS, Kind.BOOLEAN)", prefs)
+
+        shared_layout = (UI_FOUNDATION / "vault/SharedCardLayoutDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("labelDisplay: PortableLabelDisplay? = null", shared_layout)
+        self.assertIn("showThumbnails: Boolean? = null", shared_layout)
+        self.assertIn("onSaveFullDisplay:", shared_layout)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("controller::savedLabelDisplay", desktop_host)
+        self.assertIn("controller::savedShowThumbnails", desktop_host)
+        self.assertIn("plan.contains(PreferencesExport.UI_LABEL_DISPLAY)", desktop_host)
+        self.assertIn("plan.contains(PreferencesExport.UI_SHOW_THUMBNAILS)", desktop_host)
+
+    def test_complete_card_display_tap_modes_and_uri_camera_scan_are_shared(self):
+        portable = (ROOT / "ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortablePresentation.kt").read_text(encoding="utf-8")
+        self.assertIn("enum class PortableTapMode", portable)
+        self.assertIn("val customPeriodLabel: String", portable)
+        self.assertIn("val labelSizeSp: Int = 0", portable)
+        self.assertIn("val highlightExpiringTokens: Boolean = true", portable)
+        self.assertIn("val tapSingleName: String = \"REVEAL\"", portable)
+        self.assertIn("val tapDoubleName: String = \"NOTHING\"", portable)
+
+        shared_layout = (UI_FOUNDATION / "vault/SharedCardLayoutDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("labelSizeSp: Int? = null", shared_layout)
+        self.assertIn("highlightExpiringTokens: Boolean? = null", shared_layout)
+        self.assertIn("tapSingle: PortableTapMode? = null", shared_layout)
+        self.assertIn("tapDouble: PortableTapMode? = null", shared_layout)
+        self.assertIn("onSaveCompleteDisplay:", shared_layout)
+
+        uri_dialog = (UI_FOUNDATION / "vault/UriImportDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onScanCamera: (() -> Unit)? = null", uri_dialog)
+        self.assertIn('"Scan QR code…"', uri_dialog)
+
+        compose_views = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text(encoding="utf-8")
+        self.assertIn("private val onScanCamera: (() -> Unit)? = null", compose_views)
+
+        prefs = (ROOT / "core/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/PreferencesExport.kt").read_text(encoding="utf-8")
+        self.assertIn('const val UI_LABEL_SIZE_SP = "ui_label_size_sp"', prefs)
+        self.assertIn('const val UI_HIGHLIGHT_TOKEN = "ui_highlight_token"', prefs)
+        self.assertIn('const val UI_TAP_SINGLE = "ui_tap_single"', prefs)
+        self.assertIn('const val UI_TAP_DOUBLE = "ui_tap_double"', prefs)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("controller::savedLabelSizeSp", desktop_host)
+        self.assertIn("controller::savedHighlightToken", desktop_host)
+        self.assertIn("controller::savedTapSingle", desktop_host)
+        self.assertIn("controller::savedTapDouble", desktop_host)
+        self.assertIn("onSaveCompleteDisplay =", desktop_host)
 
 
 if __name__ == "__main__":
