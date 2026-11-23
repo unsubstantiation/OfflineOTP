@@ -198,6 +198,56 @@ public enum PasswordCsvExport {
         updated["label"] = .string(user.isEmpty ? "Password" : user)
         return try Entry.parse(.object(updated))
     }
+
+    /// Creates a new browser-CSV-exportable `PASSWORD` entry using the canonical Chrome column schema.
+    public static func create(
+        issuer: String = "",
+        url: String = "",
+        username: String = "",
+        password: String,
+        note: String = "",
+        tags: [String] = [],
+        thumbnail: String = "",
+        now: Int64 = EntryUsage.nowMillis()
+    ) throws -> Entry {
+        guard !password.isEmpty else { throw PasswordCsvExportError.emptyPassword }
+        let trimmedIssuer = issuer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedUser = username.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedIssuer.isEmpty || !trimmedURL.isEmpty || !trimmedUser.isEmpty else {
+            throw PasswordCsvExportError.missingIdentity
+        }
+        try InputPolicy.validateText(trimmedIssuer, limit: InputPolicy.maxTextChars)
+        for value in [url, username, password, note] {
+            guard value.utf16.count <= commonEditFieldLimit, !value.contains("\u{0000}") else {
+                throw PasswordCredentialError.tooLarge
+            }
+        }
+        if !thumbnail.isEmpty {
+            guard ThumbnailCatalog.names.contains(thumbnail) else {
+                throw EntryError.invalidParameters
+            }
+        }
+        let resolvedName = trimmedIssuer.isEmpty ? trimmedURL : trimmedIssuer
+        let resolvedLabel = trimmedUser.isEmpty ? "Password" : trimmedUser
+        var entry = try Entry.passwordFields(
+            label: resolvedLabel,
+            issuer: resolvedName,
+            fields: [
+                PasswordMaterial.Field(name: "name", value: resolvedName),
+                PasswordMaterial.Field(name: fieldURL, value: url),
+                PasswordMaterial.Field(name: fieldUsername, value: username),
+                PasswordMaterial.Field(name: fieldPassword, value: password),
+                PasswordMaterial.Field(name: "note", value: note),
+            ],
+            tags: tags,
+            now: now
+        )
+        if !thumbnail.isEmpty {
+            entry.setThumbnail(thumbnail)
+        }
+        return entry
+    }
 }
 
 /// Why a password could not be written out or edited. Messages never contain field values.
@@ -206,6 +256,7 @@ public enum PasswordCsvExportError: Error, Equatable, CustomStringConvertible {
     case notABrowserEntry
     case notAPasswordEntry
     case emptyPassword
+    case missingIdentity
 
     public var description: String {
         switch self {
@@ -213,6 +264,7 @@ public enum PasswordCsvExportError: Error, Equatable, CustomStringConvertible {
         case .notABrowserEntry: return "an entry has no browser CSV form"
         case .notAPasswordEntry: return "the entry is not a password"
         case .emptyPassword: return "a password cannot be empty"
+        case .missingIdentity: return "enter a title, URL, or username"
         }
     }
 }

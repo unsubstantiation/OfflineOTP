@@ -113,4 +113,40 @@ final class PasswordCsvExportTests: XCTestCase {
         }
         XCTAssertEqual(try entry.passwordFields().value("password"), "s3cret")
     }
+
+    func testCreateBuildsChromeExportablePasswordEntryAndValidatesBounds() throws {
+        let created = try PasswordCsvExport.create(
+            issuer: "GitHub",
+            url: "https://github.com/login",
+            username: "octocat",
+            password: "s3cret-login",
+            note: "personal account",
+            tags: ["work", "dev"],
+            thumbnail: "GitHub",
+            now: 123_456
+        )
+        XCTAssertEqual(created.kind, .password)
+        XCTAssertTrue(PasswordCsvExport.supportsCommonEdit(created))
+        XCTAssertEqual(PasswordCsvExport.support(created), .exportable(.chrome))
+        XCTAssertEqual(created.issuer, "GitHub")
+        XCTAssertEqual(created.label, "octocat")
+        XCTAssertEqual(created.thumbnail, "GitHub")
+        XCTAssertEqual(created.tags, ["work", "dev"])
+        let fields = try created.passwordFields()
+        XCTAssertEqual(fields.value("name"), "GitHub")
+        XCTAssertEqual(fields.value("url"), "https://github.com/login")
+        XCTAssertEqual(fields.value("username"), "octocat")
+        XCTAssertEqual(fields.value("password"), "s3cret-login")
+        XCTAssertEqual(fields.value("note"), "personal account")
+
+        XCTAssertThrowsError(try PasswordCsvExport.create(issuer: "Site", password: "")) { error in
+            XCTAssertEqual(error as? PasswordCsvExportError, .emptyPassword)
+        }
+        XCTAssertThrowsError(try PasswordCsvExport.create(issuer: " ", url: " ", username: " ", password: "pw")) { error in
+            XCTAssertEqual(error as? PasswordCsvExportError, .missingIdentity)
+        }
+        XCTAssertThrowsError(try PasswordCsvExport.create(issuer: "Site", password: "pw", thumbnail: "NoSuchLogo")) { error in
+            XCTAssertEqual(error as? EntryError, .invalidParameters)
+        }
+    }
 }

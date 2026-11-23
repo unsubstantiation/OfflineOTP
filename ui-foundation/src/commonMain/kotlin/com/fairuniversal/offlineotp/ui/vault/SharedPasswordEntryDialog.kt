@@ -20,10 +20,10 @@ import com.fairuniversal.offlineotp.ui.portable.PortablePasswordEditDraft
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 
 /**
- * Shared password / archive entry editor across Android, Desktop and iOS.
+ * Shared password / archive entry creation and editing form across Android, Desktop and iOS.
  *
  * Never preloads a stored password; clears any typed password from local Compose state before
- * invoking [onSubmit] or [onDismiss].
+ * invoking [onSubmit], [onDismiss], or mode-switch callbacks.
  */
 @Composable
 fun SharedPasswordEntryDialog(
@@ -32,11 +32,16 @@ fun SharedPasswordEntryDialog(
     failed: Boolean,
     onSubmit: (PortablePasswordEditDraft) -> Unit,
     onDismiss: () -> Unit,
+    editing: Boolean = true,
+    submitNotice: String? = null,
     maxFieldChars: Int = PortableInputBounds.MAX_PASSWORD_FIELD_CHARS,
     errorText: String? = null,
     thumbnailNames: List<String> = emptyList(),
     artwork: VaultArtwork? = null,
     artworkPicker: (@Composable (selected: String, onSelect: (String) -> Unit, onCancel: () -> Unit) -> Unit)? = null,
+    onSwitchToManual: (() -> Unit)? = null,
+    onSwitchToEmail: (() -> Unit)? = null,
+    onSwitchToUriImport: (() -> Unit)? = null,
     onManageTags: (() -> Unit)? = null,
     onViewDetails: (() -> Unit)? = null,
     onExportArchive: (() -> Unit)? = null,
@@ -45,28 +50,93 @@ fun SharedPasswordEntryDialog(
     var revealPassword by remember(inputKey) { mutableStateOf(false) }
     var pickingThumbnail by remember(inputKey) { mutableStateOf(false) }
     var input by remember(inputKey) { mutableStateOf(initial) }
-    fun dismiss() {
+    fun clearState() {
         pickingThumbnail = false
         input = PortablePasswordEditDraft()
         revealPassword = false
+    }
+    fun dismiss() {
+        clearState()
         onDismiss()
     }
+    val canCreate = !editing &&
+        input.password.isNotEmpty() &&
+        (input.issuer.isNotBlank() || input.url.isNotBlank() || input.username.isNotBlank())
     AlertDialog(
         onDismissRequest = { dismiss() },
-        title = { Text(text = if (input.archiveMode) "Edit password archive" else "Edit password") },
+        title = {
+            Text(
+                text = when {
+                    !editing -> "Add password"
+                    input.archiveMode -> "Edit password archive"
+                    else -> "Edit password"
+                }
+            )
+        },
         text = {
             if (pickingThumbnail && artworkPicker != null) {
                 artworkPicker(
                     input.thumbnail,
                     { chosen ->
-                        input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
+                        input = input.copy(thumbnail = if (editing) chosen.ifEmpty { initial.thumbnail } else chosen)
                         pickingThumbnail = false
                     },
                     { pickingThumbnail = false }
                 )
             } else {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
-                    if (input.archiveMode) {
+                    submitNotice?.let { Text(text = it) }
+                    if (!editing) {
+                        if (onSwitchToManual != null) {
+                            ForestTextAction(
+                                text = "OTP, note, or key",
+                                onClick = { clearState(); onSwitchToManual() }
+                            )
+                        }
+                        if (onSwitchToEmail != null) {
+                            ForestTextAction(
+                                text = "Email account",
+                                onClick = { clearState(); onSwitchToEmail() }
+                            )
+                        }
+                        if (onSwitchToUriImport != null) {
+                            ForestTextAction(
+                                text = "Import otpauth:// link",
+                                onClick = { clearState(); onSwitchToUriImport() }
+                            )
+                        }
+                        OutlinedTextField(
+                            value = input.issuer,
+                            onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) input = input.copy(issuer = it) },
+                            label = { Text(text = "Title / Issuer (optional)") }
+                        )
+                        OutlinedTextField(
+                            value = input.url,
+                            onValueChange = { if (it.length <= maxFieldChars) input = input.copy(url = it) },
+                            label = { Text(text = "URL") }
+                        )
+                        OutlinedTextField(
+                            value = input.username,
+                            onValueChange = { if (it.length <= maxFieldChars) input = input.copy(username = it) },
+                            label = { Text(text = "Username") }
+                        )
+                        OutlinedTextField(
+                            value = input.password,
+                            onValueChange = { if (it.length <= maxFieldChars) input = input.copy(password = it) },
+                            label = { Text(text = "Password") },
+                            visualTransformation = if (revealPassword) VisualTransformation.None else PasswordVisualTransformation()
+                        )
+                        ForestTextAction(
+                            text = if (revealPassword) "Hide password" else "Show password",
+                            onClick = { revealPassword = !revealPassword }
+                        )
+                        OutlinedTextField(
+                            value = input.note,
+                            onValueChange = { if (it.length <= maxFieldChars) input = input.copy(note = it) },
+                            singleLine = false,
+                            label = { Text(text = "Note (optional)") }
+                        )
+                    } else if (input.archiveMode) {
                         Text(text = "Archive size: ${input.archiveSizeBytes} bytes")
                         OutlinedTextField(
                             value = input.issuer,
@@ -168,14 +238,16 @@ fun SharedPasswordEntryDialog(
                         label = { Text(text = "Tags (one per line)") }
                     )
                     if (thumbnailNames.isNotEmpty() || artworkPicker != null) {
-                        val artworkSummary = input.thumbnail.ifEmpty { "Keep current" }
+                        val artworkSummary = input.thumbnail.ifEmpty {
+                            if (editing) "Keep current" else "Automatic from issuer"
+                        }
                         Text(text = "Artwork: $artworkSummary")
                         ForestTextAction(
                             text = "Choose artwork",
                             onClick = { pickingThumbnail = true }
                         )
                     }
-                    if (onManageTags != null) {
+                    if (editing && onManageTags != null) {
                         ForestTextAction(
                             text = "Manage tags",
                             onClick = {
@@ -185,7 +257,7 @@ fun SharedPasswordEntryDialog(
                             }
                         )
                     }
-                    if (!input.archiveMode && onViewDetails != null) {
+                    if (editing && !input.archiveMode && onViewDetails != null) {
                         ForestTextAction(
                             text = "View details",
                             onClick = {
@@ -195,7 +267,7 @@ fun SharedPasswordEntryDialog(
                             }
                         )
                     }
-                    if (input.archiveMode && onExportArchive != null) {
+                    if (editing && input.archiveMode && onExportArchive != null) {
                         ForestTextAction(
                             text = "Export archive",
                             onClick = {
@@ -205,7 +277,7 @@ fun SharedPasswordEntryDialog(
                             }
                         )
                     }
-                    if (onDelete != null) {
+                    if (editing && onDelete != null) {
                         ForestTextAction(
                             text = "Delete",
                             color = ForestPalette.warning,
@@ -219,18 +291,28 @@ fun SharedPasswordEntryDialog(
                     if (errorText != null) {
                         Text(text = errorText)
                     } else if (failed) {
-                        Text(text = "Could not update the password entry. Check the fields and vault storage. Re-enter any new password to retry.")
+                        Text(
+                            text = if (editing) {
+                                "Could not update the password entry. Check the fields and vault storage. Re-enter any new password to retry."
+                            } else {
+                                "Could not add the password entry. Check the fields and vault storage. Re-enter the password to retry."
+                            }
+                        )
                     }
                 }
             }
         },
         confirmButton = {
-            ForestTextAction(text = "Save", enabled = !pickingThumbnail, onClick = {
-                val submitted = input
-                input = input.withoutPassword()
-                revealPassword = false
-                onSubmit(submitted)
-            })
+            ForestTextAction(
+                text = if (editing) "Save" else "Add",
+                enabled = !pickingThumbnail && (editing || canCreate),
+                onClick = {
+                    val submitted = input
+                    input = input.withoutPassword()
+                    revealPassword = false
+                    onSubmit(submitted)
+                }
+            )
         },
         dismissButton = { ForestTextAction(text = "Cancel", onClick = { dismiss() }) }
     )
@@ -238,10 +320,10 @@ fun SharedPasswordEntryDialog(
         SharedThumbnailPickerDialog(
             selected = input.thumbnail,
             catalogNames = thumbnailNames,
-            unchangedLabel = "Keep current artwork",
+            unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer",
             artwork = artwork,
             onSelect = { chosen ->
-                input = input.copy(thumbnail = chosen.ifEmpty { initial.thumbnail })
+                input = input.copy(thumbnail = if (editing) chosen.ifEmpty { initial.thumbnail } else chosen)
                 pickingThumbnail = false
             },
             onDismiss = { pickingThumbnail = false }

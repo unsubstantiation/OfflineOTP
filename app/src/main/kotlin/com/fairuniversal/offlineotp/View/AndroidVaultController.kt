@@ -247,6 +247,69 @@ class AndroidVaultController(
                 }
             }
         }
+        view.setSharedCreationHandlers(
+            initial = initial,
+            onPasswordSubmit = { input ->
+                synchronized(VaultSession.MutationLock) {
+                    if (!view.ownsEntryEditor(initial) || !VaultSession.isCurrent(generation) ||
+                        encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
+                        view.clearEntryEditor(); "The session changed."
+                    } else {
+                        val draft = try { input.buildNew() } catch (_: Exception) { null }
+                        if (draft == null) "Invalid password entry. Check fields and re-enter the password."
+                        else {
+                            val category = EntryListPresentation.categoryOf(draft)
+                            val saved = importEntries(arrayListOf(draft))
+                            if (saved?.added == 1) { setCategory(category); null }
+                            else "Not added (duplicate or save failure). Re-enter the password to retry."
+                        }
+                    }
+                }
+            },
+            onEmailSubmit = { input ->
+                synchronized(VaultSession.MutationLock) {
+                    if (!view.ownsEntryEditor(initial) || !VaultSession.isCurrent(generation) ||
+                        encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
+                        view.clearEntryEditor(); "The session changed."
+                    } else {
+                        val draft = try { input.build() } catch (_: Exception) { null }
+                        if (draft == null) "Invalid email entry. Check fields and re-enter credentials."
+                        else {
+                            val category = EntryListPresentation.categoryOf(draft)
+                            val saved = importEntries(arrayListOf(draft))
+                            if (saved?.added == 1) { setCategory(category); null }
+                            else "Not added (duplicate or save failure). Re-enter credentials to retry."
+                        }
+                    }
+                }
+            }
+        )
+        return true
+    }
+
+    fun openPasswordCreation(): Boolean {
+        val view = composeEditorView ?: return false
+        if (encryptionKey == null || VaultSession.getKey() !== encryptionKey) return false
+        val generation = VaultSession.generation()
+        val key = Any()
+        composeEditTarget = null
+        view.showPasswordCreation(key) { input ->
+            synchronized(VaultSession.MutationLock) {
+                if (!view.ownsPasswordCreation(key) || !VaultSession.isCurrent(generation) ||
+                    encryptionKey == null || VaultSession.getKey() !== encryptionKey) {
+                    view.clearEntryEditor(); "The session changed."
+                } else {
+                    val draft = try { input.buildNew() } catch (_: Exception) { null }
+                    if (draft == null) "Invalid password entry. Check fields and re-enter the password."
+                    else {
+                        val category = EntryListPresentation.categoryOf(draft)
+                        val saved = importEntries(arrayListOf(draft))
+                        if (saved?.added == 1) { setCategory(category); null }
+                        else "Not added (duplicate or save failure). Re-enter the password to retry."
+                    }
+                }
+            }
+        }
         return true
     }
 

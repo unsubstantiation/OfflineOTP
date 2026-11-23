@@ -639,6 +639,21 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('SharedVaultTab(label = "Libraries"', about_dialog)
         self.assertIn('PortableLibraryCatalog.bundled', about_dialog)
 
+    def test_ios_and_portable_foundation_support_website_password_creation_and_mode_switching(self):
+        bridge = (MODULE / 'src/iosMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PortableVaultViewController.kt').read_text(encoding='utf-8')
+        self.assertIn('"passwordCreate" -> SharedPasswordEntryDialog(', bridge)
+        self.assertIn('onAction("switchToPasswordEditor")', bridge)
+        self.assertIn('onAction("switchToManualEditor")', bridge)
+
+        host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text(encoding='utf-8')
+        self.assertIn('else if store.category == .passwords {\n                openPasswordCreator()\n            }', host)
+        self.assertIn('private func savePasswordCreate() -> String?', host)
+        self.assertIn('store.addPasswordEntry(', host)
+
+        csv = (ROOT / 'ios/Sources/OfflineOTPKit/PasswordCsvExport.swift').read_text(encoding='utf-8')
+        self.assertIn('public static func create(', csv)
+        self.assertIn('case missingIdentity', csv)
+
 
 
 

@@ -57,10 +57,20 @@ class EmailEntryInputTest {
         assertEquals("", cleared.outgoingPassword)
         assertEquals(input.address, cleared.address)
         assertEquals(input.incomingUser, cleared.incomingUser)
-        val entry = cleared.copy(protocol = 1, incomingPort = "995", outgoingEncryption = 1, outgoingPort = "587").build()
+        val entry = cleared.copy(
+            protocol = 1,
+            incomingPort = "995",
+            outgoingEncryption = 1,
+            outgoingPort = "587",
+            thumbnailName = "GitHub"
+        ).build()
         try {
             assertEquals(1, entry.getEmailAccount().account.getInt("protocol"))
             assertEquals("", entry.getEmailAccount().identity.getString("password"))
+            assertEquals("GitHub", entry.getThumbnailName())
         } finally { entry.destroy() }
+        var badThumbRejected = false
+        try { cleared.copy(thumbnailName = "UnknownBrand").build().destroy() } catch (_: IllegalArgumentException) { badThumbRejected = true }
+        assertTrue(badThumbRejected)
     }
 }

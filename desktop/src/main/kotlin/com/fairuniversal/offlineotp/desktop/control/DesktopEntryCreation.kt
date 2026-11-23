@@ -1,13 +1,15 @@
 package com.fairuniversal.offlineotp.desktop.control
 
 import com.fairuniversal.offlineotp.Database.Entry
+import com.fairuniversal.offlineotp.View.EntryListPresentation
 import com.fairuniversal.offlineotp.ui.vault.EmailEntryInput
 import com.fairuniversal.offlineotp.ui.vault.ManualEntryInput
+import com.fairuniversal.offlineotp.ui.vault.PasswordEntryInput
 
 /** Identity-bound add dialog. Owns requests, never form secrets; called only on the UI thread. */
 class DesktopEntryCreation(private val state: DesktopVaultState, private val save: (Entry) -> Boolean = { false }) {
     enum class Failure { INVALID_INPUT, SAVE_FAILED }
-    class Request internal constructor() {
+    class Request internal constructor(val initialCategory: EntryListPresentation.Category? = null) {
         var failure: Failure? = null
             internal set
     }
@@ -15,14 +17,19 @@ class DesktopEntryCreation(private val state: DesktopVaultState, private val sav
         private set
     private var closed = false
 
-    fun open() {
-        if (!closed && !state.isLocked) pending = Request()
+    fun open(category: EntryListPresentation.Category? = null) {
+        if (!closed && !state.isLocked) pending = Request(category)
+    }
+    fun clearFailure(request: Request) {
+        if (pending === request) request.failure = null
     }
     fun dismiss(request: Request) { if (pending === request) pending = null }
     fun close() { closed = true; pending = null }
 
     fun submit(request: Request, input: ManualEntryInput, active: () -> Boolean = { true }): Boolean =
         submitDraft(request, active) { input.build() }
+    fun submitPassword(request: Request, input: PasswordEntryInput, active: () -> Boolean = { true }): Boolean =
+        submitDraft(request, active) { input.buildNew() }
     fun submitEmail(request: Request, input: EmailEntryInput, active: () -> Boolean = { true }): Boolean =
         submitDraft(request, active) { input.build() }
 
@@ -30,6 +37,8 @@ class DesktopEntryCreation(private val state: DesktopVaultState, private val sav
      * Returns true for a completed handoff, not for a persisted write. */
     fun prepare(request: Request, input: ManualEntryInput, active: () -> Boolean, handoff: (Entry) -> Unit): Boolean =
         prepareDraft(request, active, { input.build() }, handoff)
+    fun preparePassword(request: Request, input: PasswordEntryInput, active: () -> Boolean, handoff: (Entry) -> Unit): Boolean =
+        prepareDraft(request, active, { input.buildNew() }, handoff)
     fun prepareEmail(request: Request, input: EmailEntryInput, active: () -> Boolean, handoff: (Entry) -> Unit): Boolean =
         prepareDraft(request, active, { input.build() }, handoff)
 

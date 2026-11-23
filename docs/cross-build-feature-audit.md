@@ -252,6 +252,24 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   `contentDescription` labels across `VaultComponents.kt` (`:ui`) and `VaultToolsBar.kt`.
 
 
+- **Unified website password creation, tab-aware multi-type entry creation, email creation artwork
+  selection, and Desktop empty-state CTA parity**: Extended `SharedPasswordEntryDialog`
+  (`:ui-foundation`) and `PortablePasswordEditDraft` (`:ui-contract`) with creation mode
+  (`editing = false`), masked password entry, optional notes, artwork picker, and bidirectional
+  mode switching (`OTP, note, or key`, `Website password`, `Email account`, `Import otpauth://
+  link`) alongside `SharedManualEntryDialog` and `SharedEmailAccountDialog`; added
+  `PasswordEntryInput.buildNew()` (`:ui-model`) and `PasswordCsvExport.create` (`OfflineOTPKit`)
+  encoding the canonical Chrome-exportable `["name", "url", "username", "password", "note"]`
+  `PasswordMaterial` schema; wired tab-aware `+ Add` and password creation across Compose desktop
+  (`DesktopEntryCreation.open(category)` / `preparePassword`, `ComposeMain`), Android
+  (`AndroidVaultController.openPasswordCreation` / `openSharedCreation`, `VaultComposeView`), and
+  iOS (`ComposeVaultHost.openPasswordCreator` / `savePasswordCreate`,
+  `PortableVaultViewController`); added custom brand-artwork selection to `SharedEmailAccountDialog`
+  (`PortableEmailAccountDraft.thumbnail`, `EmailEntryInput.thumbnailName`, `VaultStore.addEmailAccount`);
+  and wired `VaultEmptyState` (`VaultScreen.kt` / `VaultComponents.kt`) to `actions.onAddEntry` when
+  no search or tag filter is active, matching `PortableVaultScreen`.
+
+
 ## Required acceptance gates
 
 Each next increment should have shared behavior tests, stale-session/write-failure tests and a

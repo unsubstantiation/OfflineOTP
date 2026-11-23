@@ -169,7 +169,14 @@ fun VaultScreen(
             Spacer(modifier = Modifier.height(2.dp))
         },
         emptyContent = {
-            VaultEmptyState(title = state.emptyTitle, description = state.emptyDescription)
+            val addAction = if (!state.filter.hasQuery && !state.filter.hasTagFilter) actions.onAddEntry else null
+            VaultEmptyState(
+                title = state.emptyTitle,
+                description = state.emptyDescription,
+                actionLabel = if (addAction != null) strings.addEntry else null,
+                actionDescription = strings.addEntry,
+                onAction = addAction
+            )
         },
         listContent = {
             LazyColumn(

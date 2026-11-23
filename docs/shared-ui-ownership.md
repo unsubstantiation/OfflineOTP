@@ -343,3 +343,10 @@ adapters remain platform-specific.
   host (`ui_minimize_on_copy` iconifying `java.awt.Frame` after copying), and both Desktop and iOS
   persist reconciled tag selections (`ui_selected_tags`, `ui_untagged_selected`) across sessions and
   portable preference exports.
+- `SharedPasswordEntryDialog`, `SharedManualEntryDialog`, and `SharedEmailAccountDialog`
+  (`:ui-foundation`) form one shared multi-type creation and editing suite across Android, Desktop,
+  and iOS: `SharedPasswordEntryDialog(editing = false)` creates canonical Chrome-dialect website
+  `PASSWORD` entries (`PasswordEntryInput.buildNew` / `PasswordCsvExport.create`), all three creation
+  dialogs scrub typed credentials from Compose state on submit, cancel, or mode switch, and
+  `SharedEmailAccountDialog` shares custom `ThumbnailCatalog` artwork selection with OTP, Note, SSH
+  key, and Password creation.

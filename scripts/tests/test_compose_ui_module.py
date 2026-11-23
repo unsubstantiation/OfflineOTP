@@ -1473,6 +1473,41 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("controller::savedTapToRevealTimeoutSeconds", desktop_host)
         self.assertIn("showUsedTokensNotice", desktop_host)
 
+    def test_unified_entry_creation_supports_website_passwords_artwork_and_empty_state_cta(self):
+        shared_pw = (UI_FOUNDATION / "vault/SharedPasswordEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("editing: Boolean = true", shared_pw)
+        self.assertIn('!editing -> "Add password"', shared_pw)
+        self.assertIn('text = if (editing) "Save" else "Add"', shared_pw)
+        self.assertIn('text = "OTP, note, or key"', shared_pw)
+
+        shared_manual = (UI_FOUNDATION / "vault/SharedManualEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("onSwitchToPassword: (() -> Unit)? = null", shared_manual)
+        self.assertIn('ForestTextAction(text = "Website password"', shared_manual)
+
+        shared_email = (UI_FOUNDATION / "vault/SharedEmailAccountDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("thumbnailNames: List<String> = emptyList()", shared_email)
+        self.assertIn('ForestTextAction(text = "Choose artwork"', shared_email)
+        self.assertIn("onSwitchToPassword: (() -> Unit)? = null", shared_email)
+
+        manual_adapter = (UI_MAIN / "vault/ManualEntryDialog.kt").read_text(encoding="utf-8")
+        self.assertIn("enum class EntryCreationMode { MANUAL, PASSWORD, EMAIL }", manual_adapter)
+        self.assertIn("onPasswordSubmit: ((PasswordEntryInput) -> Unit)? = null", manual_adapter)
+
+        vault_screen = (UI_MAIN / "vault/VaultScreen.kt").read_text(encoding="utf-8")
+        self.assertIn("actionLabel = if (addAction != null) strings.addEntry else null", vault_screen)
+
+        desktop_creation = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/control/DesktopEntryCreation.kt").read_text(encoding="utf-8")
+        self.assertIn("fun preparePassword(", desktop_creation)
+        self.assertIn("fun submitPassword(", desktop_creation)
+
+        desktop_host = (COMPOSE_HOST / "ComposeMain.kt").read_text(encoding="utf-8")
+        self.assertIn("creation.preparePassword(addRequest, input, lifetime::checkActive, ::beginCreation)", desktop_host)
+        self.assertIn("creation.open(presenterHolder[0]?.filter?.category)", desktop_host)
+
+        android_controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text(encoding="utf-8")
+        self.assertIn("fun openPasswordCreation(): Boolean", android_controller)
+        self.assertIn("onPasswordSubmit = { input ->", android_controller)
+
 
 if __name__ == "__main__":
     unittest.main()

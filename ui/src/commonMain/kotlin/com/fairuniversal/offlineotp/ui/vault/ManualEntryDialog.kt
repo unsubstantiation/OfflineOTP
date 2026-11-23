@@ -10,6 +10,8 @@ import com.fairuniversal.offlineotp.Utilities.ThumbnailCatalog
 import com.fairuniversal.offlineotp.Utilities.TokenCalculator
 import com.fairuniversal.offlineotp.ui.portable.PortableEntryDraft
 
+enum class EntryCreationMode { MANUAL, PASSWORD, EMAIL }
+
 /** Thin `:ui` adapter mapping [ManualEntryInput] onto [SharedManualEntryDialog] in `:ui-foundation`. */
 @Composable
 fun ManualEntryDialog(
@@ -19,9 +21,12 @@ fun ManualEntryDialog(
     onDismiss: () -> Unit,
     initial: ManualEntryInput = ManualEntryInput(),
     editing: Boolean = false,
+    initialCreationMode: EntryCreationMode = EntryCreationMode.MANUAL,
     artwork: VaultArtwork? = null,
+    onPasswordSubmit: ((PasswordEntryInput) -> Unit)? = null,
     onEmailSubmit: ((EmailEntryInput) -> Unit)? = null,
     onSwitchToUriImport: (() -> Unit)? = null,
+    onModeChanged: (() -> Unit)? = null,
     submitNotice: String? = null,
     onShowQrCode: (() -> Unit)? = null,
     onShareKeystrokes: (() -> Unit)? = null,
@@ -29,14 +34,57 @@ fun ManualEntryDialog(
     onViewDetails: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
-    var email by remember(inputKey) { mutableStateOf(false) }
-    if (email && !editing && onEmailSubmit != null) {
-        EmailEntryDialog(inputKey, error, onEmailSubmit, onDismiss, submitNotice)
+    val resolvedInitialMode = when {
+        editing -> EntryCreationMode.MANUAL
+        initialCreationMode == EntryCreationMode.PASSWORD && onPasswordSubmit != null -> EntryCreationMode.PASSWORD
+        initialCreationMode == EntryCreationMode.EMAIL && onEmailSubmit != null -> EntryCreationMode.EMAIL
+        else -> EntryCreationMode.MANUAL
+    }
+    var mode by remember(inputKey) { mutableStateOf(resolvedInitialMode) }
+    var switchEpoch by remember(inputKey) { mutableStateOf(0) }
+    fun switchMode(next: EntryCreationMode) {
+        mode = next
+        switchEpoch++
+        onModeChanged?.invoke()
+    }
+    if (mode == EntryCreationMode.EMAIL && !editing && onEmailSubmit != null) {
+        EmailEntryDialog(
+            inputKey = inputKey to switchEpoch,
+            error = error,
+            onSubmit = onEmailSubmit,
+            onDismiss = onDismiss,
+            submitNotice = submitNotice,
+            artwork = artwork,
+            onSwitchToManual = { switchMode(EntryCreationMode.MANUAL) },
+            onSwitchToPassword = if (onPasswordSubmit != null) {
+                { switchMode(EntryCreationMode.PASSWORD) }
+            } else null,
+            onSwitchToUriImport = onSwitchToUriImport
+        )
+        return
+    }
+    if (mode == EntryCreationMode.PASSWORD && !editing && onPasswordSubmit != null) {
+        PasswordEntryDialog(
+            inputKey = inputKey to switchEpoch,
+            initial = PasswordEntryInput(),
+            failed = error != null,
+            errorText = error,
+            editing = false,
+            submitNotice = submitNotice,
+            artwork = artwork,
+            onSwitchToManual = { switchMode(EntryCreationMode.MANUAL) },
+            onSwitchToEmail = if (onEmailSubmit != null) {
+                { switchMode(EntryCreationMode.EMAIL) }
+            } else null,
+            onSwitchToUriImport = onSwitchToUriImport,
+            onSubmit = onPasswordSubmit,
+            onDismiss = onDismiss
+        )
         return
     }
     val unchangedLabel = if (editing) "Keep current artwork" else "Automatic from issuer"
     SharedManualEntryDialog(
-        inputKey = inputKey,
+        inputKey = inputKey to switchEpoch,
         initial = initial.toPortable(),
         editing = editing,
         error = error,
@@ -52,8 +100,11 @@ fun ManualEntryDialog(
                 onCancel = onCancel
             )
         },
+        onSwitchToPassword = if (!editing && onPasswordSubmit != null) {
+            { switchMode(EntryCreationMode.PASSWORD) }
+        } else null,
         onSwitchToEmail = if (!editing && onEmailSubmit != null) {
-            { email = true }
+            { switchMode(EntryCreationMode.EMAIL) }
         } else null,
         onSwitchToUriImport = if (!editing) onSwitchToUriImport else null,
         onShowQrCode = onShowQrCode,
