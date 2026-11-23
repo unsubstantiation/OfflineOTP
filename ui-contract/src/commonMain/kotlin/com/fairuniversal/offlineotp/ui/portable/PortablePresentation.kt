@@ -404,9 +404,35 @@ data class PortableVaultState(
         tapDoubleName = "NOTHING"
     )
 
+    val hasTagFilter: Boolean
+        get() = includeUntagged || tags.any { it.selected }
+
+    val hasActiveFilter: Boolean
+        get() = query.isNotEmpty() || hasTagFilter
+
+    private val hasEntriesInAnyTab: Boolean
+        get() = tabs.any { it.count > 0 }
+
+    val emptyTitle: String
+        get() = when {
+            hasActiveFilter -> "No matches"
+            hasEntriesInAnyTab -> "Nothing in this tab"
+            else -> "No entries yet"
+        }
+
     val emptyMessage: String
-        get() = if (query.isNotEmpty()) "No entries match this search."
-                else "Nothing here yet. Add an entry with +."
+        get() = when {
+            hasActiveFilter -> "No entry matches the current search and tag filter."
+            hasEntriesInAnyTab -> "Entries of this kind appear here."
+            else -> "Add an entry and it will appear in this tab."
+        }
+
+    val emptyActionLabel: String
+        get() = when (tabs.firstOrNull { it.selected }?.label) {
+            "Emails" -> "Add email account"
+            "Passwords" -> "Add password"
+            else -> "Add an entry"
+        }
 
     override fun toString(): String =
         "PortableVaultState(tabs=${tabs.size}, cards=${cards.size}, hasQuery=${query.isNotEmpty()})"

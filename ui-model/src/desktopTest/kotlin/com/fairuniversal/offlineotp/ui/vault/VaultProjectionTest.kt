@@ -286,4 +286,55 @@ class VaultProjectionTest {
             archive.destroy()
         }
     }
+
+    @Test
+    fun portableVaultStateAlignsEmptyMessagesFilterClearAndCategoryActionLabels() {
+        val emptyOtp = com.fairuniversal.offlineotp.ui.portable.PortableVaultState(
+            tabs = listOf(
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("OTP", 0, selected = true),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Passwords", 0, selected = false),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Emails", 0, selected = false)
+            ),
+            query = "",
+            tags = emptyList(),
+            includeUntagged = false,
+            tagRule = "Any",
+            cards = emptyList(),
+            sortLabel = "Order",
+            toast = ""
+        )
+        assertFalse(emptyOtp.hasActiveFilter)
+        assertEquals("No entries yet", emptyOtp.emptyTitle)
+        assertEquals("Add an entry and it will appear in this tab.", emptyOtp.emptyMessage)
+        assertEquals("Add an entry", emptyOtp.emptyActionLabel)
+
+        val emptyPasswordsTab = emptyOtp.copy(
+            tabs = listOf(
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("OTP", 2, selected = false),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Passwords", 0, selected = true),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Emails", 0, selected = false)
+            )
+        )
+        assertFalse(emptyPasswordsTab.hasActiveFilter)
+        assertEquals("Nothing in this tab", emptyPasswordsTab.emptyTitle)
+        assertEquals("Entries of this kind appear here.", emptyPasswordsTab.emptyMessage)
+        assertEquals("Add password", emptyPasswordsTab.emptyActionLabel)
+
+        val emptyEmailsTab = emptyPasswordsTab.copy(
+            tabs = listOf(
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("OTP", 2, selected = false),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Passwords", 0, selected = false),
+                com.fairuniversal.offlineotp.ui.portable.PortableChip("Emails", 0, selected = true)
+            )
+        )
+        assertEquals("Add email account", emptyEmailsTab.emptyActionLabel)
+
+        val tagFilteredMiss = emptyPasswordsTab.copy(
+            tags = listOf(com.fairuniversal.offlineotp.ui.portable.PortableChip("work", 1, selected = true))
+        )
+        assertTrue(tagFilteredMiss.hasTagFilter)
+        assertTrue(tagFilteredMiss.hasActiveFilter)
+        assertEquals("No matches", tagFilteredMiss.emptyTitle)
+        assertEquals("No entry matches the current search and tag filter.", tagFilteredMiss.emptyMessage)
+    }
 }

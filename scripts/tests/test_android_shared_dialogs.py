@@ -173,7 +173,17 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertIn("class PreferencesImportComposeView(", views)
         self.assertIn("class BusyProgressComposeView(", views)
         self.assertIn("class HardwareEnrollmentComposeView(", views)
+        self.assertIn("class CardDisplayComposeView(", views)
+        self.assertIn("class AutoLockComposeView(", views)
         self.assertIn("fun setOnDismissListener(", views)
+
+        main_activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text(encoding="utf-8")
+        self.assertIn("CardDisplayComposeView(", main_activity)
+        self.assertIn("AutoLockComposeView(", main_activity)
+        self.assertIn("openSearchFieldsDialog()", main_activity)
+        self.assertIn("cardDisplayPrompt?.dismiss()", main_activity)
+        self.assertIn("searchFieldsPrompt?.dismiss()", main_activity)
+        self.assertIn("autoLockPrompt?.dismiss()", main_activity)
 
         intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text(encoding="utf-8")
         self.assertIn("EncryptedRestorePasswordComposeView(", intro)

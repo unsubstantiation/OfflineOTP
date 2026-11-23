@@ -269,6 +269,23 @@ reviewed. Absence from a settings screen is not proof that no supporting engine 
   and wired `VaultEmptyState` (`VaultScreen.kt` / `VaultComponents.kt`) to `actions.onAddEntry` when
   no search or tag filter is active, matching `PortableVaultScreen`.
 
+- **Shared `CardDisplayComposeView`, `AutoLockComposeView`, and `Search fields` on Android plus
+  `PortableVaultScreen` empty-state & filter-clear parity**: Added `CardDisplayComposeView`
+  (`CardLayoutDialog` -> `SharedCardLayoutDialog`, `allowDefaultGrouping = false`) and
+  `AutoLockComposeView` (`AutoLockDialog` + `AutoLockOptions.seconds` + `relockOnBackground`) in `ComposeDialogViews.kt`,
+  typed `SharedPreferences` readers/writers in `AndroidPreferencesPort.kt` (`currentCardDisplaySelection`,
+  `applyCardDisplaySelection`, `currentAutoLockSeconds`, `applyAutoLockSettings`, `setSearchValues`,
+  preserving specialized Android `COPY_BACKGROUND` / `SEND_KEYSTROKES` tap actions when `COPY` is
+  kept), zero-timeout reveal support (`tapToRevealTimeoutSeconds == 0` stays visible until hidden)
+  in `AndroidVaultController`, and unlocked vault menu actions (`Card display`, `Search fields` via
+  `MultiChoiceSelectionComposeView`, and `Auto-lock` gated on non-`NONE` authentication) in
+  `MainActivity` with live Compose vault refresh, immediate inactivity timer re-arming, and lock /
+  destroy dismissal; and aligned `PortableVaultState` (`:ui-contract`) and `PortableVaultScreen`
+  (`:ui-foundation`) with `VaultProjection` / `VaultScreen` for `hasActiveFilter`, `emptyTitle` /
+  `emptyMessage` (`No entries yet` / `Nothing in this tab` / `No matches`), category-aware empty
+  CTA labels (`Add email account` / `Add password` / `Add an entry`), and tag-bar `Clear` visibility
+  when either search or tag filters are active.
+
 
 ## Required acceptance gates
 

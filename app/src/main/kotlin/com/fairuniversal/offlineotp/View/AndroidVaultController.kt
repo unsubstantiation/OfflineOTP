@@ -1738,10 +1738,15 @@ class AndroidVaultController(
             hideEntry(entry)
         } else {
             realEntry.getHideTask()?.let { taskHandler.removeCallbacks(it) }
-            realEntry.setHideTask(Runnable { hideEntry(entry) })
-            taskHandler.postDelayed(
-                realEntry.getHideTask()!!,
-                settings.getTapToRevealTimeout() * 1000L)
+            val revealTimeoutSeconds = settings.getTapToRevealTimeout()
+            if (revealTimeoutSeconds > 0) {
+                realEntry.setHideTask(Runnable { hideEntry(entry) })
+                taskHandler.postDelayed(
+                    realEntry.getHideTask()!!,
+                    revealTimeoutSeconds * 1000L)
+            } else {
+                realEntry.setHideTask(null)
+            }
 
             if (entry.isCounterBased()) {
                 updateEntry(entry, realEntry, position)

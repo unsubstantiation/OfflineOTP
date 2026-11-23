@@ -2061,3 +2061,17 @@ explicitly disabling it when canReorder is false. Geometry tests cover boundarie
 missing/offscreen neighbours and adjacent-only movement; source guards and the Compose stub
 compile gate cover wiring. Actual touch/mouse gesture arbitration, edge scrolling and iOS native
 reordering still require device/desktop runtime testing.
+
+### Shared Android card display, search fields, and auto-lock dialogs plus portable empty-state parity
+
+Android (`MainActivity`, `AndroidPreferencesPort`, `ComposeDialogViews`) now hosts the shared
+`SharedCardLayoutDialog` (`CardDisplayComposeView` via `CardLayoutDialog`), `MultiChoiceSelectionDialog`
+(`MultiChoiceSelectionComposeView` for `Search fields`), and `AutoLockDialog` (`AutoLockComposeView`
+over `AutoLockOptions.seconds` + `relockOnBackground`) directly from the unlocked vault menu, matching Desktop and iOS.
+Saves commit atomically with Android's exact `SharedPreferences` value types, preserve specialized
+Android `COPY_BACKGROUND` / `SEND_KEYSTROKES` tap tokens when `COPY` is kept, support indefinite
+reveal (`tapToRevealTimeoutSeconds == 0`), refresh the live Compose vault and inactivity timer
+immediately, and tear down on vault lock or Activity destruction. `PortableVaultState` and
+`PortableVaultScreen` align empty-state titles/messages, category-aware creation CTA labels, and
+filter-clear gating with `VaultProjection` and `VaultScreen`.
+
