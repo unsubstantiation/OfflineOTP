@@ -352,3 +352,140 @@ adapters remain platform-specific.
   dialogs scrub typed credentials from Compose state on submit, cancel, or mode switch, and
   `SharedEmailAccountDialog` shares custom `ThumbnailCatalog` artwork selection with OTP, Note, SSH
   key, and Password creation.
+
+## Android vault tools convergence
+
+Android's `action_tools` shortcut now mounts `VaultToolsComposeView`, a lifecycle-only bridge to
+`SharedVaultToolsDialog`. Android and Desktop both project the capability-filtered `VaultTool`
+catalog through `vaultToolGroups`; iOS continues to supply portable groups to the same foundation
+dialog. Tools close before dispatching native pickers or editors. Android binds callbacks to the
+opening vault generation and dismisses tools and storage-location prompts on lock/destruction.
+Existing Android menu shortcuts remain available during migration.
+
+The Android shared tools surface includes URI/QR, password, email, Thunderbird and LinScp imports;
+archive, CSV, email, Thunderbird and LinScp exports; storage location, card display, search fields,
+auto-lock, password change, backup filename timestamps and About. Archive selection is independent
+of CSV availability, so mixed revealed browser-password/archive selections no longer hide archive
+export. Selection revalidates the session and live reveal state before using the existing export path.
+Encrypted backup/restore, OpenPGP backup/restore and preferences transfer are also available from
+shared Tools. Their Android Backup/Settings hosts accept allowlisted fresh-launch action identifiers
+bound to the opening session generation. Recreation does not repeat these shortcuts; existing
+picker save/resume and locked-result handling remain authoritative. No vault key or password travels
+in these handoffs. OpenPGP still uses the user's configured key-file/provider mode and retains its
+normal setup/error handling. Hardware setup retains its existing Android entry point. The underlying
+Backup/Settings screens are not yet fully unified.
+
+Shared code-area rendering also retains HOTP counter labels beside revealed codes. Email adapters
+forward host failure text to foundation forms, and Desktop uses the shared vault notice banner.
+Sandbox gates type-check these seams but do not execute Compose layout or native picker behavior.
+
+## Shared preferences-export disclosure
+
+`PreferencesExportDialog` in `:ui-foundation` now owns the export confirmation on Android,
+Desktop and iOS. The common form explains the unencrypted, platform-specific settings export and
+exclusion of vault entries/authentication material. Android's `PreferencesExportComposeView`
+opts into an unchecked saved-backup-password checkbox, preserving its existing optional-secret
+codec policy. Desktop and iOS do not expose that option and continue exporting non-secret settings
+only. No password or serialised settings bytes enter Compose state.
+
+All hosts confirm before opening their destination picker. Android rejects replaced prompts and
+stale vault generations before calling its codec; Desktop checks its live session before and after
+the picker; iOS routes `prefsExportConfirm` through the existing surface-epoch check. Native settings
+ports, file picking, error reporting and payload cleanup remain platform-owned. Sandbox compilation
+covers the Kotlin/iOS bridge, not Swift/UIKit rendering or a native device run.
+
+## Shared restore mode selection
+
+`RestoreModeSelection` owns merge/replace actions and the destructive replacement disclosure for
+both encrypted and OpenPGP restore forms on Desktop and iOS. Android's Backup activity now uses
+`RestoreModeDialog` through `RestoreModeComposeView` before opening either restore picker, including
+shared Tools shortcuts. Merge is the default for each new prompt; replace requires explicit selection.
+The old native replace switch remains hidden as picker-resumption state, not a second visible control.
+
+Android captures the choice before the picker and retains the existing decrypt/validate/commit pipeline.
+Confirmations check prompt identity, session generation and activity liveness; lock and destruction
+remove the prompt, and a consumed callback cannot launch a second picker. This does not add a decoded
+entry-count preview to Android: its mode choice occurs before file selection, whereas the other hosts
+embed the same selection controls in their decoded preview. Native backup overview/type controls and
+hardware setup remain migration work.
+
+## Compose backup overview
+
+Android's Backup activity now mounts `BackupOverviewComposeView` / `SharedBackupScreen` as its visible
+page. Format choices, selected-format label, description, provider/key-file warnings, enabled backup
+and restore actions, and task progress are projected as non-secret portable tool groups. Both this
+full-page overview and the Desktop/iOS tools dialogs use `SharedVaultToolGroups`, so enabled,
+informational, detailed and grouped actions have one renderer.
+
+Legacy backup XML IDs and hidden widgets remain compatibility/state hooks for the existing engine
+and picker-resumption tests; they are no longer a second visible screen. Provider availability and
+background task changes republish the shared frame, including early provider-error branches. The
+activity rechecks live availability, session and pending-picker state before dispatch; the view also
+rejects disabled, busy and closed frames. Lock clears its callbacks' usable state and shows only a
+locked warning; destruction permanently closes the view. Native backup tasks, provider binding,
+SAF permissions and decrypt/restore commit behavior are unchanged. Hardware setup and Android's
+remaining native Settings preferences still require migration.
+
+## Compose hardware-key management page
+
+Android's visible hardware-key page is now `SharedHardwareKeysScreen`, mounted through
+`HardwareKeysComposeView`. It uses the same `SharedVaultToolGroups` renderer as shared tools and
+backup overviews, with masked, bounded OATH password input that is cleared on submission, device
+busy transitions and stop/lock. The password array is consumed/wiped even for rejected callbacks;
+FIDO enrollment and seed export retain their dedicated shared credential/confirmation dialogs.
+
+USB/NFC discovery and FIDO/OATH clients stay Android-owned. Hidden legacy password/account view IDs
+and account buttons remain compatibility hooks during migration: Compose account actions delegate to
+those live handlers, retaining the tested clock-rollback, expiry, HOTP advance-confirmation and
+uncertain-write rules. Account action keys include the list revision. Timer expiry republishes the
+visible labels, and live session/busy/modal checks prevent stale actions. Stop clears both account
+presentations and pending OATH input; resume publishes a fresh empty page; destruction closes it.
+Android's remaining native Settings preferences and the separate hardware-unlock screen still need
+migration. No native USB/NFC or Compose-rendering validation is implied by sandbox checks.
+
+## Shared hardware-unlock PIN form
+
+Android's separate hardware-unlock activity now mounts `HardwareUnlockComposeView` around the same
+`HardwareUnlockDialog` used by Desktop. The common form accepts host transport instructions and
+labels: Desktop keeps PC/SC guidance; Android explains its USB/NFC connection and FIDO PIN. The
+legacy ScrollView and PIN/start IDs remain hidden compatibility hooks, not visible credential UI.
+
+Each Android form is single-use. Submit/cancel/destruction revoke its callbacks and every submitted
+PIN array is wiped, including rejected calls. The form is dismissed before the existing cancelable
+hardware-progress prompt opens, so two credential/progress dialogs are not stacked. Cancellation or
+failure returns to a new empty shared form; stop/lock/destroy revoke it. Completion must still own
+the current foreground attempt before offering a derived key to the session. Envelope equality,
+vault decryption verification, raw-key wiping and the no-key-material-in-Intent policy are unchanged.
+Android's remaining native Settings preferences remain migration work. Real USB/NFC and native
+Compose rendering still require device validation.
+
+## Shared Settings overview with native-only fallback
+
+Android Settings now opens a shared Compose grouped overview (`SettingsOverviewComposeView` ->
+`SharedVaultToolsScreen`). That full-page surface is also used by the backup overview and shares its
+action renderer with Desktop/iOS tools. Card display, search fields and auto-lock launch the same
+shared Compose forms as the vault tools, persisting via typed Android settings adapters. Backup
+folder/storage access and portable preferences transfer use their existing host adapters.
+
+Authentication/encryption, biometric setup, autofill, theme/language, OpenPGP configuration, automatic
+backups and other Android-only preferences remain available under the explicit **Authentication and
+Android-specific settings** destination. The native PreferenceFragment remains in a separate hidden
+container, made visible for that destination. It is recreated when entered so native controls reload
+values saved by shared forms. Back/Up returns to the overview first; recreation preserves the chosen
+destination. This is an incremental migration, not a claim that all native preferences are converted.
+
+Overview dispatch and dialog saves check the current key/session generation, prompt identity and
+busy state. Lock/destruction close the overview and prompts. Authorized encryption/key-store changes
+rebind the overview generation; old dialog callbacks retain their original generation and cannot
+write into the replacement session. Sandbox checks cover typed persistence, stale saves, task-busy
+dispatch and advanced/back routing, but not native fragment/Compose rendering.
+
+### Tap-action preferences
+
+Android single/double-tap settings now use the common `SingleChoiceSelectionDialog`, with an
+Android host providing localized action labels and a snapshot of the current action. Confirm is
+single-use; invalid indices and dismissed hosts cannot dispatch. Dismiss leaves storage unchanged.
+The typed `applyTapAction` adapter preserves native lowercase ListPreference values for all five
+existing modes, including copy-to-background and keystroke sharing. Runtime action execution and
+platform permissions are unchanged. Saves additionally require prompt ownership, a non-busy host,
+and the same unlocked key/session generation. Native advanced controls remain compatible.

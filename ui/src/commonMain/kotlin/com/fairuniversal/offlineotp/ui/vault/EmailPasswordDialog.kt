@@ -15,13 +15,15 @@ fun EmailPasswordDialog(
     initial: EmailPasswordInput,
     failed: Boolean,
     onSubmit: (EmailPasswordInput) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    errorText: String? = null
 ) {
     var input by remember(inputKey) { mutableStateOf(initial.withoutSecrets()) }
     SharedEmailPasswordDialog(
         inputKey = inputKey,
         initial = PortableEmailPasswordDraft(incoming = input.incoming, outgoing = input.outgoing),
         failed = failed,
+        errorText = errorText,
         visualTransformation = PasswordVisualTransformation(),
         onSubmit = { draft ->
             val submitted = EmailPasswordInput(incoming = draft.incoming, outgoing = draft.outgoing)

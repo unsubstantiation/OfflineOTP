@@ -138,7 +138,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
         self.assertNotIn("com.fairuniversal.offlineotp.Dialogs.", main)
 
         settings = SETTINGS.read_text(encoding="utf-8")
-        self.assertIn("EntryCopyComposeView(", settings)
+        self.assertIn("PreferencesExportComposeView(", settings)
         self.assertIn("DeleteConfirmationComposeView(", settings)
         self.assertIn("EntryDetailsComposeView(", settings)
         self.assertIn("PreferencesImportComposeView(", settings)

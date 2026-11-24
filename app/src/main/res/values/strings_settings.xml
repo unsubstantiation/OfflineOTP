@@ -4,6 +4,10 @@
     tools:ignore="MissingTranslation">
 
     <string name="settings_activity_title">Settings</string>
+    <string name="settings_shared_overview_description">Configure vault display, search, security and portable settings. Android-specific controls remain available below.</string>
+    <string name="settings_advanced_title">Authentication and Android-specific settings</string>
+    <string name="settings_advanced_description">Encryption, biometrics, autofill, language, theme, OpenPGP and automatic backups</string>
+    <string name="settings_save_failed">Could not save settings. Please try again.</string>
 
     <!-- Categories -->
     <string name="settings_category_title_security">Security</string>

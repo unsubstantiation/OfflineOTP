@@ -200,6 +200,12 @@ private fun RenderSharedSurface(
             },
             onDismiss = onDismiss
         )
+        "prefsExportConfirm" -> PreferencesExportDialog(
+            inputKey = dialogKey,
+            onConfirm = { confirm() },
+            onDismiss = onDismiss,
+            errorText = dialog.message.ifEmpty { null }
+        )
         "prefsConfirm" -> PreferencesImportDialog(
             busy = dialog.busy,
             count = rowValue("count").toIntOrNull(),

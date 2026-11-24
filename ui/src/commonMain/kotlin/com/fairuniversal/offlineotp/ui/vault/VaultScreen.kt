@@ -49,7 +49,9 @@ fun VaultScreen(
     actions: VaultActions,
     modifier: Modifier = Modifier,
     appearance: VaultAppearance = VaultAppearance(),
-    artwork: VaultArtwork? = null
+    artwork: VaultArtwork? = null,
+    toast: String = "",
+    onDismissToast: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()
     val latestCards by rememberUpdatedState(state.cards)
@@ -110,6 +112,8 @@ fun VaultScreen(
         modifier = modifier,
         backgroundColor = ForestPalette.backgroundDeep,
         centerEmpty = true,
+        toast = toast,
+        onDismissToast = onDismissToast,
         headerContent = {
             if (appearance.showControls) {
                 VaultTopBar(

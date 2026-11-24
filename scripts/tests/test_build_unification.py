@@ -60,8 +60,10 @@ class BuildUnificationTest(unittest.TestCase):
             self.assertIn('confirmButton =', form)
             self.assertIn('dismissButton =', form)
         pgp = (foundation / 'vault/OpenPgpImportDialog.kt').read_text()
-        self.assertIn('else "Merge", enabled = !busy', pgp)
-        self.assertIn('else "Replace all current entries", enabled = !busy', pgp)
+        self.assertIn('RestoreModeSelection(replace = replace, busy = busy', pgp)
+        mode = (foundation / 'vault/RestoreModeDialog.kt').read_text()
+        self.assertIn('else "Merge", enabled = !busy', mode)
+        self.assertIn('else "Replace all current entries", enabled = !busy', mode)
 
     def test_auto_lock_custom_values_remain_visible_on_ios_and_desktop(self):
         swift = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()

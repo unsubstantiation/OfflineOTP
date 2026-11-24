@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.view.ViewStub
+import android.view.ViewGroup
 import android.widget.AdapterView
 import android.widget.Button
 import android.widget.ProgressBar
@@ -57,6 +58,10 @@ import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultRestoreOperation
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
+import com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView
+import com.fairuniversal.offlineotp.ui.portable.PortableToolGroup
+import com.fairuniversal.offlineotp.ui.portable.PortableToolItem
+import com.fairuniversal.offlineotp.ui.host.RestoreModeComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.EncryptedExportComposeView
 import com.fairuniversal.offlineotp.ui.host.EncryptedRestorePasswordComposeView
@@ -89,6 +94,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var encryptTargetFile: Uri? = null
     private var decryptSourceFile: Uri? = null
 
+    private var backupOverview: BackupOverviewComposeView? = null
     private var btnBackup: Button? = null
     private var btnRestore: Button? = null
     private var spBackupTypeView: Spinner? = null
@@ -97,6 +103,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     private var swReplace: SwitchMaterial? = null
     private var progressBackup: ProgressBar? = null
     private var progressRestore: ProgressBar? = null
+    private var activeRestoreModeDialog: ComposeDialogHost? = null
     private var activePasswordDialog: ComposeDialogHost? = null
     private var activeKeyFileDialog: ComposeDialogHost? = null
     internal fun currentKeyFileDialog(): ComposeDialogHost? = activeKeyFileDialog
@@ -188,7 +195,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         progressBackup = requireNotNull(v.findViewById<ProgressBar>(R.id.progressBarBackup))
         progressRestore = requireNotNull(v.findViewById<ProgressBar>(R.id.progressBarRestore))
 
+        val requestedTool = if (savedInstanceState == null) requestedVaultTool() else null
         val resumeType = pendingResumeRequestCode?.let(::backupTypeForPickerRequest)
+            ?: requestedTool?.let(::backupTypeForPickerRequest)
         if (encryptionKey != null) {
             setupBackupType(resumeType ?: settings!!.getDefaultBackupType(), persistSelection = resumeType == null)
             spBackupType.setSelection(backupType.ordinal)
@@ -224,14 +233,88 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         btnRestore?.setOnClickListener {
             when (backupType) {
                 Constants.BackupType.ENCRYPTED ->
-                    showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+                    chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
                 Constants.BackupType.OPEN_PGP ->
-                    showOpenFileSelector(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
+                    chooseRestoreMode(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
                 Constants.BackupType.UNAVAILABLE -> Unit
             }
         }
 
+        val overviewGeneration = VaultSession.generation()
+        val overview = BackupOverviewComposeView(this) { key ->
+            if (VaultSession.isCurrent(overviewGeneration)) dispatchBackupOverviewAction(key)
+        }
+        backupOverview = overview
+        (v as ViewGroup).addView(overview, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        publishBackupOverview()
         if (encryptionKey != null) tryResumePendingPickerAction()
+        if (requestedTool != null && pendingPickerRequestCode == null && pendingResumeRequestCode == null && canOperate()) {
+            // A shortcut opens the normal picker; all password/key-file/provider checks remain in
+            // the existing result path. OpenPGP provider setup may still require the Backup screen.
+            when (requestedTool) {
+                Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
+                Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP -> chooseRestoreMode(requestedTool)
+                Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT -> showSaveFileSelector(
+                    Constants.BACKUP_MIMETYPE_CRYPT, Constants.BackupType.ENCRYPTED, requestedTool)
+                Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> showSaveFileSelector(
+                    Constants.BACKUP_MIMETYPE_PGP, Constants.BackupType.OPEN_PGP, requestedTool)
+            }
+        }
+    }
+
+    /** Non-secret projection of the existing engine/provider state into the shared page. */
+    private fun publishBackupOverview() {
+        val view = backupOverview ?: return
+        val ready = canOperate() && allowExit && pendingPickerRequestCode == null
+        val formatNames = resources.getStringArray(R.array.backup_list_type_names)
+        val formats = listOf(Constants.BackupType.ENCRYPTED, Constants.BackupType.OPEN_PGP).map { type ->
+            val label = formatNames.getOrNull(type.ordinal) ?: type.name
+            PortableToolItem(key = "format:" + type.name, label = label,
+                value = if (type == backupType) "Selected" else "", enabled = ready)
+        }
+        view.render(
+            title = getString(R.string.backup_activity_title),
+            description = txtBackupLabel?.text?.toString().orEmpty(),
+            groups = listOf(
+                PortableToolGroup(getString(R.string.backup_label_type), formats),
+                PortableToolGroup("", listOf(
+                    PortableToolItem(key = "backup", label = getString(R.string.backup_button_backup),
+                        enabled = ready && btnBackup?.isEnabled == true),
+                    PortableToolItem(key = "restore", label = getString(R.string.backup_button_restore),
+                        enabled = ready && btnRestore?.isEnabled == true)
+                ))
+            ),
+            warning = if (txtBackupWarning?.visibility == View.VISIBLE)
+                txtBackupWarning?.text?.toString().orEmpty() else "",
+            busy = !allowExit
+        )
+    }
+
+    /** Revalidate current session/availability rather than trusting a previously displayed frame. */
+    private fun dispatchBackupOverviewAction(key: String) {
+        if (!canOperate() || !allowExit || pendingPickerRequestCode != null) return
+        when (key) {
+            "format:ENCRYPTED" -> {
+                setupBackupType(Constants.BackupType.ENCRYPTED)
+                spBackupTypeView?.setSelection(Constants.BackupType.ENCRYPTED.ordinal)
+            }
+            "format:OPEN_PGP" -> {
+                setupBackupType(Constants.BackupType.OPEN_PGP)
+                spBackupTypeView?.setSelection(Constants.BackupType.OPEN_PGP.ordinal)
+            }
+            "backup" -> if (btnBackup?.isEnabled == true) btnBackup?.performClick()
+            "restore" -> if (btnRestore?.isEnabled == true) btnRestore?.performClick()
+        }
+        publishBackupOverview()
+    }
+
+    private fun requestedVaultTool(): Int? {
+        val request = getIntent() ?: return null
+        val generation = request.getStringExtra(Constants.EXTRA_VAULT_TOOL_GENERATION)?.toLongOrNull() ?: return null
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null || isFinishing()) return null
+        return request.getIntExtra(Constants.EXTRA_VAULT_TOOL_ACTION, INVALID_REQUEST_CODE)
+            .takeIf { backupTypeForPickerRequest(it) != null }
     }
 
     /** Which OpenPGP engine the user selected; read fresh so a Settings change takes effect. */
@@ -245,69 +328,73 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
      * provider mode rather than failing after the user has picked a destination.
      */
     private fun updateKeyFileAvailability() {
-        if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
-        val recipients = settings!!.getOpenPGPRecipientFiles()
-        val secretConfigured = settings!!.getOpenPGPSecretFile().isNotEmpty()
-        val availability = OpenPgpKeyFilePolicy.availability(
-            backendAvailable = keyFileBackendAvailable,
-            recipientCount = recipients.size,
-            secretKeyConfigured = secretConfigured
-        )
-        btnBackup?.isEnabled = availability.canEncrypt
-        btnRestore?.isEnabled = availability.canRestore
-        val warning = when {
-            !keyFileBackendAvailable ->
-                R.string.backup_desc_openpgp_backend_unavailable
-            !availability.canEncrypt -> R.string.backup_desc_openpgp_keyfiles_recipients
-            !availability.canRestore -> R.string.backup_desc_openpgp_keyfiles_secret
-            else -> 0
-        }
-        if (warning == 0) {
-            txtBackupWarning?.visibility = View.GONE
-        } else {
-            txtBackupWarning?.setText(warning)
-            txtBackupWarning?.visibility = View.VISIBLE
-        }
+        try {
+            if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
+            val recipients = settings!!.getOpenPGPRecipientFiles()
+            val secretConfigured = settings!!.getOpenPGPSecretFile().isNotEmpty()
+            val availability = OpenPgpKeyFilePolicy.availability(
+                backendAvailable = keyFileBackendAvailable,
+                recipientCount = recipients.size,
+                secretKeyConfigured = secretConfigured
+            )
+            btnBackup?.isEnabled = availability.canEncrypt
+            btnRestore?.isEnabled = availability.canRestore
+            val warning = when {
+                !keyFileBackendAvailable ->
+                    R.string.backup_desc_openpgp_backend_unavailable
+                !availability.canEncrypt -> R.string.backup_desc_openpgp_keyfiles_recipients
+                !availability.canRestore -> R.string.backup_desc_openpgp_keyfiles_secret
+                else -> 0
+            }
+            if (warning == 0) {
+                txtBackupWarning?.visibility = View.GONE
+            } else {
+                txtBackupWarning?.setText(warning)
+                txtBackupWarning?.visibility = View.VISIBLE
+            }
+        } finally { publishBackupOverview() }
     }
 
     /** Shows the controls and warnings for the selected backup type and remembers the choice. */
     private fun setupBackupType(type: Constants.BackupType, persistSelection: Boolean = true) {
-        backupType = type
-        if (persistSelection) settings!!.setDefaultBackupType(type)
+        try {
+            backupType = type
+            if (persistSelection) settings!!.setDefaultBackupType(type)
 
-        when (type) {
-            Constants.BackupType.ENCRYPTED -> {
-                releaseOpenPgpService()
-                txtBackupLabel?.setText(R.string.backup_label_crypt)
-                txtBackupWarning?.visibility = View.GONE
-                btnBackup?.isEnabled = true
-                btnRestore?.isEnabled = true
-            }
-            Constants.BackupType.OPEN_PGP -> {
-                if (usesKeyFileMode()) {
-                    // No provider is involved, so do not hold a binding to one.
+            when (type) {
+                Constants.BackupType.ENCRYPTED -> {
                     releaseOpenPgpService()
-                    txtBackupLabel?.setText(R.string.backup_label_pgp_keyfiles)
-                    updateKeyFileAvailability()
-                    return
+                    txtBackupLabel?.setText(R.string.backup_label_crypt)
+                    txtBackupWarning?.visibility = View.GONE
+                    btnBackup?.isEnabled = true
+                    btnRestore?.isEnabled = true
                 }
-                txtBackupLabel?.setText(R.string.backup_label_pgp)
-                pgpEncryptionUserIDs = OpenPgpRecipientIds.parse(settings!!.getOpenPGPEncryptionUserIDs())
-                val provider = settings!!.getOpenPGPProvider().trim()
-                if (provider.isEmpty()) {
+                Constants.BackupType.OPEN_PGP -> {
+                    if (usesKeyFileMode()) {
+                        // No provider is involved, so do not hold a binding to one.
+                        releaseOpenPgpService()
+                        txtBackupLabel?.setText(R.string.backup_label_pgp_keyfiles)
+                        updateKeyFileAvailability()
+                        return
+                    }
+                    txtBackupLabel?.setText(R.string.backup_label_pgp)
+                    pgpEncryptionUserIDs = OpenPgpRecipientIds.parse(settings!!.getOpenPGPEncryptionUserIDs())
+                    val provider = settings!!.getOpenPGPProvider().trim()
+                    if (provider.isEmpty()) {
+                        releaseOpenPgpService()
+                        txtBackupWarning?.setText(R.string.backup_desc_openpgp_provider)
+                    } else {
+                        bindOpenPgpService(provider)
+                    }
+                    updateOpenPgpAvailability()
+                }
+                Constants.BackupType.UNAVAILABLE -> {
                     releaseOpenPgpService()
-                    txtBackupWarning?.setText(R.string.backup_desc_openpgp_provider)
-                } else {
-                    bindOpenPgpService(provider)
+                    btnBackup?.isEnabled = false
+                    btnRestore?.isEnabled = false
                 }
-                updateOpenPgpAvailability()
             }
-            Constants.BackupType.UNAVAILABLE -> {
-                releaseOpenPgpService()
-                btnBackup?.isEnabled = false
-                btnRestore?.isEnabled = false
-            }
-        }
+        } finally { publishBackupOverview() }
     }
 
     /** Keeps one provider binding per activity; action buttons stay disabled until it is ready. */
@@ -381,46 +468,48 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     /** Restore does not need recipients; encryption does. Never enable either before a live service. */
     private fun updateOpenPgpAvailability() {
-        if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
-        if (usesKeyFileMode()) {
-            updateKeyFileAvailability()
-            return
-        }
-        val provider = settings!!.getOpenPGPProvider().trim()
-        val connectionReady = pgpServiceConnection?.isBound() == true
-        if (provider.isEmpty()) {
-            txtBackupWarning?.setText(R.string.backup_desc_openpgp_provider)
-            txtBackupWarning?.visibility = View.VISIBLE
-            btnBackup?.isEnabled = false
-            btnRestore?.isEnabled = false
-            return
-        }
-        if (connectionReady) {
-            pgpServiceReady = true
-            pgpServiceBinding = false
-            pgpServiceFailed = false
-        }
-        val availability = OpenPgpAvailability.evaluate(
-            providerConfigured = true,
-            serviceReady = pgpServiceReady,
-            recipientCount = pgpEncryptionUserIDs.size
-        )
-        if (!availability.canRestore) {
-            txtBackupWarning?.setText(if (pgpServiceFailed) R.string.backup_desc_openpgp_unavailable
-                else R.string.backup_desc_openpgp_connecting)
-            txtBackupWarning?.visibility = View.VISIBLE
-            btnBackup?.isEnabled = false
-            btnRestore?.isEnabled = false
-            return
-        }
-        btnRestore?.isEnabled = availability.canRestore
-        btnBackup?.isEnabled = availability.canEncrypt
-        if (!availability.canEncrypt) {
-            txtBackupWarning?.setText(R.string.backup_desc_openpgp_keyid)
-            txtBackupWarning?.visibility = View.VISIBLE
-        } else {
-            txtBackupWarning?.visibility = View.GONE
-        }
+        try {
+            if (backupType != Constants.BackupType.OPEN_PGP || isFinishing()) return
+            if (usesKeyFileMode()) {
+                updateKeyFileAvailability()
+                return
+            }
+            val provider = settings!!.getOpenPGPProvider().trim()
+            val connectionReady = pgpServiceConnection?.isBound() == true
+            if (provider.isEmpty()) {
+                txtBackupWarning?.setText(R.string.backup_desc_openpgp_provider)
+                txtBackupWarning?.visibility = View.VISIBLE
+                btnBackup?.isEnabled = false
+                btnRestore?.isEnabled = false
+                return
+            }
+            if (connectionReady) {
+                pgpServiceReady = true
+                pgpServiceBinding = false
+                pgpServiceFailed = false
+            }
+            val availability = OpenPgpAvailability.evaluate(
+                providerConfigured = true,
+                serviceReady = pgpServiceReady,
+                recipientCount = pgpEncryptionUserIDs.size
+            )
+            if (!availability.canRestore) {
+                txtBackupWarning?.setText(if (pgpServiceFailed) R.string.backup_desc_openpgp_unavailable
+                    else R.string.backup_desc_openpgp_connecting)
+                txtBackupWarning?.visibility = View.VISIBLE
+                btnBackup?.isEnabled = false
+                btnRestore?.isEnabled = false
+                return
+            }
+            btnRestore?.isEnabled = availability.canRestore
+            btnBackup?.isEnabled = availability.canEncrypt
+            if (!availability.canEncrypt) {
+                txtBackupWarning?.setText(R.string.backup_desc_openpgp_keyid)
+                txtBackupWarning?.visibility = View.VISIBLE
+            } else {
+                txtBackupWarning?.visibility = View.GONE
+            }
+        } finally { publishBackupOverview() }
     }
 
     private fun requireOpenPgpService(): IOpenPgpService2? {
@@ -600,6 +689,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     public override fun onDestroy() {
+        backupOverview?.clear()
+        backupOverview = null
+        activeRestoreModeDialog?.dismiss()
+        activeRestoreModeDialog = null
         activeKeyFileDialog?.dismiss()
         activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
@@ -613,8 +706,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         !(lockedWhilePicker && pendingPickerRequestCode != null)
 
     override fun onVaultLocked() {
+        backupOverview?.clear(getString(R.string.backup_desc_vault_locked_picker))
         encryptionKey = null
         waitingForPassword = false
+        activeRestoreModeDialog?.dismiss()
+        activeRestoreModeDialog = null
         activeKeyFileDialog?.dismiss()
         activeKeyFileDialog = null
         activePasswordDialog?.dismiss()
@@ -740,137 +836,178 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     private fun toggleInProgressMode(running: Boolean) {
-        allowExit = !running
+        try {
+            allowExit = !running
 
-        spBackupTypeView?.isEnabled = !running
-        btnBackup?.isEnabled = !running
-        btnRestore?.isEnabled = !running
-        swReplace?.isEnabled = !running
-        if (!running && backupType == Constants.BackupType.OPEN_PGP) {
-            updateOpenPgpAvailability()
-        }
+            spBackupTypeView?.isEnabled = !running
+            btnBackup?.isEnabled = !running
+            btnRestore?.isEnabled = !running
+            swReplace?.isEnabled = !running
+            if (!running && backupType == Constants.BackupType.OPEN_PGP) {
+                updateOpenPgpAvailability()
+            }
+        } finally { publishBackupOverview() }
     }
 
     private fun showBackupProgress(running: Boolean) {
-        toggleInProgressMode(running)
-        progressBackup?.visibility = if (running) View.VISIBLE else View.GONE
+        try {
+            toggleInProgressMode(running)
+            progressBackup?.visibility = if (running) View.VISIBLE else View.GONE
+        } finally { publishBackupOverview() }
     }
 
     private fun showRestoreProgress(running: Boolean) {
-        toggleInProgressMode(running)
-        progressRestore?.visibility = if (running) View.VISIBLE else View.GONE
+        try {
+            toggleInProgressMode(running)
+            progressRestore?.visibility = if (running) View.VISIBLE else View.GONE
+        } finally { publishBackupOverview() }
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, intent: Intent?) {
-        super.onActivityResult(requestCode, resultCode, intent)
+        try {
+            super.onActivityResult(requestCode, resultCode, intent)
 
-        if (pendingPickerRequestCode == requestCode) {
-            pendingPickerRequestCode = null
-            val selectedUri = if (resultCode == RESULT_OK) intent?.data else null
-            retainSelectedUriPermission(intent, selectedUri)
-            if (lockedWhilePicker || !canOperate()) {
-                forwardLockedPickerResult(requestCode, resultCode, intent)
-                return
+            if (pendingPickerRequestCode == requestCode) {
+                pendingPickerRequestCode = null
+                val selectedUri = if (resultCode == RESULT_OK) intent?.data else null
+                retainSelectedUriPermission(intent, selectedUri)
+                if (lockedWhilePicker || !canOperate()) {
+                    forwardLockedPickerResult(requestCode, resultCode, intent)
+                    return
+                }
+                lockedWhilePicker = false
+                if (resultCode == RESULT_OK && selectedUri?.getScheme() != "content") {
+                    notifyBackupState(if (isSaveDocumentRequest(requestCode))
+                        R.string.backup_toast_file_creation_failed else R.string.backup_toast_import_failed)
+                    return
+                }
+                if (selectedUri != null) setActiveAction(requestCode, selectedUri, swReplace?.isChecked == true)
             }
-            lockedWhilePicker = false
-            if (resultCode == RESULT_OK && selectedUri?.getScheme() != "content") {
-                notifyBackupState(if (isSaveDocumentRequest(requestCode))
-                    R.string.backup_toast_file_creation_failed else R.string.backup_toast_import_failed)
-                return
-            }
-            if (selectedUri != null) setActiveAction(requestCode, selectedUri, swReplace?.isChecked == true)
-        }
 
-        if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
-            if (intent != null) {
-                doRestoreCrypt(intent.data)
+            if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
+                if (intent != null) {
+                    doRestoreCrypt(intent.data)
+                }
+            } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
+                if (intent != null) {
+                    doBackupCrypt(intent.data)
+                }
+            } else if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP && resultCode == RESULT_OK) {
+                if (intent != null)
+                    restoreEncryptedWithPGP(intent.data, null)
+            } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP && resultCode == RESULT_OK) {
+                if (intent != null)
+                    backupEncryptedWithPGP(intent.data, null)
+            } else if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP && resultCode == RESULT_OK) {
+                backupEncryptedWithPGP(encryptTargetFile, intent)
+            } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP && resultCode == RESULT_OK) {
+                restoreEncryptedWithPGP(decryptSourceFile, intent)
+            } else if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP ||
+                requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
+                notifyOpenPgpFailure(requestCode)
             }
-        } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT && resultCode == RESULT_OK) {
-            if (intent != null) {
-                doBackupCrypt(intent.data)
-            }
-        } else if (requestCode == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP && resultCode == RESULT_OK) {
-            if (intent != null)
-                restoreEncryptedWithPGP(intent.data, null)
-        } else if (requestCode == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP && resultCode == RESULT_OK) {
-            if (intent != null)
-                backupEncryptedWithPGP(intent.data, null)
-        } else if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP && resultCode == RESULT_OK) {
-            backupEncryptedWithPGP(encryptTargetFile, intent)
-        } else if (requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP && resultCode == RESULT_OK) {
-            restoreEncryptedWithPGP(decryptSourceFile, intent)
-        } else if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP ||
-            requestCode == Constants.INTENT_BACKUP_DECRYPT_PGP) {
-            notifyOpenPgpFailure(requestCode)
-        }
+        } finally { publishBackupOverview() }
     }
 
     /* Generic functions for all backup/restore options */
 
+    /** Snapshot mode before the external picker; never let a stale prompt start an operation. */
+    private fun chooseRestoreMode(requestCode: Int) {
+        if (!canOperate() || !allowExit) return
+        if (requestCode != Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT &&
+            requestCode != Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP) return
+        val generation = VaultSession.generation()
+        activeRestoreModeDialog?.dismiss()
+        var host: RestoreModeComposeView? = null
+        val closeHost = {
+            val h = host
+            if (activeRestoreModeDialog === h) activeRestoreModeDialog = null
+            h?.dismiss()
+            Unit
+        }
+        host = RestoreModeComposeView(this,
+            onConfirm = { replace ->
+                val ownsPrompt = activeRestoreModeDialog === host
+                closeHost()
+                if (ownsPrompt && VaultSession.isCurrent(generation) && canOperate() && allowExit) {
+                    swReplace?.isChecked = replace
+                    showOpenFileSelector(requestCode)
+                }
+            }, onDismiss = closeHost)
+        activeRestoreModeDialog = host
+        host.show()
+    }
+
     private fun showOpenFileSelector(intentId: Int) {
-        val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT)
-        openDocument.addCategory(Intent.CATEGORY_OPENABLE)
-        openDocument.setType("*/*")
-        openDocument.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-        pendingPickerRequestCode = intentId
-
         try {
-            startActivityForResult(openDocument, intentId)
-            return
-        } catch (e: ActivityNotFoundException) {
-            Log.d(TAG, "Failed to use ACTION_OPEN_DOCUMENT, no matching activity found!")
-        } catch (e: SecurityException) {
-            Log.d(TAG, "ACTION_OPEN_DOCUMENT is not available in this profile")
-        }
+            val openDocument = Intent(Intent.ACTION_OPEN_DOCUMENT)
+            openDocument.addCategory(Intent.CATEGORY_OPENABLE)
+            openDocument.setType("*/*")
+            openDocument.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            pendingPickerRequestCode = intentId
+            publishBackupOverview()
 
-        val getContent = Intent(Intent.ACTION_GET_CONTENT)
-        getContent.addCategory(Intent.CATEGORY_OPENABLE)
-        getContent.setType("*/*")
-        getContent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        try {
-            startActivityForResult(getContent, intentId)
-        } catch (e: ActivityNotFoundException) {
-            pendingPickerRequestCode = null
-            Log.d(TAG, "Failed to use ACTION_GET_CONTENT, no matching activity found!")
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
-        } catch (e: SecurityException) {
-            pendingPickerRequestCode = null
-            Log.d(TAG, "ACTION_GET_CONTENT is not available in this profile")
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
-        }
+            try {
+                startActivityForResult(openDocument, intentId)
+                return
+            } catch (e: ActivityNotFoundException) {
+                Log.d(TAG, "Failed to use ACTION_OPEN_DOCUMENT, no matching activity found!")
+            } catch (e: SecurityException) {
+                Log.d(TAG, "ACTION_OPEN_DOCUMENT is not available in this profile")
+            }
+
+            val getContent = Intent(Intent.ACTION_GET_CONTENT)
+            getContent.addCategory(Intent.CATEGORY_OPENABLE)
+            getContent.setType("*/*")
+            getContent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            try {
+                startActivityForResult(getContent, intentId)
+            } catch (e: ActivityNotFoundException) {
+                pendingPickerRequestCode = null
+                Log.d(TAG, "Failed to use ACTION_GET_CONTENT, no matching activity found!")
+                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            } catch (e: SecurityException) {
+                pendingPickerRequestCode = null
+                Log.d(TAG, "ACTION_GET_CONTENT is not available in this profile")
+                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            }
+        } finally { publishBackupOverview() }
     }
 
     /** Uses the system file picker, or backs up straight to the configured location when "ask" is off. */
     private fun showSaveFileSelector(mimeType: String, backupType: Constants.BackupType, intentId: Int) {
-        if (settings!!.getBackupAsk()) {
-            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
-            intent.addCategory(Intent.CATEGORY_OPENABLE)
-            intent.setType(mimeType)
-            intent.putExtra(Intent.EXTRA_TITLE, BackupHelper.backupFilename(this, backupType))
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
-                Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
-            pendingPickerRequestCode = intentId
-            try {
-                startActivityForResult(intent, intentId)
-            } catch (error: ActivityNotFoundException) {
-                pendingPickerRequestCode = null
-                // Some Work Profiles / custom ROMs have no ACTION_CREATE_DOCUMENT handler.
-                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
-            } catch (error: SecurityException) {
-                pendingPickerRequestCode = null
-                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
-            }
-        } else {
-            if (settings!!.isBackupLocationSet()) {
-                if (intentId == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT) {
-                    doBackupCrypt(null)
-                } else if (intentId == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP) {
-                    backupEncryptedWithPGP(null, null)
+        try {
+            if (settings!!.getBackupAsk()) {
+                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT)
+                intent.addCategory(Intent.CATEGORY_OPENABLE)
+                intent.setType(mimeType)
+                intent.putExtra(Intent.EXTRA_TITLE, BackupHelper.backupFilename(this, backupType))
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION or
+                    Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+                pendingPickerRequestCode = intentId
+                publishBackupOverview()
+                try {
+                    startActivityForResult(intent, intentId)
+                } catch (error: ActivityNotFoundException) {
+                    pendingPickerRequestCode = null
+                    // Some Work Profiles / custom ROMs have no ACTION_CREATE_DOCUMENT handler.
+                    Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+                } catch (error: SecurityException) {
+                    pendingPickerRequestCode = null
+                    Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
                 }
             } else {
-                Toast.makeText(this, R.string.backup_toast_no_location, Toast.LENGTH_LONG).show()
+                if (settings!!.isBackupLocationSet()) {
+                    if (intentId == Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT) {
+                        doBackupCrypt(null)
+                    } else if (intentId == Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP) {
+                        backupEncryptedWithPGP(null, null)
+                    }
+                } else {
+                    Toast.makeText(this, R.string.backup_toast_no_location, Toast.LENGTH_LONG).show()
+                }
             }
-        }
+        } finally { publishBackupOverview() }
     }
 
     /** Adds the restored entries (replacing the current ones if selected) and saves the database. */

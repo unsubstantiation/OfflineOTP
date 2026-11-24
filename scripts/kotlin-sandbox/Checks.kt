@@ -1009,7 +1009,11 @@ private class SettingsResources(
     }
 
     override fun getStringArray(id: Int): Array<String> =
-        if (id == R.array.settings_defaults_search_includes) arrayOf("label", "issuer") else emptyArray()
+        when (id) {
+            R.array.settings_defaults_search_includes -> arrayOf("label", "issuer")
+            R.array.settings_entries_tap -> arrayOf("Nothing", "Reveal/Hide", "Copy", "Copy and go to background", "Share as keystrokes")
+            else -> emptyArray()
+        }
 
     override val displayMetrics: DisplayMetrics get() = METRICS
 
@@ -7811,6 +7815,14 @@ fun main() {
             setField("status", android.widget.TextView())
             setField("accountsView", accountsView)
             setField("clock", { now })
+            val page = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(activity) { _, _ -> }
+            setField("hardwarePage", page)
+            fun visibleAccountLabels(): List<String> {
+                @Suppress("UNCHECKED_CAST")
+                val groups = page.javaClass.getDeclaredMethod("getGroups").apply { isAccessible = true }.invoke(page)
+                    as List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>
+                return groups.flatMap { it.items }.filter { it.key.startsWith("account:") }.map { it.label }
+            }
             val handler = activity.javaClass.getDeclaredField("handler").apply { isAccessible = true }
                 .get(activity) as Handler
             val credential = com.yubico.yubikit.oath.Credential(byteArrayOf(5),
@@ -7820,12 +7832,14 @@ fun main() {
             val render = activity.javaClass.getDeclaredMethod("renderAccounts", HardwareOathClient.Accounts::class.java)
                 .apply { isAccessible = true }
             render.invoke(activity, accounts)
+            expect(visibleAccountLabels().single().contains("123456"), { "shared hardware page omitted live TOTP" })
             val button = accountsView.getChildAt(0) as android.widget.Button
             expect(button.text.toString().contains("123456") && handler.delayed.single().second == 500L,
                 { "valid TOTP was not displayed with a bounded refresh" })
             now = 999L
             handler.delayed.removeAt(0).first.run()
             expect(!button.text.toString().contains("123456"), { "clock rollback left a future code visible" })
+            expect(visibleAccountLabels().none { it.contains("123456") }, { "Compose retained expired/future TOTP after rollback" })
             now = 1_500L
             button.performClick()
             expect(com.yubico.yubikit.android.YubiKitManager.usbCallback != null,
@@ -9482,6 +9496,435 @@ fun main() {
             VaultSession.lock()
             PreferenceManager.reset()
         }
+    }
+
+    check("Shared tools handoffs reject stale generations and unsupported backup actions") {
+        var launched: Intent? = null
+        var requestCode = -1
+        val main = object : MainActivity() {
+            override fun startActivityForResult(intent: Intent, code: Int) {
+                launched = intent
+                requestCode = code
+            }
+        }
+        val launch = MainActivity::class.java.getDeclaredMethod("launchBackupTool", Int::class.javaPrimitiveType)
+            .apply { isAccessible = true }
+        val read = com.fairuniversal.offlineotp.Activities.BackupActivity::class.java
+            .getDeclaredMethod("requestedVaultTool").apply { isAccessible = true }
+        val backup = object : com.fairuniversal.offlineotp.Activities.BackupActivity() {
+            override fun getIntent(): Intent? = launched
+        }
+        VaultSession.lock()
+        launch.invoke(main, Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT)
+        expect(launched == null, { "locked tools must not launch" })
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(SecretKeySpec(ByteArray(32) { 32 }, "AES"), unlock.generation)
+        try {
+            for (action in listOf(Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT,
+                Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT, Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP,
+                Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)) {
+                launch.invoke(main, action)
+                expect(requestCode == Constants.INTENT_MAIN_BACKUP, { "backup result route" })
+                expect(read.invoke(backup) == action, { "same-session action must be accepted" })
+            }
+            launched = Intent().putExtra(Constants.EXTRA_VAULT_TOOL_ACTION, -42)
+                .putExtra(Constants.EXTRA_VAULT_TOOL_GENERATION, VaultSession.generation().toString())
+            expect(read.invoke(backup) == null, { "unknown backup action" })
+            launch.invoke(main, Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT)
+            VaultSession.lock()
+            expect(read.invoke(backup) == null, { "handoff must expire on lock" })
+            val next = VaultSession.beginUnlock()
+            VaultSession.activate(SecretKeySpec(ByteArray(32) { 33 }, "AES"), next.generation)
+            expect(read.invoke(backup) == null, { "fresh unlock must not revive old handoff" })
+        } finally { VaultSession.lock() }
+    }
+
+    check("Shared preferences export confirmation refuses stale or replaced Android prompts") {
+        val fixture = SettingsFixture()
+        var pickers = 0
+        val activity = object : com.fairuniversal.offlineotp.Activities.SettingsActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+            override val resources: Resources get() = fixture.context.resources
+            override fun startActivityForResult(intent: Intent, code: Int) { pickers++ }
+        }
+        activity.settings = fixture.settings
+        val hostField = com.fairuniversal.offlineotp.Activities.SettingsActivity::class.java
+            .getDeclaredField("settingsConfirmationPrompt").apply { isAccessible = true }
+        fun callback(): (Boolean) -> Unit {
+            val host = hostField.get(activity)
+            expect(host is com.fairuniversal.offlineotp.ui.host.PreferencesExportComposeView,
+                { "must mount dedicated shared export disclosure" })
+            @Suppress("UNCHECKED_CAST")
+            return host.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(host) as (Boolean) -> Unit
+        }
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(SecretKeySpec(ByteArray(32) { 19 }, "AES"), unlock.generation)
+        try {
+            activity.confirmPreferencesExport()
+            val replaced = callback()
+            activity.confirmPreferencesExport()
+            replaced(false)
+            expect(pickers == 0, { "replaced prompt must not export" })
+            val stale = callback()
+            VaultSession.lock()
+            stale(true)
+            expect(pickers == 0, { "locked prompt must not read saved backup password or open picker" })
+        } finally { VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared restore mode snapshots merge/replace and rejects stale Android picker callbacks") {
+        val fixture = SettingsFixture()
+        var pickers = 0
+        var lastRequest = -1
+        val activity = object : com.fairuniversal.offlineotp.Activities.BackupActivity() {
+            override fun startActivityForResult(intent: Intent, code: Int) { pickers++; lastRequest = code }
+        }
+        activity.settings = fixture.settings
+        val type = com.fairuniversal.offlineotp.Activities.BackupActivity::class.java
+        val keyField = type.getDeclaredField("encryptionKey").apply { isAccessible = true }
+        val hostField = type.getDeclaredField("activeRestoreModeDialog").apply { isAccessible = true }
+        val modeField = type.getDeclaredField("swReplace").apply { isAccessible = true }
+        val choose = type.getDeclaredMethod("chooseRestoreMode", Int::class.javaPrimitiveType).apply { isAccessible = true }
+        val mode = com.google.android.material.switchmaterial.SwitchMaterial(fixture.context)
+        modeField.set(activity, mode)
+        fun callback(): (Boolean) -> Unit {
+            val host = hostField.get(activity)
+            expect(host is com.fairuniversal.offlineotp.ui.host.RestoreModeComposeView, { "shared restore mode host" })
+            @Suppress("UNCHECKED_CAST")
+            return host.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(host) as (Boolean) -> Unit
+        }
+        val key = SecretKeySpec(ByteArray(32) { 17 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(key, unlock.generation)
+        keyField.set(activity, key)
+        try {
+            choose.invoke(activity, Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT)
+            expect(hostField.get(activity) == null, { "only restore requests can choose mode" })
+            choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+            val merge = callback()
+            merge(false)
+            expect(pickers == 1 && !mode.isChecked && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT,
+                { "merge must be captured before opening encrypted picker" })
+            merge(true)
+            expect(pickers == 1 && !mode.isChecked, { "double confirmation must not change mode or relaunch picker" })
+            choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP)
+            callback()(true)
+            expect(pickers == 2 && mode.isChecked && lastRequest == Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP,
+                { "explicit replace must reach OpenPGP picker state" })
+            choose.invoke(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+            val stale = callback()
+            VaultSession.lock()
+            stale(false)
+            expect(pickers == 2 && mode.isChecked, { "lock must revoke pending restore-mode confirmation" })
+        } finally { VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared backup overview honors disabled, busy and closed frames and Android picker state") {
+        val fixture = SettingsFixture()
+        val selected = arrayListOf<String>()
+        val view = com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView(fixture.context) { selected.add(it) }
+        val groups = listOf(com.fairuniversal.offlineotp.ui.portable.PortableToolGroup("Backup", listOf(
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem(key = "backup", label = "Backup"),
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem(key = "restore", label = "Restore", enabled = false),
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem(key = "info", label = "Info", interactive = false)
+        )))
+        view.render("Backup", "Encrypted", groups, "", false)
+        view.selectTool("restore"); view.selectTool("unknown"); view.selectTool("info"); view.selectTool("backup")
+        expect(selected == listOf("backup"), { "only enabled interactive actions" })
+        view.render("Backup", "Encrypted", groups, "", true)
+        view.selectTool("backup")
+        view.clear("Vault locked")
+        view.render("Backup", "Encrypted", groups, "", false)
+        view.selectTool("backup")
+        expect(selected == listOf("backup"), { "busy and cleared frames must not dispatch" })
+
+        val activity = com.fairuniversal.offlineotp.Activities.BackupActivity()
+        activity.settings = fixture.settings
+        val type = activity.javaClass
+        fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
+        val backup = android.widget.Button(fixture.context)
+        val restore = android.widget.Button(fixture.context)
+        var clicks = 0
+        backup.setOnClickListener { clicks++ }
+        restore.setOnClickListener { clicks++ }
+        field("btnBackup").set(activity, backup)
+        field("btnRestore").set(activity, restore)
+        val frameView = com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView(fixture.context) {}
+        field("backupOverview").set(activity, frameView)
+        val publish = type.getDeclaredMethod("publishBackupOverview").apply { isAccessible = true }
+        val dispatch = type.getDeclaredMethod("dispatchBackupOverviewAction", String::class.java).apply { isAccessible = true }
+        val key = SecretKeySpec(ByteArray(32) { 14 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(key, unlock.generation)
+        field("encryptionKey").set(activity, key)
+        try {
+            backup.isEnabled = false
+            restore.isEnabled = true
+            publish.invoke(activity)
+            val readGroups = frameView.javaClass.getDeclaredMethod("getGroups").apply { isAccessible = true }
+            @Suppress("UNCHECKED_CAST")
+            val rendered = readGroups.invoke(frameView) as List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>
+            expect(!rendered.flatMap { it.items }.single { it.key == "backup" }.enabled,
+                { "native provider availability must reach shared frame" })
+            dispatch.invoke(activity, "backup")
+            dispatch.invoke(activity, "restore")
+            expect(clicks == 1, { "live disabled action must not dispatch" })
+            field("pendingPickerRequestCode").set(activity, Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT)
+            dispatch.invoke(activity, "restore")
+            expect(clicks == 1, { "pending picker must block duplicate actions" })
+            field("pendingPickerRequestCode").set(activity, null)
+            field("allowExit").set(activity, false)
+            dispatch.invoke(activity, "restore")
+            expect(clicks == 1, { "running task must block actions" })
+            field("allowExit").set(activity, true)
+            VaultSession.lock()
+            dispatch.invoke(activity, "restore")
+            expect(clicks == 1, { "locked activity must reject stale action" })
+        } finally { VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared hardware page wipes passwords and rejects stale, busy and stopped account actions") {
+        val fixture = SettingsFixture()
+        var dispatched = 0
+        val page = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(fixture.context) { _, _ -> dispatched++ }
+        val groups = listOf(com.fairuniversal.offlineotp.ui.portable.PortableToolGroup("", listOf(
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem(key = "list", label = "Read"),
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem(key = "disabled", label = "Disabled", enabled = false)
+        )))
+        fun submit(key: String) {
+            val secret = "oath-password".toCharArray()
+            page.selectTool(key, secret)
+            expect(secret.all { it == '\u0000' }, { "every hardware callback must consume/wipe password array" })
+        }
+        page.render("Keys", "USB/NFC", "OATH password", groups, "", false)
+        submit("disabled"); submit("unknown"); submit("list")
+        expect(dispatched == 1, { "only enabled actions dispatch" })
+        page.render("Keys", "USB/NFC", "OATH password", groups, "", true)
+        submit("list")
+        page.clear(); submit("list")
+        page.render("Keys", "USB/NFC", "OATH password", groups, "", false)
+        submit("list")
+        page.close()
+        page.render("Keys", "USB/NFC", "OATH password", groups, "", false)
+        submit("list")
+        expect(dispatched == 2, { "stop may resume; destroyed pages must stay closed" })
+
+        val activity = com.fairuniversal.offlineotp.Activities.HardwareKeyActivity()
+        val type = activity.javaClass
+        fun set(name: String, value: Any) { type.getDeclaredField(name).apply { isAccessible = true }.set(activity, value) }
+        val nativePassword = android.widget.EditText(activity)
+        val nativeAccounts = android.widget.LinearLayout(activity)
+        val button = android.widget.Button(activity)
+        var accountClicks = 0
+        var observedPassword = ""
+        button.setText("Example / alice\n123456")
+        button.setOnClickListener { accountClicks++; observedPassword = nativePassword.text.toString() }
+        nativeAccounts.addView(button)
+        set("password", nativePassword)
+        set("accountsView", nativeAccounts)
+        set("status", android.widget.TextView())
+        val dispatch = type.getDeclaredMethod("dispatchHardwarePageAction", String::class.java, CharArray::class.java)
+            .apply { isAccessible = true }
+        val livePage = com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView(activity) { key, password ->
+            dispatch.invoke(activity, key, password)
+        }
+        set("hardwarePage", livePage)
+        val publish = type.getDeclaredMethod("publishHardwarePage").apply { isAccessible = true }
+        val clear = type.getDeclaredMethod("clearSensitiveUi").apply { isAccessible = true }
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(SecretKeySpec(ByteArray(32) { 13 }, "AES"), unlock.generation)
+        set("generation", VaultSession.generation())
+        try {
+            publish.invoke(activity)
+            val typed = "key-password".toCharArray()
+            livePage.selectTool("account:0:0", typed)
+            expect(accountClicks == 1 && observedPassword == "key-password" && nativePassword.text.isNullOrEmpty(),
+                { "account action must consume native password compatibility buffer" })
+            expect(typed.all { it == '\u0000' }, { "password array not wiped" })
+            set("listRevision", 1)
+            publish.invoke(activity)
+            livePage.selectTool("account:0:0", "stale".toCharArray())
+            expect(accountClicks == 1, { "old account revisions must not dispatch against a new list" })
+            set("deviceBusy", true)
+            dispatch.invoke(activity, "account:1:0", "busy".toCharArray())
+            expect(accountClicks == 1, { "live busy guard" })
+            set("deviceBusy", false)
+            clear.invoke(activity)
+            livePage.selectTool("account:1:0", "stopped".toCharArray())
+            expect(accountClicks == 1 && nativeAccounts.childCount == 0, { "stop must clear native and Compose accounts" })
+            VaultSession.lock()
+            dispatch.invoke(activity, "account:1:0", "locked".toCharArray())
+            expect(accountClicks == 1, { "locked hardware callbacks" })
+        } finally { VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared hardware unlock PIN form is single-use and session/lifecycle guarded") {
+        val activity = com.fairuniversal.offlineotp.Activities.HardwareUnlockActivity()
+        var submissions = 0
+        var cancellations = 0
+        var supplied = ""
+        fun host() = com.fairuniversal.offlineotp.ui.host.HardwareUnlockComposeView(
+            activity, "USB/NFC", "FIDO PIN", "Unlock", null,
+            { pin -> submissions++; supplied = String(pin) }, { cancellations++ })
+        val first = host()
+        val pin = "123456".toCharArray()
+        first.submitPin(pin)
+        first.submitPin("retry".toCharArray())
+        first.cancelToPassword()
+        expect(submissions == 1 && supplied == "123456" && pin.all { it == '\u0000' },
+            { "single-use form must wipe submitted PIN" })
+        expect(cancellations == 0, { "consumed form cannot cancel a later attempt" })
+        val canceled = host()
+        canceled.cancelToPassword()
+        val canceledPin = "late".toCharArray()
+        canceled.submitPin(canceledPin)
+        expect(cancellations == 1 && submissions == 1 && canceledPin.all { it == '\u0000' },
+            { "cancel must revoke PIN submission" })
+        val closed = host()
+        closed.close()
+        val closedPin = "late".toCharArray()
+        closed.submitPin(closedPin)
+        expect(submissions == 1 && closedPin.all { it == '\u0000' }, { "closed callback must be inert and scrubbed" })
+
+        val type = activity.javaClass
+        fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
+        val show = type.getDeclaredMethod("showUnlockForm").apply { isAccessible = true }
+        val cleanup = type.getDeclaredMethod("cleanup").apply { isAccessible = true }
+        val cancelAttempt = type.getDeclaredMethod("cancelUnlockAttempt",
+            com.fairuniversal.offlineotp.ui.host.ComposeDialogHost::class.java).apply { isAccessible = true }
+        fun progressHost() = com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView(
+            activity, "Keys", "Waiting", "Cancel", {})
+        val oldProgress = progressHost()
+        val newProgress = progressHost()
+        field("progress").set(activity, newProgress)
+        cancelAttempt.invoke(activity, oldProgress)
+        expect(newProgress.dismissals == 0 && oldProgress.dismissals == 0,
+            { "old cancellation callback must not dismiss current attempt" })
+        cancelAttempt.invoke(activity, newProgress)
+        expect(newProgress.dismissals == 1, { "matching cancellation callback must dismiss its prompt" })
+        field("progress").set(activity, null)
+        val nativePin = android.widget.EditText(activity)
+        field("pin").set(activity, nativePin)
+        val attempt = VaultSession.beginUnlock()
+        field("generation").set(activity, attempt.generation)
+        try {
+            show.invoke(activity)
+            expect(field("unlockForm").get(activity) == null, { "background activity must not present a credential form" })
+            field("foreground").set(activity, true)
+            show.invoke(activity)
+            val current = field("unlockForm").get(activity) as? com.fairuniversal.offlineotp.ui.host.HardwareUnlockComposeView
+                ?: throw AssertionError("shared unlock form was not shown")
+            cleanup.invoke(activity)
+            val stoppedPin = "stopped".toCharArray()
+            current.submitPin(stoppedPin)
+            expect(field("unlockForm").get(activity) == null && nativePin.text.isNullOrEmpty() && stoppedPin.all { it == '\u0000' },
+                { "cleanup must dismiss form and revoke its callback" })
+            show.invoke(activity)
+            val stale = field("unlockForm").get(activity) as com.fairuniversal.offlineotp.ui.host.HardwareUnlockComposeView
+            VaultSession.lock()
+            val stalePin = "stale".toCharArray()
+            stale.submitPin(stalePin)
+            expect(nativePin.text.isNullOrEmpty() && field("progress").get(activity) == null && stalePin.all { it == '\u0000' },
+                { "a stale unlock generation must not start device discovery" })
+        } finally { cleanup.invoke(activity); VaultSession.lock() }
+    }
+
+    check("Shared Settings overview persists typed dialogs and preserves advanced navigation") {
+        val fixture = SettingsFixture()
+        var recreations = 0
+        val activity = object : com.fairuniversal.offlineotp.Activities.SettingsActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+            override val resources: Resources get() = fixture.context.resources
+            override fun recreate() { recreations++ }
+        }
+        activity.settings = fixture.settings
+        val type = com.fairuniversal.offlineotp.Activities.SettingsActivity::class.java
+        fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
+        val dispatch = type.getDeclaredMethod("dispatchSettingsOverviewAction", String::class.java).apply { isAccessible = true }
+        val publish = type.getDeclaredMethod("publishSettingsOverview").apply { isAccessible = true }
+        val back = type.getDeclaredMethod("returnToSettingsOverview").apply { isAccessible = true }
+        val overview = com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView(activity) { dispatch.invoke(activity, it) }
+        field("settingsOverview").set(activity, overview)
+        val key = SecretKeySpec(ByteArray(32) { 12 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        VaultSession.activate(key, unlock.generation)
+        field("encryptionKey").set(activity, key)
+        field("overviewGeneration").set(activity, VaultSession.generation())
+        try {
+            fixture.settings.setAuthMethod(Constants.AuthMethod.PASSWORD)
+            publish.invoke(activity)
+            overview.selectTool("display")
+            val display = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
+                ?: throw AssertionError("Settings must use shared card display form")
+            val chosen = fixture.settings.currentCardDisplaySelection(fixture.context).copy(hideIssuer = true, labelSizeSp = 18)
+            display.saveSelection(chosen)
+            expect(fixture.settings.currentCardDisplaySelection(fixture.context).hideIssuer && fixture.settings.getLabelSize() == 18,
+                { "shared Settings display form did not persist typed values" })
+            overview.selectTool("autoLock")
+            val auto = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+                ?: throw AssertionError("Settings must use shared auto-lock form")
+            auto.saveTimeout(180, true)
+            expect(fixture.settings.currentAutoLockSeconds() == 180 && fixture.settings.getRelockOnBackground(),
+                { "shared Settings auto-lock did not persist" })
+            overview.selectTool("search")
+            val search = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+                ?: throw AssertionError("Settings must use shared search-fields form")
+            search.confirmSelection(setOf(1, 2))
+            expect(fixture.settings.getSearchValues().toSet() == setOf(Constants.SearchIncludes.ISSUER, Constants.SearchIncludes.TAGS),
+                { "shared Settings search selection did not persist" })
+            overview.selectTool("singleTap")
+            val tap = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            tap.confirmSelection(-1)
+            expect(fixture.settings.getTapSingle() == Constants.TapMode.NOTHING, { "invalid tap selection wrote settings" })
+            tap.confirmSelection(2)
+            tap.confirmSelection(4)
+            expect(fixture.settings.getTapSingle() == Constants.TapMode.COPY, { "single-use tap selection failed" })
+            for ((index, mode) in Constants.TapMode.values().withIndex()) {
+                overview.selectTool("doubleTap")
+                val doubleTap = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+                doubleTap.confirmSelection(index)
+                expect(fixture.settings.getTapDouble() == mode, { "tap mode mapping changed for $mode" })
+            }
+            overview.selectTool("singleTap")
+            val dismissed = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            dismissed.dismiss()
+            dismissed.confirmSelection(0)
+            expect(fixture.settings.getTapSingle() == Constants.TapMode.COPY, { "dismissed tap form committed" })
+            overview.selectTool("advanced")
+            expect(field("showingAdvancedSettings").get(activity) == true && recreations == 1,
+                { "native-only preferences must stay reachable with refreshed stored values" })
+            expect(back.invoke(activity) == true && field("showingAdvancedSettings").get(activity) == false,
+                { "Back from advanced must return to shared overview" })
+            field("canGoBack").set(activity, false)
+            publish.invoke(activity)
+            overview.selectTool("display")
+            expect(field("settingsConfirmationPrompt").get(activity) == null, { "task-busy overview dispatched settings action" })
+            field("canGoBack").set(activity, true)
+            field("overviewPickerPending").set(activity, true)
+            publish.invoke(activity)
+            overview.selectTool("display")
+            expect(field("settingsConfirmationPrompt").get(activity) == null, { "pending picker must block more settings actions" })
+            field("overviewPickerPending").set(activity, false)
+            publish.invoke(activity)
+            overview.selectTool("singleTap")
+            val staleTap = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            staleTap.dismiss()
+            overview.selectTool("autoLock")
+            val stale = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+            activity.onSuccessfulEncryptionChange(Constants.EncryptionType.PASSWORD,
+                SecretKeySpec(ByteArray(32) { 11 }, "AES"))
+            stale.saveTimeout(600, false)
+            expect(fixture.settings.currentAutoLockSeconds() == 180, { "old dialog crossed an authorized key change" })
+            overview.selectTool("autoLock")
+            val afterKeyChange = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+                ?: throw AssertionError("overview was not rebound after authorized key change")
+            VaultSession.lock()
+            afterKeyChange.saveTimeout(600, false)
+            staleTap.confirmSelection(0)
+            expect(fixture.settings.getTapSingle() == Constants.TapMode.COPY, { "stale tap form changed settings after lock" })
+            expect(fixture.settings.currentAutoLockSeconds() == 180 && fixture.settings.getRelockOnBackground(),
+                { "stale shared Settings callback changed preferences" })
+        } finally { overview.close(); VaultSession.lock(); PreferenceManager.reset() }
     }
 
     if (failures == 0) {

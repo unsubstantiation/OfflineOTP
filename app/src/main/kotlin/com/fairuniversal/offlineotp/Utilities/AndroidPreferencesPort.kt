@@ -235,3 +235,10 @@ private fun resolveStoredTapToken(chosen: PortableTapMode, existing: Constants.T
         chosen.name.lowercase(Locale.ROOT)
     }
 }
+
+/** Keep the native ListPreference wire values while sharing the selection UI. */
+fun Settings.applyTapAction(context: Context, doubleTap: Boolean, mode: Constants.TapMode): Boolean =
+    PreferenceManager.getDefaultSharedPreferences(context).edit()
+        .putString(context.getString(if (doubleTap) R.string.settings_key_tap_double else R.string.settings_key_tap_single),
+            mode.name.lowercase(Locale.ROOT))
+        .commit()

@@ -499,6 +499,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
     var showSearchFields by remember(vault) { mutableStateOf(false) }
+    var showPreferencesExport by remember(vault) { mutableStateOf(false) }
     var showUsedTokensNotice by remember(vault) { mutableStateOf(false) }
     var usedTokensHideForever by remember(vault) { mutableStateOf(false) }
     var moveFailed by remember(vault) { mutableStateOf(false) }
@@ -606,7 +607,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             lockVault = {
                 showStorageLocation = false
                 showSearchFields = false
-                showUsedTokensNotice = false
+                showPreferencesExport = false; showUsedTokensNotice = false
                 usedTokensHideForever = false
                 transactionHolder[0]?.close()
                 entryActions.close()
@@ -678,7 +679,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     // unlock is required afterwards; none of these terminal owners is reused for editing.
     fun quiesceForTransaction() {
         showSearchFields = false
-        showUsedTokensNotice = false
+        showPreferencesExport = false; showUsedTokensNotice = false
         usedTokensHideForever = false
         layoutSettings.close(); autoLock.close(); copier.close(); mover.close(); entryActions.close()
         creation.close(); editing.close(); emailDetails.close(); dialogs.close()
@@ -1087,10 +1088,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             }
         }, exportPreferences = {
             if (lifetime.checkActive() && preferencesExporter.status != DesktopPreferencesExport.Status.WRITING) {
-                try {
-                    val target = DesktopSavePicker.preferencesExport(window)
-                    if (target != null && lifetime.checkActive() && !vault.isLocked) preferencesExporter.submit(target, lifetime::checkActive)
-                } catch (_: Exception) { copyNotice = "The preferences destination could not be selected." }
+                showPreferencesExport = true
             }
         }, importPreferences = {
             if (lifetime.checkActive() && preferencesImporter.pending == null) {
@@ -1115,7 +1113,9 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             }
         }),
         appearance = presenter.appearance,
-        artwork = artwork
+        artwork = artwork,
+        toast = copyNotice.orEmpty(),
+        onDismissToast = { copyNotice = null }
     )
     hardwareRemoval.pending?.let { request ->
         EntryConfirmationDialog(title = "Remove local hardware unlock",
@@ -1513,6 +1513,22 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }, onDismiss = { emailExporter.dismiss(request) })
         }
     }
+    if (showPreferencesExport && lifetime.checkActive() && !vault.isLocked) {
+        com.fairuniversal.offlineotp.ui.vault.PreferencesExportDialog(
+            inputKey = vault,
+            onDismiss = { showPreferencesExport = false },
+            onConfirm = {
+                showPreferencesExport = false
+                if (lifetime.checkActive() && !vault.isLocked) {
+                    try {
+                        val target = DesktopSavePicker.preferencesExport(window)
+                        if (target != null && lifetime.checkActive() && !vault.isLocked)
+                            preferencesExporter.submit(target, lifetime::checkActive)
+                    } catch (_: Exception) { copyNotice = "The preferences destination could not be selected." }
+                }
+            }
+        )
+    }
     preferencesExporter.status?.let { status -> EntryConfirmationDialog(title = "Export preferences",
         message = when (status) {
             DesktopPreferencesExport.Status.WRITING -> "Writing portable settings only—no vault entries, passwords or authentication material. Cancel stops queued work; a write already started may finish."
@@ -1713,7 +1729,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                     controller.trySaveUsedTokensShown(true)
                 }
                 usedTokensHideForever = false
-                showUsedTokensNotice = false
+                showPreferencesExport = false; showUsedTokensNotice = false
                 revision++
             }
         )
@@ -1756,8 +1772,6 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             }
         },
         onDismiss = { copier.dismiss(copyRequest); revision++ })
-    copyNotice?.let { message -> EntryConfirmationDialog(title = "Copy", message = message,
-        confirmLabel = "OK", dismissLabel = "Close", onConfirm = { copyNotice = null }, onDismiss = { copyNotice = null }) }
     val addRequest = creation.pending
     if (addRequest != null) {
         val addMode = when (addRequest.initialCategory) {
@@ -1809,6 +1823,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         if (initial != null) EmailSettingsDialog(
             inputKey = editRequest, initial = initial,
             failed = editRequest.failure != null,
+            errorText = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
                 if (editing.submitEmailSettings(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {
@@ -1822,6 +1837,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         if (initial != null) EmailPasswordDialog(
             inputKey = editRequest, initial = initial,
             failed = editRequest.failure != null,
+            errorText = if (editRequest.failure != null) "Could not save email entry. Check the fields and storage; original retained." else null,
             onDismiss = { editing.dismiss(editRequest); revision++ },
             onSubmit = { input ->
                 if (editing.submitEmailPasswords(editRequest, input, presenter.isRevealed(editRequest.entryId), lifetime::checkActive)) {

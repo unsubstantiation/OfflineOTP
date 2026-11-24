@@ -28,10 +28,8 @@ fun EncryptedRestoreDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Bo
                     enabled = !busy, singleLine = true, label = { Text(text = "Backup password") },
                     visualTransformation = PasswordVisualTransformation())
             } else {
-                Text(text = "Backup contains $count entries. Merge keeps current accounts and their metadata; only new accounts are added.")
-                ForestTextAction(text = if (!replace) "Selected: Merge" else "Merge", onClick = { replace = false })
-                ForestTextAction(text = if (replace) "Selected: Replace all current entries" else "Replace all current entries", onClick = { replace = true })
-                if (replace) Text(text = "Warning: Restore will delete all current entries and replace them with this backup.")
+                Text(text = "Backup contains $count entries.")
+                RestoreModeSelection(replace = replace, busy = busy, onReplaceChange = { replace = it })
             }
             if (busy) Text(text = "Decrypting…")
             if (failed) Text(text = "Could not restore the backup. Check the password, file and vault storage, then try again.")
