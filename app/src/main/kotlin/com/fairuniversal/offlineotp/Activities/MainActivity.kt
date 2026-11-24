@@ -9,6 +9,8 @@ import com.fairuniversal.offlineotp.ui.vault.VaultActions
 import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
 import com.fairuniversal.offlineotp.ui.vault.VaultEntryKind
 import com.fairuniversal.offlineotp.ui.vault.VaultStrings
+import com.fairuniversal.offlineotp.ui.host.VaultToolsComposeView
+import com.fairuniversal.offlineotp.ui.host.StorageLocationComposeView
 import com.fairuniversal.offlineotp.ui.host.ArchiveExportComposeView
 import com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
 import com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
@@ -145,6 +147,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var thunderbirdExportGeneration: Long = -1L
     private var thunderbirdExportSelectionDialog: ComposeDialogHost? = null
     private var passwordExportPrompt: ComposeDialogHost? = null
+    private var toolsPrompt: ComposeDialogHost? = null
+    private var storagePrompt: ComposeDialogHost? = null
     private var usedTokensPrompt: ComposeDialogHost? = null
     private var uriImportPrompt: ComposeDialogHost? = null
     private var vaultUnavailablePrompt: ComposeDialogHost? = null
@@ -279,6 +283,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdExportSelectionDialog = null
         passwordExportPrompt?.dismiss()
         passwordExportPrompt = null
+        toolsPrompt?.dismiss()
+        toolsPrompt = null
+        storagePrompt?.dismiss()
+        storagePrompt = null
         usedTokensPrompt?.dismiss()
         usedTokensPrompt = null
         uriImportPrompt?.dismiss()
@@ -1132,7 +1140,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val id = item.getItemId()
 
-        if (id == R.id.action_backup) {
+        if (id == R.id.action_tools) {
+            openVaultToolsDialog()
+            return true
+        } else if (id == R.id.action_backup) {
             val backupIntent = Intent(this, BackupActivity::class.java)
             if (VaultSession.getKey() == null) return true
             startActivityForResult(backupIntent, Constants.INTENT_MAIN_BACKUP)
@@ -1208,6 +1219,132 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
 
         return super.onOptionsItemSelected(item)
+    }
+
+    /** Only platform operations stay here; grouping and rendering belong to shared Compose. */
+    private fun openVaultToolsDialog() {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        val generation = VaultSession.generation()
+        toolsPrompt?.dismiss()
+        var host: VaultToolsComposeView? = null
+        val closeHost = {
+            val h = host
+            if (toolsPrompt === h) toolsPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        val actions = VaultActions(
+            onImportUri = { openUriImportDialog() },
+            onImportPasswords = { choosePasswordImport() },
+            onImportEmail = { chooseEmailImport() },
+            onImportThunderbird = { chooseThunderbirdImport() },
+            onImportLinScp = { chooseLinScpImport() },
+            onExportEncrypted = { launchBackupTool(Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT) },
+            onRestoreEncrypted = { launchBackupTool(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT) },
+            onExportOpenPgp = { launchBackupTool(Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP) },
+            onImportOpenPgp = { launchBackupTool(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP) },
+            onExportPreferences = { launchPreferencesTool(Constants.INTENT_SETTINGS_PREFERENCES_EXPORT) },
+            onImportPreferences = { launchPreferencesTool(Constants.INTENT_SETTINGS_PREFERENCES_IMPORT) },
+            onExportArchives = { openArchiveExportDialog() },
+            onExportPasswords = { requestPasswordCsvExport(null) },
+            onExportEmail = { chooseEmailExport() },
+            onExportThunderbird = { chooseThunderbirdExport() },
+            onExportLinScp = { chooseLinScpExport() },
+            onStorageLocation = { openStorageLocationDialog() },
+            onConfigureLayout = { openCardDisplayDialog() },
+            onConfigureSearchFields = { openSearchFieldsDialog() },
+            onConfigureAutoLock = if (settings!!.getAuthMethod() != AuthMethod.NONE) {
+                { openAutoLockDialog() }
+            } else null,
+            onChangePassword = { openPasswordChangeDialog() },
+            onToggleBackupTimestamp = {
+                val saved = android.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    .putBoolean(getString(R.string.settings_key_backup_append_date_time),
+                        !settings!!.getIsAppendingDateTimeToBackups()).commit()
+                if (!saved) Toast.makeText(this, R.string.backup_timestamp_save_failed, Toast.LENGTH_LONG).show()
+            },
+            onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) }
+        ).guarded {
+            VaultSession.isCurrent(generation) && VaultSession.getKey() != null && !isFinishing()
+        }
+        host = VaultToolsComposeView(this, actions, VaultStrings().copy(
+            backupTimestamp = if (settings!!.getIsAppendingDateTimeToBackups())
+                "Timestamp backup filenames: On" else "Timestamp backup filenames: Off"
+        ), closeHost)
+        toolsPrompt = host
+        host.show()
+    }
+
+    private fun launchBackupTool(action: Int) {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        startActivityForResult(Intent(this, BackupActivity::class.java)
+            .putExtra(Constants.EXTRA_VAULT_TOOL_ACTION, action)
+            .putExtra(Constants.EXTRA_VAULT_TOOL_GENERATION, VaultSession.generation().toString()),
+            Constants.INTENT_MAIN_BACKUP)
+    }
+
+    private fun launchPreferencesTool(action: Int) {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        startActivityForResult(Intent(this, SettingsActivity::class.java)
+            .putExtra(Constants.EXTRA_VAULT_TOOL_ACTION, action)
+            .putExtra(Constants.EXTRA_VAULT_TOOL_GENERATION, VaultSession.generation().toString()),
+            Constants.INTENT_MAIN_SETTINGS)
+    }
+
+    private fun openStorageLocationDialog() {
+        if (VaultSession.getKey() == null || isFinishing()) return
+        storagePrompt?.dismiss()
+        var host: StorageLocationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (storagePrompt === h) storagePrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = StorageLocationComposeView(
+            activity = this,
+            directory = getFilesDir().absolutePath,
+            filenames = listOf(Constants.FILENAME_ENCRYPTED_KEY, Constants.FILENAME_DATABASE,
+                Constants.FILENAME_DATABASE_BACKUP),
+            title = getString(R.string.settings_title_storage_location),
+            guidance = listOf(getString(R.string.storage_location_guidance_private),
+                getString(R.string.storage_location_guidance_backup)),
+            onDismiss = closeHost
+        )
+        storagePrompt = host
+        host.show()
+    }
+
+    /** Independent of browser CSV availability: mixed revealed selections can export archives. */
+    private fun openArchiveExportDialog() {
+        val current = adapter ?: return
+        val generation = VaultSession.generation()
+        if (VaultSession.getKey() == null || isFinishing()) return
+        val archives = current.getEntries().filter { it.isPasswordArchive() && current.isEntryRevealed(it) }
+        if (archives.isEmpty()) {
+            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+            return
+        }
+        passwordExportPrompt?.dismiss()
+        var host: ArchiveExportComposeView? = null
+        val closeHost = {
+            val h = host
+            if (passwordExportPrompt === h) passwordExportPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = ArchiveExportComposeView(this,
+            labels = archives.map { it.getLabel().ifBlank { "passwords.bin" } },
+            onSelect = { index ->
+                closeHost()
+                if (VaultSession.isCurrent(generation) && VaultSession.getKey() != null && !isFinishing()) {
+                    archives.getOrNull(index)?.let { archive ->
+                        if (current.isEntryRevealed(archive)) requestPasswordArchiveExport(archive)
+                    }
+                }
+            }, onDismiss = closeHost)
+        passwordExportPrompt = host
+        host.show()
     }
 
     private fun openCardDisplayDialog(failed: Boolean = false) {
@@ -3140,6 +3277,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         thunderbirdExportSelectionDialog = null
         passwordExportPrompt?.dismiss()
         passwordExportPrompt = null
+        toolsPrompt?.dismiss()
+        toolsPrompt = null
+        storagePrompt?.dismiss()
+        storagePrompt = null
         usedTokensPrompt?.dismiss()
         usedTokensPrompt = null
         uriImportPrompt?.dismiss()

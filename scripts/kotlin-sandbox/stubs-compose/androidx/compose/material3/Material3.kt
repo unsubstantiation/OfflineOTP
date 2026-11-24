@@ -117,3 +117,7 @@ fun TextButton(onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Bool
 @Composable fun DropdownMenuItem(text: @Composable () -> Unit, onClick: () -> Unit) {}
 @Composable fun Checkbox(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {}
 @Composable fun Switch(checked: Boolean, onCheckedChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {}
+
+/** Indeterminate indicator; no drawing/runtime in this boundary stub. */
+@Composable
+fun LinearProgressIndicator(modifier: Modifier = Modifier) {}

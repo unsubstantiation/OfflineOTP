@@ -16,6 +16,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import android.view.View
 import android.view.ViewStub
+import android.view.ViewGroup
 import android.widget.Toast
 
 import androidx.appcompat.widget.Toolbar
@@ -53,11 +54,24 @@ import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultCommitDecision
 import com.fairuniversal.offlineotp.Utilities.VaultSession
 import com.fairuniversal.offlineotp.Utilities.VaultWriteResult
+import com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView
+import com.fairuniversal.offlineotp.ui.host.CardDisplayComposeView
+import com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
+import com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+import com.fairuniversal.offlineotp.ui.portable.PortableToolGroup
+import com.fairuniversal.offlineotp.ui.portable.PortableToolItem
+import com.fairuniversal.offlineotp.Utilities.currentCardDisplaySelection
+import com.fairuniversal.offlineotp.Utilities.applyCardDisplaySelection
+import com.fairuniversal.offlineotp.Utilities.currentAutoLockSeconds
+import com.fairuniversal.offlineotp.Utilities.applyAutoLockSettings
+import com.fairuniversal.offlineotp.Utilities.applyTapAction
+import com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+import com.fairuniversal.offlineotp.Utilities.setSearchValues
 import com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
 import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
-import com.fairuniversal.offlineotp.ui.host.EntryCopyComposeView
+import com.fairuniversal.offlineotp.ui.host.PreferencesExportComposeView
 import com.fairuniversal.offlineotp.ui.host.EntryDetailsComposeView
 import com.fairuniversal.offlineotp.ui.host.PreferencesImportComposeView
 import com.fairuniversal.offlineotp.ui.host.StorageLocationComposeView
@@ -73,6 +87,11 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     SharedPreferences.OnSharedPreferenceChangeListener, EncryptionHelper.EncryptionChangeCallback {
 
     private var fragment: SettingsFragment? = null
+    private var settingsOverview: SettingsOverviewComposeView? = null
+    private var legacySettingsContent: View? = null
+    private var showingAdvancedSettings = false
+    private var overviewPickerPending = false
+    private var overviewGeneration = -1L
 
     /** The view the snackbars attach to: the settings fragment's view, or the window while it is absent. */
     private fun snackbarAnchor(): View = fragment?.getView() ?: getWindow().decorView
@@ -127,6 +146,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     private companion object {
         const val STATE_AUTH_GENERATION = "settings_auth_generation"
+        const val STATE_ADVANCED_SETTINGS = "settings_advanced_visible"
+        const val STATE_SETTINGS_PICKER = "settings_picker_pending"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -139,7 +160,11 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         setSupportActionBar(toolbar)
 
         val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
-        stub.inflate()
+        stub.setLayoutResource(R.layout.content_settings)
+        val content = stub.inflate() as ViewGroup
+        legacySettingsContent = content.findViewById(R.id.settings_legacy_content)
+        showingAdvancedSettings = savedInstanceState?.getBoolean(STATE_ADVANCED_SETTINGS, false) == true
+        overviewPickerPending = savedInstanceState?.getBoolean(STATE_SETTINGS_PICKER, false) == true
 
         encryptionKey = VaultSession.getKey()
         if (encryptionKey == null) {
@@ -160,12 +185,210 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         settingsFragment.setEncryptionChangeCallback(this)
 
         getFragmentManager().beginTransaction()
-            .replace(R.id.container_content, settingsFragment)
+            .replace(R.id.settings_legacy_content, settingsFragment)
             .commit()
 
         val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(this)
         prefs = sharedPreferences
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
+        overviewGeneration = VaultSession.generation()
+        val overview = SettingsOverviewComposeView(this, ::dispatchSettingsOverviewAction)
+        settingsOverview = overview
+        content.addView(overview, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        updateSettingsPageVisibility()
+        publishSettingsOverview()
+        // Consume only a fresh same-session handoff. Recreation must not launch another picker.
+        if (savedInstanceState == null) launchRequestedVaultTool()
+    }
+
+    private fun overviewSessionReady(): Boolean = VaultSession.isCurrent(overviewGeneration) &&
+        encryptionKey != null && VaultSession.getKey() === encryptionKey && !isFinishing()
+
+    private fun updateSettingsPageVisibility() {
+        legacySettingsContent?.visibility = if (showingAdvancedSettings) View.VISIBLE else View.GONE
+        settingsOverview?.visibility = if (showingAdvancedSettings) View.GONE else View.VISIBLE
+    }
+
+    private fun returnToSettingsOverview(): Boolean {
+        if (!canGoBack || !showingAdvancedSettings) return false
+        showingAdvancedSettings = false
+        updateSettingsPageVisibility()
+        publishSettingsOverview()
+        return true
+    }
+
+    private fun publishSettingsOverview() {
+        val overview = settingsOverview ?: return
+        if (!overviewSessionReady()) return
+        val s = settings ?: return
+        val display = s.currentCardDisplaySelection(this)
+        val autoLock = if (s.getAuthMethod() != AuthMethod.NONE) listOf(PortableToolItem(
+            key = "autoLock", label = getString(R.string.menu_main_auto_lock),
+            value = com.fairuniversal.offlineotp.ui.vault.AutoLockOptions.label(s.currentAutoLockSeconds())
+        )) else emptyList()
+        overview.render(
+            title = getString(R.string.settings_activity_title),
+            description = getString(R.string.settings_shared_overview_description),
+            groups = listOf(
+                PortableToolGroup(getString(R.string.settings_category_title_security), autoLock),
+                PortableToolGroup(getString(R.string.settings_category_title_ui), listOf(
+                    PortableToolItem("display", getString(R.string.settings_title_card_layout), value = display.layout.name),
+                    PortableToolItem("singleTap", getString(R.string.settings_title_tap_single)),
+                    PortableToolItem("doubleTap", getString(R.string.settings_title_tap_double)),
+                    PortableToolItem("search", getString(R.string.settings_title_search_includes),
+                        value = s.getSearchValues().joinToString { it.name.lowercase(Locale.ROOT) })
+                )),
+                PortableToolGroup(getString(R.string.settings_category_title_backup), listOf(
+                    PortableToolItem("backupFolder", getString(R.string.settings_title_backup_location)),
+                    PortableToolItem("storage", getString(R.string.settings_title_storage_location)),
+                    PortableToolItem("exportPreferences", getString(R.string.settings_title_preferences_export)),
+                    PortableToolItem("importPreferences", getString(R.string.settings_title_preferences_import))
+                )),
+                PortableToolGroup("", listOf(PortableToolItem("advanced",
+                    getString(R.string.settings_advanced_title), detail = getString(R.string.settings_advanced_description))))
+            ), busy = !canGoBack || overviewPickerPending
+        )
+    }
+
+    private fun dispatchSettingsOverviewAction(key: String) {
+        if (!overviewSessionReady() || !canGoBack || overviewPickerPending || showingAdvancedSettings || settingsConfirmationPrompt != null) return
+        when (key) {
+            "display" -> showSharedCardDisplay()
+            "search" -> showSharedSearchFields()
+            "singleTap" -> showSharedTapAction(false)
+            "doubleTap" -> showSharedTapAction(true)
+            "autoLock" -> showSharedAutoLock()
+            "backupFolder" -> requestBackupAccess()
+            "storage" -> showStorageLocation()
+            "exportPreferences" -> confirmPreferencesExport()
+            "importPreferences" -> requestPreferencesImport()
+            "advanced" -> {
+                // Recreate so XML preferences read the values just committed by shared dialogs.
+                showingAdvancedSettings = true
+                updateSettingsPageVisibility()
+                recreate()
+            }
+        }
+    }
+
+    private fun showSharedCardDisplay(failed: Boolean = false) {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        var host: CardDisplayComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = CardDisplayComposeView(this, settings!!.currentCardDisplaySelection(this), failed,
+            onSave = { selection ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applyCardDisplaySelection(this, selection)) showSharedCardDisplay(failed = true)
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+    }
+
+    private fun showSharedAutoLock(failed: Boolean = false) {
+        if (!overviewSessionReady() || !canGoBack || settings!!.getAuthMethod() == AuthMethod.NONE) return
+        val generation = overviewGeneration
+        var host: AutoLockComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = AutoLockComposeView(this, settings!!.currentAutoLockSeconds(), settings!!.getRelockOnBackground(), failed,
+            onSave = { seconds, background ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applyAutoLockSettings(this, seconds, background)) showSharedAutoLock(failed = true)
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+    }
+
+    private fun showSharedTapAction(doubleTap: Boolean) {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val modes = Constants.TapMode.values().toList()
+        val labels = resources.getStringArray(R.array.settings_entries_tap).toList()
+        // Refuse a malformed resource rather than mapping a label to the wrong action.
+        if (labels.size != modes.size) return
+        val current = if (doubleTap) settings!!.getTapDouble() else settings!!.getTapSingle()
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this,
+            title = getString(if (doubleTap) R.string.settings_title_tap_double else R.string.settings_title_tap_single),
+            items = labels, initialSelected = modes.indexOf(current),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applyTapAction(this, doubleTap, modes[index]))
+                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun showSharedSearchFields() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val options = Constants.SearchIncludes.values().toList()
+        val labels = resources.getStringArray(R.array.settings_entries_search_includes).toList()
+            .takeIf { it.size >= options.size }?.take(options.size)
+            ?: listOf(getString(R.string.label_label), getString(R.string.label_issuer), getString(R.string.label_tags))
+        val current = settings!!.getSearchValues().toSet()
+        var host: MultiChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = MultiChoiceSelectionComposeView(this,
+            title = getString(R.string.settings_title_search_includes),
+            message = getString(R.string.settings_desc_search_includes), items = labels,
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            initialSelected = options.indices.filter { options[it] in current }.toSet().ifEmpty { setOf(0) },
+            onConfirm = { indices ->
+                if (settingsConfirmationPrompt === host && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    val chosen = indices.sorted().mapNotNull { options.getOrNull(it) }
+                    if (settings!!.setSearchValues(this, chosen)) {
+                        closeHost()
+                        publishSettingsOverview()
+                    } else Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                } else closeHost()
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+    }
+
+    private fun launchRequestedVaultTool() {
+        val request = getIntent() ?: return
+        val generation = request.getStringExtra(Constants.EXTRA_VAULT_TOOL_GENERATION)?.toLongOrNull() ?: return
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() !== encryptionKey ||
+            encryptionKey == null || isFinishing()) return
+        when (request.getIntExtra(Constants.EXTRA_VAULT_TOOL_ACTION, -1)) {
+            Constants.INTENT_SETTINGS_PREFERENCES_EXPORT -> confirmPreferencesExport()
+            Constants.INTENT_SETTINGS_PREFERENCES_IMPORT -> requestPreferencesImport()
+        }
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -173,6 +396,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         outState.putBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, encryptionChanged)
         outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
+        outState.putBoolean(STATE_ADVANCED_SETTINGS, showingAdvancedSettings)
+        outState.putBoolean(STATE_SETTINGS_PICKER, overviewPickerPending)
     }
 
     /** Finishes and reports to MainActivity whether the encryption changed. */
@@ -186,6 +411,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onSupportNavigateUp(): Boolean {
+        if (returnToSettingsOverview()) return true
         if (canGoBack)
             finishWithResult()
 
@@ -194,6 +420,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
+        if (returnToSettingsOverview()) return
         if (canGoBack) {
             finishWithResult()
             super.onBackPressed()
@@ -250,12 +477,14 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         }
 
         settingsFragment.updateAutoBackup()
+        publishSettingsOverview()
     }
 
     override fun requiresVaultSession(): Boolean = true
 
     override fun onVaultLocked() {
         if (clearingKeyStore) return
+        settingsOverview?.close()
         dismissSettingsPrompts()
         encryptionKey = null
         fragment?.setEncryptionKey(null)
@@ -302,6 +531,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             encryptionKey = key
             fragment?.setEncryptionKey(key)
             encryptionChanged = true
+            overviewGeneration = VaultSession.generation()
+            publishSettingsOverview()
         }
     }
 
@@ -319,10 +550,12 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         if (VaultSession.activate(newEncryptionKey, VaultSession.generation()) !is SessionCommandResult.Applied) return
         encryptionKey = newEncryptionKey
         encryptionChanged = true
+        overviewGeneration = VaultSession.generation()
 
         fragment?.encryption?.value = newEncryptionType.name.lowercase(Locale.ROOT)
         fragment?.setEncryptionKey(newEncryptionKey)
         fragment?.updateAutoBackup()
+        publishSettingsOverview()
     }
 
     override fun onTaskResult(result: ChangeEncryptionTask.Result) {
@@ -375,6 +608,19 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             inProgress = null
             canGoBack = true
         }
+        publishSettingsOverview()
+    }
+
+    private fun launchSettingsDocumentPicker(intent: Intent, requestCode: Int) {
+        overviewPickerPending = true
+        publishSettingsOverview()
+        try {
+            startActivityForResult(intent, requestCode)
+        } catch (error: RuntimeException) {
+            overviewPickerPending = false
+            publishSettingsOverview()
+            throw error
+        }
     }
 
     /** Asks for a folder (Storage Access Framework) to store the backups in. */
@@ -389,7 +635,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             intent.putExtra(DocumentsContract.EXTRA_INITIAL_URI, settings!!.getBackupLocation())
 
         try {
-            startActivityForResult(intent, Constants.INTENT_SETTINGS_BACKUP_LOCATION)
+            launchSettingsDocumentPicker(intent, Constants.INTENT_SETTINGS_BACKUP_LOCATION)
         } catch (error: ActivityNotFoundException) {
             // Work profiles and minimal ROMs may not have a document-tree provider. Do not let
             // this optional backup-location setting crash the entire Settings screen.
@@ -413,7 +659,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         val requestCode = if (multiple) Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES
             else Constants.INTENT_SETTINGS_OPENPGP_SECRET_FILE
         try {
-            startActivityForResult(intent, requestCode)
+            launchSettingsDocumentPicker(intent, requestCode)
         } catch (error: ActivityNotFoundException) {
             Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
         } catch (error: SecurityException) {
@@ -489,29 +735,26 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     /** Asks whether the file should carry the backup password, then opens the picker. */
     fun confirmPreferencesExport() {
-        var host: EntryCopyComposeView? = null
+        val generation = VaultSession.generation()
+        if (VaultSession.getKey() == null || isFinishing()) return
+        var host: PreferencesExportComposeView? = null
         val closeHost = {
             val h = host
             if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
             h?.dismiss()
             Unit
         }
-        host = EntryCopyComposeView(
+        host = PreferencesExportComposeView(
             activity = this,
             title = getString(R.string.settings_title_preferences_export),
-            cancelLabel = getString(android.R.string.cancel),
-            fields = listOf(
-                getString(R.string.preferences_export_with_secrets),
-                getString(R.string.preferences_export_without_secrets)
-            ),
+            backupPasswordLabel = getString(R.string.preferences_export_with_secrets),
             message = getString(R.string.preferences_export_question) + "\n\n" +
                 getString(R.string.preferences_export_question_detail),
-            onSelect = { index ->
+            onConfirm = { includeSecrets ->
+                val ownsPrompt = settingsConfirmationPrompt === host
                 closeHost()
-                if (index == 0) {
-                    startPreferencesExport(includeSecrets = true)
-                } else {
-                    startPreferencesExport(includeSecrets = false)
+                if (ownsPrompt && VaultSession.isCurrent(generation) && VaultSession.getKey() != null && !isFinishing()) {
+                    startPreferencesExport(includeSecrets = includeSecrets)
                 }
             },
             onDismiss = closeHost
@@ -532,7 +775,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType("application/json").putExtra(Intent.EXTRA_TITLE, "offlineotp-preferences.json")
         try {
-            startActivityForResult(intent, Constants.INTENT_SETTINGS_PREFERENCES_EXPORT)
+            launchSettingsDocumentPicker(intent, Constants.INTENT_SETTINGS_PREFERENCES_EXPORT)
         } catch (_: RuntimeException) {
             export.zero()
             preferencesExportPending = null
@@ -563,7 +806,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     fun requestPreferencesImport() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
         try {
-            startActivityForResult(intent, Constants.INTENT_SETTINGS_PREFERENCES_IMPORT)
+            launchSettingsDocumentPicker(intent, Constants.INTENT_SETTINGS_PREFERENCES_IMPORT)
         } catch (_: RuntimeException) {
             Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
         }
@@ -661,8 +904,19 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         if (!isFinishing()) recreate()
     }
 
+    private fun completeSettingsDocumentPicker(requestCode: Int) {
+        if (requestCode in listOf(Constants.INTENT_SETTINGS_BACKUP_LOCATION,
+                Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES, Constants.INTENT_SETTINGS_OPENPGP_SECRET_FILE,
+                Constants.INTENT_SETTINGS_PREFERENCES_EXPORT, Constants.INTENT_SETTINGS_PREFERENCES_IMPORT)) {
+            overviewPickerPending = false
+            publishSettingsOverview()
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+
+        completeSettingsDocumentPicker(requestCode)
 
         if (requestCode == Constants.INTENT_SETTINGS_AUTHENTICATE) {
             if (resultCode == RESULT_OK && data != null && !isFinishing() &&
@@ -711,6 +965,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onDestroy() {
+        settingsOverview?.close()
+        settingsOverview = null
         inProgress?.dismiss()
         inProgress = null
         dismissSettingsPrompts()

@@ -104,6 +104,10 @@ object Constants {
     const val INTENT_SETTINGS_PREFERENCES_EXPORT = 304
     const val INTENT_SETTINGS_PREFERENCES_IMPORT = 305
 
+    // Shared-tools host handoff: action identifiers only, never secret data or authority.
+    const val EXTRA_VAULT_TOOL_ACTION = "vault_tool_action"
+    const val EXTRA_VAULT_TOOL_GENERATION = "vault_tool_generation"
+
     // Intent extras
     const val EXTRA_AUTH_PASSWORD_KEY = "password_key"
     const val EXTRA_AUTH_NEW_ENCRYPTION = "new_encryption"

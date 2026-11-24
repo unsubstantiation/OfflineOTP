@@ -100,11 +100,19 @@ class ActivityReachabilityDeviceTest {
         assertTrue(VaultSession.activate(key, generation) is SessionCommandResult.Applied)
         try {
             ActivityScenario.launch(SettingsActivity::class.java).use { scenario ->
+                    // Enter the explicit native-only destination; it recreates to reload values
+                    // persisted by the shared forms. Subsequent callbacks target the new Activity.
+                    scenario.onActivity { activity ->
+                        SettingsActivity::class.java.getDeclaredMethod("dispatchSettingsOverviewAction", String::class.java)
+                            .apply { isAccessible = true }.invoke(activity, "advanced")
+                    }
+                    androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
                 scenario.onActivity { activity ->
                     assertNotNull(activity.findViewById<android.view.View>(R.id.container_toolbar))
                     assertFalse(activity.isFinishing())
                     val fragment = activity.getFragmentManager()
-                        .findFragmentById(R.id.container_content) as SettingsActivity.SettingsFragment
+                        .findFragmentById(R.id.settings_legacy_content) as SettingsActivity.SettingsFragment
                     val keyName = activity.getString(R.string.settings_key_show_prev_token)
                     val preference = fragment.findPreference(keyName)
                     assertNotNull("show previous token preference is missing", preference)

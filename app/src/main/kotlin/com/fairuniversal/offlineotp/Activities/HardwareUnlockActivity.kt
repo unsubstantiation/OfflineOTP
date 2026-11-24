@@ -16,6 +16,7 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.SessionState
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.HardwareUnlockComposeView
 import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import javax.crypto.spec.SecretKeySpec
@@ -26,6 +27,9 @@ class HardwareUnlockActivity : BaseActivity() {
     private lateinit var discovery: HardwareKeyDiscovery
     private lateinit var pin: EditText
     private var progress: ComposeDialogHost? = null
+    private var unlockForm: HardwareUnlockComposeView? = null
+    private var foreground = false
+    private var unlockError: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,22 +48,72 @@ class HardwareUnlockActivity : BaseActivity() {
         requireNotNull(findViewById<Button>(R.id.hardwareUnlockStart)).setOnClickListener { unlock() }
     }
 
+    /** A fresh form per attempt: no PIN survives submit, stop, cancellation or recreation. */
+    private fun showUnlockForm() {
+        if (!foreground || !sessionReady() || isFinishing() || progress != null || unlockForm != null) return
+        var host: HardwareUnlockComposeView? = null
+        host = HardwareUnlockComposeView(
+            activity = this,
+            transportNotice = getString(R.string.hardware_unlock_notice) + "\n\n" + getString(R.string.hardware_connect),
+            pinLabel = getString(R.string.hardware_fido_pin_hint),
+            confirmLabel = getString(R.string.hardware_unlock_button),
+            error = unlockError,
+            onSubmit = { typedPin ->
+                if (unlockForm === host && foreground && sessionReady() && !isFinishing()) {
+                    closeUnlockForm()
+                    pin.setText(String(typedPin))
+                    try { unlock() } finally { pin.setText("") }
+                } else if (unlockForm === host) closeUnlockForm()
+            },
+            onDismiss = {
+                if (unlockForm === host) {
+                    foreground = false
+                    closeUnlockForm()
+                    finish()
+                }
+            }
+        )
+        if (settings?.getBlockAccessibility() == true)
+            host.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+        unlockForm = host
+        host.show()
+    }
+
+    private fun closeUnlockForm() {
+        val old = unlockForm
+        unlockForm = null
+        old?.close()
+    }
+
+    private fun cancelUnlockAttempt(expected: ComposeDialogHost) {
+        // A callback from an old progress window must not cancel a newer attempt.
+        if (progress === expected) expected.dismiss()
+    }
+
     private fun sessionReady(): Boolean = VaultSession.isCurrent(generation) && VaultSession.snapshot() is SessionState.Unlocking
 
     private fun unlock() {
-        if (!sessionReady()) return
-        val envelope = HardwareUnlockStore.read(this) ?: return
-        val request = HardwareUnlockEnvelope.request(envelope) ?: return
+        if (!foreground || !sessionReady() || progress != null || isFinishing()) return
+        val envelope = HardwareUnlockStore.read(this)
+        val request = envelope?.let(HardwareUnlockEnvelope::request)
+        if (envelope == null || request == null) {
+            unlockError = getString(R.string.hardware_failed)
+            showUnlockForm()
+            return
+        }
+        closeUnlockForm()
+        unlockError = null
         val text = pin.text
         val chars = CharArray(text?.length ?: 0) { text!![it] }
         pin.setText("")
         val supplied = chars.takeIf { it.isNotEmpty() }
-        val prompt = BusyProgressComposeView(
+        lateinit var prompt: BusyProgressComposeView
+        prompt = BusyProgressComposeView(
             activity = this,
             title = getString(R.string.hardware_title),
             message = getString(R.string.hardware_connect),
             cancelLabel = getString(android.R.string.cancel),
-            onCancel = { discovery.cancel() }
+            onCancel = { cancelUnlockAttempt(prompt) }
         )
         progress?.dismiss()
         progress = prompt
@@ -67,6 +121,7 @@ class HardwareUnlockActivity : BaseActivity() {
             if (progress === prompt) {
                 progress = null
                 discovery.cancel()
+                showUnlockForm()
             }
         }
         prompt.show()
@@ -88,46 +143,58 @@ class HardwareUnlockActivity : BaseActivity() {
                 }
             } finally { prf.fill(0) }
         }, { it.fill(0) }, { chars.fill('\u0000') }, { state.cancel() }) { raw, success ->
-            if (progress === prompt) progress = null
+            val ownsAttempt = progress === prompt
+            if (ownsAttempt) progress = null
             prompt.dismiss()
             var accepted = false
             try {
-                if (success && raw != null) synchronized(VaultSession.MutationLock) {
+                if (ownsAttempt && foreground && success && raw != null) synchronized(VaultSession.MutationLock) {
                     val current = HardwareUnlockStore.read(this)
                     if (sessionReady() && current != null && current.contentEquals(envelope))
                         accepted = VaultSession.offerDerivedKey(raw, generation)
                 }
             } finally { raw?.fill(0) }
             if (accepted) { setResult(RESULT_OK); finish() }
-            else if (sessionReady()) Toast.makeText(this, R.string.hardware_failed, Toast.LENGTH_LONG).show()
+            else if (ownsAttempt && foreground && sessionReady()) {
+                unlockError = getString(R.string.hardware_failed)
+                Toast.makeText(this, R.string.hardware_failed, Toast.LENGTH_LONG).show()
+                showUnlockForm()
+            }
         }
     }
 
     override fun onResume() {
         super.onResume()
+        foreground = true
         if (::discovery.isInitialized) discovery.resume()
+        if (::pin.isInitialized) showUnlockForm()
     }
     override fun onPause() {
         if (::discovery.isInitialized) discovery.pause()
         super.onPause()
     }
     override fun onStop() {
+        foreground = false
         cleanup()
         super.onStop()
     }
     override fun onVaultLocked() {
+        foreground = false
         cleanup()
         super.onVaultLocked()
     }
     override fun onDestroy() {
+        foreground = false
         cleanup()
         if (::discovery.isInitialized) discovery.close()
         super.onDestroy()
     }
     private fun cleanup() {
+        closeUnlockForm()
         if (::pin.isInitialized) pin.setText("")
         if (::discovery.isInitialized) discovery.cancel()
-        progress?.dismiss()
+        val old = progress
         progress = null
+        old?.dismiss()
     }
 }

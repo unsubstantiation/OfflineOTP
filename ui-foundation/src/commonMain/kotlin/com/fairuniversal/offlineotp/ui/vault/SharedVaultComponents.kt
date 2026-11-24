@@ -510,6 +510,14 @@ fun SharedVaultCodeArea(
                         }
                     }
                 }
+                if (!showCountdown && tokenVisible && !counterText.isNullOrEmpty()) {
+                    Text(
+                        text = counterText,
+                        style = ForestType.mono,
+                        color = ForestPalette.textSecondary,
+                        maxLines = 1
+                    )
+                }
             }
             pinRequired -> Text(
                 text = pinRequiredLabel,

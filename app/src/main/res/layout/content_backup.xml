@@ -1,10 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+<!-- Legacy IDs remain as host state and compatibility hooks; Compose owns the visible page. -->
 <androidx.core.widget.NestedScrollView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:overScrollMode="never"
+    android:visibility="gone"
     app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
     <LinearLayout
@@ -68,7 +75,9 @@
             style="?android:attr/progressBarStyle"
             android:visibility="gone"/>
 
+        <!-- Retained as host state for picker resumption; shared Compose owns mode selection. -->
         <RelativeLayout
+            android:visibility="gone"
             android:orientation="horizontal"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -126,3 +135,4 @@
     </LinearLayout>
 
 </androidx.core.widget.NestedScrollView>
+</FrameLayout>

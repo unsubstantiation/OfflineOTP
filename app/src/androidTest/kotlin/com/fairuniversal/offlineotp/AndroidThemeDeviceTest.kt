@@ -58,12 +58,20 @@ class AndroidThemeDeviceTest {
                     .putString(context.getString(R.string.settings_key_theme), theme)
                     .commit()
                 ActivityScenario.launch(SettingsActivity::class.java).use { scenario ->
+                    // Enter the explicit native-only destination; it recreates to reload values
+                    // persisted by the shared forms. Subsequent callbacks target the new Activity.
+                    scenario.onActivity { activity ->
+                        SettingsActivity::class.java.getDeclaredMethod("dispatchSettingsOverviewAction", String::class.java)
+                            .apply { isAccessible = true }.invoke(activity, "advanced")
+                    }
+                    androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().waitForIdleSync()
+
                     InstrumentationRegistry.getInstrumentation().waitForIdleSync()
                     var canceledInput: EditText? = null
                     var canceledConfirmation: EditText? = null
                     scenario.onActivity { activity ->
                         assertFalse(activity.isFinishing())
-                        val fragment = activity.getFragmentManager().findFragmentById(R.id.container_content)
+                        val fragment = activity.getFragmentManager().findFragmentById(R.id.settings_legacy_content)
                             as SettingsActivity.SettingsFragment
                         val surface = ThemeDeviceTestSupport.surface(activity)
 
@@ -288,7 +296,7 @@ class AndroidThemeDeviceTest {
     }
 
     private fun openPreference(activity: SettingsActivity, keyId: Int): AlertDialog {
-        val fragment = activity.getFragmentManager().findFragmentById(R.id.container_content)
+        val fragment = activity.getFragmentManager().findFragmentById(R.id.settings_legacy_content)
             as SettingsActivity.SettingsFragment
         val preference = requireNotNull(fragment.findPreference(activity.getString(keyId)))
         preference.isEnabled = true

@@ -924,6 +924,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             return surface(key: key, title: "Import otpauth:// link",
                 sections: [PortableSection(title: "One link or QR payload", rows: rows)],
                 confirmLabel: "Import", dismissLabel: "Cancel")
+        case "prefsExportConfirm":
+            return surface(key: key, title: "Export preferences", sections: [],
+                confirmLabel: "Choose destination", dismissLabel: "Cancel")
         case "prefsConfirm":
             var rows = [row("info", "The vault, its password and its accounts are never included.", kind: "info")]
             var errorMessage = ""
@@ -1778,7 +1781,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             // A dialog opened in one session must never apply to a later one. Flow-specific
             // surfaces keep their own epoch when they stage files or candidate lists.
             if let epoch = surfaceEpoch,
-               ["passwordChange", "autoLock", "prefsConfirm", "restore", "backupExportDialog",
+               ["passwordChange", "autoLock", "prefsExportConfirm", "prefsConfirm", "restore", "backupExportDialog",
                 "editor", "passwordCreate", "emailEditor", "emailEdit", "emailPasswordEdit", "emailSettingsEdit",
                 "delete", "tagEdit", "pinEdit", "counterEdit",
                 "biometricEnable", "uriImport", "fairEmailImport", "openpgpRestore",
@@ -1946,6 +1949,15 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             message("Vault password changed. The vault is locked again.")
             closeSurface()
             return nil
+        case "prefsExportConfirm":
+            do {
+                let data = try PreferencesExport.export(store.preferencesPort).bytes
+                onExport(data, "offlineotp-preferences.json")
+                closeSurface()
+                return nil
+            } catch {
+                return "The preferences could not be exported."
+            }
         case "prefsConfirm":
             do {
                 let result = try PreferencesExport.apply(pendingImport, into: store.preferencesPort)
@@ -2902,14 +2914,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             emailSecretsVisible.toggle()
             return nil
         case "prefsExport":
-            do {
-                let data = try PreferencesExport.export(store.preferencesPort).bytes
-                onExport(data, "offlineotp-preferences.json")
-                closeSurface()
-                return nil
-            } catch {
-                return "The preferences could not be exported."
-            }
+            openSurface("prefsExportConfirm")
+            return nil
         case "biometric":
             if store.biometricUnlockEnabled { store.disableBiometricUnlock(); closeSurface() }
             else { openSurface("biometricEnable") }

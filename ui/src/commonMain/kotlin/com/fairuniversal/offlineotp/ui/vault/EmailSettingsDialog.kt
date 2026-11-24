@@ -14,12 +14,14 @@ fun EmailSettingsDialog(
     initial: EmailSettingsInput,
     failed: Boolean,
     onSubmit: (EmailSettingsInput) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    errorText: String? = null
 ) {
     SharedEmailSettingsDialog(
         inputKey = inputKey,
         initial = initial.toPortable(),
         failed = failed,
+        errorText = errorText,
         onSubmit = { draft -> onSubmit(draft.toModel()) },
         onDismiss = onDismiss
     )

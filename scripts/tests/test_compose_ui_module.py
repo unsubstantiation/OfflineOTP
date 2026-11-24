@@ -846,7 +846,9 @@ class ComposeUiWiringTest(unittest.TestCase):
         self.assertIn("count != null || keySelected", form)
         self.assertIn("mutableStateOf(false)", form)
         self.assertIn("Replace all entries", form)
-        self.assertIn("delete all current entries", form)
+        self.assertIn("RestoreModeSelection(replace = replace, busy = busy", form)
+        mode = (UI_FOUNDATION / "vault/RestoreModeDialog.kt").read_text()
+        self.assertIn("delete all current entries", mode)
         self.assertIn("PasswordVisualTransformation()", form)
         self.assertNotIn("rememberSaveable", form)
 

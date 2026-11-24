@@ -81,3 +81,31 @@ fun MultiChoiceSelectionDialog(
         }
     )
 }
+
+/** Shared single-choice preference form. Opening or dismissing never commits a value. */
+@Composable
+fun SingleChoiceSelectionDialog(
+    inputKey: Any,
+    title: String,
+    items: List<String>,
+    initialSelected: Int,
+    confirmLabel: String,
+    dismissLabel: String,
+    onConfirm: (Int) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var selected by remember(inputKey) { mutableStateOf(initialSelected) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = title) },
+        text = { ScrollableDialogBody {
+            items.forEachIndexed { index, label ->
+                ForestTextAction(text = if (index == selected) "Selected: $label" else label,
+                    onClick = { selected = index })
+            }
+        } },
+        confirmButton = { ForestTextAction(text = confirmLabel, enabled = selected in items.indices,
+            onClick = { if (selected in items.indices) onConfirm(selected) }) },
+        dismissButton = { ForestTextAction(text = dismissLabel, onClick = onDismiss) }
+    )
+}

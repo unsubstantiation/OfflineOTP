@@ -417,15 +417,16 @@ class EmailSettingsComposeView(
 
     @Composable
     override fun Content() {
-        var failed by remember { mutableStateOf(false) }
+        var errorText by remember { mutableStateOf<String?>(null) }
         ForestTheme {
             EmailSettingsDialog(
                 inputKey = initial,
                 initial = initial,
-                failed = failed,
+                failed = errorText != null,
+                errorText = errorText,
                 onSubmit = { input ->
                     val error = onSubmit(input)
-                    if (error == null) onDismiss() else failed = true
+                    if (error == null) onDismiss() else errorText = error
                 },
                 onDismiss = onDismiss
             )
@@ -447,15 +448,16 @@ class EmailPasswordComposeView(
 
     @Composable
     override fun Content() {
-        var failed by remember { mutableStateOf(false) }
+        var errorText by remember { mutableStateOf<String?>(null) }
         ForestTheme {
             EmailPasswordDialog(
                 inputKey = initial,
                 initial = initial,
-                failed = failed,
+                failed = errorText != null,
+                errorText = errorText,
                 onSubmit = { input ->
                     val error = onSubmit(input)
-                    if (error == null) onDismiss() else failed = true
+                    if (error == null) onDismiss() else errorText = error
                 },
                 onDismiss = onDismiss
             )
@@ -1189,3 +1191,312 @@ class PasswordChangeComposeView(
 
 
 
+
+/** Android lifecycle seam for the same capability-filtered tools used by Desktop. */
+class VaultToolsComposeView(
+    activity: Activity,
+    private val actions: com.fairuniversal.offlineotp.ui.vault.VaultActions,
+    private val strings: com.fairuniversal.offlineotp.ui.vault.VaultStrings,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    fun selectTool(key: String) {
+        val tool = com.fairuniversal.offlineotp.ui.vault.VaultTool.available(actions)
+            .firstOrNull { it.name == key } ?: return
+        onDismiss()
+        tool.invoke(actions)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedVaultToolsDialog(
+                title = strings.tools,
+                groups = com.fairuniversal.offlineotp.ui.vault.vaultToolGroups(actions, strings),
+                closeLabel = strings.closeTools,
+                onSelectTool = ::selectTool,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Dedicated settings-export disclosure; no settings bytes or passwords enter Compose state. */
+class PreferencesExportComposeView(
+    activity: Activity,
+    private val title: String,
+    private val message: String,
+    private val backupPasswordLabel: String,
+    private val onConfirm: (Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.PreferencesExportDialog(
+                inputKey = this,
+                title = title,
+                detail = message,
+                allowBackupPassword = true,
+                backupPasswordLabel = backupPasswordLabel,
+                onConfirm = onConfirm,
+                onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Native backup picker seam for the shared, merge-by-default restore-mode selector. */
+class RestoreModeComposeView(
+    activity: Activity,
+    private val onConfirm: (Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.RestoreModeDialog(
+                inputKey = this, onConfirm = onConfirm, onDismiss = onDismiss
+            )
+        }
+    }
+}
+
+/** Visible Android backup page; the activity publishes only non-secret presentation values. */
+class BackupOverviewComposeView(
+    context: android.content.Context,
+    private val onSelectTool: (String) -> Unit
+) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var description by mutableStateOf("")
+    private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
+    private var warning by mutableStateOf("")
+    private var busy by mutableStateOf(false)
+    private var closed = false
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        isSaveEnabled = false
+    }
+
+    fun render(title: String, description: String,
+               groups: List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>, warning: String, busy: Boolean) {
+        if (closed) return
+        this.title = title
+        this.description = description
+        this.groups = groups
+        this.warning = warning
+        this.busy = busy
+    }
+
+    fun selectTool(key: String) {
+        if (closed || busy || groups.flatMap { it.items }.none { it.key == key && it.enabled && it.interactive }) return
+        onSelectTool(key)
+    }
+
+    fun clear(message: String = "") {
+        closed = true
+        groups = emptyList()
+        title = ""
+        description = ""
+        warning = message
+        busy = false
+    }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedBackupScreen(
+                title, description, groups, warning, busy, ::selectTool
+            )
+        }
+    }
+}
+
+/** Main-thread frame bridge for the shared hardware page; owns no device or vault authority. */
+class HardwareKeysComposeView(
+    context: android.content.Context,
+    private val onSelectTool: (String, CharArray) -> Unit
+) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var introduction by mutableStateOf("")
+    private var passwordLabel by mutableStateOf("")
+    private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
+    private var status by mutableStateOf("")
+    private var busy by mutableStateOf(false)
+    private var secretEpoch by mutableStateOf(0)
+    private var closed = false
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        isSaveEnabled = false
+    }
+
+    fun render(title: String, introduction: String, passwordLabel: String,
+               groups: List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>, status: String, busy: Boolean) {
+        if (closed) return
+        this.title = title
+        this.introduction = introduction
+        this.passwordLabel = passwordLabel
+        this.groups = groups
+        this.status = status
+        if (this.busy != busy) secretEpoch++
+        this.busy = busy
+    }
+
+    fun selectTool(key: String, password: CharArray) {
+        try {
+            if (closed || busy || groups.flatMap { it.items }.none { it.key == key && it.enabled && it.interactive }) return
+            onSelectTool(key, password)
+        } finally { password.fill('\u0000') }
+    }
+
+    /** Stop clears transient codes and password input; resume may publish a fresh frame. */
+    fun clear() {
+        groups = emptyList()
+        status = ""
+        busy = false
+        secretEpoch++
+    }
+
+    fun close() { clear(); closed = true }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedHardwareKeysScreen(
+                inputKey = secretEpoch, title = title, introduction = introduction, passwordLabel = passwordLabel,
+                groups = groups, status = status, busy = busy, onSelectTool = ::selectTool
+            )
+        }
+    }
+}
+
+/** Android transport seam for the same FIDO PIN form used by Desktop. */
+class HardwareUnlockComposeView(
+    activity: Activity,
+    private val transportNotice: String,
+    private val pinLabel: String,
+    private val confirmLabel: String,
+    private val error: String?,
+    private val onSubmit: (CharArray) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    private var active = true
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        isSaveEnabled = false
+    }
+
+    /** Single-use UI request; PIN ownership never escapes this callback. */
+    fun submitPin(pin: CharArray) {
+        try {
+            if (!active) return
+            active = false
+            onSubmit(pin)
+        } finally { pin.fill('\u0000') }
+    }
+
+    fun cancelToPassword() {
+        if (!active) return
+        active = false
+        onDismiss()
+    }
+
+    fun close() { active = false; dismiss() }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.HardwareUnlockDialog(
+                busy = false, error = error, inputKey = this,
+                transportNotice = transportNotice, pinLabel = pinLabel, confirmLabel = confirmLabel,
+                onSubmit = ::submitPin, onDismiss = ::cancelToPassword
+            )
+        }
+    }
+}
+
+/** Android settings page bridge; native-only controls remain an explicit advanced destination. */
+class SettingsOverviewComposeView(
+    context: android.content.Context,
+    private val onSelectTool: (String) -> Unit
+) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var description by mutableStateOf("")
+    private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
+    private var busy by mutableStateOf(false)
+    private var closed = false
+
+    init {
+        setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
+        isSaveEnabled = false
+    }
+
+    fun render(title: String, description: String,
+               groups: List<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>, busy: Boolean) {
+        if (closed) return
+        this.title = title
+        this.description = description
+        this.groups = groups
+        this.busy = busy
+    }
+
+    fun selectTool(key: String) {
+        if (closed || busy || groups.flatMap { it.items }.none { it.key == key && it.enabled && it.interactive }) return
+        onSelectTool(key)
+    }
+
+    fun close() { closed = true; groups = emptyList() }
+
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedVaultToolsScreen(
+                title, description, groups, "", busy, ::selectTool
+            )
+        }
+    }
+}
+
+/** Platform-neutral single-choice preference form with a single-use host callback. */
+class SingleChoiceSelectionComposeView(
+    activity: Activity,
+    private val title: String,
+    items: List<String>,
+    private val initialSelected: Int,
+    private val confirmLabel: String,
+    private val dismissLabel: String,
+    private val onConfirm: (Int) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    private val choices = items.toList()
+    private var consumed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    fun confirmSelection(index: Int) {
+        if (consumed || dismissals > 0 || index !in choices.indices) return
+        consumed = true
+        onConfirm(index)
+    }
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SingleChoiceSelectionDialog(
+                inputKey = this@SingleChoiceSelectionComposeView, title = title, items = choices,
+                initialSelected = initialSelected, confirmLabel = confirmLabel, dismissLabel = dismissLabel,
+                onConfirm = ::confirmSelection, onDismiss = { if (!consumed) { consumed = true; onDismiss() } })
+        }
+    }
+}

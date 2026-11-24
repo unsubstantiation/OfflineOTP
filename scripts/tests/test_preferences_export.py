@@ -92,9 +92,12 @@ class PreferencesWiringTest(unittest.TestCase):
         # The password question is asked before the picker, and the answer travels with the export.
         self.assertIn("fun confirmPreferencesExport()", activity)
         self.assertIn("preferences_export_with_secrets", activity)
-        self.assertIn("preferences_export_without_secrets", activity)
-        self.assertIn("startPreferencesExport(includeSecrets = true)", activity)
-        self.assertIn("startPreferencesExport(includeSecrets = false)", activity)
+        self.assertIn("PreferencesExportComposeView(", activity)
+        self.assertIn("startPreferencesExport(includeSecrets = includeSecrets)", activity)
+        self.assertIn("VaultSession.isCurrent(generation)", activity)
+        shared = read(ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesExportDialog.kt")
+        self.assertIn("mutableStateOf(false)", shared)
+        self.assertIn("allowBackupPassword && includeBackupPassword", shared)
         # The serialised bytes are wiped on cancel, after the write, and on failure.
         self.assertIn("preferencesExportPending?.zero()", activity)
         self.assertIn("pending.zero()", activity)

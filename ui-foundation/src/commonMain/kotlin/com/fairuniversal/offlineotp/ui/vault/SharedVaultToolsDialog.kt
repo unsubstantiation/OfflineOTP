@@ -97,58 +97,66 @@ fun SharedVaultToolsDialog(
                 modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                for (group in groups) {
-                    if (group.items.isEmpty()) continue
-                    if (group.title.isNotEmpty()) {
-                        Text(text = group.title, style = ForestType.label, color = ForestPalette.accent)
-                    }
-                    for (item in group.items) {
-                        if (!item.interactive) {
-                            Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                                Text(text = item.label, style = ForestType.body, color = ForestPalette.textPrimary)
-                                if (item.value.isNotEmpty()) {
-                                    Text(text = item.value, style = ForestType.label, color = ForestPalette.textSecondary)
-                                }
-                            }
-                        } else if (item.detail.isEmpty() && item.value.isEmpty()) {
-                            ForestTextAction(
-                                text = item.label,
-                                enabled = item.enabled,
-                                onClick = { onSelectTool(item.key) }
-                            )
-                        } else {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(item.enabled) { onSelectTool(item.key) }
-                                    .padding(vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = item.label,
-                                        style = ForestType.body,
-                                        color = if (item.enabled) ForestPalette.textPrimary else ForestPalette.textHint
-                                    )
-                                    if (item.detail.isNotEmpty()) {
-                                        Text(text = item.detail, style = ForestType.label, color = ForestPalette.textSecondary)
-                                    }
-                                }
-                                if (item.value.isNotEmpty()) {
-                                    Text(text = item.value, style = ForestType.label, color = ForestPalette.textSecondary)
-                                }
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(2.dp))
-                }
-                if (message.isNotEmpty()) {
-                    Text(text = message, style = ForestType.body, color = ForestPalette.warning)
-                }
+                SharedVaultToolGroups(groups, message, onSelectTool)
             }
         },
         confirmButton = {},
         dismissButton = { ForestTextAction(text = closeLabel, onClick = onDismiss) }
     )
+}
+
+/** Shared grouped action body for modal tools and full-page backup overviews. */
+@Composable
+fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "", onSelectTool: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (group in groups) {
+            if (group.items.isEmpty()) continue
+            if (group.title.isNotEmpty()) {
+                Text(text = group.title, style = ForestType.label, color = ForestPalette.accent)
+            }
+            for (item in group.items) {
+                if (!item.interactive) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                        Text(text = item.label, style = ForestType.body, color = ForestPalette.textPrimary)
+                        if (item.value.isNotEmpty()) {
+                            Text(text = item.value, style = ForestType.label, color = ForestPalette.textSecondary)
+                        }
+                    }
+                } else if (item.detail.isEmpty() && item.value.isEmpty()) {
+                    ForestTextAction(
+                        text = item.label,
+                        enabled = item.enabled,
+                        onClick = { onSelectTool(item.key) }
+                    )
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(item.enabled) { onSelectTool(item.key) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = item.label,
+                                style = ForestType.body,
+                                color = if (item.enabled) ForestPalette.textPrimary else ForestPalette.textHint
+                            )
+                            if (item.detail.isNotEmpty()) {
+                                Text(text = item.detail, style = ForestType.label, color = ForestPalette.textSecondary)
+                            }
+                        }
+                        if (item.value.isNotEmpty()) {
+                            Text(text = item.value, style = ForestType.label, color = ForestPalette.textSecondary)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+        }
+        if (message.isNotEmpty()) {
+            Text(text = message, style = ForestType.body, color = ForestPalette.warning)
+        }
+    }
 }

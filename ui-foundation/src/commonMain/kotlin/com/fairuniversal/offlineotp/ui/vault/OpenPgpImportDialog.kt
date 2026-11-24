@@ -33,10 +33,8 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
             }
             if (busy) Text(text = "Decrypting OpenPGP backup…")
             if (count != null) {
-                Text(text = "$count entries ready. Merge preserves current accounts and skips identical entries.")
-                ForestTextAction(text = if (!replace) "Selected: Merge" else "Merge", enabled = !busy, onClick = { replace = false })
-                ForestTextAction(text = if (replace) "Selected: Replace all current entries" else "Replace all current entries", enabled = !busy, onClick = { replace = true })
-                if (replace) Text(text = "Warning: Restore will delete all current entries and replace them with this backup.")
+                Text(text = "$count entries ready.")
+                RestoreModeSelection(replace = replace, busy = busy, onReplaceChange = { replace = it })
             }
             if (failed) Text(text = "Could not import the file. Check the passphrase, key file, format, size, vault capacity and storage. Re-enter the passphrase to retry.")
         } },

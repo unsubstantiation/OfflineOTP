@@ -4,6 +4,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.View
+import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -23,6 +24,9 @@ import com.fairuniversal.offlineotp.Utilities.HardwareUnlockStore
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.VaultReadResult
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.HardwareKeysComposeView
+import com.fairuniversal.offlineotp.ui.portable.PortableToolGroup
+import com.fairuniversal.offlineotp.ui.portable.PortableToolItem
 import com.fairuniversal.offlineotp.ui.host.BusyProgressComposeView
 import com.fairuniversal.offlineotp.ui.host.ComposeDialogHost
 import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
@@ -32,6 +36,9 @@ import com.fairuniversal.offlineotp.ui.host.HardwareEnrollmentComposeView
 /** Foreground-only OATH account access and optional FIDO2 vault-unlock enrollment. */
 class HardwareKeyActivity : BaseActivity() {
     private var generation = -1L
+    private var hardwarePage: HardwareKeysComposeView? = null
+    private var deviceBusy = false
+    private var hardwareTargets: Map<String, Button> = emptyMap()
     private lateinit var discovery: HardwareKeyDiscovery
     private lateinit var password: EditText
     private lateinit var status: TextView
@@ -69,6 +76,63 @@ class HardwareKeyActivity : BaseActivity() {
         requireNotNull(findViewById<Button>(R.id.hardwareCopy)).setOnClickListener { chooseAccount() }
         requireNotNull(findViewById<Button>(R.id.hardwareEnroll)).setOnClickListener { confirmEnrollment() }
         requireNotNull(findViewById<Button>(R.id.hardwareRemove)).setOnClickListener { confirmRemoval() }
+        val container = requireNotNull(findViewById<ViewGroup>(R.id.hardwareComposeContainer))
+        val page = HardwareKeysComposeView(this, ::dispatchHardwarePageAction)
+        if (settings?.getBlockAccessibility() == true)
+            page.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+        hardwarePage = page
+        container.addView(page, ViewGroup.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        publishHardwarePage()
+    }
+
+    /** Project live native account buttons, preserving their expiry/counter authority during migration. */
+    private fun publishHardwarePage() {
+        val page = hardwarePage ?: return
+        if (!sessionReady()) { page.clear(); hardwareTargets = emptyMap(); return }
+        val enabled = !deviceBusy
+        val targets = linkedMapOf<String, Button>()
+        val accounts = if (::accountsView.isInitialized) (0 until accountsView.childCount).mapNotNull { index ->
+            val button = accountsView.getChildAt(index) as? Button ?: return@mapNotNull null
+            val key = "account:$listRevision:$index"
+            targets[key] = button
+            PortableToolItem(key = key, label = button.text.toString(), enabled = enabled)
+        } else emptyList()
+        hardwareTargets = targets
+        page.render(
+            title = getString(R.string.hardware_title),
+            introduction = getString(R.string.hardware_intro),
+            passwordLabel = getString(R.string.hardware_oath_password_hint),
+            groups = listOf(
+                PortableToolGroup("", listOf(
+                    PortableToolItem("list", getString(R.string.hardware_list), enabled = enabled),
+                    PortableToolItem("copy", getString(R.string.hardware_copy), enabled = enabled),
+                    PortableToolItem("enroll", getString(R.string.hardware_enroll), enabled = enabled),
+                    PortableToolItem("remove", getString(R.string.hardware_remove), enabled = enabled)
+                )), PortableToolGroup(getString(R.string.hardware_list), accounts)
+            ),
+            status = if (::status.isInitialized) status.text.toString() else "",
+            busy = deviceBusy
+        )
+    }
+
+    private fun dispatchHardwarePageAction(key: String, typedPassword: CharArray) {
+        try {
+            if (!sessionReady() || deviceBusy || composeDialog != null || dialog != null) return
+            if (key == "list" || key.startsWith("account:")) password.setText(String(typedPassword))
+            else password.setText("")
+            when (key) {
+                "list" -> listAccounts()
+                "copy" -> chooseAccount()
+                "enroll" -> confirmEnrollment()
+                "remove" -> confirmRemoval()
+                else -> hardwareTargets[key]?.performClick()
+            }
+        } finally {
+            typedPassword.fill('\u0000')
+            // HOTP confirmation owns the pending OATH password until confirm/cancel/stop.
+            if (::password.isInitialized && composeDialog == null) password.setText("")
+        }
     }
 
     private fun sessionReady(): Boolean = VaultSession.isCurrent(generation) && VaultSession.getKey() != null
@@ -76,6 +140,7 @@ class HardwareKeyActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         if (::discovery.isInitialized) discovery.resume()
+        if (sessionReady()) publishHardwarePage()
     }
 
     override fun onPause() {
@@ -96,11 +161,16 @@ class HardwareKeyActivity : BaseActivity() {
 
     override fun onDestroy() {
         clearSensitiveUi()
+        hardwarePage?.close()
+        hardwarePage = null
         if (::discovery.isInitialized) discovery.close()
         super.onDestroy()
     }
 
     private fun clearSensitiveUi() {
+        hardwarePage?.clear()
+        hardwareTargets = emptyMap()
+        deviceBusy = false
         if (::password.isInitialized) password.setText("")
         if (::discovery.isInitialized) discovery.cancel()
         dismissComposeDialog()
@@ -110,6 +180,8 @@ class HardwareKeyActivity : BaseActivity() {
         listRevision++
         if (::accountsView.isInitialized) accountsView.removeAllViews()
         handler.removeCallbacksAndMessages(null)
+        hardwareTargets = emptyMap()
+        hardwarePage?.clear()
     }
 
     /** The operation owns its PIN and optional entry until completion/cancellation. */
@@ -139,14 +211,22 @@ class HardwareKeyActivity : BaseActivity() {
                 discovery.cancel()
                 // A canceled hardware command may already have mutated the key.
                 if (interruptedMessage != null && sessionReady()) status.setText(interruptedMessage)
+                deviceBusy = false
+                if (sessionReady()) publishHardwarePage()
             }
         }
+        deviceBusy = true
+        publishHardwarePage()
         progress.show()
         discovery.start(protocol, { device, permitted -> work(device, pin, permitted) }, discard,
             { chars.fill('\u0000'); explicitPin?.fill('\u0000'); entry?.destroy() }, cancelWork) { result, success ->
             if (dialog === progress) dialog = null
             progress.dismiss()
-            if (sessionReady()) finished(result, success) else if (success && result != null) discard(result)
+            deviceBusy = false
+            if (sessionReady()) {
+                finished(result, success)
+                publishHardwarePage()
+            } else if (success && result != null) discard(result)
         }
     }
 
@@ -195,6 +275,7 @@ class HardwareKeyActivity : BaseActivity() {
                         if (!account.usableAt(current)) {
                             stale = true
                             button.setText("$name\n${getString(R.string.hardware_expired)}")
+                            publishHardwarePage()
                         } else {
                             handler.postDelayed(this, (account.validUntil - current).coerceIn(1L, 1000L))
                         }
@@ -203,6 +284,7 @@ class HardwareKeyActivity : BaseActivity() {
                 handler.postDelayed(refresh, (account.validUntil - now).coerceIn(1L, 1000L))
             }
         }
+        publishHardwarePage()
     }
 
     private fun confirmHotp(deviceId: String, account: HardwareOathClient.Account, revision: Int) {
@@ -217,8 +299,9 @@ class HardwareKeyActivity : BaseActivity() {
             onConfirm = {
                 dismissComposeDialog(view)
                 if (revision == listRevision && sessionReady()) calculate(deviceId, account)
+                else password.setText("")
             },
-            onDismiss = { dismissComposeDialog(view) }
+            onDismiss = { password.setText(""); dismissComposeDialog(view) }
         )
         showComposeDialog(view)
     }
@@ -382,6 +465,7 @@ class HardwareKeyActivity : BaseActivity() {
 
     private fun showUncertain(message: Int) {
         status.setText(message)
+        publishHardwarePage()
         Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
