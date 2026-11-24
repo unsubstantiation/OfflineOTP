@@ -36,7 +36,8 @@ fun MultiChoiceSelectionDialog(
     dismissLabel: String,
     onConfirm: (Set<Int>) -> Unit,
     onDismiss: () -> Unit,
-    initialSelected: Set<Int> = emptySet()
+    initialSelected: Set<Int> = emptySet(),
+    allowEmpty: Boolean = false
 ) {
     var selected by remember(inputKey) {
         mutableStateOf(initialSelected.filter { it in items.indices }.toSet())
@@ -72,7 +73,7 @@ fun MultiChoiceSelectionDialog(
         confirmButton = {
             ForestTextAction(
                 text = confirmLabel,
-                enabled = selected.isNotEmpty(),
+                enabled = allowEmpty || selected.isNotEmpty(),
                 onClick = { onConfirm(selected) }
             )
         },
@@ -92,20 +93,24 @@ fun SingleChoiceSelectionDialog(
     confirmLabel: String,
     dismissLabel: String,
     onConfirm: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    message: String = "",
+    enabledIndices: Set<Int>? = null
 ) {
     var selected by remember(inputKey) { mutableStateOf(initialSelected) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = title) },
         text = { ScrollableDialogBody {
+            if (message.isNotEmpty()) Text(text = message)
             items.forEachIndexed { index, label ->
                 ForestTextAction(text = if (index == selected) "Selected: $label" else label,
+                    enabled = enabledIndices == null || index in enabledIndices,
                     onClick = { selected = index })
             }
         } },
-        confirmButton = { ForestTextAction(text = confirmLabel, enabled = selected in items.indices,
-            onClick = { if (selected in items.indices) onConfirm(selected) }) },
+        confirmButton = { ForestTextAction(text = confirmLabel, enabled = selected in items.indices && (enabledIndices == null || selected in enabledIndices),
+            onClick = { if (selected in items.indices && (enabledIndices == null || selected in enabledIndices)) onConfirm(selected) }) },
         dismissButton = { ForestTextAction(text = dismissLabel, onClick = onDismiss) }
     )
 }

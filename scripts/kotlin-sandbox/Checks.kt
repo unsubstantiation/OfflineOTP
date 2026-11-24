@@ -2,6 +2,12 @@
 // Runs the converted utility classes on a desktop JVM against hand-written platform stubs and
 // mirrors the repository's own tests for them. It is not the Gradle unit/lint/instrumentation
 // gate, and no Android behaviour (Handler, KeyEvent, resources) is exercised here.
+import com.fairuniversal.offlineotp.Utilities.PolicyChecklist
+import com.fairuniversal.offlineotp.Utilities.applyPolicyChecklist
+import com.fairuniversal.offlineotp.Utilities.applyAutoBackupMode
+import com.fairuniversal.offlineotp.Utilities.applyBackupRetention
+import com.fairuniversal.offlineotp.Utilities.applyAppearanceValue
+import com.fairuniversal.offlineotp.Utilities.AppearancePreference
 import com.fairuniversal.offlineotp.Tasks.AuthenticationError
 import com.fairuniversal.offlineotp.Tasks.AuthenticationOutcome
 import com.fairuniversal.offlineotp.Tasks.AuthenticationTask
@@ -997,6 +1003,8 @@ private class SettingsResources(
         // settings.xml: settings_default_auth_inactivity_delay / settings_default_tap_to_reveal_timeout / settings_default_label_size
         R.integer.settings_default_auth_inactivity_delay -> 600
         R.integer.settings_default_tap_to_reveal_timeout -> 30
+        R.integer.settings_min_tap_to_reveal_timeout -> 5
+        R.integer.settings_max_tap_to_reveal_timeout -> 60
         R.integer.settings_default_label_size -> 18
         R.integer.settings_auth_min_inactivity_delay -> 10
         R.integer.settings_auth_max_inactivity_delay -> 3600
@@ -1010,6 +1018,26 @@ private class SettingsResources(
 
     override fun getStringArray(id: Int): Array<String> =
         when (id) {
+            R.array.settings_entries_lang -> arrayOf("System", "English", "Thai")
+            R.array.settings_values_lang -> arrayOf("system", "en", "th")
+            R.array.settings_entries_panic -> arrayOf("Wipe accounts", "Reset settings")
+            R.array.settings_values_panic -> arrayOf("accounts", "settings")
+            R.array.settings_entries_backup_broadcasts -> arrayOf("Encrypted backups")
+            R.array.settings_values_backup_broadcasts -> arrayOf("encrypted")
+            R.array.settings_entries_auto_backup_password_enc -> arrayOf("Off", "New entries", "Any edits")
+            R.array.settings_values_auto_backup_password_enc -> arrayOf("off", "new_entries", "all_edits")
+            R.array.settings_entries_openpgp_mode -> arrayOf("Separate app", "Key files")
+            R.array.settings_values_openpgp_mode -> arrayOf("provider", "key_file")
+            R.array.settings_entries_tag_functionality -> arrayOf("Match any", "Match all", "Select one")
+            R.array.settings_values_tag_functionality -> arrayOf("or", "and", "single")
+            R.array.settings_entries_auto_backup_keep -> arrayOf("Off", "Keep 5", "Keep 10", "Keep 20", "Keep 50")
+            R.array.settings_values_auto_backup_keep -> arrayOf("0", "5", "10", "20", "50")
+            R.array.settings_entries_black_auto -> arrayOf("Use dark theme", "Use black theme")
+            R.array.settings_values_black_auto -> arrayOf("false", "true")
+            R.array.settings_entries_theme_mode -> arrayOf("Automatic", "Manual")
+            R.array.settings_values_theme_mode -> arrayOf("auto", "manual")
+            R.array.settings_entries_theme -> arrayOf("Light", "Dark", "Black")
+            R.array.settings_values_theme -> arrayOf("light", "dark", "black")
             R.array.settings_defaults_search_includes -> arrayOf("label", "issuer")
             R.array.settings_entries_tap -> arrayOf("Nothing", "Reveal/Hide", "Copy", "Copy and go to background", "Share as keystrokes")
             else -> emptyArray()
@@ -4827,6 +4855,11 @@ fun main() {
                     is SessionCommandResult.Applied, { "session activation failed" })
             expect(BackupHelper.autoBackupType(context) == Constants.BackupType.ENCRYPTED,
                     { "login mode required an Android Keystore" })
+            expect(fixture.settings.applyAutoBackupMode(context, Constants.AutoBackup.NEW_ENTRIES) &&
+                !fixture.settings.getAutoBackupEncryptedFullEnabled() && fixture.settings.getAutoBackupEncryptedPasswordsEnabled(),
+                { "ready auto-backup mode failed to save new-entry trigger" })
+            expect(fixture.settings.applyAutoBackupMode(context, Constants.AutoBackup.ALL_EDITS) && fixture.settings.getAutoBackupEncryptedFullEnabled(),
+                { "ready auto-backup mode failed to save all-edits trigger" })
             drainMainThreadDeliveries()
             fun runBackup(): Pair<BackupTaskResult, Boolean?> {
                 var finished: Boolean? = null
@@ -9890,6 +9923,210 @@ fun main() {
             dismissed.dismiss()
             dismissed.confirmSelection(0)
             expect(fixture.settings.getTapSingle() == Constants.TapMode.COPY, { "dismissed tap form committed" })
+            expect(!fixture.settings.applyAppearanceValue(activity, AppearancePreference.THEME, "invalid"),
+                { "appearance adapter accepted unknown wire value" })
+            expect(fixture.settings.applyAppearanceValue(activity, AppearancePreference.BLACK_AUTO, "true") &&
+                fixture.store.getBoolean(activity.getString(R.string.settings_key_theme_black_auto), false),
+                { "automatic black theme must be stored as boolean, not text" })
+            overview.selectTool("language")
+            val language = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            language.confirmSelection(2)
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_lang), "") == "th",
+                { "shared language choice did not preserve resource wire value" })
+            overview.selectTool("themeMode")
+            val mode = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            mode?.confirmSelection(1)
+            overview.selectTool("theme")
+            val theme = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            theme.confirmSelection(2)
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_theme), "") == "black",
+                { "shared theme choice did not persist" })
+            overview.selectTool("language")
+            val canceledLanguage = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            canceledLanguage.dismiss()
+            canceledLanguage.confirmSelection(0)
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_lang), "") == "th",
+                { "dismissed language form changed locale" })
+            overview.selectTool("screenPrivacy")
+            val privacy = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            expect(privacy.initialSelected == setOf(2), { "privacy form did not preserve secure defaults" })
+            privacy.confirmSelection(setOf(9))
+            expect(!fixture.settings.getScreenshotsEnabled(), { "invalid privacy index changed settings" })
+            privacy.confirmSelection(setOf(0, 1, 2))
+            expect(fixture.settings.getScreenshotsEnabled() && fixture.settings.getHideInAppSwitcher() && fixture.settings.getRelockOnScreenOff(),
+                { "privacy selection failed to persist all policies" })
+            privacy.confirmSelection(emptySet())
+            expect(fixture.settings.getScreenshotsEnabled(), { "consumed privacy prompt saved twice" })
+            overview.selectTool("screenPrivacy")
+            val emptyPrivacy = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            emptyPrivacy.confirmSelection(emptySet())
+            expect(!fixture.settings.getScreenshotsEnabled() && !fixture.settings.getHideInAppSwitcher() && !fixture.settings.getRelockOnScreenOff(),
+                { "privacy form must allow all options unchecked" })
+            overview.selectTool("screenPrivacy")
+            val canceledPrivacy = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            canceledPrivacy.dismiss()
+            canceledPrivacy.confirmSelection(setOf(0, 1, 2))
+            expect(!fixture.settings.getScreenshotsEnabled(), { "dismissed privacy form wrote settings" })
+            overview.selectTool("revealTimeout")
+            val reveal = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.NumericPreferenceComposeView
+            for (invalid in listOf("", "abc", "4", "61", "2147483648", "1.5")) reveal.submitValue(invalid)
+            expect(fixture.settings.getTapToRevealTimeout() == 30, { "invalid reveal timeout was committed" })
+            reveal.submitValue("5")
+            reveal.submitValue("60")
+            expect(fixture.settings.getTapToRevealTimeout() == 5, { "reveal timeout must be bounded and single use" })
+            overview.selectTool("revealTimeout")
+            val maximumReveal = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.NumericPreferenceComposeView
+            maximumReveal.submitValue("60")
+            expect(fixture.settings.getTapToRevealTimeout() == 60, { "maximum reveal timeout was rejected" })
+            overview.selectTool("inputProtection")
+            val protection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            expect(protection.initialSelected.isEmpty(), { "input protections must preserve existing defaults" })
+            protection.confirmSelection(setOf(0, 1, 2))
+            expect(fixture.settings.getBlockAccessibility() && fixture.settings.getBlockAutofill() && fixture.settings.getAutoUnlockAfterAutofill(),
+                { "input protection typed settings did not persist" })
+            overview.selectTool("inputProtection")
+            val uncheckProtection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            uncheckProtection.confirmSelection(emptySet())
+            expect(!fixture.settings.getBlockAccessibility() && !fixture.settings.getBlockAutofill() && !fixture.settings.getAutoUnlockAfterAutofill(),
+                { "unchecking input protections must be supported" })
+            overview.selectTool("revealTimeout")
+            val dismissedReveal = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.NumericPreferenceComposeView
+            dismissedReveal.dismiss()
+            dismissedReveal.submitValue("30")
+            expect(fixture.settings.getTapToRevealTimeout() == 60, { "dismissed reveal form wrote settings" })
+            overview.selectTool("backupFiles")
+            val backupFiles = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            expect(backupFiles.initialSelected == setOf(0, 1), { "manual backup defaults changed" })
+            backupFiles.confirmSelection(emptySet())
+            expect(!fixture.settings.getBackupAsk() && !fixture.settings.getIsAppendingDateTimeToBackups(),
+                { "manual backup options did not save empty selection" })
+            backupFiles.confirmSelection(setOf(0, 1))
+            expect(!fixture.settings.getBackupAsk(), { "consumed backup form saved twice" })
+            overview.selectTool("backupFiles")
+            val backupFilesRestore = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            backupFilesRestore.confirmSelection(setOf(0, 1))
+            expect(fixture.settings.getBackupAsk() && fixture.settings.getIsAppendingDateTimeToBackups(),
+                { "manual backup options did not restore checked choices" })
+            expect(!fixture.settings.applyBackupRetention(activity, 1), { "unsupported retention choice was accepted" })
+            for ((index, keep) in listOf(0, 5, 10, 20, 50).withIndex()) {
+                overview.selectTool("backupRetention")
+                val retention = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+                retention.confirmSelection(index)
+                expect(fixture.settings.getAutoBackupKeepCount() == keep, { "retention wire value mapping changed for $keep" })
+            }
+            overview.selectTool("backupRetention")
+            val dismissedRetention = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            dismissedRetention.dismiss()
+            dismissedRetention.confirmSelection(0)
+            expect(fixture.settings.getAutoBackupKeepCount() == 50, { "dismissed retention form changed policy" })
+            overview.selectTool("vaultBehavior")
+            val behavior = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            expect(behavior.initialSelected.isEmpty(), { "vault behavior defaults changed" })
+            behavior.confirmSelection(setOf(3))
+            expect(!fixture.settings.isMinimizeAppOnCopyEnabled(), { "invalid vault behavior index wrote settings" })
+            behavior.confirmSelection(setOf(0, 1, 2))
+            expect(fixture.settings.isMinimizeAppOnCopyEnabled() && fixture.settings.isFocusSearchOnStartEnabled() && fixture.settings.isHideGlobalTimeoutEnabled(),
+                { "vault behavior choices did not persist" })
+            behavior.confirmSelection(emptySet())
+            expect(fixture.settings.isMinimizeAppOnCopyEnabled(), { "consumed behavior form saved twice" })
+            overview.selectTool("vaultBehavior")
+            val clearBehavior = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            clearBehavior.confirmSelection(emptySet())
+            expect(!fixture.settings.isMinimizeAppOnCopyEnabled() && !fixture.settings.isFocusSearchOnStartEnabled() && !fixture.settings.isHideGlobalTimeoutEnabled(),
+                { "all-unchecked vault behavior failed" })
+            for ((index, modeValue) in Constants.TagFunctionality.values().withIndex()) {
+                overview.selectTool("tagBehavior")
+                val tags = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+                tags.confirmSelection(index)
+                expect(fixture.settings.getTagFunctionality() == modeValue, { "tag behavior mapping changed for $modeValue" })
+            }
+            overview.selectTool("tagBehavior")
+            val dismissedTags = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            dismissedTags.dismiss()
+            dismissedTags.confirmSelection(0)
+            expect(fixture.settings.getTagFunctionality() == Constants.TagFunctionality.SINGLE, { "dismissed tag form changed filtering" })
+            fixture.settings.setOpenPGPRecipientFiles(setOf("content://keys/recipient"))
+            fixture.settings.setOpenPGPSecretFile("content://keys/secret")
+            val originalRecipients = fixture.settings.getOpenPGPRecipientFiles()
+            overview.selectTool("pgpMode")
+            val pgpMode = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            pgpMode.confirmSelection(0)
+            expect(fixture.settings.getOpenPGPMode() == OpenPgpMode.PROVIDER, { "shared OpenPGP provider selection failed" })
+            fixture.seed(R.string.settings_key_openpgp_provider, "org.example.pgp")
+            publish.invoke(activity)
+            overview.selectTool("pgpProviderOptions")
+            val providerOptions = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.OpenPgpProviderOptionsComposeView
+            providerOptions.saveOptions("x".repeat(InputPolicy.MAX_TEXT_CHARS + 1), true)
+            expect(fixture.settings.getOpenPGPEncryptionUserIDs().isEmpty(), { "oversized provider recipients were saved" })
+            val recipientText = " Alice <alice@example.org>, bob@example.org, alice@example.org "
+            providerOptions.saveOptions(recipientText, true)
+            expect(fixture.settings.getOpenPGPEncryptionUserIDs() == recipientText && fixture.settings.getOpenPGPVerify(),
+                { "provider options did not preserve text/verification type" })
+            providerOptions.saveOptions("", false)
+            expect(fixture.settings.getOpenPGPVerify(), { "consumed provider form saved twice" })
+            overview.selectTool("pgpProviderOptions")
+            val replacedProvider = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.OpenPgpProviderOptionsComposeView
+            fixture.seed(R.string.settings_key_openpgp_provider, "org.example.replacement")
+            replacedProvider.saveOptions("", false)
+            expect(fixture.settings.getOpenPGPVerify(), { "provider form crossed provider identity change" })
+            publish.invoke(activity)
+            overview.selectTool("pgpProviderOptions")
+            val clearProviderOptions = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.OpenPgpProviderOptionsComposeView
+            clearProviderOptions.saveOptions("", false)
+            expect(fixture.settings.getOpenPGPEncryptionUserIDs().isEmpty() && !fixture.settings.getOpenPGPVerify(),
+                { "provider recipient clearing was rejected" })
+            val requestCount = activity.startedRequests.size
+            overview.selectTool("pgpRecipients")
+            overview.selectTool("pgpSecret")
+            expect(activity.startedRequests.size == requestCount, { "provider mode exposed inactive key-file pickers" })
+            overview.selectTool("pgpMode")
+            val keyMode = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            keyMode.confirmSelection(1)
+            expect(fixture.settings.getOpenPGPMode() == OpenPgpMode.KEY_FILE && fixture.settings.getOpenPGPRecipientFiles() == originalRecipients &&
+                fixture.settings.getOpenPGPSecretFile() == "content://keys/secret", { "switching OpenPGP engines discarded configuration" })
+            overview.selectTool("pgpProvider")
+            expect(recreations == 0, { "key-file mode dispatched inactive provider destination" })
+            overview.selectTool("pgpRecipients")
+            expect(activity.startedRequests.last().second == Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES &&
+                field("overviewPickerPending").get(activity) == true, { "shared OpenPGP recipient action did not use native document picker" })
+            overview.selectTool("pgpSecret")
+            expect(activity.startedRequests.size == requestCount + 1, { "pending OpenPGP picker allowed second picker" })
+            field("overviewPickerPending").set(activity, false)
+            publish.invoke(activity)
+            fixture.seed(R.string.settings_key_auto_backup_password_enc, "all_edits")
+            overview.selectTool("autoBackupMode")
+            val autoBackupMode = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            autoBackupMode.confirmSelection(1)
+            expect(fixture.settings.getAutoBackupEncryptedFullEnabled(), { "missing requirements allowed enabling auto backups" })
+            autoBackupMode.confirmSelection(0)
+            expect(!fixture.settings.getAutoBackupEncryptedPasswordsEnabled(), { "missing requirements prevented disabling backups" })
+            expect(!fixture.settings.applyAutoBackupMode(activity, Constants.AutoBackup.ALL_EDITS),
+                { "auto-backup persistence adapter bypassed readiness" })
+            overview.selectTool("panicActions")
+            val panicActions = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            expect(panicActions.initialSelected.isEmpty(), { "panic actions must remain opt-in" })
+            panicActions.confirmSelection(setOf(0, 1))
+            expect(fixture.settings.getPanicResponse() == setOf("accounts", "settings"), { "panic policy values were not preserved" })
+            expect(fixture.settings.getTagFunctionality() == Constants.TagFunctionality.SINGLE,
+                { "configuring panic actions reset unrelated preferences immediately" })
+            overview.selectTool("panicActions")
+            val clearPanic = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            clearPanic.confirmSelection(emptySet())
+            expect(fixture.settings.getPanicResponse().isEmpty(), { "empty panic action set was rejected" })
+            expect(!fixture.settings.applyPolicyChecklist(activity, PolicyChecklist.PANIC, setOf("invalid")),
+                { "policy adapter accepted an unknown action" })
+            overview.selectTool("backupBroadcasts")
+            val broadcasts = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            broadcasts.confirmSelection(setOf(1))
+            expect(fixture.settings.getBackupBroadcasts().isEmpty(), { "invalid backup broadcast index saved" })
+            broadcasts.confirmSelection(setOf(0))
+            expect(fixture.settings.getBackupBroadcasts() == setOf("encrypted"), { "backup broadcast policy was not persisted" })
+            broadcasts.confirmSelection(emptySet())
+            expect(fixture.settings.isEncryptedBackupBroadcastEnabled(), { "consumed policy prompt saved twice" })
+            overview.selectTool("backupBroadcasts")
+            val clearBroadcasts = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
+            clearBroadcasts.confirmSelection(emptySet())
+            expect(!fixture.settings.isEncryptedBackupBroadcastEnabled(), { "backup broadcast policy could not be disabled" })
             overview.selectTool("advanced")
             expect(field("showingAdvancedSettings").get(activity) == true && recreations == 1,
                 { "native-only preferences must stay reachable with refreshed stored values" })
@@ -9918,13 +10155,141 @@ fun main() {
             overview.selectTool("autoLock")
             val afterKeyChange = field("settingsConfirmationPrompt").get(activity) as? com.fairuniversal.offlineotp.ui.host.AutoLockComposeView
                 ?: throw AssertionError("overview was not rebound after authorized key change")
+            // Replace the current form to capture a live privacy callback before locking.
+            afterKeyChange.dismiss()
+            field("settingsConfirmationPrompt").set(activity, null)
+            overview.selectTool("screenPrivacy")
+            val stalePrivacy = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
             VaultSession.lock()
             afterKeyChange.saveTimeout(600, false)
+            dismissedRetention.confirmSelection(0)
+            expect(fixture.settings.getAutoBackupKeepCount() == 50, { "old retention callback changed policy after lock" })
+            stalePrivacy.confirmSelection(setOf(0, 1, 2))
+            expect(!fixture.settings.getScreenshotsEnabled(), { "locked privacy form changed settings" })
             staleTap.confirmSelection(0)
             expect(fixture.settings.getTapSingle() == Constants.TapMode.COPY, { "stale tap form changed settings after lock" })
             expect(fixture.settings.currentAutoLockSeconds() == 180 && fixture.settings.getRelockOnBackground(),
                 { "stale shared Settings callback changed preferences" })
         } finally { overview.close(); VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared setup choices reject invalid and destroyed view callbacks") {
+        val selected = ArrayList<Int>()
+        val view = com.fairuniversal.offlineotp.ui.host.SetupChoiceComposeView(android.app.Activity()) { selected.add(it) }
+        view.render("Encryption", "Choose", listOf("Password", "Keystore"), 0, "Password description")
+        view.selectChoice(-1); view.selectChoice(2)
+        expect(selected.isEmpty(), { "invalid setup index dispatched" })
+        view.selectChoice(1)
+        expect(selected == listOf(1), { "shared setup choice did not dispatch" })
+        view.close()
+        view.render("Replacement", "", listOf("New"), 0, "")
+        view.selectChoice(0)
+        expect(selected == listOf(1), { "destroyed setup view changed replacement fragment" })
+        val info = com.fairuniversal.offlineotp.ui.host.SetupChoiceComposeView(android.app.Activity()) { selected.add(it) }
+        info.render("Backup", "Disabled", emptyList(), -1, "Use portable backups")
+        info.selectChoice(0)
+        expect(selected == listOf(1), { "information-only setup step exposed an action" })
+        info.close()
+    }
+
+    check("Shared setup completion prevents duplicates and releases retry after validation failure") {
+        var creates = 0
+        var restores = 0
+        val screen = com.fairuniversal.offlineotp.ui.host.SetupCompletionComposeView(android.app.Activity(), { creates++ }, { restores++ })
+        screen.render("Setup", "Choose", "Create", "Restore", false, false)
+        screen.selectAction(true); screen.selectAction(false)
+        expect(restores == 1 && creates == 0, { "setup completion dispatched duplicate actions" })
+        screen.render("Failed", "Retry", "Create", "Restore", false, false)
+        screen.selectAction(false)
+        expect(creates == 1, { "setup completion retry remained blocked" })
+        screen.render("Finished", "Done", "Create", "Restore", false, true)
+        screen.selectAction(true)
+        expect(restores == 1, { "completed setup accepted restore" })
+        screen.close()
+        screen.render("Replacement", "", "Create", "Restore", false, false)
+        screen.selectAction(false)
+        expect(creates == 1, { "destroyed completion screen changed replacement setup" })
+        val fragment = IntroScreenActivity.IntroFinishedFragment()
+        val type = IntroScreenActivity.IntroFinishedFragment::class.java
+        val progress = android.widget.ProgressBar(android.app.Activity()).apply { visibility = View.VISIBLE }
+        val retry = com.fairuniversal.offlineotp.ui.host.SetupCompletionComposeView(android.app.Activity(), { creates++ }, { restores++ })
+        retry.render("Reading", "", "Create", "Restore", true, false)
+        type.getDeclaredField("progress").apply { isAccessible = true }.set(fragment, progress)
+        type.getDeclaredField("sharedCompletion").apply { isAccessible = true }.set(fragment, retry)
+        fragment.saveSettings(Constants.EncryptionType.PASSWORD, Constants.AuthMethod.PASSWORD, null, false)
+        retry.selectAction(false)
+        expect(creates == 2 && progress.visibility == View.INVISIBLE,
+            { "invalid setup credentials left shared completion busy" })
+        fragment.onDestroyView()
+        retry.render("Old", "", "Create", "Restore", false, false)
+        retry.selectAction(true)
+        expect(restores == 1, { "fragment view destruction did not revoke completion callbacks" })
+    }
+
+    check("Shared setup credentials enforce mode bounds and clear native and Compose snapshots on destruction") {
+        val selections = ArrayList<Int>()
+        val passwords = ArrayList<String>()
+        val confirmations = ArrayList<String>()
+        var nexts = 0
+        val screen = com.fairuniversal.offlineotp.ui.host.SetupCredentialsComposeView(android.app.Activity(),
+            { selections.add(it) }, { passwords.add(it) }, { confirmations.add(it) }, { nexts++ })
+        fun render(required: Boolean, selected: Int, allowed: Set<Int>) = screen.render("Auth", "Description",
+            listOf("None", "Password", "Device"), selected, allowed, required, "secret", "secret", "Password", "Confirm", "")
+        render(true, 1, setOf(1))
+        screen.selectChoice(0); screen.selectChoice(9)
+        screen.changePassword("x".repeat(InputPolicy.MAX_TEXT_CHARS + 1))
+        expect(selections.isEmpty() && passwords.isEmpty(), { "disabled mode or oversized setup password dispatched" })
+        screen.changePassword("new-password"); screen.changeConfirmation("new-password")
+        expect(passwords == listOf("new-password") && confirmations == listOf("new-password"), { "credential changes were not bridged" })
+        screen.clearCredentials()
+        val getter = screen.javaClass.getDeclaredMethod("getPassword").apply { isAccessible = true }
+        expect(getter.invoke(screen) == "", { "explicit credential clear left Compose password snapshot" })
+        render(false, 0, setOf(0, 1, 2))
+        screen.changePassword("not-allowed")
+        expect(passwords.size == 1 && getter.invoke(screen) == "", { "non-password mode retained or accepted credentials" })
+        screen.selectChoice(1); screen.next()
+        expect(selections == listOf(1) && nexts == 1, { "allowed mode/navigation did not dispatch" })
+        val fragment = IntroScreenActivity.AuthenticationFragment()
+        val type = IntroScreenActivity.AuthenticationFragment::class.java
+        val native = com.google.android.material.textfield.TextInputEditText().apply { setText("secret") }
+        val confirm = android.widget.EditText().apply { setText("secret") }
+        type.getDeclaredField("sharedCredentials").apply { isAccessible = true }.set(fragment, screen)
+        type.getDeclaredField("passwordInput").apply { isAccessible = true }.set(fragment, native)
+        type.getDeclaredField("passwordConfirm").apply { isAccessible = true }.set(fragment, confirm)
+        fragment.onDestroyView()
+        screen.changePassword("stale"); screen.changeConfirmation("stale"); screen.next(); screen.selectChoice(2)
+        expect(native.text.toString().isEmpty() && confirm.text.toString().isEmpty() && getter.invoke(screen) == "",
+            { "fragment destruction retained credentials" })
+        expect(passwords.size == 1 && confirmations.size == 1 && nexts == 1 && selections == listOf(1),
+            { "destroyed credential bridge dispatched callbacks" })
+    }
+
+    check("Shared authentication host rejects hidden shortcuts and stale/background actions") {
+        val actions = ArrayList<String>()
+        val input = android.widget.EditText()
+        val host = com.fairuniversal.offlineotp.ui.host.AuthenticationComposeView(android.app.Activity(), input,
+            "Unlock", "Message", "Unlock", "Hardware", "Biometric") { actions.add(it) }
+        host.render(false, false, false, true)
+        host.selectAction("hardware"); host.selectAction("biometric"); host.selectAction("unknown")
+        expect(actions.isEmpty(), { "unavailable authentication shortcut dispatched" })
+        host.selectAction("unlock"); host.selectAction("unlock")
+        expect(actions == listOf("unlock"), { "authentication host dispatched duplicate attempts" })
+        host.render(false, true, true, false)
+        host.selectAction("hardware")
+        expect(actions.size == 1, { "background authentication host dispatched" })
+        host.render(false, true, true, true)
+        host.selectAction("hardware")
+        host.render(true, true, true, true)
+        host.selectAction("biometric")
+        expect(actions == listOf("unlock", "hardware"), { "busy authentication host dispatched shortcut" })
+        host.render(false, true, true, true)
+        host.selectAction("biometric")
+        host.close()
+        host.render(false, true, true, true)
+        host.selectAction("unlock")
+        expect(actions == listOf("unlock", "hardware", "biometric"), { "closed authentication view dispatched" })
+        val getter = host.javaClass.getDeclaredMethod("getNativeInput").apply { isAccessible = true }
+        expect(getter.invoke(host) == null, { "closed authentication host retained native input adapter" })
     }
 
     if (failures == 0) {

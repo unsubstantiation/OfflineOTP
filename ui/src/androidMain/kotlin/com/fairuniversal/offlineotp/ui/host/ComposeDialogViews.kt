@@ -533,7 +533,8 @@ class MultiChoiceSelectionComposeView(
     private val dismissLabel: String,
     private val onConfirm: (Set<Int>) -> Unit,
     private val onDismiss: () -> Unit,
-    val initialSelected: Set<Int> = emptySet()
+    val initialSelected: Set<Int> = emptySet(),
+    private val allowEmpty: Boolean = false
 ) : ComposeDialogHost(activity) {
 
     init {
@@ -557,7 +558,8 @@ class MultiChoiceSelectionComposeView(
                 dismissLabel = dismissLabel,
                 onConfirm = onConfirm,
                 onDismiss = onDismiss,
-                initialSelected = initialSelected
+                initialSelected = initialSelected,
+                allowEmpty = allowEmpty
             )
         }
     }
@@ -1480,13 +1482,17 @@ class SingleChoiceSelectionComposeView(
     private val confirmLabel: String,
     private val dismissLabel: String,
     private val onConfirm: (Int) -> Unit,
-    private val onDismiss: () -> Unit
+    private val onDismiss: () -> Unit,
+    private val message: String = "",
+    enabledIndices: Set<Int>? = null
 ) : ComposeDialogHost(activity) {
+    private val permittedIndices = enabledIndices?.toSet()
     private val choices = items.toList()
     private var consumed = false
     init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
     fun confirmSelection(index: Int) {
         if (consumed || dismissals > 0 || index !in choices.indices) return
+        if (permittedIndices != null && index !in permittedIndices) return
         consumed = true
         onConfirm(index)
     }
@@ -1495,8 +1501,210 @@ class SingleChoiceSelectionComposeView(
         ForestTheme {
             com.fairuniversal.offlineotp.ui.vault.SingleChoiceSelectionDialog(
                 inputKey = this@SingleChoiceSelectionComposeView, title = title, items = choices,
-                initialSelected = initialSelected, confirmLabel = confirmLabel, dismissLabel = dismissLabel,
+                initialSelected = initialSelected, confirmLabel = confirmLabel, dismissLabel = dismissLabel, message = message, enabledIndices = permittedIndices,
                 onConfirm = ::confirmSelection, onDismiss = { if (!consumed) { consumed = true; onDismiss() } })
+        }
+    }
+}
+
+/** Bounded numeric preference adapter reusing the common numeric form, not a native picker. */
+class NumericPreferenceComposeView(
+    activity: Activity,
+    private val initialValue: Int,
+    private val minimum: Int,
+    private val maximum: Int,
+    private val title: String,
+    private val inputLabel: String,
+    private val confirmLabel: String,
+    private val dismissLabel: String,
+    private val onSave: (Int) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    private var consumed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    fun submitValue(text: String) {
+        val value = text.toIntOrNull() ?: return
+        if (consumed || dismissals > 0 || value !in minimum..maximum) return
+        consumed = true
+        onSave(value)
+    }
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            EntryCounterDialog(inputKey = this@NumericPreferenceComposeView,
+                initialCounter = initialValue.toString(), title = title, inputLabel = inputLabel,
+                confirmLabel = confirmLabel, dismissLabel = dismissLabel,
+                isValid = { it.toIntOrNull()?.let { n -> n in minimum..maximum } == true },
+                onSubmit = ::submitValue, onDismiss = { if (!consumed) { consumed = true; onDismiss() } })
+        }
+    }
+}
+
+/** Single-use bridge for provider options. Resolution and signature enforcement stay native. */
+class OpenPgpProviderOptionsComposeView(
+    activity: Activity,
+    private val initialRecipients: String,
+    private val initialVerify: Boolean,
+    private val title: String,
+    private val recipientsLabel: String,
+    private val recipientsDescription: String,
+    private val verifyLabel: String,
+    private val verifyDescription: String,
+    private val confirmLabel: String,
+    private val dismissLabel: String,
+    private val onSave: (String, Boolean) -> Unit,
+    private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    private var consumed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    fun saveOptions(recipients: String, verify: Boolean) {
+        if (consumed || dismissals > 0 || recipients.length > com.fairuniversal.offlineotp.ui.portable.PortableInputBounds.MAX_TEXT_CHARS) return
+        consumed = true
+        onSave(recipients, verify)
+    }
+    @Composable
+    override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.OpenPgpProviderOptionsDialog(
+                this@OpenPgpProviderOptionsComposeView, initialRecipients, initialVerify,
+                title, recipientsLabel, recipientsDescription, verifyLabel, verifyDescription, confirmLabel, dismissLabel,
+                ::saveOptions, { if (!consumed) { consumed = true; onDismiss() } })
+        }
+    }
+}
+
+/** Setup step renderer; closed/destroyed views cannot mutate a replacement wizard fragment. */
+class SetupChoiceComposeView(context: android.content.Context, private val onSelect: (Int) -> Unit) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var description by mutableStateOf("")
+    private var choices by mutableStateOf(emptyList<String>())
+    private var selected by mutableStateOf(-1)
+    private var selectionDescription by mutableStateOf("")
+    private var closed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow); isSaveEnabled = false }
+    fun render(title: String, description: String, choices: List<String>, selected: Int, selectionDescription: String) {
+        if (closed) return
+        this.title = title; this.description = description; this.choices = choices.toList()
+        this.selected = selected; this.selectionDescription = selectionDescription
+    }
+    fun selectChoice(index: Int) { if (!closed && index in choices.indices) onSelect(index) }
+    fun close() { closed = true; choices = emptyList() }
+    @Composable override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.SharedSetupChoiceScreen(title, description, choices, selected,
+                selectionDescription, ::selectChoice)
+        }
+    }
+}
+
+/** Non-secret setup completion state with synchronous duplicate-action and destroyed-view guards. */
+class SetupCompletionComposeView(context: android.content.Context, private val onCreate: () -> Unit,
+                                 private val onRestore: () -> Unit) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var message by mutableStateOf("")
+    private var createLabel by mutableStateOf("")
+    private var restoreLabel by mutableStateOf("")
+    private var busy by mutableStateOf(false)
+    private var completed by mutableStateOf(false)
+    private var closed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow); isSaveEnabled = false }
+    fun render(title: String, message: String, createLabel: String, restoreLabel: String, busy: Boolean, completed: Boolean) {
+        if (closed) return
+        this.title = title; this.message = message; this.createLabel = createLabel; this.restoreLabel = restoreLabel
+        this.busy = busy; this.completed = completed
+    }
+    fun selectAction(restore: Boolean) {
+        if (closed || busy || completed) return
+        busy = true
+        if (restore) onRestore() else onCreate()
+    }
+    fun close() { closed = true }
+    @Composable override fun Content() {
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.SharedSetupCompletionScreen(title, message, createLabel, restoreLabel,
+                busy, completed, { selectAction(false) }, { selectAction(true) })
+        }
+    }
+}
+
+/** Wizard bridge. Password snapshots are never saved and are cleared on mode change or disposal. */
+class SetupCredentialsComposeView(context: android.content.Context,
+    private val onSelect: (Int) -> Unit, private val onPassword: (String) -> Unit,
+    private val onConfirmation: (String) -> Unit, private val onNext: () -> Unit
+) : AbstractComposeView(context) {
+    private var title by mutableStateOf("")
+    private var description by mutableStateOf("")
+    private var choices by mutableStateOf(emptyList<String>())
+    private var selected by mutableStateOf(-1)
+    private var enabledChoices by mutableStateOf(emptySet<Int>())
+    private var passwordRequired by mutableStateOf(false)
+    private var password by mutableStateOf("")
+    private var confirmation by mutableStateOf("")
+    private var passwordLabel by mutableStateOf("")
+    private var confirmationLabel by mutableStateOf("")
+    private var warning by mutableStateOf("")
+    private var closed = false
+    private var epoch by mutableStateOf(0)
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow); isSaveEnabled = false }
+    fun render(title: String, description: String, choices: List<String>, selected: Int, enabledChoices: Set<Int>,
+               passwordRequired: Boolean, password: String, confirmation: String, passwordLabel: String,
+               confirmationLabel: String, warning: String) {
+        if (closed) return
+        if (this.selected != selected || this.passwordRequired != passwordRequired) epoch++
+        this.title = title; this.description = description; this.choices = choices.toList(); this.selected = selected
+        this.enabledChoices = enabledChoices.toSet(); this.passwordRequired = passwordRequired
+        this.password = if (passwordRequired) password else ""; this.confirmation = if (passwordRequired) confirmation else ""
+        this.passwordLabel = passwordLabel; this.confirmationLabel = confirmationLabel; this.warning = warning
+    }
+    fun selectChoice(index: Int) { if (!closed && index in choices.indices && index in enabledChoices && index != selected) onSelect(index) }
+    fun changePassword(value: String) { if (!closed && passwordRequired && value.length <= com.fairuniversal.offlineotp.ui.portable.PortableInputBounds.MAX_TEXT_CHARS) onPassword(value) }
+    fun changeConfirmation(value: String) { if (!closed && passwordRequired && value.length <= com.fairuniversal.offlineotp.ui.portable.PortableInputBounds.MAX_TEXT_CHARS) onConfirmation(value) }
+    fun next() { if (!closed) onNext() }
+    fun clearCredentials() { epoch++; password = ""; confirmation = "" }
+    fun close() { closed = true; clearCredentials(); choices = emptyList(); enabledChoices = emptySet() }
+    @Composable override fun Content() {
+        val renderedEpoch = epoch
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.SharedSetupCredentialsScreen(title, description, choices, selected, enabledChoices,
+                passwordRequired, password, confirmation, passwordLabel, confirmationLabel, warning,
+                { if (renderedEpoch == epoch) selectChoice(it) }, { if (renderedEpoch == epoch) changePassword(it) },
+                { if (renderedEpoch == epoch) changeConfirmation(it) }, { if (renderedEpoch == epoch) next() })
+        }
+    }
+}
+
+/** Native input is a capability adapter for Android autofill/accessibility, not another screen. */
+class AuthenticationComposeView(context: android.content.Context, input: android.view.View,
+    private val title: String, private val message: String, private val unlockLabel: String,
+    private val hardwareLabel: String, private val biometricLabel: String,
+    private val onAction: (String) -> Unit
+) : AbstractComposeView(context) {
+    private var nativeInput: android.view.View? by mutableStateOf(input)
+    private var busy by mutableStateOf(false)
+    private var hardware by mutableStateOf(false)
+    private var biometric by mutableStateOf(false)
+    private var foreground = false
+    private var closed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow); isSaveEnabled = false }
+    fun render(busy: Boolean, hardware: Boolean, biometric: Boolean, foreground: Boolean) {
+        if (closed) return
+        this.busy = busy; this.hardware = hardware; this.biometric = biometric; this.foreground = foreground
+    }
+    fun selectAction(key: String) {
+        if (closed || !foreground || busy || key !in setOf("unlock", "hardware", "biometric")) return
+        if ((key == "hardware" && !hardware) || (key == "biometric" && !biometric)) return
+        busy = true
+        onAction(key)
+    }
+    fun close() { closed = true; foreground = false; nativeInput = null }
+    @Composable override fun Content() {
+        val field = nativeInput ?: return
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.SharedAuthenticationScreen(title, message, unlockLabel, busy,
+                hardwareLabel.takeIf { hardware }, biometricLabel.takeIf { biometric },
+                { selectAction("unlock") }, { selectAction("hardware") }, { selectAction("biometric") }) {
+                androidx.compose.ui.viewinterop.AndroidView(factory = { field })
+            }
         }
     }
 }

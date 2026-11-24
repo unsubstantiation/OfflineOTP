@@ -219,6 +219,9 @@ APP_SOURCES=(
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestPalette.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/theme/ForestTheme.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/HardwareEnrollmentDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedAuthenticationScreen.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupCredentialsScreen.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupChoiceScreen.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/HardwareUnlockDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/UnlockScreen.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedUnlockScreen.kt"
@@ -269,6 +272,7 @@ APP_SOURCES=(
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailImportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpImportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/LinScpExportDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/OpenPgpProviderOptionsDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/OpenPgpImportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/RestoreModeDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/OpenPgpExportDialog.kt"
@@ -345,6 +349,7 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/org/json/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/binary/*.kt
     "$SANDBOX"/stubs/org/apache/commons/codec/digest/*.kt
+    "$SANDBOX/stubs-compose/android/androidx/compose/ui/viewinterop/AndroidView.kt"
     "$SANDBOX/stubs-compose/android/androidx/compose/ui/platform/ComposeView.kt"
     "$SANDBOX/stubs-compose/androidx/compose/foundation/Foundation.kt"
     "$SANDBOX/stubs-compose/androidx/compose/foundation/text/Keyboard.kt"

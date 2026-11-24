@@ -49,6 +49,9 @@ import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.Tools
 import com.fairuniversal.offlineotp.Utilities.UIHelper
 import com.fairuniversal.offlineotp.Utilities.VaultSession
+import com.fairuniversal.offlineotp.ui.host.SetupCredentialsComposeView
+import com.fairuniversal.offlineotp.ui.host.SetupCompletionComposeView
+import com.fairuniversal.offlineotp.ui.host.SetupChoiceComposeView
 import com.fairuniversal.offlineotp.ui.host.EncryptedRestorePasswordComposeView
 
 import java.util.Arrays
@@ -102,6 +105,7 @@ open class IntroScreenActivity : IntroActivity() {
             addCategory(Intent.CATEGORY_OPENABLE)
             setType("application/octet-stream")
         }
+        introFinishedFragment?.showRestoreProgress()
         try { startActivityForResult(intent, REQUEST_FIRST_RUN_BACKUP) }
         catch (_: Exception) { introFinishedFragment?.showRestoreError("The backup picker could not be opened.") }
     }
@@ -110,7 +114,10 @@ open class IntroScreenActivity : IntroActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQUEST_FIRST_RUN_BACKUP) return
-        if (resultCode != RESULT_OK || data?.data == null) return
+        if (resultCode != RESULT_OK || data?.data == null) {
+            introFinishedFragment?.showRestoreError(getString(R.string.intro_restore_cancelled_choose))
+            return
+        }
         promptFirstRunBackupPassword(data.data!!)
     }
 
@@ -126,7 +133,10 @@ open class IntroScreenActivity : IntroActivity() {
                 readFirstRunBackup(uri, password)
             },
             onDismiss = {
-                if (firstRunPasswordDialog === view) firstRunPasswordDialog = null
+                if (firstRunPasswordDialog === view) {
+                    firstRunPasswordDialog = null
+                    introFinishedFragment?.showRestoreError(getString(R.string.intro_restore_cancelled_unchanged))
+                }
                 view.dismiss()
             }
         )
@@ -347,6 +357,21 @@ open class IntroScreenActivity : IntroActivity() {
     /** Slide to choose between KeyStore and password encryption. */
     open class EncryptionFragment : SlideFragment() {
         private var encryptionChangedCallback: EncryptionChangedCallback? = null
+        private var sharedStep: SetupChoiceComposeView? = null
+
+        private fun renderSharedStep() {
+            val labels = getResources().getStringArray(R.array.settings_entries_encryption).toList()
+            if (labels.size != getResources().getStringArray(R.array.settings_values_encryption).size) return
+            sharedStep?.render(getString(R.string.settings_title_encryption), getString(R.string.intro_slide2_desc),
+                labels, selectionMapping.indexOfValue(selectedType), getString(if (selectedType == Constants.EncryptionType.PASSWORD)
+                    R.string.intro_slide2_desc_password else R.string.intro_slide2_desc_keystore))
+        }
+
+        override fun onDestroyView() {
+            sharedStep?.close(); sharedStep = null
+            selection = null; desc = null
+            super.onDestroyView()
+        }
 
         private var selection: Spinner? = null
         private var desc: TextView? = null
@@ -406,6 +431,7 @@ open class IntroScreenActivity : IntroActivity() {
                     if (encryptionType != null) {
                         selectedType = encryptionType
                         encryptionChangedCallback?.onEncryptionChanged(encryptionType)
+                        renderSharedStep()
                     }
                 }
 
@@ -413,7 +439,15 @@ open class IntroScreenActivity : IntroActivity() {
             }
 
             spinner.setSelection(selectionMapping.indexOfValue(selectedType))
-
+            val content = requireNotNull(root.findViewById<ViewGroup>(R.id.introEncryptionContent))
+            for (i in 0 until content.childCount) content.getChildAt(i).visibility = View.GONE
+            val step = SetupChoiceComposeView(requireNotNull(getContext())) { index ->
+                // The hidden native selection remains a compatibility/state engine only.
+                if (sharedStep != null && selectionMapping.get(index) != null) spinner.setSelection(index)
+            }
+            sharedStep = step
+            content.addView(step, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            renderSharedStep()
             return root
         }
 
@@ -438,6 +472,12 @@ open class IntroScreenActivity : IntroActivity() {
         internal fun attachHost(context: Context, callback: SaveSettingsCallback) {
             this.hostContext = context
             this.callback = callback
+        }
+        private var sharedCompletion: SetupCompletionComposeView? = null
+        private fun publishCompletion() {
+            sharedCompletion?.render(title?.text?.toString().orEmpty(), message?.text?.toString().orEmpty(),
+                createVaultButton?.text?.toString().orEmpty(), restoreBackupButton?.text?.toString().orEmpty(),
+                progress?.visibility == View.VISIBLE || activeTask != null, canGoForward || completedSetupRestored)
         }
         private var title: TextView? = null
         private var message: TextView? = null
@@ -485,6 +525,7 @@ open class IntroScreenActivity : IntroActivity() {
             progress?.visibility = View.INVISIBLE
             createVaultButton?.visibility = View.GONE
             restoreBackupButton?.visibility = View.GONE
+            publishCompletion()
         }
 
         fun showRestoreProgress() {
@@ -493,6 +534,7 @@ open class IntroScreenActivity : IntroActivity() {
             progress?.visibility = View.VISIBLE
             createVaultButton?.isEnabled = false
             restoreBackupButton?.isEnabled = false
+            publishCompletion()
         }
 
         fun showRestoreError(text: String) {
@@ -501,6 +543,7 @@ open class IntroScreenActivity : IntroActivity() {
             progress?.visibility = View.INVISIBLE
             createVaultButton?.isEnabled = true
             restoreBackupButton?.isEnabled = true
+            publishCompletion()
         }
 
         override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
@@ -515,9 +558,12 @@ open class IntroScreenActivity : IntroActivity() {
             createVaultButton?.setOnClickListener { (getActivity() as? IntroScreenActivity)?.createInitialVaultFromSetup() }
             restoreBackupButton?.setOnClickListener { (getActivity() as? IntroScreenActivity)?.chooseFirstRunBackup() }
 
-            if (completedSetupRestored)
-                applyCompletedSetup()
-
+            val screen = SetupCompletionComposeView(requireNotNull(getContext()),
+                onCreate = { createVaultButton?.performClick() }, onRestore = { restoreBackupButton?.performClick() })
+            sharedCompletion = screen
+            (root as ViewGroup).addView(screen, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            if (completedSetupRestored) applyCompletedSetup()
+            publishCompletion()
             return root
         }
 
@@ -531,9 +577,12 @@ open class IntroScreenActivity : IntroActivity() {
                 initialEntries?.forEach { it.destroy() }; initialEntries?.clear()
                 title?.setText(R.string.intro_slide4_title_failed)
                 message?.setText(R.string.intro_slide4_desc_failed)
-
+                progress?.visibility = View.INVISIBLE
+                createVaultButton?.isEnabled = true
+                restoreBackupButton?.isEnabled = true
                 canGoForward = false
 
+                publishCompletion()
                 callback?.onAfterSaveSettings(false, null)
                 return
             }
@@ -564,6 +613,7 @@ open class IntroScreenActivity : IntroActivity() {
                     createVaultButton?.isEnabled = true
                     restoreBackupButton?.isEnabled = true
                     canGoForward = false
+                    publishCompletion()
                     callback?.onAfterSaveSettings(false, null)
                 }
             }
@@ -571,6 +621,7 @@ open class IntroScreenActivity : IntroActivity() {
             progress?.visibility = View.VISIBLE
             createVaultButton?.isEnabled = false
             restoreBackupButton?.isEnabled = false
+            publishCompletion()
             task.execute()
         }
 
@@ -580,6 +631,8 @@ open class IntroScreenActivity : IntroActivity() {
                 it.cancel()
             }
             activeTask = null
+            sharedCompletion?.close(); sharedCompletion = null
+            title = null; message = null; progress = null; createVaultButton = null; restoreBackupButton = null
             super.onDestroyView()
         }
 
@@ -608,6 +661,7 @@ open class IntroScreenActivity : IntroActivity() {
 
             progress?.visibility = View.INVISIBLE
 
+            publishCompletion()
             callback?.onAfterSaveSettings(result.saveSuccessful, result.encryptionKey)
         }
 
@@ -625,6 +679,12 @@ open class IntroScreenActivity : IntroActivity() {
     open class AndroidSyncFragment : SlideFragment {
         private var encryptionFragment: EncryptionFragment? = null
         private var introAndroidSync: SwitchCompat? = null
+        private var sharedStep: SetupChoiceComposeView? = null
+
+        override fun onDestroyView() {
+            sharedStep?.close(); sharedStep = null; introAndroidSync = null
+            super.onDestroyView()
+        }
 
         constructor() : super()
 
@@ -654,13 +714,43 @@ open class IntroScreenActivity : IntroActivity() {
             toggle.isChecked = false
             toggle.isEnabled = false
             toggle.setText(R.string.security_platform_backup_disabled)
-
+            val content = requireNotNull(root.findViewById<ViewGroup>(R.id.introSyncContent))
+            for (i in 0 until content.childCount) content.getChildAt(i).visibility = View.GONE
+            val step = SetupChoiceComposeView(requireNotNull(getContext())) { }
+            sharedStep = step
+            step.render(getString(R.string.settings_title_enable_android_backup_service),
+                getString(R.string.intro_slide_android_backup_desc), emptyList(), -1,
+                getString(R.string.security_platform_backup_disabled))
+            content.addView(step, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
             return root
         }
     }
 
     /** Slide to choose the auth method and enter the password. */
     open class AuthenticationFragment : SlideFragment(), TextView.OnEditorActionListener {
+        private var sharedCredentials: SetupCredentialsComposeView? = null
+        private fun publishCredentials() {
+            if (sharedCredentials == null) return
+            val labels = getResources().getStringArray(R.array.settings_entries_auth).toList()
+            if (labels.size != Constants.AuthMethod.values().size) return
+            val method = getAuthMethod()
+            sharedCredentials?.render(getString(R.string.settings_title_auth), desc?.text?.toString().orEmpty(), labels,
+                selectionMapping.indexOfValue(method), labels.indices.filter {
+                    encryptionType != Constants.EncryptionType.PASSWORD || selectionMapping.get(it) == Constants.AuthMethod.PASSWORD
+                }.toSet(), method == Constants.AuthMethod.PASSWORD,
+                passwordInput?.text?.toString().orEmpty(), passwordConfirm?.text?.toString().orEmpty(),
+                getString(R.string.settings_hint_password), getString(R.string.settings_hint_password_confirm),
+                authWarnings?.text?.toString().orEmpty())
+        }
+
+        override fun onDestroyView() {
+            sharedCredentials?.close(); sharedCredentials = null
+            clearCredentialInputs()
+            desc = null; selection = null; authWarnings = null; credentialsLayout = null
+            passwordLayout = null; passwordInput = null; passwordConfirm = null
+            super.onDestroyView()
+        }
+
         private var encryptionType: Constants.EncryptionType = Constants.EncryptionType.PASSWORD
         private var selectedAuthMethod: Constants.AuthMethod = Constants.AuthMethod.PASSWORD
 
@@ -714,6 +804,7 @@ open class IntroScreenActivity : IntroActivity() {
                         spinner.setSelection(selectionMapping.indexOfValue(Constants.AuthMethod.PASSWORD))
                 }
             }
+            publishCredentials()
         }
 
         private fun generateSelectionMapping() {
@@ -731,11 +822,13 @@ open class IntroScreenActivity : IntroActivity() {
 
         private fun updateWarning(warning: String) {
             authWarnings?.setText(warning)
+            publishCredentials()
         }
 
         private fun hideWarning() {
             authWarnings?.visibility = View.GONE
             authWarnings?.setText(null)
+            publishCredentials()
         }
 
         /** Briefly highlights the warning text when the user tries to leave the slide. */
@@ -768,6 +861,8 @@ open class IntroScreenActivity : IntroActivity() {
         fun clearCredentialInputs() {
             passwordInput?.setText("")
             passwordConfirm?.setText("")
+            sharedCredentials?.clearCredentials()
+            publishCredentials()
         }
 
         override fun onSaveInstanceState(outState: Bundle) {
@@ -855,6 +950,7 @@ open class IntroScreenActivity : IntroActivity() {
                     authWarnings?.visibility = View.GONE
 
                     updateNavigation()
+                    publishCredentials()
                 }
 
                 override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -863,6 +959,7 @@ open class IntroScreenActivity : IntroActivity() {
             val textWatcher = object : TextWatcher {
                 override fun onTextChanged(charSequence: CharSequence?, i: Int, i1: Int, i2: Int) {
                     updateNavigation()
+                    publishCredentials()
                 }
 
                 override fun beforeTextChanged(charSequence: CharSequence?, i: Int, i1: Int, i2: Int) {}
@@ -886,7 +983,14 @@ open class IntroScreenActivity : IntroActivity() {
                 selectedAuthMethod = Constants.AuthMethod.PASSWORD
             }
             spinner.setSelection(selectionMapping.indexOfValue(selectedAuthMethod))
-
+            val screen = SetupCredentialsComposeView(requireNotNull(getContext()),
+                onSelect = { index -> spinner.setSelection(index) },
+                onPassword = { pwdInput.setText(it) }, onConfirmation = { pwdConfirm.setText(it) },
+                onNext = { nextSlide() })
+            sharedCredentials = screen
+            requireNotNull(root.findViewById<ViewGroup>(R.id.introAuthSharedContent)).addView(screen,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+            publishCredentials()
             return root
         }
 
@@ -916,7 +1020,7 @@ open class IntroScreenActivity : IntroActivity() {
         }
 
         private fun focusOnPasswordInput() {
-            if (getIntroActivity()?.currentSlidePosition == slidePos) {
+            if (sharedCredentials == null && getIntroActivity()?.currentSlidePosition == slidePos) {
                 passwordInput?.requestFocus()
                 UIHelper.showKeyboard(getContext()!!, passwordInput)
             }
