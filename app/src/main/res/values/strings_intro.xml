@@ -2,6 +2,9 @@
 <resources
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="MissingTranslation">
+    <string name="intro_restore_cancelled_choose">Restore cancelled. Choose a backup or create a new vault.</string>
+    <string name="intro_restore_cancelled_unchanged">Restore cancelled. No vault was created.</string>
+
 
     <string name="intro_slide1_title">Let\'s get started</string>
     <string name="intro_slide1_desc">Welcome to <b>OfflineOTP</b>! This wizard covers the initial setup.

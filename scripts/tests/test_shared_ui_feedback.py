@@ -206,3 +206,219 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("selected in items.indices", shared)
         host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SingleChoiceSelectionComposeView(", 1)[1]
         self.assertIn("consumed || dismissals > 0 || index !in choices.indices", host)
+
+    def test_screen_privacy_uses_shared_form_without_changing_other_checklist_defaults(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedScreenPrivacy", 1)[1].split("private fun showSharedTapAction", 1)[0]
+        for marker in ("MultiChoiceSelectionComposeView(", "allowEmpty = true", "indices.all { it in 0..2 }",
+                       "settingsConfirmationPrompt === host", "VaultSession.isCurrent(generation)",
+                       "applyScreenPrivacy(this, ScreenPrivacySelection(", "applyScreenshotPolicyForForeground()"):
+            self.assertIn(marker, form)
+        shared = (FOUNDATION / "MultiChoiceSelectionDialog.kt").read_text()
+        self.assertIn("allowEmpty: Boolean = false", shared)
+        self.assertIn("enabled = allowEmpty || selected.isNotEmpty()", shared)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text()
+        policy = adapter.split("fun Settings.applyScreenPrivacy", 1)[1].split("enum class AppearancePreference", 1)[0]
+        for key in ("enable_screenshot", "hide_in_app_switcher", "relock_screen_off"):
+            self.assertIn("R.string.settings_key_" + key, policy)
+        self.assertEqual(1, policy.count(".commit()"))
+
+    def test_shared_appearance_choices_preserve_wire_values_and_recreation_ownership(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedAppearance", 1)[1].split("private fun showSharedScreenPrivacy", 1)[0]
+        for marker in ("SingleChoiceSelectionComposeView(", "labels.size != values.size", "values.distinct()",
+                       "VaultSession.isCurrent(generation)", "applyAppearanceValue(this, preference, values[index])"):
+            self.assertIn(marker, form)
+        self.assertLess(form.index("closeHost()", form.index("onConfirm =")), form.index("applyAppearanceValue"))
+        for key in ("language", "themeMode", "theme", "blackAuto"):
+            self.assertIn('PortableToolItem("' + key + '"', settings)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text()
+        self.assertIn("value !in context.resources.getStringArray(preference.valuesId)", adapter)
+        self.assertIn('editor.putBoolean(context.getString(preference.keyId), value == "true")', adapter)
+
+    def test_reveal_and_input_protection_use_shared_forms_with_platform_bounds(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        numeric = settings.split("private fun showSharedRevealTimeout", 1)[1].split("private fun showSharedInputProtection", 1)[0]
+        for marker in ("NumericPreferenceComposeView(", "R.integer.settings_min_tap_to_reveal_timeout",
+                       "R.integer.settings_max_tap_to_reveal_timeout", "VaultSession.isCurrent(generation)",
+                       "applyRevealTimeout(this, seconds)"):
+            self.assertIn(marker, numeric)
+        protection = settings.split("private fun showSharedInputProtection", 1)[1].split("private fun showSharedAppearance", 1)[0]
+        for marker in ("MultiChoiceSelectionComposeView(", "allowEmpty = true", "indices.all { it in 0..2 }",
+                       "VaultSession.isCurrent(generation)", "InputProtectionSelection(0 in indices, 1 in indices, 2 in indices)"):
+            self.assertIn(marker, protection)
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class NumericPreferenceComposeView(", 1)[1]
+        self.assertIn("EntryCounterDialog(", host)
+        self.assertIn("text.toIntOrNull() ?: return", host)
+        self.assertIn("consumed || dismissals > 0 || value !in minimum..maximum", host)
+
+    def test_shared_backup_preferences_keep_retention_warning_and_platform_persistence(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedBackupRetention", 1)[1].split("private fun showSharedRevealTimeout", 1)[0]
+        for marker in ("SingleChoiceSelectionComposeView(", "message = getString(R.string.settings_desc_auto_backup_keep)",
+                       "VaultSession.isCurrent(generation)", "applyBackupRetention(this, requireNotNull(values[index]))"):
+            self.assertIn(marker, form)
+        files = settings.split("private fun showSharedBackupFiles", 1)[1].split("private fun showSharedBackupRetention", 1)[0]
+        self.assertIn("allowEmpty = true", files)
+        self.assertIn("indices.all { it in 0..1 }", files)
+        self.assertIn("BackupFileSelection(0 in indices, 1 in indices)", files)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text()
+        retention = adapter.split("fun Settings.applyBackupRetention", 1)[1]
+        self.assertIn("keep !in BackupRetention.CHOICES", retention)
+        self.assertIn(".putString(context.getString(R.string.settings_key_auto_backup_keep), keep.toString())", retention)
+        self.assertNotIn(".delete", retention)
+        shared = (FOUNDATION / "MultiChoiceSelectionDialog.kt").read_text().split("fun SingleChoiceSelectionDialog", 1)[1]
+        self.assertIn('message: String = ""', shared)
+        self.assertIn("if (message.isNotEmpty()) Text(text = message)", shared)
+
+    def test_vault_behavior_and_tag_mode_use_shared_forms_and_typed_values(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        behavior = settings.split("private fun showSharedVaultBehavior", 1)[1].split("private fun showSharedTagBehavior", 1)[0]
+        for marker in ("MultiChoiceSelectionComposeView(", "allowEmpty = true", "indices.all { it in 0..2 }",
+                       "VaultSession.isCurrent(generation)", "VaultBehaviorSelection(0 in indices, 1 in indices, 2 in indices)"):
+            self.assertIn(marker, behavior)
+        tags = settings.split("private fun showSharedTagBehavior", 1)[1].split("private fun showSharedBackupFiles", 1)[0]
+        for marker in ("SingleChoiceSelectionComposeView(", "Constants.TagFunctionality.values().firstOrNull",
+                       "values.any { it == null }", "VaultSession.isCurrent(generation)", "applyTagBehavior(this, requireNotNull(values[index]))"):
+            self.assertIn(marker, tags)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text()
+        self.assertIn("mode: Constants.TagFunctionality", adapter)
+        for key in ("minimize_on_copy", "focus_search_on_start", "hide_global_timeout"):
+            self.assertIn("R.string.settings_key_" + key, adapter)
+
+    def test_openpgp_overview_uses_shared_engine_form_and_native_key_adapters(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedOpenPgpMode", 1)[1].split("private fun showSharedVaultBehavior", 1)[0]
+        for marker in ("SingleChoiceSelectionComposeView(", "OpenPgpMode.preferenceValue(it) == raw",
+                       "modes.any { it == null }", "VaultSession.isCurrent(generation)",
+                       "applyOpenPgpMode(this, requireNotNull(modes[index]))"):
+            self.assertIn(marker, form)
+        self.assertIn('"pgpRecipients" -> if (settings!!.getOpenPGPMode() == OpenPgpMode.KEY_FILE) requestOpenPgpKeyFiles(true)', settings)
+        self.assertIn('"pgpSecret" -> if (settings!!.getOpenPGPMode() == OpenPgpMode.KEY_FILE) requestOpenPgpKeyFiles(false)', settings)
+        self.assertIn('if (key == "pgpProvider" && settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER) return', settings)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyOpenPgpMode", 1)[1]
+        self.assertIn("mode: OpenPgpMode", adapter)
+        self.assertIn("OpenPgpMode.preferenceValue(mode)", adapter)
+        self.assertNotIn(".remove(", adapter)
+
+    def test_provider_options_have_common_form_and_identity_guarded_save(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedOpenPgpProviderOptions", 1)[1].split("private fun showSharedOpenPgpMode", 1)[0]
+        for marker in ("OpenPgpProviderOptionsComposeView(", "VaultSession.isCurrent(generation)",
+                       "settings!!.getOpenPGPProvider() == provider", "OpenPgpMode.PROVIDER",
+                       "applyOpenPgpProviderOptions(this, recipients, verify)"):
+            self.assertIn(marker, form)
+        common = (FOUNDATION / "OpenPgpProviderOptionsDialog.kt").read_text()
+        self.assertIn("remember(inputKey)", common)
+        self.assertIn("PortableInputBounds.MAX_TEXT_CHARS", common)
+        self.assertIn("Checkbox(checked = verify", common)
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class OpenPgpProviderOptionsComposeView(", 1)[1]
+        self.assertIn("consumed || dismissals > 0", host)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyOpenPgpProviderOptions", 1)[1]
+        self.assertIn("recipients.length > InputPolicy.MAX_TEXT_CHARS", adapter)
+        self.assertIn(".putBoolean(context.getString(R.string.settings_key_openpgp_verify), verify)", adapter)
+
+    def test_auto_backup_mode_keeps_off_available_and_rechecks_readiness(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedAutoBackupMode", 1)[1].split("private fun showSharedOpenPgpProviderOptions", 1)[0]
+        self.assertIn("SingleChoiceSelectionComposeView(", form)
+        self.assertIn("ready || values[it] == Constants.AutoBackup.OFF", form)
+        self.assertIn("VaultSession.isCurrent(generation)", form)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyAutoBackupMode", 1)[1]
+        self.assertIn("mode != Constants.AutoBackup.OFF && BackupHelper.autoBackupType(context) != Constants.BackupType.ENCRYPTED", adapter)
+        common = (FOUNDATION / "MultiChoiceSelectionDialog.kt").read_text().split("fun SingleChoiceSelectionDialog", 1)[1]
+        self.assertIn("enabledIndices == null || selected in enabledIndices", common)
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SingleChoiceSelectionComposeView(", 1)[1]
+        self.assertIn("permittedIndices != null && index !in permittedIndices", host)
+
+    def test_policy_checklists_only_configure_allowlisted_future_actions(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedPolicyChecklist", 1)[1].split("private fun showSharedAutoBackupMode", 1)[0]
+        for marker in ("MultiChoiceSelectionComposeView(", "values.toSet() != policy.allowed", "allowEmpty = true",
+                       "VaultSession.isCurrent(generation)", "NotificationHelper.requestNotificationPermission(it)",
+                       "else if (!panic && chosen.isNotEmpty())"):
+            self.assertIn(marker, form)
+        self.assertNotIn("wipeDatabase", form)
+        self.assertNotIn("sendBroadcast", form)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyPolicyChecklist", 1)[1]
+        self.assertIn("values.any { it !in policy.allowed }", adapter)
+        self.assertIn(".putStringSet", adapter)
+        self.assertNotIn(".clear()", adapter)
+        strings = (ROOT / "app/src/main/res/values/strings_settings.xml").read_text()
+        self.assertIn("Saving does not run them now", strings)
+
+    def test_setup_encryption_and_platform_backup_steps_use_common_compose(self):
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        encryption = intro.split("open class EncryptionFragment", 1)[1].split("open class IntroFinishedFragment", 1)[0]
+        self.assertIn("SetupChoiceComposeView(", encryption)
+        self.assertIn("renderSharedStep()", encryption)
+        self.assertIn("sharedStep?.close()", encryption)
+        self.assertIn("spinner.setSelection(index)", encryption)
+        self.assertIn("STATE_ENCRYPTION_SELECTION", encryption)
+        sync = intro.split("open class AndroidSyncFragment", 1)[1].split("open class AuthenticationFragment", 1)[0]
+        self.assertIn("SetupChoiceComposeView(", sync)
+        self.assertIn("emptyList(), -1", sync)
+        self.assertIn("toggle.isEnabled = false", sync)
+        shared = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupChoiceScreen.kt").read_text()
+        self.assertIn("fun SharedSetupChoiceScreen(", shared)
+        self.assertNotIn("android.", shared)
+
+    def test_setup_completion_uses_shared_body_and_releases_cancelled_restore(self):
+        import xml.etree.ElementTree as ET
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        completion = intro.split("open class IntroFinishedFragment", 1)[1].split("open class AndroidSyncFragment", 1)[0]
+        for marker in ("SetupCompletionComposeView(", "publishCompletion()", "sharedCompletion?.close()",
+                       "canGoForward || completedSetupRestored", "progress?.visibility == View.VISIBLE || activeTask != null"):
+            self.assertIn(marker, completion)
+        self.assertIn("R.string.intro_restore_cancelled_choose", intro)
+        self.assertIn("R.string.intro_restore_cancelled_unchanged", intro)
+        layout = ET.parse(ROOT / "app/src/main/res/layout/component_intro_finished.xml").getroot()
+        self.assertEqual("FrameLayout", layout.tag)
+        self.assertEqual("gone", layout[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        common = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupChoiceScreen.kt").read_text()
+        self.assertIn("fun SharedSetupCompletionScreen(", common)
+        self.assertIn("if (!completed)", common)
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SetupCompletionComposeView(", 1)[1]
+        self.assertIn("if (closed || busy || completed) return", host)
+        self.assertLess(host.index("busy = true", host.index("fun selectAction")), host.index("if (restore) onRestore()"))
+
+    def test_onboarding_credentials_are_shared_non_saved_and_disposed(self):
+        import xml.etree.ElementTree as ET
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        auth = intro.split("open class AuthenticationFragment", 1)[1]
+        for marker in ("SetupCredentialsComposeView(", "sharedCredentials?.close()", "sharedCredentials?.clearCredentials()",
+                       "publishCredentials()", "passwordInput = null; passwordConfirm = null"):
+            self.assertIn(marker, auth)
+        state = auth.split("override fun onSaveInstanceState", 1)[1].split("override fun onCreateView", 1)[0]
+        self.assertNotIn("getPassword()", state)
+        self.assertNotIn("putString(\"password", state)
+        common = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupCredentialsScreen.kt").read_text()
+        self.assertIn("fun SharedSetupCredentialsScreen(", common)
+        self.assertIn("KeyboardType.Password", common)
+        self.assertNotIn("rememberSaveable", common)
+        layout = ET.parse(ROOT / "app/src/main/res/layout/component_intro_authentication.xml").getroot()
+        self.assertEqual("gone", layout[0][0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SetupCredentialsComposeView(", 1)[1]
+        self.assertIn("renderedEpoch == epoch", host)
+        self.assertIn("epoch by mutableStateOf(0)", host)
+        self.assertIn('password = ""; confirmation = ""', host)
+
+    def test_authentication_has_shared_layout_with_the_existing_native_input_adapter(self):
+        import xml.etree.ElementTree as ET
+        auth = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt").read_text()
+        for marker in ("AuthenticationComposeView(", "legacy.removeView(field)", "publishAuthentication()",
+                       "sharedAuthentication?.close()", "result.getOrNull()?.fill(0)",
+                       "!authForeground || authTaskRunning || biometricPending || hardwarePending"):
+            self.assertIn(marker, auth)
+        for marker in ("input.isSaveEnabled = false", "setAutoFillTextListener(autoFillTextListener)",
+                       "IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS", "IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS"):
+            self.assertIn(marker, auth)
+        common = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedAuthenticationScreen.kt").read_text()
+        self.assertIn("credentialInput: @Composable () -> Unit", common)
+        self.assertNotIn("password: String", common)
+        host = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class AuthenticationComposeView(", 1)[1]
+        self.assertIn("AndroidView(factory = { field })", host)
+        self.assertIn("closed || !foreground || busy", host)
+        layout = ET.parse(ROOT / "app/src/main/res/layout/content_authenticate.xml").getroot()
+        self.assertEqual("FrameLayout", layout.tag)
+        self.assertEqual("gone", layout[0].get("{http://schemas.android.com/apk/res/android}visibility"))

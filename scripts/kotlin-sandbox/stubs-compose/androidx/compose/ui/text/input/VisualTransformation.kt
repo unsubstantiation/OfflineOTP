@@ -10,4 +10,4 @@ interface VisualTransformation {
 class PasswordVisualTransformation : VisualTransformation
 
 enum class ImeAction { Default, Next, Done }
-enum class KeyboardType { Text, Number, NumberPassword }
+enum class KeyboardType { Text, Number, NumberPassword, Password }

@@ -7,6 +7,7 @@ import android.text.InputType
 import android.text.method.PasswordTransformationMethod
 import android.view.KeyEvent
 import android.view.View
+import android.view.ViewGroup
 import android.view.ViewStub
 import android.view.WindowManager.LayoutParams
 import android.view.inputmethod.InputMethodManager
@@ -19,6 +20,7 @@ import androidx.appcompat.widget.Toolbar
 
 import com.google.android.material.textfield.TextInputLayout
 
+import com.fairuniversal.offlineotp.ui.host.AuthenticationComposeView
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Tasks.AuthenticationError
 import com.fairuniversal.offlineotp.Tasks.AuthenticationOutcome
@@ -40,6 +42,15 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     private val autoFillTextListener = AutoFillableTextInputEditText.AutoFillTextListener { text ->
         startAuthTask(text.toString())
+    }
+
+    private var sharedAuthentication: AuthenticationComposeView? = null
+    private var authForeground = false
+    private var authTaskRunning = false
+
+    private fun publishAuthentication() {
+        sharedAuthentication?.render(authTaskRunning || hardwarePending || biometricPending,
+            hardwareButton?.visibility == View.VISIBLE, biometricButton?.visibility == View.VISIBLE, authForeground)
     }
 
     private var authMethod: AuthMethod = AuthMethod.NONE
@@ -101,7 +112,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         if (shouldOfferBiometric() && !biometricAutoShown) {
             biometricAutoShown = true
             // Let the view inflate before the system prompt appears.
-            passwordInput?.postDelayed({ if (!isFinishing()) triggerBiometricUnlock() }, 300)
+            passwordInput?.postDelayed({ if (!isFinishing() && authForeground) triggerBiometricUnlock() }, 300)
         }
     }
 
@@ -120,6 +131,27 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         initPasswordLayoutView(v)
         initPasswordInputView(v)
         initUnlockViews(v)
+        val field = requireNotNull(passwordLayout)
+        // Move the same input widget into Compose: retain autofill hints/listeners, visibility
+        // toggle and platform protection flags without copying passwords into Compose state.
+        val legacy = (v as ViewGroup).getChildAt(0) as ViewGroup
+        legacy.removeView(field)
+        val labelMsg = getIntent()?.getIntExtra(Constants.EXTRA_AUTH_MESSAGE, R.string.auth_msg_authenticate)
+            ?: R.string.auth_msg_authenticate
+        val shared = AuthenticationComposeView(this, field, getString(R.string.auth_activity_title), getString(labelMsg),
+            getString(R.string.auth_button_unlock), getString(R.string.hardware_unlock_button), getString(R.string.biometric_unlock_button)) { key ->
+            if (authForeground && !isFinishing()) {
+                when (key) {
+                    "unlock" -> unlockButton?.performClick()
+                    "hardware" -> hardwareButton?.performClick()
+                    "biometric" -> biometricButton?.performClick()
+                }
+                publishAuthentication()
+            }
+        }
+        sharedAuthentication = shared
+        v.addView(shared, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        publishAuthentication()
     }
 
     private fun initPasswordLabelView(v: View) {
@@ -162,7 +194,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             settings?.getEncryption() == Constants.EncryptionType.PASSWORD && HardwareUnlockStore.read(this) != null
         hardware.visibility = if (allowed) View.VISIBLE else View.GONE
         hardware.setOnClickListener {
-            if (!hardwarePending && allowed) {
+            if (!hardwarePending && !biometricPending && !authTaskRunning && authForeground && allowed) {
                 clearPasswordInput()
                 hardwarePending = true
                 hardwareGeneration = VaultSession.generation()
@@ -191,12 +223,14 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     private fun triggerBiometricUnlock() {
-        if (biometricPending) return
+        if (biometricPending || hardwarePending || authTaskRunning || !authForeground || isFinishing()) return
         biometricPending = true
         biometricGeneration = VaultSession.generation()
         BiometricKeyStore.load(this) { result ->
-            if (!VaultSession.isCurrent(biometricGeneration)) {
+            if (!VaultSession.isCurrent(biometricGeneration) || !authForeground || isFinishing()) {
+                result.getOrNull()?.fill(0)
                 biometricPending = false
+                publishAuthentication()
                 return@load
             }
             if (result.isSuccess) {
@@ -211,6 +245,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
                     try { vaultKey?.fill(0) } catch (_: Exception) { }
                     biometricPending = false
                 }
+                publishAuthentication()
                 return@load
             }
             biometricPending = false
@@ -232,6 +267,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
                 else Toast.LENGTH_LONG
             // The sentence is a string resource, so it is translated with the rest of the app.
             Toast.makeText(this, error.message(this), duration).show()
+            publishAuthentication()
         }
     }
 
@@ -252,6 +288,8 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     override fun setupUiForTaskState(isTaskRunning: Boolean) {
+        authTaskRunning = isTaskRunning
+        publishAuthentication()
         val layout = passwordLayout ?: return
         layout.isEnabled = !isTaskRunning
         passwordInput?.isEnabled = !isTaskRunning
@@ -268,6 +306,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
             val accepted = hardwarePending && resultCode == RESULT_OK && VaultSession.isCurrent(hardwareGeneration)
             hardwarePending = false
             if (accepted) finishWithResult(true, null, hardwareGeneration)
+            publishAuthentication()
         }
     }
 
@@ -285,6 +324,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     private fun startAuthTask(plainPassword: String) {
+        if (!authForeground || authTaskRunning || biometricPending || hardwarePending || isFinishing()) return
         val task = AuthenticationTask(this, isAuthUpgrade, existingAuthCredentials, plainPassword)
         try {
             startBackgroundTask(task)
@@ -342,6 +382,8 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     override fun onStart() {
         super.onStart()
+        authForeground = true
+        publishAuthentication()
         val input = passwordInput
         if (input != null && settings!!.getAutoUnlockAfterAutofill()) {
             input.setAutoFillTextListener(autoFillTextListener)
@@ -349,17 +391,21 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
     }
 
     override fun onStop() {
+        authForeground = false
+        publishAuthentication()
         passwordInput?.setAutoFillTextListener(null)
         super.onStop()
     }
 
     override fun onDestroy() {
         clearPasswordInput()
+        sharedAuthentication?.close(); sharedAuthentication = null
         passwordInput?.setAutoFillTextListener(null)
         super.onDestroy()
     }
 
     override fun onVaultLocked() {
+        sharedAuthentication?.close()
         hardwarePending = false
         biometricPending = false
         cancelBackgroundTask()

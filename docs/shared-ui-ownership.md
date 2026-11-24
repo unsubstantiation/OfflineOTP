@@ -489,3 +489,201 @@ The typed `applyTapAction` adapter preserves native lowercase ListPreference val
 existing modes, including copy-to-background and keystroke sharing. Runtime action execution and
 platform permissions are unchanged. Saves additionally require prompt ownership, a non-busy host,
 and the same unlocked key/session generation. Native advanced controls remain compatible.
+
+### Screen privacy policy form
+
+Android Settings exposes screenshots, app-switcher preview hiding, and screen-off relocking in
+one shared `MultiChoiceSelectionDialog`. The reusable form now optionally permits an empty
+selection (default remains non-empty for record export/search). All unchecked is a valid policy
+choice and must not silently restore a default. Localized labels and current booleans come from
+the host; `ScreenPrivacySelection` and one editor commit preserve the native preference keys.
+Android's existing foreground screenshot policy and screen-off lifecycle enforcement remain the
+source of truth. Hiding the preview may also prevent screenshots on Android; the form explains
+that interaction rather than promising independent OS behavior.
+
+Save checks prompt ownership, session generation/key identity, task availability and valid option
+indices. Dismissed, consumed or locked prompts cannot change policy. Sandbox checks cover default
+selection, all checked/unchecked, malformed indices and stale callbacks. Actual OS screenshot,
+recents and screen-off behavior still require device tests. These platform capabilities are not
+shown as functional options on Desktop/iOS; the shared form itself remains common Compose.
+
+### Language and theme selection
+
+Language, theme mode, manual theme and automatic black-theme preference now open the shared
+single-choice Compose form from the Android overview. The fixed `AppearancePreference` allowlist
+supplies localized Android resource labels and their existing wire values; labels are never stored
+as keys/values. Unknown choices are rejected. Black-theme-auto retains its native boolean type.
+Manual/automatic controls respect Android Q support and the selected mode. Forms close before
+committing so the existing preference listener can recreate for locale/theme changes without
+leaving an old dialog attached. Ownership, generation/key and busy guards apply before persistence.
+Unknown stored choices require an explicit valid selection, rather than silently overwriting them.
+This does not yet unify each platform's theme implementation or the remaining native preferences.
+
+### Reveal timeout and interaction protection
+
+The Android overview now routes reveal timeout to `NumericPreferenceComposeView`, reusing the
+common numeric `EntryCounterDialog` with host-supplied labels and validation. Its direct submit
+path also checks integer parsing, resource-defined bounds, consumed state and dismissal. The typed
+persistence adapter rechecks bounds; the original integer key and 5–60 second range are preserved.
+Neither opening nor canceling clamps or rewrites an existing value.
+
+Accessibility blocking, autofill blocking and automatic unlock after autofill are presented with
+their existing explanatory strings in the shared checklist. All unchecked remains valid. The
+adapter stores all three booleans together, without inferring new dependencies or changing the
+existing security policy. Android authentication continues to own actual enforcement. As with
+other Settings forms, saves require current prompt/key/session ownership and an idle host.
+Sandbox checks cover numeric invalid/overflow input, both range endpoints, single-use and dismissed
+submissions, plus all-checked/all-unchecked policy persistence. Accessibility/autofill service
+integration still needs real Android testing; unsupported platforms do not advertise these options.
+
+### Backup files, destination prompting and retention
+
+The Settings overview now launches common Compose forms for manual-export timestamp naming,
+asking for a destination, and automatic-backup retention. Both manual booleans default to true;
+all unchecked remains valid. The retention form displays the existing deletion warning and maps
+resource wire values to the fixed `BackupRetention.CHOICES` allowlist, persisting the original
+string preference. Zero keeps everything. Unlisted stored counts are not silently rewritten merely
+by opening the form. Confirmation configures subsequent backup work only: Compose and the
+settings adapter do not enumerate, prune, encrypt or schedule files. Existing platform backup
+services retain those responsibilities and their retention safety checks.
+
+These forms use prompt/key/generation and task-busy checks. Sandbox checks cover both boolean
+states, all five retention mappings, rejection of unsupported counts and dismissed/consumed
+callbacks. Native storage-provider and automatic pruning behavior are not exercised by these UI
+checks. The shared single-choice form now accepts optional explanatory text so retention's warning
+is not lost when moving away from the native preference summary.
+
+### Vault behavior and tag matching
+
+Android Settings now exposes minimize-on-copy, startup search focus and global countdown-bar
+visibility through the shared checklist, using original explanatory labels and all-false defaults.
+All unchecked is valid. A typed adapter commits the booleans together without performing clipboard,
+focus or window actions from Compose. Tag matching uses the shared single-choice form; resource
+wire values are mapped explicitly to `Constants.TagFunctionality` (OR/AND/SINGLE), never inferred
+from translated labels or enum positions. Malformed/duplicate option mappings refuse to open.
+Existing Android vault filtering and behavior execution remain unchanged. Prompt ownership,
+key/session generation and busy checks apply to every save. Sandbox checks cover defaults,
+invalid indices, all-checked/unchecked, all three matching modes, consumed and dismissed callbacks.
+These checks do not exercise native keyboard focus, minimization or actual rendering.
+
+### OpenPGP engine and key-file setup
+
+The overview's OpenPGP group now uses the shared single-choice form for engine selection, with
+existing localized labels and explanatory text. Wire values are explicitly matched to
+`OpenPgpMode` and committed through a typed adapter. Switching engines keeps inactive provider,
+recipient and secret-key configuration; it does not import, decrypt or export anything.
+Recipient/secret key-file actions are enabled only for key-file mode and launch the existing native
+document-grant/import pipeline. Pending pickers block additional overview actions. Provider setup
+is an explicitly labeled handoff to advanced Android settings for the still-native provider/key
+selection controls, not a claim that those controls are migrated. Dispatch checks mode as well as
+the rendered enabled state. Engine saves use current prompt/key/session and busy guards.
+Sandbox checks cover both engines, retained key-file settings, inactive destinations and picker
+serialization. Actual provider apps, document grants and key parsing require platform tests.
+
+### OpenPGP provider recipient IDs and verification
+
+Provider recipients and backup-signature verification now use `OpenPgpProviderOptionsDialog` in
+common Compose. The Android host supplies localized labels, existing explanatory text and the
+current values. Recipient text is bounded to the existing `InputPolicy`/`PortableInputBounds`
+text limit and preserved verbatim, including empty text; existing `OpenPgpRecipientIds` retains
+responsibility for splitting/trimming/deduplication at use time. The verification setting stays a
+boolean. The form's save is single-use; oversized, dismissed and consumed submissions cannot write.
+The Activity additionally checks current prompt, idle state, key/session, provider mode and exact
+provider identity before one commit of both fields. A provider switch cannot reuse an old form.
+
+The overview exposes this form only in provider mode with a configured provider. Provider-app and
+signing-key selection still use the explicitly labeled advanced destination. Native OpenPGP IPC,
+recipient resolution and cryptographic signature enforcement are unchanged. Sandbox checks cover
+input bounds, verbatim persistence, verification type, clearing, repeated saves and a replaced
+provider; actual provider interaction and rendered semantics still require device tests.
+
+### Automatic-backup trigger mode
+
+Off/new entries/any edits now use the shared single-choice form. The form/Android host support
+optional enabled indices without changing other callers' defaults. When backup readiness is
+missing, only Off can be confirmed; it remains possible to disable an existing trigger instead of
+trapping the user behind an entirely disabled preference. The existing requirements explanation
+is displayed. The typed persistence adapter independently rechecks `BackupHelper.autoBackupType`
+before enabling, so losing the folder/password/session backup key after opening cannot bypass the
+policy. Saves retain prompt/key/session/busy guards and original lowercase trigger values. No
+work is scheduled and no encryption occurs inside the form/adapter. Existing listeners and backup
+services retain execution responsibility. Sandbox checks cover disabled-choice rejection, Off
+without readiness, adapter-level rejection and both enabled trigger modes with a valid login key.
+
+### Panic actions and backup broadcasts
+
+The remaining Android policy multi-selects now use the common checklist from the overview.
+`PolicyChecklist` fixes the writable preference keys and allowed wire tokens (panic accounts/settings,
+backup broadcasts encrypted). Resource mappings must exactly cover that allowlist, with no
+unknown/duplicate values. Empty selection is supported and opt-in defaults remain unchanged.
+The panic form explicitly warns about permanent future-trigger effects and makes clear that
+saving the preference does not execute a wipe/reset. Its adapter only commits the string set.
+Existing panic broadcast authorization and execution are unchanged.
+
+Backup broadcasts retain the existing same-signature-app semantics and notification permission
+handoff through the mounted native fragment, requested only after successful nonempty selection.
+No broadcasts or backup tasks are dispatched by the shared form. Saves require current prompt,
+key/session generation and idle state. Sandbox checks cover defaults, both panic actions without
+immediate preference reset, clearing, invalid tokens/indices and consumed saves; real permission
+sheets and external triggers require Android device tests.
+
+### Onboarding encryption and platform-backup steps
+
+The first-run encryption choice and Android platform-backup information now render through common
+`SharedSetupChoiceScreen` and an Android `SetupChoiceComposeView`. Encryption selection continues
+to use the existing non-secret saved selection and callbacks into the authentication step. Hidden
+native spinner/description hooks remain for compatibility, not visible presentation. Closing a
+fragment view closes its Compose bridge; an old view cannot dispatch into a replacement fragment.
+The platform-backup step is information-only, with no action to enable the prohibited Android
+backup service. Its existing disabled toggle/state remains a compatibility hook. The enclosing
+wizard/navigation, credential-entry step and completion step are not yet shared Compose.
+
+### Onboarding completion body
+
+`SharedSetupCompletionScreen` now renders create/restore choices and setup progress, errors/retry
+and completion. The Android completion fragment keeps existing hidden widgets as compatibility
+state hooks under a hidden container; `SetupCompletionComposeView` renders their non-secret state.
+Actions synchronously become busy before native dispatch to prevent duplicate clicks, stay disabled
+while tasks/pickers/password collection are pending, and disappear when completed. Canceling a
+restore picker/password prompt publishes a retry state. Invalid setup credentials clear progress
+so retry is not stranded. Existing setup tasks, outcome disposal and one-use key handoff are
+unchanged. Destroying the fragment view closes the bridge, cancels its task and clears view references.
+Completed-state restoration still does not provision another vault. Common content is scrollable;
+the outer wizard pager/navigation and credential step remain native and still need migration.
+Sandbox checks cover duplicate actions, retry, completed/closed revocation and invalid-credential
+recovery. These are not native rendering/picker/process-death tests.
+
+### Onboarding credentials body
+
+`SharedSetupCredentialsScreen` now renders authentication method choice, password/confirmation and
+host-supplied warnings. Password encryption permits only password authentication. Keystore mode
+retains none/password/device choices and existing device-security/password-length/matching checks.
+The hidden native widgets remain the validation/compatibility engine; the bridge holds only transient
+controlled snapshots for rendering. No credentials enter saved instance state or rememberSaveable.
+Both native fields and Compose snapshots are cleared at setup handoff and view destruction; immutable
+String contents cannot be reliably zeroized. Password keyboards and visual masking are used for both
+fields. Mode revisions invalidate callbacks from an obsolete composition, and closed views reject all
+input and navigation. Clearing fields advances a Compose-observable revision so fresh typing remains
+possible. The enclosing wizard shell/navigation is still native. Standalone authentication is not
+migrated by this change. Sandbox checks cover mode/input bounds, snapshot cleanup and disposed
+callbacks; native keyboard/IME, accessibility, autofill and process-death behavior need device tests.
+
+### Standalone authentication layout and native input adapter
+
+Android `AuthenticateActivity` now hosts common `SharedAuthenticationScreen` for its message,
+password-unlock action, capability-filtered hardware/biometric shortcuts and progress. The existing
+TextInputLayout/password widget is moved (not cloned) into an `AndroidView` credential slot. It is
+an intentional Android input capability adapter: autofill hints, save-disabled input, password
+visibility toggle, IME listeners, accessibility/autofill blocking and auto-submit-on-autofill remain
+on the same widget. The shared layout never receives password text. Compatibility buttons/state
+stay under a hidden legacy container and dispatch existing tasks/transport adapters.
+
+The Compose bridge synchronously blocks duplicate actions and rejects unavailable shortcuts,
+background or closed dispatch. Activity-level submission also checks foreground/task/shortcut
+state. Returning from external hardware refreshes the frame; biometric fallback refreshes capability
+visibility. Late biometric results received while backgrounded/finishing are rejected and returned
+key bytes wiped. Destruction/lock closes the bridge and drops its native-input reference. Existing
+authentication task generation/key handoff remains authoritative. Sandbox checks cover host dispatch
+and disposal; the stub AndroidView cannot verify attachment, measurement, keyboard, autofill or OS
+biometric behavior. Those native integration checks are still release requirements. This is shared
+layout with a native input adapter, not a claim that Android password entry is a pure Compose field.

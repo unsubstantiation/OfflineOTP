@@ -6,7 +6,10 @@
     android:layout_height="match_parent"
     android:clipToPadding="false">
 
+    <LinearLayout android:id="@+id/introAuthSharedContent" android:orientation="vertical"
+        android:layout_width="match_parent" android:layout_height="wrap_content">
     <LinearLayout
+        android:visibility="gone"
         android:orientation="vertical"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -91,4 +94,5 @@
 
     </LinearLayout>
 
+    </LinearLayout>
 </ScrollView>
