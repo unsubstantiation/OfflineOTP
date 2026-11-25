@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fairuniversal.offlineotp.ui.vault.VaultActions
@@ -158,6 +159,10 @@ class ComposeVaultDeviceTest {
             view.navigateBack()
             assertEquals(1, selections)
             assertEquals(1, backs)
+        }
+        compose.onNodeWithText("Back").assertIsNotEnabled()
+        compose.onNodeWithText("Security option").assertIsNotEnabled()
+        compose.runOnIdle {
             view.close()
             view.render("Settings fixture", "No vault data", groups, false)
             view.selectTool("example")

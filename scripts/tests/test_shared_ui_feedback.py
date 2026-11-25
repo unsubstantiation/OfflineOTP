@@ -127,7 +127,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         screen = (FOUNDATION / "SharedBackupScreen.kt").read_text()
         tools = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
         self.assertIn("SharedVaultToolGroups(", screen)
-        self.assertIn("SharedVaultToolGroups(groups, message, onSelectTool)", tools)
+        self.assertIn("SharedVaultToolGroups(groups, message, onSelectTool = onSelectTool)", tools)
         self.assertIn("if (busy) LinearProgressIndicator()", screen)
 
     def test_hardware_management_is_visible_compose_and_clears_credentials(self):
@@ -528,3 +528,13 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("controls.viewController(actions: self)", scanner)
         self.assertNotIn("UIButton", scanner)
         self.assertIn("scanner?.stopScanning()", scanner)
+
+    def test_busy_shared_pages_disable_controls_as_well_as_guarding_hosts(self):
+        groups = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
+        body = groups.split("fun SharedVaultToolGroups(", 1)[1]
+        self.assertIn("enabled: Boolean = true", body)
+        self.assertIn("enabled = enabled && item.enabled", body)
+        self.assertIn(".clickable(enabled && item.enabled)", body)
+        self.assertIn("if (enabled && item.enabled) onSelectTool(item.key)", body)
+        for page in ("SharedBackupScreen.kt", "SharedHardwareKeysScreen.kt"):
+            self.assertIn("enabled = !busy", (FOUNDATION / page).read_text())

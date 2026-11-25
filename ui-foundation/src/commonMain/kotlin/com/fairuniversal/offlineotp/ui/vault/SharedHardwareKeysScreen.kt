@@ -52,7 +52,7 @@ fun SharedHardwareKeysScreen(
             visualTransformation = PasswordVisualTransformation()
         )
         if (busy) LinearProgressIndicator()
-        SharedVaultToolGroups(groups = groups, message = status, onSelectTool = { key ->
+        SharedVaultToolGroups(groups = groups, message = status, enabled = !busy, onSelectTool = { key ->
             val submitted = password.toCharArray()
             password = ""
             try { onSelectTool(key, submitted) } finally { submitted.fill('\u0000') }

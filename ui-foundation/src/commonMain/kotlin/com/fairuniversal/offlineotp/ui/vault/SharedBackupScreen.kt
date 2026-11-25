@@ -47,6 +47,6 @@ fun SharedVaultToolsScreen(
         Text(text = title, style = ForestType.title, color = ForestPalette.textPrimary)
         Text(text = description, style = ForestType.body, color = ForestPalette.textSecondary)
         if (busy) LinearProgressIndicator()
-        SharedVaultToolGroups(groups = groups, message = warning, onSelectTool = onSelectTool)
+        SharedVaultToolGroups(groups = groups, message = warning, enabled = !busy, onSelectTool = onSelectTool)
     }
 }

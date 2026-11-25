@@ -789,3 +789,13 @@ Back for Settings/Backup and respects bridge busy state; the host still enforces
 Authentication preserves its no-Up security behavior. Android native-insets/keyboard/back tests are
 still mandatory. Setup shell callbacks also block navigation during credential/restore work and
 drop stale password callbacks; destruction cancels a pending first-run restore task.
+
+### Busy-state semantics for shared grouped tools
+
+`SharedVaultToolGroups` now takes an overall availability flag. Full-page Settings/Backup and
+hardware pages pass `!busy`, so button and detailed-row enabled semantics match the existing host
+mutation guards. Busy controls no longer appear actionable; detailed rows also use disabled text
+color. Click closures recheck the flag and per-item availability. The default remains enabled for
+ordinary tool dialogs, and read-only informational rows remain readable. Android instrumentation
+now asserts disabled Back and action semantics while a shared settings page is busy. Instrumentation
+still requires native execution; local evidence is compilation plus source/JVM checks only.

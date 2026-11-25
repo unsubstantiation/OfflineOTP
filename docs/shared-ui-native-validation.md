@@ -72,3 +72,10 @@ Use a disposable test vault and backups, never the user's live vault.
 The migration remains open until these gates provide evidence. Keep hidden compatibility engines
 until native restoration/default/persistence tests justify removing them; source removal alone is
 not proof of feature parity.
+
+### Busy-state follow-up
+
+Settings/Backup/hardware grouped actions now expose disabled semantics during work rather than
+merely ignoring clicks in the host. The Settings component test asserts that both Back and the
+sample action are disabled. Verify this on real Compose, including detailed action rows and TalkBack;
+no emulator execution is implied by the local test-source compilation.
