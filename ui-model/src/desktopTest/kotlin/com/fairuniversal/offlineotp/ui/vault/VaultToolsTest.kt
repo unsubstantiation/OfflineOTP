@@ -21,7 +21,8 @@ class VaultToolsTest {
         onImportEmail = { calls.add("email") }, onImportThunderbird = { calls.add("thunderbird") }, onImportLinScp = { calls.add("linscp") },
         onImportPreferences = { calls.add("preferences-import") }, onExportPreferences = { calls.add("preferences") }, onExportOpenPgp = { calls.add("pgp-export") }, onImportOpenPgp = { calls.add("pgp") }, onExportLinScp = { calls.add("linscp-export") }, onExportEncrypted = { calls.add("export") }, onRestoreEncrypted = { calls.add("restore") },
         onConfigureLayout = { calls.add("layout") }, onConfigureSearchFields = { calls.add("search-fields") }, onConfigureAutoLock = { calls.add("lock") },
-        onToggleBackupTimestamp = { calls.add("backup-timestamp") }, onOpenAbout = { calls.add("about") })
+        onToggleBackupTimestamp = { calls.add("backup-timestamp") }, onOpenSettings = { calls.add("settings") },
+            onOpenAbout = { calls.add("about") })
 
     @Test fun unavailableToolsAndEmptyGroupsAreAbsent() {
         assertTrue(VaultTool.available(VaultActions()).isEmpty())
@@ -36,7 +37,7 @@ class VaultToolsTest {
         val tools = VaultTool.available(actions)
         assertEquals(VaultTool.values().toList(), tools)
         tools.forEach { it.invoke(actions) }
-        assertEquals(listOf("uri", "passwords", "email", "thunderbird", "linscp", "archive-export", "password-export", "email-export", "thunderbird-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "hardware-enroll", "hardware-remove", "hardware-copy", "hardware", "storage", "rekey", "layout", "search-fields", "lock", "backup-timestamp", "preferences", "preferences-import", "about"), calls)
+        assertEquals(listOf("uri", "passwords", "email", "thunderbird", "linscp", "archive-export", "password-export", "email-export", "thunderbird-export", "export", "restore", "linscp-export", "pgp", "pgp-export", "hardware-enroll", "hardware-remove", "hardware-copy", "hardware", "storage", "rekey", "layout", "search-fields", "lock", "backup-timestamp", "preferences", "preferences-import", "settings", "about"), calls)
         assertTrue(tools.all { it.label(VaultStrings.English).isNotBlank() })
     }
     @Test fun storedToolIdsDoNotRetainCallbacksAndRespectTerminalGuards() {
@@ -44,10 +45,10 @@ class VaultToolsTest {
         val ids = VaultTool.available(actions(old))
         val guarded = actions(current).guarded { active }
         ids.forEach { it.invoke(guarded) }
-        assertEquals(27, current.size); assertTrue(old.isEmpty())
+        assertEquals(28, current.size); assertTrue(old.isEmpty())
         active = false
         ids.forEach { it.invoke(guarded) }
-        assertEquals(27, current.size)
+        assertEquals(28, current.size)
         ids.forEach { it.invoke(VaultActions()) }
     }
     @Test fun labelsUseHostSuppliedStrings() {

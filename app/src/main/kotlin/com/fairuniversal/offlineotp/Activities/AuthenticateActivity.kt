@@ -120,6 +120,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         val toolbar = requireNotNull(findViewById<Toolbar>(R.id.container_toolbar))
         toolbar.setNavigationIcon(null)
         setSupportActionBar(toolbar)
+        toolbar.visibility = View.GONE // Shared Compose owns title/navigation.
     }
 
     private fun initPasswordViews() {

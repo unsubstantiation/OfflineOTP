@@ -12,6 +12,8 @@ import android.os.IBinder
  * enable/click surface lets the dialog checks drive recording widgets the way the platform would.
  */
 open class View(suppliedContext: Context? = null) {
+    var parent: ViewGroup? = null
+
     /** The platform interface is Java; a `fun interface` keeps lambda/SAM conversion working. */
     fun interface OnClickListener {
         fun onClick(v: View)

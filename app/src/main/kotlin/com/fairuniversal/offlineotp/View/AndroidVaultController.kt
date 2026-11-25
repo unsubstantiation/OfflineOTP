@@ -800,7 +800,8 @@ class AndroidVaultController(
     fun composeAppearance(): VaultAppearance {
         val density = context.resources.displayMetrics.density.takeIf { it > 0f } ?: 1f
         return VaultAppearance(
-            showControls = false,
+            showControls = true,
+            hideGlobalTimeout = settings.isHideGlobalTimeoutEnabled(),
             showThumbnails = settings.getThumbnailVisible(),
             thumbnailSizeDp = (settings.getThumbnailSize() / density).coerceAtLeast(0f),
             labelSizeSp = settings.getLabelSize().takeIf { it > 0 },

@@ -112,6 +112,7 @@
 
     <!-- Required on Android 11+ for OfflineOTP to select a PGP provider and a keystroke receiver -->
     <queries>
+        <intent><action android:name="org.openintents.openpgp.IOpenPgpService2" /></intent>
         <package android:name="org.sufficientlysecure.keychain" />
         <intent>
             <action android:name="android.intent.action.SEND" />

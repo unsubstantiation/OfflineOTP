@@ -26,6 +26,8 @@ import com.fairuniversal.offlineotp.Utilities.Tools
 
 /** Shared About tab UI and link handling; flavors extend this with their own extras. */
 open class BaseAboutFragment : Fragment() {
+    open fun sharedExtraLinks(): List<com.fairuniversal.offlineotp.ui.vault.AboutLink> = emptyList()
+
     private var settings: Settings? = null
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,

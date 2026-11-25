@@ -6,6 +6,11 @@ import android.view.ViewGroup
 
 /** The tag drawer of the main screen. */
 open class DrawerLayout : ViewGroup() {
+    var drawerLockMode: Int = 0
+        private set
+    fun setDrawerLockMode(mode: Int) { drawerLockMode = mode }
+    companion object { const val LOCK_MODE_LOCKED_CLOSED = 1 }
+
     /** The listeners that were added, in order. */
     val listeners: MutableList<DrawerListener> = ArrayList()
 

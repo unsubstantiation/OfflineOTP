@@ -1,9 +1,12 @@
 package com.fairuniversal.offlineotp.Activities
 
+import com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+
 import android.widget.FrameLayout
 import android.view.ViewGroup
 import com.fairuniversal.offlineotp.View.AndroidIssuerArtwork
 import com.fairuniversal.offlineotp.View.AndroidCardCommand
+import com.fairuniversal.offlineotp.Utilities.applyTagBehavior
 import com.fairuniversal.offlineotp.ui.vault.VaultComposeView
 import com.fairuniversal.offlineotp.ui.vault.VaultActions
 import com.fairuniversal.offlineotp.ui.vault.VaultAppearance
@@ -25,7 +28,6 @@ import com.fairuniversal.offlineotp.ui.host.PasswordExportComposeView
 import com.fairuniversal.offlineotp.ui.host.PasswordImportComposeView
 import com.fairuniversal.offlineotp.ui.host.UriImportComposeView
 import android.animation.ObjectAnimator
-import android.app.AlertDialog
 import android.app.KeyguardManager
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -177,7 +179,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private var activeImportDialog: ComposeDialogHost? = null
     private var migrationCollector: MigrationBatchCollector? = null
     private var pendingMigrationImport: PendingMigrationImport? = null
-    private var activeMigrationDialog: AlertDialog? = null
+    private var activeMigrationDialog: ComposeDialogHost? = null
     private var awaitingMigrationQr = false
     private val processObserver = ProcessLifecycleObserver()
 
@@ -650,8 +652,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             setFilterString(savedInstanceState.getString("filterString", ""))
         }
 
-        if (settings!!.isFocusSearchOnStartEnabled())
-            focusSearchMenu()
+        // These views are retained only as compatibility engines; shared Compose owns the screen.
+        speedDial?.close()
+        setSpeedDialAccessibility(false)
+        findViewById<DrawerLayout>(R.id.drawer_layout)?.setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)
+        findViewById<View>(R.id.main_app_bar)?.visibility = View.GONE
+        findViewById<View>(R.id.speedDialScroll)?.visibility = View.GONE
+        findViewById<View>(R.id.speedDialOverlay)?.visibility = View.GONE
+        findViewById<View>(R.id.speedDial)?.visibility = View.GONE
+        findViewById<View>(R.id.fab_main_layout)?.visibility = View.GONE
     }
 
     private fun checkIntent() {
@@ -1897,6 +1906,56 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         view.onOpenUriImport = { openUriImportDialog() }
         controller.attachComposeEditor(view)
         view.render(published.state, VaultActions(
+            onImportUri = { openUriImportDialog() },
+            onImportPasswords = { choosePasswordImport() },
+            onImportEmail = { chooseEmailImport() },
+            onImportThunderbird = { chooseThunderbirdImport() },
+            onImportLinScp = { chooseLinScpImport() },
+            onExportEncrypted = { launchBackupTool(Constants.INTENT_BACKUP_SAVE_DOCUMENT_CRYPT) },
+            onRestoreEncrypted = { launchBackupTool(Constants.INTENT_BACKUP_OPEN_DOCUMENT_CRYPT) },
+            onExportOpenPgp = { launchBackupTool(Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP) },
+            onImportOpenPgp = { launchBackupTool(Constants.INTENT_BACKUP_OPEN_DOCUMENT_PGP) },
+            onExportPreferences = { launchPreferencesTool(Constants.INTENT_SETTINGS_PREFERENCES_EXPORT) },
+            onImportPreferences = { launchPreferencesTool(Constants.INTENT_SETTINGS_PREFERENCES_IMPORT) },
+            onExportArchives = { openArchiveExportDialog() },
+            onExportPasswords = { requestPasswordCsvExport(null) },
+            onExportEmail = { chooseEmailExport() },
+            onExportThunderbird = { chooseThunderbirdExport() },
+            onExportLinScp = { chooseLinScpExport() },
+            onStorageLocation = { openStorageLocationDialog() },
+            onConfigureLayout = { openCardDisplayDialog() },
+            onConfigureSearchFields = { openSearchFieldsDialog() },
+            onConfigureAutoLock = if (settings!!.getAuthMethod() != AuthMethod.NONE) {
+                { openAutoLockDialog() }
+            } else null,
+            onChangePassword = { openPasswordChangeDialog() },
+            onToggleBackupTimestamp = {
+                val saved = android.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
+                    .putBoolean(getString(R.string.settings_key_backup_append_date_time),
+                        !settings!!.getIsAppendingDateTimeToBackups()).commit()
+                if (!saved) Toast.makeText(this, R.string.backup_timestamp_save_failed, Toast.LENGTH_LONG).show()
+            },
+            onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) },
+            onOpenSettings = { startActivityForResult(Intent(this, SettingsActivity::class.java), Constants.INTENT_MAIN_SETTINGS) },
+            onHardwareOath = { startActivity(Intent(this, HardwareKeyActivity::class.java)) },
+            onLock = { authenticate(R.string.auth_msg_authenticate) },
+            onQueryChange = { setFilterString(it) },
+            onSelectCategory = { category ->
+                findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
+                controller.setCategory(category)
+            },
+            onSelectSort = {
+                saveSortMode(it); controller.setSortMode(it)
+                if ((it == SortMode.LAST_USED || it == SortMode.MOST_USED) && !settings!!.getUsedTokensDialogShown()) showUsedTokensDialog()
+            },
+            onToggleTag = { tag -> toggleSharedTag(tag) },
+            onToggleUntagged = { toggleSharedTag(null) },
+            onCycleTagRule = {
+                val rules = Constants.TagFunctionality.values()
+                settings!!.applyTagBehavior(this, rules[(settings!!.getTagFunctionality().ordinal + 1) % rules.size])
+                controller.filterByTags(tagsDrawerAdapter?.getActiveTags().orEmpty())
+            },
+            onClearFilters = { clearSharedFilters() },
             onAddEntry = { controller.openCreationForCategory() },
             onCopyToken = { published.perform(it.id, AndroidCardCommand.COPY) },
             onCopyAccount = { published.perform(it.id, AndroidCardCommand.COPY_ACCOUNT) },
@@ -1912,7 +1971,32 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             onEnterPin = { published.perform(it.id, AndroidCardCommand.ENTER_PIN) },
             onMoveUp = { published.perform(it.id, AndroidCardCommand.MOVE_UP) },
             onMoveDown = { published.perform(it.id, AndroidCardCommand.MOVE_DOWN) }
-        ))
+        ).guarded { VaultSession.isCurrent(generation) && VaultSession.getKey() != null && controller === adapter && !isFinishing() })
+    }
+
+    /** Tag semantics match the former drawer; the shared chips own all visible controls. */
+    private fun toggleSharedTag(tag: String?) {
+        val tags = tagsDrawerAdapter ?: return
+        if (tag != null && tag !in tags.getTags()) return
+        val single = settings!!.getTagFunctionality() == Constants.TagFunctionality.SINGLE
+        val selected = if (tag == null) settings!!.getNoTagsToggle() else tags.getActiveTags().contains(tag)
+        if (single) {
+            tags.getTags().forEach { settings!!.setTagToggle(it, false); tags.setTagState(it, false) }
+            settings!!.setNoTagsToggle(false)
+        }
+        settings!!.setAllTagsToggle(false)
+        if (tag == null) settings!!.setNoTagsToggle(single || !selected)
+        else { settings!!.setTagToggle(tag, single || !selected); tags.setTagState(tag, single || !selected) }
+        adapter?.filterByTags(tags.getActiveTags())
+    }
+
+    private fun clearSharedFilters() {
+        val tags = tagsDrawerAdapter ?: return
+        settings!!.setAllTagsToggle(true)
+        settings!!.setNoTagsToggle(true)
+        tags.getTags().forEach { settings!!.setTagToggle(it, true); tags.setTagState(it, true) }
+        setFilterString("")
+        adapter?.filterByTags(tags.getActiveTags())
     }
 
     fun showEntryCategory(entry: Entry) {
@@ -3019,46 +3103,40 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val previous = activeMigrationDialog
         activeMigrationDialog = null
         previous?.dismiss()
-        var continuing = false
-        val dialog = AlertDialog.Builder(this)
-            .setTitle(R.string.google_import_title)
-            .setMessage(getString(R.string.google_import_progress, collector.received, collector.expected))
-            .setPositiveButton(R.string.button_scan_qr) { _, _ ->
-                if (migrationCollector !== collector || VaultSession.getKey() == null) {
-                    dismissMigrationImport()
-                } else {
-                    continuing = true
-                    awaitingMigrationQr = true
-                    try {
-                        scanQRCode()
-                    } catch (_: RuntimeException) {
-                        awaitingMigrationQr = false
-                        Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
-                        showMigrationProgress()
-                    }
-                }
-            }
-            .setNeutralButton(R.string.button_qr_from_image) { _, _ ->
-                if (migrationCollector !== collector || VaultSession.getKey() == null) {
-                    dismissMigrationImport()
-                } else {
-                    continuing = true
-                    awaitingMigrationQr = true
-                    if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)) {
-                        awaitingMigrationQr = false
-                        showMigrationProgress()
-                    }
-                }
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .create()
-        activeMigrationDialog = dialog
-        dialog.setOnDismissListener {
+        val epoch = VaultSession.generation()
+        lateinit var dialog: SingleChoiceSelectionComposeView
+        val cancel = {
             if (activeMigrationDialog === dialog) {
                 activeMigrationDialog = null
-                if (!continuing) dismissMigrationImport()
+                dismissMigrationImport()
             }
+            dialog.dismiss()
         }
+        dialog = SingleChoiceSelectionComposeView(this,
+            title = getString(R.string.google_import_title),
+            message = getString(R.string.google_import_progress, collector.received, collector.expected),
+            items = listOf(getString(R.string.button_scan_qr), getString(R.string.button_qr_from_image)),
+            initialSelected = 0, confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                if (activeMigrationDialog === dialog && migrationCollector === collector && !isFinishing() &&
+                    VaultSession.isCurrent(epoch) && VaultSession.getKey() != null && adapter?.encryptionKey === VaultSession.getKey()) {
+                    activeMigrationDialog = null
+                    dialog.dismiss()
+                    awaitingMigrationQr = true
+                    if (index == 0) {
+                        try { scanQRCode() } catch (_: RuntimeException) {
+                            awaitingMigrationQr = false
+                            Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
+                            showMigrationProgress()
+                        }
+                    } else if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)) {
+                        awaitingMigrationQr = false
+                        showMigrationProgress()
+                    }
+                } else cancel()
+            }, onDismiss = cancel)
+        activeMigrationDialog = dialog
+        dialog.setOnDismissListener { if (activeMigrationDialog === dialog) { activeMigrationDialog = null; dismissMigrationImport() } }
         dialog.show()
     }
 
@@ -3089,10 +3167,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             previous?.dismiss()
             val pending = PendingMigrationImport(entries, epoch)
             try {
-                val dialog = AlertDialog.Builder(this)
-                    .setTitle(R.string.google_import_title)
-                    .setMessage(migrationPreview(entries))
-                    .setPositiveButton(R.string.google_import_button) { _, _ ->
+                lateinit var dialog: DeleteConfirmationComposeView
+                dialog = DeleteConfirmationComposeView(this,
+                    title = getString(R.string.google_import_title), message = migrationPreview(entries),
+                    confirmLabel = getString(R.string.google_import_button), dismissLabel = getString(android.R.string.cancel),
+                    onConfirm = {
+                        if (activeMigrationDialog !== dialog || pendingMigrationImport !== pending) return@DeleteConfirmationComposeView
                         synchronized(VaultSession.MutationLock) {
                             val currentKey = VaultSession.getKey()
                             val currentAdapter = adapter
@@ -3114,9 +3194,17 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                                 }
                             }
                         }
+                        pending.close()
+                        if (pendingMigrationImport === pending) pendingMigrationImport = null
+                        if (activeMigrationDialog === dialog) activeMigrationDialog = null
+                        dialog.dismiss()
                     }
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .create()
+                    , onDismiss = {
+                        pending.close()
+                        if (pendingMigrationImport === pending) pendingMigrationImport = null
+                        if (activeMigrationDialog === dialog) activeMigrationDialog = null
+                        dialog.dismiss()
+                    })
                 pendingMigrationImport = pending
                 activeMigrationDialog = dialog
                 dialog.setOnDismissListener {

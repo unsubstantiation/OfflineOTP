@@ -33,6 +33,7 @@ class OpenPgpServiceConnection(
     var boundService: IOpenPgpService2? = null
 
     fun bindToService() {
+        lastConnection = this
         binds++
         boundService?.let { onBound?.onBound(it) }
     }
@@ -45,10 +46,18 @@ class OpenPgpServiceConnection(
     fun isBound(): Boolean = boundService != null
 
     fun getService(): IOpenPgpService2? = boundService
+    fun reportBound(service: IOpenPgpService2) { boundService = service; onBound?.onBound(service) }
+    companion object { var lastConnection: OpenPgpServiceConnection? = null }
 }
 
 /** The OpenPGP API client. */
 class OpenPgpApi(private val context: Context, private val service: Any?) {
+    interface IOpenPgpCallback { fun onReturn(result: Intent) }
+    fun executeApiAsync(intent: Intent, input: InputStream?, output: OutputStream?, callback: IOpenPgpCallback) {
+        calls.add(intent)
+        lastAsyncCallback = callback
+    }
+
     /** The intents the API was called with, in call order. */
     val calls = ArrayList<Intent>()
 
@@ -61,6 +70,7 @@ class OpenPgpApi(private val context: Context, private val service: Any?) {
     }
 
     companion object {
+        var lastAsyncCallback: IOpenPgpCallback? = null
         const val ACTION_SIGN_AND_ENCRYPT = "org.openintents.openpgp.action.SIGN_AND_ENCRYPT"
         const val ACTION_ENCRYPT = "org.openintents.openpgp.action.ENCRYPT"
         const val ACTION_DECRYPT_VERIFY = "org.openintents.openpgp.action.DECRYPT_VERIFY"

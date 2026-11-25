@@ -65,7 +65,7 @@ class AndroidSharedDialogTest(unittest.TestCase):
         body = function_body(settings, "private fun promptBiometricEnrollment(", "\n        }")
         self.assertIn("BiometricEnableComposeView(", body)
         self.assertIn("verifyVaultPassword(typed)", body)
-        self.assertIn("BiometricKeyStore.save(fragmentActivity, vaultKey)", body)
+        self.assertIn("BiometricKeyStore.save(fragmentActivity, vaultKey, permitted = { owned() })", body)
         self.assertIn("dismissBiometricPrompt()", body)
         self.assertIn("view.show()", body)
         self.assertNotIn("AlertDialog.Builder", body)

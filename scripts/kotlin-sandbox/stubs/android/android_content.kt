@@ -233,6 +233,7 @@ open class Intent(action: String? = null) {
     open fun getStringExtra(name: String): String? = extras[name] as? String
 
     open fun getIntExtra(name: String, defaultValue: Int): Int = extras[name] as? Int ?: defaultValue
+    open fun getLongExtra(name: String, defaultValue: Long): Long = extras[name] as? Long ?: defaultValue
 
     open fun getBooleanExtra(name: String, defaultValue: Boolean): Boolean =
         extras[name] as? Boolean ?: defaultValue

@@ -22,88 +22,129 @@
 
 package com.fairuniversal.offlineotp.Activities
 
+import android.content.ActivityNotFoundException
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
-import android.view.ViewStub
-import androidx.appcompat.widget.Toolbar
-import androidx.fragment.app.Fragment
-import androidx.fragment.app.FragmentManager
-import androidx.fragment.app.FragmentPagerAdapter
-import androidx.viewpager.widget.ViewPager
-
-import com.google.android.material.tabs.TabLayout
-import com.mikepenz.aboutlibraries.Libs
-import com.mikepenz.aboutlibraries.LibsBuilder
-
+import android.widget.Toast
 import com.fairuniversal.offlineotp.Fragments.AboutFragment
 import com.fairuniversal.offlineotp.R
+import com.fairuniversal.offlineotp.Utilities.Settings
+import com.fairuniversal.offlineotp.Utilities.applySpecialFeatures
+import com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView
+import com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+import com.fairuniversal.offlineotp.ui.portable.PortableLibraryNotice
+import org.json.JSONArray
+import org.json.JSONObject
 
-import java.io.InputStream
-import java.util.Scanner
-
-/** About screen hosting the app overview and open-source library license tabs. */
+/** Shared About/library presentation; Android owns generated build metadata and external intents. */
 open class AboutActivity : BaseActivity() {
+    private var closed = false
+    private var confirmation: DeleteConfirmationComposeView? = null
+    private var taps = 0
+    private var lastTap = 0L
+    private var counterToast: Toast? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setTitle(R.string.about_activity_title)
-        setContentView(R.layout.activity_container)
-
-        val toolbar = requireNotNull(findViewById<Toolbar>(R.id.container_toolbar))
-        setSupportActionBar(toolbar)
-
-        val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
-        stub.setLayoutResource(R.layout.component_about)
-
-        val v = stub.inflate()
-
-        val viewPager = requireNotNull(v.findViewById<ViewPager>(R.id.viewPager))
-        val tabLayout = requireNotNull(v.findViewById<TabLayout>(R.id.tabLayout))
-        val aboutPageAdapter = AboutPageAdapter(getSupportFragmentManager())
-
-        viewPager.setAdapter(aboutPageAdapter)
-        tabLayout.setupWithViewPager(viewPager)
+        val version = try { getPackageManager().getPackageInfo(getPackageName(), 0).versionName ?: "" }
+            catch (_: android.content.pm.PackageManager.NameNotFoundException) { "" }
+        val libraries = try {
+            resources.openRawResource(R.raw.aboutlibraries).bufferedReader(Charsets.UTF_8).use {
+                parseLibraryNotices(it.readText().ifBlank { "{}" })
+            }
+        } catch (_: Exception) {
+            // Never silently substitute a generic catalog for this build's generated notices.
+            listOf(PortableLibraryNotice("Library notices unavailable", "Please consult the source distribution for this build."))
+        }
+        setContentView(AboutScreenComposeView(this, version, libraries, AboutFragment().sharedExtraLinks(),
+            onOpenLink = ::openLink, onVersionTap = ::versionTap, onClose = { finish() }))
     }
 
-    override fun onSupportNavigateUp(): Boolean {
-        finish()
+    private fun openLink(url: String): Boolean {
+        if (closed || isFinishing()) return false
+        try { startActivity(Intent(Intent.ACTION_VIEW).apply { data = Uri.parse(url) }) }
+        catch (_: ActivityNotFoundException) {
+            val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return false
+            clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.app_name), url))
+            Toast.makeText(this, R.string.about_toast_copied_to_clipboard, Toast.LENGTH_SHORT).show()
+        }
         return true
     }
 
-    override fun onBackPressed() {
-        finish()
-        super.onBackPressed()
+    private fun versionTap() {
+        if (closed || isFinishing()) return
+        val now = System.currentTimeMillis()
+        taps = if (now - lastTap < 500) taps + 1 else 0
+        lastTap = now
+        counterToast?.cancel()
+        counterToast = null
+        if (taps == 7) {
+            taps = 0
+            if (Settings(this).getSpecialFeatures()) {
+                counterToast = Toast.makeText(this, R.string.about_toast_special_features_enabled, Toast.LENGTH_LONG)
+            } else showSpecialFeatures()
+        } else if (taps >= 3) counterToast = Toast.makeText(this, taps.toString(), Toast.LENGTH_SHORT)
+        counterToast?.show()
     }
 
-    /** Two tabs: the app's about page and the generated library list. */
-    private inner class AboutPageAdapter(fm: FragmentManager) :
-        FragmentPagerAdapter(fm, FragmentPagerAdapter.BEHAVIOR_RESUME_ONLY_CURRENT_FRAGMENT) {
-
-        override fun getItem(pos: Int): Fragment = when (pos) {
-            0 -> AboutFragment()
-            1 -> LibsBuilder()
-                .withLibs(loadLibs())
-                .withLicenseShown(true)
-                .withVersionShown(true)
-                .supportFragment()
-            else -> throw IndexOutOfBoundsException("Invalid about page: $pos")
-        }
-
-        /** Loads the library list generated at build time by the AboutLibraries plugin. */
-        private fun loadLibs(): Libs {
-            val input: InputStream = resources.openRawResource(R.raw.aboutlibraries)
-            input.use { stream ->
-                Scanner(stream, "UTF-8").useDelimiter("\\A").use { scanner ->
-                    return Libs.Builder().withJson(if (scanner.hasNext()) scanner.next() else "{}").build()
+    private fun showSpecialFeatures() {
+        if (confirmation != null) return
+        lateinit var prompt: DeleteConfirmationComposeView
+        prompt = DeleteConfirmationComposeView(this, getString(R.string.about_title_special_features),
+            getString(R.string.about_dialog_special_features), getString(android.R.string.ok),
+            getString(android.R.string.cancel), onConfirm = {
+                if (confirmation === prompt) {
+                    confirmation = null
+                    prompt.dismiss()
+                    if (Settings(this).applySpecialFeatures(this, true))
+                        Toast.makeText(this, R.string.about_toast_special_features, Toast.LENGTH_LONG).show()
                 }
+            }, onDismiss = {
+                if (confirmation === prompt) { confirmation = null; prompt.dismiss() }
+            })
+        confirmation = prompt
+        prompt.setOnDismissListener { if (confirmation === prompt) confirmation = null }
+        prompt.show()
+    }
+
+    override fun onDestroy() {
+        closed = true
+        confirmation?.dismiss()
+        confirmation = null
+        counterToast?.cancel()
+        counterToast = null
+        super.onDestroy()
+    }
+
+    override fun onSupportNavigateUp(): Boolean { finish(); return true }
+    override fun onBackPressed() { finish(); super.onBackPressed() }
+
+    companion object {
+        /** AboutLibraries JSON is build-generated: retain versions, URLs and full license text. */
+        internal fun parseLibraryNotices(json: String): List<PortableLibraryNotice> {
+            val root = JSONObject(json)
+            val libraries = root.opt("libraries") as? JSONArray ?: return emptyList()
+            val licenses = root.opt("licenses") as? JSONObject
+            return (0 until libraries.length()).map { index ->
+                val lib = libraries.getJSONObject(index)
+                val ids = lib.opt("licenses") as? JSONArray
+                val notices = if (ids == null) emptyList() else (0 until ids.length()).map { i ->
+                    val id = ids.getString(i)
+                    val license = licenses?.opt(id) as? JSONObject
+                    if (license == null) id else listOf("name", "url", "licenseContent")
+                        .mapNotNull { license.optString(it)?.takeIf { value -> value.isNotBlank() } }.joinToString("\n\n")
+                }
+                PortableLibraryNotice(
+                    listOfNotNull(lib.optString("name"), lib.optString("artifactVersion")).joinToString(" "),
+                    notices.joinToString("\n\n"),
+                    listOfNotNull(lib.optString("uniqueId"), lib.optString("website"), lib.optString("description"))
+                        .joinToString("\n"))
             }
-        }
-
-        override fun getCount(): Int = 2
-
-        override fun getPageTitle(pos: Int): CharSequence? = when (pos) {
-            0 -> getString(R.string.about_tab_about)
-            1 -> getString(R.string.about_tab_libraries)
-            else -> null
         }
     }
 }

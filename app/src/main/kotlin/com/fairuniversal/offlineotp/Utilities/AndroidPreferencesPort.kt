@@ -378,3 +378,37 @@ fun Settings.applyPolicyChecklist(context: Context, policy: PolicyChecklist, val
     return PreferenceManager.getDefaultSharedPreferences(context).edit()
         .putStringSet(context.getString(policy.keyId), LinkedHashSet(values)).commit()
 }
+
+/** Only the obsolete plaintext value requires deletion consent; wrapped credentials remain intact. */
+fun Settings.hasLegacyBackupPassword(context: Context): Boolean =
+    !PreferenceManager.getDefaultSharedPreferences(context)
+        .getString(context.getString(R.string.settings_key_backup_password), "").isNullOrEmpty()
+
+/** Atomically select a source and, only with explicit consent, remove obsolete plaintext storage. */
+fun Settings.applyBackupPasswordSource(context: Context, useLogin: Boolean, removeLegacy: Boolean = false): Boolean {
+    if (useLogin && hasLegacyBackupPassword(context) && !removeLegacy) return false
+    val editor = PreferenceManager.getDefaultSharedPreferences(context).edit()
+        .putBoolean(context.getString(R.string.settings_key_auto_backup_use_login), useLogin)
+    if (useLogin && removeLegacy) editor.remove(context.getString(R.string.settings_key_backup_password))
+    return editor.commit()
+}
+
+/** Wrap a newly entered separate password; empty input clears it without needing a usable KeyStore. */
+fun Settings.applySeparateBackupPassword(context: Context, value: String): Boolean {
+    if (value.length > InputPolicy.MAX_TEXT_CHARS) return false
+    return try {
+        val encoded = if (value.isEmpty()) "" else {
+            val pair = KeyStoreHelper.loadOrGenerateAsymmetricKeyPair(context, Constants.KEYSTORE_ALIAS_PASSWORD) ?: return false
+            val plain = value.toByteArray(Charsets.UTF_8)
+            try {
+                android.util.Base64.encodeToString(EncryptionHelper.encrypt(pair.public, plain), android.util.Base64.URL_SAFE)
+            } finally { plain.fill(0) }
+        }
+        PreferenceManager.getDefaultSharedPreferences(context).edit()
+            .putString(context.getString(R.string.settings_key_backup_password_enc), encoded).commit()
+    } catch (_: Exception) { false }
+}
+
+fun Settings.applySpecialFeatures(context: Context, enabled: Boolean): Boolean =
+    PreferenceManager.getDefaultSharedPreferences(context).edit()
+        .putBoolean(context.getString(R.string.settings_key_special_features), enabled).commit()

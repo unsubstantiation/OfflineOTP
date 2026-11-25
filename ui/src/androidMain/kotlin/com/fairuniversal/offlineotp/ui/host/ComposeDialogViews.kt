@@ -1280,6 +1280,8 @@ class BackupOverviewComposeView(
     context: android.content.Context,
     private val onSelectTool: (String) -> Unit
 ) : AbstractComposeView(context) {
+    var onBack: (() -> Unit)? = null
+    fun navigateBack() { if (!closed && !busy) onBack?.invoke() }
     private var title by mutableStateOf("")
     private var description by mutableStateOf("")
     private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
@@ -1319,9 +1321,11 @@ class BackupOverviewComposeView(
     @Composable
     override fun Content() {
         ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
             com.fairuniversal.offlineotp.ui.vault.SharedBackupScreen(
                 title, description, groups, warning, busy, ::selectTool
             )
+            }
         }
     }
 }
@@ -1436,6 +1440,8 @@ class SettingsOverviewComposeView(
     context: android.content.Context,
     private val onSelectTool: (String) -> Unit
 ) : AbstractComposeView(context) {
+    var onBack: (() -> Unit)? = null
+    fun navigateBack() { if (!closed && !busy) onBack?.invoke() }
     private var title by mutableStateOf("")
     private var description by mutableStateOf("")
     private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
@@ -1466,9 +1472,11 @@ class SettingsOverviewComposeView(
     @Composable
     override fun Content() {
         ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
             com.fairuniversal.offlineotp.ui.vault.SharedVaultToolsScreen(
                 title, description, groups, "", busy, ::selectTool
             )
+            }
         }
     }
 }
@@ -1704,6 +1712,80 @@ class AuthenticationComposeView(context: android.content.Context, input: android
                 hardwareLabel.takeIf { hardware }, biometricLabel.takeIf { biometric },
                 { selectAction("unlock") }, { selectAction("hardware") }, { selectAction("biometric") }) {
                 androidx.compose.ui.viewinterop.AndroidView(factory = { field })
+            }
+        }
+    }
+}
+
+/** Passwords stay in the protected native adapter, never in the shared preference shell. */
+class ConfirmedSecretPreferenceComposeView(activity: Activity, input: android.view.View,
+    private val title: String, private val description: String, private val confirmLabel: String,
+    private val dismissLabel: String, private val onSave: () -> Unit, private val onDismiss: () -> Unit
+) : ComposeDialogHost(activity) {
+    private var nativeInput: android.view.View? by mutableStateOf(input)
+    private var valid by mutableStateOf(false)
+    private var consumed = false
+    fun updateValidity(valid: Boolean) { if (!consumed && dismissals == 0) this.valid = valid }
+    fun confirm() {
+        if (consumed || dismissals > 0 || !valid) return
+        consumed = true
+        onSave()
+    }
+    fun releaseInput() { consumed = true; valid = false; nativeInput = null }
+    @Composable override fun Content() {
+        val field = nativeInput ?: return
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.vault.ConfirmedSecretPreferenceDialog(title, description, confirmLabel, dismissLabel,
+                valid, ::confirm, { if (!consumed) { consumed = true; onDismiss() } }) {
+                androidx.compose.ui.viewinterop.AndroidView(factory = { field })
+            }
+        }
+    }
+}
+
+/** Full-screen shared About content. Android supplies only metadata and external intents. */
+class AboutScreenComposeView(
+    activity: Activity,
+    private val version: String,
+    val libraries: List<com.fairuniversal.offlineotp.ui.portable.PortableLibraryNotice>,
+    private val extraLinks: List<com.fairuniversal.offlineotp.ui.vault.AboutLink>,
+    private val onOpenLink: (String) -> Boolean,
+    private val onVersionTap: () -> Unit,
+    private val onClose: () -> Unit
+) : AbstractComposeView(activity) {
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    @Composable override fun Content() {
+        ForestTheme {
+            androidx.compose.foundation.layout.Column {
+                com.fairuniversal.offlineotp.ui.vault.ForestTextAction(text = "Back", onClick = onClose)
+                com.fairuniversal.offlineotp.ui.vault.AboutContent(
+                    version = version, onOpenLink = onOpenLink, libraries = libraries,
+                    extraLinks = extraLinks, onVersionTap = onVersionTap)
+            }
+        }
+    }
+}
+
+/** The legacy pager is only a fragment/lifecycle adapter; no native wizard controls are mounted. */
+class SetupShellComposeView(context: android.content.Context, pager: android.view.View,
+    private val count: Int, private val backLabel: String, private val nextLabel: String,
+    private val onNavigate: (Int) -> Unit
+) : AbstractComposeView(context) {
+    private var pager: android.view.View? by mutableStateOf(pager)
+    private var step by mutableStateOf(0)
+    private var closed = false
+    init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
+    fun render(step: Int) { if (!closed && step in 0 until count) this.step = step }
+    fun navigate(direction: Int) {
+        if (!closed && direction in setOf(-1, 1) && (direction > 0 || step > 0)) onNavigate(direction)
+    }
+    fun close() { closed = true; pager = null }
+    @Composable override fun Content() {
+        val nativePager = pager ?: return
+        ForestTheme {
+            com.fairuniversal.offlineotp.ui.unlock.SharedSetupShell(step, count, backLabel, nextLabel,
+                { navigate(-1) }, { navigate(1) }) {
+                androidx.compose.ui.viewinterop.AndroidView(factory = { nativePager })
             }
         }
     }

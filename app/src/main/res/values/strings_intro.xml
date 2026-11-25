@@ -2,6 +2,8 @@
 <resources
     xmlns:tools="http://schemas.android.com/tools"
     tools:ignore="MissingTranslation">
+    <string name="button_back">Back</string>
+    <string name="button_next">Next / Finish</string>
     <string name="intro_restore_cancelled_choose">Restore cancelled. Choose a backup or create a new vault.</string>
     <string name="intro_restore_cancelled_unchanged">Restore cancelled. No vault was created.</string>
 

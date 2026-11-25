@@ -173,6 +173,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
         val toolbar = requireNotNull(findViewById<Toolbar>(R.id.container_toolbar))
         setSupportActionBar(toolbar)
+        toolbar.visibility = View.GONE // Shared Compose owns title/navigation.
 
         val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
         stub.setLayoutResource(R.layout.content_backup)
@@ -244,6 +245,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         val overview = BackupOverviewComposeView(this) { key ->
             if (VaultSession.isCurrent(overviewGeneration)) dispatchBackupOverviewAction(key)
         }
+        overview.onBack = { onSupportNavigateUp() }
         backupOverview = overview
         (v as ViewGroup).addView(overview, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
