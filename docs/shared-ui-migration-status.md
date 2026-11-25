@@ -64,3 +64,10 @@ This workspace is Linux with no Android SDK/adb or Xcode. Available Kotlin sandb
 against stubs, not real Android or UIKit. Completing the native integration gate requires an Android
 SDK/device/emulator and a macOS/Xcode runner (plus device-only biometric/hardware validation).
 Do not treat passing source/JVM checks as permission to mark the migration complete.
+
+## Native test handoff
+
+`shared-ui-native-validation.md` records workflow dispatch commands, the permission blocker,
+new Android component tests and the remaining real integration matrix. The added tests are in
+`ComposeVaultDeviceTest`, already included by the Android workflow's instrumentation class filter.
+They compile locally; no emulator execution or native build pass is claimed.
