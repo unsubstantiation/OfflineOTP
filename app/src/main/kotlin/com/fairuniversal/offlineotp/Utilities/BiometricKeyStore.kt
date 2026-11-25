@@ -273,7 +273,13 @@ object BiometricKeyStore {
      * Enroll: encrypt [vaultKey] behind a biometric prompt and store it.
      * Calls [onResult] on the main thread with true on success.
      */
-    fun save(activity: FragmentActivity, vaultKey: ByteArray, onResult: (Boolean, BiometricError?) -> Unit) {
+    fun save(activity: FragmentActivity, vaultKey: ByteArray, onResult: (Boolean, BiometricError?) -> Unit) =
+        save(activity, vaultKey, { true }, onResult)
+
+    /** Guard again at persistence time: a platform prompt may outlive its owning app form. */
+    fun save(activity: FragmentActivity, vaultKey: ByteArray, permitted: () -> Boolean,
+             onResult: (Boolean, BiometricError?) -> Unit) {
+        if (!permitted()) { onResult(false, BiometricError.CANCELLED); return }
         val avail = availability(activity)
         if (!avail.isAvailable) {
             onResult(false, if (avail == Availability.NOT_ENROLLED) BiometricError.NOT_ENROLLED else BiometricError.UNAVAILABLE)
@@ -304,6 +310,7 @@ object BiometricKeyStore {
         val executor = ContextCompat.getMainExecutor(activity)
         val prompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                if (!permitted()) { onResult(false, BiometricError.CANCELLED); return }
                 val authCipher = result.cryptoObject?.cipher ?: cipher
                 try {
                     val ciphertext = authCipher.doFinal(vaultKey)
@@ -323,6 +330,7 @@ object BiometricKeyStore {
                         onResult(false, BiometricError.FAILED)
                         return
                     }
+                    if (!permitted()) { onResult(false, BiometricError.CANCELLED); return }
                     try {
                         PreferenceManager.getDefaultSharedPreferences(activity).edit()
                             .putString(PREF_ENCRYPTED_KEY, encoded)

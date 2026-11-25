@@ -66,6 +66,12 @@ import com.fairuniversal.offlineotp.Utilities.currentAutoLockSeconds
 import com.fairuniversal.offlineotp.Utilities.applyAutoLockSettings
 import com.fairuniversal.offlineotp.ui.host.OpenPgpProviderOptionsComposeView
 import com.fairuniversal.offlineotp.Utilities.applyOpenPgpProviderOptions
+import com.fairuniversal.offlineotp.Utilities.applySpecialFeatures
+import com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView
+import com.fairuniversal.offlineotp.Utilities.applySeparateBackupPassword
+import com.fairuniversal.offlineotp.Utilities.ConfirmedPasswordTransformationHelper
+import com.fairuniversal.offlineotp.Utilities.hasLegacyBackupPassword
+import com.fairuniversal.offlineotp.Utilities.applyBackupPasswordSource
 import com.fairuniversal.offlineotp.Utilities.PolicyChecklist
 import com.fairuniversal.offlineotp.Utilities.applyPolicyChecklist
 import com.fairuniversal.offlineotp.Utilities.currentAutoBackupMode
@@ -133,7 +139,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     internal var settingsConfirmationPrompt: ComposeDialogHost? = null
     private var canGoBack = true
 
+    private var biometricEnrollmentRevision = 0
+
     internal fun dismissBiometricPrompt() {
+        biometricEnrollmentRevision++
         biometricPrompt?.dismiss()
         biometricPrompt = null
     }
@@ -174,6 +183,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         const val STATE_AUTH_GENERATION = "settings_auth_generation"
         const val STATE_ADVANCED_SETTINGS = "settings_advanced_visible"
         const val STATE_SETTINGS_PICKER = "settings_picker_pending"
+        const val STATE_SIGNING_PENDING = "settings_signing_pending"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -184,13 +194,15 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
         val toolbar = requireNotNull(findViewById<Toolbar>(R.id.container_toolbar))
         setSupportActionBar(toolbar)
+        toolbar.visibility = View.GONE // Shared Compose owns title/navigation.
 
         val stub = requireNotNull(findViewById<ViewStub>(R.id.container_stub))
         stub.setLayoutResource(R.layout.content_settings)
         val content = stub.inflate() as ViewGroup
         legacySettingsContent = content.findViewById(R.id.settings_legacy_content)
-        showingAdvancedSettings = savedInstanceState?.getBoolean(STATE_ADVANCED_SETTINGS, false) == true
-        overviewPickerPending = savedInstanceState?.getBoolean(STATE_SETTINGS_PICKER, false) == true
+        showingAdvancedSettings = false // Older saved native destinations reopen the shared overview.
+        overviewPickerPending = savedInstanceState?.getBoolean(STATE_SETTINGS_PICKER, false) == true &&
+            savedInstanceState.getBoolean(STATE_SIGNING_PENDING, false) != true
 
         encryptionKey = VaultSession.getKey()
         if (encryptionKey == null) {
@@ -219,6 +231,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         sharedPreferences.registerOnSharedPreferenceChangeListener(this)
         overviewGeneration = VaultSession.generation()
         val overview = SettingsOverviewComposeView(this, ::dispatchSettingsOverviewAction)
+        overview.onBack = { onSupportNavigateUp() }
         settingsOverview = overview
         content.addView(overview, ViewGroup.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
@@ -258,6 +271,10 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             description = getString(R.string.settings_shared_overview_description),
             groups = listOf(
                 PortableToolGroup(getString(R.string.settings_category_title_security), autoLock + listOf(
+                    PortableToolItem("authentication", getString(R.string.settings_title_auth)),
+                    PortableToolItem("encryption", getString(R.string.settings_title_encryption)),
+                    PortableToolItem("biometricUnlock", getString(R.string.settings_title_biometric),
+                        enabled = s.getEncryption() == EncryptionType.PASSWORD && s.getAuthMethod() == AuthMethod.PASSWORD),
                     PortableToolItem("panicActions", getString(R.string.settings_title_panic)),
                     PortableToolItem("screenPrivacy", getString(R.string.settings_title_screen_privacy)),
                     PortableToolItem("inputProtection", getString(R.string.settings_title_input_protection)),
@@ -283,6 +300,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 )),
                 PortableToolGroup(getString(R.string.settings_category_title_backup), listOf(
                     PortableToolItem("backupBroadcasts", getString(R.string.settings_title_backup_broadcasts)),
+                    PortableToolItem("separateBackupPassword", getString(R.string.settings_title_backup_password)),
+                    PortableToolItem("backupPasswordSource", getString(R.string.settings_title_backup_password_source)),
                     PortableToolItem("autoBackupMode", getString(R.string.settings_title_auto_backup_password_enc)),
                     PortableToolItem("backupFiles", getString(R.string.settings_title_backup_files)),
                     PortableToolItem("backupRetention", getString(R.string.settings_title_auto_backup_keep)),
@@ -301,18 +320,23 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         enabled = s.getOpenPGPMode() == OpenPgpMode.KEY_FILE),
                     PortableToolItem("pgpProviderOptions", getString(R.string.settings_title_pgp_provider_options),
                         enabled = s.getOpenPGPMode() == OpenPgpMode.PROVIDER && s.getOpenPGPProvider().isNotBlank()),
+                    PortableToolItem("pgpSigningKey", getString(R.string.settings_title_openpgp_key_sign),
+                        enabled = s.getOpenPGPMode() == OpenPgpMode.PROVIDER && s.getOpenPGPProvider().isNotBlank()),
                     PortableToolItem("pgpProvider", getString(R.string.settings_title_openpgp_provider),
                         detail = getString(R.string.settings_pgp_provider_setup_detail),
                         enabled = s.getOpenPGPMode() == OpenPgpMode.PROVIDER)
                 )),
-                PortableToolGroup("", listOf(PortableToolItem("advanced",
-                    getString(R.string.settings_advanced_title), detail = getString(R.string.settings_advanced_description))))
+                PortableToolGroup(getString(R.string.about_title_special_features), listOf(
+                    PortableToolItem("specialFeatures", getString(R.string.settings_title_special_features)),
+                    PortableToolItem("resetKeyStore", getString(R.string.settings_title_clear_keystore),
+                        enabled = s.getSpecialFeatures())
+                ))
             ), busy = !canGoBack || overviewPickerPending
         )
     }
 
     private fun dispatchSettingsOverviewAction(key: String) {
-        if (!overviewSessionReady() || !canGoBack || overviewPickerPending || showingAdvancedSettings || settingsConfirmationPrompt != null) return
+        if (!overviewSessionReady() || !canGoBack || overviewPickerPending || showingAdvancedSettings || settingsConfirmationPrompt != null || biometricPrompt != null) return
         when (key) {
             "language" -> showSharedAppearance(AppearancePreference.LANGUAGE)
             "themeMode" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) showSharedAppearance(AppearancePreference.THEME_MODE)
@@ -338,6 +362,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             "pgpSecret" -> if (settings!!.getOpenPGPMode() == OpenPgpMode.KEY_FILE) requestOpenPgpKeyFiles(false)
             "panicActions" -> showSharedPolicyChecklist(PolicyChecklist.PANIC)
             "backupBroadcasts" -> showSharedPolicyChecklist(PolicyChecklist.BACKUP_BROADCASTS)
+            "authentication" -> showSharedAuthentication()
+            "encryption" -> showSharedEncryption()
+            "biometricUnlock" -> showSharedBiometricSelection()
+            "specialFeatures" -> showSharedSpecialFeatures()
+            "resetKeyStore" -> showSharedKeyStoreReset()
+            "separateBackupPassword" -> showSharedSeparateBackupPassword()
+            "backupPasswordSource" -> showSharedBackupPasswordSource()
             "autoBackupMode" -> showSharedAutoBackupMode()
             "backupFiles" -> showSharedBackupFiles()
             "backupRetention" -> showSharedBackupRetention()
@@ -345,13 +376,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             "storage" -> showStorageLocation()
             "exportPreferences" -> confirmPreferencesExport()
             "importPreferences" -> requestPreferencesImport()
-            "advanced", "pgpProvider" -> {
-                if (key == "pgpProvider" && settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER) return
-                // Recreate so XML preferences read the values just committed by shared dialogs.
-                showingAdvancedSettings = true
-                updateSettingsPageVisibility()
-                recreate()
-            }
+            "pgpSigningKey" -> selectSharedSigningKey()
+            "pgpProvider" -> showSharedPgpProvider()
+
         }
     }
 
@@ -397,6 +424,645 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 }
             }, onDismiss = closeHost)
         showSettingsPrompt(host)
+    }
+
+    private var signingConnection: org.openintents.openpgp.util.OpenPgpServiceConnection? = null
+    private var signingProvider: String? = null
+    private var signingGeneration = -1L
+    private val signingRequestCode = 6420
+
+    private fun closeSigningSelection() {
+        signingConnection?.unbindFromService()
+        signingConnection = null
+        signingProvider = null
+        signingGeneration = -1L
+        overviewPickerPending = false
+    }
+
+    private fun signingSelectionCurrent(): Boolean = signingConnection != null && overviewSessionReady() && canGoBack &&
+        VaultSession.isCurrent(signingGeneration) && settings!!.getOpenPGPMode() == OpenPgpMode.PROVIDER &&
+        settings!!.getOpenPGPProvider() == signingProvider
+
+    private fun selectSharedSigningKey() {
+        if (!overviewSessionReady() || !canGoBack || signingConnection != null ||
+            settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER || settings!!.getOpenPGPProvider().isBlank()) return
+        signingProvider = settings!!.getOpenPGPProvider()
+        signingGeneration = overviewGeneration
+        overviewPickerPending = true
+        lateinit var connection: org.openintents.openpgp.util.OpenPgpServiceConnection
+        connection = org.openintents.openpgp.util.OpenPgpServiceConnection(this, signingProvider,
+            object : org.openintents.openpgp.util.OpenPgpServiceConnection.OnBound {
+                override fun onBound(service: org.openintents.openpgp.IOpenPgpService2) {
+                    if (signingConnection === connection) requestSigningKey(Intent())
+                }
+                override fun onError(error: Exception) {
+                    if (signingConnection !== connection) return
+                    closeSigningSelection()
+                    publishSettingsOverview()
+                    Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                }
+            })
+        signingConnection = connection
+        publishSettingsOverview()
+        try { connection.bindToService() } catch (_: Exception) { closeSigningSelection(); publishSettingsOverview() }
+    }
+
+    private fun requestSigningKey(data: Intent) {
+        val connection = signingConnection ?: return
+        if (!signingSelectionCurrent()) { closeSigningSelection(); publishSettingsOverview(); return }
+        data.setAction("org.openintents.openpgp.action.GET_SIGN_KEY_ID")
+        val api = org.openintents.openpgp.util.OpenPgpApi(this, connection.getService())
+        try { api.executeApiAsync(data, null, null, object : org.openintents.openpgp.util.OpenPgpApi.IOpenPgpCallback {
+            override fun onReturn(result: Intent) {
+                if (signingConnection !== connection) return
+                if (!signingSelectionCurrent()) { closeSigningSelection(); publishSettingsOverview(); return }
+                when (result.getIntExtra("result_code", 0)) {
+                    1 -> {
+                        val key = result.getLongExtra("sign_key_id", 0L)
+                        val saved = PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity).edit()
+                            .putLong(getString(R.string.settings_key_openpgp_key_sign), key).commit()
+                        closeSigningSelection()
+                        if (!saved) Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        publishSettingsOverview()
+                    }
+                    2 -> {
+                        val pending = result.getParcelableExtra<android.app.PendingIntent>("intent")
+                        try {
+                            if (pending == null) throw IllegalStateException("Missing provider intent")
+                            startIntentSenderForResult(pending.intentSender, signingRequestCode, null, 0, 0, 0)
+                        } catch (_: Exception) { closeSigningSelection(); publishSettingsOverview() }
+                    }
+                    else -> {
+                        closeSigningSelection(); publishSettingsOverview()
+                        Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }
+        }) } catch (_: Exception) {
+            if (signingConnection === connection) { closeSigningSelection(); publishSettingsOverview() }
+        }
+    }
+
+    private fun installedPgpProviders(): List<Pair<String, String>> {
+        val pm = getPackageManager()
+        return pm.queryIntentServices(Intent("org.openintents.openpgp.IOpenPgpService2"), 0)
+            .mapNotNull { result -> result.serviceInfo?.let {
+                if (it.packageName == "org.thialfihar.android.apg") null
+                else it.packageName to it.loadLabel(pm).toString()
+            } }.distinctBy { it.first }.sortedBy { it.second }
+    }
+
+    private fun showSharedPgpProvider() {
+        if (!overviewSessionReady() || !canGoBack || settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER) return
+        val generation = overviewGeneration
+        val choices = listOf("" to getString(R.string.settings_choice_disabled)) + installedPgpProviders()
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this, title = getString(R.string.settings_title_openpgp_provider),
+            message = getString(R.string.settings_pgp_provider_setup_detail), items = choices.map { it.second },
+            initialSelected = choices.indexOfFirst { it.first == settings!!.getOpenPGPProvider() },
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                val provider = choices[index].first
+                if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation) &&
+                    settings!!.getOpenPGPMode() == OpenPgpMode.PROVIDER &&
+                    (provider.isEmpty() || installedPgpProviders().any { it.first == provider })) {
+                    val saved = PreferenceManager.getDefaultSharedPreferences(this).edit()
+                        .putString(getString(R.string.settings_key_openpgp_provider), provider).commit()
+                    if (!saved) Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    fragment?.pgpSigningKey?.setOpenPgpProvider(provider)
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private var credentialsTask: com.fairuniversal.offlineotp.Tasks.ChangeCredentialsTask? = null
+
+    private fun showSharedAuthentication() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val encryption = settings!!.getEncryption()
+        val modes = listOf(AuthMethod.NONE, AuthMethod.PASSWORD, AuthMethod.DEVICE)
+        val labels = resources.getStringArray(R.array.settings_entries_auth).toList()
+        if (labels.size != modes.size) return
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this, title = getString(R.string.settings_title_auth),
+            items = labels, initialSelected = modes.indexOf(settings!!.getAuthMethod()),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation) &&
+                    settings!!.getEncryption() == encryption) {
+                    val method = modes[index]
+                    if (encryption == EncryptionType.PASSWORD && method != AuthMethod.PASSWORD)
+                        showSettingsNotice(R.string.settings_dialog_title_error, R.string.settings_dialog_msg_auth_invalid_with_encryption)
+                    else if (method == AuthMethod.PASSWORD) showSharedAuthenticationPassword()
+                    else if (method == AuthMethod.DEVICE &&
+                        (getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isKeyguardSecure() != true)
+                        Toast.makeText(this, R.string.settings_toast_auth_device_not_secure, Toast.LENGTH_LONG).show()
+                    else startSharedCredentialsChange(method, "")
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun startSharedCredentialsChange(method: AuthMethod, password: String) {
+        if (!overviewSessionReady() || !canGoBack || credentialsTask != null) return
+        val encryption = settings!!.getEncryption()
+        if (encryption == EncryptionType.PASSWORD && method != AuthMethod.PASSWORD) return
+        if (method == AuthMethod.PASSWORD && (password.length < Constants.AUTH_MIN_PASSWORD_LENGTH ||
+            password.length > com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS)) return
+        val generation = overviewGeneration
+        val task = com.fairuniversal.offlineotp.Tasks.ChangeCredentialsTask(this, encryption, encryptionKey, method, password)
+        credentialsTask = task
+        setupUiForTaskState(true)
+        task.setOutcomeCallback { outcome ->
+            if (credentialsTask !== task) { task.disposeOutcome(outcome); return@setOutcomeCallback }
+            credentialsTask = null
+            setupUiForTaskState(false)
+            if (overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                val result = (outcome as? com.fairuniversal.offlineotp.Tasks.TaskOutcome.Value)?.value
+                if (result?.success == true) {
+                    val key = result.newEncryptionKey
+                    val type = result.encryptionType
+                    if (key != null && type != null) onSuccessfulEncryptionChange(type, key)
+                    publishSettingsOverview()
+                } else Toast.makeText(this, R.string.settings_toast_encryption_change_failed, Toast.LENGTH_LONG).show()
+            }
+            task.disposeOutcome(outcome)
+        }
+        task.execute()
+    }
+
+    private fun showSharedEncryption() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val original = settings!!.getEncryption()
+        val values = resources.getStringArray(R.array.settings_values_encryption).map {
+            EncryptionType.valueOf(it.uppercase(Locale.ROOT)) }
+        val labels = resources.getStringArray(R.array.settings_entries_encryption).toList()
+        if (labels.size != values.size) return
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this, title = getString(R.string.settings_title_encryption),
+            items = labels, initialSelected = values.indexOf(original),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation) &&
+                    settings!!.getEncryption() == original && values[index] != original) {
+                    val selected = values[index]
+                    if (selected == EncryptionType.PASSWORD && settings!!.getAuthMethod() != AuthMethod.PASSWORD)
+                        showSettingsNotice(R.string.settings_dialog_title_error, R.string.settings_dialog_msg_encryption_invalid_with_auth)
+                    else if (selected == EncryptionType.PASSWORD && settings!!.getAuthCredentials().isEmpty())
+                        showSettingsNotice(R.string.settings_dialog_title_error, R.string.settings_dialog_msg_encryption_invalid_without_credentials)
+                    else confirmSharedEncryptionChange(selected)
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun confirmSharedEncryptionChange(selected: EncryptionType) {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val original = settings!!.getEncryption()
+        var host: DeleteConfirmationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = DeleteConfirmationComposeView(this, getString(R.string.settings_dialog_title_warning),
+            getString(R.string.settings_dialog_msg_encryption_change), getString(android.R.string.ok),
+            getString(android.R.string.cancel), onConfirm = {
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation) &&
+                    settings!!.getEncryption() == original && selected != original) {
+                    if (selected == EncryptionType.PASSWORD) {
+                        if (settings!!.getAuthMethod() == AuthMethod.PASSWORD && settings!!.getAuthCredentials().isNotEmpty())
+                            tryEncryptionChangeWithAuth(selected)
+                    } else if (selected == EncryptionType.KEYSTORE) startEncryptionChangeTask(selected, null)
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun showSharedBiometricSelection() {
+        if (!overviewSessionReady() || !canGoBack || settings!!.getEncryption() != EncryptionType.PASSWORD ||
+            settings!!.getAuthMethod() != AuthMethod.PASSWORD || biometricPrompt != null) return
+        val generation = overviewGeneration
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this,
+            title = getString(R.string.settings_title_biometric), message = getString(R.string.settings_desc_biometric),
+            items = listOf(getString(R.string.settings_choice_disabled), getString(R.string.settings_choice_enabled)),
+            initialSelected = if (BiometricKeyStore.isEnabled(this) && BiometricKeyStore.hasStoredKey(this)) 1 else 0,
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation) &&
+                    settings!!.getEncryption() == EncryptionType.PASSWORD && settings!!.getAuthMethod() == AuthMethod.PASSWORD) {
+                    if (index == 0) {
+                        dismissBiometricPrompt()
+                        try { BiometricKeyStore.clear(this) } catch (_: Exception) { }
+                        publishSettingsOverview()
+                    } else {
+                        val availability = BiometricKeyStore.availability(this)
+                        if (availability.isAvailable) promptBiometricEnrollment(null, this)
+                        else Toast.makeText(this, if (availability == BiometricKeyStore.Availability.NOT_ENROLLED)
+                            R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable, Toast.LENGTH_LONG).show()
+                    }
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun promptBiometricEnrollment(pref: CheckBoxPreference?, host: SettingsActivity) {
+        val ctx = host
+        if (!host.overviewSessionReady() || !host.canGoBack) return
+        host.dismissBiometricPrompt()
+        val generation = host.overviewGeneration
+        val revision = host.biometricEnrollmentRevision
+        var pending = false
+        lateinit var view: BiometricEnableComposeView
+        fun owned(): Boolean = host.biometricPrompt === view && host.biometricEnrollmentRevision == revision &&
+            host.overviewSessionReady() && VaultSession.isCurrent(generation) && host.canGoBack &&
+            host.settings?.getEncryption() == EncryptionType.PASSWORD && host.settings?.getAuthMethod() == AuthMethod.PASSWORD
+        val wrongPassword = getString(R.string.settings_toast_biometric_wrong_password)
+        val saveFailed = getString(R.string.settings_toast_biometric_save_failed)
+
+        // One shared Compose form for this password prompt on every client. Android keeps the
+        // Dialog window, the PBKDF2 verifier and the biometric/keychain write; the form keeps
+        // no password after confirmation and renders the same error handling as iOS/desktop.
+        view = BiometricEnableComposeView(
+            activity = ctx,
+            title = getString(R.string.settings_title_biometric),
+            detail = getString(R.string.settings_dialog_biometric_enable),
+            passwordLabel = getString(R.string.settings_hint_password),
+            confirmLabel = getString(android.R.string.ok),
+            cancelLabel = getString(android.R.string.cancel),
+            onConfirm = { typed ->
+                if (!owned() || pending) {
+                    saveFailed
+                } else if (typed.isEmpty()) {
+                    wrongPassword
+                } else {
+                    val verified = try {
+                        verifyVaultPassword(typed)
+                    } catch (_: Exception) {
+                        false
+                    }
+                    if (!verified) {
+                        wrongPassword
+                    } else {
+                        // Use the live vault key — the password matched, and the GCM tag is
+                        // the real gate. Keep the Android keychain adapter in the host.
+                        val vaultKey = VaultSession.getKey()?.encoded?.clone()
+                        if (vaultKey == null || vaultKey.isEmpty()) {
+                            saveFailed
+                        } else {
+                            val fragmentActivity = host as? androidx.fragment.app.FragmentActivity
+                            if (fragmentActivity == null) {
+                                try { vaultKey.fill(0) } catch (_: Exception) { }
+                                saveFailed
+                            } else {
+                                try {
+                                    pending = true
+                                    BiometricKeyStore.save(fragmentActivity, vaultKey, permitted = { owned() }) { success, error ->
+                                        // Wipe the copy after the store has copied it.
+                                        try { vaultKey.fill(0) } catch (_: Exception) { }
+                                        if (!owned()) return@save
+                                        pending = false
+                                        if (success) {
+                                            pref?.isChecked = true
+                                            Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on,
+                                                Toast.LENGTH_SHORT).show()
+                                            host.dismissBiometricPrompt()
+                                            host.publishSettingsOverview()
+                                        } else {
+                                            pref?.isChecked = false
+                                            val msg = when (error) {
+                                                BiometricKeyStore.BiometricError.NOT_ENROLLED ->
+                                                    getString(R.string.settings_toast_biometric_not_enrolled)
+                                                BiometricKeyStore.BiometricError.UNAVAILABLE ->
+                                                    getString(R.string.settings_toast_biometric_unavailable)
+                                                BiometricKeyStore.BiometricError.LOCKED_OUT ->
+                                                    getString(R.string.settings_toast_biometric_locked_out)
+                                                BiometricKeyStore.BiometricError.CANCELLED ->
+                                                    getString(R.string.settings_toast_biometric_cancelled)
+                                                else -> saveFailed
+                                            }
+                                            Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                    null
+                                } catch (_: Exception) {
+                                    pending = false
+                                    try { vaultKey.fill(0) } catch (_: Exception) { }
+                                    saveFailed
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            onDismiss = { if (host.biometricPrompt === view && host.biometricEnrollmentRevision == revision) host.dismissBiometricPrompt() }
+        )
+        host.biometricPrompt = view
+        view.show()
+    }
+
+    private fun verifyVaultPassword(plainPassword: String): Boolean {
+        val s = settings ?: return false
+        return try {
+            val storedVerifier = s.getAuthCredentials()
+            if (storedVerifier.isEmpty()) return false
+            val derived = s.deriveVaultCredentials(plainPassword)
+            try {
+                val storedBytes = android.util.Base64.decode(storedVerifier, android.util.Base64.URL_SAFE)
+                java.security.MessageDigest.isEqual(storedBytes, derived.password)
+            } finally {
+                try { derived.password.fill(0) } catch (_: Exception) { }
+                try { derived.key.fill(0) } catch (_: Exception) { }
+            }
+        } catch (_: Exception) { false }
+    }
+
+    private fun showSharedSpecialFeatures() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this,
+            title = getString(R.string.about_title_special_features), message = getString(R.string.about_dialog_special_features),
+            items = listOf(getString(R.string.settings_choice_disabled), getString(R.string.settings_choice_enabled)),
+            initialSelected = if (settings!!.getSpecialFeatures()) 1 else 0,
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applySpecialFeatures(this, index == 1))
+                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun showSharedKeyStoreReset() {
+        if (!overviewSessionReady() || !canGoBack || settings!!.getSpecialFeatures() != true || settingsConfirmationPrompt != null) return
+        val generation = overviewGeneration
+        val encryption = settings!!.getEncryption()
+        val messageId = when (encryption) {
+            EncryptionType.PASSWORD -> R.string.settings_dialog_msg_clear_keystore_password
+            EncryptionType.KEYSTORE -> R.string.settings_dialog_msg_clear_keystore_keystore
+        }
+        var host: DeleteConfirmationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = DeleteConfirmationComposeView(this,
+            title = getString(R.string.settings_dialog_title_clear_keystore), message = getString(messageId),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation) &&
+                    settings!!.getSpecialFeatures() && settings!!.getEncryption() == encryption) {
+                    clearKeyStore()
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun showSharedAuthenticationPassword() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val input = android.view.LayoutInflater.from(this).inflate(R.layout.component_password, null)
+        val layout = requireNotNull(input.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.passwordLayout))
+        val password = requireNotNull(input.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.passwordEdit))
+        val confirmation = requireNotNull(input.findViewById<android.widget.EditText>(R.id.passwordConfirm))
+        password.isSaveEnabled = false; confirmation.isSaveEnabled = false
+        password.setText(""); confirmation.setText("")
+        password.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        confirmation.inputType = password.inputType
+        if (settings!!.getBlockAccessibility()) {
+            layout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+            confirmation.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO)
+        }
+        if (settings!!.getBlockAutofill()) {
+            layout.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)
+            confirmation.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO)
+        }
+        ConfirmedPasswordTransformationHelper.setup(layout, password, confirmation)
+        input.findViewById<View>(R.id.btnSave)?.visibility = View.GONE
+        input.findViewById<View>(R.id.btnCancel)?.visibility = View.GONE
+        var host: ConfirmedSecretPreferenceComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            password.setText(""); confirmation.setText("")
+            h?.releaseInput(); h?.dismiss()
+            Unit
+        }
+        host = ConfirmedSecretPreferenceComposeView(this, input,
+            title = getString(R.string.settings_title_auth),
+            description = getString(R.string.settings_hint_password),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onSave = {
+                val owned = settingsConfirmationPrompt === host
+                val value = password.text?.toString().orEmpty()
+                val matches = value == confirmation.text?.toString().orEmpty()
+                closeHost()
+                if (owned && matches && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    startSharedCredentialsChange(AuthMethod.PASSWORD, value)
+                }
+            }, onDismiss = closeHost)
+        val watcher = object : android.text.TextWatcher {
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val text = password.text?.toString().orEmpty()
+                host?.updateValidity(text.length >= Constants.AUTH_MIN_PASSWORD_LENGTH && text.length <= com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS && text == confirmation.text?.toString().orEmpty())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun afterTextChanged(s: android.text.Editable?) { }
+        }
+        password.addTextChangedListener(watcher); confirmation.addTextChangedListener(watcher)
+        host.updateValidity(false)
+        showSettingsPrompt(host)
+        host.setOnDismissListener {
+            if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null
+            host?.releaseInput()
+            password.setText(""); confirmation.setText("")
+        }
+    }
+
+    private fun showSharedSeparateBackupPassword() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        val input = android.view.LayoutInflater.from(this).inflate(R.layout.component_password, null)
+        val layout = requireNotNull(input.findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.passwordLayout))
+        val password = requireNotNull(input.findViewById<com.google.android.material.textfield.TextInputEditText>(R.id.passwordEdit))
+        val confirmation = requireNotNull(input.findViewById<android.widget.EditText>(R.id.passwordConfirm))
+        password.isSaveEnabled = false; confirmation.isSaveEnabled = false
+        password.setText(""); confirmation.setText("")
+        password.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        confirmation.inputType = password.inputType
+        if (settings!!.getBlockAccessibility()) {
+            layout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS)
+            confirmation.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO)
+        }
+        if (settings!!.getBlockAutofill()) {
+            layout.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS)
+            confirmation.setImportantForAutofill(View.IMPORTANT_FOR_AUTOFILL_NO)
+        }
+        ConfirmedPasswordTransformationHelper.setup(layout, password, confirmation)
+        input.findViewById<View>(R.id.btnSave)?.visibility = View.GONE
+        input.findViewById<View>(R.id.btnCancel)?.visibility = View.GONE
+        var host: ConfirmedSecretPreferenceComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            password.setText(""); confirmation.setText("")
+            h?.releaseInput(); h?.dismiss()
+            Unit
+        }
+        host = ConfirmedSecretPreferenceComposeView(this, input,
+            title = getString(R.string.settings_title_backup_password),
+            description = getString(R.string.settings_desc_shared_backup_password),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onSave = {
+                val owned = settingsConfirmationPrompt === host
+                val value = password.text?.toString().orEmpty()
+                val matches = value == confirmation.text?.toString().orEmpty()
+                closeHost()
+                if (owned && matches && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applySeparateBackupPassword(this, value))
+                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        val watcher = object : android.text.TextWatcher {
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                val text = password.text?.toString().orEmpty()
+                host?.updateValidity(text.length <= com.fairuniversal.offlineotp.Utilities.InputPolicy.MAX_TEXT_CHARS && text == confirmation.text?.toString().orEmpty())
+            }
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) { }
+            override fun afterTextChanged(s: android.text.Editable?) { }
+        }
+        password.addTextChangedListener(watcher); confirmation.addTextChangedListener(watcher)
+        host.updateValidity(true) // Both blank intentionally clears the separate credential.
+        showSettingsPrompt(host)
+        host.setOnDismissListener {
+            if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null
+            host?.releaseInput()
+            password.setText(""); confirmation.setText("")
+        }
+    }
+
+    private fun showSharedBackupPasswordSource() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        var host: SingleChoiceSelectionComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = SingleChoiceSelectionComposeView(this,
+            title = getString(R.string.settings_title_backup_password_source),
+            message = getString(R.string.settings_desc_auto_backup_use_login),
+            items = listOf(getString(R.string.settings_backup_password_source_app), getString(R.string.settings_backup_password_source_separate)),
+            initialSelected = if (LoginBackupPolicy.usesLoginPassword(this)) 0 else 1,
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = { index ->
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    val login = index == 0
+                    if (login && settings!!.hasLegacyBackupPassword(this)) confirmLegacyBackupPasswordRemoval()
+                    else {
+                        if (!settings!!.applyBackupPasswordSource(this, login))
+                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        publishSettingsOverview()
+                    }
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
+    }
+
+    private fun confirmLegacyBackupPasswordRemoval() {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
+        var host: DeleteConfirmationComposeView? = null
+        val closeHost = {
+            val h = host
+            if (settingsConfirmationPrompt === h) settingsConfirmationPrompt = null
+            h?.dismiss()
+            Unit
+        }
+        host = DeleteConfirmationComposeView(this,
+            title = getString(R.string.settings_dialog_title_remove_old_backup_password),
+            message = getString(R.string.settings_dialog_msg_remove_old_backup_password),
+            confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
+            onConfirm = {
+                val owned = settingsConfirmationPrompt === host
+                closeHost()
+                if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
+                    if (!settings!!.applyBackupPasswordSource(this, useLogin = true, removeLegacy = true))
+                        Toast.makeText(this, R.string.settings_toast_remove_old_backup_password_failed, Toast.LENGTH_LONG).show()
+                    publishSettingsOverview()
+                }
+            }, onDismiss = closeHost)
+        showSettingsPrompt(host)
+        host.setOnDismissListener { if (settingsConfirmationPrompt === host) settingsConfirmationPrompt = null }
     }
 
     private fun showSharedPolicyChecklist(policy: PolicyChecklist) {
@@ -907,6 +1573,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
         outState.putBoolean(STATE_ADVANCED_SETTINGS, showingAdvancedSettings)
         outState.putBoolean(STATE_SETTINGS_PICKER, overviewPickerPending)
+        outState.putBoolean(STATE_SIGNING_PENDING, signingConnection != null)
     }
 
     /** Finishes and reports to MainActivity whether the encryption changed. */
@@ -992,6 +1659,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     override fun requiresVaultSession(): Boolean = true
 
     override fun onVaultLocked() {
+        closeSigningSelection()
+        credentialsTask?.let { it.setOutcomeCallback(null); it.cancel() }
+        credentialsTask = null
         if (clearingKeyStore) return
         settingsOverview?.close()
         dismissSettingsPrompts()
@@ -1051,7 +1721,14 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         val authIntent = Intent(this, AuthenticateActivity::class.java)
         authIntent.putExtra(Constants.EXTRA_AUTH_NEW_ENCRYPTION, newEnc.name)
         authIntent.putExtra(Constants.EXTRA_AUTH_MESSAGE, R.string.auth_msg_confirm_encryption)
-        startActivityForResult(authIntent, Constants.INTENT_SETTINGS_AUTHENTICATE)
+        overviewPickerPending = true
+        publishSettingsOverview()
+        try { startActivityForResult(authIntent, Constants.INTENT_SETTINGS_AUTHENTICATE) }
+        catch (_: RuntimeException) {
+            overviewPickerPending = false
+            authenticationGeneration = -1L
+            publishSettingsOverview()
+        }
     }
 
     override fun onSuccessfulEncryptionChange(newEncryptionType: EncryptionType, newEncryptionKey: SecretKey) {
@@ -1424,10 +2101,17 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == signingRequestCode) {
+            if (resultCode == RESULT_OK && data != null && signingSelectionCurrent()) requestSigningKey(data)
+            else { closeSigningSelection(); publishSettingsOverview() }
+            return
+        }
 
         completeSettingsDocumentPicker(requestCode)
 
         if (requestCode == Constants.INTENT_SETTINGS_AUTHENTICATE) {
+            overviewPickerPending = false
+            publishSettingsOverview()
             if (resultCode == RESULT_OK && data != null && !isFinishing() &&
                     VaultSession.isCurrent(authenticationGeneration)) {
                 val authKey = VaultSession.takeDerivedKey(authenticationGeneration)
@@ -1474,6 +2158,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onDestroy() {
+        closeSigningSelection()
+        credentialsTask?.let { it.setOutcomeCallback(null); it.cancel() }
+        credentialsTask = null
         settingsOverview?.close()
         settingsOverview = null
         inProgress?.dismiss()
@@ -1518,29 +2205,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         /** Shows the data-loss warning before the encryption type is switched. */
         fun encryptionChangeWithDialog(encryptionType: EncryptionType) {
             val activity = getActivity() as? SettingsActivity ?: return
-            var host: DeleteConfirmationComposeView? = null
-            val closeHost = {
-                val h = host
-                if (activity.settingsConfirmationPrompt === h) activity.settingsConfirmationPrompt = null
-                h?.dismiss()
-                Unit
-            }
-            host = DeleteConfirmationComposeView(
-                activity = activity,
-                title = getString(R.string.settings_dialog_title_warning),
-                message = getString(R.string.settings_dialog_msg_encryption_change),
-                confirmLabel = getString(android.R.string.ok),
-                dismissLabel = getString(android.R.string.cancel),
-                onConfirm = {
-                    closeHost()
-                    if (encryptionType == EncryptionType.PASSWORD)
-                        activity.tryEncryptionChangeWithAuth(encryptionType)
-                    else if (encryptionType == EncryptionType.KEYSTORE)
-                        activity.startEncryptionChangeTask(encryptionType, null)
-                },
-                onDismiss = closeHost
-            )
-            activity.showSettingsPrompt(host)
+            activity.confirmSharedEncryptionChange(encryptionType)
         }
 
         /** Enables the selector only while the selected backup credentials and location are available. */
@@ -1816,7 +2481,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         }
                         // Ask for vault password first — an unlocked phone must not be enough to add a shortcut.
                         val settingsActivity = activity as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                        promptBiometricEnrollment(biometricPref, settingsActivity)
+                        settingsActivity.promptBiometricEnrollment(biometricPref, settingsActivity)
                         false
                     } else {
                         try {
@@ -1835,30 +2500,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 val clearKeyStore = findPreference(getString(R.string.settings_key_clear_keystore))
                 clearKeyStore?.setOnPreferenceClickListener {
                     val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceClickListener false
-                    val messageId = when (currentSettings.getEncryption()) {
-                        EncryptionType.PASSWORD -> R.string.settings_dialog_msg_clear_keystore_password
-                        EncryptionType.KEYSTORE -> R.string.settings_dialog_msg_clear_keystore_keystore
-                    }
-                    var host: DeleteConfirmationComposeView? = null
-                    val closeHost = {
-                        val h = host
-                        if (activity.settingsConfirmationPrompt === h) activity.settingsConfirmationPrompt = null
-                        h?.dismiss()
-                        Unit
-                    }
-                    host = DeleteConfirmationComposeView(
-                        activity = activity,
-                        title = getString(R.string.settings_dialog_title_clear_keystore),
-                        message = getString(messageId),
-                        confirmLabel = getString(android.R.string.ok),
-                        dismissLabel = getString(android.R.string.cancel),
-                        onConfirm = {
-                            closeHost()
-                            activity.clearKeyStore()
-                        },
-                        onDismiss = closeHost
-                    )
-                    activity.showSettingsPrompt(host)
+                    activity.showSharedKeyStoreReset()
                     false
                 }
             }
@@ -1876,100 +2518,5 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             }
         }
 
-        private fun promptBiometricEnrollment(pref: CheckBoxPreference, host: SettingsActivity) {
-            val ctx = getActivity() ?: return
-            val wrongPassword = getString(R.string.settings_toast_biometric_wrong_password)
-            val saveFailed = getString(R.string.settings_toast_biometric_save_failed)
-
-            // One shared Compose form for this password prompt on every client. Android keeps the
-            // Dialog window, the PBKDF2 verifier and the biometric/keychain write; the form keeps
-            // no password after confirmation and renders the same error handling as iOS/desktop.
-            val view = BiometricEnableComposeView(
-                activity = ctx,
-                title = getString(R.string.settings_title_biometric),
-                detail = getString(R.string.settings_dialog_biometric_enable),
-                passwordLabel = getString(R.string.settings_hint_password),
-                confirmLabel = getString(android.R.string.ok),
-                cancelLabel = getString(android.R.string.cancel),
-                onConfirm = { typed ->
-                    if (typed.isEmpty()) {
-                        wrongPassword
-                    } else {
-                        val verified = try {
-                            verifyVaultPassword(typed)
-                        } catch (_: Exception) {
-                            false
-                        }
-                        if (!verified) {
-                            wrongPassword
-                        } else {
-                            // Use the live vault key — the password matched, and the GCM tag is
-                            // the real gate. Keep the Android keychain adapter in the host.
-                            val vaultKey = VaultSession.getKey()?.encoded?.clone()
-                            if (vaultKey == null || vaultKey.isEmpty()) {
-                                saveFailed
-                            } else {
-                                val fragmentActivity = host as? androidx.fragment.app.FragmentActivity
-                                if (fragmentActivity == null) {
-                                    try { vaultKey.fill(0) } catch (_: Exception) { }
-                                    saveFailed
-                                } else {
-                                    try {
-                                        BiometricKeyStore.save(fragmentActivity, vaultKey) { success, error ->
-                                            // Wipe the copy after the store has copied it.
-                                            try { vaultKey.fill(0) } catch (_: Exception) { }
-                                            if (success) {
-                                                pref.isChecked = true
-                                                Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on,
-                                                    Toast.LENGTH_SHORT).show()
-                                                host.dismissBiometricPrompt()
-                                            } else {
-                                                pref.isChecked = false
-                                                val msg = when (error) {
-                                                    BiometricKeyStore.BiometricError.NOT_ENROLLED ->
-                                                        getString(R.string.settings_toast_biometric_not_enrolled)
-                                                    BiometricKeyStore.BiometricError.UNAVAILABLE ->
-                                                        getString(R.string.settings_toast_biometric_unavailable)
-                                                    BiometricKeyStore.BiometricError.LOCKED_OUT ->
-                                                        getString(R.string.settings_toast_biometric_locked_out)
-                                                    BiometricKeyStore.BiometricError.CANCELLED ->
-                                                        getString(R.string.settings_toast_biometric_cancelled)
-                                                    else -> saveFailed
-                                                }
-                                                Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                        null
-                                    } catch (_: Exception) {
-                                        try { vaultKey.fill(0) } catch (_: Exception) { }
-                                        saveFailed
-                                    }
-                                }
-                            }
-                        }
-                    }
-                },
-                onDismiss = { host.dismissBiometricPrompt() }
-            )
-            host.dismissBiometricPrompt()
-            host.biometricPrompt = view
-            view.show()
-        }
-
-        private fun verifyVaultPassword(plainPassword: String): Boolean {
-            val s = settings ?: return false
-            return try {
-                val storedVerifier = s.getAuthCredentials()
-                if (storedVerifier.isEmpty()) return false
-                val derived = s.deriveVaultCredentials(plainPassword)
-                try {
-                    val storedBytes = android.util.Base64.decode(storedVerifier, android.util.Base64.URL_SAFE)
-                    java.security.MessageDigest.isEqual(storedBytes, derived.password)
-                } finally {
-                    try { derived.password.fill(0) } catch (_: Exception) { }
-                    try { derived.key.fill(0) } catch (_: Exception) { }
-                }
-            } catch (_: Exception) { false }
-        }
     }
 }

@@ -1,5 +1,6 @@
 package com.fairuniversal.offlineotp.Activities
 
+import com.heinrichreimersoftware.materialintro.R as IntroResources
 import android.animation.ArgbEvaluator
 import android.animation.ObjectAnimator
 import android.app.KeyguardManager
@@ -64,6 +65,7 @@ open class IntroScreenActivity : IntroActivity() {
     private var androidSyncFragment: AndroidSyncFragment? = null
     private var introFinishedFragment: IntroFinishedFragment? = null
 
+    private var sharedShell: com.fairuniversal.offlineotp.ui.host.SetupShellComposeView? = null
     private var setupFinished = false
     private var encryptionKey: ByteArray? = null
     private var setupGeneration: Long = VaultSession.generation()
@@ -75,6 +77,13 @@ open class IntroScreenActivity : IntroActivity() {
         setupFinished = success
         encryptionKey?.let { Arrays.fill(it, 0) }
         encryptionKey = key?.copyOf()
+        publishSetupNavigation()
+    }
+
+    private fun publishSetupNavigation(position: Int = currentSlidePosition) {
+        val busy = firstRunRestoreTask != null || firstRunPasswordDialog != null ||
+            introFinishedFragment?.navigationBusy() == true
+        sharedShell?.render(position, busy, setupFinished)
     }
 
     private companion object {
@@ -128,9 +137,11 @@ open class IntroScreenActivity : IntroActivity() {
             activity = this,
             decodeDescription = "Enter the password used to encrypt this backup. Your selected Android vault authentication remains unchanged.",
             onDecode = { password ->
-                if (firstRunPasswordDialog === view) firstRunPasswordDialog = null
-                view.dismiss()
-                readFirstRunBackup(uri, password)
+                if (firstRunPasswordDialog === view && !isFinishing() && VaultSession.isCurrent(setupGeneration)) {
+                    firstRunPasswordDialog = null
+                    view.dismiss()
+                    readFirstRunBackup(uri, password)
+                }
             },
             onDismiss = {
                 if (firstRunPasswordDialog === view) {
@@ -220,13 +231,10 @@ open class IntroScreenActivity : IntroActivity() {
 
         setButtonBackFunction(BUTTON_BACK_FUNCTION_BACK)
 
-        addSlide(SimpleSlide.Builder()
-            .title(R.string.intro_slide1_title)
-            .description(R.string.intro_slide1_desc)
+        addSlide(FragmentSlide.Builder()
             .background(R.color.forest_surface)
             .backgroundDark(R.color.colorPrimaryDark)
-            .canGoBackward(false)
-            .scrollable(false)
+            .fragment(WelcomeFragment())
             .build()
         )
 
@@ -276,6 +284,7 @@ open class IntroScreenActivity : IntroActivity() {
                 // The pager may have swapped in the restored fragments by now. Read those, not the
                 // fresh instances this method created.
                 adoptDisplayedFragments()
+                publishSetupNavigation(position)
                 // The final slide now presents an explicit choice: create an empty vault or restore
                 // an encrypted backup. Do not provision an empty vault merely by swiping onto it.
             }
@@ -285,6 +294,21 @@ open class IntroScreenActivity : IntroActivity() {
             override fun onPageScrollStateChanged(state: Int) {}
         })
 
+        // Retain the pager only for fragment restoration and the established setup result contract.
+        // The library's native buttons, indicator and welcome layout are not visible UI anymore.
+        val pager = requireNotNull(findViewById<ViewPager>(IntroResources.id.mi_pager))
+        (pager.parent as? ViewGroup)?.removeView(pager)
+        val shell = com.fairuniversal.offlineotp.ui.host.SetupShellComposeView(this, pager, getCount(),
+            getString(R.string.button_back), getString(R.string.button_next)) { direction ->
+            adoptDisplayedFragments()
+            if (firstRunRestoreTask != null || firstRunPasswordDialog != null || introFinishedFragment?.navigationBusy() == true) return@SetupShellComposeView
+            if (direction > 0) {
+                if (currentSlidePosition < getCount() - 1 || setupFinished) goToSlide(currentSlidePosition + 1)
+            } else if (currentSlidePosition > 0) goToSlide(currentSlidePosition - 1)
+        }
+        sharedShell = shell
+        publishSetupNavigation()
+        setContentView(shell)
         getWindow().decorView.post { adoptDisplayedFragments() }
     }
 
@@ -328,8 +352,11 @@ open class IntroScreenActivity : IntroActivity() {
 
     override fun onDestroy() {
         authenticationFragment?.clearCredentialInputs()
+        sharedShell?.close(); sharedShell = null
         firstRunPasswordDialog?.dismiss()
         firstRunPasswordDialog = null
+        firstRunRestoreTask?.let { it.setOutcomeCallback(null); it.cancel() }
+        firstRunRestoreTask = null
         encryptionKey?.let { Arrays.fill(it, 0) }
         encryptionKey = null
         super.onDestroy()
@@ -352,6 +379,18 @@ open class IntroScreenActivity : IntroActivity() {
     @Suppress("DEPRECATION")
     override fun onBackPressed() {
         // Prevent leaving the intro screen before initial setup completes.
+    }
+
+    /** Welcome copy uses the same common step body as the rest of setup. */
+    open class WelcomeFragment : SlideFragment() {
+        private var shared: SetupChoiceComposeView? = null
+        override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
+            return SetupChoiceComposeView(requireNotNull(getContext())) { }.also {
+                shared = it
+                it.render(getString(R.string.intro_slide1_title), getString(R.string.intro_slide1_desc), emptyList(), -1, "")
+            }
+        }
+        override fun onDestroyView() { shared?.close(); shared = null; super.onDestroyView() }
     }
 
     /** Slide to choose between KeyStore and password encryption. */
@@ -478,6 +517,7 @@ open class IntroScreenActivity : IntroActivity() {
             sharedCompletion?.render(title?.text?.toString().orEmpty(), message?.text?.toString().orEmpty(),
                 createVaultButton?.text?.toString().orEmpty(), restoreBackupButton?.text?.toString().orEmpty(),
                 progress?.visibility == View.VISIBLE || activeTask != null, canGoForward || completedSetupRestored)
+            (hostContext as? IntroScreenActivity)?.publishSetupNavigation()
         }
         private var title: TextView? = null
         private var message: TextView? = null
@@ -488,6 +528,7 @@ open class IntroScreenActivity : IntroActivity() {
         private var canGoForward = false
         private var activeTask: FinishIntroTask? = null
         private var completedSetupRestored = false
+        internal fun navigationBusy(): Boolean = activeTask != null || progress?.visibility == View.VISIBLE
 
         private companion object {
             const val STATE_SETUP_COMPLETED = "intro_finished_setup_completed"
@@ -665,8 +706,11 @@ open class IntroScreenActivity : IntroActivity() {
             callback?.onAfterSaveSettings(result.saveSuccessful, result.encryptionKey)
         }
 
+        // The retained pager's swipe path must enforce the same rules as shared buttons.
+        override fun canGoBackward(): Boolean = !navigationBusy() && !canGoForward && !completedSetupRestored
+
         override fun canGoForward(): Boolean {
-            return canGoForward
+            return canGoForward && !navigationBusy()
         }
 
         /** Reports the outcome of the initial setup (and the new encryption key). */

@@ -12,9 +12,15 @@
     <string name="settings_title_input_protection">Accessibility and autofill</string>
     <string name="settings_title_backup_files">Backup files and destination</string>
     <string name="settings_title_vault_behavior">Vault behavior</string>
-    <string name="settings_pgp_provider_setup_detail">Open Android-specific settings to choose the provider app and signing key. Recipient IDs and verification are available above after choosing a provider.</string>
+    <string name="settings_pgp_provider_setup_detail">Choose an installed OpenPGP provider. Install a compatible provider such as OpenKeychain if none is listed. The provider owns signing-key selection; recipient IDs and verification are configured here.</string>
     <string name="settings_title_pgp_provider_options">OpenPGP recipients and verification</string>
     <string name="settings_desc_shared_panic">Choose actions for future panic triggers. Saving does not run them now. A later panic trigger can permanently wipe accounts or reset settings. Leave every option unchecked to disable these actions.</string>
+    <string name="settings_title_backup_password_source">Encrypted backup password source</string>
+    <string name="settings_backup_password_source_app">Use app password</string>
+    <string name="settings_backup_password_source_separate">Use separate backup password (configure above)</string>
+    <string name="settings_desc_shared_backup_password">Enter and confirm a separate backup password. Leave both fields blank to clear it. Existing backups still need their original password. This does not change the selected backup password source.</string>
+    <string name="settings_choice_disabled">Disabled</string>
+    <string name="settings_choice_enabled">Enabled</string>
     <string name="settings_activity_title">Settings</string>
     <string name="settings_shared_overview_description">Configure vault display, search, security and portable settings. Android-specific controls remain available below.</string>
     <string name="settings_advanced_title">Authentication and Android-specific settings</string>

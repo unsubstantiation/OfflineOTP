@@ -97,7 +97,7 @@ fun SharedVaultToolsDialog(
                 modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                SharedVaultToolGroups(groups, message, onSelectTool)
+                SharedVaultToolGroups(groups, message, onSelectTool = onSelectTool)
             }
         },
         confirmButton = {},
@@ -107,7 +107,8 @@ fun SharedVaultToolsDialog(
 
 /** Shared grouped action body for modal tools and full-page backup overviews. */
 @Composable
-fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "", onSelectTool: (String) -> Unit) {
+fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "", enabled: Boolean = true,
+                          onSelectTool: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         for (group in groups) {
             if (group.items.isEmpty()) continue
@@ -125,14 +126,14 @@ fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "",
                 } else if (item.detail.isEmpty() && item.value.isEmpty()) {
                     ForestTextAction(
                         text = item.label,
-                        enabled = item.enabled,
-                        onClick = { onSelectTool(item.key) }
+                        enabled = enabled && item.enabled,
+                        onClick = { if (enabled && item.enabled) onSelectTool(item.key) }
                     )
                 } else {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable(item.enabled) { onSelectTool(item.key) }
+                            .clickable(enabled && item.enabled) { if (enabled && item.enabled) onSelectTool(item.key) }
                             .padding(vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -141,7 +142,7 @@ fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "",
                             Text(
                                 text = item.label,
                                 style = ForestType.body,
-                                color = if (item.enabled) ForestPalette.textPrimary else ForestPalette.textHint
+                                color = if (enabled && item.enabled) ForestPalette.textPrimary else ForestPalette.textHint
                             )
                             if (item.detail.isNotEmpty()) {
                                 Text(text = item.detail, style = ForestType.label, color = ForestPalette.textSecondary)

@@ -205,6 +205,8 @@ APP_SOURCES=(
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEntryInput.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEditInput.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutInfo.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AboutDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupShell.kt"
     "$ROOT/ui-model/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ManualEntryInput.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableEntryDrag.kt"
     "$ROOT/ui-contract/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/portable/PortableInputBounds.kt"
@@ -245,6 +247,7 @@ APP_SOURCES=(
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/CardLayoutDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesImportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/PreferencesExportDialog.kt"
+    "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/ConfirmedSecretPreferenceDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EncryptedExportDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EncryptedRestoreDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/UriImportDialog.kt"
@@ -331,6 +334,7 @@ STUBS=("$SANDBOX"/stubs/android/*.kt
     "$SANDBOX"/stubs/com/leinardi/android/speeddial/*.kt
     "$SANDBOX"/stubs/com/github/aakira/expandablelayout/*.kt
     "$SANDBOX"/stubs/me/zhanghai/android/materialprogressbar/*.kt
+    "$SANDBOX"/stubs/com/heinrichreimersoftware/materialintro/*.kt
     "$SANDBOX"/stubs/com/heinrichreimersoftware/materialintro/app/*.kt
     "$SANDBOX"/stubs/com/heinrichreimersoftware/materialintro/slide/*.kt
     "$SANDBOX"/stubs/com/google/android/material/snackbar/*.kt

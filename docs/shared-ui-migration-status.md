@@ -1,40 +1,73 @@
 # Shared UI completion status
 
-The shared UI migration is **not complete**. Shared Compose components and Android overview routes
-must not be confused with a fully shared application shell. This checklist records known remaining
-work after the Settings and two onboarding-step migrations; it is not a device-validation report.
+**Migration remains in progress; no release/native-runtime completion is claimed.**
+This is the current source-level status, superseding older incremental entries in the ownership
+log and the historical cross-build audit. Stub/JVM checks do not verify actual Android/iOS layout,
+window attachment, accessibility, native service binding or secure hardware behavior.
 
-## Known remaining app-owned native presentation
+## Source changes implemented
 
-- Android `AuthenticateActivity` now has a common Compose layout, with the original Android input
-  deliberately retained as an autofill/accessibility capability adapter. Its real integration still
-  needs device validation; authentication tasks and platform security enforcement stay native.
-- Android `IntroScreenActivity`: wizard shell/navigation. Encryption, credential entry/confirmation, platform-backup
-  information and completion (create/restore, progress/error/retry/success) step bodies now use
-  common Compose; native hidden validation/compatibility engines remain behind the shared bodies.
-- Android `AboutActivity` / flavor About fragments: app details, special-feature enablement and flavor
-  actions. Generated AboutLibraries version/license information must be retained when replacing tabs.
-- Advanced Android Settings: authentication/encryption changes, biometric enrollment, backup password
-  and login-password mode (including legacy-password removal), provider application and signing-key
-  selection, special-feature toggle and KeyStore reset confirmation/dispatch. Some confirmations are
-  already shared, but the full native preference destination still exists.
-- Remaining app-owned notice/toast/progress surfaces need review and an explicit ownership decision.
-- Cross-platform parity audit: distinguish native capability adapters from duplicated layout, verify
-  Desktop and iOS entry points use the shared features they support, and check feature availability.
+- Android main vault uses shared header, search, category tabs, tag filters, sort, add, tools and
+  account cards. Toolbar, speed-dial, tag drawer and category controls are hidden compatibility
+  engines; the drawer is locked closed. Settings and hardware capabilities are available from
+  the shared tools. Every published action is guarded against session replacement.
+- Google Authenticator multipart collection/progress and final preview use shared selection and
+  confirmation forms. Buffered secrets remain host-owned and are destroyed on cancel/lock.
+- Settings overview has shared routes for all active preference groups including authentication,
+  encryption, biometric quick unlock, backup credentials/source/retention, special features and
+  guarded destructive reset. No visible advanced native-preference destination is offered;
+  saved legacy destinations reopen the shared overview. The old preference Fragment remains
+  hidden for compatibility/listener behavior, not as a visible feature implementation.
+- Android OpenPGP provider selection uses a shared selector over discovered services. Signing-key
+  selection is provider-owned UI reached through a guarded native service adapter, with ownership,
+  session, mode and provider checks at result time, and service release on completion/lock/destroy.
+- AboutActivity mounts common AboutContent, including generated dependency versions, license URLs
+  and full license text. Flavor donation actions and the version-tap opt-in confirmation remain.
+  Old About fragments/layouts remain unused compatibility code, not visible pages.
+- Android onboarding welcome, step bodies and navigation chrome are shared. The material-intro
+  pager is retained only as the fragment restoration/validation/result adapter; its native buttons,
+  indicator and welcome layout are not mounted in the shared shell. Real pager reparenting and
+  recreation behavior have not been verified on Android.
+- iOS scanner's app-owned Cancel action uses Compose. VisionKit retains camera feed, recognition,
+  guidance and native permission UI. The new Kotlin/Swift bridge has not been built with Xcode.
+- Standalone authentication and credential confirmation keep protected Android inputs where native
+  autofill/accessibility/IME/security behavior is required. No key is put in shared presentation.
 
-## Platform surfaces intentionally retained
+## Still to finish / verify
 
-OS document pickers, permission sheets, biometric prompts and provider-owned security-key/PGP UI are
-capability adapters, not candidates for imitation in Compose. Their app-owned launch, feedback and
-configuration UI should be shared where practical; security/lifecycle enforcement remains native.
+- Secondary Android container toolbars (authentication, backup, Settings) are now hidden. Settings
+  and Backup use common Back navigation with host task-state enforcement; authentication retains
+  its existing no-Up behavior. Verify system insets, keyboard, Back and blocked-task behavior on Android.
+- Retire hidden legacy preference/drawer/intro compatibility code after native restoration/parity
+  tests prove that moving its state behavior does not break existing installations.
+- Audit cross-platform capability/default/route parity against real Android, desktop and iOS builds;
+  platform-only Android device authentication/KeyStore/provider settings must remain explicit rather
+  than being silently advertised as supported on desktop or iOS.
+- Actual Android rendering, scrolling/keyboard/large-text, protected input, lock/recreation, first-run
+  create/restore and generated-license loading; real biometric/KeyStore/reset/recovery and provider
+  service/intent/cancellation tests. Sandbox tests never authorize destructive KeyStore reset.
+- Real macOS/Xcode KMP+Swift build, simulator/device lifecycle and VoiceOver/camera tests; real
+  desktop Compose rendering and keyboard/window-size testing. No native build/test results yet.
 
-## Completion gates
+## Platform/feedback ownership
 
-- No remaining app-owned native screen/preference tree used as the visible feature implementation.
-- Every existing feature mapped to a shared route or documented platform-only capability.
-- No loss of restore, export, credential, provider, licensing or first-run behavior.
-- Lifecycle/session/cancellation and sensitive-input retention checks for newly migrated flows.
-- Real Android/desktop rendering and native iOS build/runtime checks in addition to sandbox compilation.
+OS pickers, permission sheets, biometric/device-credential prompts, camera feed/recognition and
+provider-owned signing/security-key UI remain native capability adapters. App-owned modal forms,
+choices, progress and confirmations should use shared Compose. Android Toast/Snackbar delivery
+currently remains a native transient/accessibility feedback adapter with host-localized text;
+it is not evidence of cross-platform visual feedback parity. Legacy AlertDialog helpers remain in
+unused compatibility editors/fragments; live main-vault migration dialogs no longer use them.
 
-The current sandbox cannot establish the last gate. Do not label the migration complete merely
-because structural and JVM stub checks pass.
+## Environment blocker
+
+This workspace is Linux with no Android SDK/adb or Xcode. Available Kotlin sandbox checks compile
+against stubs, not real Android or UIKit. Completing the native integration gate requires an Android
+SDK/device/emulator and a macOS/Xcode runner (plus device-only biometric/hardware validation).
+Do not treat passing source/JVM checks as permission to mark the migration complete.
+
+## Native test handoff
+
+`shared-ui-native-validation.md` records workflow dispatch commands, the permission blocker,
+new Android component tests and the remaining real integration matrix. The added tests are in
+`ComposeVaultDeviceTest`, already included by the Android workflow's instrumentation class filter.
+They compile locally; no emulator execution or native build pass is claimed.

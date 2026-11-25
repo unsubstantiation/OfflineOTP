@@ -32,7 +32,9 @@ import com.fairuniversal.offlineotp.ui.theme.ForestType
 fun AboutContent(
     version: String,
     onOpenLink: (String) -> Boolean,
-    libraries: List<PortableLibraryNotice> = PortableLibraryCatalog.bundled
+    libraries: List<PortableLibraryNotice> = PortableLibraryCatalog.bundled,
+    extraLinks: List<AboutLink> = emptyList(),
+    onVersionTap: (() -> Unit)? = null
 ) {
     var selectedTab by remember { mutableStateOf(0) }
     var failedLink by remember { mutableStateOf<String?>(null) }
@@ -53,11 +55,17 @@ fun AboutContent(
                 Text(text = AboutInfo.description, style = ForestType.body, color = ForestPalette.textPrimary)
                 Text(text = "Cryptography: Argon2id + AES-256-GCM", style = ForestType.label, color = ForestPalette.textSecondary)
                 Text(text = "Network access: None (100% offline)", style = ForestType.label, color = ForestPalette.textSecondary)
-                Text(text = "Version: $version", style = ForestType.label, color = ForestPalette.accent)
+                if (onVersionTap == null) {
+                    Text(text = "Version: $version", style = ForestType.label, color = ForestPalette.accent)
+                } else {
+                    TextButton(onClick = onVersionTap) {
+                        Text(text = "Version: $version", style = ForestType.label, color = ForestPalette.accent)
+                    }
+                }
                 Text(text = "Build time: AKST (UTC−09:00)", style = ForestType.label, color = ForestPalette.textSecondary)
                 Text(text = AboutInfo.copyright, style = ForestType.body, color = ForestPalette.textPrimary)
                 Text(text = AboutInfo.attribution, style = ForestType.body, color = ForestPalette.textSecondary)
-                AboutInfo.links.forEach { link ->
+                (AboutInfo.links + extraLinks).forEach { link ->
                     if (link.id == "author1") {
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(text = "Credits", style = ForestType.label, color = ForestPalette.accent)

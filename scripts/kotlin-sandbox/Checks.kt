@@ -1,7 +1,10 @@
+import com.fairuniversal.offlineotp.Utilities.BiometricKeyStore
 // Non-authoritative sandbox checks; see scripts/kotlin-sandbox/README.md before trusting a result.
 // Runs the converted utility classes on a desktop JVM against hand-written platform stubs and
 // mirrors the repository's own tests for them. It is not the Gradle unit/lint/instrumentation
 // gate, and no Android behaviour (Handler, KeyEvent, resources) is exercised here.
+import com.fairuniversal.offlineotp.Utilities.applySeparateBackupPassword
+import com.fairuniversal.offlineotp.Utilities.applyBackupPasswordSource
 import com.fairuniversal.offlineotp.Utilities.PolicyChecklist
 import com.fairuniversal.offlineotp.Utilities.applyPolicyChecklist
 import com.fairuniversal.offlineotp.Utilities.applyAutoBackupMode
@@ -1018,6 +1021,9 @@ private class SettingsResources(
 
     override fun getStringArray(id: Int): Array<String> =
         when (id) {
+            R.array.settings_entries_auth -> arrayOf("None", "Password", "Device")
+            R.array.settings_entries_encryption -> arrayOf("KeyStore", "Password")
+            R.array.settings_values_encryption -> arrayOf("keystore", "password")
             R.array.settings_entries_lang -> arrayOf("System", "English", "Thai")
             R.array.settings_values_lang -> arrayOf("system", "en", "th")
             R.array.settings_entries_panic -> arrayOf("Wipe accounts", "Reset settings")
@@ -1247,6 +1253,10 @@ private class AboutRoot : View() {
 
 /** The intro wizard, with the protected lifecycle method the platform calls for the check. */
 private class IntroWizard : IntroScreenActivity() {
+    private val pager = ViewPager()
+    @Suppress("UNCHECKED_CAST")
+    override fun <T : View> findViewById(id: Int): T? =
+        if (id == com.heinrichreimersoftware.materialintro.R.id.mi_pager) pager as T else null
     fun createWizard() {
         onCreate(null)
     }
@@ -1386,8 +1396,7 @@ private class AboutScreenActivity(private val libJson: String) : AboutActivity()
     val stub = ScriptedViewStub(root)
 
     init {
-        root.children[R.id.viewPager] = pager
-        root.children[R.id.tabLayout] = tabs
+        // Shared About no longer inflates the native pager/tab layout.
     }
 
     override fun getString(resId: Int): String = settingsKey(resId)
@@ -5634,54 +5643,21 @@ fun main() {
                 { "the donation link was not copied: ${clips.map { it.text }}" })
     }
 
-    check("the about screen builds the about tab and the library tab") {
-        resetAboutState()
-        val activity = withPoisonedTransaction {
-            val screen = AboutScreenActivity("""{"libraries":[{"name":"a"}]}""")
-            screen.create()
-            screen
-        }
-
-        // The shell wiring: title, container layout, toolbar and the inflated about component.
-        expect(activity.titleResource == R.string.about_activity_title, { "wrong title: ${activity.titleResource}" })
-        expect(activity.contentResource == R.layout.activity_container, { "wrong content layout" })
-        expect(activity.supportActionBar === activity.toolbar, { "the toolbar was not installed" })
-        expect(activity.stub.getLayoutResource() == R.layout.component_about, { "wrong stub layout" })
-        expect(activity.stub.inflations == 1, { "the stub layout was not inflated" })
-
-        val adapter = activity.pager.getAdapter() as FragmentPagerAdapter
-        expect(activity.tabs.getWiredPager() === activity.pager, { "the tabs were not wired to the pager" })
-        expect(adapter.getCount() == 2, { "wrong page count: ${adapter.getCount()}" })
-
-        // Page 0 is the flavor's about tab; page 1 is the library list built from the raw document.
-        expect(adapter.getItem(0) is AboutFragment, { "the first page is not the about tab" })
-        val libsPage = adapter.getItem(1) as LibsFragment
-        expect(libsPage.licenseShown && libsPage.versionShown, { "the library page lost its flags" })
-        expect(libsPage.libs?.json == """{"libraries":[{"name":"a"}]}""",
-                { "the library list was not loaded: ${libsPage.libs?.json}" })
-        expect(adapter.getPageTitle(0) == settingsKey(R.string.about_tab_about),
-                { "wrong first page title: ${adapter.getPageTitle(0)}" })
-        expect(adapter.getPageTitle(1) == settingsKey(R.string.about_tab_libraries),
-                { "wrong second page title: ${adapter.getPageTitle(1)}" })
-        expect(adapter.getPageTitle(2) == null, { "an unknown page got a title" })
-        expectThrows(IndexOutOfBoundsException::class.java) { adapter.getItem(2) }
-
-        // An empty raw document becomes an empty library list, not a parse failure.
-        val empty = withPoisonedTransaction {
-            val screen = AboutScreenActivity("")
-            screen.create()
-            screen
-        }
-        val emptyPage = (empty.pager.getAdapter() as FragmentPagerAdapter).getItem(1) as LibsFragment
-        expect(emptyPage.libs?.json == "{}",
-                { "an empty document did not become the empty list: ${emptyPage.libs?.json}" })
-
-        // Up-navigation and back both finish the screen.
-        val finishesBefore = activity.finishes
-        expect(activity.up(), { "the up navigation was refused" })
+    check("About activity hosts shared content and preserves generated library licenses and flavor actions") {
+        val json = """{"libraries":[{"name":"Example","artifactVersion":"1.2","uniqueId":"example:a","licenses":["mit"]}],"licenses":{"mit":{"name":"MIT","url":"https://example.org/license","licenseContent":"Full license text"}}}"""
+        val notices = AboutActivity.parseLibraryNotices(json)
+        expect(notices.single().name == "Example 1.2", { "library version missing" })
+        expect(notices.single().license == "MIT\n\nhttps://example.org/license\n\nFull license text", { "full license lost" })
+        expect(AboutActivity.parseLibraryNotices("{}").isEmpty(), { "empty catalog invented dependencies" })
+        val activity = AboutScreenActivity(json)
+        activity.create()
+        val view = activity.contentView as com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView
+        expect(view.libraries == notices, { "generated metadata not passed to common UI" })
+        expect(AboutFragment().sharedExtraLinks().size == 2, { "F-Droid donations missing" })
+        val before = activity.finishes
+        expect(activity.up(), { "up refused" })
         activity.back()
-        expect(activity.finishes == finishesBefore + 2,
-                { "the screen was not finished: ${activity.finishes}" })
+        expect(activity.finishes == before + 2, { "navigation did not finish" })
     }
 
     check("direct note and SSH editors preselect and validate the existing fields") {
@@ -6110,7 +6086,8 @@ fun main() {
             add.invoke(activity, firstPart)
             val collector = collectorField.get(activity) as MigrationBatchCollector
             expect(collector.received == 1 && collector.expected == 2, { "the first part did not start a batch" })
-            val oldProgress = AlertDialog.Builder.lastCreated ?: throw AssertionError("no progress dialog")
+            val dialogField = MainActivity::class.java.getDeclaredField("activeMigrationDialog").apply { isAccessible = true }
+            val oldProgress = dialogField.get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
             add.invoke(activity, firstPart)
             add.invoke(activity, wrongPart)
             expect(collector.received == 1, { "duplicate or foreign QR changed the batch" })
@@ -6121,8 +6098,9 @@ fun main() {
             @Suppress("UNCHECKED_CAST")
             val entries = ArrayList(field.get(pending) as ArrayList<Entry>)
             expect(entries.map { it.getLabel() } == listOf("alice", "bob"), { "batch order or labels changed" })
-            val confirmation = AlertDialog.Builder.lastCreated ?: throw AssertionError("no confirmation")
-            oldProgress.onDismissListener?.onDismiss(oldProgress)
+            val confirmation = dialogField.get(activity) as com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+            val oldDismiss = oldProgress.javaClass.getDeclaredField("onDismiss").apply { isAccessible = true }.get(oldProgress) as () -> Unit
+            oldDismiss()
             expect(entries.all { it.getSecret() != null }, { "an old progress dismissal cleared a newer confirmation" })
             VaultSession.lock()
             lockUi.invoke(activity)
@@ -6131,7 +6109,8 @@ fun main() {
             val reopen = VaultSession.beginUnlock()
             expect(VaultSession.activate(key, reopen.generation) is SessionCommandResult.Applied, { "reopen" })
             adapter.encryptionKey = key
-            confirmation.positiveButtonListener!!.onClick(confirmation, DialogInterface.BUTTON_POSITIVE)
+            val confirm = confirmation.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(confirmation) as () -> Unit
+            confirm()
             expect(adapter.getEntries().isEmpty(), { "stale confirmation inserted accounts" })
 
             add.invoke(activity, firstPart)
@@ -6143,8 +6122,8 @@ fun main() {
             val ownedField = MigrationPayload::class.java.getDeclaredField("owned").apply { isAccessible = true }
             @Suppress("UNCHECKED_CAST")
             val secretOwner = (ownedField.get(part) as ArrayList<ValidatedOtp>).single()
-            val progress = AlertDialog.Builder.lastCreated ?: throw AssertionError("no cancellation dialog")
-            progress.onDismissListener!!.onDismiss(progress)
+            val progress = dialogField.get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            progress.dismiss()
             expect(collectorField.get(activity) == null, { "cancel left the batch attached" })
             val wiped = try { secretOwner.copySecret(); false } catch (_: IllegalStateException) { true }
             expect(wiped, { "cancel did not close the buffered secret" })
@@ -9862,7 +9841,7 @@ fun main() {
         } finally { cleanup.invoke(activity); VaultSession.lock() }
     }
 
-    check("Shared Settings overview persists typed dialogs and preserves advanced navigation") {
+    check("Shared Settings overview persists typed dialogs and rejects obsolete native navigation") {
         val fixture = SettingsFixture()
         var recreations = 0
         val activity = object : com.fairuniversal.offlineotp.Activities.SettingsActivity() {
@@ -10127,11 +10106,164 @@ fun main() {
             val clearBroadcasts = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.MultiChoiceSelectionComposeView
             clearBroadcasts.confirmSelection(emptySet())
             expect(!fixture.settings.isEncryptedBackupBroadcastEnabled(), { "backup broadcast policy could not be disabled" })
+            fixture.seed(R.string.settings_key_backup_password, "legacy-secret")
+            fixture.seed(R.string.settings_key_backup_password_enc, "wrapped-secret")
+            fixture.seed(R.string.settings_key_auto_backup_use_login, false)
+            expect(!fixture.settings.applyBackupPasswordSource(activity, true), { "legacy backup password was removed without consent" })
+            overview.selectTool("backupPasswordSource")
+            val source = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            source.confirmSelection(0)
+            val cancelRemoval = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+            expect(fixture.settings.getBackupPassword() == "legacy-secret" && !LoginBackupPolicy.usesLoginPassword(activity),
+                { "source selection changed storage before deletion confirmation" })
+            cancelRemoval.dismiss()
+            expect(fixture.settings.getBackupPassword() == "legacy-secret", { "canceling legacy deletion changed password" })
+            overview.selectTool("backupPasswordSource")
+            val sourceAgain = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            sourceAgain.confirmSelection(0)
+            val removal = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+            val confirmRemoval = removal.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(removal) as () -> Unit
+            confirmRemoval()
+            expect(fixture.settings.getBackupPassword().isEmpty() && LoginBackupPolicy.usesLoginPassword(activity),
+                { "confirmed legacy removal/source selection did not persist together" })
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_backup_password_enc), "") == "wrapped-secret",
+                { "source selection erased wrapped backup password" })
+            overview.selectTool("backupPasswordSource")
+            val separateSource = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            separateSource.confirmSelection(1)
+            confirmRemoval()
+            expect(!LoginBackupPolicy.usesLoginPassword(activity), { "stale deletion confirmation changed newer source selection" })
+            val previousInflater = android.view.LayoutInflater.layoutProvider
+            var newPassword = com.google.android.material.textfield.TextInputEditText()
+            var newConfirmation = android.widget.EditText()
+            android.view.LayoutInflater.layoutProvider = { res, _, _ ->
+                expect(res == R.layout.component_password, { "unexpected credential input layout" })
+                val layout = com.google.android.material.textfield.TextInputLayout()
+                newPassword = com.google.android.material.textfield.TextInputEditText()
+                newConfirmation = android.widget.EditText()
+                val controls = mapOf<Int, View>(R.id.passwordLayout to layout, R.id.passwordEdit to newPassword,
+                    R.id.passwordConfirm to newConfirmation, R.id.btnSave to android.widget.Button(), R.id.btnCancel to android.widget.Button())
+                object : android.widget.LinearLayout(activity) {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : View> findViewById(id: Int): T? = controls[id] as? T
+                }
+            }
+            try {
+                overview.selectTool("separateBackupPassword")
+                val editBackupPassword = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView
+                expect(newPassword.text.toString().isEmpty() && newConfirmation.text.toString().isEmpty() && !newPassword.isSaveEnabled,
+                    { "separate credential form preloaded or saved password state" })
+                newPassword.setText("one"); newConfirmation.setText("two")
+                editBackupPassword.updateValidity(false) // Widget stubs do not dispatch text-change events.
+                editBackupPassword.confirm()
+                expect(field("settingsConfirmationPrompt").get(activity) === editBackupPassword, { "mismatching credentials were submitted" })
+                newPassword.setText(""); newConfirmation.setText("")
+                editBackupPassword.updateValidity(true)
+                editBackupPassword.confirm()
+                expect(fixture.store.getString(activity.getString(R.string.settings_key_backup_password_enc), "missing") == "",
+                    { "blank confirmed credential did not clear without KeyStore" })
+                expect(!LoginBackupPolicy.usesLoginPassword(activity), { "separate password editor changed source selection" })
+                overview.selectTool("separateBackupPassword")
+                val canceledBackupPassword = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView
+                newPassword.setText("typed-secret"); newConfirmation.setText("typed-secret")
+                canceledBackupPassword.dismiss()
+                canceledBackupPassword.confirm()
+                expect(newPassword.text.toString().isEmpty() && newConfirmation.text.toString().isEmpty(), { "dismissed credential input retained secrets" })
+                expect(!fixture.settings.applySeparateBackupPassword(activity, "x".repeat(InputPolicy.MAX_TEXT_CHARS + 1)),
+                    { "oversized separate password reached KeyStore wrapping" })
+            } finally { android.view.LayoutInflater.layoutProvider = previousInflater }
+            overview.selectTool("resetKeyStore")
+            expect(field("settingsConfirmationPrompt").get(activity) == null, { "KeyStore reset was available before special-feature opt-in" })
+            overview.selectTool("specialFeatures")
+            val special = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            special.confirmSelection(1)
+            expect(fixture.settings.getSpecialFeatures(), { "shared special-feature selection did not persist" })
+            fixture.seed(R.string.settings_key_backup_password_enc, "reset-must-not-run")
+            overview.selectTool("resetKeyStore")
+            val cancelReset = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+            cancelReset.dismiss()
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_backup_password_enc), "") == "reset-must-not-run",
+                { "canceling reset changed backup credentials" })
+            overview.selectTool("resetKeyStore")
+            val revokedReset = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.DeleteConfirmationComposeView
+            fixture.seed(R.string.settings_key_special_features, false)
+            val resetCallback = revokedReset.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(revokedReset) as () -> Unit
+            resetCallback()
+            expect(fixture.store.getString(activity.getString(R.string.settings_key_backup_password_enc), "") == "reset-must-not-run",
+                { "revoked special-feature reset confirmation erased backup credentials" })
+            publish.invoke(activity)
+            overview.selectTool("specialFeatures")
+            val disableSpecial = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            disableSpecial.confirmSelection(0)
+            resetCallback()
+            expect(!fixture.settings.getSpecialFeatures(), { "stale reset confirmation changed newer settings" })
+            fixture.seed(R.string.settings_key_encryption, "password")
+            publish.invoke(activity)
+            overview.selectTool("biometricUnlock")
+            val biometricSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            biometricSelection.confirmSelection(0)
+            expect(!BiometricKeyStore.isEnabled(activity), { "shared biometric disabling failed" })
+            val enroll = type.getDeclaredMethod("promptBiometricEnrollment", android.preference.CheckBoxPreference::class.java,
+                com.fairuniversal.offlineotp.Activities.SettingsActivity::class.java).apply { isAccessible = true }
+            enroll.invoke(activity, null, activity)
+            val enrollment = activity.biometricPrompt as com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
+            val confirmEnrollment = enrollment.javaClass.getDeclaredField("onConfirm").apply { isAccessible = true }.get(enrollment) as (String) -> String?
+            activity.dismissBiometricPrompt()
+            expect(confirmEnrollment("stale-password") != null && !BiometricKeyStore.isEnabled(activity),
+                { "dismissed biometric enrollment accepted a password" })
+            val staleDismiss = enrollment.javaClass.getDeclaredField("onDismiss").apply { isAccessible = true }.get(enrollment) as () -> Unit
+            enroll.invoke(activity, null, activity)
+            val newerEnrollment = activity.biometricPrompt
+            staleDismiss()
+            expect(activity.biometricPrompt === newerEnrollment, { "stale biometric dismiss closed a replacement prompt" })
+            activity.dismissBiometricPrompt()
+            var rejectedEnrollment: BiometricKeyStore.BiometricError? = null
+            BiometricKeyStore.save(activity, ByteArray(32), permitted = { false }) { success, error ->
+                expect(!success, { "revoked biometric persistence succeeded" })
+                rejectedEnrollment = error
+            }
+            expect(rejectedEnrollment == BiometricKeyStore.BiometricError.CANCELLED, { "guarded biometric store did not reject revoked ownership" })
             overview.selectTool("advanced")
-            expect(field("showingAdvancedSettings").get(activity) == true && recreations == 1,
-                { "native-only preferences must stay reachable with refreshed stored values" })
-            expect(back.invoke(activity) == true && field("showingAdvancedSettings").get(activity) == false,
-                { "Back from advanced must return to shared overview" })
+            expect(field("showingAdvancedSettings").get(activity) == false && recreations == 0,
+                { "obsolete native destination must not reopen" })
+            overview.selectTool("authentication")
+            val authSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            authSelection.confirmSelection(0)
+            expect(fixture.settings.getAuthMethod() == Constants.AuthMethod.PASSWORD,
+                { "password encryption accepted no authentication" })
+            activity.dismissSettingsPrompts()
+            overview.selectTool("encryption")
+            val encSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            // Cancel preserves the current encryption and never launches a destructive task.
+            encSelection.dismiss()
+            activity.dismissSettingsPrompts()
+            expect(fixture.settings.getEncryption() == Constants.EncryptionType.PASSWORD, { "cancel changed encryption" })
+            val providerInfo = android.content.pm.ServiceInfo().apply { packageName = "example.pgp"; label = "Example PGP" }
+            android.content.pm.PackageManager.resolvedServices = listOf(android.content.pm.ResolveInfo().apply { serviceInfo = providerInfo })
+            fixture.seed(R.string.settings_key_openpgp_mode, "provider")
+            publish.invoke(activity)
+            overview.selectTool("pgpProvider")
+            val providerSelection = field("settingsConfirmationPrompt").get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            providerSelection.confirmSelection(1)
+            expect(fixture.settings.getOpenPGPProvider() == "example.pgp", { "shared provider selection did not save" })
+            overview.selectTool("pgpSigningKey")
+            val signing = org.openintents.openpgp.util.OpenPgpServiceConnection.lastConnection!!
+            signing.reportBound(object : org.openintents.openpgp.IOpenPgpService2 {})
+            val signingCallback = org.openintents.openpgp.util.OpenPgpApi.lastAsyncCallback!!
+            signingCallback.onReturn(Intent().putExtra("result_code", 1).putExtra("sign_key_id", 99L))
+            expect(fixture.settings.getOpenPGPSigningKey() == 99L && signing.unbinds == 1,
+                { "provider-owned selection did not persist and release service" })
+            signingCallback.onReturn(Intent().putExtra("result_code", 1).putExtra("sign_key_id", 100L))
+            expect(fixture.settings.getOpenPGPSigningKey() == 99L, { "replayed signing callback saved" })
+            overview.selectTool("pgpSigningKey")
+            val staleSigning = org.openintents.openpgp.util.OpenPgpServiceConnection.lastConnection!!
+            staleSigning.reportBound(object : org.openintents.openpgp.IOpenPgpService2 {})
+            val staleSigningCallback = org.openintents.openpgp.util.OpenPgpApi.lastAsyncCallback!!
+            fixture.seed(R.string.settings_key_openpgp_provider, "different.pgp")
+            staleSigningCallback.onReturn(Intent().putExtra("result_code", 1).putExtra("sign_key_id", 101L))
+            expect(fixture.settings.getOpenPGPSigningKey() == 99L && staleSigning.unbinds == 1,
+                { "provider change did not revoke pending signing selection" })
+            android.content.pm.PackageManager.resolvedServices = emptyList()
             field("canGoBack").set(activity, false)
             publish.invoke(activity)
             overview.selectTool("display")
@@ -10171,6 +10303,36 @@ fun main() {
             expect(fixture.settings.currentAutoLockSeconds() == 180 && fixture.settings.getRelockOnBackground(),
                 { "stale shared Settings callback changed preferences" })
         } finally { overview.close(); VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Shared setup shell guards backward bounds and destroyed navigation") {
+        val finishedFragment = IntroScreenActivity.IntroFinishedFragment()
+        expect(finishedFragment.canGoBackward() && !finishedFragment.canGoForward(), { "initial completion navigation changed" })
+        finishedFragment.restoreCompletedSetup()
+        expect(!finishedFragment.canGoBackward() && finishedFragment.canGoForward(), { "completed pager permits credential-step edits" })
+        val wizard = IntroWizard()
+        wizard.createWizard()
+        expect(wizard.contentView is com.fairuniversal.offlineotp.ui.host.SetupShellComposeView,
+            { "wizard still mounts the native library controls" })
+        val moves = mutableListOf<Int>()
+        val host = com.fairuniversal.offlineotp.ui.host.SetupShellComposeView(Context(), View(), 5, "Back", "Next") { moves.add(it) }
+        host.navigate(-1); host.navigate(5); host.navigate(1)
+        expect(moves == listOf(1), { "invalid shell direction was dispatched" })
+        host.render(3); host.navigate(-1)
+        expect(moves == listOf(1, -1), { "back from later step was lost" })
+        host.render(3, busy = true)
+        host.navigate(-1); host.navigate(1)
+        expect(moves == listOf(1, -1), { "busy wizard navigated" })
+        host.render(4)
+        host.navigate(1)
+        expect(moves == listOf(1, -1), { "unfinished wizard returned success" })
+        host.render(4, completed = true)
+        host.navigate(-1)
+        expect(moves == listOf(1, -1), { "completed wizard reopened credential steps" })
+        host.navigate(1)
+        expect(moves == listOf(1, -1, 1), { "completed wizard could not finish" })
+        host.close(); host.navigate(1)
+        expect(moves == listOf(1, -1, 1), { "destroyed wizard navigated" })
     }
 
     check("Shared setup choices reject invalid and destroyed view callbacks") {

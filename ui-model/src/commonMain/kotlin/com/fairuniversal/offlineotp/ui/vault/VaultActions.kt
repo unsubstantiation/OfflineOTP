@@ -78,6 +78,7 @@ class VaultActions(
     val onExportPreferences: (() -> Unit)? = null,
     val onImportPreferences: (() -> Unit)? = null,
     val onToggleBackupTimestamp: (() -> Unit)? = null,
+    val onOpenSettings: (() -> Unit)? = null,
     val onOpenAbout: (() -> Unit)? = null
 ) {
     /**
@@ -87,6 +88,7 @@ class VaultActions(
     fun guarded(isActive: () -> Boolean): VaultActions = VaultActions(
         onImportPreferences = onImportPreferences?.let { action -> { if (isActive()) action() } },
         onToggleBackupTimestamp = onToggleBackupTimestamp?.let { action -> { if (isActive()) action() } },
+        onOpenSettings = onOpenSettings?.let { action -> { if (isActive()) action() } },
         onOpenAbout = onOpenAbout?.let { action -> { if (isActive()) action() } },
         onEnrollHardwareUnlock = onEnrollHardwareUnlock?.let { action -> { if (isActive()) action() } },
         onRemoveHardwareUnlock = onRemoveHardwareUnlock?.let { action -> { if (isActive()) action() } },

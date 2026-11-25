@@ -71,6 +71,10 @@ open class AppCompatActivity : FragmentActivity() {
         titleResource = resId
     }
 
+    var contentView: android.view.View? = null
+        private set
+    open fun setContentView(view: android.view.View) { contentView = view }
+
     open fun setContentView(resId: Int) {
         contentResource = resId
     }

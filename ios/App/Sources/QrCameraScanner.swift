@@ -1,6 +1,7 @@
 import UIKit
 import VisionKit
 import Vision
+import OfflineOTPPresentation
 
 /// Live QR-only camera reader. VisionKit supplies the camera lifecycle and permission UI; the
 /// scanned payload goes unchanged to the same offline OTP/migration parser as image imports.
@@ -10,6 +11,7 @@ final class QrCaptureViewController: UIViewController {
     private let onUnavailable: () -> Void
     private var scanner: DataScannerViewController?
     private var delivered = false
+    private let controls = ScannerControlsPresentation()
 
     init(onPayload: @escaping (String) -> Void, onUnavailable: @escaping () -> Void) {
         self.onPayload = onPayload
@@ -47,20 +49,17 @@ final class QrCaptureViewController: UIViewController {
         container.addSubview(scanner.view)
         scanner.didMove(toParent: self)
 
-        let cancel = UIButton(type: .system)
-        cancel.setTitle("Cancel", for: .normal)
-        cancel.setTitleColor(.white, for: .normal)
-        cancel.backgroundColor = UIColor.black.withAlphaComponent(0.6)
-        cancel.layer.cornerRadius = 8
-        cancel.translatesAutoresizingMaskIntoConstraints = false
-        cancel.addTarget(self, action: #selector(cancelTapped), for: .touchUpInside)
-        container.addSubview(cancel)
+        let cancel = controls.viewController(actions: self)
+        addChild(cancel)
+        cancel.view.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(cancel.view)
         NSLayoutConstraint.activate([
-            cancel.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor, constant: 12),
-            cancel.trailingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            cancel.widthAnchor.constraint(greaterThanOrEqualToConstant: 76),
-            cancel.heightAnchor.constraint(greaterThanOrEqualToConstant: 36)
+            cancel.view.topAnchor.constraint(equalTo: container.safeAreaLayoutGuide.topAnchor, constant: 12),
+            cancel.view.trailingAnchor.constraint(equalTo: container.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            cancel.view.widthAnchor.constraint(equalToConstant: 120),
+            cancel.view.heightAnchor.constraint(equalToConstant: 60)
         ])
+        cancel.didMove(toParent: self)
         view = container
 
         do {
@@ -73,18 +72,20 @@ final class QrCaptureViewController: UIViewController {
         }
     }
 
-    @objc private func cancelTapped() {
+    func cancel() {
+        controls.close()
         scanner?.stopScanning()
         dismiss(animated: true)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        controls.close()
         scanner?.stopScanning()
     }
 }
 
-extension QrCaptureViewController: DataScannerViewControllerDelegate {
+extension QrCaptureViewController: ScannerControlActions, DataScannerViewControllerDelegate {
     func dataScanner(_ dataScanner: DataScannerViewController,
                      didAdd addedItems: [RecognizedItem], allItems: [RecognizedItem]) {
         guard !delivered else { return }

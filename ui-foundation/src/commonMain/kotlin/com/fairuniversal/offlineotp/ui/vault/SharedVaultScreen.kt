@@ -110,3 +110,13 @@ fun SharedVaultDraggedItemBox(
         content()
     }
 }
+
+/** Common secondary-page navigation. Hosts retain Back/task/session authority. */
+@Composable
+fun SharedPageNavigation(onBack: (() -> Unit)?, enabled: Boolean = true,
+                         content: @Composable () -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        onBack?.let { ForestTextAction(text = "Back", onClick = it, enabled = enabled) }
+        Box(Modifier.weight(1f)) { content() }
+    }
+}

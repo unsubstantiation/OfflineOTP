@@ -687,3 +687,131 @@ authentication task generation/key handoff remains authoritative. Sandbox checks
 and disposal; the stub AndroidView cannot verify attachment, measurement, keyboard, autofill or OS
 biometric behavior. Those native integration checks are still release requirements. This is shared
 layout with a native input adapter, not a claim that Android password entry is a pure Compose field.
+
+### Backup password-source selection
+
+The Android overview now exposes app-password versus separate-backup-password selection through
+common single-choice Compose. It retains `LoginBackupPolicy` defaults, including separate-password
+mode for legacy installations. Choosing app-password mode with an obsolete plaintext password first
+opens the existing shared deletion warning; no preference changes until explicit confirmation.
+The typed adapter atomically commits source selection and consented removal in one editor. It
+rejects enabling login mode when legacy plaintext exists without consent, and never removes the
+wrapped separate password, allowing mode changes without discarding that configuration. No password
+is read into the UI, and mode selection does not schedule backups or bypass readiness checks.
+The separate-password choice explicitly points to the still-native credential editor.
+
+Both prompts check session/key generation, busy state and prompt identity. A canceled/dismissed or
+superseded deletion callback cannot select a source or erase storage. Sandbox checks cover consent,
+cancellation, confirmed removal, wrapped-password preservation, both modes and replay after a newer
+choice. KeyStore credential entry and old-backup restore compatibility still need native testing.
+
+### Separate backup-password editor
+
+The overview now launches `ConfirmedSecretPreferenceDialog`, a shared confirmation shell with a
+protected Android credential-input slot. The native `component_password` fields are retained only
+as input capability adapters (matching the authentication approach): password visibility toggle,
+matching confirmation, save-disabled widgets and accessibility/autofill block flags remain native.
+Their original buttons are hidden. Stored passwords are never decrypted/preloaded into the form.
+Both blank fields intentionally clear the separate credential; the explanatory text warns that
+existing backups still require their original password and source selection is unchanged.
+
+The host validates matching/bounded input, consumes confirmation once and drops the input adapter
+on dismissal. The Activity clears fields before persistence, rechecks matching, prompt ownership,
+idle state and session generation/key identity, and also clears on external dismiss/lock. The typed
+adapter wraps nonempty UTF-8 bytes with the same KeyStore RSA key/encoding, wipes plaintext bytes in
+finally, and reports the preference commit result. Empty clears without requiring KeyStore access.
+It never changes password-source mode. Sandbox checks cover no preload/save state, invalid-confirm
+blocking, blank clearing, dismissed cleanup and size bounds. Widget-event dispatch and actual
+KeyStore wrapping/autofill/accessibility require native integration tests; immutable String contents
+cannot be reliably zeroized.
+
+### Special features and KeyStore reset
+
+The shared overview now exposes the special-feature opt-in using the common single-choice form,
+including the existing warning. Saving uses a typed boolean commit; source/settings values are
+otherwise left intact. Reset is disabled until opt-in and dispatch independently rechecks it.
+Both the overview and native advanced reset entry point now use the same private guarded shared
+confirmation method. It selects the existing encryption-specific warning (password versus KeyStore
+vault loss) and snapshots the encryption type/session generation. Confirm requires current prompt
+identity, the same key/session, idle state, still-enabled special features and unchanged encryption
+before invoking the existing destructive platform adapter. Dismiss/replay/revoked opt-in cannot run
+reset. Native key deletion, biometric cleanup and vault rekey/wipe behavior are not reimplemented.
+Sandbox checks deliberately test cancellation and revoked/replayed confirmations without executing
+an authorized destructive reset. Actual KeyStore reset/recovery remains a device integration gate.
+
+### Biometric quick-unlock selection and enrollment ownership
+
+The overview now exposes a shared disabled/enabled selector for password-encrypted, password-auth
+vaults. Enable checks platform availability and opens the same common password-confirmation form
+as the native preference; disable uses the existing biometric-store cleanup adapter. Enrollment
+verification now lives in the Activity bridge, shared by both entry points rather than depending
+on a visible native preference. The optional preference reference only refreshes its checked state.
+
+Enrollment snapshots prompt revision, key/session generation and authentication/encryption policy.
+Password submission, OS completion and a new guarded `BiometricKeyStore.save` overload recheck
+ownership. The store checks before launching, after OS success and immediately before writing
+ciphertext/enabled state, so a dismissed/replaced/locked prompt cannot persist a late shortcut.
+The old save signature remains a compatibility wrapper. Pending submissions are blocked; returned
+key copies are wiped even for stale completions. Stale dismiss callbacks cannot close a replacement
+prompt. No fallback weakens password verification or uses biometric success as vault authority.
+Sandbox checks cover disabling, revoked password submission, replaced-prompt dismiss and denied
+store permission; actual OS enrollment/KeyStore success and cancellation require device tests.
+
+### Consolidation pass: main chrome, About, setup shell and advanced Settings
+
+See `shared-ui-migration-status.md` for the authoritative current status; older entries above
+record intermediate states and are not a remaining-work checklist.
+
+MainActivity now publishes shared controls and all import/export/settings/hardware callbacks with
+session guards, while AndroidVaultController enables `showControls`. Hidden native menu/drawer
+engines remain for existing state/restoration compatibility. Google migration progress and preview
+use shared choice/confirmation hosts; collector/pending account disposal remains unchanged. About
+uses common content with Android-generated library versions and full license text, plus flavor
+links. No AboutLibraries native fragment is mounted. The shared wizard shell wraps the existing
+fragment pager/result contract instead of rendering material-intro's native controls.
+
+Authentication change uses a common method selector and shared confirmed-secret shell with native
+protected fields, minimum/maximum/matching validation and the existing atomic ChangeCredentialsTask.
+Busy/lock/destroy ownership prevents duplicate updates and cancels orphan tasks. Encryption selection
+and data-loss confirmation recheck generation, encryption type, authentication and prompt ownership
+before the existing authentication/reencryption adapters. Both native compatibility and shared
+entry points use the guarded warning. Provider discovery retains APG exclusion; signing uses the
+OpenPGP service's own key-selection UI with late-result guards and explicit unbind.
+
+Transient Android Toast/Snackbar delivery is retained as a platform accessibility/feedback adapter,
+not described as common visual UI. Unused compatibility editors still contain native dialogs. The
+secondary Activity toolbar chrome and native integration/parity gates remain open, as recorded in
+the status document. Linux stub tests cannot establish real pager reparenting, input/IME/autofill,
+provider behavior, hardware crypto, Compose UIKit interop, or accessibility.
+
+Secondary authentication/backup/settings toolbar chrome is now hidden. SharedPageNavigation provides
+Back for Settings/Backup and respects bridge busy state; the host still enforces its exit/task policy.
+Authentication preserves its no-Up security behavior. Android native-insets/keyboard/back tests are
+still mandatory. Setup shell callbacks also block navigation during credential/restore work and
+drop stale password callbacks; destruction cancels a pending first-run restore task.
+
+### Busy-state semantics for shared grouped tools
+
+`SharedVaultToolGroups` now takes an overall availability flag. Full-page Settings/Backup and
+hardware pages pass `!busy`, so button and detailed-row enabled semantics match the existing host
+mutation guards. Busy controls no longer appear actionable; detailed rows also use disabled text
+color. Click closures recheck the flag and per-item availability. The default remains enabled for
+ordinary tool dialogs, and read-only informational rows remain readable. Android instrumentation
+now asserts disabled Back and action semantics while a shared settings page is busy. Instrumentation
+still requires native execution; local evidence is compilation plus source/JVM checks only.
+
+### Setup navigation availability and retained-pager policy
+
+The setup shell now receives explicit busy/completed state from the Activity bridge and completion
+step publications. Create/restore work disables both shared navigation actions. The final forward
+action is unavailable until setup succeeds; completed setup disables backward navigation to avoid
+presenting credential edits that no longer affect the committed vault. Retry restores normal
+navigation when work finishes unsuccessfully. The host independently rejects busy/unfinished/
+completed-back callbacks, including calls retained from an earlier composition.
+
+The retained material-intro completion fragment also overrides backward/forward availability:
+busy work cannot be navigated through via pager swipes, and a completed vault cannot swipe back to
+configuration. This is source/JVM-checked policy; actual pager touch/recreation behavior still needs
+Android execution. Sandbox checks cover busy navigation, unfinished final forward, completed Back,
+successful completion and terminal closure. The Android component test now checks disabled semantics
+for busy/final states and callback replay after close; it compiles but has not run natively.

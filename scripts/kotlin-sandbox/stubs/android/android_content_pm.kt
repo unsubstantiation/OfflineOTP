@@ -10,6 +10,9 @@ object PackageManager {
     const val PERMISSION_DENIED = -1
     const val SIGNATURE_NO_MATCH = -3
 
+    var resolvedServices: List<ResolveInfo> = emptyList()
+    fun queryIntentServices(intent: android.content.Intent, flags: Int): List<ResolveInfo> = resolvedServices
+
     fun getApplicationInfo(packageName: String, flags: Int): ApplicationInfo = ApplicationInfo()
     fun checkSignatures(firstPackage: String, secondPackage: String): Int = SIGNATURE_NO_MATCH
     fun getPermissionInfo(permissionName: String, flags: Int): PermissionInfo = PermissionInfo()
@@ -52,4 +55,11 @@ class ActivityInfo {
         /** The manifest value that lets the device orientation decide (no lock). */
         const val SCREEN_ORIENTATION_UNSPECIFIED: Int = -1
     }
+}
+
+class ResolveInfo { var serviceInfo: ServiceInfo? = null }
+class ServiceInfo {
+    var packageName: String = ""
+    var label: String = ""
+    fun loadLabel(manager: PackageManager): CharSequence = label
 }

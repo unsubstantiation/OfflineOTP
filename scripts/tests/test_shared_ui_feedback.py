@@ -127,7 +127,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         screen = (FOUNDATION / "SharedBackupScreen.kt").read_text()
         tools = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
         self.assertIn("SharedVaultToolGroups(", screen)
-        self.assertIn("SharedVaultToolGroups(groups, message, onSelectTool)", tools)
+        self.assertIn("SharedVaultToolGroups(groups, message, onSelectTool = onSelectTool)", tools)
         self.assertIn("if (busy) LinearProgressIndicator()", screen)
 
     def test_hardware_management_is_visible_compose_and_clears_credentials(self):
@@ -295,8 +295,11 @@ class SharedUiFeedbackTest(unittest.TestCase):
             self.assertIn(marker, form)
         self.assertIn('"pgpRecipients" -> if (settings!!.getOpenPGPMode() == OpenPgpMode.KEY_FILE) requestOpenPgpKeyFiles(true)', settings)
         self.assertIn('"pgpSecret" -> if (settings!!.getOpenPGPMode() == OpenPgpMode.KEY_FILE) requestOpenPgpKeyFiles(false)', settings)
-        self.assertIn('if (key == "pgpProvider" && settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER) return', settings)
-        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyOpenPgpMode", 1)[1]
+        self.assertIn('"pgpProvider" -> showSharedPgpProvider()', settings)
+        provider = settings.split("private fun showSharedPgpProvider()", 1)[1].split("private var credentialsTask", 1)[0]
+        self.assertIn("settings!!.getOpenPGPMode() != OpenPgpMode.PROVIDER", provider)
+        self.assertIn("installedPgpProviders().any", provider)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyOpenPgpMode", 1)[1].split("fun Settings.applyOpenPgpProviderOptions", 1)[0]
         self.assertIn("mode: OpenPgpMode", adapter)
         self.assertIn("OpenPgpMode.preferenceValue(mode)", adapter)
         self.assertNotIn(".remove(", adapter)
@@ -422,3 +425,128 @@ class SharedUiFeedbackTest(unittest.TestCase):
         layout = ET.parse(ROOT / "app/src/main/res/layout/content_authenticate.xml").getroot()
         self.assertEqual("FrameLayout", layout.tag)
         self.assertEqual("gone", layout[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+
+    def test_backup_password_source_requires_consent_and_atomic_legacy_removal(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        source = settings.split("private fun showSharedBackupPasswordSource", 1)[1].split("private fun showSharedPolicyChecklist", 1)[0]
+        for marker in ("SingleChoiceSelectionComposeView(", "DeleteConfirmationComposeView(",
+                       "settings!!.hasLegacyBackupPassword(this)", "LoginBackupPolicy.usesLoginPassword(this)",
+                       "applyBackupPasswordSource(this, useLogin = true, removeLegacy = true)"):
+            self.assertIn(marker, source)
+        self.assertEqual(2, source.count("VaultSession.isCurrent(generation)"))
+        self.assertEqual(2, source.count("val owned = settingsConfirmationPrompt === host"))
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyBackupPasswordSource", 1)[1].split("fun Settings.applySeparateBackupPassword", 1)[0]
+        self.assertIn("useLogin && hasLegacyBackupPassword(context) && !removeLegacy", adapter)
+        self.assertIn("useLogin && removeLegacy", adapter)
+        self.assertEqual(1, adapter.count(".commit()"))
+        self.assertNotIn("settings_key_backup_password_enc", adapter)
+
+    def test_separate_backup_password_uses_shared_shell_and_protected_input(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedSeparateBackupPassword", 1)[1].split("private fun showSharedBackupPasswordSource", 1)[0]
+        for marker in ("ConfirmedSecretPreferenceComposeView(", "ConfirmedPasswordTransformationHelper.setup",
+                       "password.isSaveEnabled = false", "IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS",
+                       "IMPORTANT_FOR_AUTOFILL_NO_EXCLUDE_DESCENDANTS", "VaultSession.isCurrent(generation)",
+                       "applySeparateBackupPassword(this, value)", "host.setOnDismissListener", "releaseInput()"):
+            self.assertIn(marker, form)
+        self.assertNotIn("getBackupPasswordEnc()", form)
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applySeparateBackupPassword", 1)[1]
+        self.assertIn('if (value.isEmpty()) "" else', adapter)
+        self.assertIn("EncryptionHelper.encrypt(pair.public, plain)", adapter)
+        self.assertIn("finally { plain.fill(0) }", adapter)
+        self.assertIn(".commit()", adapter)
+        self.assertNotIn("settings_key_auto_backup_use_login", adapter)
+        shared = (FOUNDATION / "ConfirmedSecretPreferenceDialog.kt").read_text()
+        self.assertIn("credentialInput: @Composable () -> Unit", shared)
+        self.assertNotIn("password: String", shared)
+
+    def test_keystore_reset_has_one_guarded_shared_confirmation_for_both_routes(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        form = settings.split("private fun showSharedKeyStoreReset", 1)[1].split("private fun showSharedSeparateBackupPassword", 1)[0]
+        for marker in ("DeleteConfirmationComposeView(", "settings!!.getSpecialFeatures() != true",
+                       "settingsConfirmationPrompt === host", "VaultSession.isCurrent(generation)",
+                       "settings!!.getEncryption() == encryption", "R.string.settings_dialog_msg_clear_keystore_password",
+                       "R.string.settings_dialog_msg_clear_keystore_keystore", "clearKeyStore()"):
+            self.assertIn(marker, form)
+        native = settings.split("val clearKeyStore = findPreference", 1)[1].split("// Theme mode", 1)[0]
+        self.assertIn("activity.showSharedKeyStoreReset()", native)
+        self.assertNotIn("activity.clearKeyStore()", native)
+        special = settings.split("private fun showSharedSpecialFeatures", 1)[1].split("private fun showSharedKeyStoreReset", 1)[0]
+        self.assertIn("SingleChoiceSelectionComposeView(", special)
+        self.assertIn("R.string.about_dialog_special_features", special)
+        self.assertIn("applySpecialFeatures(this, index == 1)", special)
+
+    def test_biometric_overview_enrollment_rechecks_ownership_at_persistence(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        self.assertIn('PortableToolItem("biometricUnlock"', settings)
+        selection = settings.split("private fun showSharedBiometricSelection", 1)[1].split("private fun promptBiometricEnrollment", 1)[0]
+        self.assertIn("SingleChoiceSelectionComposeView(", selection)
+        self.assertIn("BiometricKeyStore.availability(this)", selection)
+        enrollment = settings.split("private fun promptBiometricEnrollment", 1)[1].split("private fun verifyVaultPassword", 1)[0]
+        for marker in ("host.biometricPrompt === view", "host.biometricEnrollmentRevision == revision",
+                       "VaultSession.isCurrent(generation)", "permitted = { owned() }", "if (!owned()) return@save",
+                       "vaultKey.fill(0)", "!owned() || pending"):
+            self.assertIn(marker, enrollment)
+        store = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/BiometricKeyStore.kt").read_text()
+        guarded = store.split("vaultKey: ByteArray, permitted: () -> Boolean", 1)[1].split("fun load(", 1)[0]
+        self.assertGreaterEqual(guarded.count("if (!permitted())"), 3)
+        self.assertLess(guarded.rindex("if (!permitted())"), guarded.index(".putString(PREF_ENCRYPTED_KEY"))
+
+    def test_visible_android_shell_and_remaining_routes_are_common(self):
+        base = ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities"
+        main = (base / "MainActivity.kt").read_text()
+        controller = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/View/AndroidVaultController.kt").read_text()
+        self.assertIn("showControls = true", controller)
+        for view in ("main_app_bar", "speedDialScroll", "speedDialOverlay", "speedDial", "fab_main_layout"):
+            self.assertIn(f"findViewById<View>(R.id.{view})?.visibility = View.GONE", main)
+        self.assertIn("setDrawerLockMode(DrawerLayout.LOCK_MODE_LOCKED_CLOSED)", main)
+        actions = main.split("view.render(published.state, VaultActions(", 1)[1].split("fun showEntryCategory", 1)[0]
+        for callback in ("onOpenSettings", "onHardwareOath", "onLock", "onQueryChange", "onSelectCategory",
+                         "onSelectSort", "onToggleTag", "onToggleUntagged", "onClearFilters"):
+            self.assertIn(callback + " =", actions)
+        self.assertIn(".guarded { VaultSession.isCurrent(generation)", actions)
+        self.assertNotIn("AlertDialog.Builder", main)
+        settings = (base / "SettingsActivity.kt").read_text()
+        self.assertNotIn('PortableToolItem("advanced"', settings)
+        for key in ("authentication", "encryption", "pgpProvider", "pgpSigningKey"):
+            self.assertIn(f'PortableToolItem("{key}"', settings)
+        self.assertIn("pendingMigrationImport !== pending", main)
+        about = (base / "AboutActivity.kt").read_text()
+        self.assertIn("AboutScreenComposeView(", about)
+        for field in ("artifactVersion", "licenseContent", "website"):
+            self.assertIn(field, about)
+        self.assertNotIn("LibsBuilder", about)
+
+    def test_setup_shell_and_scanner_controls_are_common_with_native_adapters(self):
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        self.assertIn("SetupShellComposeView(", intro)
+        self.assertIn(".fragment(WelcomeFragment())", intro)
+        self.assertNotIn("SimpleSlide.Builder()", intro)
+        shell = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupShell.kt").read_text()
+        self.assertIn("content: @Composable () -> Unit", shell)
+        scanner = (ROOT / "ios/App/Sources/QrCameraScanner.swift").read_text()
+        self.assertIn("controls.viewController(actions: self)", scanner)
+        self.assertNotIn("UIButton", scanner)
+        self.assertIn("scanner?.stopScanning()", scanner)
+
+    def test_busy_shared_pages_disable_controls_as_well_as_guarding_hosts(self):
+        groups = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
+        body = groups.split("fun SharedVaultToolGroups(", 1)[1]
+        self.assertIn("enabled: Boolean = true", body)
+        self.assertIn("enabled = enabled && item.enabled", body)
+        self.assertIn(".clickable(enabled && item.enabled)", body)
+        self.assertIn("if (enabled && item.enabled) onSelectTool(item.key)", body)
+        for page in ("SharedBackupScreen.kt", "SharedHardwareKeysScreen.kt"):
+            self.assertIn("enabled = !busy", (FOUNDATION / page).read_text())
+
+    def test_setup_shell_busy_and_completion_state_reaches_buttons_and_pager(self):
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        self.assertIn("sharedShell?.render(position, busy, setupFinished)", intro)
+        self.assertIn("(hostContext as? IntroScreenActivity)?.publishSetupNavigation()", intro)
+        self.assertIn("override fun canGoBackward(): Boolean = !navigationBusy() && !canGoForward && !completedSetupRestored", intro)
+        shell = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupShell.kt").read_text()
+        self.assertIn("enabled = step > 0 && !busy && !completed", shell)
+        self.assertIn("enabled = !busy && (step < count - 1 || completed)", shell)
+        bridge = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SetupShellComposeView(", 1)[1]
+        self.assertIn("if (closed || busy || direction !in setOf(-1, 1)) return", bridge)
+        self.assertIn("step == count - 1 && !completed", bridge)

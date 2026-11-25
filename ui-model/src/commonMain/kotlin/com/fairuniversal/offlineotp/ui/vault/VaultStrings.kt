@@ -25,6 +25,7 @@ data class VaultStrings(
     val searchFields: String = "Search fields",
     val autoLock: String = "Auto-lock",
     val backupTimestamp: String = "Timestamp backup filenames",
+    val settingsAction: String = "Settings",
     val aboutApp: String = "About OfflineOTP",
     val emailDetails: String = "Connection details",
     val importPreferences: String = "Import preferences",

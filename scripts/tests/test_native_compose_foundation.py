@@ -448,7 +448,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('self?.dismiss(animated: false)', unlock)
 
         scanner = (ROOT / 'ios/App/Sources/QrCameraScanner.swift').read_text(encoding='utf-8')
-        self.assertIn('cancel.setTitle("Cancel", for: .normal)', scanner)
+        self.assertIn('controls.viewController(actions: self)', scanner)
+        self.assertNotIn('UIButton', scanner)
         self.assertIn('self.dismiss(animated: false)', scanner)
 
         picker = (ROOT / 'ios/App/Sources/NativeFilePicker.swift').read_text(encoding='utf-8')

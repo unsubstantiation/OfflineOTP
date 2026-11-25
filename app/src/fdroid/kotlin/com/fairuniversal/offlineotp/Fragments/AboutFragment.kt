@@ -10,6 +10,10 @@ import com.fairuniversal.offlineotp.R
 
 /** F-Droid flavor: adds donation links for both authors to the About tab. */
 open class AboutFragment : BaseAboutFragment() {
+    override fun sharedExtraLinks() = listOf(
+        com.fairuniversal.offlineotp.ui.vault.AboutLink("donateAuthor1", "Support Jakob Nixdorf", ABOUT_AUTHOR1_EXTRA_LINK),
+        com.fairuniversal.offlineotp.ui.vault.AboutLink("donateAuthor2", "Support Richy HBM", ABOUT_AUTHOR2_EXTRA_LINK))
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
                               savedInstanceState: Bundle?): View {
         val v = super.onCreateView(inflater, container, savedInstanceState)

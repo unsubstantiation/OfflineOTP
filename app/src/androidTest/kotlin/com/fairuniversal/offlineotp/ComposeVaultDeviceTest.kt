@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fairuniversal.offlineotp.ui.vault.VaultActions
@@ -133,4 +134,135 @@ class ComposeVaultDeviceTest {
             view.clear()
         }
     }
+
+    @Test
+    fun sharedSettingsNavigationBlocksBusyAndClosedCallbacks() {
+        lateinit var view: com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView
+        var backs = 0
+        var selections = 0
+        val groups = listOf(com.fairuniversal.offlineotp.ui.portable.PortableToolGroup("Security", listOf(
+            com.fairuniversal.offlineotp.ui.portable.PortableToolItem("example", "Security option"))))
+        compose.runOnIdle {
+            view = com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView(compose.activity) { selections++ }
+            view.onBack = { backs++ }
+            view.render("Settings fixture", "No vault data", groups, false)
+            compose.activity.setContentView(view)
+        }
+        compose.onNodeWithText("Settings fixture").assertExists()
+        compose.onNodeWithText("Security option").performClick()
+        compose.onNodeWithText("Back").performClick()
+        compose.runOnIdle {
+            assertEquals(1, selections)
+            assertEquals(1, backs)
+            view.render("Settings fixture", "No vault data", groups, true)
+            view.selectTool("example")
+            view.navigateBack()
+            assertEquals(1, selections)
+            assertEquals(1, backs)
+        }
+        compose.onNodeWithText("Back").assertIsNotEnabled()
+        compose.onNodeWithText("Security option").assertIsNotEnabled()
+        compose.runOnIdle {
+            view.close()
+            view.render("Settings fixture", "No vault data", groups, false)
+            view.selectTool("example")
+            view.navigateBack()
+            assertEquals(1, selections)
+            assertEquals(1, backs)
+        }
+        compose.onNodeWithText("Security option").assertDoesNotExist()
+    }
+
+    @Test
+    fun setupShellAttachesNativeContentAndGuardsDisposedNavigation() {
+        lateinit var view: com.fairuniversal.offlineotp.ui.host.SetupShellComposeView
+        lateinit var input: android.widget.EditText
+        val moves = ArrayList<Int>()
+        compose.runOnIdle {
+            input = android.widget.EditText(compose.activity).apply { isSaveEnabled = false }
+            view = com.fairuniversal.offlineotp.ui.host.SetupShellComposeView(
+                compose.activity, input, 3, "Previous fixture", "Continue fixture") { moves.add(it) }
+            compose.activity.setContentView(view)
+        }
+        compose.onNodeWithText("1 / 3").assertExists()
+        compose.onNodeWithText("Continue fixture").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1), moves)
+            org.junit.Assert.assertTrue(input.parent != null)
+            view.render(1)
+        }
+        compose.onNodeWithText("2 / 3").assertExists()
+        compose.onNodeWithText("Previous fixture").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1, -1), moves)
+            view.render(1, busy = true)
+            view.navigate(1)
+            assertEquals(listOf(1, -1), moves)
+        }
+        compose.onNodeWithText("Previous fixture").assertIsNotEnabled()
+        compose.onNodeWithText("Continue fixture").assertIsNotEnabled()
+        compose.runOnIdle { view.render(2) }
+        compose.onNodeWithText("Continue fixture").assertIsNotEnabled()
+        compose.runOnIdle { view.render(2, completed = true) }
+        compose.onNodeWithText("Previous fixture").assertIsNotEnabled()
+        compose.onNodeWithText("Continue fixture").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1, -1, 1), moves)
+            view.close()
+            view.navigate(1)
+            assertEquals(listOf(1, -1, 1), moves)
+        }
+        compose.onNodeWithText("Continue fixture").assertDoesNotExist()
+        compose.runOnIdle { org.junit.Assert.assertNull(input.parent) }
+    }
+
+    @Test
+    fun aboutTabsRenderHostGeneratedVersionsAndFullLicenseNotices() {
+        var taps = 0
+        compose.runOnIdle {
+            val notices = listOf(com.fairuniversal.offlineotp.ui.portable.PortableLibraryNotice(
+                "Fixture dependency 1.2.3", "Full fixture license text", "Android test artifact"))
+            compose.activity.setContentView(com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView(
+                compose.activity, "fixture-build", notices, emptyList(), { true }, { taps++ }, {}))
+        }
+        compose.onNodeWithText("Version: fixture-build").performClick()
+        compose.runOnIdle { assertEquals(1, taps) }
+        compose.onNodeWithText("Libraries").performClick()
+        compose.onNodeWithText("Fixture dependency 1.2.3").assertExists()
+        compose.onNodeWithText("Full fixture license text").assertExists()
+        compose.onNodeWithText("Android test artifact").assertExists()
+    }
+
+
+    @Test
+    fun confirmedSecretShellDismissalReleasesNativeInputAndRejectsReplay() {
+        lateinit var view: com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView
+        lateinit var input: android.widget.EditText
+        var saves = 0
+        compose.runOnIdle {
+            input = android.widget.EditText(compose.activity).apply {
+                isSaveEnabled = false
+                inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+                setText("fixture-not-a-vault-secret")
+            }
+            view = com.fairuniversal.offlineotp.ui.host.ConfirmedSecretPreferenceComposeView(
+                compose.activity, input, "Credential fixture", "Native protected field", "Save fixture", "Cancel fixture",
+                onSave = { saves++ }, onDismiss = { view.dismiss() })
+            view.setOnDismissListener {
+                input.setText("")
+                view.releaseInput()
+            }
+            view.updateValidity(true)
+            view.show()
+        }
+        compose.onNodeWithText("Credential fixture").assertExists()
+        compose.onNodeWithText("Cancel fixture").performClick()
+        compose.runOnIdle {
+            assertEquals("", input.text.toString())
+            view.confirm()
+            assertEquals(0, saves)
+        }
+        compose.onNodeWithText("Credential fixture").assertDoesNotExist()
+    }
+
 }
