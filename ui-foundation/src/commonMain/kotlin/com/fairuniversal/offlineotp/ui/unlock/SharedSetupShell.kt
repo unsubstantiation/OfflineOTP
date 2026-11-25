@@ -13,13 +13,14 @@ import androidx.compose.ui.unit.dp
 /** Common wizard chrome. Hosts enforce credential readiness and own platform result delivery. */
 @Composable
 fun SharedSetupShell(step: Int, count: Int, backLabel: String, nextLabel: String,
-                     onBack: () -> Unit, onNext: () -> Unit, content: @Composable () -> Unit) {
+                     busy: Boolean, completed: Boolean, onBack: () -> Unit, onNext: () -> Unit,
+                     content: @Composable () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Text("${step + 1} / $count", modifier = Modifier.padding(12.dp))
         Box(Modifier.weight(1f)) { content() }
         Row(Modifier.padding(12.dp)) {
-            com.fairuniversal.offlineotp.ui.vault.ForestTextAction(backLabel, onClick = onBack, enabled = step > 0)
-            com.fairuniversal.offlineotp.ui.vault.ForestTextAction(nextLabel, onClick = onNext)
+            com.fairuniversal.offlineotp.ui.vault.ForestTextAction(backLabel, onClick = onBack, enabled = step > 0 && !busy && !completed)
+            com.fairuniversal.offlineotp.ui.vault.ForestTextAction(nextLabel, onClick = onNext, enabled = !busy && (step < count - 1 || completed))
         }
     }
 }

@@ -10306,6 +10306,10 @@ fun main() {
     }
 
     check("Shared setup shell guards backward bounds and destroyed navigation") {
+        val finishedFragment = IntroScreenActivity.IntroFinishedFragment()
+        expect(finishedFragment.canGoBackward() && !finishedFragment.canGoForward(), { "initial completion navigation changed" })
+        finishedFragment.restoreCompletedSetup()
+        expect(!finishedFragment.canGoBackward() && finishedFragment.canGoForward(), { "completed pager permits credential-step edits" })
         val wizard = IntroWizard()
         wizard.createWizard()
         expect(wizard.contentView is com.fairuniversal.offlineotp.ui.host.SetupShellComposeView,
@@ -10316,8 +10320,19 @@ fun main() {
         expect(moves == listOf(1), { "invalid shell direction was dispatched" })
         host.render(3); host.navigate(-1)
         expect(moves == listOf(1, -1), { "back from later step was lost" })
+        host.render(3, busy = true)
+        host.navigate(-1); host.navigate(1)
+        expect(moves == listOf(1, -1), { "busy wizard navigated" })
+        host.render(4)
+        host.navigate(1)
+        expect(moves == listOf(1, -1), { "unfinished wizard returned success" })
+        host.render(4, completed = true)
+        host.navigate(-1)
+        expect(moves == listOf(1, -1), { "completed wizard reopened credential steps" })
+        host.navigate(1)
+        expect(moves == listOf(1, -1, 1), { "completed wizard could not finish" })
         host.close(); host.navigate(1)
-        expect(moves == listOf(1, -1), { "destroyed wizard navigated" })
+        expect(moves == listOf(1, -1, 1), { "destroyed wizard navigated" })
     }
 
     check("Shared setup choices reject invalid and destroyed view callbacks") {

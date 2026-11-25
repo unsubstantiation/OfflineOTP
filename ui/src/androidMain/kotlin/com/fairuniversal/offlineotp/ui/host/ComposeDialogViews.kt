@@ -1773,17 +1773,25 @@ class SetupShellComposeView(context: android.content.Context, pager: android.vie
 ) : AbstractComposeView(context) {
     private var pager: android.view.View? by mutableStateOf(pager)
     private var step by mutableStateOf(0)
+    private var busy by mutableStateOf(false)
+    private var completed by mutableStateOf(false)
     private var closed = false
     init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
-    fun render(step: Int) { if (!closed && step in 0 until count) this.step = step }
+    fun render(step: Int, busy: Boolean = false, completed: Boolean = false) {
+        if (closed || step !in 0 until count) return
+        this.step = step; this.busy = busy; this.completed = completed
+    }
     fun navigate(direction: Int) {
-        if (!closed && direction in setOf(-1, 1) && (direction > 0 || step > 0)) onNavigate(direction)
+        if (closed || busy || direction !in setOf(-1, 1)) return
+        if (direction < 0 && (step <= 0 || completed)) return
+        if (direction > 0 && step == count - 1 && !completed) return
+        onNavigate(direction)
     }
     fun close() { closed = true; pager = null }
     @Composable override fun Content() {
         val nativePager = pager ?: return
         ForestTheme {
-            com.fairuniversal.offlineotp.ui.unlock.SharedSetupShell(step, count, backLabel, nextLabel,
+            com.fairuniversal.offlineotp.ui.unlock.SharedSetupShell(step, count, backLabel, nextLabel, busy, completed,
                 { navigate(-1) }, { navigate(1) }) {
                 androidx.compose.ui.viewinterop.AndroidView(factory = { nativePager })
             }

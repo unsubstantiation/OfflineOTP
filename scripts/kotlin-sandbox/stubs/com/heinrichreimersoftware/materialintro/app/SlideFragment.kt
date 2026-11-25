@@ -15,5 +15,6 @@ open class SlideFragment : Fragment() {
     /** Refreshes the navigation buttons of the wizard. */
     protected open fun updateNavigation() {}
 
+    open fun canGoBackward(): Boolean = true
     open fun canGoForward(): Boolean = true
 }

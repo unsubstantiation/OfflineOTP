@@ -799,3 +799,19 @@ color. Click closures recheck the flag and per-item availability. The default re
 ordinary tool dialogs, and read-only informational rows remain readable. Android instrumentation
 now asserts disabled Back and action semantics while a shared settings page is busy. Instrumentation
 still requires native execution; local evidence is compilation plus source/JVM checks only.
+
+### Setup navigation availability and retained-pager policy
+
+The setup shell now receives explicit busy/completed state from the Activity bridge and completion
+step publications. Create/restore work disables both shared navigation actions. The final forward
+action is unavailable until setup succeeds; completed setup disables backward navigation to avoid
+presenting credential edits that no longer affect the committed vault. Retry restores normal
+navigation when work finishes unsuccessfully. The host independently rejects busy/unfinished/
+completed-back callbacks, including calls retained from an earlier composition.
+
+The retained material-intro completion fragment also overrides backward/forward availability:
+busy work cannot be navigated through via pager swipes, and a completed vault cannot swipe back to
+configuration. This is source/JVM-checked policy; actual pager touch/recreation behavior still needs
+Android execution. Sandbox checks cover busy navigation, unfinished final forward, completed Back,
+successful completion and terminal closure. The Android component test now checks disabled semantics
+for busy/final states and callback replay after close; it compiles but has not run natively.

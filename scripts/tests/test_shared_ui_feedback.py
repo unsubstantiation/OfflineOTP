@@ -538,3 +538,15 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("if (enabled && item.enabled) onSelectTool(item.key)", body)
         for page in ("SharedBackupScreen.kt", "SharedHardwareKeysScreen.kt"):
             self.assertIn("enabled = !busy", (FOUNDATION / page).read_text())
+
+    def test_setup_shell_busy_and_completion_state_reaches_buttons_and_pager(self):
+        intro = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/IntroScreenActivity.kt").read_text()
+        self.assertIn("sharedShell?.render(position, busy, setupFinished)", intro)
+        self.assertIn("(hostContext as? IntroScreenActivity)?.publishSetupNavigation()", intro)
+        self.assertIn("override fun canGoBackward(): Boolean = !navigationBusy() && !canGoForward && !completedSetupRestored", intro)
+        shell = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedSetupShell.kt").read_text()
+        self.assertIn("enabled = step > 0 && !busy && !completed", shell)
+        self.assertIn("enabled = !busy && (step < count - 1 || completed)", shell)
+        bridge = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SetupShellComposeView(", 1)[1]
+        self.assertIn("if (closed || busy || direction !in setOf(-1, 1)) return", bridge)
+        self.assertIn("step == count - 1 && !completed", bridge)

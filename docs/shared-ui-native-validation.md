@@ -79,3 +79,12 @@ Settings/Backup/hardware grouped actions now expose disabled semantics during wo
 merely ignoring clicks in the host. The Settings component test asserts that both Back and the
 sample action are disabled. Verify this on real Compose, including detailed action rows and TalkBack;
 no emulator execution is implied by the local test-source compilation.
+
+### Setup-navigation follow-up
+
+Verify busy Back/Next are disabled during create, restore picker, backup-password prompt, read/decrypt
+and vault creation. Cancel/error must release retry/navigation. Final Next remains disabled until
+success, then permits finishing while Back remains disabled. Also attempt pager swipes: the completion
+fragment enforces the same busy/completed rules as the common shell. Rotate/background during each
+transition and confirm no stale callback can navigate or reopen committed credential configuration.
+The extended component and sandbox tests are not evidence of native pager execution.

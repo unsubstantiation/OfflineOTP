@@ -77,6 +77,13 @@ open class IntroScreenActivity : IntroActivity() {
         setupFinished = success
         encryptionKey?.let { Arrays.fill(it, 0) }
         encryptionKey = key?.copyOf()
+        publishSetupNavigation()
+    }
+
+    private fun publishSetupNavigation(position: Int = currentSlidePosition) {
+        val busy = firstRunRestoreTask != null || firstRunPasswordDialog != null ||
+            introFinishedFragment?.navigationBusy() == true
+        sharedShell?.render(position, busy, setupFinished)
     }
 
     private companion object {
@@ -277,7 +284,7 @@ open class IntroScreenActivity : IntroActivity() {
                 // The pager may have swapped in the restored fragments by now. Read those, not the
                 // fresh instances this method created.
                 adoptDisplayedFragments()
-                sharedShell?.render(position)
+                publishSetupNavigation(position)
                 // The final slide now presents an explicit choice: create an empty vault or restore
                 // an encrypted backup. Do not provision an empty vault merely by swiping onto it.
             }
@@ -300,7 +307,7 @@ open class IntroScreenActivity : IntroActivity() {
             } else if (currentSlidePosition > 0) goToSlide(currentSlidePosition - 1)
         }
         sharedShell = shell
-        shell.render(currentSlidePosition)
+        publishSetupNavigation()
         setContentView(shell)
         getWindow().decorView.post { adoptDisplayedFragments() }
     }
@@ -510,6 +517,7 @@ open class IntroScreenActivity : IntroActivity() {
             sharedCompletion?.render(title?.text?.toString().orEmpty(), message?.text?.toString().orEmpty(),
                 createVaultButton?.text?.toString().orEmpty(), restoreBackupButton?.text?.toString().orEmpty(),
                 progress?.visibility == View.VISIBLE || activeTask != null, canGoForward || completedSetupRestored)
+            (hostContext as? IntroScreenActivity)?.publishSetupNavigation()
         }
         private var title: TextView? = null
         private var message: TextView? = null
@@ -698,8 +706,11 @@ open class IntroScreenActivity : IntroActivity() {
             callback?.onAfterSaveSettings(result.saveSuccessful, result.encryptionKey)
         }
 
+        // The retained pager's swipe path must enforce the same rules as shared buttons.
+        override fun canGoBackward(): Boolean = !navigationBusy() && !canGoForward && !completedSetupRestored
+
         override fun canGoForward(): Boolean {
-            return canGoForward
+            return canGoForward && !navigationBusy()
         }
 
         /** Reports the outcome of the initial setup (and the new encryption key). */

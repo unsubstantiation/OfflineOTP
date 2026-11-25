@@ -195,9 +195,22 @@ class ComposeVaultDeviceTest {
         compose.onNodeWithText("Previous fixture").performClick()
         compose.runOnIdle {
             assertEquals(listOf(1, -1), moves)
-            view.close()
+            view.render(1, busy = true)
             view.navigate(1)
             assertEquals(listOf(1, -1), moves)
+        }
+        compose.onNodeWithText("Previous fixture").assertIsNotEnabled()
+        compose.onNodeWithText("Continue fixture").assertIsNotEnabled()
+        compose.runOnIdle { view.render(2) }
+        compose.onNodeWithText("Continue fixture").assertIsNotEnabled()
+        compose.runOnIdle { view.render(2, completed = true) }
+        compose.onNodeWithText("Previous fixture").assertIsNotEnabled()
+        compose.onNodeWithText("Continue fixture").performClick()
+        compose.runOnIdle {
+            assertEquals(listOf(1, -1, 1), moves)
+            view.close()
+            view.navigate(1)
+            assertEquals(listOf(1, -1, 1), moves)
         }
         compose.onNodeWithText("Continue fixture").assertDoesNotExist()
         compose.runOnIdle { org.junit.Assert.assertNull(input.parent) }
