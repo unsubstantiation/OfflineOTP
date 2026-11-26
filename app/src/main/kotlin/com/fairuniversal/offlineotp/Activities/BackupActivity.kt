@@ -443,7 +443,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                         backupTypeForPickerRequest(pendingRequest) == Constants.BackupType.OPEN_PGP) {
                         if (activeActionRequestCode == pendingRequest) discardActiveBackupDocument()
                         clearPendingResumeAction(discardCreatedDocument = true)
-                        notifyBackupState(R.string.backup_toast_openpgp_unavailable)
+                        showBackupFeedback(R.string.backup_toast_openpgp_unavailable)
                     }
                 }
             })
@@ -521,7 +521,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             pgpServiceBinding = false
             pgpServiceFailed = true
             updateOpenPgpAvailability()
-            notifyBackupState(R.string.backup_toast_openpgp_unavailable)
+            showBackupFeedback(R.string.backup_toast_openpgp_unavailable)
         }
         return service
     }
@@ -602,7 +602,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             Constants.INTENT_BACKUP_SAVE_DOCUMENT_PGP -> backupEncryptedWithPGP(uri, null)
             else -> {
                 discardActiveBackupDocument()
-                notifyBackupState(R.string.backup_toast_import_failed)
+                showBackupFeedback(R.string.backup_toast_import_failed)
             }
         }
     }
@@ -662,12 +662,19 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         outState.putString(STATE_CURRENT_TASK, currentTask.name)
     }
 
+    private var completedBackupNotice: String? = null
+
     /** Finishes the activity, reporting to MainActivity whether entries had to be reloaded. */
     fun finishWithResult() {
         clearActiveAction()
         clearPendingResumeAction(discardCreatedDocument = true)
         val data = Intent()
         data.putExtra("reload", reload)
+        if (canOperate()) completedBackupNotice?.let {
+            data.putExtra("backup_feedback_kind", it)
+            data.putExtra("backup_feedback_generation", VaultSession.generation().toString())
+        }
+        completedBackupNotice = null
         setResult(RESULT_OK, data)
         finish()
     }
@@ -691,6 +698,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     }
 
     public override fun onDestroy() {
+        clearBackupFeedback()
         backupOverview?.clear()
         backupOverview = null
         activeRestoreModeDialog?.dismiss()
@@ -708,6 +716,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         !(lockedWhilePicker && pendingPickerRequestCode != null)
 
     override fun onVaultLocked() {
+        completedBackupNotice = null
+        clearBackupFeedback()
         backupOverview?.clear(getString(R.string.backup_desc_vault_locked_picker))
         encryptionKey = null
         waitingForPassword = false
@@ -749,6 +759,26 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         return !isFinishing() && encryptionKey != null && VaultSession.getKey() === encryptionKey
     }
 
+    private val feedbackHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var feedbackExpiry: Runnable? = null
+
+    private fun clearBackupFeedback() {
+        feedbackExpiry?.let { feedbackHandler.removeCallbacks(it) }
+        feedbackExpiry = null
+    }
+
+    private fun showBackupFeedback(message: Int) = showBackupFeedback(getString(message))
+
+    private fun showBackupFeedback(message: String) {
+        if (!canOperate()) return
+        val page = backupOverview ?: return
+        clearBackupFeedback()
+        val revision = page.showNotice(message)
+        val expiry = Runnable { page.dismissNotice(revision) }
+        feedbackExpiry = expiry
+        feedbackHandler.postDelayed(expiry, 5000L)
+    }
+
     private fun notifyBackupState(msgId: Int, detail: String? = null) {
         val message = getString(msgId)
         val text = if (detail.isNullOrBlank()) message else "$message\n$detail"
@@ -759,7 +789,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         val isBackup = activeActionRequestCode?.let(::isSaveDocumentRequest) == true ||
             currentTask == BackupTaskResult.ResultType.BACKUP
         discardActiveBackupDocument()
-        notifyBackupState(if (isBackup) R.string.backup_toast_export_failed
+        showBackupFeedback(if (isBackup) R.string.backup_toast_export_failed
             else R.string.backup_toast_import_failed)
     }
 
@@ -780,13 +810,13 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
 
     private fun handleBackupTaskResult(result: BackupTaskResult) {
         if (result.success) {
-            val successMessage = result.messageId.takeIf { it != 0 } ?: R.string.backup_toast_export_success
-            notifyBackupState(successMessage, result.payload)
+            // Do not forward arbitrary task payloads (or provider text) through Activity results.
+            completedBackupNotice = "export_success"
             finishWithResult()
         } else {
             discardActiveBackupDocument()
             val failureMessage = result.messageId.takeIf { it != 0 } ?: R.string.backup_toast_export_failed
-            notifyBackupState(failureMessage)
+            showBackupFeedback(failureMessage)
         }
     }
 
@@ -807,7 +837,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     resultIntent = api.executeApi(result.decryptIntent!!, input, os)
                 } catch (error: RuntimeException) {
                     clearActiveAction()
-                    notifyBackupState(R.string.backup_toast_import_failed)
+                    showBackupFeedback(R.string.backup_toast_import_failed)
                     return
                 }
                 handleOpenPGPResult(resultIntent, os, result.uri, Constants.INTENT_BACKUP_DECRYPT_PGP)
@@ -818,9 +848,9 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         } else {
             clearActiveAction()
             if (result.messageId != 0)
-                notifyBackupState(result.messageId)
+                showBackupFeedback(result.messageId)
             else
-                notifyBackupState(R.string.backup_toast_import_failed)
+                showBackupFeedback(R.string.backup_toast_import_failed)
         }
     }
 
@@ -879,7 +909,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 }
                 lockedWhilePicker = false
                 if (resultCode == RESULT_OK && selectedUri?.getScheme() != "content") {
-                    notifyBackupState(if (isSaveDocumentRequest(requestCode))
+                    showBackupFeedback(if (isSaveDocumentRequest(requestCode))
                         R.string.backup_toast_file_creation_failed else R.string.backup_toast_import_failed)
                     return
                 }
@@ -967,11 +997,11 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             } catch (e: ActivityNotFoundException) {
                 pendingPickerRequestCode = null
                 Log.d(TAG, "Failed to use ACTION_GET_CONTENT, no matching activity found!")
-                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+                showBackupFeedback(R.string.backup_toast_file_selection_failed)
             } catch (e: SecurityException) {
                 pendingPickerRequestCode = null
                 Log.d(TAG, "ACTION_GET_CONTENT is not available in this profile")
-                Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+                showBackupFeedback(R.string.backup_toast_file_selection_failed)
             }
         } finally { publishBackupOverview() }
     }
@@ -993,10 +1023,10 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 } catch (error: ActivityNotFoundException) {
                     pendingPickerRequestCode = null
                     // Some Work Profiles / custom ROMs have no ACTION_CREATE_DOCUMENT handler.
-                    Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+                    showBackupFeedback(R.string.backup_toast_file_selection_failed)
                 } catch (error: SecurityException) {
                     pendingPickerRequestCode = null
-                    Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+                    showBackupFeedback(R.string.backup_toast_file_selection_failed)
                 }
             } else {
                 if (settings!!.isBackupLocationSet()) {
@@ -1006,7 +1036,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                         backupEncryptedWithPGP(null, null)
                     }
                 } else {
-                    Toast.makeText(this, R.string.backup_toast_no_location, Toast.LENGTH_LONG).show()
+                    showBackupFeedback(R.string.backup_toast_no_location)
                 }
             }
         } finally { publishBackupOverview() }
@@ -1029,18 +1059,18 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             encryptionKey, VaultSession.generation(), BooleanSupplier { canOperate() }, callback)
         if (result == VaultRestoreOperation.Result.SAVED) {
             reload = true
-            notifyBackupState(R.string.backup_toast_import_success)
+            completedBackupNotice = "import_success"
             if (finish) finishWithResult()
             return true
         }
         if (result == VaultRestoreOperation.Result.EMPTY_IMPORT)
-            notifyBackupState(R.string.backup_toast_import_no_entries)
+            showBackupFeedback(R.string.backup_toast_import_no_entries)
         else if (result == VaultRestoreOperation.Result.SAVE_FAILED
             || result == VaultRestoreOperation.Result.SESSION_REVOKED
             || result == VaultRestoreOperation.Result.RECOVERY_REQUIRED)
-            notifyBackupState(R.string.backup_toast_import_save_failed)
+            showBackupFeedback(R.string.backup_toast_import_save_failed)
         else
-            notifyBackupState(R.string.backup_toast_import_failed)
+            showBackupFeedback(R.string.backup_toast_import_failed)
         return false
     }
 
@@ -1158,7 +1188,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             task?.cancel()
             lease.close()
             discardActiveBackupDocument()
-            notifyBackupState(R.string.backup_toast_export_failed)
+            showBackupFeedback(R.string.backup_toast_export_failed)
         }
     }
 
@@ -1173,7 +1203,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             }
         } catch (error: RuntimeException) {
             discardActiveBackupDocument()
-            notifyBackupState(R.string.backup_toast_export_failed)
+            showBackupFeedback(R.string.backup_toast_export_failed)
         }
     }
 
@@ -1184,7 +1214,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (recipients.isEmpty()) {
             discardActiveBackupDocument()
             updateKeyFileAvailability()
-            notifyBackupState(R.string.backup_toast_openpgp_no_recipients)
+            showBackupFeedback(R.string.backup_toast_openpgp_no_recipients)
             return
         }
         val recipientNames = recipients.map { raw ->
@@ -1245,7 +1275,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             }
         } catch (error: RuntimeException) {
             discardActiveBackupDocument()
-            notifyBackupState(R.string.backup_toast_export_failed)
+            showBackupFeedback(R.string.backup_toast_export_failed)
         }
     }
 
@@ -1261,7 +1291,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (secretFile.isEmpty()) {
             clearActiveAction()
             updateKeyFileAvailability()
-            notifyBackupState(R.string.backup_toast_openpgp_no_secret_key)
+            showBackupFeedback(R.string.backup_toast_openpgp_no_secret_key)
             return
         }
         waitingForPassword = true
@@ -1398,7 +1428,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
         if (pgpEncryptionUserIDs.isEmpty()) {
             discardActiveBackupDocument()
             updateOpenPgpAvailability()
-            notifyBackupState(R.string.backup_toast_openpgp_no_recipients)
+            showBackupFeedback(R.string.backup_toast_openpgp_no_recipients)
             return
         }
         val entries: ArrayList<Entry>
@@ -1412,7 +1442,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             }
         } catch (error: RuntimeException) {
             discardActiveBackupDocument()
-            notifyBackupState(R.string.backup_toast_export_failed)
+            showBackupFeedback(R.string.backup_toast_export_failed)
             return
         }
 
@@ -1441,7 +1471,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
             result = api.executeApi(intent, input, os)
         } catch (error: RuntimeException) {
             discardActiveBackupDocument()
-            notifyBackupState(R.string.backup_toast_export_failed)
+            showBackupFeedback(R.string.backup_toast_export_failed)
             return
         }
         handleOpenPGPResult(result, os, uri, Constants.INTENT_BACKUP_ENCRYPT_PGP)
@@ -1468,7 +1498,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     if (rawEncrypted == null || rawEncrypted.isEmpty() ||
                             !OpenPgpOutputPolicy.hasContent(encryptedBackup)) {
                         discardActiveBackupDocument()
-                        notifyBackupState(R.string.backup_toast_openpgp_empty)
+                        showBackupFeedback(R.string.backup_toast_openpgp_empty)
                         return
                     }
                     doBackupEncrypted(file, encryptedBackup, rawEncrypted)
@@ -1476,7 +1506,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                     val restoredJSON = os?.let { outputStreamToString(it) } ?: ""
                     if (!OpenPgpOutputPolicy.hasContent(restoredJSON)) {
                         clearActiveAction()
-                        notifyBackupState(R.string.backup_toast_import_failed)
+                        showBackupFeedback(R.string.backup_toast_import_failed)
                         return
                     }
                     if (settings!!.getOpenPGPVerify()) {
@@ -1485,7 +1515,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                             if (!restoreEntries(restoredJSON, true)) clearActiveAction()
                         } else {
                             clearActiveAction()
-                            Toast.makeText(this, R.string.backup_toast_openpgp_not_verified, Toast.LENGTH_LONG).show()
+                            showBackupFeedback(R.string.backup_toast_openpgp_not_verified)
                         }
                     } else {
                         if (!restoreEntries(restoredJSON, true)) clearActiveAction()
@@ -1518,9 +1548,8 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
                 val error = result.getParcelableExtra<OpenPgpError>(OpenPgpApi.RESULT_ERROR)
                 if (error != null) {
                     discardActiveBackupDocument()
-                    Toast.makeText(this,
-                        String.format(getString(R.string.backup_toast_openpgp_error), error.getMessage()),
-                        Toast.LENGTH_LONG).show()
+                    showBackupFeedback(
+                        String.format(getString(R.string.backup_toast_openpgp_error), error.getMessage()))
                 } else {
                     notifyOpenPgpFailure(requestCode)
                 }
@@ -1532,7 +1561,7 @@ open class BackupActivity : BackgroundTaskActivity<BackupTaskResult>() {
     /** Shows the generic export or import failure for an OpenPGP request that could not proceed. */
     private fun notifyOpenPgpFailure(requestCode: Int) {
         discardActiveBackupDocument()
-        notifyBackupState(if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP)
+        showBackupFeedback(if (requestCode == Constants.INTENT_BACKUP_ENCRYPT_PGP)
             R.string.backup_toast_export_failed else R.string.backup_toast_import_failed)
     }
 

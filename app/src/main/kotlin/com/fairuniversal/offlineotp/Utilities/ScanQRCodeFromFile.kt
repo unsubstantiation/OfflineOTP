@@ -63,14 +63,21 @@ object ScanQRCodeFromFile {
     /** Decodes the first QR code found in the given image file; null (after a toast) otherwise. */
     @JvmStatic
     fun scanQRImage(context: Context, uri: Uri?): String? {
+        return scanQRImageReporting(context, uri) { message ->
+            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Decode without owning a window; the host chooses the visible shared feedback surface. */
+    fun scanQRImageReporting(context: Context, uri: Uri?, onFailure: (Int) -> Unit): String? {
         val imageInBytes: ByteArray
         try {
             imageInBytes = StorageAccessHelper.loadFile(context, uri)
         } catch (e: IOException) {
-            Toast.makeText(context, R.string.toast_file_load_error, Toast.LENGTH_LONG).show()
+            onFailure(R.string.toast_file_load_error)
             return null
         } catch (e: RuntimeException) {
-            Toast.makeText(context, R.string.toast_file_load_error, Toast.LENGTH_LONG).show()
+            onFailure(R.string.toast_file_load_error)
             return null
         }
 
@@ -78,7 +85,7 @@ object ScanQRCodeFromFile {
         options.inJustDecodeBounds = true
         BitmapFactory.decodeByteArray(imageInBytes, 0, imageInBytes.size, options)
         if (!InputPolicy.validImage(options.outWidth, options.outHeight)) {
-            Toast.makeText(context, R.string.toast_file_load_error, Toast.LENGTH_LONG).show()
+            onFailure(R.string.toast_file_load_error)
             return null
         }
         options.inJustDecodeBounds = false
@@ -86,7 +93,7 @@ object ScanQRCodeFromFile {
         val bMap = BitmapFactory.decodeByteArray(imageInBytes, 0, imageInBytes.size, options)
         if (bMap == null || !InputPolicy.validImage(bMap.getWidth(), bMap.getHeight())) {
             bMap?.recycle()
-            Toast.makeText(context, R.string.toast_file_load_error, Toast.LENGTH_LONG).show()
+            onFailure(R.string.toast_file_load_error)
             return null
         }
         var contents: String? = null
@@ -126,7 +133,7 @@ object ScanQRCodeFromFile {
                 is FormatException -> R.string.toast_qr_format_error
                 else -> R.string.toast_qr_error  // also covers NotFoundException
             }
-            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+            onFailure(message)
         }
 
         return contents

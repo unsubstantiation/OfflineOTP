@@ -17,12 +17,9 @@ import android.util.Log
 import android.view.View
 import android.view.ViewStub
 import android.view.ViewGroup
-import android.widget.Toast
 
 import androidx.appcompat.widget.Toolbar
 
-import com.google.android.material.snackbar.BaseTransientBottomBar
-import com.google.android.material.snackbar.Snackbar
 
 import org.openintents.openpgp.util.OpenPgpAppPreference
 import org.openintents.openpgp.util.OpenPgpKeyPreference
@@ -125,8 +122,6 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     private var overviewPickerPending = false
     private var overviewGeneration = -1L
 
-    /** The view the snackbars attach to: the settings fragment's view, or the window while it is absent. */
-    private fun snackbarAnchor(): View = fragment?.getView() ?: getWindow().decorView
     private var prefs: SharedPreferences? = null
 
     private var encryptionKey: SecretKey? = null
@@ -177,6 +172,55 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             onDismiss = closeHost
         )
         showSettingsPrompt(host)
+    }
+
+    private val feedbackHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var feedbackExpiry: Runnable? = null
+
+    private fun showSettingsFeedback(message: Int) = showSettingsFeedback(getString(message))
+
+    private fun showSettingsFeedback(message: String) {
+        if (!overviewSessionReady()) return
+        val page = settingsOverview ?: return
+        feedbackExpiry?.let { feedbackHandler.removeCallbacks(it) }
+        val revision = page.showNotice(message)
+        val expiry = Runnable { page.dismissNotice(revision) }
+        feedbackExpiry = expiry
+        feedbackHandler.postDelayed(expiry, 5000L)
+    }
+
+    private fun clearSettingsFeedback() {
+        feedbackExpiry?.let { feedbackHandler.removeCallbacks(it) }
+        feedbackExpiry = null
+    }
+
+    // Only non-secret result metadata crosses the import-triggered recreation.
+    private var importFeedback: PreferencesImportFeedback? = null
+    private data class PreferencesImportFeedback(val generation: Long, val applied: Int,
+        val skipped: Int, val includesSecrets: Boolean)
+
+    private fun saveImportFeedback(state: Bundle) {
+        val feedback = importFeedback ?: return
+        if (!overviewSessionReady() || !VaultSession.isCurrent(feedback.generation)) return
+        state.putLong("settings_import_feedback_generation", feedback.generation)
+        state.putInt("settings_import_feedback_applied", feedback.applied)
+        state.putInt("settings_import_feedback_skipped", feedback.skipped)
+        state.putBoolean("settings_import_feedback_secrets", feedback.includesSecrets)
+    }
+
+    private fun restoreImportFeedback(state: Bundle?) {
+        if (state == null || !overviewSessionReady()) return
+        val generation = state.getLong("settings_import_feedback_generation", -1L)
+        val applied = state.getInt("settings_import_feedback_applied", -1)
+        val skipped = state.getInt("settings_import_feedback_skipped", -1)
+        if (!VaultSession.isCurrent(generation) || applied < 0 || skipped < 0) return
+        val success = if (state.getBoolean("settings_import_feedback_secrets", false))
+            getString(R.string.preferences_import_success_with_secrets)
+        else getString(R.string.preferences_import_success, applied)
+        val detail = if (skipped > 0) "\n" + getString(R.string.preferences_import_skipped, skipped) else ""
+        showSettingsFeedback(success + detail)
+        // Do not republish this handoff into subsequent saved state.
+        importFeedback = null
     }
 
     private companion object {
@@ -237,6 +281,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         updateSettingsPageVisibility()
         publishSettingsOverview()
+        restoreImportFeedback(savedInstanceState)
         // Consume only a fresh same-session handoff. Recreation must not launch another picker.
         if (savedInstanceState == null) launchRequestedVaultTool()
     }
@@ -459,7 +504,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     if (signingConnection !== connection) return
                     closeSigningSelection()
                     publishSettingsOverview()
-                    Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    showSettingsFeedback(R.string.settings_save_failed)
                 }
             })
         signingConnection = connection
@@ -482,7 +527,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                         val saved = PreferenceManager.getDefaultSharedPreferences(this@SettingsActivity).edit()
                             .putLong(getString(R.string.settings_key_openpgp_key_sign), key).commit()
                         closeSigningSelection()
-                        if (!saved) Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        if (!saved) showSettingsFeedback(R.string.settings_save_failed)
                         publishSettingsOverview()
                     }
                     2 -> {
@@ -494,7 +539,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     }
                     else -> {
                         closeSigningSelection(); publishSettingsOverview()
-                        Toast.makeText(this@SettingsActivity, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     }
                 }
             }
@@ -536,7 +581,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     (provider.isEmpty() || installedPgpProviders().any { it.first == provider })) {
                     val saved = PreferenceManager.getDefaultSharedPreferences(this).edit()
                         .putString(getString(R.string.settings_key_openpgp_provider), provider).commit()
-                    if (!saved) Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    if (!saved) showSettingsFeedback(R.string.settings_save_failed)
                     fragment?.pgpSigningKey?.setOpenPgpProvider(provider)
                     publishSettingsOverview()
                 }
@@ -575,7 +620,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     else if (method == AuthMethod.PASSWORD) showSharedAuthenticationPassword()
                     else if (method == AuthMethod.DEVICE &&
                         (getSystemService(android.content.Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager)?.isKeyguardSecure() != true)
-                        Toast.makeText(this, R.string.settings_toast_auth_device_not_secure, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_toast_auth_device_not_secure)
                     else startSharedCredentialsChange(method, "")
                 }
             }, onDismiss = closeHost)
@@ -604,7 +649,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     val type = result.encryptionType
                     if (key != null && type != null) onSuccessfulEncryptionChange(type, key)
                     publishSettingsOverview()
-                } else Toast.makeText(this, R.string.settings_toast_encryption_change_failed, Toast.LENGTH_LONG).show()
+                } else showSettingsFeedback(R.string.settings_toast_encryption_change_failed)
             }
             task.disposeOutcome(outcome)
         }
@@ -702,8 +747,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     } else {
                         val availability = BiometricKeyStore.availability(this)
                         if (availability.isAvailable) promptBiometricEnrollment(null, this)
-                        else Toast.makeText(this, if (availability == BiometricKeyStore.Availability.NOT_ENROLLED)
-                            R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable, Toast.LENGTH_LONG).show()
+                        else showSettingsFeedback(if (availability == BiometricKeyStore.Availability.NOT_ENROLLED)
+                            R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable)
                     }
                 }
             }, onDismiss = closeHost)
@@ -762,6 +807,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                             } else {
                                 try {
                                     pending = true
+                                    view.updateOperation(true)
                                     BiometricKeyStore.save(fragmentActivity, vaultKey, permitted = { owned() }) { success, error ->
                                         // Wipe the copy after the store has copied it.
                                         try { vaultKey.fill(0) } catch (_: Exception) { }
@@ -769,10 +815,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                                         pending = false
                                         if (success) {
                                             pref?.isChecked = true
-                                            Toast.makeText(ctx, R.string.settings_toast_biometric_turned_on,
-                                                Toast.LENGTH_SHORT).show()
                                             host.dismissBiometricPrompt()
                                             host.publishSettingsOverview()
+                                            host.showSettingsFeedback(R.string.settings_toast_biometric_turned_on)
                                         } else {
                                             pref?.isChecked = false
                                             val msg = when (error) {
@@ -786,12 +831,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                                                     getString(R.string.settings_toast_biometric_cancelled)
                                                 else -> saveFailed
                                             }
-                                            Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show()
+                                            view.updateOperation(false, msg)
                                         }
                                     }
                                     null
                                 } catch (_: Exception) {
                                     pending = false
+                                    view.updateOperation(false)
                                     try { vaultKey.fill(0) } catch (_: Exception) { }
                                     saveFailed
                                 }
@@ -842,7 +888,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applySpecialFeatures(this, index == 1))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -983,7 +1029,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && matches && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applySeparateBackupPassword(this, value))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1029,7 +1075,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     if (login && settings!!.hasLegacyBackupPassword(this)) confirmLegacyBackupPasswordRemoval()
                     else {
                         if (!settings!!.applyBackupPasswordSource(this, login))
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         publishSettingsOverview()
                     }
                 }
@@ -1057,7 +1103,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyBackupPasswordSource(this, useLogin = true, removeLegacy = true))
-                        Toast.makeText(this, R.string.settings_toast_remove_old_backup_password_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_toast_remove_old_backup_password_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1092,7 +1138,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                         val chosen = indices.map { values[it] }.toSet()
                         if (!settings!!.applyPolicyChecklist(this, policy, chosen)) {
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         } else if (!panic && chosen.isNotEmpty()) {
                             // Same runtime-permission handoff as the native preference; no work is
                             // scheduled and permission denial does not change the configured set.
@@ -1133,7 +1179,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyAutoBackupMode(this, requireNotNull(values[index])))
-                        Toast.makeText(this, R.string.settings_desc_auto_backup_requirements, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_desc_auto_backup_requirements)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1166,7 +1212,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation) &&
                     settings!!.getOpenPGPMode() == OpenPgpMode.PROVIDER && settings!!.getOpenPGPProvider() == provider) {
                     if (!settings!!.applyOpenPgpProviderOptions(this, recipients, verify))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1198,7 +1244,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyOpenPgpMode(this, requireNotNull(modes[index])))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1236,7 +1282,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     closeHost()
                     if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                         if (!settings!!.applyVaultBehavior(this, VaultBehaviorSelection(0 in indices, 1 in indices, 2 in indices)))
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         publishSettingsOverview()
                     }
                 }
@@ -1269,7 +1315,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyTagBehavior(this, requireNotNull(values[index])))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1305,7 +1351,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     closeHost()
                     if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                         if (!settings!!.applyBackupFileSelection(this, BackupFileSelection(0 in indices, 1 in indices)))
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         publishSettingsOverview()
                     }
                 }
@@ -1338,7 +1384,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyBackupRetention(this, requireNotNull(values[index])))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1367,7 +1413,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyRevealTimeout(this, seconds))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1405,7 +1451,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     closeHost()
                     if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                         if (!settings!!.applyInputProtection(this, InputProtectionSelection(0 in indices, 1 in indices, 2 in indices)))
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         publishSettingsOverview()
                     }
                 }
@@ -1443,7 +1489,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     // Existing preference listener owns locale/theme recreation. Close first so
                     // a synchronous commit notification cannot leave a dialog on the old Activity.
                     if (!settings!!.applyAppearanceValue(this, preference, values[index]))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1480,7 +1526,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     closeHost()
                     if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                         if (!settings!!.applyScreenPrivacy(this, ScreenPrivacySelection(0 in indices, 1 in indices, 2 in indices)))
-                            Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                            showSettingsFeedback(R.string.settings_save_failed)
                         // Also reapply when no preference changed; policy is platform-owned.
                         applyScreenshotPolicyForForeground()
                         publishSettingsOverview()
@@ -1515,7 +1561,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 closeHost()
                 if (owned && canGoBack && overviewSessionReady() && VaultSession.isCurrent(generation)) {
                     if (!settings!!.applyTapAction(this, doubleTap, modes[index]))
-                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        showSettingsFeedback(R.string.settings_save_failed)
                     publishSettingsOverview()
                 }
             }, onDismiss = closeHost)
@@ -1549,7 +1595,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     if (settings!!.setSearchValues(this, chosen)) {
                         closeHost()
                         publishSettingsOverview()
-                    } else Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                    } else showSettingsFeedback(R.string.settings_save_failed)
                 } else closeHost()
             }, onDismiss = closeHost)
         showSettingsPrompt(host)
@@ -1568,6 +1614,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
+        saveImportFeedback(outState)
 
         outState.putBoolean(Constants.EXTRA_SETTINGS_ENCRYPTION_CHANGED, encryptionChanged)
         outState.putLong(STATE_AUTH_GENERATION, authenticationGeneration)
@@ -1649,7 +1696,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
             val message = if (settings!!.getAndroidBackupServiceEnabled())
                 R.string.settings_toast_android_sync_enabled else R.string.settings_toast_android_sync_disabled
-            Snackbar.make(snackbarAnchor(), message, BaseTransientBottomBar.LENGTH_SHORT).show()
+            showSettingsFeedback(message)
         }
 
         settingsFragment.updateAutoBackup()
@@ -1659,6 +1706,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     override fun requiresVaultSession(): Boolean = true
 
     override fun onVaultLocked() {
+        importFeedback = null
+        clearPreferencesExport()
+        clearSettingsFeedback()
         closeSigningSelection()
         credentialsTask?.let { it.setOutcomeCallback(null); it.cancel() }
         credentialsTask = null
@@ -1751,22 +1801,18 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 val newKey = result.newEncryptionKey
                 if (newType != null && newKey != null)
                     onSuccessfulEncryptionChange(newType, newKey)
-                Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_change_success,
-                    BaseTransientBottomBar.LENGTH_SHORT).show()
+                showSettingsFeedback(R.string.settings_toast_encryption_change_success)
             }
             EncryptionChangeResult.MISSING_NEW_KEY,
             EncryptionChangeResult.DECRYPTION_FAILED,
             EncryptionChangeResult.TASK_CREATION_FAILED -> {
-                Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_change_failed,
-                    BaseTransientBottomBar.LENGTH_SHORT).show()
+                showSettingsFeedback(R.string.settings_toast_encryption_change_failed)
             }
             EncryptionChangeResult.BACKUP_FAILURE -> {
-                Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_backup_failed,
-                    BaseTransientBottomBar.LENGTH_SHORT).show()
+                showSettingsFeedback(R.string.settings_toast_encryption_backup_failed)
             }
             EncryptionChangeResult.CHANGE_FAILURE -> {
-                Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_change_failed,
-                    BaseTransientBottomBar.LENGTH_SHORT).show()
+                showSettingsFeedback(R.string.settings_toast_encryption_change_failed)
             }
         }
     }
@@ -1825,9 +1871,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         } catch (error: ActivityNotFoundException) {
             // Work profiles and minimal ROMs may not have a document-tree provider. Do not let
             // this optional backup-location setting crash the entire Settings screen.
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.backup_toast_file_selection_failed)
         } catch (error: SecurityException) {
-            Toast.makeText(this, R.string.backup_toast_location_access_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.backup_toast_location_access_failed)
         }
     }
 
@@ -1847,9 +1893,9 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         try {
             launchSettingsDocumentPicker(intent, requestCode)
         } catch (error: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.backup_toast_file_selection_failed)
         } catch (error: SecurityException) {
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.backup_toast_file_selection_failed)
         }
     }
 
@@ -1881,7 +1927,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             if (retainKeyFileGrant(data, uri)) picked.add(uri!!.toString())
         }
         if (picked.isEmpty()) {
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.backup_toast_file_selection_failed)
             return
         }
         if (multiple) settings!!.setOpenPGPRecipientFiles(picked)
@@ -1918,6 +1964,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
 
     /** Pending preferences export; serialised before the picker so a failure is reported first. */
     private var preferencesExportPending: PreferencesExport.Export? = null
+    private var preferencesExportGeneration = -1L
+
+    private fun clearPreferencesExport() {
+        preferencesExportPending?.zero()
+        preferencesExportPending = null
+        preferencesExportGeneration = -1L
+    }
 
     /** Asks whether the file should carry the backup password, then opens the picker. */
     fun confirmPreferencesExport() {
@@ -1949,15 +2002,17 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     private fun startPreferencesExport(includeSecrets: Boolean) {
+        if (!overviewSessionReady() || !canGoBack) return
         val export = try {
             PreferencesExport.export(AndroidPreferencesPort(this, Settings(this)), includeSecrets,
                 platform = PreferencesExport.PLATFORM_ANDROID)
         } catch (_: RuntimeException) {
-            Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.preferences_export_failed)
             return
         }
         preferencesExportPending?.zero()
         preferencesExportPending = export
+        preferencesExportGeneration = overviewGeneration
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType("application/json").putExtra(Intent.EXTRA_TITLE, "offlineotp-preferences.json")
         try {
@@ -1965,26 +2020,31 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         } catch (_: RuntimeException) {
             export.zero()
             preferencesExportPending = null
-            Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.preferences_export_failed)
         }
     }
 
     private fun savePreferencesExport(uri: Uri) {
         val pending = preferencesExportPending ?: return
         preferencesExportPending = null
+        val generation = preferencesExportGeneration
+        preferencesExportGeneration = -1L
+        if (!overviewSessionReady() || !canGoBack || !VaultSession.isCurrent(generation)) {
+            pending.zero()
+            return
+        }
         val saved = try {
-            StorageAccessHelper.saveFile(this, uri, pending.bytes, BooleanSupplier { !isFinishing() })
+            StorageAccessHelper.saveFile(this, uri, pending.bytes, BooleanSupplier { overviewSessionReady() && VaultSession.isCurrent(generation) })
         } catch (_: RuntimeException) {
             false
         } finally {
             pending.zero()
         }
         when {
-            !saved -> Toast.makeText(this, R.string.preferences_export_failed, Toast.LENGTH_LONG).show()
+            !saved -> showSettingsFeedback(R.string.preferences_export_failed)
             pending.includesSecrets ->
-                Toast.makeText(this, R.string.preferences_export_success_with_secrets, Toast.LENGTH_LONG).show()
-            else -> Toast.makeText(this,
-                getString(R.string.preferences_export_success, pending.keysWritten), Toast.LENGTH_LONG).show()
+                showSettingsFeedback(R.string.preferences_export_success_with_secrets)
+            else -> showSettingsFeedback(getString(R.string.preferences_export_success, pending.keysWritten))
         }
     }
 
@@ -1994,26 +2054,22 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
         try {
             launchSettingsDocumentPicker(intent, Constants.INTENT_SETTINGS_PREFERENCES_IMPORT)
         } catch (_: RuntimeException) {
-            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.preferences_import_failed)
         }
     }
 
     private fun confirmPreferencesImport(uri: Uri) {
+        if (!overviewSessionReady() || !canGoBack) return
+        val generation = overviewGeneration
         val bytes = try {
             getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, PreferencesExport.MAX_BYTES) }
         } catch (_: RuntimeException) {
-            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.preferences_import_failed)
             return
         }
-        // Validate before asking, so a wrong file is rejected without a dialog the user cannot act on.
-        if (!isReadablePreferences(bytes)) {
+        // Validate once; preserve the specific wrong-platform diagnostic instead of replacing it.
+        val preview = previewPreferencesImport(bytes) ?: run {
             bytes.fill(0)
-            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
-            return
-        }
-        val preview = previewPreferencesImport(bytes, notifyWrongPlatform = false) ?: run {
-            bytes.fill(0)
-            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
             return
         }
         var dialogRef: PreferencesImportComposeView? = null
@@ -2029,9 +2085,12 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             skipped = preview.unknownKeys.size + preview.refusedKeys.size,
             applyDetail = getString(R.string.preferences_import_question_detail),
             onConfirm = {
-                val payload = bytes.copyOf()
-                closeDialog()
-                applyPreferencesImport(payload)
+                val owned = settingsConfirmationPrompt === dialogRef
+                if (owned && overviewSessionReady() && canGoBack && VaultSession.isCurrent(generation)) {
+                    val payload = bytes.copyOf()
+                    closeDialog()
+                    applyPreferencesImport(payload)
+                } else closeDialog()
             },
             onDismiss = { closeDialog() }
         )
@@ -2045,7 +2104,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
      * A dry run against a port that writes nowhere: the codec validates the whole document before
      * applying anything, so this rejects a bad file without a second import attempt.
      */
-    private fun previewPreferencesImport(bytes: ByteArray, notifyWrongPlatform: Boolean = true): PreferencesExport.Import? {
+    private fun previewPreferencesImport(bytes: ByteArray): PreferencesExport.Import? {
         val probe = object : PreferencesExport.SettingsPort {
             override fun storedKeys(): Set<String> = emptySet()
             override fun read(key: String): PreferencesExport.Value? = null
@@ -2056,35 +2115,24 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             PreferencesExport.import(bytes, probe, PreferencesExport.PLATFORM_ANDROID)
         } catch (error: IllegalArgumentException) {
             // Say which failure it was: a file for another client is not a corrupt file.
-            if (notifyWrongPlatform && error is PreferencesExport.WrongPlatformException) {
-                Toast.makeText(this, R.string.preferences_import_wrong_platform, Toast.LENGTH_LONG).show()
-            }
+            showSettingsFeedback(if (error is PreferencesExport.WrongPlatformException)
+                R.string.preferences_import_wrong_platform else R.string.preferences_import_failed)
             null
         }
     }
-
-    private fun isReadablePreferences(bytes: ByteArray): Boolean = previewPreferencesImport(bytes) != null
 
     private fun applyPreferencesImport(bytes: ByteArray) {
         val result = try {
             PreferencesExport.import(bytes, AndroidPreferencesPort(this, Settings(this)),
                 PreferencesExport.PLATFORM_ANDROID)
         } catch (_: RuntimeException) {
-            Toast.makeText(this, R.string.preferences_import_failed, Toast.LENGTH_LONG).show()
+            showSettingsFeedback(R.string.preferences_import_failed)
             return
         } finally {
             bytes.fill(0)
         }
-        if (result.includesSecrets) {
-            Toast.makeText(this, R.string.preferences_import_success_with_secrets, Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(this, getString(R.string.preferences_import_success, result.applied),
-                Toast.LENGTH_LONG).show()
-        }
-        if (result.unknownKeys.isNotEmpty()) {
-            Toast.makeText(this, getString(R.string.preferences_import_skipped, result.unknownKeys.size),
-                Toast.LENGTH_LONG).show()
-        }
+        importFeedback = PreferencesImportFeedback(overviewGeneration, result.applied,
+            result.unknownKeys.size, result.includesSecrets)
         // The screen the user is looking at may now describe settings that changed underneath it.
         fragment?.refreshOpenPgpKeyFileSummaries()
         if (!isFinishing()) recreate()
@@ -2123,16 +2171,14 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     Arrays.fill(authKey, 0)
                 } else {
                     if (authKey != null) Arrays.fill(authKey, 0)
-                    Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_no_key,
-                        BaseTransientBottomBar.LENGTH_SHORT).show()
+                    showSettingsFeedback(R.string.settings_toast_encryption_no_key)
                 }
             } else if (resultCode != RESULT_CANCELED && !isFinishing()) {
-                Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_auth_failed,
-                    BaseTransientBottomBar.LENGTH_SHORT).show()
+                showSettingsFeedback(R.string.settings_toast_encryption_auth_failed)
             }
         } else if (requestCode == Constants.INTENT_SETTINGS_PREFERENCES_EXPORT) {
             if (resultCode == RESULT_OK && data?.data != null) savePreferencesExport(data.data!!)
-            else { preferencesExportPending?.zero(); preferencesExportPending = null }
+            else { clearPreferencesExport() }
         } else if (requestCode == Constants.INTENT_SETTINGS_PREFERENCES_IMPORT) {
             if (resultCode == RESULT_OK && data?.data != null) confirmPreferencesImport(data.data!!)
         } else if (requestCode == Constants.INTENT_SETTINGS_BACKUP_LOCATION && resultCode == RESULT_OK) {
@@ -2145,7 +2191,7 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                     getContentResolver().takePersistableUriPermission(treeUri, takeFlags)
                     settings!!.setBackupLocation(treeUri)
                 } catch (error: RuntimeException) {
-                    Toast.makeText(this, R.string.backup_toast_location_access_failed, Toast.LENGTH_LONG).show()
+                    showSettingsFeedback(R.string.backup_toast_location_access_failed)
                 }
             }
         } else if (requestCode == Constants.INTENT_SETTINGS_OPENPGP_RECIPIENT_FILES ||
@@ -2158,6 +2204,8 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
     }
 
     override fun onDestroy() {
+        clearPreferencesExport()
+        clearSettingsFeedback()
         closeSigningSelection()
         credentialsTask?.let { it.setOutcomeCallback(null); it.cancel() }
         credentialsTask = null
@@ -2399,35 +2447,13 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
             val loginBackup = findPreference(getString(R.string.settings_key_auto_backup_use_login)) as? CheckBoxPreference
             loginBackup?.isChecked = LoginBackupPolicy.usesLoginPassword(getActivity()!!)
             loginBackup?.setOnPreferenceChangeListener { _, value ->
+                val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
+                if (!activity.overviewSessionReady() || !activity.canGoBack) return@setOnPreferenceChangeListener false
                 val oldKey = getString(R.string.settings_key_backup_password)
                 val oldPasswordPresent = !sharedPref.getString(oldKey, "").isNullOrEmpty()
                 if (value == true && oldPasswordPresent) {
-                    val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                    var host: DeleteConfirmationComposeView? = null
-                    val closeHost = {
-                        val h = host
-                        if (activity.settingsConfirmationPrompt === h) activity.settingsConfirmationPrompt = null
-                        h?.dismiss()
-                        Unit
-                    }
-                    host = DeleteConfirmationComposeView(
-                        activity = activity,
-                        title = getString(R.string.settings_dialog_title_remove_old_backup_password),
-                        message = getString(R.string.settings_dialog_msg_remove_old_backup_password),
-                        confirmLabel = getString(android.R.string.ok),
-                        dismissLabel = getString(android.R.string.cancel),
-                        onConfirm = {
-                            closeHost()
-                            if (sharedPref.edit().remove(oldKey).commit()) {
-                                loginBackup.isChecked = true
-                                updateAutoBackup()
-                            } else {
-                                Toast.makeText(activity, R.string.settings_toast_remove_old_backup_password_failed, Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        onDismiss = closeHost
-                    )
-                    activity.showSettingsPrompt(host)
+                    // Reuse the guarded shared route, not a second destructive callback implementation.
+                    activity.confirmLegacyBackupPasswordRemoval()
                     false
                 } else true
             }
@@ -2466,28 +2492,30 @@ open class SettingsActivity : BackgroundTaskActivity<ChangeEncryptionTask.Result
                 }
                 biometricPref.setOnPreferenceChangeListener { _, newValue ->
                     val enable = newValue as? Boolean ?: return@setOnPreferenceChangeListener false
-                    val activity = getActivity() ?: return@setOnPreferenceChangeListener false
+                    val activity = getActivity() as? SettingsActivity ?: return@setOnPreferenceChangeListener false
+                    if (!activity.overviewSessionReady() || !activity.canGoBack) return@setOnPreferenceChangeListener false
+                    val passwordVaultNow = currentSettings.getEncryption() == EncryptionType.PASSWORD &&
+                        currentSettings.getAuthMethod() == AuthMethod.PASSWORD
                     if (enable) {
-                        if (!isPasswordVault) {
-                            Toast.makeText(activity, R.string.settings_dialog_msg_encryption_invalid_with_auth, Toast.LENGTH_LONG).show()
+                        if (!passwordVaultNow) {
+                            activity.showSettingsFeedback(R.string.settings_dialog_msg_encryption_invalid_with_auth)
                             return@setOnPreferenceChangeListener false
                         }
                         val avail = BiometricKeyStore.availability(activity)
                         if (!avail.isAvailable) {
                             val msg = if (avail == BiometricKeyStore.Availability.NOT_ENROLLED)
                                 R.string.settings_toast_biometric_not_enrolled else R.string.settings_toast_biometric_unavailable
-                            Toast.makeText(activity, msg, Toast.LENGTH_LONG).show()
+                            activity.showSettingsFeedback(msg)
                             return@setOnPreferenceChangeListener false
                         }
                         // Ask for vault password first — an unlocked phone must not be enough to add a shortcut.
-                        val settingsActivity = activity as? SettingsActivity ?: return@setOnPreferenceChangeListener false
-                        settingsActivity.promptBiometricEnrollment(biometricPref, settingsActivity)
+                        activity.promptBiometricEnrollment(biometricPref, activity)
                         false
                     } else {
                         try {
                             BiometricKeyStore.clear(activity)
                         } catch (_: Exception) { }
-                        Toast.makeText(activity, R.string.settings_toast_biometric_turned_off, Toast.LENGTH_SHORT).show()
+                        activity.showSettingsFeedback(R.string.settings_toast_biometric_turned_off)
                         true
                     }
                 }

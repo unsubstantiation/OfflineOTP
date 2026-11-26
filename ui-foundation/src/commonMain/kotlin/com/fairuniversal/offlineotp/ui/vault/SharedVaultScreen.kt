@@ -16,6 +16,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.zIndex
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
 import com.fairuniversal.offlineotp.ui.theme.ForestType
@@ -54,23 +57,7 @@ fun SharedVaultScaffold(
                 listContent()
             }
         }
-        if (toast.isNotEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
-                Text(
-                    text = toast,
-                    style = ForestType.body,
-                    color = ForestPalette.textPrimary,
-                    modifier = Modifier
-                        .padding(horizontal = 24.dp, vertical = 32.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(ForestPalette.surfaceElevated)
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                        .let { base ->
-                            if (onDismissToast != null) base.then(Modifier.clickable(onClick = onDismissToast)) else base
-                        }
-                )
-            }
-        }
+        SharedFeedbackBanner(toast, onDismissToast)
     }
 }
 
@@ -118,5 +105,37 @@ fun SharedPageNavigation(onBack: (() -> Unit)?, enabled: Boolean = true,
     Column(Modifier.fillMaxSize()) {
         onBack?.let { ForestTextAction(text = "Back", onClick = it, enabled = enabled) }
         Box(Modifier.weight(1f)) { content() }
+    }
+}
+
+/** Shared transient feedback, independent of platform Toast/Snackbar windows. */
+@Composable
+fun SharedFeedbackBanner(message: String, onDismiss: (() -> Unit)?) {
+    if (message.isNotEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+            Text(
+                text = message,
+                style = ForestType.body,
+                color = ForestPalette.textPrimary,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite }
+                    .padding(horizontal = 24.dp, vertical = 32.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(ForestPalette.surfaceElevated)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .let { base ->
+                        if (onDismiss != null) base.then(Modifier.clickable(onClick = onDismiss)) else base
+                    }
+            )
+        }
+    }
+}
+
+
+/** Embed the same feedback surface over any app-owned page. Hosts own expiry and authority. */
+@Composable
+fun SharedFeedbackPage(message: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    Box(Modifier.fillMaxSize()) {
+        content()
+        SharedFeedbackBanner(message, onDismiss)
     }
 }

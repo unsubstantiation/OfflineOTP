@@ -45,6 +45,16 @@ class VaultComposeView(
         VaultArtwork { name -> loader(name)?.asImageBitmap() }
     }
 
+    private var notice by mutableStateOf("")
+    private var noticeRevision by mutableStateOf(0L)
+    fun showNotice(message: String): Long {
+        if (!ended) { noticeRevision++; notice = message }
+        return noticeRevision
+    }
+    fun dismissNotice(revision: Long) {
+        if (!ended && noticeRevision == revision) notice = ""
+    }
+
     /** Optional host callback opening the shared OTP URI import dialog from the creation form. */
     var onOpenUriImport: (() -> Unit)? = null
 
@@ -239,13 +249,18 @@ class VaultComposeView(
     // ComposeView itself is final. Custom Compose-backed Views implement this base-class hook.
     @Composable
     override fun Content() {
-        VaultScreenHost(
-            state = frame,
-            strings = strings,
-            actions = renderedActions,
-            appearance = appearance,
-            artwork = artwork
-        )
+        val revision = noticeRevision
+        ForestTheme {
+            SharedFeedbackPage(notice, { dismissNotice(revision) }) {
+                VaultScreenHost(
+                    state = frame,
+                    strings = strings,
+                    actions = renderedActions,
+                    appearance = appearance,
+                    artwork = artwork
+                )
+            }
+        }
         val reading = linScpRead
         if (reading != null) ForestTheme {
             LinScpImportDialog(reading.key, busy = false, count = null, failed = editError != null,
@@ -457,6 +472,8 @@ class VaultComposeView(
     /** End this view's session. Late frames/callbacks are ignored; create a new view on unlock. */
     fun clear() {
         ended = true
+        notice = ""
+        noticeRevision++
         clearEntryEditor()
         host.close()
         renderedActions = VaultActions()

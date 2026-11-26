@@ -116,6 +116,21 @@ class BiometricEnableComposeView(
     private val onDismiss: () -> Unit
 ) : ComposeDialogHost(activity) {
 
+    private var busy by mutableStateOf(false)
+    private var operationError by mutableStateOf<String?>(null)
+
+    fun updateOperation(pending: Boolean, error: String? = null) {
+        if (dismissals > 0) return
+        busy = pending
+        operationError = error
+    }
+
+    fun submitPassword(password: String): String? {
+        if (dismissals > 0 || busy) return null
+        operationError = null
+        return onConfirm(password)
+    }
+
     init {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
     }
@@ -130,8 +145,10 @@ class BiometricEnableComposeView(
                 confirmLabel = confirmLabel,
                 cancelLabel = cancelLabel,
                 initialError = null,
-                onConfirm = onConfirm,
-                onDismiss = onDismiss
+                onConfirm = ::submitPassword,
+                onDismiss = onDismiss,
+                busy = busy,
+                operationError = operationError
             )
         }
     }
@@ -499,6 +516,15 @@ class EmailImportPasswordComposeView(
 ) : ComposeDialogHost(activity) {
 
     private var failed by mutableStateOf(false)
+    private var consumed = false
+
+    fun readPassword(password: String) {
+        if (consumed || dismissals > 0) return
+        // Revoke reentrant/repeated success callbacks; a failed read explicitly permits retry.
+        consumed = true
+        val succeeded = onRead(password)
+        if (!succeeded && dismissals == 0) { consumed = false; failed = true }
+    }
 
     init {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -512,10 +538,7 @@ class EmailImportPasswordComposeView(
                 busy = false,
                 count = null,
                 failed = failed,
-                onRead = { password ->
-                    val succeeded = onRead(password)
-                    if (!succeeded) failed = true
-                },
+                onRead = ::readPassword,
                 onConfirm = {},
                 onDismiss = onDismiss
             )
@@ -665,6 +688,18 @@ class PreferencesImportComposeView(
     private val onDismiss: () -> Unit
 ) : ComposeDialogHost(activity) {
 
+    private var consumed = false
+    fun confirm() {
+        if (consumed || dismissals > 0) return
+        consumed = true
+        onConfirm()
+    }
+    fun cancel() {
+        if (consumed || dismissals > 0) return
+        consumed = true
+        onDismiss()
+    }
+
     init {
         setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
     }
@@ -677,8 +712,8 @@ class PreferencesImportComposeView(
                 count = count,
                 skipped = skipped,
                 failed = false,
-                onConfirm = onConfirm,
-                onDismiss = onDismiss,
+                onConfirm = ::confirm,
+                onDismiss = ::cancel,
                 platformName = "Android",
                 applyDetail = applyDetail
             )
@@ -1287,6 +1322,15 @@ class BackupOverviewComposeView(
     private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
     private var warning by mutableStateOf("")
     private var busy by mutableStateOf(false)
+    private var notice by mutableStateOf("")
+    private var noticeRevision by mutableStateOf(0L)
+    fun showNotice(message: String): Long {
+        if (!closed) { noticeRevision++; notice = message }
+        return noticeRevision
+    }
+    fun dismissNotice(revision: Long) {
+        if (!closed && revision == noticeRevision) notice = ""
+    }
     private var closed = false
 
     init {
@@ -1311,6 +1355,8 @@ class BackupOverviewComposeView(
 
     fun clear(message: String = "") {
         closed = true
+        notice = ""
+        noticeRevision++
         groups = emptyList()
         title = ""
         description = ""
@@ -1321,10 +1367,13 @@ class BackupOverviewComposeView(
     @Composable
     override fun Content() {
         ForestTheme {
-            com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
-            com.fairuniversal.offlineotp.ui.vault.SharedBackupScreen(
-                title, description, groups, warning, busy, ::selectTool
-            )
+            val revision = noticeRevision
+            com.fairuniversal.offlineotp.ui.vault.SharedFeedbackPage(notice, { dismissNotice(revision) }) {
+                com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
+                    com.fairuniversal.offlineotp.ui.vault.SharedBackupScreen(
+                        title, description, groups, warning, busy, ::selectTool
+                    )
+                }
             }
         }
     }
@@ -1435,13 +1484,22 @@ class HardwareUnlockComposeView(
     }
 }
 
-/** Android settings page bridge; native-only controls remain an explicit advanced destination. */
+/** Android settings page bridge; feedback and visible controls use common Compose presentation. */
 class SettingsOverviewComposeView(
     context: android.content.Context,
     private val onSelectTool: (String) -> Unit
 ) : AbstractComposeView(context) {
     var onBack: (() -> Unit)? = null
     fun navigateBack() { if (!closed && !busy) onBack?.invoke() }
+    private var notice by mutableStateOf("")
+    private var noticeRevision by mutableStateOf(0L)
+    fun showNotice(message: String): Long {
+        if (closed) return noticeRevision
+        noticeRevision++
+        notice = message
+        return noticeRevision
+    }
+    fun dismissNotice(revision: Long) { if (!closed && revision == noticeRevision) { notice = ""; noticeRevision++ } }
     private var title by mutableStateOf("")
     private var description by mutableStateOf("")
     private var groups by mutableStateOf(emptyList<com.fairuniversal.offlineotp.ui.portable.PortableToolGroup>())
@@ -1467,15 +1525,18 @@ class SettingsOverviewComposeView(
         onSelectTool(key)
     }
 
-    fun close() { closed = true; groups = emptyList() }
+    fun close() { closed = true; groups = emptyList(); notice = ""; noticeRevision++ }
 
     @Composable
     override fun Content() {
         ForestTheme {
-            com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
-            com.fairuniversal.offlineotp.ui.vault.SharedVaultToolsScreen(
-                title, description, groups, "", busy, ::selectTool
-            )
+            val revision = noticeRevision
+            com.fairuniversal.offlineotp.ui.vault.SharedFeedbackPage(notice, { dismissNotice(revision) }) {
+                com.fairuniversal.offlineotp.ui.vault.SharedPageNavigation(onBack?.let { { navigateBack() } }, !busy) {
+                    com.fairuniversal.offlineotp.ui.vault.SharedVaultToolsScreen(
+                        title, description, groups, "", busy, ::selectTool
+                    )
+                }
             }
         }
     }
@@ -1688,6 +1749,9 @@ class AuthenticationComposeView(context: android.content.Context, input: android
     private val onAction: (String) -> Unit
 ) : AbstractComposeView(context) {
     private var nativeInput: android.view.View? by mutableStateOf(input)
+    private var feedback by mutableStateOf<String?>(null)
+    fun showFeedback(message: String) { if (!closed && foreground) feedback = message }
+    fun clearFeedback() { feedback = null }
     private var busy by mutableStateOf(false)
     private var hardware by mutableStateOf(false)
     private var biometric by mutableStateOf(false)
@@ -1696,21 +1760,23 @@ class AuthenticationComposeView(context: android.content.Context, input: android
     init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow); isSaveEnabled = false }
     fun render(busy: Boolean, hardware: Boolean, biometric: Boolean, foreground: Boolean) {
         if (closed) return
+        if (!foreground) feedback = null
         this.busy = busy; this.hardware = hardware; this.biometric = biometric; this.foreground = foreground
     }
     fun selectAction(key: String) {
         if (closed || !foreground || busy || key !in setOf("unlock", "hardware", "biometric")) return
         if ((key == "hardware" && !hardware) || (key == "biometric" && !biometric)) return
+        feedback = null
         busy = true
         onAction(key)
     }
-    fun close() { closed = true; foreground = false; nativeInput = null }
+    fun close() { closed = true; foreground = false; feedback = null; nativeInput = null }
     @Composable override fun Content() {
         val field = nativeInput ?: return
         ForestTheme {
             com.fairuniversal.offlineotp.ui.unlock.SharedAuthenticationScreen(title, message, unlockLabel, busy,
                 hardwareLabel.takeIf { hardware }, biometricLabel.takeIf { biometric },
-                { selectAction("unlock") }, { selectAction("hardware") }, { selectAction("biometric") }) {
+                { selectAction("unlock") }, { selectAction("hardware") }, { selectAction("biometric") }, feedback = feedback) {
                 androidx.compose.ui.viewinterop.AndroidView(factory = { field })
             }
         }
@@ -1753,14 +1819,29 @@ class AboutScreenComposeView(
     private val onVersionTap: () -> Unit,
     private val onClose: () -> Unit
 ) : AbstractComposeView(activity) {
+    private var closed = false
+    private var notice by mutableStateOf("")
+    private var revision by mutableStateOf(0L)
+    fun showNotice(message: String): Long {
+        if (!closed) { revision++; notice = message }
+        return revision
+    }
+    fun dismissNotice(expected: Long) {
+        if (!closed && expected == revision) notice = ""
+    }
+    fun close() { closed = true; notice = ""; revision++ }
+
     init { setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow) }
     @Composable override fun Content() {
         ForestTheme {
+            val expected = revision
+            com.fairuniversal.offlineotp.ui.vault.SharedFeedbackPage(notice, { dismissNotice(expected) }) {
             androidx.compose.foundation.layout.Column {
                 com.fairuniversal.offlineotp.ui.vault.ForestTextAction(text = "Back", onClick = onClose)
                 com.fairuniversal.offlineotp.ui.vault.AboutContent(
                     version = version, onOpenLink = onOpenLink, libraries = libraries,
                     extraLinks = extraLinks, onVersionTap = onVersionTap)
+            }
             }
         }
     }

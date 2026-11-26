@@ -13,3 +13,4 @@ fun <A : ComponentActivity> AndroidComposeTestRule<A>.onNodeWithText(
 fun SemanticsNodeInteraction.performClick(): SemanticsNodeInteraction = error("device-only compile stub")
 
 fun SemanticsNodeInteraction.assertIsNotEnabled(): SemanticsNodeInteraction = error("device-only compile stub")
+fun SemanticsNodeInteraction.assertIsEnabled(): SemanticsNodeInteraction = error("device-only compile stub")

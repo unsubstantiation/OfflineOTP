@@ -106,7 +106,8 @@ class PreferencesWiringTest(unittest.TestCase):
 
     def test_android_validates_before_asking_and_reports_a_foreign_file(self):
         activity = read(APP / "Activities/SettingsActivity.kt")
-        self.assertIn("isReadablePreferences(bytes)", activity)
+        self.assertIn("val preview = previewPreferencesImport(bytes)", activity)
+        self.assertNotIn("isReadablePreferences(bytes)", activity)
         # A wrong-platform file says so; it is not reported as corrupt.
         self.assertIn("WrongPlatformException", activity)
         self.assertIn("preferences_import_wrong_platform", activity)

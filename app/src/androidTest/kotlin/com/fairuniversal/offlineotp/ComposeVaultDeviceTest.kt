@@ -5,6 +5,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.fairuniversal.offlineotp.ui.vault.VaultActions
@@ -263,6 +264,49 @@ class ComposeVaultDeviceTest {
             assertEquals(0, saves)
         }
         compose.onNodeWithText("Credential fixture").assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsFeedbackReplacementKeepsCurrentDismissalAndCloseClearsText() {
+        lateinit var page: com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView
+        var first = 0L
+        compose.runOnIdle {
+            page = com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView(compose.activity) { }
+            page.render("Settings fixture", "No vault data", emptyList(), false)
+            compose.activity.setContentView(page)
+            first = page.showNotice("Fixture save failed")
+        }
+        compose.onNodeWithText("Fixture save failed").assertExists()
+        compose.runOnIdle {
+            page.showNotice("Fixture save failed")
+            page.dismissNotice(first)
+        }
+        compose.onNodeWithText("Fixture save failed").performClick()
+        compose.onNodeWithText("Fixture save failed").assertDoesNotExist()
+        compose.runOnIdle { page.showNotice("Replacement fixture failure") }
+        compose.onNodeWithText("Replacement fixture failure").assertExists()
+        compose.runOnIdle { page.close(); page.showNotice("Late fixture failure") }
+        compose.onNodeWithText("Replacement fixture failure").assertDoesNotExist()
+        compose.onNodeWithText("Late fixture failure").assertDoesNotExist()
+    }
+
+    @Test
+    fun biometricOperationDisablesEntryAndPublishesRetryFailureInsideSharedForm() {
+        lateinit var page: com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView
+        compose.runOnIdle {
+            page = com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView(
+                compose.activity, "Biometric fixture", "Confirm fixture", "Fixture password",
+                "Fixture enable", "Fixture cancel", { null }, {})
+            compose.activity.setContentView(page)
+        }
+        compose.onNodeWithText("Fixture password").assertIsEnabled()
+        compose.runOnIdle { page.updateOperation(true) }
+        compose.onNodeWithText("Fixture password").assertIsNotEnabled()
+        compose.onNodeWithText("Fixture enable").assertIsNotEnabled()
+        compose.onNodeWithText("Fixture cancel").assertIsEnabled()
+        compose.runOnIdle { page.updateOperation(false, "Fixture enrolment cancelled") }
+        compose.onNodeWithText("Fixture enrolment cancelled").assertExists()
+        compose.onNodeWithText("Fixture password").assertIsEnabled()
     }
 
 }
