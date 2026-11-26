@@ -275,7 +275,56 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         host.show()
     }
 
+    private var pendingBackupNotice: Pair<Long, Int>? = null
+
+    private fun acceptBackupFeedback(result: Intent) {
+        val generation = result.getStringExtra("backup_feedback_generation")?.toLongOrNull() ?: return
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
+        val message = when (result.getStringExtra("backup_feedback_kind")) {
+            "export_success" -> R.string.backup_toast_export_success
+            "import_success" -> R.string.backup_toast_import_success
+            else -> return
+        }
+        pendingBackupNotice = generation to message
+        deliverBackupFeedback()
+    }
+
+    private fun deliverBackupFeedback() {
+        val pending = pendingBackupNotice ?: return
+        if (!VaultSession.isCurrent(pending.first)) { pendingBackupNotice = null; return }
+        val key = VaultSession.getKey() ?: return
+        if (composeVaultView == null || composeVaultGeneration != pending.first || adapter?.encryptionKey !== key) return
+        pendingBackupNotice = null
+        showVaultFeedback(pending.second)
+    }
+
+    private val feedbackHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var feedbackExpiry: Runnable? = null
+
+    private fun clearVaultFeedbackTimer() {
+        feedbackExpiry?.let { feedbackHandler.removeCallbacks(it) }
+        feedbackExpiry = null
+    }
+
+    private fun showVaultFeedback(messageId: Int, expectedGeneration: Long = composeVaultGeneration) =
+        showVaultFeedback(getString(messageId), expectedGeneration)
+
+    private fun showVaultFeedback(message: String, expectedGeneration: Long = composeVaultGeneration) {
+        if (!VaultSession.isCurrent(expectedGeneration)) return
+        val key = VaultSession.getKey() ?: return
+        if (isFinishing() || adapter?.encryptionKey !== key ||
+            !VaultSession.isCurrent(composeVaultGeneration)) return
+        val page = composeVaultView ?: return
+        clearVaultFeedbackTimer()
+        val revision = page.showNotice(message)
+        val expiry = Runnable { page.dismissNotice(revision) }
+        feedbackExpiry = expiry
+        feedbackHandler.postDelayed(expiry, 5000L)
+    }
+
     override fun onVaultLocked() {
+        pendingBackupNotice = null
+        clearVaultFeedbackTimer()
         thunderbirdExportPending?.fill(0)
         thunderbirdExportPending = null
         thunderbirdExportGeneration = -1L
@@ -355,7 +404,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val uri = pendingBackupUri
         if (uri == null || uri.getScheme() != "content") {
             clearPendingBackupAction(discardCreatedDocument = true)
-            Toast.makeText(this, R.string.backup_toast_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.backup_toast_import_failed)
             return
         }
         val resume = Intent(this, BackupActivity::class.java)
@@ -682,8 +731,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         return
                     }
                     if (migrationCollector != null) {
-                        Toast.makeText(this, R.string.google_import_expected_qr, Toast.LENGTH_LONG).show()
-                        showMigrationProgress()
+                        showMigrationProgress(R.string.google_import_expected_qr)
                         return
                     }
                     var parsedEntry: Entry? = null
@@ -696,7 +744,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         parsedEntry = null // The confirmation owns the entry until it is consumed or dismissed.
                     } catch (_: Exception) {
                         parsedEntry?.destroy()
-                        Toast.makeText(this, R.string.toast_intent_creation_failed, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.toast_intent_creation_failed)
                     }
                 }
             }
@@ -896,6 +944,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     adapter?.loadEntries()
                     refreshTags()
                 }
+                acceptBackupFeedback(intent)
                 launchPendingBackupActionIfReady()
             }
         } else if (requestCode == Constants.INTENT_MAIN_SETTINGS && resultCode == RESULT_OK) {
@@ -983,9 +1032,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } else if (requestCode == Constants.INTENT_MAIN_QR_OPEN_IMAGE) {
             val wasAwaiting = awaitingMigrationQr
             awaitingMigrationQr = false
+            val scanGeneration = VaultSession.generation()
+            var scanFailure: Int? = null
             val contents = if (resultCode == RESULT_OK && intent != null)
-                ScanQRCodeFromFile.scanQRImage(this, intent.data) else null
-            if (contents != null) addQRCode(contents) else if (wasAwaiting) showMigrationProgress()
+                ScanQRCodeFromFile.scanQRImageReporting(this, intent.data) { scanFailure = it } else null
+            if (contents != null) addQRCode(contents)
+            else if (wasAwaiting) showMigrationProgress(scanFailure)
+            else scanFailure?.let { showVaultFeedback(it, scanGeneration) }
         } else if (requestCode == Constants.INTENT_MAIN_INTRO) {
             introPending = false
             var setupFinished = false
@@ -1270,7 +1323,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 val saved = android.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putBoolean(getString(R.string.settings_key_backup_append_date_time),
                         !settings!!.getIsAppendingDateTimeToBackups()).commit()
-                if (!saved) Toast.makeText(this, R.string.backup_timestamp_save_failed, Toast.LENGTH_LONG).show()
+                if (!saved) showVaultFeedback(R.string.backup_timestamp_save_failed)
             },
             onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) }
         ).guarded {
@@ -1331,7 +1384,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (VaultSession.getKey() == null || isFinishing()) return
         val archives = current.getEntries().filter { it.isPasswordArchive() && current.isEntryRevealed(it) }
         if (archives.isEmpty()) {
-            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_export_failed, generation)
             return
         }
         passwordExportPrompt?.dismiss()
@@ -1903,6 +1956,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             composeVaultAppearance = appearance
             container.addView(view, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         }
+        deliverBackupFeedback()
         view.onOpenUriImport = { openUriImportDialog() }
         controller.attachComposeEditor(view)
         view.render(published.state, VaultActions(
@@ -1933,7 +1987,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 val saved = android.preference.PreferenceManager.getDefaultSharedPreferences(this).edit()
                     .putBoolean(getString(R.string.settings_key_backup_append_date_time),
                         !settings!!.getIsAppendingDateTimeToBackups()).commit()
-                if (!saved) Toast.makeText(this, R.string.backup_timestamp_save_failed, Toast.LENGTH_LONG).show()
+                if (!saved) showVaultFeedback(R.string.backup_timestamp_save_failed)
             },
             onOpenAbout = { startActivity(Intent(this, AboutActivity::class.java)) },
             onOpenSettings = { startActivityForResult(Intent(this, SettingsActivity::class.java), Constants.INTENT_MAIN_SETTINGS) },
@@ -2010,13 +2064,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (VaultSession.getKey() == null) return
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
         try { startActivityForResult(intent, Constants.INTENT_MAIN_EMAIL_IMPORT) }
-        catch (_: Exception) { Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show() }
+        catch (_: Exception) { showVaultFeedback(R.string.email_import_failed) }
     }
 
     private fun chooseEmailExport() {
         val emailEntries = adapter?.getEntries()?.filter { it.isEmail() } ?: emptyList()
         if (emailEntries.isEmpty()) {
-            Toast.makeText(this, R.string.email_export_empty, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.email_export_empty)
             return
         }
         val selectionGeneration = VaultSession.generation()
@@ -2037,14 +2091,16 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             confirmLabel = getString(R.string.email_export),
             dismissLabel = getString(android.R.string.cancel),
             onConfirm = { selectedIndices ->
+                val owned = emailExportSelectionDialog === host && host?.dismissals == 0
                 closeHost()
+                if (!owned) return@MultiChoiceSelectionComposeView
                 if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@MultiChoiceSelectionComposeView
                 val chosen = emailEntries.filterIndexed { index, _ -> index in selectedIndices }
                 if (chosen.isEmpty()) return@MultiChoiceSelectionComposeView
                 val accounts = try { chosen.map { it.getEmailAccount() } }
-                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
+                    catch (_: Exception) { showVaultFeedback(R.string.email_export_failed, selectionGeneration); return@MultiChoiceSelectionComposeView }
                 val file = try { EmailMaterial.exportBackup(accounts) }
-                    catch (_: Exception) { Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
+                    catch (_: Exception) { showVaultFeedback(R.string.email_export_failed, selectionGeneration); return@MultiChoiceSelectionComposeView }
                 val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("application/json").putExtra(Intent.EXTRA_TITLE, "fairemail-accounts.json")
                 try {
@@ -2053,7 +2109,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     startActivityForResult(uriIntent, Constants.INTENT_MAIN_EMAIL_EXPORT)
                 } catch (_: Exception) {
                     file.fill(0); emailExportPending = null; emailExportGeneration = -1L
-                    Toast.makeText(this, R.string.email_export_failed, Toast.LENGTH_LONG).show()
+                    showVaultFeedback(R.string.email_export_failed, selectionGeneration)
                 }
             },
             onDismiss = closeHost
@@ -2081,14 +2137,17 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun importEmailDocument(uri: Uri) {
+        val generation = VaultSession.generation()
+        val current = adapter ?: return
+        if (VaultSession.getKey() == null || current.encryptionKey !== VaultSession.getKey()) return
         val bytes = try {
             getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, 8 * 1024 * 1024) }
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.email_import_failed, generation)
             return
         }
         try {
-            importEmailBytes(bytes, null)
+            importEmailBytes(bytes, null, generation)
             bytes.fill(0)
         } catch (_: Exception) {
             // FairEmail's normal export can be password encrypted. Prompt only when a plain/gzip
@@ -2107,13 +2166,15 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             val view = EmailImportPasswordComposeView(
                 activity = this,
                 onRead = { password ->
-                    try {
-                        importEmailBytes(bytes, password)
+                    if (emailImportPrompt !== pending.host || emailImportBytes !== bytes ||
+                        adapter !== current || !VaultSession.isCurrent(generation) ||
+                        VaultSession.getKey() == null || current.encryptionKey !== VaultSession.getKey()) false
+                    else try {
+                        importEmailBytes(bytes, password, generation)
                         cleanup()
                         true
                     } catch (_: Exception) {
-                        Toast.makeText(this, R.string.email_import_failed, Toast.LENGTH_LONG).show()
-                        false
+                        false // The shared password form renders the retry failure.
                     }
                 },
                 onDismiss = cleanup
@@ -2126,14 +2187,16 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
     }
 
-    private fun importEmailBytes(bytes: ByteArray, password: String?) {
+    private fun importEmailBytes(bytes: ByteArray, password: String?, generation: Long) {
+        if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null ||
+            adapter?.encryptionKey !== VaultSession.getKey()) throw IllegalStateException("Session changed")
         val incoming = ArrayList<Entry>()
         try {
             for (account in EmailMaterial.importBackup(bytes, password))
                 incoming.add(Entry.email(account.account, account.identity, account.identities))
             val result = adapter?.importEntries(incoming)
             if (result == null) throw IllegalStateException("Vault unavailable")
-            Toast.makeText(this, R.string.email_import_success, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.email_import_success, generation)
             findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
         } catch (error: Exception) {
             incoming.forEach { it.destroy() }
@@ -2154,7 +2217,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) { false }
         bytes.fill(0)
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
-        Toast.makeText(this, if (saved) R.string.email_export_success else R.string.email_export_failed, Toast.LENGTH_LONG).show()
+        showVaultFeedback(if (saved) R.string.email_export_success else R.string.email_export_failed, generation)
     }
 
     private fun clearPasswordImportState() {
@@ -2184,7 +2247,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         try { startActivityForResult(intent, Constants.INTENT_MAIN_PASSWORD_IMPORT) }
         catch (_: Exception) {
             passwordImportPending = false
-            Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_import_failed)
         }
     }
 
@@ -2195,7 +2258,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return
         val digest = current.passwordArchiveDigest(entry, generation)
         if (digest == null) {
-            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_export_failed, generation)
             return
         }
         val title = entry.getLabel().ifBlank { "passwords.bin" }
@@ -2211,7 +2274,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) {
             passwordExportName = null
             passwordExportDigest = null
-            Toast.makeText(this, R.string.password_export_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_export_failed, generation)
         }
     }
 
@@ -2240,7 +2303,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             })
         } finally { bytes.fill(0) }
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
-        Toast.makeText(this, if (saved) R.string.password_export_success else R.string.password_export_failed, Toast.LENGTH_LONG).show()
+        showVaultFeedback(if (saved) R.string.password_export_success else R.string.password_export_failed, generation)
     }
 
     private fun openPasswordImportDialog(uri: Uri) {
@@ -2251,7 +2314,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 BoundedInputReader.read(it, BrowserPasswordCsv.MAX_FILE_BYTES)
             }
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_import_failed, generation)
             return
         }
         val filename = StorageAccessHelper.getContentFileName(this, uri).ifBlank { "passwords.csv" }
@@ -2295,12 +2358,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                             throw IllegalStateException()
                         }
                         cleanup()
-                        Toast.makeText(this, R.string.password_import_success, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.password_import_success, generation)
                         findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.PASSWORDS.ordinal)?.select()
                         outcome != null
                     } catch (_: Exception) {
-                        Toast.makeText(this, R.string.password_import_failed, Toast.LENGTH_LONG).show()
-                        false
+                        false // The shared import form renders the retry failure.
                     }
                 }
             },
@@ -2317,7 +2379,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (VaultSession.getKey() == null) return
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
         try { startActivityForResult(intent, Constants.INTENT_MAIN_THUNDERBIRD_IMPORT) }
-        catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show() }
+        catch (_: Exception) { showVaultFeedback(R.string.thunderbird_import_failed) }
     }
 
     private fun resumeThunderbirdOperation() {
@@ -2338,7 +2400,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             bytes = getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, ThunderbirdCsv.MAX_FILE_BYTES) }
             incoming = ThunderbirdImport.prepare(bytes)
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.thunderbird_import_failed, generation)
             return
         } finally { bytes?.fill(0) }
         clearThunderbirdImportState()
@@ -2359,7 +2421,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             confirmLabel = getString(android.R.string.ok),
             dismissLabel = getString(android.R.string.cancel),
             onConfirm = {
-                if (thunderbirdImportPreview === incoming) thunderbirdImportPreview = null
+                if (thunderbirdImportPrompt !== pending.host || thunderbirdImportPreview !== incoming)
+                    return@DeleteConfirmationComposeView
+                thunderbirdImportPreview = null
                 pending.host?.dismiss()
                 if (thunderbirdImportPrompt === pending.host) thunderbirdImportPrompt = null
                 if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) {
@@ -2371,10 +2435,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         incoming.forEach { it.destroy() }
                         throw IllegalStateException()
                     }
-                    Toast.makeText(this, R.string.thunderbird_import_success, Toast.LENGTH_LONG).show()
+                    showVaultFeedback(R.string.thunderbird_import_success, generation)
                     findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(EntryListPresentation.Category.EMAILS.ordinal)?.select()
                 } catch (_: Exception) {
-                    Toast.makeText(this, R.string.thunderbird_import_failed, Toast.LENGTH_LONG).show()
+                    showVaultFeedback(R.string.thunderbird_import_failed, generation)
                 }
             },
             onDismiss = cleanup
@@ -2387,7 +2451,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun chooseThunderbirdExport() {
         val entries = adapter?.getEntries()?.filter { ThunderbirdImport.isExportable(it) } ?: emptyList()
         if (entries.isEmpty()) {
-            Toast.makeText(this, R.string.thunderbird_export_empty, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.thunderbird_export_empty)
             return
         }
         val selectionGeneration = VaultSession.generation()
@@ -2408,12 +2472,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             confirmLabel = getString(R.string.thunderbird_export),
             dismissLabel = getString(android.R.string.cancel),
             onConfirm = { selectedIndices ->
+                val owned = thunderbirdExportSelectionDialog === host && host?.dismissals == 0
                 closeHost()
+                if (!owned) return@MultiChoiceSelectionComposeView
                 if (!VaultSession.isCurrent(selectionGeneration) || VaultSession.getKey() == null) return@MultiChoiceSelectionComposeView
                 val chosen = entries.filterIndexed { index, _ -> index in selectedIndices }
                 if (chosen.isEmpty()) return@MultiChoiceSelectionComposeView
                 val file = try { ThunderbirdImport.exportCsv(chosen) }
-                    catch (_: Exception) { Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show(); return@MultiChoiceSelectionComposeView }
+                    catch (_: Exception) { showVaultFeedback(R.string.thunderbird_export_failed, selectionGeneration); return@MultiChoiceSelectionComposeView }
                 val uriIntent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
                     .setType("text/csv").putExtra(Intent.EXTRA_TITLE, "thunderbird-credentials.csv")
                 try {
@@ -2422,7 +2488,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     startActivityForResult(uriIntent, Constants.INTENT_MAIN_THUNDERBIRD_EXPORT)
                 } catch (_: Exception) {
                     file.fill(0); thunderbirdExportPending = null; thunderbirdExportGeneration = -1L
-                    Toast.makeText(this, R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
+                    showVaultFeedback(R.string.thunderbird_export_failed, selectionGeneration)
                 }
             },
             onDismiss = closeHost
@@ -2444,14 +2510,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) { false }
         bytes.fill(0)
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
-        Toast.makeText(this, if (saved) R.string.thunderbird_export_success else R.string.thunderbird_export_failed, Toast.LENGTH_LONG).show()
+        showVaultFeedback(if (saved) R.string.thunderbird_export_success else R.string.thunderbird_export_failed, generation)
     }
 
     private fun chooseLinScpImport() {
         if (VaultSession.getKey() == null) return
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("*/*")
         try { startActivityForResult(intent, Constants.INTENT_MAIN_LINSCP_IMPORT) }
-        catch (_: Exception) { Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show() }
+        catch (_: Exception) { showVaultFeedback(R.string.linscp_import_failed) }
     }
 
     private fun resumeLinScpOperation() {
@@ -2464,13 +2530,13 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     private fun importLinScpDocument(uri: Uri) {
+        val promptGeneration = VaultSession.generation()
         val bytes = try {
             getContentResolver().openInputStream(uri).use { BoundedInputReader.read(it, LinScpCredentials.MAX_FILE_BYTES) }
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.linscp_import_failed, promptGeneration)
             return
         }
-        val promptGeneration = VaultSession.generation()
         if (LinScpCredentials.isEncryptedVault(bytes)) {
             promptLinScpSecret(bytes, R.string.linscp_backup_password) { secretText ->
                 if (!VaultSession.isCurrent(promptGeneration) || VaultSession.getKey() == null) return@promptLinScpSecret
@@ -2490,7 +2556,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             try {
                 finishLinScpImport(LinScpCredentials.importBytes(bytes))
             } catch (_: Exception) {
-                Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
+                showVaultFeedback(R.string.linscp_import_failed, promptGeneration)
             } finally {
                 bytes.fill(0)
             }
@@ -2525,8 +2591,9 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             current.encryptionKey !== VaultSession.getKey()) { dispose(); return }
         if (incoming.isEmpty()) {
             dispose()
-            Toast.makeText(this, R.string.linscp_import_failed, Toast.LENGTH_LONG).show()
-            return
+            // Secret-protected input reports through its common retry form; plain input through
+            // the caller's shared page feedback. Never emit behind a still-open secret form.
+            throw IllegalArgumentException("No importable entries")
         }
         val request = Any()
         val labels = incoming.map { "[${if (it.isSshKey()) "Key" else "Session"}] ${it.getLabel()}" }
@@ -2550,7 +2617,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     val hasKeys = chosen.any { it.isSshKey() }
                     val result = try { current.importEntries(chosen) } catch (_: Exception) { null }
                     if (result != null) {
-                        Toast.makeText(this, R.string.linscp_import_success, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.linscp_import_success, generation)
                         val category = if (hasKeys) EntryListPresentation.Category.SSH_KEYS else EntryListPresentation.Category.PASSWORDS
                         findViewById<TabLayout>(R.id.entry_categories)?.getTabAt(category.ordinal)?.select()
                         null
@@ -2563,7 +2630,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     private fun chooseLinScpExport() {
         val entries = adapter?.getEntries()?.filter { it.isSshKey() || it.isPassword() } ?: emptyList()
         if (entries.isEmpty()) {
-            Toast.makeText(this, R.string.linscp_export_empty, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.linscp_export_empty)
             return
         }
         val view = composeVaultView ?: return
@@ -2598,7 +2665,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         val bytes = try {
             if (plainText) LinScpCredentials.exportPlain(chosen) else LinScpCredentials.exportVault(chosen, password!!)
         } catch (_: Exception) {
-            Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show(); return false
+            return false // The shared export form renders the retry failure.
         }
         val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
             .setType(if (plainText) "application/json" else "application/octet-stream")
@@ -2610,7 +2677,6 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             return true
         } catch (_: Exception) {
             bytes.fill(0); linScpExportPending = null; linScpExportGeneration = -1L
-            Toast.makeText(this, R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
             return false
         }
     }
@@ -2628,7 +2694,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) { false }
         bytes.fill(0)
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
-        Toast.makeText(this, if (saved) R.string.linscp_export_success else R.string.linscp_export_failed, Toast.LENGTH_LONG).show()
+        showVaultFeedback(if (saved) R.string.linscp_export_success else R.string.linscp_export_failed, generation)
     }
 
     /**
@@ -2673,7 +2739,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                 archiveHost.show()
                 return
             }
-            Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.password_export_csv_foreign, generation)
             return
         }
         val grouped = linkedMapOf<Pair<PasswordCsvExport.Dialect, List<String>>, MutableList<Entry>>()
@@ -2705,12 +2771,12 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     if (!VaultSession.isCurrent(generation) || VaultSession.getKey() == null) return@DeleteConfirmationComposeView
                     val chosen = groupEntries.filter { current.isEntryRevealed(it) }
                     if (chosen.isEmpty()) {
-                        Toast.makeText(this, R.string.password_export_csv_foreign, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.password_export_csv_foreign, generation)
                         return@DeleteConfirmationComposeView
                     }
                     val bytes = try { PasswordCsvExport.exportCsv(chosen, dialect) }
                         catch (_: Exception) {
-                            Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                            showVaultFeedback(R.string.password_export_csv_failed, generation)
                             return@DeleteConfirmationComposeView
                         }
                     val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE)
@@ -2724,7 +2790,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         bytes.fill(0)
                         passwordCsvExportPending = null
                         passwordCsvExportGeneration = -1L
-                        Toast.makeText(this, R.string.password_export_csv_failed, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.password_export_csv_failed, generation)
                     }
                 },
                 onDismiss = closeHost
@@ -2777,12 +2843,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         } catch (_: Exception) { false }
         bytes.fill(0)
         if (!saved) StorageAccessHelper.deleteContentFile(this, uri)
-        Toast.makeText(this, if (saved) R.string.password_export_csv_success else R.string.password_export_csv_failed,
-            Toast.LENGTH_LONG).show()
+        showVaultFeedback(if (saved) R.string.password_export_csv_success else R.string.password_export_csv_failed, generation)
     }
 
     @Suppress("SameParameterValue")
-    private fun showOpenFileSelector(intentId: Int): Boolean {
+    private fun showOpenFileSelector(intentId: Int, reportFailure: Boolean = true): Boolean {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
         intent.addCategory(Intent.CATEGORY_OPENABLE)
         intent.setType("image/*")
@@ -2790,10 +2855,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             startActivityForResult(intent, intentId)
             true
         } catch (error: ActivityNotFoundException) {
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            if (reportFailure) showVaultFeedback(R.string.backup_toast_file_selection_failed)
             false
         } catch (error: SecurityException) {
-            Toast.makeText(this, R.string.backup_toast_file_selection_failed, Toast.LENGTH_LONG).show()
+            if (reportFailure) showVaultFeedback(R.string.backup_toast_file_selection_failed)
             false
         }
     }
@@ -2809,8 +2874,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             return
         }
         if (migrationCollector != null) {
-            Toast.makeText(this, R.string.google_import_expected_qr, Toast.LENGTH_LONG).show()
-            showMigrationProgress()
+            showMigrationProgress(R.string.google_import_expected_qr)
             return
         }
         var parsedEntry: Entry? = null
@@ -2836,7 +2900,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             }
         } catch (_: Exception) {
             parsedEntry?.destroy()
-            Toast.makeText(this, R.string.toast_invalid_qr_code, Toast.LENGTH_LONG).show()
+            showVaultFeedback(R.string.toast_invalid_qr_code, epoch)
         }
     }
 
@@ -2861,9 +2925,10 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     awaitingMigrationQr = true
                 }
                 closeHost()
-                if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE) && migrationCollector != null) {
+                val collecting = migrationCollector != null
+                if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE, reportFailure = !collecting) && collecting) {
                     awaitingMigrationQr = false
-                    showMigrationProgress()
+                    showMigrationProgress(R.string.backup_toast_file_selection_failed)
                 }
             },
             onScanCamera = {
@@ -2876,8 +2941,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     scanQRCode()
                 } catch (_: RuntimeException) {
                     awaitingMigrationQr = false
-                    Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
-                    if (migrationCollector != null) showMigrationProgress()
+                    if (migrationCollector != null) showMigrationProgress(R.string.google_import_scan_failed)
+                    else showVaultFeedback(R.string.google_import_scan_failed)
                 }
             },
             onSubmit = { rawUri, allowAdditional ->
@@ -3031,8 +3096,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         if (parsed is MigrationParseResult.Failure) {
             val message = if (parsed.error == MigrationError.UNSUPPORTED)
                 R.string.google_import_unsupported else R.string.google_import_invalid
-            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-            if (migrationCollector != null) showMigrationProgress()
+            if (migrationCollector != null) showMigrationProgress(message)
+            else showVaultFeedback(message, epoch)
             return
         }
         val payload = (parsed as MigrationParseResult.Success).payload
@@ -3053,16 +3118,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             when (collector.add(payload, VaultSession.generation(), true)) {
                 MigrationBatchStatus.ADDED -> showMigrationProgress()
                 MigrationBatchStatus.DUPLICATE -> {
-                    Toast.makeText(this, R.string.google_import_already_scanned, Toast.LENGTH_LONG).show()
-                    showMigrationProgress()
+                    showMigrationProgress(R.string.google_import_already_scanned)
                 }
                 MigrationBatchStatus.DIFFERENT_EXPORT -> {
-                    Toast.makeText(this, R.string.google_import_wrong_batch, Toast.LENGTH_LONG).show()
-                    showMigrationProgress()
+                    showMigrationProgress(R.string.google_import_wrong_batch)
                 }
                 MigrationBatchStatus.TOO_MANY -> {
                     dismissMigrationImport()
-                    Toast.makeText(this, R.string.google_import_too_many, Toast.LENGTH_LONG).show()
+                    showVaultFeedback(R.string.google_import_too_many, epoch)
                 }
                 MigrationBatchStatus.STALE -> dismissMigrationImport()
                 MigrationBatchStatus.COMPLETE -> {
@@ -3070,7 +3133,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         collector.takeAccounts(VaultSession.generation(), true)
                     } catch (_: RuntimeException) {
                         dismissMigrationImport()
-                        Toast.makeText(this, R.string.google_import_invalid, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.google_import_invalid, epoch)
                         return
                     }
                     migrationCollector = null
@@ -3084,7 +3147,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                         showMigrationConfirmation(entries, epoch)
                     } catch (_: RuntimeException) {
                         entries.forEach { it.destroy() }
-                        Toast.makeText(this, R.string.google_import_invalid, Toast.LENGTH_LONG).show()
+                        showVaultFeedback(R.string.google_import_invalid, epoch)
                     } finally {
                         accounts.forEach { it.close() }
                     }
@@ -3094,7 +3157,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     /** Offers either camera or image input for the next part; cancellation wipes the batch. */
-    private fun showMigrationProgress() {
+    private fun showMigrationProgress(feedbackId: Int? = null) {
         val collector = migrationCollector ?: return
         if (isFinishing() || VaultSession.getKey() == null || adapter?.encryptionKey !== VaultSession.getKey()) {
             dismissMigrationImport()
@@ -3114,7 +3177,8 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
         }
         dialog = SingleChoiceSelectionComposeView(this,
             title = getString(R.string.google_import_title),
-            message = getString(R.string.google_import_progress, collector.received, collector.expected),
+            message = getString(R.string.google_import_progress, collector.received, collector.expected) +
+                (feedbackId?.let { "\n\n" + getString(it) } ?: ""),
             items = listOf(getString(R.string.button_scan_qr), getString(R.string.button_qr_from_image)),
             initialSelected = 0, confirmLabel = getString(android.R.string.ok), dismissLabel = getString(android.R.string.cancel),
             onConfirm = { index ->
@@ -3126,12 +3190,11 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                     if (index == 0) {
                         try { scanQRCode() } catch (_: RuntimeException) {
                             awaitingMigrationQr = false
-                            Toast.makeText(this, R.string.google_import_scan_failed, Toast.LENGTH_LONG).show()
-                            showMigrationProgress()
+                            showMigrationProgress(R.string.google_import_scan_failed)
                         }
-                    } else if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE)) {
+                    } else if (!showOpenFileSelector(Constants.INTENT_MAIN_QR_OPEN_IMAGE, reportFailure = false)) {
                         awaitingMigrationQr = false
-                        showMigrationProgress()
+                        showMigrationProgress(R.string.backup_toast_file_selection_failed)
                     }
                 } else cancel()
             }, onDismiss = cancel)
@@ -3183,14 +3246,14 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
                                 try {
                                     val outcome = currentAdapter.importEntries(confirmed)
                                     if (outcome == null) {
-                                        Toast.makeText(this, R.string.google_import_save_failed, Toast.LENGTH_LONG).show()
+                                        showVaultFeedback(R.string.google_import_save_failed, epoch)
                                     } else {
                                         refreshTags()
-                                        Toast.makeText(this, getString(R.string.google_import_finished,
-                                            outcome.added, outcome.skipped), Toast.LENGTH_LONG).show()
+                                        showVaultFeedback(getString(R.string.google_import_finished,
+                                            outcome.added, outcome.skipped), epoch)
                                     }
                                 } catch (_: RuntimeException) {
-                                    Toast.makeText(this, R.string.google_import_save_failed, Toast.LENGTH_LONG).show()
+                                    showVaultFeedback(R.string.google_import_save_failed, epoch)
                                 }
                             }
                         }
@@ -3314,7 +3377,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
             }
         } catch (_: Exception) {
             if (!transferredToAdapter) entry.destroy()
-            Toast.makeText(this, failureMessage, Toast.LENGTH_LONG).show()
+            showVaultFeedback(failureMessage, epoch)
         }
     }
 
@@ -3347,6 +3410,7 @@ open class MainActivity : BaseActivity(), SharedPreferences.OnSharedPreferenceCh
     }
 
     override fun onDestroy() {
+        clearVaultFeedbackTimer()
         dismissPendingImport()
         dismissMigrationImport()
         clearPasswordImportState()

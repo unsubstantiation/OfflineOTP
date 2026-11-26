@@ -196,6 +196,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
         hardware.visibility = if (allowed) View.VISIBLE else View.GONE
         hardware.setOnClickListener {
             if (!hardwarePending && !biometricPending && !authTaskRunning && authForeground && allowed) {
+                sharedAuthentication?.clearFeedback()
                 clearPasswordInput()
                 hardwarePending = true
                 hardwareGeneration = VaultSession.generation()
@@ -225,6 +226,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     private fun triggerBiometricUnlock() {
         if (biometricPending || hardwarePending || authTaskRunning || !authForeground || isFinishing()) return
+        sharedAuthentication?.clearFeedback()
         biometricPending = true
         biometricGeneration = VaultSession.generation()
         BiometricKeyStore.load(this) { result ->
@@ -263,11 +265,8 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
                 BiometricKeyStore.BiometricError.UNAVAILABLE -> biometricButton?.visibility = View.GONE
                 else -> Unit
             }
-            val duration =
-                if (error == BiometricKeyStore.BiometricError.CANCELLED) Toast.LENGTH_SHORT
-                else Toast.LENGTH_LONG
-            // The sentence is a string resource, so it is translated with the rest of the app.
-            Toast.makeText(this, error.message(this), duration).show()
+            // Recoverable biometric status belongs to the shared page, not a native Toast.
+            sharedAuthentication?.showFeedback(error.message(this))
             publishAuthentication()
         }
     }
@@ -326,6 +325,7 @@ open class AuthenticateActivity : BackgroundTaskActivity<AuthenticationOutcome>(
 
     private fun startAuthTask(plainPassword: String) {
         if (!authForeground || authTaskRunning || biometricPending || hardwarePending || isFinishing()) return
+        sharedAuthentication?.clearFeedback()
         val task = AuthenticationTask(this, isAuthUpgrade, existingAuthCredentials, plainPassword)
         try {
             startBackgroundTask(task)

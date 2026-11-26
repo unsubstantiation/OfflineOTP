@@ -550,3 +550,243 @@ class SharedUiFeedbackTest(unittest.TestCase):
         bridge = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text().split("class SetupShellComposeView(", 1)[1]
         self.assertIn("if (closed || busy || direction !in setOf(-1, 1)) return", bridge)
         self.assertIn("step == count - 1 && !completed", bridge)
+
+    def test_settings_policy_and_encryption_feedback_use_shared_banner(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText(this, R.string.settings_save_failed", settings)
+        self.assertNotIn("Snackbar.make(snackbarAnchor(), R.string.settings_toast_encryption_", settings)
+        self.assertIn("val revision = page.showNotice(message)", settings)
+        self.assertIn("Runnable { page.dismissNotice(revision) }", settings)
+        for marker in ("override fun onVaultLocked() {", "override fun onDestroy() {"):
+            self.assertIn("clearSettingsFeedback()", settings.split(marker, 1)[1].split("\n    }", 1)[0])
+        common = (FOUNDATION / "SharedVaultScreen.kt").read_text()
+        self.assertIn("SharedFeedbackBanner(toast, onDismissToast)", common)
+        self.assertIn("liveRegion = LiveRegionMode.Polite", common)
+        bridge = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/host/ComposeDialogViews.kt").read_text()
+        self.assertIn("revision == noticeRevision", bridge)
+        self.assertIn("SharedFeedbackPage(notice", bridge)
+
+    def test_settings_export_feedback_and_import_authority_are_host_guarded(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        export = settings.split("private fun startPreferencesExport(", 1)[1].split("private fun confirmPreferencesImport(", 1)[0]
+        self.assertNotIn("Toast.makeText", export)
+        self.assertIn("showSettingsFeedback", export)
+        self.assertIn("VaultSession.isCurrent(generation)", export)
+        self.assertIn("pending.zero()", export)
+        confirm = settings.split("private fun confirmPreferencesImport(", 1)[1].split("private fun previewPreferencesImport(", 1)[0]
+        self.assertLess(confirm.index("val owned = settingsConfirmationPrompt === dialogRef"), confirm.index("bytes.copyOf()"))
+        self.assertIn("VaultSession.isCurrent(generation)", confirm)
+        for marker in ("override fun onVaultLocked() {", "override fun onDestroy() {"):
+            self.assertIn("clearPreferencesExport()", settings.split(marker, 1)[1].split("\n    }", 1)[0])
+
+    def test_biometric_enrollment_feedback_is_shared_and_pending_is_visible(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        enrollment = settings.split("private fun promptBiometricEnrollment(", 1)[1].split("private fun verifyVaultPassword(", 1)[0]
+        self.assertNotIn("Toast.makeText", enrollment)
+        self.assertIn("view.updateOperation(true)", enrollment)
+        self.assertIn("view.updateOperation(false, msg)", enrollment)
+        self.assertIn("host.showSettingsFeedback(R.string.settings_toast_biometric_turned_on)", enrollment)
+        form = (FOUNDATION / "BiometricEnableDialog.kt").read_text()
+        self.assertIn("enabled = !busy", form)
+        self.assertIn("operationError ?: error", form)
+        self.assertLess(form.index('password = ""', form.index("val submitted")), form.index("onConfirm(submitted)"))
+
+    def test_import_completion_handoff_contains_only_metadata_and_checks_session(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        save = settings.split("private fun saveImportFeedback(", 1)[1].split("private fun restoreImportFeedback(", 1)[0]
+        self.assertNotIn("putString", save)
+        self.assertNotIn("putByteArray", save)
+        self.assertIn("VaultSession.isCurrent(feedback.generation)", save)
+        restore = settings.split("private fun restoreImportFeedback(", 1)[1].split("private companion object", 1)[0]
+        self.assertIn("VaultSession.isCurrent(generation)", restore)
+        self.assertIn("showSettingsFeedback(success + detail)", restore)
+        self.assertIn("importFeedback = null", restore)
+        imports = settings.split("private fun confirmPreferencesImport(", 1)[1].split("private fun completeSettingsDocumentPicker(", 1)[0]
+        self.assertNotIn("Toast.makeText", imports)
+
+    def test_active_settings_feedback_has_no_native_toast_or_snackbar(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        active = settings.split("open class SettingsFragment", 1)[0]
+        self.assertNotIn("Toast.makeText", active)
+        self.assertNotIn("Snackbar.make", active)
+        validation = active.split("private fun confirmPreferencesImport(", 1)[1].split("private fun applyPreferencesImport(", 1)[0]
+        self.assertEqual(validation.count("val preview = previewPreferencesImport(bytes)"), 1)
+        self.assertNotIn("isReadablePreferences", validation)
+        self.assertIn("WrongPlatformException", validation)
+        self.assertIn("R.string.preferences_import_wrong_platform else R.string.preferences_import_failed", validation)
+
+    def test_settings_compatibility_callbacks_reuse_shared_feedback_and_live_guards(self):
+        settings = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/SettingsActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText", settings)
+        self.assertNotIn("Snackbar.make", settings)
+        login = settings.split("loginBackup?.setOnPreferenceChangeListener", 1)[1].split("useAutoBackup =", 1)[0]
+        self.assertIn("activity.confirmLegacyBackupPasswordRemoval()", login)
+        self.assertNotIn("sharedPref.edit().remove", login)
+        self.assertIn("activity.overviewSessionReady()", login)
+        biometric = settings.split("biometricPref.setOnPreferenceChangeListener", 1)[1].split("if (sharedPref.contains", 1)[0]
+        self.assertIn("val passwordVaultNow =", biometric)
+        self.assertIn("if (!passwordVaultNow)", biometric)
+        self.assertIn("activity.overviewSessionReady()", biometric)
+
+    def test_backup_picker_failures_use_session_guarded_shared_feedback(self):
+        backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText(this, R.string.backup_toast_file_selection_failed", backup)
+        self.assertNotIn("Toast.makeText(this, R.string.backup_toast_no_location", backup)
+        helper = backup.split("private fun showBackupFeedback(", 1)[1].split("private fun notifyBackupState(", 1)[0]
+        self.assertIn("if (!canOperate()) return", helper)
+        self.assertIn("Runnable { page.dismissNotice(revision) }", helper)
+        for marker in ("override fun onVaultLocked() {", "override fun onDestroy() {"):
+            self.assertIn("clearBackupFeedback()", backup.split(marker, 1)[1].split("\n    }", 1)[0])
+
+    def test_backup_nonclosing_failures_and_provider_errors_use_shared_banner(self):
+        backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()
+        self.assertIn("showBackupFeedback(R.string.backup_toast_openpgp_not_verified)", backup)
+        self.assertNotIn("Toast.makeText(this, R.string.backup_toast_openpgp_not_verified", backup)
+        self.assertIn("showBackupFeedback(failureMessage)", backup)
+        self.assertIn('completedBackupNotice = "export_success"', backup)
+        self.assertNotIn("notifyBackupState(successMessage, result.payload)", backup)
+        provider = backup.split("OpenPgpApi.RESULT_CODE_ERROR ->", 1)[1].split("else -> notifyOpenPgpFailure", 1)[0]
+        self.assertNotIn("Toast.makeText", provider)
+        self.assertIn("showBackupFeedback(", provider)
+
+    def test_vault_picker_feedback_uses_live_frame_and_shared_banner(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText(this, R.string.backup_toast_file_selection_failed", main)
+        helper = main.split("private fun showVaultFeedback(", 1)[1].split("override fun onVaultLocked", 1)[0]
+        self.assertIn("adapter?.encryptionKey !== key", helper)
+        self.assertIn("VaultSession.isCurrent(composeVaultGeneration)", helper)
+        self.assertIn("page.dismissNotice(revision)", helper)
+        bridge = (ROOT / "ui/src/androidMain/kotlin/com/fairuniversal/offlineotp/ui/vault/VaultComposeView.kt").read_text()
+        self.assertIn("SharedFeedbackPage(notice", bridge)
+        self.assertIn('notice = ""', bridge.split("fun clear()", 1)[1])
+
+    def test_backup_success_result_handoff_is_allowlisted_and_session_bound(self):
+        backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()
+        finish = backup.split("fun finishWithResult()", 1)[1].split("override fun onSupportNavigateUp", 1)[0]
+        self.assertIn('data.putExtra("backup_feedback_kind", it)', finish)
+        self.assertIn("if (canOperate())", finish)
+        self.assertNotIn("payload", finish)
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        handoff = main.split("private fun acceptBackupFeedback(", 1)[1].split("private val feedbackHandler", 1)[0]
+        self.assertIn("VaultSession.isCurrent(generation)", handoff)
+        self.assertIn('"export_success" -> R.string.backup_toast_export_success', handoff)
+        self.assertIn("else -> return", handoff)
+        self.assertIn("composeVaultGeneration != pending.first", handoff)
+        self.assertLess(handoff.index("pendingBackupNotice = null\n        showVaultFeedback"), handoff.index("showVaultFeedback(pending.second)"))
+
+    def test_vault_export_results_use_original_generation_and_shared_feedback(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("if (!VaultSession.isCurrent(expectedGeneration)) return", main)
+        for prefix in ("email_export", "password_export", "thunderbird_export", "linscp_export", "password_export_csv"):
+            self.assertIn(f"showVaultFeedback(if (saved) R.string.{prefix}_success else R.string.{prefix}_failed, generation)", main)
+            self.assertNotIn(f"Toast.makeText(this, if (saved) R.string.{prefix}_success", main)
+
+    def test_import_completion_notices_and_email_retry_keep_original_session(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        for kind in ("email", "password", "thunderbird", "linscp"):
+            self.assertIn(f"showVaultFeedback(R.string.{kind}_import_success, generation)", main)
+            self.assertNotIn(f"Toast.makeText(this, R.string.{kind}_import_success", main)
+        email = main.split("private fun importEmailDocument(", 1)[1].split("private fun saveEmailExport(", 1)[0]
+        self.assertIn("emailImportPrompt !== pending.host", email)
+        self.assertIn("emailImportBytes !== bytes", email)
+        self.assertIn("current.encryptionKey !== VaultSession.getKey()", email)
+        self.assertIn("importEmailBytes(bytes, password, generation)", email)
+        self.assertIn("thunderbirdImportPrompt !== pending.host || thunderbirdImportPreview !== incoming", main)
+
+    def test_migration_completion_and_no_data_notices_use_shared_feedback(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        confirmation = main.split("private fun showMigrationConfirmation(", 1)[1].split("\n    private fun ", 1)[0]
+        self.assertNotIn("Toast.makeText", confirmation)
+        self.assertIn("showVaultFeedback(R.string.google_import_save_failed, epoch)", confirmation)
+        self.assertIn("outcome.added, outcome.skipped), epoch)", confirmation)
+        for prefix in ("email", "thunderbird", "linscp"):
+            self.assertIn(f"showVaultFeedback(R.string.{prefix}_export_empty)", main)
+            self.assertNotIn(f"Toast.makeText(this, R.string.{prefix}_export_empty", main)
+
+    def test_google_batch_progress_warnings_are_in_shared_modal_message(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        batch = main.split("private fun addMigrationQRCode(", 1)[1].split("private fun migrationPreview(", 1)[0]
+        self.assertNotIn("Toast.makeText", batch)
+        for name in ("already_scanned", "wrong_batch", "scan_failed"):
+            self.assertIn(f"showMigrationProgress(R.string.google_import_{name})", batch)
+        self.assertIn('feedbackId?.let { "\\n\\n" + getString(it) }', batch)
+        self.assertIn("reportFailure = false", batch)
+        self.assertIn("showMigrationProgress(R.string.backup_toast_file_selection_failed)", batch)
+
+    def test_standalone_qr_and_batch_wrong_format_feedback_use_visible_shared_surface(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        qr = main.split("private fun addQRCode(", 1)[1].split("private fun openUriImportDialog(", 1)[0]
+        self.assertNotIn("Toast.makeText", qr)
+        self.assertIn("showMigrationProgress(R.string.google_import_expected_qr)", qr)
+        self.assertIn("showVaultFeedback(R.string.toast_invalid_qr_code, epoch)", qr)
+        uri = main.split("private fun openUriImportDialog(", 1)[1].split("\n    private fun ", 1)[0]
+        self.assertNotIn("Toast.makeText", uri)
+        self.assertIn("reportFailure = !collecting", uri)
+        save = main.split("private fun saveImportedEntry(", 1)[1].split("private inner class", 1)[0]
+        self.assertIn("showVaultFeedback(failureMessage, epoch)", save)
+
+    def test_image_decoder_reports_failures_to_visible_shared_host(self):
+        decoder = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/ScanQRCodeFromFile.kt").read_text()
+        reporting = decoder.split("fun scanQRImageReporting(", 1)[1]
+        self.assertNotIn("Toast.makeText", reporting)
+        self.assertIn("onFailure(R.string.toast_file_load_error)", reporting)
+        self.assertIn("onFailure(message)", reporting)
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn("scanQRImageReporting(this, intent.data) { scanFailure = it }", main)
+        self.assertIn("showMigrationProgress(scanFailure)", main)
+        self.assertIn("showVaultFeedback(it, scanGeneration)", main)
+
+    def test_export_preparation_feedback_and_selector_ownership(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        for method, owner in (("chooseEmailExport", "emailExportSelectionDialog"), ("chooseThunderbirdExport", "thunderbirdExportSelectionDialog")):
+            section = main.split(f"private fun {method}(", 1)[1].split("\n    private ", 1)[0]
+            self.assertIn(f"val owned = {owner} === host", section)
+            self.assertIn("if (!owned) return@MultiChoiceSelectionComposeView", section)
+            self.assertNotIn("Toast.makeText", section)
+            self.assertIn(", selectionGeneration)", section)
+        linscp = main.split("private fun prepareLinScpExport(", 1)[1].split("private fun saveLinScpExport(", 1)[0]
+        self.assertNotIn("Toast.makeText", linscp)
+
+    def test_remaining_transfer_read_and_csv_preparation_notices_are_shared(self):
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        for marker in ("fun requestPasswordCsvExport(", "private fun importEmailDocument(", "private fun openPasswordImportDialog(", "private fun importThunderbirdDocument(", "private fun importLinScpDocument("):
+            section = main.split(marker, 1)[1].split("\n    private fun ", 1)[0]
+            self.assertNotIn("Toast.makeText", section)
+        self.assertIn("showVaultFeedback(R.string.backup_timestamp_save_failed)", main)
+        self.assertIn("showVaultFeedback(R.string.password_export_csv_failed, generation)", main)
+        self.assertIn("Toast.makeText(getBaseContext(), R.string.toast_auth_failed_fatal", main)
+
+    def test_about_feedback_uses_shared_page_and_cleans_up(self):
+        about = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AboutActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText", about)
+        self.assertIn("Runnable { host.dismissNotice(revision) }", about)
+        destruction = about.split("override fun onDestroy()", 1)[1]
+        self.assertIn("clearFeedback()", destruction)
+        self.assertIn("page?.close()", destruction)
+
+    def test_recoverable_biometric_authentication_feedback_is_shared(self):
+        auth = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt").read_text()
+        callback = auth.split("private fun triggerBiometricUnlock(", 1)[1].split("override fun cancelTaskOnScreenOff", 1)[0]
+        self.assertNotIn("Toast.makeText", callback)
+        self.assertIn("sharedAuthentication?.showFeedback(error.message(this))", callback)
+        form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedAuthenticationScreen.kt").read_text()
+        self.assertIn("feedback: String? = null", form)
+        self.assertIn("liveRegion = LiveRegionMode.Polite", form)
+
+    def test_authentication_native_retry_paths_clear_shared_feedback(self):
+        auth = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt").read_text()
+        for marker, end in (("private fun startAuthTask(", "override fun onTaskFailure"), ("private fun triggerBiometricUnlock(", "override fun cancelTaskOnScreenOff")):
+            section = auth.split(marker, 1)[1].split(end, 1)[0]
+            self.assertIn("sharedAuthentication?.clearFeedback()", section)
+        hardware = auth.split("hardware.setOnClickListener", 1)[1].split("biometricButton =", 1)[0]
+        self.assertIn("sharedAuthentication?.clearFeedback()", hardware)
+
+    def test_hardware_operation_feedback_uses_shared_status_with_live_session(self):
+        hardware = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText", hardware)
+        helper = hardware.split("private fun showHardwareStatus(", 1)[1].split("private fun showComposeDialog", 1)[0]
+        self.assertIn("if (!sessionReady() || !::status.isInitialized) return", helper)
+        self.assertIn("status.setText(message)", helper)
+        self.assertIn("publishHardwarePage()", helper)
+        for name in ("copy_done", "enroll_done", "no_candidates", "enroll_password_only"):
+            self.assertIn(f"showHardwareStatus(R.string.hardware_{name})", hardware)

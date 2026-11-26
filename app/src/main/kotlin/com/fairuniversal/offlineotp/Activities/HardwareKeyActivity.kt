@@ -9,7 +9,6 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import com.yubico.yubikit.core.YubiKeyDevice
 import com.yubico.yubikit.core.application.CommandState
 import com.fairuniversal.offlineotp.Database.Entry
@@ -346,7 +345,7 @@ class HardwareKeyActivity : BaseActivity() {
         val candidates = all.filter { HardwareOathClient.canCopy(it) }.toMutableList()
         all.filter { !candidates.contains(it) }.forEach { it.destroy() }
         if (candidates.isEmpty()) {
-            Toast.makeText(this, R.string.hardware_no_candidates, Toast.LENGTH_LONG).show()
+            showHardwareStatus(R.string.hardware_no_candidates)
             return
         }
         val names = candidates.map { displayName(it.getIssuer(), it.getLabel()) }
@@ -382,7 +381,7 @@ class HardwareKeyActivity : BaseActivity() {
         runOperation(HardwareKeyDiscovery.Protocol.OATH, entry, explicitPin = typedPin,
             work = { device, pin, permitted -> HardwareOathClient.copyToKey(device, pin, entry, requireTouch, permitted); true },
             interruptedMessage = R.string.hardware_copy_uncertain) { _, success ->
-            if (success) Toast.makeText(this, R.string.hardware_copy_done, Toast.LENGTH_LONG).show()
+            if (success) showHardwareStatus(R.string.hardware_copy_done)
             else showUncertain(R.string.hardware_copy_uncertain)
         }
     }
@@ -390,7 +389,7 @@ class HardwareKeyActivity : BaseActivity() {
     private fun confirmEnrollment() {
         if (settings?.getAuthMethod() != Constants.AuthMethod.PASSWORD ||
             settings?.getEncryption() != Constants.EncryptionType.PASSWORD) {
-            Toast.makeText(this, R.string.hardware_enroll_password_only, Toast.LENGTH_LONG).show()
+            showHardwareStatus(R.string.hardware_enroll_password_only)
             return
         }
         lateinit var view: HardwareEnrollmentComposeView
@@ -431,7 +430,7 @@ class HardwareKeyActivity : BaseActivity() {
                 success && HardwareUnlockStore.save(this, generation, key, it.envelope, it.prf) { sessionReady() }
             } == true
             if (!saved) showFailure()
-            else Toast.makeText(this, R.string.hardware_enroll_done, Toast.LENGTH_LONG).show()
+            else showHardwareStatus(R.string.hardware_enroll_done)
         }
     }
 
@@ -447,8 +446,7 @@ class HardwareKeyActivity : BaseActivity() {
                 dismissComposeDialog(view)
                 val key = VaultSession.getKey()
                 val removed = key != null && HardwareUnlockStore.remove(this, generation, key)
-                Toast.makeText(this, if (removed) R.string.hardware_remove_done else R.string.hardware_failed,
-                    Toast.LENGTH_LONG).show()
+                showHardwareStatus(if (removed) R.string.hardware_remove_done else R.string.hardware_failed)
             },
             onDismiss = { dismissComposeDialog(view) }
         )
@@ -461,12 +459,14 @@ class HardwareKeyActivity : BaseActivity() {
             .map { if (it.isISOControl() || Character.getType(it) == Character.FORMAT.toInt()) ' ' else it }
             .joinToString("").trim().take(256).ifEmpty { getString(R.string.hardware_unnamed) }
 
-    private fun showFailure() = Toast.makeText(this, R.string.hardware_failed, Toast.LENGTH_LONG).show()
+    private fun showFailure() = showHardwareStatus(R.string.hardware_failed)
 
-    private fun showUncertain(message: Int) {
+    private fun showUncertain(message: Int) = showHardwareStatus(message)
+
+    private fun showHardwareStatus(message: Int) {
+        if (!sessionReady() || !::status.isInitialized) return
         status.setText(message)
         publishHardwarePage()
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
     }
 
     private fun showComposeDialog(value: ComposeDialogHost, cleanup: () -> Unit = {}) {

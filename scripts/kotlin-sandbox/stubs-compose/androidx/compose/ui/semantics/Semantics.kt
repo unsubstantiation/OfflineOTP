@@ -13,3 +13,10 @@ inline fun Modifier.semantics(
 var SemanticsPropertyReceiver.contentDescription: String
     get() = ""
     set(value) {}
+
+class LiveRegionMode private constructor() {
+    companion object { val Polite = LiveRegionMode() }
+}
+var SemanticsPropertyReceiver.liveRegion: LiveRegionMode
+    get() = LiveRegionMode.Polite
+    set(value) {}

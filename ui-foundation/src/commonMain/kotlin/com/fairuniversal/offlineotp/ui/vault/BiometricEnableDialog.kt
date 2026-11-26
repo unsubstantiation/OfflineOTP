@@ -26,7 +26,9 @@ fun BiometricEnableDialog(
     cancelLabel: String,
     initialError: String?,
     onConfirm: (String) -> String?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    busy: Boolean = false,
+    operationError: String? = null
 ) {
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(initialError) }
@@ -39,6 +41,7 @@ fun BiometricEnableDialog(
                 Text(detail, modifier = Modifier.padding(bottom = 12.dp))
                 OutlinedTextField(
                     value = password,
+                    enabled = !busy,
                     onValueChange = {
                         if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) {
                             password = it
@@ -49,14 +52,17 @@ fun BiometricEnableDialog(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                error?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
+                (operationError ?: error)?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
             }
         },
         confirmButton = {
             ForestTextAction(text = confirmLabel, onClick = {
-                error = onConfirm(password)
-                password = ""
-            }, enabled = password.isNotEmpty())
+                if (!busy) {
+                    val submitted = password
+                    password = ""
+                    error = onConfirm(submitted)
+                }
+            }, enabled = !busy && password.isNotEmpty())
         },
         dismissButton = { ForestTextAction(text = cancelLabel, onClick = { dismiss() }) }
     )

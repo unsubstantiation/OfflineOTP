@@ -3040,8 +3040,10 @@ fun main() {
         fun scan(uri: Uri? = image): Pair<String?, List<Int>> {
             Toast.shown.clear()
             QRCodeReader.calls.clear()
-            val contents = ScanQRCodeFromFile.scanQRImage(context, uri)
-            return contents to ArrayList(Toast.shown)
+            val failures = ArrayList<Int>()
+            val contents = ScanQRCodeFromFile.scanQRImageReporting(context, uri) { failures.add(it) }
+            expect(Toast.shown.isEmpty(), { "reporting QR decoder opened native feedback" })
+            return contents to failures
         }
         val loadError = null to listOf(R.string.toast_file_load_error)
         val stderr = System.err
@@ -3159,7 +3161,7 @@ fun main() {
     check("the QR and notification helpers keep their static Java surface") {
         val qr = ScanQRCodeFromFile::class.java
         expectPublicFieldValue(qr, "INSTANCE", ScanQRCodeFromFile, qr, true)
-        expect(publicMethods(qr) == listOf("static String scanQRImage(Context,Uri)"), { "QR surface ${publicMethods(qr)}" })
+        expect(publicMethods(qr) == listOf("String scanQRImageReporting(Context,Uri,Function1)", "static String scanQRImage(Context,Uri)"), { "QR surface ${publicMethods(qr)}" })
         // The hint maps are built once: QR only, and the retry map is a copy that adds TRY_HARDER.
         fun hints(name: String): Map<*, *> = field(qr, name)!!.let {
             it.isAccessible = true
@@ -9748,6 +9750,17 @@ fun main() {
         set("generation", VaultSession.generation())
         try {
             publish.invoke(activity)
+            val feedback = type.getDeclaredMethod("showHardwareStatus", Int::class.javaPrimitiveType).apply { isAccessible = true }
+            feedback.invoke(activity, R.string.hardware_copy_done)
+            val statusField = livePage.javaClass.getDeclaredField("status\$delegate").apply { isAccessible = true }
+            fun statusMessage() = (statusField.get(livePage) as androidx.compose.runtime.MutableState<String>).value
+            val completed = statusMessage()
+            expect(completed.isNotEmpty(), { "hardware completion did not reach shared status" })
+            set("generation", -1L)
+            feedback.invoke(activity, R.string.hardware_failed)
+            expect(statusMessage() == completed, { "stale hardware operation replaced shared status" })
+            set("generation", VaultSession.generation())
+
             val typed = "key-password".toCharArray()
             livePage.selectTool("account:0:0", typed)
             expect(accountClicks == 1 && observedPassword == "key-password" && nativePassword.text.isNullOrEmpty(),
@@ -10054,6 +10067,25 @@ fun main() {
             clearProviderOptions.saveOptions("", false)
             expect(fixture.settings.getOpenPGPEncryptionUserIDs().isEmpty() && !fixture.settings.getOpenPGPVerify(),
                 { "provider recipient clearing was rejected" })
+            val importState = android.os.Bundle().apply {
+                putLong("settings_import_feedback_generation", VaultSession.generation())
+                putInt("settings_import_feedback_applied", 3)
+                putInt("settings_import_feedback_skipped", 2)
+                putBoolean("settings_import_feedback_secrets", false)
+            }
+            val restoreImport = type.getDeclaredMethod("restoreImportFeedback", android.os.Bundle::class.java).apply { isAccessible = true }
+            restoreImport.invoke(activity, importState)
+            val noticeState = overview.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+            fun importNotice() = (noticeState.get(overview) as androidx.compose.runtime.MutableState<String>).value
+            expect(importNotice().isNotEmpty(), { "same-session import result was not presented" })
+            val afterImport = android.os.Bundle()
+            type.getDeclaredMethod("saveImportFeedback", android.os.Bundle::class.java).apply { isAccessible = true }.invoke(activity, afterImport)
+            expect(afterImport.values.isEmpty(), { "consumed import feedback was saved again" })
+            val visibleImportNotice = importNotice()
+            importState.putLong("settings_import_feedback_generation", -1L)
+            importState.putBoolean("settings_import_feedback_secrets", true)
+            restoreImport.invoke(activity, importState)
+            expect(importNotice() == visibleImportNotice, { "stale import handoff replaced current feedback" })
             val requestCount = activity.startedRequests.size
             overview.selectTool("pgpRecipients")
             overview.selectTool("pgpSecret")
@@ -10303,6 +10335,259 @@ fun main() {
             expect(fixture.settings.currentAutoLockSeconds() == 180 && fixture.settings.getRelockOnBackground(),
                 { "stale shared Settings callback changed preferences" })
         } finally { overview.close(); VaultSession.lock(); PreferenceManager.reset() }
+    }
+
+    check("Biometric form bridge rejects pending and dismissed password submissions") {
+        var submissions = 0
+        val prompt = com.fairuniversal.offlineotp.ui.host.BiometricEnableComposeView(
+            android.app.Activity(), "Biometric", "Confirm", "Password", "Enable", "Cancel",
+            { submissions++; "Fixture failure" }, {})
+        expect(prompt.submitPassword("fixture") == "Fixture failure" && submissions == 1,
+            { "idle form did not report verifier error" })
+        prompt.updateOperation(true)
+        prompt.submitPassword("duplicate")
+        expect(submissions == 1, { "pending biometric operation accepted duplicate password" })
+        prompt.updateOperation(false, "Enrollment cancelled")
+        prompt.submitPassword("retry")
+        expect(submissions == 2, { "failed biometric operation prevented retry" })
+        prompt.dismiss()
+        prompt.updateOperation(false, "late failure")
+        prompt.submitPassword("late")
+        expect(submissions == 2, { "dismissed biometric form dispatched a password" })
+    }
+
+    check("Preference import host consumes actions once and rejects dismissed callbacks") {
+        var imports = 0
+        var cancellations = 0
+        fun prompt() = com.fairuniversal.offlineotp.ui.host.PreferencesImportComposeView(
+            android.app.Activity(), 1, 0, "Apply", { imports++ }, { cancellations++ })
+        val accepted = prompt()
+        accepted.confirm(); accepted.confirm(); accepted.cancel()
+        expect(imports == 1 && cancellations == 0, { "import confirmation replayed" })
+        val cancelled = prompt()
+        cancelled.cancel(); cancelled.confirm(); cancelled.cancel()
+        expect(imports == 1 && cancellations == 1, { "cancelled import applied or cancelled twice" })
+        val dismissed = prompt()
+        dismissed.dismiss(); dismissed.confirm(); dismissed.cancel()
+        expect(imports == 1 && cancellations == 1, { "externally dismissed import dispatched callbacks" })
+    }
+
+    check("Settings rejects stale preference export and wipes detached export buffers") {
+        val activity = com.fairuniversal.offlineotp.Activities.SettingsActivity()
+        val type = activity.javaClass
+        val bytes = byteArrayOf(1, 2, 3)
+        val pending = com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export(bytes, 1, emptyList())
+        val field = type.getDeclaredField("preferencesExportPending").apply { isAccessible = true }
+        field.set(activity, pending)
+        val save = type.getDeclaredMethod("savePreferencesExport", android.net.Uri::class.java).apply { isAccessible = true }
+        save.invoke(activity, android.net.Uri.parse("content://fixture/never-write"))
+        expect(bytes.all { it == 0.toByte() } && field.get(activity) == null,
+            { "stale export retained serialized settings" })
+        val cancelledBytes = byteArrayOf(4, 5, 6)
+        field.set(activity, com.fairuniversal.offlineotp.Utilities.PreferencesExport.Export(cancelledBytes, 1, emptyList()))
+        type.getDeclaredMethod("clearPreferencesExport").apply { isAccessible = true }.invoke(activity)
+        expect(cancelledBytes.all { it == 0.toByte() } && field.get(activity) == null,
+            { "cancelled export buffer not wiped" })
+    }
+
+    check("Backup result feedback waits for a matching vault frame and rejects stale or unknown kinds") {
+        val fixture = SettingsFixture()
+        val activity = object : MainActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+        }
+        val type = MainActivity::class.java
+        fun field(name: String) = type.getDeclaredField(name).apply { isAccessible = true }
+        val accept = type.getDeclaredMethod("acceptBackupFeedback", android.content.Intent::class.java).apply { isAccessible = true }
+        val deliver = type.getDeclaredMethod("deliverBackupFeedback").apply { isAccessible = true }
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        field("adapter").set(activity, adapter.controller)
+        val page = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(fixture.context,
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English,
+            com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        val key = SecretKeySpec(ByteArray(32) { 41 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        fun result(kind: String, generation: Long = VaultSession.generation()) = android.content.Intent()
+            .putExtra("backup_feedback_kind", kind)
+            .putExtra("backup_feedback_generation", generation.toString())
+        val noticeField = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message() = (noticeField.get(page) as androidx.compose.runtime.MutableState<String>).value
+        try {
+            accept.invoke(activity, result("arbitrary-provider-text"))
+            expect(field("pendingBackupNotice").get(activity) == null, { "unknown result kind accepted" })
+            accept.invoke(activity, result("export_success"))
+            expect(field("pendingBackupNotice").get(activity) != null, { "result lost before frame existed" })
+            field("composeVaultView").set(activity, page)
+            field("composeVaultGeneration").setLong(activity, -1L)
+            deliver.invoke(activity)
+            expect(message().isEmpty(), { "result published into mismatched frame" })
+            field("composeVaultGeneration").setLong(activity, VaultSession.generation())
+            deliver.invoke(activity)
+            expect(message().isNotEmpty() && field("pendingBackupNotice").get(activity) == null,
+                { "matching result not consumed/presented" })
+            val revisionField = page.javaClass.getDeclaredField("noticeRevision\$delegate").apply { isAccessible = true }
+            fun revision() = (revisionField.get(page) as androidx.compose.runtime.MutableState<Long>).value
+            val shownRevision = revision()
+            val feedback = type.getDeclaredMethod("showVaultFeedback", Int::class.javaPrimitiveType,
+                Long::class.javaPrimitiveType).apply { isAccessible = true }
+            feedback.invoke(activity, R.string.email_export_success, -1L)
+            expect(revision() == shownRevision, { "old export result crossed sessions" })
+            feedback.invoke(activity, R.string.email_export_success, VaultSession.generation())
+            expect(revision() > shownRevision, { "current export result was rejected" })
+            val currentRevision = revision()
+            deliver.invoke(activity)
+            accept.invoke(activity, result("import_success", -1L))
+            expect(revision() == currentRevision, { "consumed or stale result republished" })
+            VaultSession.lock()
+            accept.invoke(activity, result("import_success"))
+            expect(revision() == currentRevision, { "locked session accepted success" })
+        } finally {
+            type.getDeclaredMethod("clearVaultFeedbackTimer").apply { isAccessible = true }.invoke(activity)
+            page.clear(); adapter.lockEntries(); VaultSession.lock(); PreferenceManager.reset()
+        }
+    }
+
+    check("Google batch duplicate warning is rendered in the shared progress dialog without dropping the batch") {
+        val fixture = SettingsFixture()
+        val activity = object : MainActivity() {
+            override fun getString(resId: Int): String = fixture.context.getString(resId)
+        }
+        val type = MainActivity::class.java
+        val adapter = EntriesCardAdapter(fixture.context, TagsAdapter(fixture.context, hashMapOf()))
+        type.getDeclaredField("adapter").apply { isAccessible = true }.set(activity, adapter.controller)
+        val key = SecretKeySpec(ByteArray(32) { 52 }, "AES")
+        val unlock = VaultSession.beginUnlock()
+        expect(VaultSession.activate(key, unlock.generation) is SessionCommandResult.Applied, { "unlock" })
+        adapter.encryptionKey = key
+        val scan = type.getDeclaredMethod("addMigrationQRCode", String::class.java).apply { isAccessible = true }
+        val collector = type.getDeclaredField("migrationCollector").apply { isAccessible = true }
+        val dialog = type.getDeclaredField("activeMigrationDialog").apply { isAccessible = true }
+        val firstPart = "otpauth-migration://offline?data=CiIKCkhlbGxvId6tvu8SBWFsaWNlGgdFeGFtcGxlIAEoATACEAIYAiAAKLlg"
+        try {
+            scan.invoke(activity, firstPart)
+            val pending = collector.get(activity)
+            expect(pending != null, { "batch was not staged" })
+            scan.invoke(activity, firstPart)
+            val progress = dialog.get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            val message = progress.javaClass.getDeclaredField("message").apply { isAccessible = true }.get(progress) as String
+            expect(message.endsWith(fixture.context.getString(R.string.google_import_already_scanned)) &&
+                collector.get(activity) === pending, { "duplicate warning was not in dialog or discarded the batch" })
+            type.getDeclaredMethod("addQRCode", String::class.java).apply { isAccessible = true }
+                .invoke(activity, "otpauth://totp/Example?secret=JBSWY3DPEHPK3PXP")
+            val wrongFormat = dialog.get(activity) as com.fairuniversal.offlineotp.ui.host.SingleChoiceSelectionComposeView
+            val warning = wrongFormat.javaClass.getDeclaredField("message").apply { isAccessible = true }.get(wrongFormat) as String
+            expect(warning.endsWith(fixture.context.getString(R.string.google_import_expected_qr)) &&
+                collector.get(activity) === pending, { "ordinary QR displaced active batch or warning was hidden" })
+        } finally {
+            type.getDeclaredMethod("dismissMigrationImport").apply { isAccessible = true }.invoke(activity)
+            adapter.lockEntries(); VaultSession.lock(); PreferenceManager.reset()
+        }
+    }
+
+    check("Authentication feedback is foreground-only and cleared on retry background and close") {
+        val page = com.fairuniversal.offlineotp.ui.host.AuthenticationComposeView(
+            Context(), android.view.View(Context()), "Authenticate", "Fixture", "Unlock", "Hardware", "Biometric", {})
+        val field = page.javaClass.getDeclaredField("feedback\$delegate").apply { isAccessible = true }
+        fun message() = (field.get(page) as androidx.compose.runtime.MutableState<String?>).value
+        page.showFeedback("Hidden")
+        expect(message() == null, { "background auth accepted feedback" })
+        page.render(false, false, true, true)
+        page.showFeedback("Biometric cancelled")
+        expect(message() == "Biometric cancelled", { "foreground feedback missing" })
+        page.selectAction("biometric")
+        expect(message() == null, { "retry retained old authentication error" })
+        page.showFeedback("IME retry")
+        page.clearFeedback()
+        expect(message() == null, { "host retry retained old authentication error" })
+        page.showFeedback("Unavailable")
+        page.render(false, false, true, false)
+        expect(message() == null, { "background transition retained feedback" })
+        page.render(false, false, true, true)
+        page.showFeedback("Pending")
+        page.close(); page.showFeedback("Late")
+        expect(message() == null, { "closed authentication page retained feedback" })
+    }
+
+    check("About feedback replacement and close reject stale dismissal and publication") {
+        val page = com.fairuniversal.offlineotp.ui.host.AboutScreenComposeView(
+            android.app.Activity(), "fixture", emptyList(), emptyList(), { true }, {}, {})
+        val field = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message() = (field.get(page) as androidx.compose.runtime.MutableState<String>).value
+        val old = page.showNotice("Copied")
+        val current = page.showNotice("Copied")
+        page.dismissNotice(old)
+        expect(message() == "Copied", { "stale About expiry removed replacement" })
+        page.dismissNotice(current)
+        expect(message().isEmpty(), { "About feedback could not be dismissed" })
+        page.showNotice("Pending")
+        page.close(); page.showNotice("Late")
+        expect(message().isEmpty(), { "closed About retained feedback" })
+    }
+
+    check("Email import password bridge permits failure retry but rejects consumed and dismissed reads") {
+        var reads = 0
+        val page = com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView(
+            android.app.Activity(), { reads++; reads >= 2 }, {})
+        page.readPassword("wrong")
+        page.readPassword("correct")
+        page.readPassword("duplicate")
+        expect(reads == 2, { "email password form replayed success or blocked failure retry" })
+        val closed = com.fairuniversal.offlineotp.ui.host.EmailImportPasswordComposeView(
+            android.app.Activity(), { reads++; true }, {})
+        closed.dismiss(); closed.readPassword("late")
+        expect(reads == 2, { "dismissed email form dispatched password" })
+    }
+
+    check("Vault host feedback expires by revision and cannot survive session close") {
+        val page = com.fairuniversal.offlineotp.ui.vault.VaultComposeView(Context(),
+            com.fairuniversal.offlineotp.ui.vault.VaultStrings.English,
+            com.fairuniversal.offlineotp.ui.vault.VaultActions())
+        val field = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message() = (field.get(page) as androidx.compose.runtime.MutableState<String>).value
+        val old = page.showNotice("Picker failure")
+        val current = page.showNotice("Picker failure")
+        page.dismissNotice(old)
+        expect(message() == "Picker failure", { "stale vault expiry removed replacement" })
+        page.dismissNotice(current)
+        expect(message().isEmpty(), { "current vault notice failed to dismiss" })
+        page.showNotice("Pending")
+        page.clear(); page.showNotice("Late callback")
+        expect(message().isEmpty(), { "vault feedback survived closing frame" })
+    }
+
+    check("Backup feedback rejects stale dismissals and closed-host publication") {
+        val page = com.fairuniversal.offlineotp.ui.host.BackupOverviewComposeView(Context()) {}
+        val field = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message() = (field.get(page) as androidx.compose.runtime.MutableState<String>).value
+        val first = page.showNotice("Picker failed")
+        val second = page.showNotice("Picker failed")
+        page.dismissNotice(first)
+        expect(message() == "Picker failed", { "old timer cleared replacement backup feedback" })
+        page.dismissNotice(second)
+        expect(message().isEmpty(), { "current backup feedback could not be dismissed" })
+        val closing = page.showNotice("Another failure")
+        page.clear()
+        page.showNotice("Late failure"); page.dismissNotice(closing)
+        expect(message().isEmpty(), { "closed backup page republished feedback" })
+    }
+
+    check("Shared Settings feedback rejects stale expiry, repeated-message dismissals and closed updates") {
+        val page = com.fairuniversal.offlineotp.ui.host.SettingsOverviewComposeView(Context()) { }
+        val field = page.javaClass.getDeclaredField("notice\$delegate").apply { isAccessible = true }
+        fun message(): String = (field.get(page) as androidx.compose.runtime.MutableState<String>).value
+        val old = page.showNotice("Save failed")
+        val current = page.showNotice("Save failed")
+        expect(current > old, { "repeated notice did not replace ownership" })
+        page.dismissNotice(old)
+        expect(message() == "Save failed", { "stale notice expiry cleared replacement" })
+        page.dismissNotice(current)
+        expect(message().isEmpty(), { "current notice could not be dismissed" })
+        val closing = page.showNotice("Another failure")
+        page.close()
+        page.dismissNotice(closing)
+        page.showNotice("late notice")
+        expect(message().isEmpty(), { "closed page retained or republished feedback" })
     }
 
     check("Shared setup shell guards backward bounds and destroyed navigation") {

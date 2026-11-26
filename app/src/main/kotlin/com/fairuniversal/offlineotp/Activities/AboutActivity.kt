@@ -29,7 +29,6 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.widget.Toast
 import com.fairuniversal.offlineotp.Fragments.AboutFragment
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Settings
@@ -46,7 +45,24 @@ open class AboutActivity : BaseActivity() {
     private var confirmation: DeleteConfirmationComposeView? = null
     private var taps = 0
     private var lastTap = 0L
-    private var counterToast: Toast? = null
+    private var page: AboutScreenComposeView? = null
+    private val feedbackHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var feedbackExpiry: Runnable? = null
+
+    private fun clearFeedback() {
+        feedbackExpiry?.let { feedbackHandler.removeCallbacks(it) }
+        feedbackExpiry = null
+    }
+
+    private fun showFeedback(message: String) {
+        if (closed || isFinishing()) return
+        val host = page ?: return
+        clearFeedback()
+        val revision = host.showNotice(message)
+        val expiry = Runnable { host.dismissNotice(revision) }
+        feedbackExpiry = expiry
+        feedbackHandler.postDelayed(expiry, 5000L)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,8 +77,10 @@ open class AboutActivity : BaseActivity() {
             // Never silently substitute a generic catalog for this build's generated notices.
             listOf(PortableLibraryNotice("Library notices unavailable", "Please consult the source distribution for this build."))
         }
-        setContentView(AboutScreenComposeView(this, version, libraries, AboutFragment().sharedExtraLinks(),
-            onOpenLink = ::openLink, onVersionTap = ::versionTap, onClose = { finish() }))
+        val host = AboutScreenComposeView(this, version, libraries, AboutFragment().sharedExtraLinks(),
+            onOpenLink = ::openLink, onVersionTap = ::versionTap, onClose = { finish() })
+        page = host
+        setContentView(host)
     }
 
     private fun openLink(url: String): Boolean {
@@ -71,7 +89,7 @@ open class AboutActivity : BaseActivity() {
         catch (_: ActivityNotFoundException) {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager ?: return false
             clipboard.setPrimaryClip(ClipData.newPlainText(getString(R.string.app_name), url))
-            Toast.makeText(this, R.string.about_toast_copied_to_clipboard, Toast.LENGTH_SHORT).show()
+            showFeedback(getString(R.string.about_toast_copied_to_clipboard))
         }
         return true
     }
@@ -81,15 +99,14 @@ open class AboutActivity : BaseActivity() {
         val now = System.currentTimeMillis()
         taps = if (now - lastTap < 500) taps + 1 else 0
         lastTap = now
-        counterToast?.cancel()
-        counterToast = null
+        clearFeedback()
+        page?.showNotice("")
         if (taps == 7) {
             taps = 0
             if (Settings(this).getSpecialFeatures()) {
-                counterToast = Toast.makeText(this, R.string.about_toast_special_features_enabled, Toast.LENGTH_LONG)
+                showFeedback(getString(R.string.about_toast_special_features_enabled))
             } else showSpecialFeatures()
-        } else if (taps >= 3) counterToast = Toast.makeText(this, taps.toString(), Toast.LENGTH_SHORT)
-        counterToast?.show()
+        } else if (taps >= 3) showFeedback(taps.toString())
     }
 
     private fun showSpecialFeatures() {
@@ -102,7 +119,7 @@ open class AboutActivity : BaseActivity() {
                     confirmation = null
                     prompt.dismiss()
                     if (Settings(this).applySpecialFeatures(this, true))
-                        Toast.makeText(this, R.string.about_toast_special_features, Toast.LENGTH_LONG).show()
+                        showFeedback(getString(R.string.about_toast_special_features))
                 }
             }, onDismiss = {
                 if (confirmation === prompt) { confirmation = null; prompt.dismiss() }
@@ -116,8 +133,9 @@ open class AboutActivity : BaseActivity() {
         closed = true
         confirmation?.dismiss()
         confirmation = null
-        counterToast?.cancel()
-        counterToast = null
+        clearFeedback()
+        page?.close()
+        page = null
         super.onDestroy()
     }
 

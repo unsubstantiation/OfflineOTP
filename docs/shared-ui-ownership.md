@@ -815,3 +815,297 @@ configuration. This is source/JVM-checked policy; actual pager touch/recreation 
 Android execution. Sandbox checks cover busy navigation, unfinished final forward, completed Back,
 successful completion and terminal closure. The Android component test now checks disabled semantics
 for busy/final states and callback replay after close; it compiles but has not run natively.
+
+### Settings feedback consolidation
+
+Settings policy-save failures and encryption-task/authentication result messages now use the same
+common `SharedFeedbackBanner` as vault feedback rather than separate native Toast/Snackbar windows.
+`SharedFeedbackPage` embeds that renderer over an app-owned screen. The common banner exposes a
+polite live region for accessibility announcement and supports tap dismissal without intercepting
+the rest of the page. Rendering and actual TalkBack/VoiceOver announcement still need native tests.
+
+The Settings bridge owns a monotonically increasing notice revision. Replacing a message (including
+repeating the same text) invalidates earlier dismissal callbacks and expiry tasks. The Activity
+cancels the old timer before starting a five-second expiry, and cancels timers on lock/destruction;
+closing the page clears feedback and rejects late updates. No credential value is passed to this
+feedback path. Sandbox checks exercise replacement/repeated-text expiry, current dismissal and
+closed-host rejection; the new Android device test covers visible feedback and stale dismissal.
+
+This is an incremental migration, not a claim that all Android transient feedback has moved.
+Import/export flows that recreate the Activity, biometric prompt feedback and unused legacy
+compatibility surfaces still use native delivery where present; moving those requires preserving
+visibility across the owning page/modal lifecycle. Platform security sheets remain native.
+
+### Preference export and picker feedback; import-confirmation authority
+
+Preference export serialization/write success and failure, plus backup/key-file picker failures,
+now use the shared Settings feedback banner. Export serialization remains host-owned: its buffer
+is tied to the current session generation, checked again before writing and in the storage write
+predicate, and wiped on completion, cancellation, lock or Activity destruction. No exported data
+or password is passed to the shared feedback renderer. Rotation does not save an export buffer in
+instance state; a lost pending export must be retried rather than restoring sensitive serialized data.
+
+The shared import-confirmation bridge now consumes confirm/cancel once and rejects callbacks after
+external dismissal. The Activity independently rechecks prompt identity, live session/key, idle
+state and generation before copying the validated bytes for import. Original read bytes are still
+wiped by the dismissal listener. Import completion still uses its existing native feedback because
+applying preferences can recreate the Activity; that feedback needs an explicit recreation-safe
+handoff before migration. No import/export format or native document-picker contract is changed.
+
+Sandbox checks cover single-use/canceled/dismissed import actions and stale/canceled export buffer
+cleanup without writing a file. Native picker lifecycle, URI grants, write cancellation and feedback
+visibility still need real Android validation.
+
+### Biometric enrolment feedback follow-up
+
+The active shared Settings biometric selector now delivers availability and success messages via
+the common page banner. Asynchronous enrolment failure/cancellation stays inside the common
+password form via host-published operation error state, rather than a Toast behind the dialog.
+The Android bridge exposes pending state to disable input/confirmation and rejects duplicate or
+post-dismiss submissions; failure releases the form for retry. Cancel remains available while
+pending so the existing revision/session permission check can revoke a native operation.
+
+The common form clears its password field before calling the verifier (not after a potentially
+synchronous callback closes the host). New busy/error parameters are optional for existing iOS
+callers. Biometric sheets, verification and keystore writes are still native; Android callback
+ownership/generation checks remain authoritative. Sandbox checks cover pending/retry/dismissed
+submissions; actual OS biometric cancellation, native accessibility and error visibility still
+require device testing. Earlier notes about unmigrated biometric feedback refer to the prior
+increment; import-completion feedback across recreation remains outstanding.
+
+### Import-completion recreation handoff
+
+Active Settings preference-import failures now use the common page banner. Successful import
+passes only generation, applied/skipped counts and the includes-secrets flag through instance state
+for the import-triggered recreation. No imported value, key name, password, URI or serialized
+payload enters this handoff. The recreated page validates its live vault session and the handoff
+generation before formatting a single shared success/skipped notice. It does not save the consumed
+handoff again on subsequent rotation. Lock clears the pending metadata; process/session loss drops
+it rather than displaying a result in another vault session. The imported bytes remain wiped in
+finally and the import operation is never replayed by restoration.
+
+Sandbox host checks exercise same-session presentation, no re-saving after consumption and stale
+handoff rejection. Actual Activity recreation, process-death ordering and on-device accessibility
+remain native validation gates. This supersedes earlier notes retaining native import-completion
+feedback; hidden legacy preference compatibility code may still contain native feedback.
+
+### Active Settings feedback audit
+
+The active Activity/shared Settings routes no longer call Toast/Snackbar: insecure-device auth,
+credential-change failure, legacy backup-password removal, unavailable auto-backup and backup-URI
+grant failures also use the common banner. The hidden SettingsFragment still has native Toasts as
+compatibility/listener code; this is not a claim that every runtime feedback path is consolidated.
+Import validation now parses once before confirmation and preserves a wrong-platform diagnostic
+rather than immediately overwriting it with the generic unreadable-file message.
+
+A new Android component test asserts that biometric pending state disables entry/confirmation,
+keeps cancellation enabled and shows retry feedback in the shared form. Its source compiles against
+sandbox stubs; it has not executed on Android. Current local gates: 655 Python tests, sandbox and
+shared UI/scheduler checks pass; all 28 instrumentation source files compile.
+
+### Settings compatibility feedback and security callback consolidation
+
+Hidden SettingsFragment notices now route through the Activity's guarded shared feedback helper,
+so this file has no direct Toast/Snackbar calls. The retained legacy backup-password checkbox reuses
+the common destructive confirmation instead of its own unguarded write callback. Its listener
+rejects locked/busy hosts. The biometric compatibility listener likewise checks the live session
+and busy state and re-reads encryption/authentication policy at click time, rather than trusting
+its initialization-time password-vault snapshot. Native keystore operations remain host-owned.
+Earlier entries recording remaining SettingsFragment Toasts are superseded by this increment;
+other Activities and platform adapters are not covered by this claim.
+
+### Backup in-page picker feedback
+
+Backup file-picker launch failures (including fallback picker failure) and missing configured
+backup location now use SharedFeedbackPage/the common banner. The Activity requires its live vault
+key before showing a notice, cancels expiry on lock/destruction, and expires the captured bridge
+revision rather than whatever message happens to be current. The bridge clears feedback and
+invalidates late publication when closed; repeated identical text still gets new ownership.
+Sandbox checks cover stale expiry, current dismissal and close-time cleanup. Completion callbacks
+that can outlive BackupActivity still retain existing native notices; migrating those needs a safe
+handoff to the destination page, not simply replacing them with an invisible closing-page banner.
+
+### Backup non-closing error feedback
+
+Backup task failures, rejected import results, invalid selected-URI schemes and OpenPGP
+availability/verification/provider errors now use the shared page banner too. Host authority,
+URI cleanup and native service behavior are unchanged. Successful operations and a locked-result
+forwarding path that immediately finish the Activity retain their native notices; the detached
+restore persistence callback also retains its existing application-context notice. Those cannot
+be moved safely by displaying feedback on a page that has already gone away.
+
+658 Python source checks and the sandbox checks pass for this increment. Actual file-provider,
+OpenPGP service, biometric and UI/accessibility integration remain native validation gates.
+
+### Android vault transient-feedback host seam
+
+VaultComposeView now exposes revision-owned show/dismiss feedback through the same common banner
+used by Settings and Backup. Closing the frame clears notices and rejects late publication.
+MainActivity's initial use is file-picker launch failures: it requires the current rendered session
+generation and the adapter's live key identity, cancels old expiry before publishing, and cancels
+its timer on lock/destruction. This is groundwork for future destination-page handoffs, not an
+implementation of Backup success forwarding. Fatal authentication/closing-task notices remain
+native. Sandbox checks cover repeated text, stale expiry, current dismissal and closed-frame
+rejection; 659 Python checks pass. Native overlay placement/accessibility still needs validation.
+
+### Backup success destination-page handoff
+
+Successful export/import now returns an allowlisted result kind and the live session generation
+to MainActivity rather than showing a native success Toast on the closing Backup page. No task
+payload, filename, URI or provider text is included. MainActivity accepts only known success kinds
+from the result, waits for a matching composed vault generation/live adapter key, consumes the
+pending notice before publication, then uses the common vault banner. Lock drops both pending
+sender metadata and receiver notices. Pending presentation is deliberately not persisted across
+process death; importing/saving is never replayed to recover a notice.
+
+This supersedes prior notes leaving Backup success delivery native. The locked-result failure path
+and detached restore-persistence callback still use native delivery. The default export success text
+is now used rather than forwarding arbitrary task-specific success text/filename. Actual result
+callback ordering versus vault frame attachment, Activity recreation and accessibility must still
+be exercised on Android; local source/sandbox checks are not device evidence.
+
+### Backup-result receiver regression validation
+
+Executed sandbox tests now verify that unknown/stale/locked results cannot publish, a valid notice
+waits while no view or a mismatched frame exists, and matching-frame delivery consumes the pending
+notice so a later delivery attempt does not republish it. Updated shared UI/scheduler checks and
+all 28 instrumentation source compilations pass. None of these checks execute native Activity
+result/lifecycle dispatch, so the documented device gates remain open.
+
+### Vault file-export completion feedback
+
+Email, stored password-vault, Thunderbird, LinSCP and browser CSV file-export completion notices
+now use the common vault banner. Each passes its captured export generation explicitly to the
+feedback helper; a late failed/successful write cannot announce into another session merely because
+a new vault frame is present. Existing export-buffer wiping and failed-document cleanup remain
+unchanged. Sandbox checks exercise explicit stale/current-generation publication; 661 Python
+checks pass. Import dialogs and remaining non-export MainActivity Toasts are not covered by this
+increment. Native document-provider, result/lifecycle ordering and accessibility remain unverified.
+
+### Import completion and retry ownership
+
+Email, password, Thunderbird and LinSCP import-success notices now use the common vault banner with
+the original import generation. Email/password retry failures rely on their existing common dialog
+error presentation instead of a second native Toast. Email's password retry additionally checks
+prompt identity, original buffer ownership, adapter identity, session generation and live key;
+the importer independently checks the original generation/key before preparing entries. The email
+bridge permits a failed-read retry but consumes success/reentrant calls and rejects post-dismiss
+password reads. Thunderbird confirmation rejects callbacks that no longer own both prompt and
+preview before consuming staged entries. Existing buffer/entry cleanup remains host-owned.
+
+662 Python checks and sandbox checks pass; new executed bridge coverage verifies email failed-read
+retry, consumed success and external dismissal. Native Activity/modal ordering and accessibility
+remain unverified. Other MainActivity native error/QR/migration notices remain to audit.
+
+### Migration completion and immediate entry-point notices
+
+Google Authenticator batch-import completion now uses the shared vault banner for added/skipped
+counts or save failure, with the batch's original epoch passed to the feedback helper. The existing
+confirmation callback still revokes its pending batch and dismisses synchronously after import;
+no OTP/account label/payload enters feedback. Common vault feedback now accepts host-localized text
+as well as resource IDs under the same session/frame checks. Email/Thunderbird/LinSCP no-data export
+notices and their immediate import-picker launch failures also use shared feedback. Scan/progress
+notices associated with still-open dialogs remain unchanged pending in-modal presentation work.
+663 Python checks and sandbox checks pass; native modal dismissal/announcement order is unverified.
+
+### Google batch-progress warnings
+
+The active Google batch collector now places duplicate-part, wrong-batch and invalid-input warnings
+in the shared progress dialog's message rather than native Toasts. Native camera-launch and image-
+picker failure likewise reopen that dialog with a localized warning; its picker call suppresses
+the separate page banner so the warning is not hidden behind the modal. Terminal collector errors
+that close the batch use the session-checked common vault banner. Warnings carry only localized
+text, not QR payloads. Existing collector identity/epoch guards and cancel-time wiping remain.
+
+An executed sandbox check scans the same multipart QR twice and verifies the shared dialog contains
+the duplicate warning while retaining the original collector. 664 Python checks and sandbox checks
+pass. Other QR/image decoding paths still need feedback consolidation and native accessibility,
+scanner cancellation and modal ordering remain device validation gates.
+
+### QR wrong-format and standalone failure feedback
+
+An ordinary OTP scan/deep link during Google batch collection now shows the wrong-format warning
+inside the shared progress dialog instead of a Toast. Standalone invalid-QR and imported-entry
+save failures use the common vault banner with their original scan epoch. The shared URI form's
+camera/image launch failures likewise select either the visible batch dialog or page banner, never
+a second notice behind progress. QR payloads and parsed secrets are not included in feedback.
+
+The executed batch regression also verifies an ordinary OTP scan leaves the staged collector intact
+and presents the expected-format warning. 665 Python checks and sandbox checks pass. File-image
+decoder internals and remaining main-vault/modal feedback paths still require audit; actual camera,
+window ordering and accessibility remain unverified.
+
+### Image QR decoder feedback seam
+
+The image QR decoder now offers scanQRImageReporting: decode failures are returned via a localized
+resource-ID callback, never a window. MainActivity uses this path to route unreadable/oversized or
+invalid images and QR checksum/format/not-found errors to the active batch-progress dialog or the
+common vault banner (with the scan generation). Cancellation without a decode failure is silent.
+The old static scanQRImage method remains a native-Toast compatibility wrapper for existing Java
+and instrumentation callers; the active vault route does not call it.
+
+The executed decoder fixture now exercises the reporting API across its existing read/dimension,
+retry and QR-failure cases and asserts that it opens no native Toast. Its public-surface check pins
+both APIs. 666 Python checks and sandbox checks pass. Image bitmap decoding/recycling/size bounds
+are unchanged, and actual Android decoder/provider/accessibility behavior remains unverified.
+
+### Export preparation and selection callback ownership
+
+Email/Thunderbird export preparation and picker-launch errors now report through shared vault
+feedback with the selection's original generation, after closing the selector. Their confirmation
+callbacks require both current prompt identity and a non-dismissed host, preventing a retained old
+callback from serializing another export or launching a picker. Browser CSV preparation/launch
+failures similarly use common feedback with the original generation. LinSCP preparation failures
+return to its existing common in-form retry error without emitting a second native Toast behind
+that form. Existing buffer wiping, document cleanup and format logic are unchanged.
+667 Python checks and sandbox compilation/execution pass; source checks pin the selector wiring.
+Native picker/window/accessibility behavior and complete stale-callback device coverage remain open.
+
+### Remaining vault transfer/read feedback audit
+
+The remaining non-closing MainActivity transfer-read, archive export, CSV preparation, incoming
+intent and backup-timestamp save errors now use shared vault feedback. Captured generations are
+passed where an operation owns one. LinSCP empty decoded input releases staged entries and reports
+failure back to its caller: password/master-key input uses the common retry form; plain input uses
+the shared page banner. It no longer emits a Toast behind a secret form. MainActivity's only direct
+Toast is now fatal authentication failure immediately before task removal; this requires separate
+closing-task/system feedback treatment rather than displaying a notice on an inaccessible vault.
+
+668 Python checks and sandbox checks pass for the transfer audit. Native provider/lifecycle,
+accessibility, retry and task-removal scenarios remain unverified; other Android utilities and
+Activities may still retain native transient feedback.
+
+### About transient feedback
+
+The active shared About page now uses the same common feedback banner for browser-unavailable
+clipboard fallback, version-tap counts, already-enabled status and special-features opt-in success.
+The Activity still owns clipboard/URL/settings actions and confirmation identity. Feedback expiry
+is revision-bound, cancels on replacement/destruction, and closing the page clears its text and
+rejects late publication. Each new tap clears the prior count/notice before applying the existing
+tap-threshold logic. Legacy unused About fragments are unchanged. 669 Python checks pass; sandbox
+coverage checks repeated text, stale dismissal and closed-host publication. Device clipboard,
+version-tap accessibility and modal/window ordering remain unverified.
+
+### Recoverable authentication biometric status
+
+Standalone authentication now publishes recoverable biometric cancellation/unavailability/lockout
+status into an optional feedback slot on SharedAuthenticationScreen, with polite live-region
+semantics, rather than a Toast. Native credential input, autofill, verifier and biometric key
+handoff/generation checks remain unchanged. The bridge accepts feedback only while foreground and
+open, clears it on a shared action retry/background/close, and never receives credential/key data.
+Missing credentials and legacy migration failures still close the Activity and retain native
+feedback; this increment does not show a vault/page merely to announce a fatal result.
+
+670 Python checks pass. Sandbox coverage checks foreground publication and retry/background/close
+cleanup. Actual OS biometric prompt cancellation, IME/Back and accessibility need native validation.
+
+### Hardware-key operation feedback
+
+HardwareKeyActivity no longer opens Toasts for empty candidates, unsupported vault policy, copy,
+enrolment, removal or operation failure/uncertainty. It publishes into the existing shared hardware
+page status area after checking the current session. Uncertain copy outcomes remain persistent
+status, not a short-lived banner; no APDU/PIN/key material is included. Native transport workers,
+cancellation permission checks and hardware envelope persistence are unchanged. The existing
+hardware host fixture now checks that completion reaches shared status and stale-generation updates
+cannot replace it. 672 Python checks pass. Real USB/NFC, cancellation and accessibility validation
+remain required; hardware unlock's closing-result notice is a separate native adapter.

@@ -53,9 +53,9 @@ window attachment, accessibility, native service binding or secure hardware beha
 
 OS pickers, permission sheets, biometric/device-credential prompts, camera feed/recognition and
 provider-owned signing/security-key UI remain native capability adapters. App-owned modal forms,
-choices, progress and confirmations should use shared Compose. Android Toast/Snackbar delivery
-currently remains a native transient/accessibility feedback adapter with host-localized text;
-it is not evidence of cross-platform visual feedback parity. Legacy AlertDialog helpers remain in
+choices, progress and confirmations should use shared Compose. Most active Android page feedback now uses the common feedback surface described below.
+Closing-task/detached-callback notices and some compatibility adapters still use native delivery;
+shared source alone is not evidence of cross-platform visual/accessibility parity. Legacy AlertDialog helpers remain in
 unused compatibility editors/fragments; live main-vault migration dialogs no longer use them.
 
 ## Environment blocker
@@ -71,3 +71,56 @@ Do not treat passing source/JVM checks as permission to mark the migration compl
 new Android component tests and the remaining real integration matrix. The added tests are in
 `ComposeVaultDeviceTest`, already included by the Android workflow's instrumentation class filter.
 They compile locally; no emulator execution or native build pass is claimed.
+
+## Current shared-feedback status
+
+The common `SharedFeedbackBanner`/`SharedFeedbackPage` now renders transient page feedback for
+Android Settings, Backup, vault and About hosts, with polite live-region semantics, tap dismissal,
+revision-based replacement and cleanup on host close. These are shared presentation primitives;
+Android still owns localized messages, expiry, session checks and native capability operations.
+
+- **Settings:** no direct Toast/Snackbar calls remain in SettingsActivity or its compatibility
+  Fragment. Import/export, policy, encryption and biometric result notices use common page/form
+  presentation. Import success crosses recreation using only counts, a boolean and session
+  generation, not imported values. Export buffers are generation-bound and wiped on completion,
+  cancellation, lock and destruction. Destructive compatibility callbacks reuse guarded routes.
+- **Vault:** non-closing transfer/import/export/read/CSV/timestamp/QR errors and results use common
+  feedback. Captured operation generations prevent late results crossing sessions. Google batch
+  warnings stay in the visible common progress dialog; image-decoder errors are reported to the
+  host rather than emitted behind that dialog. Email retries and Thunderbird/export selections
+  check prompt/buffer/preview ownership. The old static image decoder retains a native-feedback
+  compatibility wrapper, not used by the active vault route.
+- **Backup:** picker and non-closing task/provider failures use common feedback. Successful
+  operations return only an allowlisted success kind and generation to the vault, which waits for
+  a matching frame/key before consuming the notice. No task payload or filename is forwarded.
+- **About:** active clipboard fallback, version-tap and feature opt-in notices use common feedback;
+  old unused fragments remain compatibility code.
+- **Authentication:** recoverable biometric errors use common in-page feedback. Shared buttons,
+  native password/IME/autofill submission and native hardware/biometric retry paths clear old
+  status. Background/close drops it; protected credential inputs and native biometric checks remain.
+
+### Remaining feedback work
+
+- Fatal authentication/missing-credential/migration failures that immediately close the task or
+  Activity still use native delivery; do not expose a vault frame merely to announce them.
+- Backup locked-result closing failures and detached restore persistence callbacks retain native
+  delivery until a destination/lifecycle-safe handoff exists.
+- Audit remaining Activities, utility adapters and unused compatibility surfaces for live app-owned
+  feedback. Do not infer whole-app or cross-platform parity from the hosts above.
+- Execute real Android result/recreation/process-death, camera/provider, accessibility and protected
+  input tests, plus iOS/macOS builds and desktop rendering. All native gates remain open.
+
+### Latest local checks
+
+- Python source/regression suite: **671 passed**.
+- Kotlin sandbox: **all checks passed**, including feedback revision/close rules, result handoff,
+  foreground/retry cleanup, decoder callback-only reporting and batch-warning collector retention.
+- Shared UI tests: **168/168 passed**; scheduler: **3/3 passed**.
+- Android instrumentation source compilation: **28 files compile** against sandbox stubs.
+
+These checks are not native rendering, Android instrumentation execution, secure hardware testing
+or an Xcode build. See `shared-ui-native-validation.md` for the outstanding native scenarios.
+
+Hardware-key management operation results now use its existing shared status area, with current-
+session checks and persistent uncertain-outcome text. Native USB/NFC commands and envelope storage
+remain platform-owned; transport/cancellation/accessibility tests have not run on hardware.

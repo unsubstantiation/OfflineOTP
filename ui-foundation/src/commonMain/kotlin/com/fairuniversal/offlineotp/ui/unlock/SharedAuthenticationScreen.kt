@@ -10,6 +10,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.theme.ForestType
 
@@ -18,12 +21,16 @@ import com.fairuniversal.offlineotp.ui.theme.ForestType
 fun SharedAuthenticationScreen(title: String, message: String, unlockLabel: String, busy: Boolean,
                                hardwareLabel: String?, biometricLabel: String?,
                                onUnlock: () -> Unit, onHardware: () -> Unit, onBiometric: () -> Unit,
+                               feedback: String? = null,
                                credentialInput: @Composable () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(title, style = ForestType.title)
         Text(message)
         credentialInput()
+        feedback?.takeIf { it.isNotEmpty() }?.let {
+            Text(it, modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite })
+        }
         if (busy) LinearProgressIndicator()
         com.fairuniversal.offlineotp.ui.vault.ForestTextAction(text = unlockLabel, enabled = !busy, onClick = onUnlock)
         hardwareLabel?.let { com.fairuniversal.offlineotp.ui.vault.ForestTextAction(text = it, enabled = !busy, onClick = onHardware) }

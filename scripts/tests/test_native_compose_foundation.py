@@ -153,7 +153,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
     def test_biometric_enrollment_confirmation_is_shared_compose(self):
         form = (COMMON / 'com/fairuniversal/offlineotp/ui/vault/BiometricEnableDialog.kt').read_text()
         self.assertIn('PasswordVisualTransformation()', form)
-        self.assertIn('onConfirm(password)', form)
+        self.assertIn('onConfirm(submitted)', form)
+        self.assertLess(form.index('password = ""', form.index('val submitted')), form.index('onConfirm(submitted)'))
         host = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         self.assertIn('case "biometric":', host)
         self.assertIn('openSurface("biometricEnable")', host)
