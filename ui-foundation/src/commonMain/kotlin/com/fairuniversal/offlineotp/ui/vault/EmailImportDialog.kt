@@ -25,7 +25,7 @@ fun EmailImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolean
                 visualTransformation = PasswordVisualTransformation())
             if (busy) Text(text = "Reading FairEmail backup…")
             if (count != null) Text(text = "$count accounts ready. Import merges them into this vault, skipping identical accounts. Current entries are not replaced.")
-            if (failed) Text(text = "Could not import the backup. Check the password, format, file size, vault capacity and storage. Re-enter the password to retry.")
+            if (failed) SharedStatusMessage("Could not import the backup. Check the password, format, file size, vault capacity and storage. Re-enter the password to retry.")
         } },
         confirmButton = { ForestTextAction(text = if (count == null) "Read backup" else "Import", enabled = !busy,
             onClick = {

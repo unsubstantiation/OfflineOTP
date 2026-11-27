@@ -63,6 +63,7 @@ class DesktopEntryTransaction(private val state: DesktopVaultState, private val 
     fun submitReplacement(target: Entry, replacement: Entry, active: () -> Boolean, completed: (Result) -> Unit): Boolean {
         if (closed || pending || state.isLocked) return false
         val owned = try { Entry(replacement.toJSON()) } catch (_: Exception) { return false }
+        owned.preserveExtensionFieldsFrom(target)
         try { owned.validate() } catch (_: Exception) { owned.destroy(); return false }
         ownedDraft = owned
         val accepted = submit(target, Kind.REPLACE, active, completed)

@@ -254,7 +254,7 @@ typedef void (*UniffiForeignFutureCompleteVoid)(uint64_t, UniffiForeignFutureStr
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_CRATE_VERSION
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_CRATE_VERSION
 RustBuffer uniffi_offlineotp_openpgp_fn_func_crate_version(RustCallStatus *_Nonnull out_status
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_DECRYPT
@@ -267,10 +267,15 @@ RustBuffer uniffi_offlineotp_openpgp_fn_func_decrypt(RustBuffer message, RustBuf
 RustBuffer uniffi_offlineotp_openpgp_fn_func_encrypt(RustBuffer plaintext, RustBuffer recipient_key_blocks, RustCallStatus *_Nonnull out_status
 );
 #endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_ENCRYPT_SIGNED
+#define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_ENCRYPT_SIGNED
+RustBuffer uniffi_offlineotp_openpgp_fn_func_encrypt_signed(RustBuffer plaintext, RustBuffer recipient_key_blocks, RustBuffer signing_key_block, RustBuffer passphrase, RustCallStatus *_Nonnull out_status
+);
+#endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_RPGP_VERSION
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_FN_FUNC_RPGP_VERSION
 RustBuffer uniffi_offlineotp_openpgp_fn_func_rpgp_version(RustCallStatus *_Nonnull out_status
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_OFFLINEOTP_OPENPGP_RUSTBUFFER_ALLOC
@@ -556,31 +561,37 @@ void ffi_offlineotp_openpgp_rust_future_complete_void(uint64_t handle, RustCallS
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_CRATE_VERSION
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_CRATE_VERSION
 uint16_t uniffi_offlineotp_openpgp_checksum_func_crate_version(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_DECRYPT
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_DECRYPT
 uint16_t uniffi_offlineotp_openpgp_checksum_func_decrypt(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_ENCRYPT
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_ENCRYPT
 uint16_t uniffi_offlineotp_openpgp_checksum_func_encrypt(void
-    
+
+);
+#endif
+#ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_ENCRYPT_SIGNED
+#define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_ENCRYPT_SIGNED
+uint16_t uniffi_offlineotp_openpgp_checksum_func_encrypt_signed(void
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_RPGP_VERSION
 #define UNIFFI_FFIDEF_UNIFFI_OFFLINEOTP_OPENPGP_CHECKSUM_FUNC_RPGP_VERSION
 uint16_t uniffi_offlineotp_openpgp_checksum_func_rpgp_version(void
-    
+
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_OFFLINEOTP_OPENPGP_UNIFFI_CONTRACT_VERSION
 #define UNIFFI_FFIDEF_FFI_OFFLINEOTP_OPENPGP_UNIFFI_CONTRACT_VERSION
 uint32_t ffi_offlineotp_openpgp_uniffi_contract_version(void
-    
+
 );
 #endif
 

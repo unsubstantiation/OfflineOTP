@@ -9,6 +9,7 @@ use std::io::{Cursor, Read};
 
 use pgp::composed::{Deserializable, Message, MessageBuilder, SignedPublicKey, SignedSecretKey};
 use pgp::crypto::sym::SymmetricKeyAlgorithm;
+use pgp::crypto::hash::HashAlgorithm;
 use pgp::packet::{Signature, SignatureType};
 use pgp::types::{KeyDetails, Password, Timestamp};
 use rand::thread_rng;
@@ -142,9 +143,38 @@ fn subkey_is_usable(subkey: &pgp::composed::SignedPublicSubKey, now: Timestamp) 
 /// or expired keys are never selected. Invalid input is rejected before any
 /// ciphertext is produced.
 pub fn encrypt(
-    mut plaintext: Vec<u8>,
+    plaintext: Vec<u8>,
     recipient_key_blocks: Vec<Vec<u8>>,
 ) -> Result<Vec<u8>, OpenPgpError> {
+    encrypt_inner(plaintext, recipient_key_blocks, None)
+}
+
+/// Sign inside the encrypted envelope. The caller retains credentials for this session only.
+/// Never retries unsigned after any key/passphrase/signing failure.
+pub fn encrypt_signed(
+    plaintext: Vec<u8>,
+    recipient_key_blocks: Vec<Vec<u8>>,
+    signing_key_block: Vec<u8>,
+    passphrase: Option<String>,
+) -> Result<Vec<u8>, OpenPgpError> {
+    let signing_bytes = zeroize::Zeroizing::new(signing_key_block);
+    let signing_key = parse_secret_key(&signing_bytes)?;
+    let password = match passphrase {
+        Some(value) => {
+            let value = zeroize::Zeroizing::new(value);
+            Password::from(value.as_str())
+        },
+        None => Password::empty(),
+    };
+    encrypt_inner(plaintext, recipient_key_blocks, Some((&signing_key, password)))
+}
+
+fn encrypt_inner(
+    mut plaintext: Vec<u8>,
+    recipient_key_blocks: Vec<Vec<u8>>,
+    signing: Option<(&SignedSecretKey, Password)>,
+) -> Result<Vec<u8>, OpenPgpError> {
+    let mut plaintext = zeroize::Zeroizing::new(std::mem::take(&mut plaintext));
     if recipient_key_blocks.is_empty() {
         return Err(recipient_error("at least one recipient required"));
     }
@@ -167,9 +197,35 @@ pub fn encrypt(
     }
 
     let mut rng = thread_rng();
-    let mut builder = MessageBuilder::from_bytes("", plaintext.clone())
+    let mut builder = MessageBuilder::from_bytes("", plaintext.to_vec())
         .seipd_v1(&mut rng, SymmetricKeyAlgorithm::AES256);
     let now = Timestamp::now();
+    if let Some((key, password)) = signing {
+        if !primary_is_usable(&key.to_public_key(), now) {
+            return Err(secret_error("signing primary key is revoked or expired"));
+        }
+        let subkey = key.secret_subkeys.iter().find(|subkey| {
+            subkey.key.algorithm().can_sign()
+                && !has_revocation(&subkey.signatures, SignatureType::SubkeyRevocation)
+                && !expiration_elapsed(subkey.key.created_at(), &subkey.signatures, now)
+                && subkey.signatures.iter()
+                    .filter(|sig| sig.typ() == Some(SignatureType::SubkeyBinding))
+                    .max_by_key(|sig| sig.created())
+                    .map(|sig| sig.key_flags().sign()).unwrap_or(false)
+        });
+        if let Some(subkey) = subkey {
+            builder.sign(&subkey.key, password, HashAlgorithm::Sha256);
+        } else {
+            let flags = key.details.direct_signatures.iter()
+                .chain(key.details.users.iter().flat_map(|user| user.signatures.iter()))
+                .max_by_key(|sig| sig.created())
+                .map(|sig| sig.key_flags().sign()).unwrap_or(false);
+            if !key.primary_key.algorithm().can_sign() || !flags {
+                return Err(secret_error("no usable data-signing key"));
+            }
+            builder.sign(&key.primary_key, password, HashAlgorithm::Sha256);
+        }
+    }
     for cert in &certificates {
         if !primary_is_usable(cert, now) {
             return Err(recipient_error(
@@ -541,4 +597,24 @@ mod tests {
         assert_eq!(rpgp_version(), "pgp 0.21.0");
         assert_eq!(crate_version(), "0.1.0");
     }
+    #[test]
+    fn signed_encryption_is_verifiable_and_never_retries_unsigned() {
+        let signer = generate_test_key("Signer <signer@example.invalid>", Some("session-pass"));
+        let recipient = generate_test_key("Recipient <recipient@example.invalid>", None);
+        let plaintext = br#"{"entries":[]}"#.to_vec();
+        let encrypted = encrypt_signed(plaintext.clone(), vec![pub_key_bytes(&recipient)],
+            sec_key_bytes(&signer), Some("session-pass".into())).expect("signed encryption");
+        let parsed = Message::from_bytes(&encrypted[..]).expect("parse");
+        let mut message = parsed.decrypt(&Password::empty(), &recipient).expect("decrypt");
+        assert!(message.is_one_pass_signed());
+        let mut recovered = Vec::new();
+        message.read_to_end(&mut recovered).expect("literal data");
+        assert_eq!(recovered, plaintext);
+        message.verify(&signer.to_public_key().primary_key).expect("valid signature");
+        assert!(encrypt_signed(plaintext.clone(), vec![pub_key_bytes(&recipient)],
+            sec_key_bytes(&signer), Some("wrong-pass".into())).is_err());
+        assert!(encrypt_signed(plaintext, vec![pub_key_bytes(&recipient)],
+            b"invalid signing key".to_vec(), None).is_err());
+    }
+
 }

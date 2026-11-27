@@ -8,9 +8,4 @@
 
     <!-- Theme attributes of the About screen. AboutLibraries 6.x defined these; the 14.x library
          uses aboutLibraries* names instead, so the app declares the ones its themes and layouts use. -->
-    <attr name="about_libraries_card" format="color|reference"/>
-    <attr name="about_libraries_title_openSource" format="color|reference"/>
-    <attr name="about_libraries_text_openSource" format="color|reference"/>
-    <attr name="about_libraries_dividerDark_openSource" format="color|reference"/>
-    <attr name="about_libraries_dividerLight_openSource" format="color|reference"/>
 </resources>

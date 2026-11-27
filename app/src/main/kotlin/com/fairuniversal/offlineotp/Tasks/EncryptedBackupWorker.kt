@@ -49,7 +49,7 @@ open class EncryptedBackupWorker(context: Context, params: WorkerParameters) :
         if (isStopped() || !settings.isEncryptedBackupBroadcastEnabled()) return Result.failure()
         // Login-derived credentials are never persisted for a detached worker. Such changes are
         // retried only when the user unlocks the vault with the app password.
-        if (LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled())
+        if (LoginBackupPolicy.usesVaultCopy(context) || LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled())
             return Result.failure()
         // Settings may have changed since the broadcast was received, so check again.
         // Never write a backup without a password.

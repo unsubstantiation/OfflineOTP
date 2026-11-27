@@ -49,7 +49,7 @@ fun SharedEntryPinDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                     visualTransformation = PasswordVisualTransformation()
                 )
-                if (error != null) Text(text = error)
+                SharedStatusMessage(error)
             }
         },
         confirmButton = {

@@ -33,6 +33,68 @@ import javax.crypto.KeyGenerator
 
 class HardwareKeyManagerTest {
 
+    @Test fun renameChecksIdentityCollisionConsentAndPermissionWithoutCalculating() {
+        val client = com.fairuniversal.offlineotp.Utilities.HardwareOathClient
+        val selected = Credential("old".toByteArray(), OathType.TOTP, null, "old", 60)
+        fun attempt(device: String = "fake-device", confirmed: Boolean = true, issuer: String = "example",
+                    name: String = "new", permitted: () -> Boolean = { true }): Boolean = try {
+            client.renameOnKey(smartCardDevice(), null, device, selected, issuer, name, confirmed, permitted); true
+        } catch (_: Exception) { false }
+        OathSandbox.reset()
+        try {
+            OathSandbox.credentials = listOf(selected)
+            assertTrue(!attempt(confirmed = false)); assertTrue(!attempt(device = "other"))
+            assertTrue(!attempt(issuer = "ambiguous:issuer")); assertTrue(!attempt(name = "a".repeat(65)))
+            assertTrue(!attempt(permitted = { false }))
+            OathSandbox.credentials = listOf(selected, Credential("60/example:new".toByteArray()))
+            assertTrue(!attempt())
+            OathSandbox.credentials = listOf(selected, selected)
+            assertTrue(!attempt())
+            OathSandbox.credentials = listOf(Credential(selected.id, OathType.TOTP, null, "old", 30))
+            assertTrue(!attempt())
+            OathSandbox.credentials = listOf(selected)
+            var checks = 0
+            assertTrue(!attempt(permitted = { ++checks < 4 }))
+            assertEquals(0, OathSandbox.renames)
+            assertTrue(attempt()); assertEquals(1, OathSandbox.renames)
+            assertEquals("60/example:new", String(OathSandbox.renamedId!!))
+            assertEquals(0, OathSandbox.calculations); assertEquals(0, OathSandbox.writes); assertEquals(0, OathSandbox.deletions)
+            OathSandbox.credentials = listOf(Credential("60/old".toByteArray(), OathType.TOTP, null, "old", 60))
+            val canonical = OathSandbox.credentials.single()
+            var rejected = false
+            try { client.renameOnKey(smartCardDevice(), null, "fake-device", canonical, "", "old", true) { true } }
+            catch (_: Exception) { rejected = true }
+            assertTrue(rejected); assertEquals(1, OathSandbox.renames)
+        } finally { OathSandbox.reset() }
+    }
+
+    @Test fun deletionRequiresConfirmationExactIdentityAndLivePermission() {
+        val client = com.fairuniversal.offlineotp.Utilities.HardwareOathClient
+        val selected = Credential(byteArrayOf(1), OathType.HOTP, "issuer", "account")
+        fun attempt(device: String = "fake-device", confirmed: Boolean = true, permitted: () -> Boolean = { true }): Boolean =
+            try { client.deleteFromKey(smartCardDevice(), null, device, selected, confirmed, permitted); true }
+            catch (_: Exception) { false }
+        OathSandbox.reset()
+        try {
+            OathSandbox.credentials = listOf(selected)
+            assertTrue(!attempt(confirmed = false)); assertTrue(!attempt(device = "other"))
+            assertTrue(!attempt(permitted = { false }))
+            OathSandbox.credentials = listOf(Credential(byteArrayOf(1), OathType.HOTP, "issuer", "changed"))
+            assertTrue(!attempt())
+            OathSandbox.credentials = listOf(selected, selected)
+            assertTrue(!attempt())
+            assertEquals(0, OathSandbox.deletions)
+            OathSandbox.credentials = listOf(selected)
+            // withSession checks permission three times before entering the deletion body.
+            var checks = 0
+            assertTrue(!attempt(permitted = { ++checks < 4 }))
+            assertEquals(0, OathSandbox.deletions)
+            assertTrue(attempt()); assertEquals(1, OathSandbox.deletions)
+            assertEquals(0, OathSandbox.calculations); assertEquals(0, OathSandbox.writes)
+            assertTrue(OathSandbox.credentials.isEmpty())
+        } finally { OathSandbox.reset() }
+    }
+
     private class FakeSource(var devices: List<YubiKeyDevice>) : HardwareDeviceSource {
         var closed = false
             private set

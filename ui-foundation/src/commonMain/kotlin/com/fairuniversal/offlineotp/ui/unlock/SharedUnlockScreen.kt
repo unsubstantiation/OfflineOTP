@@ -59,7 +59,8 @@ fun SharedUnlockScreen(
     quickUnlockLabel: String = "Unlock with security key",
     creating: Boolean = false,
     onCreate: (String, String) -> Unit = { _, _ -> },
-    onRestore: (() -> Unit)? = null
+    onRestore: (() -> Unit)? = null,
+    onSecurityKeyUnlock: (() -> Unit)? = null
 ) {
     var password by remember(creating) { mutableStateOf("") }
     var confirmation by remember(creating) { mutableStateOf("") }
@@ -127,7 +128,7 @@ fun SharedUnlockScreen(
                     keyboardActions = KeyboardActions(onDone = { submitPassword() }))
             }
             if (error != null) {
-                Text(text = error, style = ForestType.label, color = ForestPalette.warning)
+                com.fairuniversal.offlineotp.ui.vault.SharedStatusMessage(error)
             }
             if (hint != null) {
                 Text(text = hint, style = ForestType.label, color = ForestPalette.textHint)
@@ -146,6 +147,10 @@ fun SharedUnlockScreen(
                 enabled = !busy,
                 onClick = { password = ""; confirmation = ""; onRestore() }
             ) { Text(text = "Restore from encrypted backup…") }
+            if (!creating && onSecurityKeyUnlock != null) Button(
+                modifier = Modifier.fillMaxWidth(), colors = buttonColors, enabled = !busy,
+                onClick = { password = ""; confirmation = ""; onSecurityKeyUnlock() }
+            ) { Text(text = "Unlock with enrolled security key…") }
             if (!creating && onHardwareUnlock != null) Button(
                 modifier = Modifier.fillMaxWidth(),
                 colors = buttonColors,

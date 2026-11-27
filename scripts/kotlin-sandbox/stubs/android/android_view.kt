@@ -109,7 +109,13 @@ open class View(suppliedContext: Context? = null) {
     open fun requestFocus(): Boolean = true
     open fun requestLayout() {}
     open fun setBackgroundColor(color: Int) {}
-    open fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {}
+    var paddingLeft = 0; private set
+    var paddingTop = 0; private set
+    var paddingRight = 0; private set
+    var paddingBottom = 0; private set
+    open fun setPadding(left: Int, top: Int, right: Int, bottom: Int) {
+        paddingLeft = left; paddingTop = top; paddingRight = right; paddingBottom = bottom
+    }
 
     fun setPaddingRelative(start: Int, top: Int, end: Int, bottom: Int) {}
     fun setImportantForAccessibility(mode: Int) {

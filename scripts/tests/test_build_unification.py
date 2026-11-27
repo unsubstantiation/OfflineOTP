@@ -69,7 +69,7 @@ class BuildUnificationTest(unittest.TestCase):
         swift = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         self.assertIn('row("autoLock", "Auto-lock after inactivity"', swift)
         self.assertNotIn('AutoLockOptions.', swift)
-        self.assertIn('store.setInactivityLockSeconds(seconds)', swift)
+        self.assertIn('try store.saveAutoLockSettings(seconds: seconds, relockOnBackground: raw == "true")', swift)
         form = (ROOT / 'ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/AutoLockDialog.kt').read_text()
         self.assertIn('(options + currentSeconds).distinct()', form)
         self.assertIn('AutoLockOptions.label(seconds)', form)

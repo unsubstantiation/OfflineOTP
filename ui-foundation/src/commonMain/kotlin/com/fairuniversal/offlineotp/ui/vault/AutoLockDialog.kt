@@ -60,7 +60,7 @@ fun AutoLockDialog(
                         Text(text = relockOnBackgroundLabel)
                     }
                 }
-                if (failed) Text(text = "Could not save the setting. The previous timeout is still active.")
+                if (failed) SharedStatusMessage("Could not save the setting. The previous timeout is still active.")
             } },
         confirmButton = {
             ForestTextAction(

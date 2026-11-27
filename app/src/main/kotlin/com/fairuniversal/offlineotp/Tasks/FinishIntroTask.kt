@@ -35,6 +35,9 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
     protected override fun doInBackground(): Result {
         var prepared: Settings.PreparedCredentials? = null
         try {
+            // New vaults always have portable password recovery. Device-only legacy vaults remain readable.
+            if (encryptionType != Constants.EncryptionType.PASSWORD || authMethod != Constants.AuthMethod.PASSWORD)
+                return Result(false, null, taskGeneration())
             if (isCanceled() || !DatabaseHelper.canInitialize(settingsContext)) return Result(false, null, taskGeneration())
             if (authMethod == Constants.AuthMethod.PASSWORD) prepared = settings.prepareAuthCredentials(password)
             if (encryptionType == Constants.EncryptionType.PASSWORD && prepared == null) return Result(false, null, taskGeneration())
@@ -43,7 +46,8 @@ open class FinishIntroTask(context: Context, private val encryptionType: Constan
             else KeyStoreHelper.createEncryptionKey(settingsContext)
             if (key == null) return Result(false, null, taskGeneration())
             val credentials = prepared
-            val write = DatabaseHelper.changeVaultEncryptionWithEntries(settingsContext, null, key, true, initialEntries) { id ->
+            val header = if (encryptionType == Constants.EncryptionType.PASSWORD) credentials?.containerHeader() else null
+            val write = DatabaseHelper.changeVaultEncryptionWithContainer(settingsContext, null, key, true, initialEntries, header) { id ->
                 if (isCanceled()) VaultCommitDecision.CANCELED
                 else VaultCommitDecision.fromCommit(settings.commitVaultSettings(id, encryptionType, authMethod, credentials, true))
             }

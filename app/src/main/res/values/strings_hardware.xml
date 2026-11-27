@@ -31,4 +31,11 @@
     <string name="hardware_fido_pin_hint">FIDO PIN (optional)</string>
     <string name="hardware_unlock_button">Unlock with security key</string>
     <string name="hardware_unlock_notice">Enter the key PIN, not the app password, if needed. Repeated wrong PINs may lock the key. Connect or tap your registered key; the app password remains available if the key is lost.</string>
+    <string name="hardware_delete_account">Delete from key: %1$s…</string>
+    <string name="hardware_delete_done">Account deleted from key. Vault unchanged. Read accounts again before another operation.</string>
+    <string name="hardware_delete_uncertain">Deletion did not report success. It may already have completed; read the key before retrying. No automatic retry was made. Vault unchanged.</string>
+    <string name="hardware_rename_account">Rename on key: %1$s…</string>
+    <string name="hardware_rename_done">Account renamed on key. Vault unchanged. Read accounts again before another operation.</string>
+    <string name="hardware_rename_invalid">Use an unambiguous nonempty account and optional issuer fitting the 64-byte hardware ID limit, including its period prefix. No controls or colon in the issuer.</string>
+    <string name="hardware_rename_uncertain">Rename did not report success. It may already have completed or the key may not support renaming. Read the key before retrying; no automatic retry was made. Vault unchanged.</string>
 </resources>

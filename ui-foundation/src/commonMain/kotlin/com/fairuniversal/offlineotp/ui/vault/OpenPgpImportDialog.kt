@@ -36,7 +36,7 @@ fun OpenPgpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boole
                 Text(text = "$count entries ready.")
                 RestoreModeSelection(replace = replace, busy = busy, onReplaceChange = { replace = it })
             }
-            if (failed) Text(text = "Could not import the file. Check the passphrase, key file, format, size, vault capacity and storage. Re-enter the passphrase to retry.")
+            if (failed) SharedStatusMessage("Could not import the file. Check the passphrase, key file, format, size, vault capacity and storage. Re-enter the passphrase to retry.")
         } },
         confirmButton = { ForestTextAction(text = if (count == null) "Read file" else if (replace) "Replace all entries" else "Merge entries", enabled = !busy && (count != null || keySelected),
             onClick = {

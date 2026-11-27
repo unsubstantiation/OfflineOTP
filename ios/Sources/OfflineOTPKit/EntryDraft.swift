@@ -242,6 +242,7 @@ public enum EntryDraft {
         overrideThumbnail: String? = nil
     ) -> Entry {
         var result = replacement
+        result.preserveExtensionFields(from: existing)
         result.setDetailsVisible(existing.detailsVisible)
         result.setLastUsed(existing.lastUsed)
         result.setUsedFrequency(existing.usedFrequency)

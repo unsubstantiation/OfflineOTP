@@ -309,4 +309,29 @@ class ComposeVaultDeviceTest {
         compose.onNodeWithText("Fixture password").assertIsEnabled()
     }
 
+    @Test
+    fun authenticationPersistentStatusIsVisibleAndClearsOnRetryAndBackground() {
+        lateinit var page: com.fairuniversal.offlineotp.ui.host.AuthenticationComposeView
+        compose.runOnIdle {
+            page = com.fairuniversal.offlineotp.ui.host.AuthenticationComposeView(
+                compose.activity, android.view.View(compose.activity), "Auth fixture", "Fixture detail",
+                "Fixture unlock", "Fixture hardware", "Fixture biometric", {})
+            page.render(false, false, true, true)
+            compose.activity.setContentView(page)
+            page.showFeedback("Fixture biometric failed")
+        }
+        compose.onNodeWithText("Fixture biometric failed").assertExists()
+        compose.onNodeWithText("Fixture biometric").performClick()
+        compose.onNodeWithText("Fixture biometric failed").assertDoesNotExist()
+        compose.runOnIdle {
+            page.render(false, false, true, true)
+            page.showFeedback("Fixture cancelled")
+        }
+        compose.onNodeWithText("Fixture cancelled").assertExists()
+        compose.runOnIdle { page.render(false, false, true, false) }
+        compose.onNodeWithText("Fixture cancelled").assertDoesNotExist()
+        compose.runOnIdle { page.close(); page.showFeedback("Late fixture failure") }
+        compose.onNodeWithText("Late fixture failure").assertDoesNotExist()
+    }
+
 }

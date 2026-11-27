@@ -52,7 +52,7 @@ fun LinScpExportDialog(inputKey: Any, choices: List<String>, busy: Boolean, erro
                 OutlinedTextField(value = confirmation, onValueChange = { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
                     label = { Text("Confirm password") }, visualTransformation = PasswordVisualTransformation())
             }
-            error?.let { Text(it) }
+            SharedStatusMessage(error)
             if (busy) Text("Writing… Cancel stops pending work; a write already started may finish.")
         }
     }, confirmButton = { ForestTextAction("Export", enabled = !busy && selected.isNotEmpty() && (plainText || (password.isNotEmpty() && password == confirmation)), onClick = {

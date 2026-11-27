@@ -1038,6 +1038,7 @@ class AndroidVaultController(
             // Preserve the metadata and reveal state the form does not edit, like the desktop does.
             val wasRevealed = composeRevealed(existing)
             val oldVisibilityKey = composeVisibilityKey(existing)
+            replacement.preserveExtensionFieldsFrom(existing)
             replacement.setDetailsVisible(existing.areDetailsVisible())
             replacement.setLastUsed(existing.getLastUsed())
             replacement.setUsedFrequency(existing.getUsedFrequency())

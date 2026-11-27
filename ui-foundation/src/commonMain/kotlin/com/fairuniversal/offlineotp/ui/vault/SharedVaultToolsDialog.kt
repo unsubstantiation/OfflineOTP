@@ -21,6 +21,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.fairuniversal.offlineotp.ui.portable.PortableToolGroup
 import com.fairuniversal.offlineotp.ui.theme.ForestPalette
@@ -156,8 +159,17 @@ fun SharedVaultToolGroups(groups: List<PortableToolGroup>, message: String = "",
             }
             Spacer(modifier = Modifier.height(2.dp))
         }
-        if (message.isNotEmpty()) {
-            Text(text = message, style = ForestType.body, color = ForestPalette.warning)
-        }
+        SharedStatusMessage(message)
+
+    }
+}
+
+/** Persistent in-page/form feedback. Hosts own message lifetime and must not include secrets. */
+@Composable
+fun SharedStatusMessage(message: String?, modifier: Modifier = Modifier, warning: Boolean = true) {
+    if (!message.isNullOrEmpty()) {
+        Text(text = message, style = ForestType.body,
+            color = if (warning) ForestPalette.warning else ForestPalette.textPrimary,
+            modifier = modifier.semantics { liveRegion = LiveRegionMode.Polite })
     }
 }

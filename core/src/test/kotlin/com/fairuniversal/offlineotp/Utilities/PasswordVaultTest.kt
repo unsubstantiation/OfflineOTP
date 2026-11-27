@@ -84,10 +84,30 @@ class PasswordVaultTest {
         assertEquals(VaultReadError.AUTHENTICATION_FAILED,
             (wrong as PasswordVault.Open.Failed).error)
 
-        // A vault without provisioned settings is a corrupt configuration, not a password failure.
+        // New containers carry their own recovery metadata: copying ONLY the vault works.
         val orphan = PasswordVault(vaultFile, InMemoryByteStore(), InMemorySettings())
-        assertEquals(VaultReadError.CORRUPT,
-            (orphan.open(password) as PasswordVault.Open.Failed).error)
+        val recovered = orphan.open(password) as PasswordVault.Open.Unlocked
+        assertEquals(0, recovered.entries.size)
+        assertTrue(VaultContainer.isContainer(vaultFile.bytes!!))
+    }
+
+    @Test
+    fun fullSnapshotIsExactBytesAndWorksWithoutOriginalSettings() {
+        val (file, _, vault) = newHarness()
+        assertEquals(VaultWriteResult.Saved, vault.create(password, arrayListOf(entry("example", "alice"))))
+        val unlocked = vault.open(password) as PasswordVault.Open.Unlocked
+        try {
+            val copy = vault.snapshot(unlocked.key)
+            assertTrue(copy.contentEquals(file.bytes!!))
+            val target = InMemoryByteStore().apply { writeAtomic(copy) }
+            val recovered = PasswordVault(target, InMemoryByteStore(), InMemorySettings())
+            val restored = recovered.open(password) as PasswordVault.Open.Unlocked
+            try {
+                assertEquals("alice", restored.entries.single().getLabel())
+                assertEquals(VaultWriteResult.Saved, recovered.save(restored.key, restored.entries))
+                assertTrue(recovered.open(password) is PasswordVault.Open.Unlocked)
+            } finally { restored.entries.forEach { it.destroy() } }
+        } finally { unlocked.entries.forEach { it.destroy() } }
     }
 
     @Test
@@ -249,8 +269,52 @@ class PasswordVaultTest {
         assertEquals("GitLab", reopened.entries[1].getIssuer())
     }
 
+    @Test
+    fun explicitMigrationPreservesLegacyUntilBackupAndPromotionSucceed() {
+        val settings = InMemorySettings()
+        val salt = ByteArray(16) { it.toByte() }
+        val derived = CryptoPrimitives.generatePBKDF2Credentials(password, salt, 4096)
+        val key = javax.crypto.spec.SecretKeySpec(derived.key, "AES")
+        settings.putString(VaultSettingsKeys.AUTH_CREDENTIALS, java.util.Base64.getUrlEncoder().encodeToString(derived.password))
+        settings.putString(VaultSettingsKeys.AUTH_SALT, java.util.Base64.getUrlEncoder().encodeToString(salt))
+        settings.putInt(VaultSettingsKeys.AUTH_ITERATIONS, 4096)
+        derived.key.fill(0); derived.password.fill(0)
+        val file = InMemoryByteStore(); val backup = InMemoryByteStore()
+        val original = CryptoPrimitives.encrypt(key, "[]".toByteArray())
+        file.writeAtomic(original)
+        val vault = PasswordVault(file, backup, settings)
+        assertTrue(vault.open(password) is PasswordVault.Open.Unlocked)
+        assertTrue(original.contentEquals(file.bytes!!)); assertTrue(backup.bytes == null)
+        assertEquals(VaultWriteResult.Saved, vault.save(key, arrayListOf()))
+        assertFalse(VaultContainer.isContainer(file.bytes!!)) // ordinary save does not migrate
+        val prior = file.bytes!!.copyOf()
+        assertTrue(vault.migrateToContainer("wrong") is VaultWriteResult.Rejected)
+        var permissionChecks = 0
+        assertEquals(VaultWriteError.CANCELED, (vault.migrateToContainer(password) { ++permissionChecks < 2 } as VaultWriteResult.Rejected).error)
+        assertTrue(prior.contentEquals(file.bytes!!)); assertTrue(backup.bytes == null)
+        permissionChecks = 0
+        assertEquals(VaultWriteError.CANCELED, (vault.migrateToContainer(password) { ++permissionChecks < 3 } as VaultWriteResult.Rejected).error)
+        assertTrue(prior.contentEquals(file.bytes!!)); assertTrue(prior.contentEquals(backup.bytes!!))
+        backup.bytes = null
+        assertTrue(prior.contentEquals(file.bytes!!)); assertTrue(backup.bytes == null)
+        backup.failWrites = true
+        assertEquals(VaultWriteError.BACKUP_FAILED, (vault.migrateToContainer(password) as VaultWriteResult.Rejected).error)
+        assertTrue(prior.contentEquals(file.bytes!!))
+        backup.failWrites = false; file.failWrites = true
+        assertTrue(vault.migrateToContainer(password) is VaultWriteResult.Rejected)
+        assertTrue(prior.contentEquals(file.bytes!!)); assertTrue(prior.contentEquals(backup.bytes!!))
+        file.failWrites = false
+        assertEquals(VaultWriteResult.Saved, vault.migrateToContainer(password))
+        assertTrue(prior.contentEquals(backup.bytes!!))
+        val recovered = PasswordVault(file, InMemoryByteStore(), InMemorySettings())
+        assertTrue(recovered.open(password) is PasswordVault.Open.Unlocked)
+        assertTrue(vault.snapshot(key).contentEquals(file.bytes!!))
+        assertEquals("[]", EncryptedBackupCodec.open(password, file.bytes!!))
+    }
+
     private class InMemoryByteStore : AtomicByteStore {
         var bytes: ByteArray? = null
+        var failWrites = false
 
         override fun exists(): Boolean = bytes != null
 
@@ -258,6 +322,7 @@ class PasswordVaultTest {
             bytes?.clone() ?: throw IOException("no such in-memory file")
 
         override fun writeAtomic(data: ByteArray) {
+            if (failWrites) throw IOException("injected write failure")
             // Model the adapter contract: a promoted file always reads back exactly what was written.
             bytes = data.clone()
         }

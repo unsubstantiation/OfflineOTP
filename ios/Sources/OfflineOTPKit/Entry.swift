@@ -319,6 +319,12 @@ public struct Entry: Equatable, Hashable {
         }
     }
 
+    /// Form replacements may edit known fields, but cannot silently discard newer-client metadata.
+    public mutating func preserveExtensionFields(from source: Entry) {
+        let known = Set(Self.canonicalFieldOrder)
+        for (name, value) in source.fields where !known.contains(name) { fields[name] = value }
+    }
+
     public mutating func setLastUsed(_ value: Int64) { set("last_used", .int(value)) }
 
     public mutating func setUsedFrequency(_ value: Int64) { set("used_frequency", .int(value)) }

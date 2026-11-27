@@ -41,7 +41,7 @@ fun LinScpImportDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Boolea
             if (busy) Text(text = "Reading LinSCP credentials…")
             if (count != null) LinScpChoices(choices, selected, !busy) { selected = it }
             if (count != null) Text(text = "$count entries ready. Import merges them into the current vault; identical entries are skipped. No current entries are replaced.")
-            if (failed) Text(text = if (count == null)
+            if (failed) SharedStatusMessage(if (count == null)
                 "Could not read the file. Check the password, key file, format and size. Re-enter the password to retry."
                 else "Could not save the selected entries. Check vault capacity and storage, then retry or cancel.")
         } },

@@ -389,8 +389,17 @@ fun Settings.applyBackupPasswordSource(context: Context, useLogin: Boolean, remo
     if (useLogin && hasLegacyBackupPassword(context) && !removeLegacy) return false
     val editor = PreferenceManager.getDefaultSharedPreferences(context).edit()
         .putBoolean(context.getString(R.string.settings_key_auto_backup_use_login), useLogin)
+        .remove(LoginBackupPolicy.VAULT_COPY)
     if (useLogin && removeLegacy) editor.remove(context.getString(R.string.settings_key_backup_password))
     return editor.commit()
+}
+
+/** Select full-file copies explicitly without deleting any previously configured export password. */
+fun Settings.applyVaultCopyBackupSource(context: Context): Boolean {
+    try { DatabaseHelper.vaultSnapshot(context, VaultSession.getKey()).fill(0) }
+    catch (_: Exception) { return false }
+    return PreferenceManager.getDefaultSharedPreferences(context).edit()
+        .putBoolean(LoginBackupPolicy.VAULT_COPY, true).commit()
 }
 
 /** Wrap a newly entered separate password; empty input clears it without needing a usable KeyStore. */

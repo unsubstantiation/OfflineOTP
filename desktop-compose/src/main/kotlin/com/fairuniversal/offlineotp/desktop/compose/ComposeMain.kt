@@ -137,9 +137,11 @@ import java.awt.event.AWTEventListener
  * and unlocking/saving go through the same [VaultController] and
  * [DesktopVaultState] shared engine, preserving the existing vault format.
  *
- * What this host does not have yet (tracked in docs/compose-unified-ui-plan.md): identity creation, OpenPGP hardware/agent integration, camera import, and the remaining preferences. Idle auto-lock now uses the saved desktop timeout. The shared screen
- * hides the entry-actions affordance until a host supplies it, so nothing here promises an action
- * that silently does nothing.
+ * Capability differences and outstanding parity work are recorded in
+ * docs/cross-platform-parity-audit-2026-11-20.md. Camera capture uses an optional local FFmpeg
+ * adapter; OpenPGP hardware/agent integration is not supplied. Shared email identity editing and
+ * entry actions are wired.
+ * Unsupported actions remain capability-gated rather than exposed as no-op controls.
  */
 fun main() {
     // installDist/distZip relocate native libraries beside the application jar. jpackage
@@ -441,7 +443,11 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         Executors.newSingleThreadExecutor { task -> Thread(task, "OfflineOTP backup").apply { isDaemon = true } }
     }
     val exporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
-        { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+        { task -> EventQueue.invokeLater(task) }, { revision++ }, rawSnapshot = { key ->
+            controller.vaultSnapshot(key) ?: error("The vault is legacy, busy or unavailable")
+        }, migrateSnapshot = { password, key, permitted ->
+            controller.migrateAndSnapshot(password, key, permitted) ?: error("Migration unavailable")
+        }) }
     var linScpSelectedIds by remember(vault) { mutableStateOf<Set<Long>>(emptySet()) }
     val linScpExporter = remember(vault) { DesktopEncryptedExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }, seal = DesktopLinScpExport::seal,
@@ -464,6 +470,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         }, calculate = { pin, deviceId, account, token ->
             val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
             try { manager.calculateOath(pin?.takeIf { it.isNotEmpty() }, deviceId, account, token) } finally { manager.close() }
+        }, delete = { pin, deviceId, account, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.deleteOathAccount(pin?.takeIf { it.isNotEmpty() }, deviceId, account, token) } finally { manager.close() }
+        }, rename = { pin, deviceId, account, issuer, name, token ->
+            val manager = HardwareKeyManager(PcscHardwareDiscovery(), DesktopHardwareUnlockStore(java.io.File(location.dataDirectory)))
+            try { manager.renameOathAccount(pin?.takeIf { it.isNotEmpty() }, deviceId, account, issuer, name, token) } finally { manager.close() }
         }) }
     val archiveExporter = remember(vault) { DesktopArchiveExport(vault, exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
@@ -494,10 +506,37 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     val imageReader = remember(vault) { DesktopQrImageRead(exportWorker,
         { task -> EventQueue.invokeLater(task) }, { revision++ }) }
     val scheduler = remember(vault) { AwtScheduler() }
+    val automaticBackup = remember(vault) { com.fairuniversal.offlineotp.desktop.control.DesktopAutomaticBackup(
+        vault, scheduler, exportWorker, { task -> EventQueue.invokeLater(task) }, { revision++ },
+        rawSnapshot = { key -> controller.vaultSnapshot(key) ?: error("Portable vault unavailable") }) }
+    val automaticSetup = remember(vault) { com.fairuniversal.offlineotp.desktop.control.DesktopAutomaticBackupSetup(
+        exportWorker, { task -> EventQueue.invokeLater(task) }, { revision++ }) }
+    val backupSaveRevision = remember(vault) { longArrayOf(controller.persistedRevision) }
+    DisposableEffect(revision to controller.persistedRevision) {
+        val saved = controller.persistedRevision
+        if (backupSaveRevision[0] != saved) {
+            backupSaveRevision[0] = saved
+            automaticBackup.vaultChanged()
+        }
+        onDispose { }
+    }
+    val automaticBackupStore = remember(vault) { com.fairuniversal.offlineotp.desktop.storage.DesktopAutomaticBackupStore(java.io.File(location.dataDirectory)) }
+    var rememberedAutomaticBackup by remember(vault) { mutableStateOf(automaticBackupStore.exists) }
+    var automaticVaultCopyMode by remember(vault) { mutableStateOf(!automaticBackupStore.exists) }
+    var automaticBackupFolder by remember(vault) { mutableStateOf(location.dataDirectory) }
+    var automaticBackupMinutes by remember(vault) { mutableStateOf(com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy.DEFAULT_MINUTES) }
+    var automaticBackupRetention by remember(vault) { mutableStateOf(com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy.DEFAULT_RETENTION) }
+    var automaticRememberedRecipients by remember(vault) { mutableStateOf<List<ByteArray>>(emptyList()) }
+    var automaticSigningKeyFile by remember(vault) { mutableStateOf<java.io.File?>(null) }
+    var automaticRequiresSigning by remember(vault) { mutableStateOf(false) }
+    var automaticRecipientFiles by remember(vault) { mutableStateOf<List<java.io.File>>(emptyList()) }
+    var showAutomaticBackup by remember(vault) { mutableStateOf(false) }
     val clipboard = remember(vault) { ExpiringClipboard(scheduler, AwtClipboard) }
     val copier = remember(vault) { DesktopEntryCopy(vault, EntryEditor(controller, vault), clipboard) }
     val mover = remember(vault) { DesktopEntryMove(vault, EntryEditor(controller, vault)::move) }
     var showStorageLocation by remember(vault) { mutableStateOf(false) }
+    var cameraInput by remember(vault) { mutableStateOf(false) }
+    var showCameraCapture by remember(vault) { mutableStateOf(false) }
     var showSearchFields by remember(vault) { mutableStateOf(false) }
     var showPreferencesExport by remember(vault) { mutableStateOf(false) }
     var showUsedTokensNotice by remember(vault) { mutableStateOf(false) }
@@ -542,7 +581,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedFocusSearchOnStart,
             controller::trySaveFocusSearchOnStart,
             controller::savedMinimizeOnCopy,
-            controller::trySaveMinimizeOnCopy
+            controller::trySaveMinimizeOnCopy,
+            writeSelection = controller::trySaveCardDisplaySelection
         )
     }
     val autoLock = remember(vault) {
@@ -551,7 +591,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
             controller::savedInactivityLockSeconds,
             controller::trySaveInactivityLockSeconds,
             controller::savedRelockOnBackground,
-            controller::trySaveRelockOnBackground
+            controller::trySaveRelockOnBackground,
+            writeSelection = controller::trySaveAutoLockSettings
         )
     }
     val transactionHolder = remember(vault) { arrayOfNulls<DesktopEntryTransaction>(1) }
@@ -605,6 +646,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 controller.trySaveUntaggedSelected(untagged)
             },
             lockVault = {
+                automaticSetup.close(); automaticBackup.close(); showAutomaticBackup = false
                 showStorageLocation = false
                 showSearchFields = false
                 showPreferencesExport = false; showUsedTokensNotice = false
@@ -678,6 +720,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     // Quiesce every other session owner before submitting a background entry transaction. A fresh
     // unlock is required afterwards; none of these terminal owners is reused for editing.
     fun quiesceForTransaction() {
+        automaticSetup.cancel(); automaticBackup.disable()
+        showCameraCapture = false
         showSearchFields = false
         showPreferencesExport = false; showUsedTokensNotice = false
         usedTokensHideForever = false
@@ -699,6 +743,21 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         revision++
     }
     DisposableEffect(presenter) {
+        if (automaticBackupStore.exists && !vault.isLocked) {
+            try {
+                automaticBackupStore.load(vault.key)?.use { config ->
+                    automaticBackupFolder = config.folder; automaticBackupMinutes = config.minutes; automaticBackupRetention = config.keep
+                    automaticVaultCopyMode = config.vaultCopy
+                    automaticRequiresSigning = config.requiresSigning
+                    automaticRememberedRecipients = config.recipientKeys.map { it.copyOf() }
+                    if (config.requiresSigning) { automaticBackup.reportSigningRequired(); return@use }
+                    val resumed = if (config.vaultCopy) automaticBackup.configureSnapshots(java.io.File(config.folder), config.minutes, config.keep)
+                        else if (config.recipientKeys.isEmpty()) automaticBackup.configure(java.io.File(config.folder), config.password.copyOf(), config.password.copyOf(), config.minutes, config.keep)
+                        else automaticBackup.configureRecipients(java.io.File(config.folder), config.recipientKeys, config.minutes, config.keep)
+                    if (!resumed) automaticBackup.reportRestoreFailure()
+                }
+            } catch (_: Exception) { automaticBackup.reportRestoreFailure() }
+        }
         lifetime.start()
         val listener = AWTEventListener { event ->
             var source = event.source as? Component
@@ -721,6 +780,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         window.addWindowListener(windowListener)
         onDispose {
             window.removeWindowListener(windowListener)
+            automaticSetup.close(); automaticBackup.close()
             transaction.close()
             entryActions.close(); layoutSettings.close(); emailDetails.close(); openPgpImporter.close(); linScpImporter.close(); emailImporter.close(); thunderbirdImporter.close(); passwordImporter.close(); imageReader.close(); uriImporter.close(); restorer.close(); preferencesImporter.close(); hardwareRemoval.close(); hardwareCopy.close(); hardwareOath.close(); archiveExporter.close(); passwordExporter.close(); emailExporter.close(); thunderbirdExporter.close(); preferencesExporter.close(); openPgpExporter.close(); linScpExporter.close(); exporter.close()
             toolkit.removeAWTEventListener(listener)
@@ -1107,16 +1167,101 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 }
                 revision++
             }
-        }, openAbout = {
+        }, automaticBackup = { if (lifetime.checkActive() && !vault.isLocked) showAutomaticBackup = true }, openAbout = {
             if (lifetime.checkActive() && !vault.isLocked) {
                 onOpenAbout()
             }
         }),
         appearance = presenter.appearance,
         artwork = artwork,
-        toast = copyNotice.orEmpty(),
-        onDismissToast = { copyNotice = null }
+        toast = if (automaticBackup.failed) automaticBackup.message else copyNotice.orEmpty(),
+        onDismissToast = { if (automaticBackup.failed) automaticBackup.dismissNotice() else copyNotice = null }
     )
+    if (showAutomaticBackup) com.fairuniversal.offlineotp.ui.vault.AutomaticBackupDialog(
+        inputKey = automaticBackup, initialFolder = automaticBackupFolder,
+        vaultCopyEnabled = automaticBackup.vaultCopy, initialVaultCopy = automaticVaultCopyMode,
+        onEnableSnapshots = { folder, minutes, keep ->
+            lifetime.checkActive() && !vault.isLocked && automaticBackup.configureSnapshots(java.io.File(folder), minutes, keep) {
+                com.fairuniversal.offlineotp.desktop.storage.DesktopAutomaticBackupStore.Configuration(folder, charArrayOf(), minutes, keep,
+                    vaultCopy = true).use { config ->
+                    automaticBackupStore.save(vault.key, config); rememberedAutomaticBackup = true; automaticVaultCopyMode = true; automaticRequiresSigning = false
+                    automaticRememberedRecipients = emptyList(); automaticRecipientFiles = emptyList(); automaticSigningKeyFile = null
+                    automaticBackupFolder = folder; automaticBackupMinutes = minutes; automaticBackupRetention = keep
+                }
+            }
+        },
+        initialMinutes = automaticBackupMinutes, initialRetention = automaticBackupRetention,
+        enabled = automaticBackup.enabled, busy = automaticBackup.busy || automaticSetup.busy,
+        status = if (automaticSetup.busy) "Reading selected key files…" else if (automaticSetup.failed) "Could not prepare automatic backups. Check the selected files and configuration." else automaticBackup.message,
+        openPgpEnabled = automaticBackup.openPgp || automaticRequiresSigning || automaticRememberedRecipients.isNotEmpty(), signingEnabled = automaticBackup.signed,
+        initialSigningRequired = automaticRequiresSigning,
+        signingKeyName = automaticSigningKeyFile?.name.orEmpty(),
+        onChooseSigningKey = {
+            if (lifetime.checkActive() && !automaticBackup.enabled && !automaticSetup.busy) {
+                try {
+                    val key = DesktopSavePicker.openOpenPgpKey(window)
+                    if (lifetime.checkActive() && showAutomaticBackup && !automaticBackup.enabled) automaticSigningKeyFile = key
+                } catch (_: Exception) { copyNotice = "The session signing key could not be selected." }
+            }
+        },
+        onEnableSignedRecipients = { folder, minutes, keep, passphrase ->
+            val signer = automaticSigningKeyFile
+            if (signer == null) false else automaticSetup.submit(automaticRememberedRecipients, automaticRecipientFiles,
+                signer, passphrase.toCharArray(), { lifetime.checkActive() && showAutomaticBackup && !vault.isLocked }) { prepared ->
+                automaticBackup.configureRecipients(java.io.File(folder), prepared.recipients, minutes, keep, prepared.signing) {
+                    com.fairuniversal.offlineotp.desktop.storage.DesktopAutomaticBackupStore.Configuration(folder, charArrayOf(), minutes, keep,
+                        prepared.recipients.map { it.copyOf() }, true).use { config ->
+                        automaticBackupStore.save(vault.key, config); rememberedAutomaticBackup = true; automaticVaultCopyMode = false; automaticRequiresSigning = true
+                        automaticRememberedRecipients = prepared.recipients.map { it.copyOf() }; automaticRecipientFiles = emptyList(); automaticSigningKeyFile = null
+                        automaticBackupFolder = folder; automaticBackupMinutes = minutes; automaticBackupRetention = keep
+                    }
+                }
+            }
+        },
+        recipientNames = automaticRememberedRecipients.indices.map { "Saved recipient ${it + 1}" } + automaticRecipientFiles.map { it.name },
+        onChooseRecipient = {
+            if (lifetime.checkActive() && !automaticBackup.enabled && !automaticBackup.busy && !automaticSetup.busy) {
+                try {
+                    val key = DesktopSavePicker.openOpenPgpRecipient(window)
+                    if (key != null && lifetime.checkActive() && showAutomaticBackup && !automaticBackup.enabled &&
+                        key !in automaticRecipientFiles && automaticRememberedRecipients.size + automaticRecipientFiles.size < 64) automaticRecipientFiles = automaticRecipientFiles + key
+                } catch (_: Exception) { copyNotice = "The public certificate could not be selected." }
+            }
+        }, onClearRecipients = { if (!automaticSetup.busy) { automaticRecipientFiles = emptyList(); automaticRememberedRecipients = emptyList() } },
+        onEnableRecipients = { folder, minutes, keep ->
+            automaticSetup.submit(automaticRememberedRecipients, automaticRecipientFiles, null, charArrayOf(),
+                { lifetime.checkActive() && showAutomaticBackup && !vault.isLocked }) { prepared ->
+                automaticBackup.configureRecipients(java.io.File(folder), prepared.recipients, minutes, keep) {
+                    com.fairuniversal.offlineotp.desktop.storage.DesktopAutomaticBackupStore.Configuration(folder, charArrayOf(), minutes, keep,
+                        prepared.recipients.map { it.copyOf() }).use { config ->
+                        automaticBackupStore.save(vault.key, config); rememberedAutomaticBackup = true; automaticVaultCopyMode = false; automaticRequiresSigning = false
+                        automaticRememberedRecipients = prepared.recipients.map { it.copyOf() }; automaticRecipientFiles = emptyList()
+                        automaticBackupFolder = folder; automaticBackupMinutes = minutes; automaticBackupRetention = keep
+                    }
+                }
+            }
+        },
+        onEnable = { folder, password, confirmation, minutes, keep ->
+            lifetime.checkActive() && !vault.isLocked && automaticBackup.configure(
+                java.io.File(folder), password.toCharArray(), confirmation.toCharArray(), minutes, keep) {
+                    com.fairuniversal.offlineotp.desktop.storage.DesktopAutomaticBackupStore.Configuration(folder, password.toCharArray(), minutes, keep).use { config ->
+                        automaticBackupStore.save(vault.key, config); rememberedAutomaticBackup = true; automaticVaultCopyMode = false; automaticRequiresSigning = false
+                        automaticRememberedRecipients = emptyList(); automaticRecipientFiles = emptyList()
+                        automaticBackupFolder = folder; automaticBackupMinutes = minutes; automaticBackupRetention = keep
+                    }
+                }
+        }, onDisable = {
+            automaticSetup.cancel(); automaticBackup.disable()
+            try {
+                automaticBackupStore.forget(); rememberedAutomaticBackup = false; automaticVaultCopyMode = true; automaticRequiresSigning = false; automaticSigningKeyFile = null
+                automaticRememberedRecipients = emptyList(); automaticRecipientFiles = emptyList()
+                automaticBackupFolder = location.dataDirectory
+                automaticBackupMinutes = com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy.DEFAULT_MINUTES
+                automaticBackupRetention = com.fairuniversal.offlineotp.ui.portable.PortableAutomaticBackupPolicy.DEFAULT_RETENTION
+            }
+            catch (_: Exception) { automaticBackup.reportRestoreFailure() }
+        }, onRunNow = { if (lifetime.checkActive()) automaticBackup.runNow() },
+        onDismiss = { automaticSetup.cancel(); automaticSigningKeyFile = null; showAutomaticBackup = false }, remembered = rememberedAutomaticBackup)
     hardwareRemoval.pending?.let { request ->
         EntryConfirmationDialog(title = "Remove local hardware unlock",
             message = when (request.status) {
@@ -1148,6 +1293,8 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         HardwareOathDialog(inputKey = request, labels = rows.map { it.label }, codes = rows.map { it.code }, counters = rows.map { it.counter },
             busy = request.busy, message = request.message,
             onSubmit = { pin, index -> hardwareOath.submit(request, pin, index, lifetime::checkActive) },
+            onRename = { pin, index, issuer, name -> hardwareOath.rename(request, pin, index, issuer, name, lifetime::checkActive) },
+            onDelete = { pin, index -> hardwareOath.submit(request, pin, index, deleteConfirmed = true, active = lifetime::checkActive) },
             onDismiss = { hardwareOath.dismiss(request) },
             onCopyCode = { index ->
                 if (lifetime.checkActive() && !vault.isLocked && hardwareOath.pending === request) {
@@ -1325,16 +1472,28 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
     passwordImporter.importedCount?.let { count -> EntryConfirmationDialog(title = "Password import",
         message = "Imported $count items. Identical entries were skipped. Protect or remove the original plaintext file separately.",
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { passwordImporter.dismissNotice() }, onDismiss = { passwordImporter.dismissNotice() }) }
+    if (showCameraCapture && uriImporter.pending != null) com.fairuniversal.offlineotp.ui.vault.CameraCaptureDialog(
+        inputKey = uriImporter.pending!!,
+        defaultDevice = com.fairuniversal.offlineotp.desktop.qr.DesktopQrCamera.defaultDevice(),
+        onCapture = { device ->
+            showCameraCapture = false
+            cameraInput = true
+            val request = uriImporter.pending
+            if (request != null && lifetime.checkActive()) imageReader.submitCapture(
+                active = { lifetime.checkActive() && !vault.isLocked && uriImporter.pending === request },
+                capture = { permitted -> com.fairuniversal.offlineotp.desktop.qr.DesktopQrCamera.capture(device, permitted) })
+        }, onDismiss = { showCameraCapture = false })
     val importRequest = uriImporter.pending
-    if (importRequest != null) UriImportDialog(inputKey = importRequest, message = importRequest.message,
+    if (importRequest != null && !showCameraCapture) UriImportDialog(inputKey = importRequest, message = importRequest.message,
         collecting = importRequest.collecting,
         onSubmit = { uri, allow ->
             if (uriImporter.submit(importRequest, uri, allow, lifetime::checkActive)) presenter.applyFilter(presenter.filter)
             revision++
         }, onDismiss = { imageReader.clear(); uriImporter.dismiss(importRequest); revision++ },
-        imageBusy = imageReader.busy, imageReady = imageReader.ready, imageFailed = imageReader.failed,
+        imageBusy = imageReader.busy, imageReady = imageReader.ready, imageFailed = imageReader.failed, cameraInput = cameraInput,
         onChooseImage = {
             if (lifetime.checkActive() && uriImporter.pending === importRequest) {
+                cameraInput = false
                 imageReader.clear()
                 try {
                     val file = DesktopSavePicker.openQrImage(window)
@@ -1344,6 +1503,7 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
                 } catch (_: Exception) { copyNotice = "The QR image could not be selected." }
             }
         },
+        onScanCamera = { if (lifetime.checkActive() && uriImporter.pending === importRequest) showCameraCapture = true },
         onDiscardImage = { imageReader.clear() },
         onImportImage = { allow ->
             if (lifetime.checkActive() && uriImporter.pending === importRequest) {
@@ -1576,10 +1736,12 @@ private fun VaultContent(controller: VaultController, vault: DesktopVaultState, 
         confirmLabel = "OK", dismissLabel = "Close", onConfirm = { linScpExporter.dismissNotice() }, onDismiss = { linScpExporter.dismissNotice() })
     val exportRequest = exporter.pending
     if (exportRequest != null) EncryptedExportDialog(inputKey = exportRequest, busy = exportRequest.busy,
+        onSnapshot = { if (lifetime.checkActive()) exporter.submitSnapshot(exportRequest) },
+        onMigrateAndSnapshot = { password -> if (lifetime.checkActive()) exporter.submitMigration(exportRequest, password) },
         error = when (exportRequest.failure) {
             DesktopEncryptedExport.Failure.PASSWORD -> "Enter matching, nonempty passwords."
             DesktopEncryptedExport.Failure.EXISTS -> "That filename already exists. Cancel and choose a new filename."
-            DesktopEncryptedExport.Failure.EXPORT -> "Backup export failed. A partial encrypted file may remain; choose a new filename before retrying."
+            DesktopEncryptedExport.Failure.EXPORT -> "Backup export failed. Full file copies require the new self-contained vault format; legacy vaults must be migrated first. A partial file may remain; choose a new filename before retrying."
             null -> null
         },
         onSubmit = { password, confirmation ->

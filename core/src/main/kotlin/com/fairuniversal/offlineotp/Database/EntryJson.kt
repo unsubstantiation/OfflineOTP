@@ -42,6 +42,41 @@ object EntryJson {
     private const val JSON_SSH_USERNAME = "ssh_username"
     private const val JSON_SSH_PASSWORD = "ssh_password"
 
+    // Known fields always come from validated typed state, never from opaque extension metadata.
+    private val knownFields = setOf(JSON_SECRET, JSON_ISSUER, JSON_LABEL, JSON_PERIOD, JSON_COUNTER,
+        JSON_DIGITS, JSON_TYPE, JSON_ALGORITHM, JSON_TAGS, JSON_THUMBNAIL, JSON_LAST_USED,
+        JSON_USED_FREQUENCY, JSON_HIDDEN_LABEL, JSON_PIN, JSON_DETAILS_VISIBLE,
+        JSON_SSH_HOST, JSON_SSH_PORT, JSON_SSH_USERNAME, JSON_SSH_PASSWORD)
+
+    internal fun extensionFields(json: JSONObject): String? {
+        val keys = json.keys().asSequence().filter { it !in knownFields }.sorted().toList()
+        if (keys.isEmpty()) return null
+        try {
+            val extras = JSONObject()
+            for (key in keys) extras.put(key, json.get(key))
+            // Check the object graph before stringify too: direct callers can supply a cyclic or
+            // excessively nested JSONObject even though vault-file parsing already bounds depth.
+            fun checkDepth(value: Any, depth: Int) {
+                when (value) {
+                    is JSONObject -> {
+                        require(depth + 1 <= InputPolicy.MAX_JSON_DEPTH)
+                        for (key in value.keys()) checkDepth(value.get(key), depth + 1)
+                    }
+                    is JSONArray -> {
+                        require(depth + 1 <= InputPolicy.MAX_JSON_DEPTH)
+                        for (index in 0 until value.length()) checkDepth(value.get(index), depth + 1)
+                    }
+                }
+            }
+            checkDepth(extras, 1)
+            val text = extras.toString()
+            require(text.length <= com.fairuniversal.offlineotp.Utilities.BoundedInputReader.MAX_DOCUMENT_BYTES)
+            InputPolicy.jsonDepth(text)
+            require(text.toByteArray(Charsets.UTF_8).size <= com.fairuniversal.offlineotp.Utilities.BoundedInputReader.MAX_DOCUMENT_BYTES)
+            return text
+        } catch (_: Exception) { throw IllegalArgumentException("Invalid entry extension metadata") }
+    }
+
     private const val DEFAULT_PERIOD = TokenCalculator.TOTP_DEFAULT_PERIOD
     private val INTEGER_TEXT = Regex("-?[0-9]+")
     private val BASE32_TEXT = Regex("[A-Z2-7]+={0,6}")

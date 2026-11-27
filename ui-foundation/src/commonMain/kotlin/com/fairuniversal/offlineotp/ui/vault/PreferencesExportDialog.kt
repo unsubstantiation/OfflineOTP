@@ -41,7 +41,7 @@ fun PreferencesExportDialog(
                         Text(text = backupPasswordLabel)
                     }
                 }
-                if (errorText != null) Text(text = errorText)
+                SharedStatusMessage(errorText)
             }
         },
         confirmButton = {

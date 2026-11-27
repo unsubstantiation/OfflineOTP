@@ -29,7 +29,6 @@ LIBRARY_PROVIDED = {
     ("style", "Widget.AppCompat.Button.ButtonBar.AlertDialog"),
     ("style", "Widget.MaterialProgressBar.ProgressBar.Horizontal.NoPadding"),
     ("raw", "aboutlibraries"),
-    ("layout", "part_author_extra"),  # fdroid flavor source set
     ("attr", "actionBarPopupTheme"),
     ("attr", "actionBarSize"),
     ("attr", "colorPrimary"),

@@ -1,4 +1,5 @@
 import CoreImage
+import Combine
 import UIKit
 import OfflineOTPKit
 import OfflineOTPPresentation
@@ -52,6 +53,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     let onImport: (String) -> Void
     let onOpenLink: (URL) -> Void
     private var timer: Timer?
+    private var sessionChanges: AnyCancellable?
     private var toast: String = ""
     private var toastExpiry: Date = .distantPast
     private var surfaceKey: String = ""
@@ -63,6 +65,28 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var openPgpSecretKey = Data()
     private var pendingQrImagePayload: String?
     private var qrImageFailed = false
+    private let hardwareReader = HardwareOathReader()
+    private let hardwareWriter = HardwareOathWriter()
+    private var hardwareCopyIndex: Int?
+    private var hardwareCopyFields: [String: JSONValue]?
+    private let hardwareFido = HardwareFidoReader()
+    private let automaticBackup = SessionAutomaticBackup()
+    private var backupChanges: AnyCancellable?
+    private var automaticSigningKey: Data?
+    private var automaticSigningName = ""
+    private var automaticRequiresSigning = false
+    private var automaticVaultCopyMode = true
+    private var automaticRecipientKeys: [Data] = []
+    private var automaticRecipientNames: [String] = []
+    private var automaticFolder: URL?
+    private var automaticMinutes = AutomaticBackupPolicy.defaultMinutes
+    private var automaticKeep = AutomaticBackupPolicy.defaultRetention
+    private var hardwareBusy = false
+    private var hardwareAccounts: [HardwareOathReader.Account] = []
+    private var hardwareCode: String?
+    private var hardwareCodeExpiry: Date?
+    private var hardwareTransport: HardwareOathReader.Transport = .nfc
+    private var hardwareMessage = ""
     private var passwordEditIndex: Int?
     private var openedFields: [String: JSONValue]?
     private var openedGeneration: Int?
@@ -75,15 +99,35 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     private var editorIndex: Int?
     private var editorKind: EntryKind = .totp
     private var active = true
+    private var foreground = UIApplication.shared.applicationState != .background
     private var surfaceEpoch: Int?
+    private(set) var nativeRequestID = UUID()
+    func acceptsNativeResult(_ request: UUID) -> Bool {
+        active && foreground && store.isUnlocked && nativeRequestID == request
+    }
 
     init(store: VaultStore, onExport: @escaping (Data, String) -> Void,
          onImport: @escaping (String) -> Void, onOpenLink: @escaping (URL) -> Void) {
         self.store = store
+        automaticVaultCopyMode = !store.hasAutomaticBackupConfiguration
         self.onExport = onExport
         self.onImport = onImport
         self.onOpenLink = onOpenLink
         super.init()
+        sessionChanges = store.$generation.dropFirst().sink { [weak self] _ in
+            self?.suspendSensitiveOperations()
+        }
+        backupChanges = store.$persistedRevision.dropFirst().map { [weak store] _ in store?.generation }
+            .receive(on: DispatchQueue.main).sink { [weak self] generation in
+                guard let self = self, self.active, self.foreground, self.store.isUnlocked,
+                      generation == self.store.generation else { return }
+                self.automaticBackup.vaultChanged()
+            }
+        NotificationCenter.default.addObserver(self, selector: #selector(backgroundSensitiveOperations),
+            name: UIScene.didEnterBackgroundNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(resumeSensitiveOperations),
+            name: UIScene.didActivateNotification, object: nil)
+        DispatchQueue.main.async { [weak self] in self?.restoreAutomaticBackups() }
         if store.cardLayout == "DEFAULT",
            let legacyLayout = UserDefaults.standard.string(forKey: "offlineotp.card_layout"),
            ["DEFAULT", "COMPACT", "FULL"].contains(legacyLayout) {
@@ -102,14 +146,40 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         }
     }
 
-    deinit { timer?.invalidate() }
+    deinit { timer?.invalidate(); NotificationCenter.default.removeObserver(self) }
+
+    @objc private func backgroundSensitiveOperations() {
+        foreground = false
+        suspendSensitiveOperations()
+    }
+    @objc private func resumeSensitiveOperations() {
+        foreground = true
+        restoreAutomaticBackups()
+    }
+
+    @objc private func suspendSensitiveOperations() {
+        nativeRequestID = UUID()
+        hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil
+        draft["hardwareSeedConsent"] = "false"
+        draft.removeValue(forKey: "hardwareSeedPassword")
+        draft.removeValue(forKey: "hardwareFidoPIN")
+        draft.removeValue(forKey: "hardwarePassword"); draft["hardwareCounterConsent"] = "false"
+        draft.removeValue(forKey: "automaticSigningPassphrase"); draft.removeValue(forKey: "automaticPassword"); draft.removeValue(forKey: "automaticConfirmation")
+        automaticBackup.disable(); automaticFolder = nil; automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""
+        refresh()
+    }
 
     // MARK: - Frame
 
     func refresh() {
         guard active else { return }
-        guard store.isUnlocked else { return }
+        guard store.isUnlocked else {
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil
+            automaticBackup.disable(); automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""; draft = [:]
+            return
+        }
         let now = Date()
+        if let expires = hardwareCodeExpiry, expires <= now { hardwareCode = nil; hardwareCodeExpiry = nil }
         if toastExpiry < now { toast = "" }
         _ = store.expireRevealedEntries(now: now)
         presentation.updateVault(state: vaultState())
@@ -226,7 +296,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             tagRule: rule,
             cards: cards,
             sortLabel: store.sortMode.title,
-            toast: toast,
+            toast: automaticBackup.failed ? automaticBackup.message : toast,
             hiddenTitleEnabled: store.hideIssuer,
             countLabel: countLabel,
             sortOptions: SortMode.allCases.map {
@@ -326,7 +396,9 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "tagRule": toggleTagRule()
         case "backups": openSurface("backups")
         case "settings": openSurface("settings")
-        case "dismissToast": toast = ""; refresh()
+        case "dismissToast":
+            if automaticBackup.failed { automaticBackup.dismissNotice() } else { toast = "" }
+            refresh()
         default:
             if action.hasPrefix("sortIndex:"),
                let sortIdx = Int(action.dropFirst("sortIndex:".count)),
@@ -493,7 +565,18 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
 
     // MARK: - Shared dialogs
 
+    private func clearAutomaticBackupDraftSecrets() {
+        automaticSigningKey = nil; automaticSigningName = ""
+        draft.removeValue(forKey: "automaticSigningPassphrase")
+        draft.removeValue(forKey: "automaticPassword"); draft.removeValue(forKey: "automaticConfirmation")
+    }
+
     private func openSurface(_ key: String, keepDraft: Bool = false) {
+        nativeRequestID = UUID()
+        if surfaceKey == "automaticBackup" && key != surfaceKey { clearAutomaticBackupDraftSecrets() }
+        if ["hardwareOath", "hardwareEnroll", "hardwareRemove", "hardwareSeedCopy"].contains(surfaceKey) && key != surfaceKey {
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
+        }
         surfaceEpoch = store.generation
         surfaceKey = key
         if !keepDraft {
@@ -504,6 +587,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     func closeSurface() {
+        nativeRequestID = UUID()
+        if surfaceKey == "automaticBackup" {
+            // Retain public recipient snapshots for reopening/reloading a session signer.
+            clearAutomaticBackupDraftSecrets()
+        }
+        if ["hardwareOath", "hardwareEnroll", "hardwareRemove", "hardwareSeedCopy"].contains(surfaceKey) {
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
+        }
         if surfaceKey == "uriImport" {
             store.cancelMigrationImport()
             pendingQrImagePayload = nil
@@ -873,6 +964,124 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
         case "settings": return settingsSurface()
         case "backups": return backupSurface()
+        case "automaticBackup":
+            var rows = [
+                row("automaticInfo", "Automatic full-file backups or encrypted exports for this unlocked foreground session", kind: "info", detail: "Runs after successful vault saves (coalesced), at the selected interval, and on request. Configuration and separate backup password are remembered encrypted under the vault key, outside preferences. Resumes after unlock/foreground; never while locked. Key/password changes may require reconfiguration. Full-file mode copies the saved portable vault unchanged and uses its recovery password. OpenPGP/password export modes remain separate; signing credentials are session-only. No OS background scheduling. Writes to OfflineOTP-automatic; retention only removes matching files after a successful new backup. Keep a separate verified backup."),
+                row("automaticStatus", automaticBackup.message, kind: "info")]
+            if automaticBackup.enabled {
+                rows += [row("automaticActiveFolder", "Destination folder", value: automaticFolder?.path ?? store.folderPath, kind: "info"),
+                         row("automaticEncryption", "Encryption", value: automaticBackup.vaultCopy ? "Vault recovery password (file copy)" : automaticBackup.openPgp ? (automaticBackup.signed ? "OpenPGP (signed)" : "OpenPGP (unsigned)") : "Backup password", kind: "info"),
+                         row("automaticActivePolicy", "Periodic interval / retention", value: "\(automaticMinutes) minutes / \(automaticKeep) files", kind: "info"),
+                         row("automaticRun", "Back up now", enabled: !automaticBackup.busy),
+                         row("automaticDisable", "Disable and forget saved configuration")]
+            } else {
+                rows += [
+                    row("automaticDestination", "Destination folder", value: automaticFolder?.path ?? store.folderPath, kind: "info"),
+                    row("automaticChooseFolder", "Choose destination folder…"),
+                    row("automaticVaultCopy", "Full saved vault file copies (no extra encryption layer)", kind: "toggle", checked: (draft["automaticVaultCopy"] ?? String(automaticVaultCopyMode)) == "true"),
+                    row("automaticOpenPgp", "Use OpenPGP public certificates", kind: "toggle", checked: (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true", enabled: store.openPgpAvailability.canEncrypt)]
+                if (draft["automaticVaultCopy"] ?? String(automaticVaultCopyMode)) == "true" {
+                    rows.append(row("automaticCopyInfo", "Copies the saved encrypted vault unchanged; recover each copy using the vault recovery password at the time. No separate backup password. Migrate a legacy vault in Backups first. Does not include preferences or device unlock credentials.", kind: "info"))
+                } else if (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true" {
+                    rows.append(row("automaticRecipientNotice", "ANY matching secret key decrypts the entire vault. Verify recipients independently; filenames are not fingerprints. Certificates are snapshotted into vault-encrypted settings. 32 KiB combined maximum. Unsigned unless signing is enabled below. Test a restore first.", kind: "info"))
+                    for (index, name) in automaticRecipientNames.enumerated() {
+                        rows.append(row("automaticRecipient:\(index)", name, kind: "info"))
+                    }
+                    rows += [row("automaticAddRecipient", "Add recipient public certificate…"), row("automaticClearRecipients", "Clear recipients")]
+                    rows.append(row("automaticSign", "Require signing (session credentials only)", kind: "toggle",
+                                    checked: (draft["automaticSign"] ?? String(automaticRequiresSigning)) == "true"))
+                    if (draft["automaticSign"] ?? String(automaticRequiresSigning)) == "true" {
+                        rows += [row("automaticSigningNotice", "Private key and passphrase remain in memory only and are released on lock/background/close. Signed backups pause after unlock until reloaded; never an unsigned fallback. In-app restore does not verify signer identity; verify signatures with a trusted OpenPGP tool and independently verified certificate.", kind: "info"),
+                                 row("automaticSigningName", automaticSigningName.isEmpty ? "No signing key selected" : automaticSigningName, kind: "info"),
+                                 row("automaticChooseSigningKey", "Load session signing private key…"),
+                                 row("automaticSigningPassphrase", "Session signing-key passphrase (may be empty)", value: draft["automaticSigningPassphrase"] ?? "", kind: "secure")]
+                    }
+
+                } else {
+                    rows += [row("automaticPassword", "Separate backup password", value: draft["automaticPassword"] ?? "", kind: "secure"),
+                             row("automaticConfirmation", "Confirm backup password", value: draft["automaticConfirmation"] ?? "", kind: "secure")]
+                }
+                rows += [row("automaticMinutes", "Interval minutes (1–1440)", value: draft["automaticMinutes"] ?? String(automaticMinutes), kind: "text"),
+                         row("automaticKeep", "Backups to retain (1–100)", value: draft["automaticKeep"] ?? String(automaticKeep), kind: "text"),
+                         row("automaticEnable", "Enable and remember encrypted")]
+            }
+            if !automaticBackup.enabled && store.hasAutomaticBackupConfiguration {
+                rows.append(row("automaticDisable", "Forget saved configuration"))
+            }
+            return surface(key: key, title: "Automatic encrypted backups", sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Done", dismissLabel: "Close", showConfirm: false)
+        case "hardwareSeedCopy":
+            var rows = [row("hardwareSeedInfo", "Export an OTP seed to a security key", kind: "info",
+                detail: "The seed leaves this vault and is stored on the connected key. No existing ID is overwritten. This does not remove the vault entry. HOTP copies start at the vault counter but will advance independently; avoid using both copies.")]
+            if let index = hardwareCopyIndex, store.entries.indices.contains(index) {
+                let entry = store.entries[index]
+                rows += [row("hardwareSeedSelected", "Selected account", value: entry.issuer + " — " + entry.label, kind: "info"),
+                    row("hardwareSeedPassword", "OATH password (not FIDO PIN)", value: draft["hardwareSeedPassword"] ?? "", kind: "secure", enabled: !hardwareBusy),
+                    row("hardwareSeedTouch", "Require touch for codes", value: draft["hardwareSeedTouch"] ?? "true", kind: "toggle", checked: draft["hardwareSeedTouch"] != "false", enabled: !hardwareBusy),
+                    row("hardwareSeedConsent", "I authorize exporting this account's seed to the connected key", value: draft["hardwareSeedConsent"] ?? "false", kind: "toggle", checked: draft["hardwareSeedConsent"] == "true", enabled: !hardwareBusy),
+                    row("hardwareSeedNFC", "Copy seed using NFC", enabled: !hardwareBusy && HardwareNativeOperation.supportsNFC),
+                    row("hardwareSeedUSB", "Copy seed using USB-C", enabled: !hardwareBusy && HardwareNativeOperation.supportsUSBC)]
+            } else {
+                rows += store.entries.enumerated().compactMap { index, entry in
+                    guard HardwareOathCopyPolicy.names(for: entry) != nil else { return nil }
+                    return row("hardwareSeedSelect:\(index)", entry.issuer + " — " + entry.label)
+                }
+                if rows.count == 1 { rows.append(row("hardwareSeedEmpty", "No compatible TOTP/HOTP accounts in this vault.", kind: "info")) }
+            }
+            return surface(key: key, title: "Copy account to security key", sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Done", dismissLabel: "Close / cancel", showConfirm: false,
+                message: hardwareBusy ? "Copying to key… Cancellation cannot undo a completed write." : hardwareTransportStatus + hardwareMessage)
+        case "hardwareEnroll":
+            return surface(key: key, title: "Enroll hardware vault unlock", sections: [PortableSection(title: "", rows: [
+                row("hardwareEnrollInfo", "Creates a FIDO2 PRF credential and replaces this vault's local unlock record.", kind: "info",
+                    detail: "Keep the vault password and a verified backup. Old copied records are not revoked. Failed/cancelled enrollment may leave a credential on the key. Requires user verification; FIDO PIN is not the OATH password."),
+                row("hardwareFidoPIN", "FIDO PIN (optional for built-in UV)", value: draft["hardwareFidoPIN"] ?? "", kind: "secure", enabled: !hardwareBusy),
+                row("hardwareEnrollNFC", "Enroll using NFC", enabled: !hardwareBusy && HardwareNativeOperation.supportsNFC),
+                row("hardwareEnrollUSB", "Enroll using USB-C", enabled: !hardwareBusy && HardwareNativeOperation.supportsUSBC)] )],
+                confirmLabel: "Done", dismissLabel: "Close / cancel", showConfirm: false,
+                message: hardwareBusy ? "Waiting for key and user verification…" : hardwareTransportStatus + hardwareMessage)
+        case "hardwareRemove":
+            return surface(key: key, title: "Remove local hardware unlock?", sections: [PortableSection(title: "", rows: [
+                row("hardwareRemoveInfo", "Only removes the unlock record on this device. Does not reset the key, delete OATH/FIDO credentials, revoke copied records, or change the vault password.", kind: "info"),
+                row("hardwareRemoveConfirm", "Remove local record")])], confirmLabel: "Done", dismissLabel: "Cancel", showConfirm: false,
+                message: hardwareMessage)
+        case "hardwareOath":
+            var rows = [
+                row("hardwareInfo", "OATH accounts on your security key", kind: "info", detail: "Read accounts, then explicitly calculate one code. HOTP advances the key counter and requires consent. Deleting an account requires typed confirmation and OATH password re-entry. No seed export or key reset; vault unchanged."),
+                row("hardwarePassword", "OATH password (if set, enter for each operation)", value: draft["hardwarePassword"] ?? "", kind: "secure", enabled: !hardwareBusy),
+                row("hardwareCounterConsent", "Allow one HOTP calculation to advance the key counter", value: draft["hardwareCounterConsent"] ?? "false", kind: "toggle", checked: draft["hardwareCounterConsent"] == "true", enabled: !hardwareBusy),
+                row("hardwareNFC", "Read with NFC", enabled: !hardwareBusy && HardwareNativeOperation.supportsNFC),
+                row("hardwareUSB", "Read with USB-C", enabled: !hardwareBusy && HardwareNativeOperation.supportsUSBC)]
+            rows += hardwareAccounts.enumerated().map { index, account in
+                row("hardwareCalculate:\(index)", "Calculate: \(account.label)",
+                    enabled: !hardwareBusy, detail: account.counterBased ? "HOTP — advances the key counter" : "Time-based code; may require touch")
+            }
+            rows += hardwareAccounts.enumerated().map { index, account in
+                row("hardwareDeleteSelect:\(index)", "Delete from key: \(account.label)", enabled: !hardwareBusy)
+            }
+            rows += hardwareAccounts.enumerated().map { index, account in
+                row("hardwareRenameSelect:\(index)", "Rename on key: \(account.label)", enabled: !hardwareBusy && account.canRename,
+                    detail: account.canRename ? "Requires OATH rename support (YubiKey 5.3 or later)" : "Noncanonical hardware ID cannot safely use this SDK rename API")
+            }
+            if let selected = draft["hardwareRenameIndex"].flatMap(Int.init), hardwareAccounts.indices.contains(selected) {
+                rows.append(row("hardwareRenameWarning", "Rename \(hardwareAccounts[selected].label) on the key only. Enter full new names; blank issuer removes it. Vault, seed, period and counter unchanged. Existing IDs are refused, never overwritten. A started command may finish after cancellation.", kind: "info"))
+                rows.append(row("hardwareRenameIssuer", "New issuer (optional)", value: draft["hardwareRenameIssuer"] ?? "", kind: "text", enabled: !hardwareBusy))
+                rows.append(row("hardwareRenameName", "New account name", value: draft["hardwareRenameName"] ?? "", kind: "text", enabled: !hardwareBusy))
+                rows.append(row("hardwareRenameConfirmation", "Type RENAME to confirm this account", value: draft["hardwareRenameConfirmation"] ?? "", kind: "text", enabled: !hardwareBusy))
+                rows.append(row("hardwareRenameConfirm", "Rename selected account on key", enabled: !hardwareBusy && draft["hardwareRenameConfirmation"] == "RENAME"))
+            }
+            if let selected = draft["hardwareDeleteIndex"].flatMap(Int.init), hardwareAccounts.indices.contains(selected) {
+                rows.append(row("hardwareDeleteWarning", "Permanently delete \(hardwareAccounts[selected].label) from this key? This cannot be undone. Vault unchanged.", kind: "info"))
+                rows.append(row("hardwareDeleteConfirmation", "Type DELETE to confirm this account", value: draft["hardwareDeleteConfirmation"] ?? "", kind: "text", enabled: !hardwareBusy))
+                rows.append(row("hardwareDeleteConfirm", "Permanently delete selected account", enabled: !hardwareBusy && draft["hardwareDeleteConfirmation"] == "DELETE"))
+            }
+            if let code = hardwareCode, let expires = hardwareCodeExpiry, expires > Date() {
+                rows.append(row("hardwareCode", "Code", value: code, kind: "info"))
+                rows.append(row("hardwareCopy", "Copy code", enabled: !hardwareBusy))
+            }
+            return surface(key: key, title: "Security-key OATH accounts", sections: [PortableSection(title: "", rows: rows)],
+                confirmLabel: "Done", dismissLabel: "Close", showConfirm: false,
+                message: hardwareBusy ? "Waiting for security key… Close to cancel." : hardwareTransportStatus + hardwareMessage)
         case "editor": return editorSurface()
         case "autoLock":
             return surface(key: key, title: "Auto-lock after inactivity",
@@ -943,8 +1152,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 sections: [PortableSection(title: "Portable iOS display, sort order and auto-lock settings.", rows: rows)],
                 confirmLabel: "Apply", dismissLabel: "Cancel", message: errorMessage)
         case "backupExportDialog":
-            return surface(key: key, title: "Export encrypted backup",
-                sections: [PortableSection(title: "", rows: [
+            return surface(key: key, title: "Back up or export vault",
+                sections: [PortableSection(title: "Full file copy uses your vault recovery password. It copies the saved encrypted vault unchanged, not device preferences or local unlock records. Separate exports below can use another password.", rows: [
+                    row("vaultSnapshot", "Save full vault file copy"),
+                    row("migrationPassword", "Current vault recovery password (migration only)", value: draft["migrationPassword"] ?? "", kind: "secure"),
+                    row("migrateVaultSnapshot", "Migrate legacy vault and save full copy"),
+                    row("migrationInfo", "Migration keeps the password and entries, preserves original encrypted bytes in the local rollback file, then upgrades the saved file. Ordinary open/save never migrates.", kind: "info"),
                     row("backupPassword", "Backup password", value: draft["backupPassword"] ?? "", kind: "secure"),
                     row("backupConfirm", "Confirm backup password", value: draft["backupConfirm"] ?? "", kind: "secure")])],
                 confirmLabel: "Export", dismissLabel: "Cancel")
@@ -954,7 +1167,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 rows.append(row("previewCount", "Entries", value: preview, kind: "info"))
             }
             return surface(key: key, title: "Restore encrypted backup",
-                sections: [PortableSection(title: "The backup password is not the vault password", rows: rows)],
+                sections: [PortableSection(title: "Use the export password, or the vault recovery password for a full vault file copy", rows: rows)],
                 confirmLabel: "Restore", dismissLabel: "Cancel")
         case "biometricEnable":
             return surface(key: key, title: "Enable quick unlock",
@@ -1388,6 +1601,11 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 row("info", "Entries", value: String(store.entries.count), kind: "info"),
                 row("info2", store.folderPath, kind: "info"),
                 row("storageLocation", "Storage location…")]),
+            PortableSection(title: "Hardware", rows: [row("hardwareOath", "Security-key OATH accounts…",
+                detail: "NFC / USB-C OATH read and explicit calculation; compatible keys only"),
+                row("hardwareSeedCopy", "Copy vault OTP account to security key…"),
+                row("hardwareEnroll", "Enroll / replace hardware vault unlock…"),
+                row("hardwareRemove", "Remove local hardware unlock…", enabled: store.hasHardwareUnlockRecord)]),
             PortableSection(title: "Preferences", rows: [
                 row("prefsExport", "Export preferences…"), row("prefsImport", "Import preferences…")]),
             PortableSection(title: "About", rows: [row("about", "About OfflineOTP")])
@@ -1402,6 +1620,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             PortableSection(title: "Encrypted backup", rows: [
                 row("backupExport", "Export encrypted backup…", detail: "Argon2id + AES-256-GCM"),
                 row("backupImport", "Import encrypted backup…"),
+                row("automaticBackup", "Automatic encrypted backups…", detail: "Foreground unlocked-session scheduling, separate password and retention"),
                 row("backupTimestamp",
                     store.backupAppendDateTime
                         ? "Timestamp backup filenames: On"
@@ -1741,11 +1960,16 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     func change(key: String, value: String) {
         guard active else { return }
         noteActivity()
+        if surfaceKey == "automaticBackup", key == "automaticOpenPgp" || key == "automaticSign" || key == "automaticVaultCopy" {
+            nativeRequestID = UUID()
+            clearAutomaticBackupDraftSecrets()
+        }
+        if surfaceKey == "hardwareSeedCopy" && hardwareBusy { return }
         if surfaceKey == "editor" || surfaceKey == "emailEditor" || surfaceKey == "emailEdit"
             || surfaceKey == "passwordCreate"
             || surfaceKey == "emailPasswordEdit" || surfaceKey == "emailSettingsEdit"
             || surfaceKey == "backups" || surfaceKey == "backupExportDialog"
-            || surfaceKey == "biometricEnable" || surfaceKey == "restore"
+            || surfaceKey == "biometricEnable" || surfaceKey == "restore" || surfaceKey == "hardwareOath" || surfaceKey == "hardwareSeedCopy" || surfaceKey == "hardwareEnroll" || surfaceKey == "automaticBackup"
             || surfaceKey == "autoLock" || surfaceKey == "passwordChange"
             || surfaceKey == "tagEdit" || surfaceKey == "pinEdit" || surfaceKey == "counterEdit"
             || surfaceKey == "uriImport" || surfaceKey == "openpgpRestore"
@@ -1766,7 +1990,7 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     }
 
     func action(key: String) -> String? {
-        guard active, store.isUnlocked else { return "The vault locked. Close and try again." }
+        guard active, foreground, store.isUnlocked else { return "The vault is locked or backgrounded. Close and try again." }
         noteActivity()
         defer { if active { refresh() } }
         if key == "dismiss" {
@@ -1933,9 +2157,14 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             guard let raw = draft["seconds"], let seconds = Int(raw), seconds >= 0 else {
                 return "Enter a delay of zero or more seconds."
             }
-            store.setInactivityLockSeconds(seconds)
-            if let relockRaw = draft["relockOnBackground"] {
-                store.setRelockOnBackground(relockRaw == "true")
+            do {
+                let raw = draft["relockOnBackground"] ?? String(store.relockOnBackground)
+                guard raw == "true" || raw == "false" else { return "Choose a valid background lock policy." }
+                try store.saveAutoLockSettings(seconds: seconds, relockOnBackground: raw == "true")
+            } catch VaultCryptoError.invalidParameters {
+                return "Choose a valid auto-lock delay."
+            } catch {
+                return "The auto-lock settings could not be saved. The previous lock policy is still active."
             }
             message("Auto-lock settings updated.")
             closeSurface()
@@ -1946,7 +2175,8 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                                        confirmation: draft["confirmation"] ?? "") else {
                 return store.message ?? "The password could not be changed."
             }
-            message("Vault password changed. The vault is locked again.")
+            if store.hasAutomaticBackupConfiguration { automaticBackup.reportRestoreFailure() }
+            message("Vault password changed. Reconfigure remembered backups and re-enroll hardware unlock if enabled.")
             closeSurface()
             return nil
         case "prefsExportConfirm":
@@ -1967,8 +2197,10 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
                 message("\(result.applied) settings imported.")
                 closeSurface()
                 return nil
-            } catch {
+            } catch is PreferencesExport.PreferencesError {
                 return "That file is not an OfflineOTP preferences file this version can read."
+            } catch {
+                return "The preferences could not be saved. No settings were imported. Check available storage and try again."
             }
         case let key where key.hasPrefix("passwordEdit:"):
             return savePasswordEdit()
@@ -2077,60 +2309,12 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             closeSurface()
             return nil
         case "cardLayout":
-            let chosen = draft["layout"] ?? store.cardLayout
-            guard ["DEFAULT", "COMPACT", "FULL"].contains(chosen) else {
-                return "Choose a valid card layout."
-            }
-            store.setCardLayout(chosen)
-            if let labelRaw = draft["labelDisplay"],
-               ["TRUNCATE", "SCROLL", "MULTILINE"].contains(labelRaw.uppercased()) {
-                store.setLabelDisplay(labelRaw.uppercased())
-            }
-            if let hideRaw = draft["hideIssuer"] {
-                store.setHideIssuer(hideRaw == "true")
-            }
-            if let prevRaw = draft["showPreviousToken"] {
-                store.setShowPreviousToken(prevRaw != "false")
-            }
-            if let indRaw = draft["showIndividualTimeouts"] {
-                store.setShowIndividualTimeouts(indRaw != "false")
-            }
-            if let thumbRaw = draft["showThumbnails"] {
-                store.setShowThumbnails(thumbRaw != "false")
-            }
-            if let thumbSizeRaw = draft["thumbnailSizeDp"], let parsedThumbSize = Int(thumbSizeRaw),
-               parsedThumbSize == 0 || (20...96).contains(parsedThumbSize) {
-                store.setThumbnailSizeDp(parsedThumbSize)
-            }
-            if let sizeRaw = draft["labelSizeSp"], let parsedSize = Int(sizeRaw),
-               parsedSize == 0 || (12...24).contains(parsedSize) {
-                store.setLabelSizeSp(parsedSize)
-            }
-            if let highlightRaw = draft["highlightToken"] {
-                store.setHighlightToken(highlightRaw != "false")
-            }
-            if let singleRaw = draft["tapSingle"],
-               ["NOTHING", "REVEAL", "COPY"].contains(singleRaw.uppercased()) {
-                store.setTapSingle(singleRaw.uppercased())
-            }
-            if let doubleRaw = draft["tapDouble"],
-               ["NOTHING", "REVEAL", "COPY"].contains(doubleRaw.uppercased()) {
-                store.setTapDouble(doubleRaw.uppercased())
-            }
-            if let hideGlobalRaw = draft["hideGlobalTimeout"] {
-                store.setHideGlobalTimeout(hideGlobalRaw == "true")
-            }
-            if let revealTimeoutRaw = draft["tapToRevealTimeoutSeconds"],
-               let parsedTimeout = Int(revealTimeoutRaw),
-               parsedTimeout == 0 || (5...600).contains(parsedTimeout) {
-                store.setTapToRevealTimeoutSeconds(parsedTimeout)
-            }
-            if let groupRaw = draft["tokenGroupSize"], let parsedGroup = Int(groupRaw),
-               [0, 2, 3].contains(parsedGroup) {
-                store.setTokenGroupSize(parsedGroup)
-            }
-            if let focusSearchRaw = draft["focusSearchOnStart"] {
-                store.setFocusSearchOnStart(focusSearchRaw == "true")
+            do {
+                try store.saveCardDisplaySettings(draft)
+            } catch VaultCryptoError.invalidParameters {
+                return "Choose valid card display settings."
+            } catch {
+                return "The card display settings could not be saved. No changes were applied."
             }
             presentation.updateCardLayout(layout: store.cardLayout)
             message("Card layout updated.")
@@ -2856,6 +3040,174 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         case "about", "autoLock", "passwordChange", "settings", "backups", "uriImport", "storageLocation", "cardLayout", "searchIncludes":
             openSurface(command)
             return nil
+        case "automaticBackup":
+            openSurface("automaticBackup")
+            return nil
+        case "automaticEnable":
+            guard surfaceKey == "automaticBackup", surfaceEpoch == store.generation else { return "Reopen automatic backup settings." }
+            let selectedVaultCopy = (draft["automaticVaultCopy"] ?? String(automaticVaultCopyMode)) == "true"
+            let selectedOpenPgp = !selectedVaultCopy && (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true"
+            if selectedOpenPgp && automaticRecipientKeys.isEmpty { return "Select at least one public recipient certificate." }
+            let needsSignature = selectedOpenPgp && (draft["automaticSign"] ?? String(automaticRequiresSigning)) == "true"
+            let signingPassphrase = draft.removeValue(forKey: "automaticSigningPassphrase") ?? ""
+            if needsSignature && automaticSigningKey == nil { return "Load a session signing private key first." }
+            let passwordInput = draft.removeValue(forKey: "automaticPassword") ?? ""
+            let confirmationInput = draft.removeValue(forKey: "automaticConfirmation") ?? ""
+            let password = selectedOpenPgp || selectedVaultCopy ? "" : passwordInput
+            let confirmation = selectedOpenPgp || selectedVaultCopy ? "" : confirmationInput
+            guard let minutes = Int(draft["automaticMinutes"] ?? String(automaticMinutes)), let keep = Int(draft["automaticKeep"] ?? String(automaticKeep)) else { return "Enter a valid interval and retention limit." }
+            let destination = automaticFolder ?? URL(fileURLWithPath: store.folderPath, isDirectory: true)
+            guard configureAutomaticBackups(destination: destination, password: password, confirmation: confirmation,
+                minutes: minutes, keep: keep, remember: true,
+                recipientKeys: selectedOpenPgp ? automaticRecipientKeys : [],
+                signingKey: needsSignature ? automaticSigningKey : nil, signingPassphrase: signingPassphrase, vaultCopy: selectedVaultCopy) else {
+                return "Could not enable or remember backups. Check destination permissions, matching passwords, interval and retention."
+            }
+            return nil
+        case "automaticChooseSigningKey":
+            guard surfaceKey == "automaticBackup", !automaticBackup.enabled,
+                  (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true",
+                  (draft["automaticSign"] ?? String(automaticRequiresSigning)) == "true", store.openPgpAvailability.canEncrypt else { return "OpenPGP is unavailable." }
+            onImport("openpgpAutomaticSigningKey"); return nil
+        case "automaticAddRecipient":
+            guard surfaceKey == "automaticBackup", !automaticBackup.enabled, (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true",
+                  store.openPgpAvailability.canEncrypt else { return "OpenPGP is unavailable." }
+            onImport("openpgpAutomaticRecipient")
+            return nil
+        case "automaticClearRecipients":
+            nativeRequestID = UUID()
+            automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""; return nil
+        case "automaticChooseFolder":
+            guard surfaceKey == "automaticBackup", !automaticBackup.enabled else { return nil }
+            onImport("automaticBackupFolder")
+            return nil
+        case "automaticDisable":
+            guard surfaceKey == "automaticBackup" else { return nil }
+            nativeRequestID = UUID()
+            automaticBackup.disable()
+            do { try store.forgetAutomaticBackupConfiguration() }
+            catch { automaticBackup.reportRestoreFailure(); return "Could not remove saved configuration. It may resume on a later unlock." }
+            automaticFolder = nil; automaticMinutes = AutomaticBackupPolicy.defaultMinutes; automaticKeep = AutomaticBackupPolicy.defaultRetention
+            automaticVaultCopyMode = true
+            automaticRequiresSigning = false; automaticSigningKey = nil; automaticSigningName = ""; automaticRecipientKeys = []; automaticRecipientNames = []
+            draft.removeValue(forKey: "automaticSigningPassphrase"); draft.removeValue(forKey: "automaticSign"); draft.removeValue(forKey: "automaticOpenPgp")
+            draft.removeValue(forKey: "automaticMinutes"); draft.removeValue(forKey: "automaticKeep")
+            return nil
+        case "automaticRun":
+            guard surfaceKey == "automaticBackup" else { return nil }
+            automaticBackup.runNow()
+            return nil
+        case "hardwareSeedCopy":
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil
+            hardwareBusy = false; hardwareMessage = ""
+            openSurface("hardwareSeedCopy")
+            return nil
+        case "hardwareSeedSelect":
+            guard surfaceKey == "hardwareSeedCopy", !hardwareBusy, surfaceEpoch == store.generation,
+                  let index = index, store.entries.indices.contains(index),
+                  HardwareOathCopyPolicy.names(for: store.entries[index]) != nil else { return "Reopen account selection." }
+            hardwareCopyIndex = index; hardwareCopyFields = store.entries[index].fields
+            draft["hardwareSeedConsent"] = "false"; draft["hardwareSeedTouch"] = "true"
+            return nil
+        case "hardwareSeedNFC", "hardwareSeedUSB":
+            guard surfaceKey == "hardwareSeedCopy", !hardwareBusy, surfaceEpoch == store.generation,
+                  let index = hardwareCopyIndex, store.entries.indices.contains(index),
+                  store.entries[index].fields == hardwareCopyFields else { return "The account changed. Reopen selection." }
+            guard draft["hardwareSeedConsent"] == "true" else { return "Explicit seed-export authorization is required." }
+            draft["hardwareSeedConsent"] = "false"
+            let password = draft.removeValue(forKey: "hardwareSeedPassword") ?? ""
+            let touch = draft["hardwareSeedTouch"] != "false"
+            let generation = store.generation
+            hardwareBusy = true; hardwareMessage = ""
+            hardwareWriter.copy(store.entries[index], transport: command == "hardwareSeedNFC" ? .nfc : .usbC,
+                password: password, requireTouch: touch) { [weak self] error in
+                guard let self = self, self.active, self.store.isUnlocked, self.store.generation == generation,
+                      self.surfaceKey == "hardwareSeedCopy" else { return }
+                self.hardwareBusy = false
+                self.hardwareMessage = error ?? "Account copied. The vault entry was not removed. Verify codes on the key; HOTP counters are independent."
+                self.refresh()
+            }
+            return nil
+        case "hardwareEnroll", "hardwareRemove":
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareMessage = ""
+            openSurface(command)
+            return nil
+        case "hardwareEnrollNFC", "hardwareEnrollUSB":
+            guard surfaceKey == "hardwareEnroll", !hardwareBusy, surfaceEpoch == store.generation else { return "Reopen enrollment for this vault session." }
+            let pin = draft.removeValue(forKey: "hardwareFidoPIN") ?? ""
+            let generation = store.generation
+            do {
+                var ownedKey = try store.hardwareEnrollmentKey()
+                defer { ownedKey.resetBytes(in: 0..<ownedKey.count) }
+                hardwareBusy = true; hardwareMessage = ""
+                hardwareFido.enroll(transport: command == "hardwareEnrollNFC" ? .nfc : .usbC, pin: pin, vaultKey: ownedKey) { [weak self] envelope, error in
+                    guard let self = self, self.active, self.store.isUnlocked, self.store.generation == generation,
+                          self.surfaceKey == "hardwareEnroll" else { return }
+                    self.hardwareBusy = false
+                    if let envelope = envelope {
+                        do { try self.store.installHardwareUnlockEnvelope(envelope); self.hardwareMessage = "Hardware unlock enrolled. Keep your vault password. Lock and test the enrolled key." }
+                        catch { self.hardwareMessage = "Key enrollment completed, but the local record could not be saved. Do not assume hardware unlock is enabled." }
+                    } else { self.hardwareMessage = error ?? "Enrollment failed." }
+                    self.refresh()
+                }
+            } catch { return "The vault key is unavailable. Unlock with its password and try again." }
+            return nil
+        case "hardwareRemoveConfirm":
+            guard surfaceKey == "hardwareRemove", surfaceEpoch == store.generation else { return "Reopen this operation." }
+            do { try store.removeHardwareUnlockEnvelope(); hardwareMessage = "Local unlock record removed. Use the vault password." }
+            catch { return "Could not remove the local record. Do not assume hardware unlock was disabled." }
+            return nil
+        case "hardwareOath":
+            hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
+            openSurface("hardwareOath")
+            return nil
+        case "hardwareNFC", "hardwareUSB":
+            return runHardware(command == "hardwareNFC" ? .nfc : .usbC)
+        case "hardwareRenameSelect":
+            guard surfaceKey == "hardwareOath", !hardwareBusy, let index = index,
+                  hardwareAccounts.indices.contains(index), hardwareAccounts[index].canRename else { return "Read the key again." }
+            draft.removeValue(forKey: "hardwareDeleteIndex")
+            draft.removeValue(forKey: "hardwareDeleteConfirmation")
+            clearHardwareRenameDraft()
+            draft["hardwareRenameIndex"] = String(index)
+            draft.removeValue(forKey: "hardwarePassword")
+            hardwareCode = nil; hardwareCodeExpiry = nil
+            return nil
+        case "hardwareRenameConfirm":
+            guard surfaceKey == "hardwareOath", !hardwareBusy,
+                  draft["hardwareRenameConfirmation"] == "RENAME",
+                  let selected = draft["hardwareRenameIndex"].flatMap(Int.init),
+                  hardwareAccounts.indices.contains(selected) else { return "Select an account and type RENAME." }
+            let issuer = draft["hardwareRenameIssuer"] ?? ""
+            let name = draft["hardwareRenameName"] ?? ""
+            guard hardwareAccounts[selected].permitsRename(issuer: issuer, account: name) else {
+                return "Use an unambiguous account/issuer fitting the 64-byte hardware ID limit, including period prefix. No controls or colon in issuer."
+            }
+            return runHardware(hardwareTransport, account: hardwareAccounts[selected], rename: .init(issuer: issuer, account: name))
+        case "hardwareDeleteSelect":
+            guard surfaceKey == "hardwareOath", !hardwareBusy, let index = index,
+                  hardwareAccounts.indices.contains(index) else { return "Read the key again." }
+            clearHardwareRenameDraft()
+            draft["hardwareDeleteIndex"] = String(index)
+            draft.removeValue(forKey: "hardwareDeleteConfirmation")
+            draft.removeValue(forKey: "hardwarePassword")
+            hardwareCode = nil; hardwareCodeExpiry = nil
+            return nil
+        case "hardwareDeleteConfirm":
+            guard surfaceKey == "hardwareOath", !hardwareBusy,
+                  draft["hardwareDeleteConfirmation"] == "DELETE",
+                  let selected = draft["hardwareDeleteIndex"].flatMap(Int.init),
+                  hardwareAccounts.indices.contains(selected) else { return "Select an account and type DELETE." }
+            return runHardware(hardwareTransport, account: hardwareAccounts[selected], deleteConfirmed: true)
+        case "hardwareCalculate":
+            guard let index = index, hardwareAccounts.indices.contains(index) else { return "Read the key again." }
+            return runHardware(hardwareTransport, account: hardwareAccounts[index])
+        case "hardwareCopy":
+            guard surfaceKey == "hardwareOath", !hardwareBusy,
+                  let code = hardwareCode, let expires = hardwareCodeExpiry, expires > Date() else { return "Code expired." }
+            guard Clipboard.copy(code, expiresAt: expires) else { return "Code expired." }
+            hardwareMessage = "Code copied. Clipboard clears automatically."
+            return nil
         case "hideIssuer":
             store.setHideIssuer(!store.hideIssuer)
             message(store.hideIssuer ? "Issuer titles hidden while concealed." : "Issuer titles shown while concealed.")
@@ -3106,6 +3458,23 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
             }
             onExport(backup.data, backup.name)
             return nil
+        case "migrateVaultSnapshot":
+            guard surfaceKey == "backupExportDialog" else { return "Open the backup form first." }
+            let password = draft.removeValue(forKey: "migrationPassword") ?? ""
+            guard let snapshot = store.migrateAndExportVaultSnapshot(password: password) else {
+                return store.message ?? "Migration requires the current vault recovery password."
+            }
+            onExport(snapshot.data, snapshot.name)
+            closeSurface()
+            return nil
+        case "vaultSnapshot":
+            guard surfaceKey == "backupExportDialog", let snapshot = store.exportVaultSnapshot() else {
+                return store.message ?? "Open the backup form and unlock the vault first."
+            }
+            draft.removeValue(forKey: "backupPassword"); draft.removeValue(forKey: "backupConfirm")
+            onExport(snapshot.data, snapshot.name)
+            closeSurface()
+            return nil
         case "backupExport":
             draft = [:]
             openSurface("backupExportDialog", keepDraft: true)
@@ -3236,6 +3605,19 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
     /// The native picker hands only bytes to the adapter; the key data never reaches Compose.
     func setOpenPgpData(_ data: Data, kind: String, filename: String = "") {
         switch kind {
+        case "openpgpAutomaticSigningKey":
+            guard active, foreground, store.isUnlocked, surfaceKey == "automaticBackup", !automaticBackup.enabled,
+                  (draft["automaticOpenPgp"] ?? String(!automaticRecipientKeys.isEmpty || automaticRequiresSigning)) == "true",
+                  (draft["automaticSign"] ?? String(automaticRequiresSigning)) == "true", !data.isEmpty, data.count <= InputPolicy.maxDocumentBytes else { return }
+            automaticSigningKey = data; automaticSigningName = filename; refresh()
+        case "openpgpAutomaticRecipient":
+            guard active, foreground, store.isUnlocked, surfaceKey == "automaticBackup", !automaticBackup.enabled,
+                  AutomaticBackupConfiguration.validRecipients(automaticRecipientKeys + [data]) else {
+                toast = "Select distinct nonempty public certificates totaling at most 32 KiB."; refresh(); return
+            }
+            automaticRecipientKeys.append(data)
+            automaticRecipientNames.append(filename.isEmpty ? "Public certificate" : filename)
+            refresh()
         case "openpgpRecipient":
             let totalBytes = openPgpRecipients.reduce(0, { $0 + $1.count })
             guard !data.isEmpty,
@@ -3408,8 +3790,116 @@ final class VaultCoordinator: NSObject, PortableVaultActions, PortableSurfaceAct
         openSurface(kind == "preferences" ? "prefsConfirm" : "restore", keepDraft: true)
     }
 
+    @objc private func restoreAutomaticBackups() {
+        guard active, foreground, store.isUnlocked, !automaticBackup.enabled, !automaticBackup.failed,
+              store.hasAutomaticBackupConfiguration else { return }
+        do {
+            if let config = try store.loadAutomaticBackupConfiguration() {
+                automaticVaultCopyMode = config.vaultCopy
+                if config.requiresSigning == true {
+                    automaticRequiresSigning = true; automaticRecipientKeys = config.recipientKeys ?? []
+                    automaticRecipientNames = automaticRecipientKeys.indices.map { "Saved recipient \($0 + 1)" }
+                    automaticFolder = try config.destination(); automaticMinutes = config.minutes; automaticKeep = config.keep
+                    automaticBackup.reportSigningRequired(); refresh(); return
+                }
+                guard configureAutomaticBackups(destination: try config.destination(), password: config.password,
+                    confirmation: config.password, minutes: config.minutes, keep: config.keep, remember: false,
+                    recipientKeys: config.recipientKeys ?? [], vaultCopy: config.vaultCopy) else {
+                    automaticBackup.reportRestoreFailure(); refresh(); return
+                }
+            }
+        } catch { automaticBackup.reportRestoreFailure() }
+        refresh()
+    }
+
+    private func configureAutomaticBackups(destination: URL, password: String, confirmation: String,
+                                           minutes: Int, keep: Int, remember: Bool, recipientKeys: [Data] = [], signingKey: Data? = nil,
+                                           signingPassphrase: String = "", vaultCopy: Bool = false) -> Bool {
+        guard active, foreground, store.isUnlocked else { return false }
+        guard recipientKeys.isEmpty || store.openPgpAvailability.canEncrypt else { return false }
+        let generation = store.generation
+        let configured = automaticBackup.configure(directory: destination, password: password, confirmation: confirmation,
+            minutes: minutes, keep: keep, snapshot: { [weak self] in
+                guard let self = self, self.active, self.foreground, self.store.isUnlocked, self.store.generation == generation else { return nil }
+                return try? VaultDocument.encode(self.store.entries)
+            }, changed: { [weak self] in self?.refresh() }, beforeEnable: {
+                if remember {
+                    let config = try AutomaticBackupConfiguration(folder: destination, password: password, minutes: minutes, keep: keep, recipientKeys: recipientKeys, requiresSigning: signingKey != nil, vaultCopy: vaultCopy)
+                    try self.store.saveAutomaticBackupConfiguration(config)
+                }
+            }, recipientKeys: recipientKeys, sealRecipients: recipientKeys.isEmpty ? nil : store.automaticOpenPgpEncoder(),
+            admitted: { self.active && self.foreground && self.store.isUnlocked && self.store.generation == generation },
+            signingKey: signingKey, signingPassphrase: signingPassphrase,
+            sealSigned: signingKey == nil ? nil : store.automaticOpenPgpSignedEncoder(),
+            vaultSnapshot: vaultCopy ? { [weak self] in
+                guard let self = self, self.active, self.foreground, self.store.isUnlocked, self.store.generation == generation else { return nil }
+                return self.store.exportVaultSnapshot()?.data
+            } : nil)
+        if configured {
+            automaticVaultCopyMode = vaultCopy
+            automaticFolder = destination; automaticMinutes = minutes; automaticKeep = keep
+            automaticRequiresSigning = signingKey != nil; automaticSigningKey = nil; automaticSigningName = ""
+            automaticRecipientKeys = recipientKeys
+            automaticRecipientNames = recipientKeys.indices.map { "Saved recipient \($0 + 1)" }
+        }
+        return configured
+    }
+
+    func selectedAutomaticBackupFolder(_ url: URL) {
+        guard active, foreground, store.isUnlocked, surfaceKey == "automaticBackup", surfaceEpoch == store.generation,
+              !automaticBackup.enabled, url.isFileURL else { return }
+        automaticFolder = url
+        refresh()
+    }
+
+    private var hardwareTransportStatus: String {
+        let nfc = HardwareNativeOperation.supportsNFC ? "available" : "unavailable"
+        let usb = HardwareNativeOperation.supportsUSBC ? "available" : "unavailable"
+        return "NFC: \(nfc). USB-C smart-card: \(usb). Connected-key protocol support is checked separately. "
+    }
+
+    private func clearHardwareRenameDraft() {
+        for key in ["hardwareRenameIndex", "hardwareRenameIssuer", "hardwareRenameName", "hardwareRenameConfirmation"] {
+            draft.removeValue(forKey: key)
+        }
+    }
+
+    private func runHardware(_ transport: HardwareOathReader.Transport, account: HardwareOathReader.Account? = nil, deleteConfirmed: Bool = false, rename: HardwareOathReader.Rename? = nil) -> String? {
+        guard active, store.isUnlocked, surfaceKey == "hardwareOath", !hardwareBusy else { return nil }
+        let consent = draft["hardwareCounterConsent"] == "true"
+        guard rename != nil || deleteConfirmed || account?.counterBased != true || consent else { return "Allow counter advancement before calculating HOTP." }
+        let password = draft.removeValue(forKey: "hardwarePassword") ?? ""
+        draft.removeValue(forKey: "hardwareDeleteIndex")
+        draft.removeValue(forKey: "hardwareDeleteConfirmation")
+        clearHardwareRenameDraft()
+        draft["hardwareCounterConsent"] = "false" // One operation, never sticky permission.
+        let generation = store.generation
+        hardwareTransport = transport
+        hardwareBusy = true; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
+        hardwareReader.start(transport, password: password, account: account, allowCounterAdvance: consent, deleteConfirmed: deleteConfirmed, rename: rename) { [weak self] result, error in
+            guard let self = self, self.active, self.store.isUnlocked,
+                self.store.generation == generation, self.surfaceKey == "hardwareOath" else { return }
+            self.hardwareBusy = false
+            if let result = result {
+                self.hardwareAccounts = result.accounts
+                self.hardwareCode = result.code; self.hardwareCodeExpiry = result.expires
+            }
+            if deleteConfirmed { self.hardwareAccounts = [] }
+            if rename != nil { self.hardwareAccounts = [] }
+            self.hardwareMessage = error ?? (rename != nil ? "Account renamed on key. Vault unchanged. Read accounts again before another operation." : deleteConfirmed ? "Account deleted from key. Vault unchanged. Read accounts again before another operation." : result?.accounts.isEmpty == true ? "No OATH accounts on this key." : "Ready. Codes are cleared on expiry or close.")
+            self.refresh()
+        }
+        return nil
+    }
+
     private func close() {
+        nativeRequestID = UUID()
         active = false
+        automaticBackup.disable(); automaticFolder = nil; automaticRecipientKeys = []; automaticRecipientNames = []; automaticSigningKey = nil; automaticSigningName = ""
+        hardwareWriter.cancel(); hardwareCopyIndex = nil; hardwareCopyFields = nil; hardwareFido.cancel(); hardwareReader.cancel(); hardwareBusy = false; hardwareAccounts = []; hardwareCode = nil; hardwareCodeExpiry = nil; hardwareMessage = ""
+        backupChanges?.cancel(); backupChanges = nil
+        sessionChanges?.cancel(); sessionChanges = nil
+        draft = [:]
         timer?.invalidate()
         pendingImport = Data()
         lastImported = Data()

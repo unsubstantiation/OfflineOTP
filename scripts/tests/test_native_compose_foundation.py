@@ -102,7 +102,7 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('val saved = actions.save(seconds)', native)
         swift = (ROOT / 'ios/App/Sources/ComposeVaultHost.swift').read_text()
         for guard in ('guard active, store.isUnlocked else', 'case "autoLock"',
-                      'store.setInactivityLockSeconds(seconds)',
+                      'try store.saveAutoLockSettings(seconds: seconds, relockOnBackground: raw == "true")',
                       'let seconds = Int(raw), seconds >= 0', 'closeSurface()'):
             self.assertIn(guard, swift)
         self.assertIn('row("autoLock", "Auto-lock after inactivity"', swift)
@@ -231,7 +231,8 @@ class NativeComposeFoundationTest(unittest.TestCase):
         self.assertIn('guard active, !store.hasVault, !store.isUnlocked', unlock)
         self.assertIn('store.restoreNewVault(encrypted: data', unlock)
         picker = (ROOT / 'ios/App/Sources/NativeFilePicker.swift').read_text()
-        self.assertIn('UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: true)', picker)
+        self.assertIn('asCopy: Bool = true', picker)
+        self.assertIn('UIDocumentPickerViewController(forOpeningContentTypes: types, asCopy: asCopy)', picker)
         self.assertIn('UIDocumentPickerViewController(forExporting: [url], asCopy: true)', picker)
         root = (ROOT / 'ios/App/Sources/AppRootViewController.swift').read_text()
         self.assertIn('filePicker.open(types: [.data], from: self)', root)

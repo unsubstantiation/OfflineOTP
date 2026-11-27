@@ -58,7 +58,7 @@ fun NewVaultRestoreDialog(
                 OutlinedTextField(confirmation, { if (it.length <= PortableInputBounds.MAX_TEXT_CHARS) confirmation = it }, enabled = !busy,
                     label = { Text("Confirm new vault password") }, singleLine = true,
                     visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                if (error != null) Text(error, modifier = Modifier.padding(top = 8.dp))
+                com.fairuniversal.offlineotp.ui.vault.SharedStatusMessage(error, modifier = Modifier.padding(top = 8.dp))
             }
         },
         confirmButton = { TextButton(onClick = {

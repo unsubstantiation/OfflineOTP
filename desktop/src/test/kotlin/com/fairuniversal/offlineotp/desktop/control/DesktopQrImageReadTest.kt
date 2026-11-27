@@ -5,6 +5,7 @@ import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.Executor
 import java.util.concurrent.RejectedExecutionException
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -15,6 +16,22 @@ class DesktopQrImageReadTest {
         val tasks = ArrayList<Runnable>()
         override fun execute(command: Runnable) { tasks.add(command) }
         fun run() = tasks.removeAt(0).run()
+    }
+    @Test fun cameraCaptureUsesExplicitReviewAndDropsCancelledResults() {
+        val worker = Queue(); val ui = Queue()
+        val reader = DesktopQrImageRead(worker, ui::execute, {})
+        var captures = 0
+        assertTrue(reader.submitCapture({ true }) { permitted -> captures++; assertTrue(permitted()); "camera-uri" })
+        worker.run(); assertFalse(reader.ready)
+        ui.run(); assertTrue(reader.ready)
+        assertEquals("camera-uri", reader.take()); assertNull(reader.take())
+        reader.submitCapture({ true }) { permitted ->
+            reader.clear(); assertFalse(permitted()); "late-secret"
+        }
+        worker.run()
+        assertFalse(reader.ready)
+        assertEquals(1, captures)
+        reader.close()
     }
     @Test fun workerResultRequiresUiDeliveryAndExplicitOneTimeConsumption() {
         val worker = Queue(); val ui = Queue(); var decodes = 0

@@ -250,4 +250,35 @@ class PreferencesExportTest {
         assertEquals(PreferencesExport.Kind.STRING, retention!!.kind)
         assertFalse(PreferencesExport.isDeviceBound("pref_backup_auto_keep"))
     }
+    @Test fun integersAndVersionCannotBeCoercedTruncatedOrWrappedBeforeImport() {
+        for (bad in listOf("1.5", "4294967296", "-2147483649", "2147483648", "true", "\"30\"")) {
+            val target = FakePort()
+            val json = """{"format":"offlineotp.preferences","version":1,"platform":"android","settings":{"pref_auth_inactivity":true,"pref_auth_inactivity_timeout":$bad}}"""
+            var rejected = false
+            try { PreferencesExport.import(json.toByteArray(), target) } catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue("must reject integer $bad", rejected)
+            assertTrue(target.writes.isEmpty())
+        }
+        for (bad in listOf("1.5", "4294967297", "true", "\"1\"")) {
+            val target = FakePort()
+            val json = """{"format":"offlineotp.preferences","version":$bad,"platform":"android","settings":{}}"""
+            var rejected = false
+            try { PreferencesExport.import(json.toByteArray(), target) } catch (_: IllegalArgumentException) { rejected = true }
+            assertTrue("must reject version $bad", rejected)
+            assertTrue(target.writes.isEmpty())
+        }
+    }
+
+    @Test fun setElementsHaveSameStringBoundAsScalarTextOnReadAndWrite() {
+        val large = "x".repeat(PreferencesExport.MAX_STRING_CHARS + 1)
+        val source = FakePort().seed("pref_search_includes", PreferencesExport.Value.TextSet(listOf(large)))
+        var rejected = false
+        try { PreferencesExport.export(source, false) } catch (_: IllegalArgumentException) { rejected = true }
+        assertTrue(rejected)
+        val json = """{"format":"offlineotp.preferences","version":1,"platform":"android","settings":{"pref_search_includes":["$large"]}}"""
+        val target = FakePort(); rejected = false
+        try { PreferencesExport.import(json.toByteArray(), target) } catch (_: IllegalArgumentException) { rejected = true }
+        assertTrue(rejected); assertTrue(target.writes.isEmpty())
+    }
+
 }

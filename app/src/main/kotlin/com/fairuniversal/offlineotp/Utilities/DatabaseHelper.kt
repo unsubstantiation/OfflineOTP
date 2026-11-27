@@ -160,7 +160,9 @@ object DatabaseHelper {
             if (key == null) return unavailable(VaultReadError.MISSING_KEY)
             var plain: ByteArray? = null
             try {
-                plain = EncryptionHelper.decrypt(key, FileHelper.readFileToBytes(database))
+                val bytes = FileHelper.readFileToBytes(database)
+                plain = if (VaultContainer.isContainer(bytes)) VaultContainer.openWithKey(key, bytes)
+                    else EncryptionHelper.decrypt(key, bytes)
                 return VaultReadResult.Loaded(stringToEntries(String(plain, StandardCharsets.UTF_8)))
             } catch (error: BadPaddingException) {
                 return unavailable(VaultReadError.AUTHENTICATION_FAILED)
@@ -191,20 +193,83 @@ object DatabaseHelper {
         }
     }
 
+    /** Non-secret format capability for UI admission; writes still authenticate/recheck independently. */
+    @JvmStatic
+    fun isPortableVault(context: Context): Boolean = synchronized(DatabaseFileLock) {
+        try {
+            val bytes = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
+            if (!VaultContainer.isContainer(bytes)) false else { VaultContainer.header(bytes); true }
+        } catch (_: Exception) { false }
+    }
+
+    /** Ciphertext-only full backup. Legacy/Keystore vaults must explicitly migrate first. */
+    @JvmStatic
+    fun vaultSnapshot(context: Context, key: SecretKey?): ByteArray {
+        synchronized(DatabaseFileLock) {
+            if (!recoverPendingDatabase(context)) throw IOException("Vault recovery required")
+            val bytes = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
+            require(VaultContainer.isContainer(bytes)) { "Legacy vault requires password migration" }
+            VaultContainer.openWithKey(requireNotNull(key), bytes).fill(0)
+            return bytes
+        }
+    }
+
+    /** Explicit password-vault migration; never runs on open/save or on a device-only key. */
+    @JvmStatic
+    fun migrateToContainer(context: Context, password: String, key: SecretKey?, permitted: () -> Boolean): VaultWriteResult {
+        if (password.isEmpty() || password.length > InputPolicy.MAX_TEXT_CHARS) return rejected(VaultWriteError.INVALID_INPUT)
+        synchronized(DatabaseFileLock) {
+            if (!permitted()) return rejected(VaultWriteError.CANCELED)
+            if (!recoverPendingDatabase(context)) return recoveryRequired(VaultCommitState.UNKNOWN)
+            if (key == null) return rejected(VaultWriteError.MISSING_KEY)
+            var plaintext: ByteArray? = null
+            var derived: EncryptionHelper.PBKDF2Credentials? = null
+            try {
+                val settings = Settings(context)
+                if (settings.getEncryption() != Constants.EncryptionType.PASSWORD || settings.getAuthMethod() != Constants.AuthMethod.PASSWORD)
+                    return rejected(VaultWriteError.INVALID_INPUT)
+                val original = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
+                if (VaultContainer.isContainer(original)) {
+                    plaintext = VaultContainer.open(password, original)
+                    VaultContainer.openWithKey(key, original).fill(0)
+                    return VaultWriteResult.Saved
+                }
+                val credentials = settings.deriveVaultCredentials(password); derived = credentials
+                val header = VaultContainer.fromParameters(settings.getAuthKdf(), settings.getSalt(), settings.getAuthMemoryKiB(),
+                    settings.getIterations(), settings.getAuthParallelism())
+                val current = requireNotNull(key.encoded)
+                try { if (!java.security.MessageDigest.isEqual(current, credentials.key)) return rejected(VaultWriteError.AUTHENTICATION_FAILED) }
+                finally { current.fill(0) }
+                plaintext = EncryptionHelper.decrypt(key, original)
+                val migrated = VaultContainer.seal(key, header, plaintext)
+                VaultContainer.open(password, migrated).fill(0)
+                if (!permitted()) return rejected(VaultWriteError.CANCELED)
+                try { FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE_BACKUP), original) }
+                catch (_: Exception) { return rejected(VaultWriteError.BACKUP_FAILED) }
+                if (!permitted()) return rejected(VaultWriteError.CANCELED)
+                FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), migrated)
+                return VaultWriteResult.Saved
+            } catch (_: BadPaddingException) { return rejected(VaultWriteError.AUTHENTICATION_FAILED) }
+            catch (_: IllegalArgumentException) { return rejected(VaultWriteError.INVALID_INPUT) }
+            catch (_: Exception) { return rejected(VaultWriteError.IO_FAILURE) }
+            finally { plaintext?.fill(0); derived?.key?.fill(0); derived?.password?.fill(0) }
+        }
+    }
+
     /** Legacy boolean adapter: only fully acknowledged writes count as success. */
     @JvmStatic
     fun saveDatabase(context: Context, entries: ArrayList<Entry>?, key: SecretKey?): Boolean =
         saveVault(context, entries, key) is VaultWriteResult.Saved
 
     // Null entries are rejected inside entriesToString after the existing vault is verified.
-    private fun encryptedEntries(entries: ArrayList<Entry>?, key: SecretKey?): ByteArray {
+    private fun encryptedEntries(entries: ArrayList<Entry>?, key: SecretKey?, header: VaultContainer.Header? = null): ByteArray {
         if (key == null) throw IllegalArgumentException("Missing vault key")
         val plain = entriesToString(entries).toByteArray(StandardCharsets.UTF_8)
         try {
             // Leave room for nonce/tag plus the 36-byte staged transaction UUID.
             if (plain.size > BoundedInputReader.MAX_DOCUMENT_BYTES - 64)
                 throw IllegalArgumentException("Vault too large")
-            return EncryptionHelper.encrypt(key, plain)
+            return if (header != null) VaultContainer.seal(key, header, plain) else EncryptionHelper.encrypt(key, plain)
         } finally {
             Arrays.fill(plain, 0.toByte())
         }
@@ -212,7 +277,9 @@ object DatabaseHelper {
 
     private fun writeEntries(context: Context, entries: ArrayList<Entry>?, key: SecretKey?): VaultWriteResult {
         return try {
-            FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), encryptedEntries(entries, key))
+            val previous = FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))
+            val header = if (VaultContainer.isContainer(previous)) VaultContainer.header(previous) else null
+            FileHelper.writeBytesToFile(file(context, Constants.FILENAME_DATABASE), encryptedEntries(entries, key, header))
             VaultWriteResult.Saved
         } catch (error: IllegalArgumentException) {
             rejected(VaultWriteError.INVALID_INPUT)
@@ -255,6 +322,14 @@ object DatabaseHelper {
     fun changeVaultEncryptionWithEntries(context: Context, oldKey: SecretKey?, newKey: SecretKey?,
                                          initialize: Boolean, initialEntries: ArrayList<Entry>?,
                                          commit: VaultSettingsCommit): VaultWriteResult {
+        return changeVaultEncryptionWithContainer(context, oldKey, newKey, initialize, initialEntries, null, commit)
+    }
+
+    /** Header and encrypted payload are staged together before any metadata change. */
+    @JvmStatic
+    fun changeVaultEncryptionWithContainer(context: Context, oldKey: SecretKey?, newKey: SecretKey?,
+                                           initialize: Boolean, initialEntries: ArrayList<Entry>?,
+                                           header: VaultContainer.Header?, commit: VaultSettingsCommit): VaultWriteResult {
         synchronized(DatabaseFileLock) {
             if (!recoverPendingDatabase(context)) return recoveryRequired(VaultCommitState.UNKNOWN)
             if (newKey == null) return rejected(VaultWriteError.MISSING_KEY)
@@ -275,7 +350,11 @@ object DatabaseHelper {
                 }
             }
             try {
-                val encrypted = encryptedEntries(entries, newKey)
+                // An existing container may never silently downgrade to a device-only/raw file.
+                if (!initialize && header == null && VaultContainer.isContainer(
+                        FileHelper.readFileToBytes(file(context, Constants.FILENAME_DATABASE))))
+                    return rejected(VaultWriteError.INVALID_INPUT)
+                val encrypted = encryptedEntries(entries, newKey, header)
                 val id = UUID.randomUUID().toString()
                 val staged = ByteArray(36 + encrypted.size)
                 System.arraycopy(id.toByteArray(StandardCharsets.US_ASCII), 0, staged, 0, 36)

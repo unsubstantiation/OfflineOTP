@@ -29,6 +29,12 @@ interface OpenPgpPort {
     fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): ByteArray
 }
 
+/** Optional capability. Signing failure must never fall back to unsigned encryption. */
+interface OpenPgpSigningPort : OpenPgpPort {
+    fun encryptSigned(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>,
+                      signingKeyBlock: ByteArray, passphrase: CharArray): ByteArray
+}
+
 /**
  * Bounded, policy-enforcing OpenPGP backup codec shared by both platforms. It owns the same
  * document limits and empty-output rules as the encrypted-backup path and leaves the actual PGP
@@ -61,6 +67,19 @@ object OpenPgpBackupCodec {
             }
             return message
         } finally { plainBytes.fill(0) }
+    }
+
+    @JvmStatic
+    fun sealSigned(port: OpenPgpSigningPort, plain: String, recipientKeyBlocks: List<ByteArray>,
+                   signing: SessionOpenPgpSigningCredentials.Snapshot): ByteArray {
+        require(signing.key.isNotEmpty() && signing.key.size <= BoundedInputReader.MAX_DOCUMENT_BYTES &&
+            signing.passphrase.size <= InputPolicy.MAX_TEXT_CHARS)
+        return seal(object : OpenPgpPort {
+            override fun encrypt(plaintext: ByteArray, recipientKeyBlocks: List<ByteArray>) =
+                port.encryptSigned(plaintext, recipientKeyBlocks, signing.key, signing.passphrase)
+            override fun decrypt(message: ByteArray, secretKeyBlock: ByteArray, passphrase: CharArray?): ByteArray =
+                throw UnsupportedOperationException("Encryption-only operation")
+        }, plain, recipientKeyBlocks)
     }
 
     /**

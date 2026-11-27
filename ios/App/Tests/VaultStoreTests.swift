@@ -1,4 +1,5 @@
 import XCTest
+import UIKit
 import OfflineOTPKit
 @testable import OfflineOTP
 
@@ -744,6 +745,162 @@ final class VaultStoreTests: XCTestCase {
     }
 
     @MainActor
+    func testNativeRequestAuthorityCannotSurviveSurfaceReplacementBackgroundOrClose() throws {
+        let store = unlockedStore()
+        let adapter = vaultAdapter(store)
+        let first = adapter.nativeRequestID
+        XCTAssertTrue(adapter.acceptsNativeResult(first))
+        adapter.tool(action: "settings")
+        XCTAssertFalse(adapter.acceptsNativeResult(first))
+        let second = adapter.nativeRequestID
+        XCTAssertTrue(adapter.acceptsNativeResult(second))
+        XCTAssertNil(adapter.action(key: "dismiss"))
+        XCTAssertFalse(adapter.acceptsNativeResult(second))
+        let third = adapter.nativeRequestID
+        NotificationCenter.default.post(name: UIScene.didEnterBackgroundNotification, object: nil)
+        XCTAssertFalse(adapter.acceptsNativeResult(third))
+        adapter.invalidate()
+        XCTAssertFalse(adapter.acceptsNativeResult(adapter.nativeRequestID))
+    }
+
+    @MainActor
+    func testCentralEntryReplacementPreservesOpaqueMetadataOnDisk() throws {
+        let store = unlockedStore()
+        var original = try rawEntry("alice")
+        original.set("future_extension", .object(["version": .int(2), "opaque": .null]))
+        XCTAssertTrue(store.add(original))
+        XCTAssertTrue(store.update(at: 0, with: try rawEntry("changed")))
+        store.lock()
+        let reopened = makeStore()
+        reopened.unlock(password: "correct horse")
+        XCTAssertTrue(reopened.isUnlocked)
+        XCTAssertEqual("changed", reopened.entries.first?.label)
+        XCTAssertEqual(original.fields["future_extension"], reopened.entries.first?.fields["future_extension"])
+        reopened.lock()
+    }
+
+    @MainActor
+    func testBackupSaveRevisionOnlyAdvancesAfterSuccessfulPersistence() throws {
+        let store = unlockedStore()
+        let initial = store.persistedRevision
+        XCTAssertTrue(store.add(try rawEntry("alice")))
+        XCTAssertEqual(initial + 1, store.persistedRevision)
+        XCTAssertFalse(store.add(try rawEntry("alice")))
+        XCTAssertEqual(initial + 1, store.persistedRevision)
+        store.setHideIssuer(!store.hideIssuer)
+        XCTAssertEqual(initial + 1, store.persistedRevision)
+        store.lock()
+        let lockedRevision = store.persistedRevision
+        XCTAssertFalse(store.save())
+        XCTAssertEqual(lockedRevision, store.persistedRevision)
+    }
+
+    @MainActor
+    func testAutomaticBackupConfigurationRejectsInvalidInputsAndStaleSessions() throws {
+        let store = unlockedStore()
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "automaticBackup"))
+        adapter.change(key: "automaticPassword", value: "backup-secret")
+        adapter.change(key: "automaticConfirmation", value: "different")
+        XCTAssertNotNil(adapter.action(key: "automaticEnable"))
+        adapter.change(key: "automaticMinutes", value: "0")
+        XCTAssertNotNil(adapter.action(key: "automaticEnable"))
+        store.lock()
+        XCTAssertNotNil(adapter.action(key: "automaticEnable"))
+        adapter.invalidate()
+    }
+
+    @MainActor
+    func testHardwareSeedCopyRequiresSelectionFreshEntryAndExplicitConsent() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("alice")))
+        let adapter = vaultAdapter(store)
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedNFC"))
+        XCTAssertNil(adapter.action(key: "hardwareSeedCopy"))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedSelect:-1"))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedSelect:1"))
+        XCTAssertNil(adapter.action(key: "hardwareSeedSelect:0"))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedNFC")) // No consent: must not open hardware.
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedUSB"))
+        adapter.change(key: "hardwareSeedConsent", value: "true")
+        XCTAssertTrue(store.update(at: 0, with: try rawEntry("changed")))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedNFC")) // Stale selection cannot export a changed seed.
+        XCTAssertNil(adapter.action(key: "dismiss"))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedUSB"))
+        adapter.invalidate()
+    }
+
+    @MainActor
+    func testBackgroundRejectsHardwareExportAndDeferredBackupActionsWithoutLockingVault() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("alice")))
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "hardwareSeedCopy"))
+        XCTAssertNil(adapter.action(key: "hardwareSeedSelect:0"))
+        adapter.change(key: "hardwareSeedConsent", value: "true")
+        NotificationCenter.default.post(name: UIScene.didEnterBackgroundNotification, object: nil)
+        XCTAssertTrue(store.isUnlocked)
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedNFC"))
+        XCTAssertNotNil(adapter.action(key: "automaticEnable"))
+        adapter.invalidate()
+    }
+
+    @MainActor
+    func testHardwareSeedCopyCannotSurviveCloseOrLock() throws {
+        let store = unlockedStore()
+        XCTAssertTrue(store.add(try rawEntry("alice")))
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "hardwareSeedCopy"))
+        XCTAssertNil(adapter.action(key: "hardwareSeedSelect:0"))
+        adapter.change(key: "hardwareSeedConsent", value: "true")
+        XCTAssertNil(adapter.action(key: "dismiss"))
+        XCTAssertNil(adapter.action(key: "hardwareSeedCopy"))
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedNFC")) // Reopening cleared selection/consent.
+        store.lock()
+        XCTAssertNotNil(adapter.action(key: "hardwareSeedUSB"))
+        adapter.invalidate()
+    }
+
+    @MainActor
+    func testHardwareCalculationCannotUseAnUnlistedAccountOrExpiredCode() throws {
+        let store = unlockedStore()
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "hardwareOath"))
+        XCTAssertNotNil(adapter.action(key: "hardwareCalculate:0"))
+        XCTAssertNotNil(adapter.action(key: "hardwareCalculate:-1"))
+        XCTAssertNotNil(adapter.action(key: "hardwareCopy"))
+        XCTAssertNil(adapter.action(key: "dismiss"))
+        XCTAssertNotNil(adapter.action(key: "hardwareCalculate:0"))
+        adapter.invalidate()
+    }
+
+    @MainActor
+    func testHardwareMutationsRequireListedAccountAndExplicitCurrentConfirmation() throws {
+        let store = unlockedStore()
+        let adapter = vaultAdapter(store)
+        XCTAssertNil(adapter.action(key: "hardwareOath"))
+        for command in ["hardwareDeleteSelect:0", "hardwareDeleteSelect:-1", "hardwareRenameSelect:0", "hardwareRenameSelect:-1",
+                        "hardwareDeleteConfirm", "hardwareRenameConfirm"] {
+            XCTAssertNotNil(adapter.action(key: command), command)
+        }
+        // Forging draft/index/confirmation cannot create a native account identity.
+        adapter.change(key: "hardwareDeleteIndex", value: "0")
+        adapter.change(key: "hardwareDeleteConfirmation", value: "DELETE")
+        adapter.change(key: "hardwareRenameIndex", value: "0")
+        adapter.change(key: "hardwareRenameConfirmation", value: "RENAME")
+        adapter.change(key: "hardwareRenameName", value: "new")
+        XCTAssertNotNil(adapter.action(key: "hardwareDeleteConfirm"))
+        XCTAssertNotNil(adapter.action(key: "hardwareRenameConfirm"))
+        XCTAssertNil(adapter.action(key: "dismiss"))
+        XCTAssertNotNil(adapter.action(key: "hardwareDeleteConfirm"))
+        XCTAssertNotNil(adapter.action(key: "hardwareRenameConfirm"))
+        store.lock()
+        XCTAssertNotNil(adapter.action(key: "hardwareDeleteConfirm"))
+        XCTAssertNotNil(adapter.action(key: "hardwareRenameConfirm"))
+        adapter.invalidate()
+    }
+
+    @MainActor
     func testComposePreferencesImportPlansWithoutApplyingUntilConfirmed() throws {
         let store = unlockedStore()
         store.setInactivityLockSeconds(60)
@@ -756,6 +913,33 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertNil(adapter.action(key: "confirm"))
         XCTAssertEqual(store.inactivityLockSeconds, 60)
         adapter.invalidate()
+    }
+
+    @MainActor
+    func testComposePreferencesImportDiskFailureDoesNotPublishAndCanRetry() throws {
+        let store = unlockedStore()
+        store.setInactivityLockSeconds(60)
+        let exported = try PreferencesExport.export(store.preferencesPort)
+        store.setInactivityLockSeconds(30)
+        let adapter = vaultAdapter(store)
+        defer { adapter.invalidate() }
+        adapter.imported(data: exported.bytes, kind: "preferences")
+        let file = directory.appendingPathComponent(VaultStore.settingsFilename)
+        let original = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            try? original.write(to: file, options: [.atomic])
+        }
+        XCTAssertTrue(adapter.action(key: "confirm")?.contains("could not be saved") == true)
+        XCTAssertEqual(30, store.inactivityLockSeconds)
+        XCTAssertEqual(.integer(30), store.preferencesPort.read(PreferencesExport.inactivityLockKey))
+        try FileManager.default.removeItem(at: file)
+        try original.write(to: file, options: [.atomic])
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual(60, store.inactivityLockSeconds)
+        XCTAssertEqual(60, VaultStore(directory: directory).inactivityLockSeconds)
     }
 
     @MainActor
@@ -895,6 +1079,73 @@ final class VaultStoreTests: XCTestCase {
         XCTAssertNil(adapter.action(key: "confirm"))
         XCTAssertTrue(store.entries.contains(where: { $0.kind == .email }))
         adapter.invalidate()
+    }
+
+    @MainActor
+    func testAtomicAutoLockSavePreservesPreviousPolicyOnDiskFailureAndReopensTogether() throws {
+        let store = unlockedStore()
+        try store.saveAutoLockSettings(seconds: 45, relockOnBackground: true)
+        XCTAssertEqual(45, store.inactivityLockSeconds); XCTAssertTrue(store.relockOnBackground)
+        let file = directory.appendingPathComponent(VaultStore.settingsFilename)
+        let original = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            try? original.write(to: file, options: [.atomic])
+        }
+        XCTAssertThrowsError(try store.saveAutoLockSettings(seconds: 0, relockOnBackground: false))
+        XCTAssertEqual(45, store.inactivityLockSeconds); XCTAssertTrue(store.relockOnBackground)
+        try FileManager.default.removeItem(at: file)
+        try original.write(to: file, options: [.atomic])
+        let reopened = VaultStore(directory: directory)
+        XCTAssertEqual(45, reopened.inactivityLockSeconds); XCTAssertTrue(reopened.relockOnBackground)
+        XCTAssertThrowsError(try store.saveAutoLockSettings(seconds: -1, relockOnBackground: false))
+    }
+
+    @MainActor
+    func testCardDisplayBatchRejectsInvalidFieldsWithoutPartialEditsAndReopens() throws {
+        let store = unlockedStore()
+        let before = try Data(contentsOf: directory.appendingPathComponent(VaultStore.settingsFilename))
+        XCTAssertThrowsError(try store.saveCardDisplaySettings(["layout": "FULL", "labelSizeSp": "99"]))
+        XCTAssertEqual("DEFAULT", store.cardLayout)
+        XCTAssertEqual(before, try Data(contentsOf: directory.appendingPathComponent(VaultStore.settingsFilename)))
+        XCTAssertThrowsError(try store.saveCardDisplaySettings(["layout": "FULL", "hideIssuer": "yes"]))
+        XCTAssertEqual("DEFAULT", store.cardLayout)
+        try store.saveCardDisplaySettings(["layout": "COMPACT", "hideIssuer": "true", "labelSizeSp": "20",
+            "thumbnailSizeDp": "48", "tapSingle": "COPY", "tapToRevealTimeoutSeconds": "60", "tokenGroupSize": "2"])
+        XCTAssertEqual("COMPACT", store.cardLayout)
+        XCTAssertTrue(store.hideIssuer)
+        let reopened = VaultStore(directory: directory)
+        XCTAssertEqual("COMPACT", reopened.cardLayout)
+        XCTAssertEqual(20, reopened.labelSizeSp)
+        XCTAssertEqual(48, reopened.thumbnailSizeDp)
+        XCTAssertEqual("COPY", reopened.tapSingle)
+        XCTAssertEqual(60, reopened.tapToRevealTimeoutSeconds)
+        XCTAssertEqual(2, reopened.tokenGroupSize)
+    }
+
+    @MainActor
+    func testComposeCardDisplaySaveFailureDoesNotChangeLiveOrCachedSettingsAndRetrySucceeds() throws {
+        let store = unlockedStore(); let adapter = vaultAdapter(store)
+        defer { adapter.invalidate() }
+        XCTAssertNil(adapter.action(key: "cardLayout"))
+        adapter.change(key: "layout", value: "FULL")
+        adapter.change(key: "hideIssuer", value: "true")
+        let file = directory.appendingPathComponent(VaultStore.settingsFilename)
+        let original = try Data(contentsOf: file)
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createDirectory(at: file, withIntermediateDirectories: false)
+        defer {
+            try? FileManager.default.removeItem(at: file)
+            try? original.write(to: file, options: [.atomic])
+        }
+        XCTAssertTrue(adapter.action(key: "confirm")?.contains("could not be saved") == true)
+        XCTAssertEqual("DEFAULT", store.cardLayout); XCTAssertFalse(store.hideIssuer)
+        try FileManager.default.removeItem(at: file)
+        try original.write(to: file, options: [.atomic])
+        XCTAssertNil(adapter.action(key: "confirm"))
+        XCTAssertEqual("FULL", store.cardLayout); XCTAssertTrue(store.hideIssuer)
     }
 
     @MainActor

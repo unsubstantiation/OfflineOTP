@@ -297,6 +297,9 @@ open class Settings(private val context: Context) {
         constructor(key: ByteArray, verifier: String, salt: String, iterations: Int) :
             this(key, verifier, salt, iterations, Constants.KDF_PBKDF2, 0, 0)
 
+        fun containerHeader(): VaultContainer.Header = VaultContainer.fromParameters(
+            kdf, Base64.decode(salt, Base64.URL_SAFE), memoryKiB, iterations, parallelism)
+
         fun destroy() {
             key.fill(0)
         }
@@ -547,7 +550,8 @@ open class Settings(private val context: Context) {
 
     open fun getSortMode(): Constants.SortMode {
         val modeStr = getString(R.string.settings_key_sort_mode, Constants.SortMode.UNSORTED.toString())
-        return Constants.SortMode.valueOf(modeStr)
+        return Constants.SortMode.values().firstOrNull { it.name.equals(modeStr.trim(), ignoreCase = true) }
+            ?: Constants.SortMode.UNSORTED
     }
 
     open fun setSortMode(value: Constants.SortMode) {
@@ -560,18 +564,16 @@ open class Settings(private val context: Context) {
             HashSet(context.resources.getStringArray(R.array.settings_defaults_search_includes).asList())
         )
 
-        val values = ArrayList<Constants.SearchIncludes>()
-
-        for (value in stringValues) {
-            values.add(Constants.SearchIncludes.valueOf(value.uppercase(Locale.ENGLISH)))
-        }
-
-        return values
+        val values = stringValues.mapNotNull { value ->
+            Constants.SearchIncludes.values().firstOrNull { it.name.equals(value.trim(), ignoreCase = true) }
+        }.distinct()
+        return values.ifEmpty { Constants.SearchIncludes.values().toList() }
     }
 
     open fun getCardLayout(): Constants.CardLayouts {
         val stringValue = getString(R.string.settings_key_card_layout, R.string.settings_default_card_layout)
-        return Constants.CardLayouts.valueOf(stringValue.uppercase(Locale.ENGLISH))
+        return Constants.CardLayouts.values().firstOrNull { it.name.equals(stringValue.trim(), ignoreCase = true) }
+            ?: Constants.CardLayouts.DEFAULT
     }
 
     open fun getBackupAsk(): Boolean {
@@ -751,14 +753,16 @@ open class Settings(private val context: Context) {
 
     open fun getTokenSplitGroupSize(): Int {
         // Stored as a String because ListPreference entryValues cannot be an integer array
-        return getString(R.string.settings_key_split_group_size, R.string.settings_default_split_group_size).toInt()
+        return getString(R.string.settings_key_split_group_size, R.string.settings_default_split_group_size)
+            .trim().toIntOrNull()?.takeIf { it == 0 || it == 2 || it == 3 } ?: 3
     }
 
     open fun getTagFunctionality(): Constants.TagFunctionality {
         val tagFunctionality = getString(R.string.settings_key_tag_functionality, R.string.settings_default_tag_functionality)
         // Locale.ROOT: uppercase(Turkish) turns the stored token "single" into "SİNGLE", which
         // valueOf() rejects, so the settings/entry screens crashed for Turkish users.
-        return Constants.TagFunctionality.valueOf(tagFunctionality.uppercase(Locale.ROOT))
+        return Constants.TagFunctionality.values().firstOrNull { it.name.equals(tagFunctionality.trim(), ignoreCase = true) }
+            ?: Constants.TagFunctionality.OR
     }
 
     open fun getScreenshotsEnabled(): Boolean {
@@ -856,12 +860,14 @@ open class Settings(private val context: Context) {
 
     open fun getTapSingle(): Constants.TapMode {
         val singleTap = getString(R.string.settings_key_tap_single, R.string.settings_default_tap_single)
-        return Constants.TapMode.valueOf(singleTap.uppercase(Locale.ENGLISH))
+        return Constants.TapMode.values().firstOrNull { it.name.equals(singleTap.trim(), ignoreCase = true) }
+            ?: Constants.TapMode.NOTHING
     }
 
     open fun getTapDouble(): Constants.TapMode {
         val doubleTap = getString(R.string.settings_key_tap_double, R.string.settings_default_tap_double)
-        return Constants.TapMode.valueOf(doubleTap.uppercase(Locale.ENGLISH))
+        return Constants.TapMode.values().firstOrNull { it.name.equals(doubleTap.trim(), ignoreCase = true) }
+            ?: Constants.TapMode.NOTHING
     }
 
     open fun setBackupLocation(uri: Uri) {
@@ -900,7 +906,8 @@ open class Settings(private val context: Context) {
 
     open fun getLabelDisplay(): Constants.LabelDisplay {
         val labelDisplay = getString(R.string.settings_key_label_display, R.string.settings_default_label_display)
-        return Constants.LabelDisplay.valueOf(labelDisplay.uppercase(Locale.ENGLISH))
+        return Constants.LabelDisplay.values().firstOrNull { it.name.equals(labelDisplay.trim(), ignoreCase = true) }
+            ?: Constants.LabelDisplay.TRUNCATE
     }
 
     open fun getShowPrevToken(): Boolean {

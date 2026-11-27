@@ -456,8 +456,8 @@ fileprivate struct FfiConverterString: FfiConverter {
 
 public enum OpenPgpError {
 
-    
-    
+
+
     case InvalidRecipientKey(reason: String
     )
     case InvalidSecretKey(reason: String
@@ -483,9 +483,9 @@ public struct FfiConverterTypeOpenPgpError: FfiConverterRustBuffer {
         let variant: Int32 = try readInt(&buf)
         switch variant {
 
-        
 
-        
+
+
         case 1: return .InvalidRecipientKey(
             reason: try FfiConverterString.read(from: &buf)
             )
@@ -511,42 +511,42 @@ public struct FfiConverterTypeOpenPgpError: FfiConverterRustBuffer {
     public static func write(_ value: OpenPgpError, into buf: inout [UInt8]) {
         switch value {
 
-        
 
-        
-        
+
+
+
         case let .InvalidRecipientKey(reason):
             writeInt(&buf, Int32(1))
             FfiConverterString.write(reason, into: &buf)
-            
-        
+
+
         case let .InvalidSecretKey(reason):
             writeInt(&buf, Int32(2))
             FfiConverterString.write(reason, into: &buf)
-            
-        
+
+
         case let .InvalidMessage(reason):
             writeInt(&buf, Int32(3))
             FfiConverterString.write(reason, into: &buf)
-            
-        
+
+
         case let .DecryptionFailed(reason):
             writeInt(&buf, Int32(4))
             FfiConverterString.write(reason, into: &buf)
-            
-        
+
+
         case .EmptyOutput:
             writeInt(&buf, Int32(5))
-        
-        
+
+
         case .TooLarge:
             writeInt(&buf, Int32(6))
-        
-        
+
+
         case let .Internal(reason):
             writeInt(&buf, Int32(7))
             FfiConverterString.write(reason, into: &buf)
-            
+
         }
     }
 }
@@ -656,6 +656,16 @@ public func encrypt(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]])throws  ->
     )
 })
 }
+public func encryptSigned(plaintext: [UInt8], recipientKeyBlocks: [[UInt8]], signingKeyBlock: [UInt8], passphrase: String?)throws  -> [UInt8] {
+    return try  FfiConverterSequenceUInt8.lift(try rustCallWithError(FfiConverterTypeOpenPgpError.lift) {
+    uniffi_offlineotp_openpgp_fn_func_encrypt_signed(
+        FfiConverterSequenceUInt8.lower(plaintext),
+        FfiConverterSequenceSequenceUInt8.lower(recipientKeyBlocks),
+        FfiConverterSequenceUInt8.lower(signingKeyBlock),
+        FfiConverterOptionString.lower(passphrase),$0
+    )
+})
+}
 public func rpgpVersion() -> String {
     return try!  FfiConverterString.lift(try! rustCall() {
     uniffi_offlineotp_openpgp_fn_func_rpgp_version($0
@@ -685,6 +695,9 @@ private var initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_offlineotp_openpgp_checksum_func_encrypt() != 15144) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_offlineotp_openpgp_checksum_func_encrypt_signed() != 32690) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_offlineotp_openpgp_checksum_func_rpgp_version() != 52177) {

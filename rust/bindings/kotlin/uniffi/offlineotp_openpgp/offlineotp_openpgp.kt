@@ -719,6 +719,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -731,24 +733,26 @@ internal interface UniffiLib : Library {
                 uniffiCheckApiChecksums(lib)
                 }
         }
-        
+
     }
 
-    fun uniffi_offlineotp_openpgp_fn_func_crate_version(uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_offlineotp_openpgp_fn_func_crate_version(uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_decrypt(`message`: RustBuffer.ByValue,`secretKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_offlineotp_openpgp_fn_func_decrypt(`message`: RustBuffer.ByValue,`secretKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_encrypt(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_offlineotp_openpgp_fn_func_encrypt(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun uniffi_offlineotp_openpgp_fn_func_rpgp_version(uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_offlineotp_openpgp_fn_func_encrypt_signed(`plaintext`: RustBuffer.ByValue,`recipientKeyBlocks`: RustBuffer.ByValue,`signingKeyBlock`: RustBuffer.ByValue,`passphrase`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_offlineotp_openpgp_fn_func_rpgp_version(uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    fun ffi_offlineotp_openpgp_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun ffi_offlineotp_openpgp_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): Unit
-    fun ffi_offlineotp_openpgp_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     fun ffi_offlineotp_openpgp_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -756,7 +760,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_u8(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Byte
     fun ffi_offlineotp_openpgp_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -764,7 +768,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_i8(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Byte
     fun ffi_offlineotp_openpgp_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -772,7 +776,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_u16(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Short
     fun ffi_offlineotp_openpgp_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -780,7 +784,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_i16(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Short
     fun ffi_offlineotp_openpgp_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -788,7 +792,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_u32(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Int
     fun ffi_offlineotp_openpgp_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -796,7 +800,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_i32(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Int
     fun ffi_offlineotp_openpgp_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -804,7 +808,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_u64(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Long
     fun ffi_offlineotp_openpgp_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -812,7 +816,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_i64(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Long
     fun ffi_offlineotp_openpgp_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -820,7 +824,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_f32(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Float
     fun ffi_offlineotp_openpgp_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -828,7 +832,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_f64(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Double
     fun ffi_offlineotp_openpgp_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -836,7 +840,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_pointer(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Pointer
     fun ffi_offlineotp_openpgp_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -844,7 +848,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_rust_buffer(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     fun ffi_offlineotp_openpgp_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
@@ -852,7 +856,7 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_offlineotp_openpgp_rust_future_free_void(`handle`: Long,
     ): Unit
-    fun ffi_offlineotp_openpgp_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_offlineotp_openpgp_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): Unit
     fun uniffi_offlineotp_openpgp_checksum_func_crate_version(
     ): Short
@@ -860,11 +864,13 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_offlineotp_openpgp_checksum_func_encrypt(
     ): Short
+    fun uniffi_offlineotp_openpgp_checksum_func_encrypt_signed(
+    ): Short
     fun uniffi_offlineotp_openpgp_checksum_func_rpgp_version(
     ): Short
     fun ffi_offlineotp_openpgp_uniffi_contract_version(
     ): Int
-    
+
 }
 
 private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
@@ -886,6 +892,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_offlineotp_openpgp_checksum_func_encrypt() != 15144.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_offlineotp_openpgp_checksum_func_encrypt_signed() != 32690.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_offlineotp_openpgp_checksum_func_rpgp_version() != 52177.toShort()) {
@@ -931,7 +940,7 @@ inline fun <T : Disposable?, R> T.use(block: (T) -> R) =
         }
     }
 
-/** 
+/**
  * Used to instantiate an interface without an actual pointer, for fakes in tests, mostly.
  *
  * @suppress
@@ -1023,65 +1032,65 @@ public object FfiConverterString: FfiConverter<String, RustBuffer.ByValue> {
 
 
 sealed class OpenPgpException: kotlin.Exception() {
-    
+
     class InvalidRecipientKey(
-        
+
         val `reason`: kotlin.String
         ) : OpenPgpException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     class InvalidSecretKey(
-        
+
         val `reason`: kotlin.String
         ) : OpenPgpException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     class InvalidMessage(
-        
+
         val `reason`: kotlin.String
         ) : OpenPgpException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     class DecryptionFailed(
-        
+
         val `reason`: kotlin.String
         ) : OpenPgpException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
     class EmptyOutput(
         ) : OpenPgpException() {
         override val message
             get() = ""
     }
-    
+
     class TooLarge(
         ) : OpenPgpException() {
         override val message
             get() = ""
     }
-    
+
     class Internal(
-        
+
         val `reason`: kotlin.String
         ) : OpenPgpException() {
         override val message
             get() = "reason=${ `reason` }"
     }
-    
+
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<OpenPgpException> {
         override fun lift(error_buf: RustBuffer.ByValue): OpenPgpException = FfiConverterTypeOpenPgpError.lift(error_buf)
     }
 
-    
+
 }
 
 /**
@@ -1089,7 +1098,7 @@ sealed class OpenPgpException: kotlin.Exception() {
  */
 public object FfiConverterTypeOpenPgpError : FfiConverterRustBuffer<OpenPgpException> {
     override fun read(buf: ByteBuffer): OpenPgpException {
-        
+
 
         return when(buf.getInt()) {
             1 -> OpenPgpException.InvalidRecipientKey(
@@ -1285,7 +1294,7 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
 }
     )
     }
-    
+
 
     @Throws(OpenPgpException::class) fun `decrypt`(`message`: List<kotlin.UByte>, `secretKeyBlock`: List<kotlin.UByte>, `passphrase`: kotlin.String?): List<kotlin.UByte> {
             return FfiConverterSequenceUByte.lift(
@@ -1295,7 +1304,7 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
 }
     )
     }
-    
+
 
     @Throws(OpenPgpException::class) fun `encrypt`(`plaintext`: List<kotlin.UByte>, `recipientKeyBlocks`: List<List<kotlin.UByte>>): List<kotlin.UByte> {
             return FfiConverterSequenceUByte.lift(
@@ -1305,7 +1314,17 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
 }
     )
     }
-    
+
+
+    @Throws(OpenPgpException::class) fun `encryptSigned`(`plaintext`: List<kotlin.UByte>, `recipientKeyBlocks`: List<List<kotlin.UByte>>, `signingKeyBlock`: List<kotlin.UByte>, `passphrase`: kotlin.String?): List<kotlin.UByte> {
+            return FfiConverterSequenceUByte.lift(
+    uniffiRustCallWithError(OpenPgpException) { _status ->
+    UniffiLib.INSTANCE.uniffi_offlineotp_openpgp_fn_func_encrypt_signed(
+        FfiConverterSequenceUByte.lower(`plaintext`),FfiConverterSequenceSequenceUByte.lower(`recipientKeyBlocks`),FfiConverterSequenceUByte.lower(`signingKeyBlock`),FfiConverterOptionalString.lower(`passphrase`),_status)
+}
+    )
+    }
+
  fun `rpgpVersion`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
@@ -1314,6 +1333,6 @@ public object FfiConverterSequenceSequenceUByte: FfiConverterRustBuffer<List<Lis
 }
     )
     }
-    
+
 
 

@@ -52,7 +52,7 @@ fun BiometricEnableDialog(
                     visualTransformation = PasswordVisualTransformation(),
                     modifier = Modifier.fillMaxWidth()
                 )
-                (operationError ?: error)?.let { Text(it, modifier = Modifier.padding(top = 8.dp)) }
+                SharedStatusMessage(operationError ?: error, modifier = Modifier.padding(top = 8.dp))
             }
         },
         confirmButton = {

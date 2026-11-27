@@ -76,7 +76,9 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/GoogleAuthenticatorMigration.kt"
     "$KOTLIN_CORE/Utilities/HardwareFidoClient.kt"
     "$KOTLIN_CORE/Utilities/HardwareOathClient.kt"
+    "$KOTLIN_CORE/Utilities/HardwareOathRenamePolicy.kt"
     "$KOTLIN_CORE/Utilities/HardwareUnlockEnvelope.kt"
+    "$KOTLIN_CORE/Utilities/AutomaticBackupCredentialCodec.kt"
     "$KOTLIN_CORE/Utilities/InputPolicy.kt"
     "$KOTLIN_CORE/Utilities/SshKeyMaterial.kt"
     "$KOTLIN_CORE/Utilities/SshConnection.kt"
@@ -87,11 +89,13 @@ CORE_SOURCES=(
     "$KOTLIN_CORE/Utilities/OtpParseResult.kt"
     "$KOTLIN_CORE/Utilities/OtpUriParser.kt"
     "$KOTLIN_CORE/Utilities/PasswordVault.kt"
+    "$KOTLIN_CORE/Utilities/VaultContainer.kt"
     "$KOTLIN_CORE/Utilities/PendingEntryImport.kt"
     "$KOTLIN_CORE/Utilities/PendingMigrationImport.kt"
     "$KOTLIN_CORE/Utilities/QrImageDecoder.kt"
     "$KOTLIN_CORE/Utilities/QrImport.kt"
     "$KOTLIN_CORE/Utilities/ScreenshotPolicy.kt"
+    "$KOTLIN_CORE/Utilities/SessionOpenPgpSigningCredentials.kt"
     "$KOTLIN_CORE/Utilities/ScreenTimerController.kt"
     "$KOTLIN_CORE/Utilities/SecurityPorts.kt"
     "$KOTLIN_CORE/Utilities/SessionContracts.kt"
@@ -110,8 +114,8 @@ CORE_SOURCES=(
 )
 
 # The app sources covered by this check; Checks.kt exercises selected behavior and JVM-visible
-# shapes. The fdroid flavor's AboutFragment is compiled as the representative
-# flavor of the about screens; the play flavor differs only by having no extras and is pinned by
+# shapes. F-Droid AboutFlavorLinks is compiled as representative flavor metadata;
+# the Play flavor differs only by having no extras and is pinned by
 # the Python source guards instead.
 APP_SOURCES=(
     "$KOTLIN_APP/Activities/AboutActivity.kt"
@@ -127,13 +131,13 @@ APP_SOURCES=(
     "$KOTLIN_APP/Activities/SecureCaptureActivity.kt"
     "$KOTLIN_APP/Activities/SettingsActivity.kt"
     "$KOTLIN_APP/Activities/ThemedActivity.kt"
+    "$KOTLIN_APP/Utilities/ActivityContentInsets.kt"
     "$KOTLIN_APP/Dialogs/HideableDialog.kt"
     "$KOTLIN_APP/Dialogs/ManualEntryDialog.kt"
     "$ROOT/ui/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailEditDialog.kt"
     "$ROOT/ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/EmailChoiceField.kt"
     "$KOTLIN_APP/Dialogs/PasswordEntryDialog.kt"
     "$KOTLIN_APP/Dialogs/TagsDialog.kt"
-    "$KOTLIN_APP/Fragments/BaseAboutFragment.kt"
     "$KOTLIN_APP/Preferences/CredentialsPreference.kt"
     "$KOTLIN_APP/Preferences/NumberPickerPreference.kt"
     "$KOTLIN_APP/Preferences/PasswordEncryptedPreference.kt"
@@ -300,7 +304,7 @@ APP_SOURCES=(
     "$KOTLIN_APP/View/EntryActionDialogs.kt"
     "$KOTLIN_APP/View/TagsAdapter.kt"
     "$KOTLIN_APP/View/ThumbnailSelectionAdapter.kt"
-    "$ROOT/app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Fragments/AboutFragment.kt"
+    "$ROOT/app/src/fdroid/kotlin/com/fairuniversal/offlineotp/Utilities/AboutFlavorLinks.kt"
 )
 
 # Historical renderer fixtures are never part of APP_SOURCES or the shipping source set.

@@ -6,7 +6,12 @@ import com.fairuniversal.offlineotp.R
 
 /** Chooses the login-derived key without changing an existing separate-password configuration. */
 internal object LoginBackupPolicy {
+    const val VAULT_COPY = "internal_auto_backup_vault_copy"
+    fun usesVaultCopy(context: Context): Boolean =
+        PreferenceManager.getDefaultSharedPreferences(context).getBoolean(VAULT_COPY, false)
+
     fun usesLoginPassword(context: Context): Boolean {
+        if (usesVaultCopy(context)) return false
         val prefs = PreferenceManager.getDefaultSharedPreferences(context)
         val key = context.getString(R.string.settings_key_auto_backup_use_login)
         if (prefs.contains(key)) return prefs.getBoolean(key, false)

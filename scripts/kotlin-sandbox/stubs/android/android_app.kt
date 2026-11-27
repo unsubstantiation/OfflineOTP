@@ -261,6 +261,7 @@ class Notification(
 
 /** A context subclass so a fragment can hand one back; no lifecycle is modelled. */
 open class Activity : Context() {
+    open fun <T : View> findViewById(id: Int): T? = null
     /** The base-context hook supplied by Android before activity creation. */
     open fun attachBaseContext(newBase: Context) {}
 

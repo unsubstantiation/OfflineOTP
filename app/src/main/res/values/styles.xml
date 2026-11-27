@@ -127,12 +127,6 @@
         <item name="aboutLibrariesSpecialButtonText">@color/colorAccent</item>
         <item name="aboutLibrariesOpenSourceDivider">@color/forest_divider</item>
 
-        <!-- AboutLibraries Legacy Attributes (used by fragment_about.xml) -->
-        <item name="about_libraries_card">@color/forest_surface</item>
-        <item name="about_libraries_title_openSource">@color/forest_text_primary</item>
-        <item name="about_libraries_text_openSource">@color/forest_text_secondary</item>
-        <item name="about_libraries_dividerDark_openSource">@color/forest_divider</item>
-        <item name="about_libraries_dividerLight_openSource">@color/forest_divider</item>
     </style>
 
     <!-- Homemade Dark Forest Overlays & Dialogs -->

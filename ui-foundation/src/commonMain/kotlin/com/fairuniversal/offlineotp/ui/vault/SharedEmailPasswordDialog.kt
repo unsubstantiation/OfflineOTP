@@ -57,7 +57,7 @@ fun SharedEmailPasswordDialog(
                 }
                 val failureMessage = errorText
                     ?: if (failed) "Could not save email credentials. Original entry retained; re-enter changes to retry." else null
-                failureMessage?.let { Text(it) }
+                SharedStatusMessage(failureMessage)
             }
         },
         confirmButton = {

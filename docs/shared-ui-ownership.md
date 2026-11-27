@@ -1109,3 +1109,48 @@ cancellation permission checks and hardware envelope persistence are unchanged. 
 hardware host fixture now checks that completion reaches shared status and stale-generation updates
 cannot replace it. 672 Python checks pass. Real USB/NFC, cancellation and accessibility validation
 remain required; hardware unlock's closing-result notice is a separate native adapter.
+
+### Common persistent-status presentation
+
+`SharedStatusMessage` now owns the persistent message typography, warning color, empty-message
+suppression and polite live-region semantics used by grouped tools/status pages, standalone
+ authentication, biometric enrolment and hardware unlock. It holds no state or security authority:
+hosts still own message lifetime, session checks and native operations. The common implementation
+applies to Android, desktop and iOS wherever those shared forms are mounted. HardwareUnlockActivity
+no longer duplicates the shared form's retry error with a native Toast. Closing-task/fatal feedback
+is not changed by this increment.
+
+An Android component test now checks authentication status visibility and cleanup on retry,
+background and closed-host updates. Local gates: 673 Python tests, all sandbox checks, shared UI
+168/168, scheduler 3/3, and 28 Android instrumentation sources compile. The component test has not
+executed on a device, and these gates do not prove native accessibility announcements, OS biometric
+or hardware behavior, desktop rendering or iOS build correctness.
+
+### Complete common-form status sweep and device handoff
+
+All identified common import/export/entry/settings/tag/layout/password-change/confirmation error
+text now uses SharedStatusMessage, including first-run restore and shared unlock. Native security
+adapters and form state/secret ownership are unchanged. Closing Backup picker failure now forwards
+only an allowlisted export_failed/import_failed kind and session generation through the same vault
+handoff as success; the old closing-page Toast helper is removed. The detached auto-backup callback
+and fatal task-closing errors remain explicitly native adapters, not invisible page feedback.
+
+Fresh gates: Python 675, sandbox all, UI 168/168, scheduler 3/3, desktop 405 passed/2 skipped,
+Android instrumentation sources 28 compile. `shared-ui-device-checklist.md` records the user-deferred
+native verification. No Android/Xcode build, device instrumentation, accessibility or whole-app
+capability parity pass is claimed. The user's decision to test on device later does not turn the
+stub checks into native evidence or justify marking unverified integration complete.
+
+### Parity audit and legacy About retirement
+
+The 2026-11-20 route-based audit supersedes historical native-About/SwiftUI-vault claims. It records
+wired common features separately from desktop camera, automatic-backup settings and iOS hardware
+management gaps, platform-specific adapters and unverified semantics/runtime behavior.
+
+Removed BaseAboutFragment and both flavor AboutFragments, their unused component/fragment/donation
+XML layouts and private legacy style attributes. AboutActivity already hosts common Compose;
+the only live fragment use was donation metadata. Plain AboutFlavorLinks flavor providers now
+supply the same two F-Droid URLs / empty Play list. Shared generated About content and dependency
+notices remain. Retired fragment-only tests/fakes/API-shape checks and moved coverage to active
+Compose routing, version metadata/tap feedback/destruction and flavor metadata. Retained legacy
+Settings/main/intro adapters have active consumers and must not be deleted merely because hidden.

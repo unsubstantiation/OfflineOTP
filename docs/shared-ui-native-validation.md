@@ -242,3 +242,24 @@ removal results appear in the shared status area, without Toasts. Uncertain outc
 readable until replaced by a later explicit operation. Lock/change sessions while USB/NFC work is
 pending: stale callbacks must not replace status or persist credentials. Stub host checks cover
 status publication/session rejection; actual USB/NFC, touch/PIN and accessibility need devices.
+
+### Shared persistent-status component
+
+Check status messages on grouped tools/hardware pages, authentication, biometric enrolment and
+hardware unlock across Android/Desktop/iOS. Verify consistent readable styling, no empty status
+node/spacing, polite screen-reader announcements and no duplicate native Toast on hardware unlock
+failure. Retry/background/close must retain existing message-lifetime rules. The new authentication
+component test compiles locally but has not run on Android; VoiceOver/TalkBack and real device
+hardware/biometric checks remain required.
+
+### Android system navigation overlap regression
+
+The Android Activity content root now owns the union of system-bar, display-cutout and IME insets;
+children receive consumed insets to avoid double-padding legacy fitsSystemWindows/Compose roots.
+Themed activities and the separate intro host install this policy. Test Android 15+ target-35
+edge-to-edge behavior with gesture and three-button navigation, portrait/landscape, cutouts, keyboard
+open/closed, and rotation. Bottom buttons/cards/feedback must remain above the navigation bar; the
+keyboard and navigation inset must use their maximum, not their sum. Verify no extra top/bottom gap
+and that system-bar visibility changes reapply cleanly. Camera capture deliberately keeps its own
+fullscreen policy. Sandbox checks cover inset union and non-accumulating padding; device visual
+verification remains required.

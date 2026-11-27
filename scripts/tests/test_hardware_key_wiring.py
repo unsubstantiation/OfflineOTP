@@ -71,7 +71,47 @@ class HardwareKeyWiringTest(unittest.TestCase):
         self.assertLess(calculate.index("if (!permitted())"), calculate.index("session.calculateCode"))
         self.assertIn("data.destroy()", oath)
         self.assertIn("seed.fill(0)", oath)
-        self.assertNotIn("deleteCredential", oath)
+        deletion = oath[oath.index("fun deleteFromKey"):oath.index("fun canCopy")]
+        for check in ("require(confirmed)", "session.deviceId == deviceId", "it.id.contentEquals(credential.id)",
+                      "it.oathType == credential.oathType", "it.issuer == credential.issuer",
+                      "it.accountName == credential.accountName", "require(matches.size == 1)"):
+            self.assertIn(check, deletion)
+        self.assertLess(deletion.index("if (!permitted())"), deletion.index("session.deleteCredential"))
+        self.assertNotIn("calculateCode", deletion)
+
+    def test_android_deletion_uses_shared_confirmation_and_retires_stale_accounts(self):
+        screen = source("Activities/HardwareKeyActivity.kt")
+        deletion = screen[screen.index("private fun confirmAccountDeletion"):screen.index("private fun confirmHotp")]
+        self.assertIn("HardwareOathDeleteComposeView", deletion)
+        self.assertNotIn("String(pin)", deletion)
+        self.assertIn("revision != listRevision || !sessionReady()", deletion)
+        self.assertLess(deletion.index("renderAccounts(HardwareOathClient.Accounts(deviceId, emptyList()))"),
+                        deletion.index("HardwareOathClient.deleteFromKey"))
+        self.assertIn("interruptedMessage = R.string.hardware_delete_uncertain", deletion)
+
+    def test_rename_collision_identity_and_cancellation_checks_precede_one_command(self):
+        oath = core_source("Utilities/HardwareOathClient.kt")
+        rename = oath[oath.index("fun renameOnKey"):oath.index("fun canCopy")]
+        for check in ("require(confirmed)", "session.deviceId == deviceId", "it.id.contentEquals(credential.id)",
+                      "it.period == credential.period", "require(matches.size == 1)",
+                      "credentials.none { it.id.contentEquals(newId) }"):
+            self.assertIn(check, rename)
+            self.assertLess(rename.index(check), rename.index("session.renameCredential"))
+        self.assertLess(rename.index("if (!permitted())"), rename.index("session.renameCredential"))
+        self.assertEqual(1, rename.count("session.renameCredential"))
+        self.assertNotIn("calculateCode", rename)
+        screen = source("Activities/HardwareKeyActivity.kt")
+        native = screen[screen.index("private fun confirmAccountRename"):screen.index("private fun confirmAccountDeletion")]
+        self.assertIn("HardwareOathRenameComposeView", native)
+        self.assertIn("val ownsPrompt = composeDialog === view", native)
+        self.assertIn("!ownsPrompt || revision != listRevision", native)
+        self.assertIn("revision != listRevision || !sessionReady()", native)
+        self.assertIn("interruptedMessage = R.string.hardware_rename_uncertain", native)
+        ui = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/vault/HardwareOathDialog.kt").read_text()
+        self.assertIn('confirmation == "RENAME"', ui)
+        self.assertNotIn("rememberSaveable", ui)
+        self.assertIn('if (accepting && !busy && name.isNotEmpty() && confirmation == "RENAME")', ui)
+        self.assertIn('if (accepting && !busy && confirmation == "DELETE")', ui)
 
     def test_uncertain_hotp_and_key_writes_are_not_misrepresented(self):
         screen = source("Activities/HardwareKeyActivity.kt")
@@ -83,7 +123,7 @@ class HardwareKeyWiringTest(unittest.TestCase):
         adapter = core_source("Utilities/HardwareFidoClient.kt")
         self.assertIn("toMap(SerializationType.CBOR)", adapter)
         layout = ET.parse(APP / "res/layout/activity_hardware_unlock.xml").getroot()
-        self.assertEqual("ScrollView", layout.tag)
+        self.assertEqual("FrameLayout", layout.tag)
 
     def test_lifecycle_and_reset_revoke_the_shortcut(self):
         key_screen = source("Activities/HardwareKeyActivity.kt")

@@ -91,7 +91,7 @@ open class AppCompatActivity : FragmentActivity() {
      * `open` so the about checks can supply the toolbar/stub/pager views; the platform resolves
      * the real window hierarchy instead and the getter is final there.
      */
-    open fun <T : View> findViewById(id: Int): T? = null
+    override fun <T : View> findViewById(id: Int): T? = null
 
     override fun getSupportFragmentManager(): FragmentManager = supportFragmentManager
 

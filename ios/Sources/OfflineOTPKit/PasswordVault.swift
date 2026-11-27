@@ -61,6 +61,7 @@ public final class PasswordVault {
     public let vaultFile: AtomicByteStore
     public let backupFile: AtomicByteStore
     public let settings: KeyValueSettings
+    private let storageLock = NSRecursiveLock()
 
     public init(vaultFile: AtomicByteStore, backupFile: AtomicByteStore, settings: KeyValueSettings) {
         self.vaultFile = vaultFile
@@ -84,6 +85,11 @@ public final class PasswordVault {
     /// would be handed to whichever vault happened to be opened next. A copy of the same vault has the
     /// same identifier and the same key; a different vault never shares one.
     public var vaultIdentifier: String? {
+        storageLock.lock(); defer { storageLock.unlock() }
+        if let bytes = try? vaultFile.read(), VaultContainer.isContainer(bytes) {
+            guard let header = try? VaultContainer.header(bytes) else { return nil }
+            return VaultCrypto.base64URLEncode(header.salt)
+        }
         guard let saltText = settings.string(VaultSettingsKeys.authSalt),
               let salt = VaultCrypto.base64URLDecode(saltText), !salt.isEmpty else {
             return nil
@@ -96,38 +102,49 @@ public final class PasswordVault {
 
     /// Creates a new vault containing a complete, already-decoded restore in one encrypted write.
     public func create(password: String, entries: [Entry]) throws {
+        storageLock.lock(); defer { storageLock.unlock() }
         guard !vaultFile.exists(), !backupFile.exists() else {
             throw VaultWriteError.alreadyExists
         }
-        guard !password.isEmpty, password.count <= InputPolicy.maxVaultPasswordChars else {
+        guard !password.isEmpty, password.utf16.count <= InputPolicy.maxTextChars else {
             throw VaultWriteError.invalidInput
         }
         let key = try provisionCredentials(password: password)
-        try writeEncrypted(key: key, entries: entries)
+        try writeEncrypted(key: key, entries: entries, newHeader: VaultContainer.fromSettings(settings))
     }
 
     /// Verifies the password against the stored verifier, then decrypts the vault.
     public func open(password: String) throws -> Unlocked {
+        storageLock.lock(); defer { storageLock.unlock() }
         guard vaultFile.exists() else { throw VaultOpenError.missing }
-        let key = try deriveSessionKey(password: password)
-        return try decrypt(key: key)
+        guard !password.isEmpty else { throw VaultOpenError.authenticationFailed }
+        let bytes: Data
+        do { bytes = try vaultFile.read() } catch { throw VaultOpenError.ioFailure }
+        let key: [UInt8]
+        if VaultContainer.isContainer(bytes) {
+            key = try VaultContainer.deriveKey(password: password, header: VaultContainer.header(bytes))
+        } else { key = try deriveSessionKey(password: password) }
+        return try decrypt(key: key, bytes: bytes)
     }
 
     /// Unlocks with an already-derived key (the hardware-unlock counterpart): no password
     /// verification is possible, so the GCM tag alone decides.
     public func openWithKey(_ key: [UInt8]) throws -> Unlocked {
+        storageLock.lock(); defer { storageLock.unlock() }
         guard vaultFile.exists() else { throw VaultOpenError.missing }
         return try decrypt(key: key)
     }
 
     /// Serializes, encrypts and promotes the whole vault atomically.
     public func save(key: [UInt8], entries: [Entry]) throws {
+        storageLock.lock(); defer { storageLock.unlock() }
         try writeEncrypted(key: key, entries: entries)
     }
 
     /// Copies the current vault bytes over the `.bck` store.
     @discardableResult
     public func backup() -> Bool {
+        storageLock.lock(); defer { storageLock.unlock() }
         do {
             try backupFile.writeAtomic(vaultFile.read())
             return true
@@ -139,6 +156,7 @@ public final class PasswordVault {
     /// Promotes the `.bck` bytes back over the vault.
     @discardableResult
     public func restoreBackup() -> Bool {
+        storageLock.lock(); defer { storageLock.unlock() }
         do {
             try vaultFile.writeAtomic(backupFile.read())
             return true
@@ -150,7 +168,8 @@ public final class PasswordVault {
     /// Verifies `currentPassword`, provisions fresh Argon2id credentials for `newPassword`,
     /// and re-encrypts the vault atomically, rolling back settings + `.bck` on failure.
     public func changePassword(currentPassword: String, newPassword: String) throws -> Unlocked {
-        guard !newPassword.isEmpty, newPassword.count <= InputPolicy.maxVaultPasswordChars else {
+        storageLock.lock(); defer { storageLock.unlock() }
+        guard !newPassword.isEmpty, newPassword.utf16.count <= InputPolicy.maxTextChars else {
             throw VaultWriteError.invalidInput
         }
         let unlocked = try open(password: currentPassword)
@@ -180,7 +199,7 @@ public final class PasswordVault {
         do {
             let newKey = try provisionCredentials(password: newPassword)
             do {
-                try writeEncrypted(key: newKey, entries: unlocked.entries)
+                try writeEncrypted(key: newKey, entries: unlocked.entries, newHeader: VaultContainer.fromSettings(settings))
                 return Unlocked(entries: unlocked.entries, key: newKey)
             } catch {
                 rollbackSettings()
@@ -194,6 +213,32 @@ public final class PasswordVault {
             rollbackSettings()
             throw VaultWriteError.ioFailure
         }
+    }
+
+    /// A full backup of the exact authenticated file, not a re-encrypted entry export.
+    public func snapshot(key: [UInt8]) throws -> Data {
+        storageLock.lock(); defer { storageLock.unlock() }
+        let bytes = try vaultFile.read()
+        guard VaultContainer.isContainer(bytes) else { throw VaultWriteError.invalidInput }
+        var plaintext = try VaultContainer.openWithKey(key, data: bytes)
+        defer { plaintext.resetBytes(in: 0..<plaintext.count) }
+        return bytes
+    }
+
+    /// Never performed by open/save. Keep original bytes in .bck before atomic promotion.
+    public func migrateToContainer(password: String) throws {
+        storageLock.lock(); defer { storageLock.unlock() }
+        let opened = try open(password: password)
+        let prior = try vaultFile.read()
+        if VaultContainer.isContainer(prior) { return }
+        let descriptor = try VaultContainer.fromSettings(settings)
+        var plaintext = try VaultCrypto.open(prior, key: opened.key)
+        defer { plaintext.resetBytes(in: 0..<plaintext.count) }
+        let migrated = try VaultContainer.seal(key: opened.key, header: descriptor, plaintext: plaintext)
+        var verified = try VaultContainer.open(password: password, data: migrated)
+        verified.resetBytes(in: 0..<verified.count)
+        try backupFile.writeAtomic(prior)
+        try vaultFile.writeAtomic(migrated)
     }
 
     // MARK: - Internals
@@ -277,21 +322,25 @@ public final class PasswordVault {
         return credentials.key
     }
 
-    private func decrypt(key: [UInt8]) throws -> Unlocked {
+    private func decrypt(key: [UInt8], bytes: Data? = nil) throws -> Unlocked {
         let sealed: Data
         do {
-            sealed = try vaultFile.read()
+            if let bytes { sealed = bytes } else { sealed = try vaultFile.read() }
         } catch {
             throw VaultOpenError.ioFailure
         }
-        let plain: Data
+        var plain: Data
         do {
-            plain = try VaultCrypto.open(sealed, key: key)
+            if VaultContainer.isContainer(sealed) { plain = try VaultContainer.openWithKey(key, data: sealed) }
+            else { plain = try VaultCrypto.open(sealed, key: key) }
         } catch VaultCryptoError.authenticationFailed {
             throw VaultOpenError.authenticationFailed
+        } catch let error as VaultOpenError {
+            throw error
         } catch {
             throw VaultOpenError.ioFailure
         }
+        defer { plain.resetBytes(in: 0..<plain.count) }
         do {
             return Unlocked(entries: try VaultDocument.decode(plain), key: key)
         } catch {
@@ -299,7 +348,7 @@ public final class PasswordVault {
         }
     }
 
-    private func writeEncrypted(key: [UInt8], entries: [Entry]) throws {
+    private func writeEncrypted(key: [UInt8], entries: [Entry], newHeader: VaultContainer.Header? = nil) throws {
         let text: String
         do {
             text = try VaultDocument.encode(entries)
@@ -313,7 +362,17 @@ public final class PasswordVault {
         }
         let ciphertext: Data
         do {
-            ciphertext = try VaultCrypto.sealWithRandomNonce(plain, key: key)
+            var descriptor = newHeader
+            if descriptor == nil, vaultFile.exists() {
+                let prior = try vaultFile.read()
+                if VaultContainer.isContainer(prior) {
+                    var authenticated = try VaultContainer.openWithKey(key, data: prior)
+                    authenticated.resetBytes(in: 0..<authenticated.count)
+                    descriptor = try VaultContainer.header(prior)
+                }
+            }
+            if let descriptor { ciphertext = try VaultContainer.seal(key: key, header: descriptor, plaintext: plain) }
+            else { ciphertext = try VaultCrypto.sealWithRandomNonce(plain, key: key) }
         } catch {
             throw VaultWriteError.ioFailure
         }
@@ -362,7 +421,8 @@ public struct FileByteStore: AtomicByteStore {
         guard size <= InputPolicy.maxDocumentBytes else {
             throw FileByteStoreError.tooLarge
         }
-        return try Data(contentsOf: url)
+        do { return try BoundedFileReader.read(url) }
+        catch BoundedFileReader.Failure.tooLarge { throw FileByteStoreError.tooLarge }
     }
 
     public func writeAtomic(_ data: Data) throws {
@@ -372,7 +432,7 @@ public struct FileByteStore: AtomicByteStore {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
         try data.write(to: url, options: [.atomic])
-        let promoted = try Data(contentsOf: url)
+        let promoted = try read()
         guard promoted == data else { throw FileByteStoreError.verificationFailed }
     }
 
@@ -397,7 +457,7 @@ public final class PropertyListSettings: KeyValueSettings {
 
     public init(url: URL) {
         self.url = url
-        if let data = try? Data(contentsOf: url),
+        if let data = try? BoundedFileReader.read(url),
            let parsed = try? PropertyListSerialization.propertyList(from: data, format: nil),
            let dictionary = parsed as? [String: Any] {
             values = dictionary
@@ -425,6 +485,19 @@ public final class PropertyListSettings: KeyValueSettings {
     public func setInteger(_ key: String, _ value: Int) {
         values[key] = value
         persist()
+    }
+
+    /// Merge only imported keys, preserving vault material and settings changed since preview.
+    /// Publish the in-memory view only after the complete atomic file write succeeds.
+    public func mergeAtomic(_ changes: [String: Any]) throws {
+        guard !changes.isEmpty else { return }
+        var next = values
+        next.merge(changes) { _, replacement in replacement }
+        let data = try PropertyListSerialization.data(fromPropertyList: next, format: .xml, options: 0)
+        guard data.count <= InputPolicy.maxDocumentBytes else { throw FileByteStoreError.tooLarge }
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try data.write(to: url, options: [.atomic])
+        values = next
     }
 
     private func persist() {

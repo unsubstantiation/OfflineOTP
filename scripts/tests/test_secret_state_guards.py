@@ -21,8 +21,6 @@ SECRET_INPUTS = {
     "component_intro_authentication.xml": {"introPasswordEdit", "introPasswordConfirm"},
     "component_password.xml": {"passwordEntry", "passwordConfirm"},
     "content_authenticate.xml": {"passwordEdit"},
-    "activity_hardware_keys.xml": {"hardwarePassword"},
-    "activity_hardware_unlock.xml": {"hardwareUnlockPin"},
     "dialog_password_entry.xml": {"passwordEntry", "passwordConfirm"},
     "dialog_manual_entry.xml": {"manual_secret", "manual_secret_view"},
 }
@@ -36,6 +34,26 @@ def layout_inputs(layout):
 
 
 class SecretWidgetStateTest(unittest.TestCase):
+    def test_hardware_page_has_no_hidden_secret_widgets(self):
+        layout = ET.parse(RES / "layout/activity_hardware_keys.xml").getroot()
+        self.assertEqual([], list(layout), "only a Compose mount may remain")
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text()
+        for legacy in ("EditText", "TextView", "LinearLayout", "Button(", "performClick", "hardwareTargets", "String(typedPassword)"):
+            self.assertNotIn(legacy, activity)
+        self.assertIn("typedPassword.copyOf()", activity)
+        self.assertIn("typedPassword.fill", activity)
+        self.assertIn("owned?.fill", activity)
+
+    def test_hardware_unlock_has_no_hidden_pin_buffer(self):
+        root = ET.parse(RES / "layout/activity_hardware_unlock.xml").getroot()
+        self.assertEqual("FrameLayout", root.tag)
+        self.assertEqual([], list(root))
+        activity = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareUnlockActivity.kt").read_text()
+        for legacy in ("EditText", "String(typedPin)", "pin.setText", "findViewById"):
+            self.assertNotIn(legacy, activity)
+        self.assertIn("unlock(typedPin.copyOf())", activity)
+        self.assertIn("chars.fill", activity)
+
     def test_secret_inputs_do_not_save_view_state(self):
         problems = []
         for layout_name, ids in SECRET_INPUTS.items():

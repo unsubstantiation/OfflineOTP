@@ -25,6 +25,62 @@ class DesktopEncryptedExportTest {
         add(ManualEntryInput(label = "alice", secret = "JBSWY3DPEHPK3PXP").build())
     }
 
+    @Test fun migrationIsExplicitRevocableAndDoesNotRunOnPlainSnapshot() {
+        val directory = Files.createTempDirectory("snapshot-migration-").toFile()
+        val state = state(); val worker = Queue(); val ui = Queue(); var migrated = 0
+        val exporter = DesktopEncryptedExport(state, worker, ui::execute, {}, rawSnapshot = { byteArrayOf(1) },
+            migrateSnapshot = { password, _, active -> assertEquals("current-password", password); assertTrue(active()); migrated++; byteArrayOf(2) })
+        try {
+            val first = File(directory, "plain.offlineotp"); exporter.open(first)
+            assertTrue(exporter.submitSnapshot(exporter.pending!!)); worker.runNext(); ui.runNext()
+            assertEquals(0, migrated); assertTrue(first.readBytes().contentEquals(byteArrayOf(1)))
+            val second = File(directory, "migrate.offlineotp"); exporter.open(second); val request = exporter.pending!!
+            assertFalse(exporter.submitMigration(request, "")); assertTrue(exporter.submitMigration(request, "current-password"))
+            exporter.dismiss(request); worker.runNext(); assertEquals(0, migrated); assertFalse(second.exists())
+            exporter.open(second); assertTrue(exporter.submitMigration(exporter.pending!!, "current-password"))
+            worker.runNext(); ui.runNext(); assertEquals(1, migrated); assertTrue(second.readBytes().contentEquals(byteArrayOf(2)))
+        } finally { exporter.close(); state.lock(); directory.deleteRecursively() }
+    }
+
+    @Test fun fullSnapshotWritesExactBytesWithoutSerializingOrReencryptingEntries() {
+        val directory = Files.createTempDirectory("snapshot-export-").toFile()
+        val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0
+        val original = byteArrayOf(1, 2, 3, 4)
+        val exporter = DesktopEncryptedExport(state, worker, ui::execute, {},
+            seal = { _, _ -> error("must not re-encrypt") }, snapshot = { error("must not serialize entries") },
+            rawSnapshot = { key -> calls++; assertTrue(key.encoded.all { it == 1.toByte() }); original.copyOf() })
+        val target = File(directory, "vault.offlineotp")
+        try {
+            exporter.open(target); val request = exporter.pending!!
+            assertTrue(exporter.submitSnapshot(request)); assertFalse(exporter.submitSnapshot(request))
+            assertEquals(0, calls); assertFalse(target.exists())
+            state.updateKey(SecretKeySpec(ByteArray(32) { 2 }, "AES"))
+            worker.runNext(); assertEquals(1, calls)
+            assertTrue(target.readBytes().contentEquals(original)); assertFalse(exporter.saved)
+            ui.runNext(); assertTrue(exporter.saved)
+        } finally { exporter.close(); state.lock(); directory.deleteRecursively() }
+    }
+
+    @Test fun queuedFullSnapshotIsRevocableAndUnavailableSnapshotsNeverWrite() {
+        val directory = Files.createTempDirectory("snapshot-cancel-").toFile()
+        val state = state(); val worker = Queue(); val ui = Queue(); var calls = 0
+        val exporter = DesktopEncryptedExport(state, worker, ui::execute, {}, rawSnapshot = { calls++; error("legacy") })
+        val target = File(directory, "vault.offlineotp")
+        try {
+            exporter.open(target); val first = exporter.pending!!
+            assertTrue(exporter.submitSnapshot(first))
+            val task = exporter.javaClass.getDeclaredField("work").apply { isAccessible = true }.get(exporter)
+            val input = task.javaClass.getDeclaredField("input").apply { isAccessible = true }.get(task)
+            val key = input.javaClass.getDeclaredField("key").apply { isAccessible = true }.get(input) as ByteArray
+            exporter.dismiss(first); assertTrue(key.all { it == 0.toByte() }); worker.runNext()
+            assertEquals(0, calls); assertFalse(target.exists())
+            exporter.open(target); val second = exporter.pending!!
+            assertTrue(exporter.submitSnapshot(second)); worker.runNext(); ui.runNext()
+            assertEquals(1, calls); assertFalse(target.exists()); assertFalse(second.busy)
+            assertEquals(DesktopEncryptedExport.Failure.EXPORT, second.failure)
+        } finally { exporter.close(); state.lock(); directory.deleteRecursively() }
+    }
+
     @Test
     fun encryptedFileRoundTripsTheDetachedSnapshotAndRequiresUiDeliveryForSuccess() {
         val directory = Files.createTempDirectory("compose-export-").toFile()

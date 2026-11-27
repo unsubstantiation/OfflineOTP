@@ -42,7 +42,7 @@ class OpenPgpKeyFileModeTest(unittest.TestCase):
         activity = ACTIVITY.read_text(encoding="utf-8")
         setup = activity[activity.index("private fun setupBackupType("):]
         key_file_branch = setup[setup.index("if (usesKeyFileMode())"):]
-        key_file_branch = key_file_branch[:key_file_branch.index("txtBackupLabel?.setText(R.string.backup_label_pgp)")]
+        key_file_branch = key_file_branch[:key_file_branch.index("backupDescription = getString(R.string.backup_label_pgp)")]
         self.assertIn("releaseOpenPgpService()", key_file_branch)
         self.assertIn("updateKeyFileAvailability()", key_file_branch)
         # A resumed picker action must not wait for a provider binding in this mode.

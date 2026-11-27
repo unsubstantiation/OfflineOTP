@@ -144,7 +144,7 @@ fun SharedEmailAccountDialog(
                     Text(text = "Artwork: $artworkSummary")
                     ForestTextAction(text = "Choose artwork", onClick = { pickingThumbnail = true })
                 }
-                if (error != null) Text(text = error)
+                SharedStatusMessage(error)
             }
         },
         confirmButton = {

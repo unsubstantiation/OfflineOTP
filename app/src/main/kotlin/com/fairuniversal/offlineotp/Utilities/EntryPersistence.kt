@@ -143,7 +143,9 @@ class EntryPersistence(context: Context) {
                 else reportFailure(callback)
                 return
             }
-            val task: UiBasedBackgroundTask<BackupTaskResult> = if (LoginBackupPolicy.usesLoginPassword(context)) {
+            val task: UiBasedBackgroundTask<BackupTaskResult> = if (LoginBackupPolicy.usesVaultCopy(context)) {
+                TrackedSnapshotBackupTask(context, finish)
+            } else if (LoginBackupPolicy.usesLoginPassword(context)) {
                 lease = VaultSession.copyBackupKey() ?: run {
                     finish(false)
                     reportFailure(callback)
@@ -162,6 +164,24 @@ class EntryPersistence(context: Context) {
             try { lease?.close() } catch (_: RuntimeException) { }
             finish(false)
             reportFailure(callback)
+        }
+    }
+
+    /** Saved-file copies use the same durable retry marker, never entry/password export inputs. */
+    private class TrackedSnapshotBackupTask(context: Context, private val onFinished: (Boolean) -> Unit) :
+        com.fairuniversal.offlineotp.Tasks.VaultSnapshotBackupTask(context, null) {
+        private val configuredLocation = if (settings.isBackupLocationSet()) settings.getBackupLocation() else null
+        private val started = AtomicBoolean(false)
+        private val finished = AtomicBoolean(false)
+        private fun finish(success: Boolean) { if (finished.compareAndSet(false, true)) onFinished(success) }
+        override fun isAutomatic(): Boolean = true
+        override fun canWrite(): Boolean = super.canWrite() && LoginBackupPolicy.usesVaultCopy(applicationContext) &&
+            settings.getAutoBackupEncryptedPasswordsEnabled() && configuredLocation != null &&
+            settings.isBackupLocationSet() && configuredLocation == settings.getBackupLocation()
+        override fun onCancellation() { if (!started.get()) finish(false) }
+        override fun doInBackground(): BackupTaskResult {
+            started.set(true)
+            return try { super.doInBackground().also { finish(it.success) } } finally { finish(false) }
         }
     }
 

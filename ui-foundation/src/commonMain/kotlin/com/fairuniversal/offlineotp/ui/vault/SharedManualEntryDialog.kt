@@ -277,7 +277,7 @@ fun SharedManualEntryDialog(
                         )
                     }
                 }
-                if (error != null) Text(text = error)
+                SharedStatusMessage(error)
             }
         },
         confirmButton = {

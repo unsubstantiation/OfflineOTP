@@ -112,6 +112,7 @@ class EntryEditor(
         val proposed = state.snapshot()
         val index = proposed.indexOf(existing)
         if (index < 0 || proposed.indices.any { it != index && proposed[it] == replacement }) return false
+        replacement.preserveExtensionFieldsFrom(existing)
         proposed[index] = replacement
         if (!controller.save(state.key, proposed)) return false
         return state.replace(existing, replacement)

@@ -64,7 +64,7 @@ final class VaultRoundTripTests: XCTestCase {
         XCTAssertEqual(verifier?.count, VaultCrypto.vaultKeyBytes)
     }
 
-    func testUnknownAuthKdfIsReportedAsCorrupt() throws {
+    func testContainerRecoveryDoesNotDependOnExternalKdfSettings() throws {
         let settings = MemorySettings()
         let store = MemoryByteStore(data: nil)
         let vault = PasswordVault(vaultFile: store,
@@ -72,9 +72,7 @@ final class VaultRoundTripTests: XCTestCase {
                                   settings: settings)
         try vault.create(password: "correct horse battery")
         settings.setString(VaultSettingsKeys.authKdf, "scrypt")
-        XCTAssertThrowsError(try vault.open(password: "correct horse battery")) { error in
-            XCTAssertEqual(error as? VaultOpenError, .corrupt)
-        }
+        XCTAssertNoThrow(try vault.open(password: "correct horse battery"))
     }
 
     func testSavingAndReopeningKeepsEveryEntry() throws {
@@ -138,8 +136,8 @@ final class VaultRoundTripTests: XCTestCase {
         try vault.save(key: unlocked.key, entries: [try totpEntry()])
         let second = try XCTUnwrap(store.data)
         XCTAssertNotEqual(first, second, "a fresh nonce is written every time")
-        XCTAssertEqual(try VaultCrypto.open(first, key: unlocked.key),
-                       try VaultCrypto.open(second, key: unlocked.key))
+        XCTAssertEqual(try VaultContainer.openWithKey(unlocked.key, data: first),
+                       try VaultContainer.openWithKey(unlocked.key, data: second))
     }
 
     func testBackupAndRestoreRoundTrip() throws {

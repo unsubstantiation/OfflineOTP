@@ -79,6 +79,16 @@ class HardwareKeyManager(
             HardwareOathClient.calculate(device, pin, deviceId, account.credential, permitted)
         }
 
+    fun deleteOathAccount(pin: CharArray?, deviceId: String, account: HardwareOathClient.Account,
+                          token: CancelToken): Result<Unit> = withDevice(pin, token) { device, permitted ->
+        HardwareOathClient.deleteFromKey(device, pin, deviceId, account.credential, true, permitted)
+    }
+
+    fun renameOathAccount(pin: CharArray?, deviceId: String, account: HardwareOathClient.Account,
+                          issuer: String, name: String, token: CancelToken): Result<Unit> = withDevice(pin, token) { device, permitted ->
+        HardwareOathClient.renameOnKey(device, pin, deviceId, account.credential, issuer, name, true, permitted)
+    }
+
     fun copyEntryToKey(
         pin: CharArray?, entry: Entry, requireTouch: Boolean, token: CancelToken
     ): Result<Unit> =

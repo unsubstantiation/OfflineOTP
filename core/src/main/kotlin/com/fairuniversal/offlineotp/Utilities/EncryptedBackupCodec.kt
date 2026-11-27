@@ -49,6 +49,10 @@ object EncryptedBackupCodec {
      */
     @JvmStatic
     fun open(password: String, data: ByteArray): String {
+        if (VaultContainer.isContainer(data)) {
+            val plaintext = VaultContainer.open(password, data)
+            return try { String(plaintext, StandardCharsets.UTF_8) } finally { plaintext.fill(0) }
+        }
         if (LinScpCredentials.isEncryptedVault(data)) {
             return LinScpCredentials.openVaultToJson(data, password)
         }

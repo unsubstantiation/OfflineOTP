@@ -156,7 +156,7 @@ fun SharedIntroScreen(
             )
 
             if (error != null) {
-                Text(text = error, style = ForestType.label, color = ForestPalette.warning, modifier = Modifier.padding(top = 8.dp))
+                com.fairuniversal.offlineotp.ui.vault.SharedStatusMessage(error, modifier = Modifier.padding(top = 8.dp))
             }
 
             if (requiresPassword) {

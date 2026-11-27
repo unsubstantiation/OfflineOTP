@@ -1,0 +1,164 @@
+{
+  "vectors": [
+    {
+      "name": "simple",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "alice",
+      "identifier": "alice"
+    },
+    {
+      "name": "issuer",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "example",
+      "account": "alice",
+      "identifier": "example:alice"
+    },
+    {
+      "name": "nondefault",
+      "counterBased": false,
+      "period": 60,
+      "issuer": "example",
+      "account": "alice",
+      "identifier": "60/example:alice"
+    },
+    {
+      "name": "hotp-keeps-counter",
+      "counterBased": true,
+      "period": 0,
+      "issuer": "example",
+      "account": "alice",
+      "identifier": "example:alice"
+    },
+    {
+      "name": "literal-period-account",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "60/alice",
+      "identifier": "30/60/alice"
+    },
+    {
+      "name": "literal-period-issuer",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "60/example",
+      "account": "alice",
+      "identifier": "30/60/example:alice"
+    },
+    {
+      "name": "hotp-literal",
+      "counterBased": true,
+      "period": 0,
+      "issuer": "",
+      "account": "60/alice",
+      "identifier": "60/alice"
+    },
+    {
+      "name": "account-colon-with-issuer",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "example",
+      "account": "a:b",
+      "identifier": "example:a:b"
+    },
+    {
+      "name": "ambiguous-colon",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "a:b",
+      "identifier": null
+    },
+    {
+      "name": "issuer-colon",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "a:b",
+      "account": "alice",
+      "identifier": null
+    },
+    {
+      "name": "empty-account",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "",
+      "identifier": null
+    },
+    {
+      "name": "exact-ascii-limit",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "identifier": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    {
+      "name": "ascii-overflow",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "identifier": null
+    },
+    {
+      "name": "utf8-exact",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "éééééééééééééééééééééééééééééééé",
+      "identifier": "éééééééééééééééééééééééééééééééé"
+    },
+    {
+      "name": "utf8-overflow",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "ééééééééééééééééééééééééééééééééé",
+      "identifier": null
+    },
+    {
+      "name": "prefix-overflow",
+      "counterBased": false,
+      "period": 60,
+      "issuer": "",
+      "account": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "identifier": null
+    },
+    {
+      "name": "invalid-period",
+      "counterBased": false,
+      "period": 0,
+      "issuer": "",
+      "account": "alice",
+      "identifier": null
+    },
+    {
+      "name": "directional",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "a‮b",
+      "identifier": null
+    },
+    {
+      "name": "line-separator",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "",
+      "account": "a b",
+      "identifier": null
+    },
+    {
+      "name": "control",
+      "counterBased": false,
+      "period": 30,
+      "issuer": "a\u0000b",
+      "account": "alice",
+      "identifier": null
+    }
+  ]
+}

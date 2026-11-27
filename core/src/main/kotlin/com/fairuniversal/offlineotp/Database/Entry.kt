@@ -82,6 +82,8 @@ open class Entry {
     // Optional connection metadata; only SSH key entries may carry it.
     private var sshConnection: SshConnection.Details? = null
     private var listId = 0L
+    // Detached immutable JSON, never shared with a caller's mutable JSONObject/JSONArray.
+    private var extensionFields: String? = null
 
     constructor()
 
@@ -200,6 +202,7 @@ open class Entry {
             this.pin = value.pin
             this.sshConnection = value.sshConnection
             validate()
+            this.extensionFields = EntryJson.extensionFields(jsonObj)
         } catch (error: RuntimeException) {
             destroy()
             throw error
@@ -264,7 +267,11 @@ open class Entry {
         tags = ArrayList()
         visible = false
         hideTask = null
+        extensionFields = null
     }
+
+    /** Preserve opaque newer-client fields when a form replaces the typed portion of an entry. */
+    fun preserveExtensionFieldsFrom(source: Entry) { extensionFields = source.extensionFields }
 
     /** Serializes this entry to the JSON object used in the database and in backups. */
     @Throws(JSONException::class)
@@ -285,7 +292,12 @@ open class Entry {
         pin = getPin(),
         detailsVisible = detailsVisible,
         sshConnection = sshConnection
-    )
+    ).also { result ->
+        extensionFields?.let { text ->
+            val extras = JSONObject(text)
+            for (key in extras.keys().asSequence().toList().sorted()) result.put(key, extras.get(key))
+        }
+    }
 
     /**
      * Serializes this entry to an otpauth:// URI string. Pure JVM percent-encoding (spaces become

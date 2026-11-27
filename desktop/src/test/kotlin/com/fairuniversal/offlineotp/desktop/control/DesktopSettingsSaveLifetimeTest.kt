@@ -116,4 +116,33 @@ class DesktopSettingsSaveLifetimeTest {
             assertFalse(lifetime.checkActive()); assertTrue(state.isLocked)
         } finally { settings.close(); lifetime.close(); state.lock() }
     }
+    @Test fun atomicTimeoutCommitCannotReviveDeadlineThatExpiredDuringDiskWrite() {
+        val state = state(); val clock = Clock(); var batches = 0
+        val settings = DesktopAutoLockSettings(state, { 30 }, { error("individual timeout write") },
+            writeSelection = { _, _ -> batches++; clock.now = 30_000; true })
+        val lifetime = DesktopSessionLifetime(clock, 30) { settings.close(); state.lock() }
+        try {
+            settings.open(); val request = settings.pending!!
+            assertFalse(settings.submit(request, 0, true, lifetime))
+            assertEquals(1, batches); assertTrue(state.isLocked); assertFalse(request.failed)
+            assertFalse(lifetime.checkActive())
+        } finally { settings.close(); lifetime.close(); state.lock() }
+    }
+
+    @Test fun atomicTimeoutFailureKeepsDialogForRetryAndDoesNotUseIndividualWriters() {
+        val state = state(); val clock = Clock(); var batches = 0; var fail = true
+        val settings = DesktopAutoLockSettings(state, { 30 }, { error("individual timeout write") },
+            writeRelockOnBackground = { error("individual background write") },
+            writeSelection = { _, _ -> batches++; !fail })
+        val lifetime = DesktopSessionLifetime(clock, 30) { state.lock() }
+        try {
+            settings.open(); val request = settings.pending!!
+            assertFalse(settings.submit(request, 60, true, lifetime)); assertTrue(request.failed)
+            assertTrue(lifetime.checkActive()); assertEquals(1, batches)
+            fail = false
+            assertTrue(settings.submit(request, 60, true, lifetime)); assertEquals(2, batches)
+            assertTrue(settings.pending == null)
+        } finally { settings.close(); lifetime.close(); state.lock() }
+    }
+
 }

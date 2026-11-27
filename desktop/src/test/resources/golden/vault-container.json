@@ -1,0 +1,19 @@
+{
+  "description": "Synthetic cross-client vault container vectors; independent argon2-cffi/hashlib and cryptography AESGCM. Test credentials only.",
+  "vectors": [
+    {
+      "name": "argon2id",
+      "password": "synthetic-container-password",
+      "plaintext": "[]",
+      "keyHex": "1f381c8f0794e8b0329a0c91b6e452be6aadd6639c4b446f011d5ec3b4a1a776",
+      "fileHex": "4f5450564c540d0a01010100000000200000000100000001000102030405060708090a0b0c0d0e0fa0a1a2a3a4a5a6a7a8a9aaab8ff7bde2a5b65ecb735a4d5f329f61b71c17"
+    },
+    {
+      "name": "legacy-pbkdf2",
+      "password": "synthetic-container-password",
+      "plaintext": "[]",
+      "keyHex": "8f2dc5c694dbcc97faabd24cfb9dfef9",
+      "fileHex": "4f5450564c540d0a01010200000000000000100000000000000102030405060708090a0b0c0d0e0fa0a1a2a3a4a5a6a7a8a9aaab78a4ab0662cd6bdb069a03992967e0483b06"
+    }
+  ]
+}

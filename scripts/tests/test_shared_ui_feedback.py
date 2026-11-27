@@ -29,8 +29,9 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("toast = toast,", screen)
         self.assertIn("onDismissToast = onDismissToast,", screen)
         host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
-        self.assertIn("toast = copyNotice.orEmpty()", host)
-        self.assertIn("onDismissToast = { copyNotice = null }", host)
+        self.assertIn("toast = if (automaticBackup.failed) automaticBackup.message else copyNotice.orEmpty()", host)
+        self.assertIn("automaticBackup.dismissNotice()", host)
+        self.assertIn("onDismissToast = { if (automaticBackup.failed) automaticBackup.dismissNotice() else copyNotice = null }", host)
         self.assertNotIn('EntryConfirmationDialog(title = "Copy", message = message', host)
 
     def test_revealed_non_countdown_code_keeps_counter(self):
@@ -123,7 +124,11 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("!canOperate() || !allowExit || pendingPickerRequestCode != null", backup)
         xml = ET.parse(ROOT / "app/src/main/res/layout/content_backup.xml").getroot()
         self.assertEqual("FrameLayout", xml.tag)
-        self.assertEqual("gone", xml[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        self.assertEqual(0, len(xml), "backup page must not retain hidden legacy controls")
+        for legacy in ("Spinner", "Button(", "performClick", "swReplace", "txtBackupLabel", "SwitchMaterial", "ProgressBar"):
+            self.assertNotIn(legacy, backup)
+        self.assertIn("private var replaceExisting = false", backup)
+        self.assertIn("outState.putBoolean(STATE_REPLACE_MODE, replaceExisting)", backup)
         screen = (FOUNDATION / "SharedBackupScreen.kt").read_text()
         tools = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
         self.assertIn("SharedVaultToolGroups(", screen)
@@ -134,7 +139,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         import xml.etree.ElementTree as ET
         xml = ET.parse(ROOT / "app/src/main/res/layout/activity_hardware_keys.xml").getroot()
         self.assertEqual("FrameLayout", xml.tag)
-        self.assertEqual("gone", xml[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        self.assertEqual(0, len(xml), "hardware page must not retain hidden legacy controls")
         screen = (FOUNDATION / "SharedHardwareKeysScreen.kt").read_text()
         self.assertIn("PasswordVisualTransformation()", screen)
         self.assertNotIn("rememberSaveable", screen)
@@ -151,8 +156,8 @@ class SharedUiFeedbackTest(unittest.TestCase):
     def test_hardware_unlock_uses_desktop_form_with_android_transport_notice(self):
         import xml.etree.ElementTree as ET
         root = ET.parse(ROOT / "app/src/main/res/layout/activity_hardware_unlock.xml").getroot()
-        self.assertEqual("ScrollView", root.tag)
-        self.assertEqual("gone", root[0].get("{http://schemas.android.com/apk/res/android}visibility"))
+        self.assertEqual("FrameLayout", root.tag)
+        self.assertEqual(0, len(root))
         dialog = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/HardwareUnlockDialog.kt").read_text()
         self.assertIn("transportNotice: String", dialog)
         self.assertIn("Text(text = transportNotice)", dialog)
@@ -173,14 +178,14 @@ class SharedUiFeedbackTest(unittest.TestCase):
         settings = (base / "SettingsActivity.kt").read_text()
         self.assertIn("SettingsOverviewComposeView(this, ::dispatchSettingsOverviewAction)", settings)
         self.assertIn(".replace(R.id.settings_legacy_content, settingsFragment)", settings)
-        self.assertIn("STATE_ADVANCED_SETTINGS, showingAdvancedSettings", settings)
-        self.assertIn("returnToSettingsOverview()", settings)
+        self.assertNotIn("STATE_ADVANCED_SETTINGS", settings)
+        self.assertNotIn("returnToSettingsOverview()", settings)
         self.assertIn("overviewGeneration = VaultSession.generation()", settings)
         self.assertIn("VaultSession.getKey() === encryptionKey", settings)
         for dialog in ("CardDisplayComposeView", "AutoLockComposeView", "MultiChoiceSelectionComposeView"):
             self.assertIn(dialog + "(", settings)
         self.assertIn("settingsOverview?.close()", settings)
-        self.assertIn("showingAdvancedSettings || settingsConfirmationPrompt != null", settings)
+        self.assertIn("overviewPickerPending || settingsConfirmationPrompt != null", settings)
         layout = ET.parse(ROOT / "app/src/main/res/layout/content_settings.xml").getroot()
         self.assertEqual("FrameLayout", layout.tag)
         self.assertEqual("gone", layout[0].get("{http://schemas.android.com/apk/res/android}visibility"))
@@ -356,7 +361,9 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("SetupChoiceComposeView(", encryption)
         self.assertIn("renderSharedStep()", encryption)
         self.assertIn("sharedStep?.close()", encryption)
-        self.assertIn("spinner.setSelection(index)", encryption)
+        self.assertIn("index == 0", encryption)
+        self.assertIn("listOf(labels[passwordIndex])", encryption)
+        self.assertIn("return Constants.EncryptionType.PASSWORD", encryption)
         self.assertIn("STATE_ENCRYPTION_SELECTION", encryption)
         sync = intro.split("open class AndroidSyncFragment", 1)[1].split("open class AuthenticationFragment", 1)[0]
         self.assertIn("SetupChoiceComposeView(", sync)
@@ -435,7 +442,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
             self.assertIn(marker, source)
         self.assertEqual(2, source.count("VaultSession.isCurrent(generation)"))
         self.assertEqual(2, source.count("val owned = settingsConfirmationPrompt === host"))
-        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyBackupPasswordSource", 1)[1].split("fun Settings.applySeparateBackupPassword", 1)[0]
+        adapter = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/AndroidPreferencesPort.kt").read_text().split("fun Settings.applyBackupPasswordSource", 1)[1].split("fun Settings.applyVaultCopyBackupSource", 1)[0]
         self.assertIn("useLogin && hasLegacyBackupPassword(context) && !removeLegacy", adapter)
         self.assertIn("useLogin && removeLegacy", adapter)
         self.assertEqual(1, adapter.count(".commit()"))
@@ -771,7 +778,7 @@ class SharedUiFeedbackTest(unittest.TestCase):
         self.assertIn("sharedAuthentication?.showFeedback(error.message(this))", callback)
         form = (ROOT / "ui-foundation/src/commonMain/kotlin/com/fairuniversal/offlineotp/ui/unlock/SharedAuthenticationScreen.kt").read_text()
         self.assertIn("feedback: String? = null", form)
-        self.assertIn("liveRegion = LiveRegionMode.Polite", form)
+        self.assertIn("SharedStatusMessage(feedback)", form)
 
     def test_authentication_native_retry_paths_clear_shared_feedback(self):
         auth = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/AuthenticateActivity.kt").read_text()
@@ -785,8 +792,61 @@ class SharedUiFeedbackTest(unittest.TestCase):
         hardware = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareKeyActivity.kt").read_text()
         self.assertNotIn("Toast.makeText", hardware)
         helper = hardware.split("private fun showHardwareStatus(", 1)[1].split("private fun showComposeDialog", 1)[0]
-        self.assertIn("if (!sessionReady() || !::status.isInitialized) return", helper)
-        self.assertIn("status.setText(message)", helper)
+        self.assertIn("if (!sessionReady()) return", helper)
+        self.assertIn("hardwareStatus = getString(message)", helper)
         self.assertIn("publishHardwarePage()", helper)
         for name in ("copy_done", "enroll_done", "no_candidates", "enroll_password_only"):
             self.assertIn(f"showHardwareStatus(R.string.hardware_{name})", hardware)
+
+    def test_persistent_status_is_shared_across_tools_authentication_and_secret_forms(self):
+        tools = (FOUNDATION / "SharedVaultToolsDialog.kt").read_text()
+        self.assertIn("fun SharedStatusMessage(", tools)
+        self.assertIn("liveRegion = LiveRegionMode.Polite", tools)
+        self.assertIn("SharedStatusMessage(message)", tools)
+        self.assertIn("if (!message.isNullOrEmpty())", tools)
+        for path, message in ((FOUNDATION / "BiometricEnableDialog.kt", "operationError ?: error"),
+            (FOUNDATION.parent / "unlock/HardwareUnlockDialog.kt", "error")):
+            self.assertIn(f"SharedStatusMessage({message}", path.read_text())
+        native = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/HardwareUnlockActivity.kt").read_text()
+        self.assertNotIn("Toast.makeText", native)
+        self.assertIn("unlockError = getString(R.string.hardware_failed)", native)
+
+    def test_common_dialog_errors_use_one_status_renderer(self):
+        names = ("TagsDialog", "SharedPasswordImportDialog", "SharedPasswordEntryDialog", "SharedEntryPinDialog",
+            "SharedManualEntryDialog", "SharedEmailSettingsDialog", "SharedEmailPasswordDialog", "SharedEmailEditDialog",
+            "SharedEmailAccountDialog", "SharedCardLayoutDialog", "PreferencesImportDialog", "PreferencesExportDialog",
+            "OpenPgpImportDialog", "OpenPgpExportDialog", "PasswordChangeDialog", "LinScpImportDialog", "LinScpExportDialog",
+            "EntryConfirmationDialog", "EncryptedRestoreDialog", "EmailImportDialog", "AutoLockDialog", "EncryptedExportDialog")
+        for name in names:
+            self.assertIn("SharedStatusMessage(", (FOUNDATION / f"{name}.kt").read_text(), name)
+
+    def test_backup_closing_failure_uses_allowlisted_destination_feedback(self):
+        backup = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/BackupActivity.kt").read_text()
+        self.assertNotIn("notifyBackupState(", backup)
+        self.assertIn('"export_failed" else "import_failed"', backup)
+        main = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/MainActivity.kt").read_text()
+        self.assertIn('"export_failed" -> R.string.backup_toast_file_creation_failed', main)
+        self.assertIn('"import_failed" -> R.string.backup_toast_import_failed', main)
+
+    def test_android_hybrid_hosts_own_system_and_keyboard_insets_once(self):
+        helper = (ROOT / "app/src/main/kotlin/com/fairuniversal/offlineotp/Utilities/ActivityContentInsets.kt").read_text()
+        self.assertIn("WindowCompat.setDecorFitsSystemWindows(activity.getWindow(), false)", helper)
+        for kind in ("systemBars", "displayCutout", "ime"):
+            self.assertIn(f"WindowInsetsCompat.Type.{kind}()", helper)
+        self.assertIn("WindowInsetsCompat.CONSUMED", helper)
+        self.assertLess(helper.index("val bottom = content.paddingBottom"), helper.index("setOnApplyWindowInsetsListener"))
+        for name in ("ThemedActivity", "IntroScreenActivity"):
+            activity = (ROOT / f"app/src/main/kotlin/com/fairuniversal/offlineotp/Activities/{name}.kt").read_text()
+            self.assertIn("ActivityContentInsets.install(this)", activity)
+
+    def test_desktop_camera_is_explicit_and_uses_existing_import_review(self):
+        host = (ROOT / "desktop-compose/src/main/kotlin/com/fairuniversal/offlineotp/desktop/compose/ComposeMain.kt").read_text()
+        self.assertIn("CameraCaptureDialog(", host)
+        self.assertIn("DesktopQrCamera.capture(device, permitted)", host)
+        self.assertIn("uriImporter.pending === request", host)
+        self.assertIn("cameraInput = cameraInput", host)
+        camera = (ROOT / "desktop/src/main/kotlin/com/fairuniversal/offlineotp/desktop/qr/DesktopQrCamera.kt").read_text()
+        self.assertIn("TimeUnit.SECONDS.toNanos(10)", camera)
+        self.assertIn("process.destroyForcibly()", camera)
+        self.assertIn("bytes.fill(0)", camera)
+        self.assertNotIn("Runtime.getRuntime().exec", camera)

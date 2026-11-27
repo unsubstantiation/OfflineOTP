@@ -68,7 +68,7 @@ open class EncryptedBackupBroadcastReceiver : BackupBroadcastReceiver() {
 
         // Broadcasts can retry a real pending change, not manufacture unchanged snapshots. Login
         // backup keys exist only in the unlocked process and are retried there instead.
-        if (LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled() ||
+        if (LoginBackupPolicy.usesVaultCopy(context) || LoginBackupPolicy.usesLoginPassword(context) || !settings.getAutoBackupEncryptedPasswordsEnabled() ||
                 PendingAutomaticBackup.read(context) == null) return
         if (!settings.tryAcquireBroadcastBackupSlot()) return
         val password: String? = settings.getBackupPasswordEnc()

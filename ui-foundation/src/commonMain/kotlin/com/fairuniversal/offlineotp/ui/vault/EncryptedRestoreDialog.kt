@@ -32,7 +32,7 @@ fun EncryptedRestoreDialog(inputKey: Any, busy: Boolean, count: Int?, failed: Bo
                 RestoreModeSelection(replace = replace, busy = busy, onReplaceChange = { replace = it })
             }
             if (busy) Text(text = "Decrypting…")
-            if (failed) Text(text = "Could not restore the backup. Check the password, file and vault storage, then try again.")
+            if (failed) SharedStatusMessage("Could not restore the backup. Check the password, file and vault storage, then try again.")
         } },
         confirmButton = { ForestTextAction(text = if (count == null) "Open backup" else if (replace) "Replace all entries" else "Merge entries",
             enabled = !busy && (count != null || password.isNotEmpty()), onClick = {

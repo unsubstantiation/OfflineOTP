@@ -54,6 +54,7 @@ data class ManualEntryInput(
             hiddenLabel = if (clearHiddenLabel) "" else hiddenLabel.ifEmpty { existing?.getHiddenLabel().orEmpty() }, newEntry = existing == null
         ).also { replacement ->
             if (existing != null) {
+                replacement.preserveExtensionFieldsFrom(existing)
                 replacement.setDetailsVisible(existing.areDetailsVisible())
                 replacement.setLastUsed(existing.getLastUsed())
                 replacement.setUsedFrequency(existing.getUsedFrequency())

@@ -40,14 +40,17 @@ class DesktopQrImageRead(
     fun close() { closed = true; clear() }
     fun take(): String? = text.also { text = null; changed() }
 
-    fun submit(file: File, active: () -> Boolean): Boolean {
+    fun submit(file: File, active: () -> Boolean): Boolean = submitCapture(active) { decode(file) }
+
+    /** Shared worker/result ownership for file decoding and native camera capture. */
+    fun submitCapture(active: () -> Boolean, capture: (permitted: () -> Boolean) -> String?): Boolean {
         if (closed || busy || !active()) return false
         clear()
         val task = Work(); work = task; busy = true; changed()
         try {
             worker.execute {
                 if (!task.active()) return@execute
-                val decoded = try { decode(file)?.takeIf { it.isNotBlank() && it.length <= InputPolicy.MAX_URI_CHARS } }
+                val decoded = try { capture { task.active() }?.takeIf { it.isNotBlank() && it.length <= InputPolicy.MAX_URI_CHARS } }
                     catch (_: Exception) { null }
                 if (!task.offer(decoded)) return@execute
                 try { dispatch(Runnable {

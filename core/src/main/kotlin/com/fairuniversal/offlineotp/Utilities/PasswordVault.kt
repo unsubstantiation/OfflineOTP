@@ -64,15 +64,16 @@ class PasswordVault(
     fun create(password: String): VaultWriteResult = create(password, ArrayList())
 
     /** Provisions a new vault directly from a fully decoded restore; never creates a partial empty vault. */
+    @Synchronized
     fun create(password: String, initialEntries: ArrayList<Entry>): VaultWriteResult {
         if (vaultFile.exists() || backupFile.exists())
             return VaultWriteResult.Rejected(VaultWriteError.ALREADY_EXISTS)
         return try {
-            require(password.isNotEmpty() && password.length <= InputPolicy.MAX_TEXT_CHARS) {
+            require(password.isNotEmpty() && password.length <= InputPolicy.MAX_TEXT_CHARS && StandardCharsets.UTF_8.newEncoder().canEncode(password)) {
                 "Invalid vault password"
             }
             val key = provisionCredentials(password)
-            writeEncrypted(key, initialEntries)
+            writeEncrypted(key, initialEntries, VaultContainer.fromSettings(settings))
             VaultWriteResult.Saved
         } catch (error: IllegalArgumentException) {
             VaultWriteResult.Rejected(VaultWriteError.INVALID_INPUT)
@@ -86,11 +87,15 @@ class PasswordVault(
      * maps to [VaultReadError.AUTHENTICATION_FAILED]; missing/malformed settings or documents to
      * the same error categories [com.fairuniversal.offlineotp.Utilities.DatabaseHelper] uses.
      */
+    @Synchronized
     fun open(password: String): Open {
         if (!vaultFile.exists()) return Open.Failed(VaultReadError.MISSING)
+        if (password.isEmpty() || password.length > InputPolicy.MAX_TEXT_CHARS) return Open.Failed(VaultReadError.AUTHENTICATION_FAILED)
 
+        val bytes = try { vaultFile.read() } catch (_: Exception) { return Open.Failed(VaultReadError.IO_FAILURE) }
         val key: SecretKey = try {
-            deriveSessionKey(password)
+            if (VaultContainer.isContainer(bytes)) VaultContainer.deriveKey(password, VaultContainer.header(bytes))
+            else deriveSessionKey(password)
         } catch (error: BadPaddingException) {
             return Open.Failed(VaultReadError.AUTHENTICATION_FAILED)
         } catch (error: GeneralSecurityException) {
@@ -101,7 +106,8 @@ class PasswordVault(
 
         var plain: ByteArray? = null
         return try {
-            plain = CryptoPrimitives.decrypt(key, vaultFile.read())
+            plain = if (VaultContainer.isContainer(bytes)) VaultContainer.openWithKey(key, bytes)
+                else CryptoPrimitives.decrypt(key, bytes)
             Open.Unlocked(VaultJson.stringToEntries(String(plain, StandardCharsets.UTF_8)), key)
         } catch (error: BadPaddingException) {
             Open.Failed(VaultReadError.AUTHENTICATION_FAILED)
@@ -119,12 +125,15 @@ class PasswordVault(
      * no password verification is possible, so GCM authentication alone gates access. The error
      * categories match [open] so callers map them identically. The key is never stored here.
      */
+    @Synchronized
     fun openWithKey(key: SecretKey): Open {
         if (!vaultFile.exists()) return Open.Failed(VaultReadError.MISSING)
 
         var plain: ByteArray? = null
         return try {
-            plain = CryptoPrimitives.decrypt(key, vaultFile.read())
+            val bytes = vaultFile.read()
+            plain = if (VaultContainer.isContainer(bytes)) VaultContainer.openWithKey(key, bytes)
+                else CryptoPrimitives.decrypt(key, bytes)
             Open.Unlocked(VaultJson.stringToEntries(String(plain, StandardCharsets.UTF_8)), key)
         } catch (error: BadPaddingException) {
             Open.Failed(VaultReadError.AUTHENTICATION_FAILED)
@@ -138,6 +147,7 @@ class PasswordVault(
     }
 
     /** Serializes [entries], encrypts them under [key] and promotes the vault atomically. */
+    @Synchronized
     fun save(key: SecretKey, entries: ArrayList<Entry>?): VaultWriteResult {
         return try {
             writeEncrypted(key, entries)
@@ -151,7 +161,52 @@ class PasswordVault(
         }
     }
 
+    /** Byte-for-byte, authenticated full backup. No settings file or re-encryption is needed.
+     * Legacy files must first be explicitly migrated with a verified recovery password.
+     */
+    @Synchronized
+    fun snapshot(key: SecretKey): ByteArray {
+        val bytes = vaultFile.read()
+        require(VaultContainer.isContainer(bytes)) { "Migrate the legacy vault before copying it as a portable backup" }
+        VaultContainer.openWithKey(key, bytes).fill(0)
+        return bytes
+    }
+
+    /** Explicit, atomic migration: keep the original bytes in .bck before promoting the container.
+     * Opening or saving a legacy vault never silently migrates it.
+     */
+    @Synchronized
+    @JvmOverloads
+    fun migrateToContainer(password: String, permitted: () -> Boolean = { true }): VaultWriteResult {
+        if (!permitted()) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
+        val opened = when (val result = open(password)) {
+            is Open.Unlocked -> result
+            is Open.Failed -> return VaultWriteResult.Rejected(when (result.error) {
+                VaultReadError.AUTHENTICATION_FAILED -> VaultWriteError.AUTHENTICATION_FAILED
+                VaultReadError.IO_FAILURE -> VaultWriteError.IO_FAILURE
+                else -> VaultWriteError.CORRUPT
+            })
+        }
+        try {
+            val prior = vaultFile.read()
+            if (VaultContainer.isContainer(prior)) return VaultWriteResult.Saved
+            val header = VaultContainer.fromSettings(settings)
+            val plaintext = CryptoPrimitives.decrypt(opened.key, prior)
+            val migrated = try { VaultContainer.seal(opened.key, header, plaintext) } finally { plaintext.fill(0) }
+            // Authenticate a complete container before any persistent mutation.
+            VaultContainer.open(password, migrated).fill(0)
+            if (!permitted()) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
+            try { backupFile.writeAtomic(prior) } catch (_: Exception) { return VaultWriteResult.Rejected(VaultWriteError.BACKUP_FAILED) }
+            if (!permitted()) return VaultWriteResult.Rejected(VaultWriteError.CANCELED)
+            vaultFile.writeAtomic(migrated)
+            return VaultWriteResult.Saved
+        } catch (_: IllegalArgumentException) { return VaultWriteResult.Rejected(VaultWriteError.INVALID_INPUT) }
+        catch (_: Exception) { return VaultWriteResult.Rejected(VaultWriteError.IO_FAILURE) }
+        finally { opened.entries.forEach { it.destroy() } }
+    }
+
     /** Copies the current vault bytes to the backup store through its own atomic promotion. */
+    @Synchronized
     fun backup(): Boolean = try {
         backupFile.writeAtomic(vaultFile.read())
         true
@@ -162,6 +217,7 @@ class PasswordVault(
     }
 
     /** Promotes the backup bytes back over the vault. */
+    @Synchronized
     fun restoreBackup(): Boolean = try {
         vaultFile.writeAtomic(backupFile.read())
         true
@@ -176,8 +232,9 @@ class PasswordVault(
      * re-encrypts the vault atomically. If writing the re-encrypted vault fails, both the
      * credential settings and `secrets.dat` (from `.bck`) are restored before returning.
      */
+    @Synchronized
     fun changePassword(currentPassword: String, newPassword: String): ReKey {
-        if (newPassword.isEmpty() || newPassword.length > InputPolicy.MAX_TEXT_CHARS) {
+        if (newPassword.isEmpty() || newPassword.length > InputPolicy.MAX_TEXT_CHARS || !StandardCharsets.UTF_8.newEncoder().canEncode(newPassword)) {
             return ReKey.Failed(VaultWriteError.INVALID_INPUT)
         }
         val unlocked = when (val opened = open(currentPassword)) {
@@ -216,7 +273,7 @@ class PasswordVault(
         return try {
             val newKey = provisionCredentials(newPassword)
             try {
-                writeEncrypted(newKey, unlocked.entries)
+                writeEncrypted(newKey, unlocked.entries, VaultContainer.fromSettings(settings))
                 ReKey.Changed(unlocked.entries, newKey)
             } catch (error: Exception) {
                 rollbackSettings()
@@ -310,13 +367,20 @@ class PasswordVault(
         }
     }
 
-    private fun writeEncrypted(key: SecretKey, entries: ArrayList<Entry>?) {
+    private fun writeEncrypted(key: SecretKey, entries: ArrayList<Entry>?, newHeader: VaultContainer.Header? = null) {
         val plain = VaultJson.entriesToString(entries).toByteArray(StandardCharsets.UTF_8)
         try {
             // Match DatabaseHelper.encryptedEntries: leave room for nonce/tag and the staged UUID.
             if (plain.size > BoundedInputReader.MAX_DOCUMENT_BYTES - 64)
                 throw IllegalArgumentException("Vault too large")
-            vaultFile.writeAtomic(CryptoPrimitives.encrypt(key, plain))
+            val prior = if (newHeader == null && vaultFile.exists()) vaultFile.read() else null
+            val header = newHeader ?: prior?.takeIf { VaultContainer.isContainer(it) }?.let {
+                // Authenticate existing metadata before preserving it with a new document.
+                VaultContainer.openWithKey(key, it).fill(0)
+                VaultContainer.header(it)
+            }
+            vaultFile.writeAtomic(if (header != null) VaultContainer.seal(key, header, plain)
+                else CryptoPrimitives.encrypt(key, plain))
         } finally {
             Arrays.fill(plain, 0.toByte())
         }

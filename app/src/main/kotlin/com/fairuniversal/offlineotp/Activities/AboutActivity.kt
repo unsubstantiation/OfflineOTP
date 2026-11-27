@@ -29,7 +29,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import com.fairuniversal.offlineotp.Fragments.AboutFragment
+import com.fairuniversal.offlineotp.Utilities.AboutFlavorLinks
 import com.fairuniversal.offlineotp.R
 import com.fairuniversal.offlineotp.Utilities.Settings
 import com.fairuniversal.offlineotp.Utilities.applySpecialFeatures
@@ -77,7 +77,7 @@ open class AboutActivity : BaseActivity() {
             // Never silently substitute a generic catalog for this build's generated notices.
             listOf(PortableLibraryNotice("Library notices unavailable", "Please consult the source distribution for this build."))
         }
-        val host = AboutScreenComposeView(this, version, libraries, AboutFragment().sharedExtraLinks(),
+        val host = AboutScreenComposeView(this, version, libraries, AboutFlavorLinks.extras(),
             onOpenLink = ::openLink, onVersionTap = ::versionTap, onClose = { finish() })
         page = host
         setContentView(host)

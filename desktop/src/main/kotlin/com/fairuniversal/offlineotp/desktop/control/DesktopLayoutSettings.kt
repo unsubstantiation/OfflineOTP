@@ -38,7 +38,8 @@ class DesktopLayoutSettings(
     private val readFocusSearchOnStart: () -> Boolean = { false },
     private val writeFocusSearchOnStart: (Boolean) -> Boolean = { true },
     private val readMinimizeOnCopy: () -> Boolean = { false },
-    private val writeMinimizeOnCopy: (Boolean) -> Boolean = { true }
+    private val writeMinimizeOnCopy: (Boolean) -> Boolean = { true },
+    private val writeSelection: ((PortableCardDisplaySelection) -> Boolean)? = null
 ) {
     class Request internal constructor(
         val current: Constants.CardLayouts,
@@ -242,6 +243,12 @@ class DesktopLayoutSettings(
         apply: (PortableCardDisplaySelection) -> Unit
     ): Boolean {
         if (!valid(request) || !active() || !valid(request)) return false
+        if (writeSelection != null) {
+            val saved = try { writeSelection.invoke(selection) } catch (_: Exception) { false }
+            if (!active() || !valid(request)) return false
+            if (!saved) { request.failed = true; return false }
+            pending = null; apply(selection); return true
+        }
         val resolvedLayout = Constants.CardLayouts.values()
             .firstOrNull { it.name == selection.layout.name } ?: Constants.CardLayouts.DEFAULT
         val resolvedLabelDisplay = Constants.LabelDisplay.values()
